@@ -17,6 +17,54 @@
 namespace multisnap {
 	typedef uint64_t sector_t;
 
+	struct device_details_disk {
+		__le64 dev_size;
+		__le64 mapped_blocks;
+		__le64 transaction_id;  /* when created */
+		__le32 creation_time;
+		__le32 snapshotted_time;
+	} __attribute__ ((packed));
+
+	struct device_details {
+		uint64_t dev_size;
+		uint64_t mapped_blocks;
+		uint64_t transaction_id;  /* when created */
+		uint32_t creation_time;
+		uint32_t snapshotted_time;
+	};
+
+	struct detail_traits {
+		typedef device_details_disk disk_type;
+		typedef device_details value_type;
+
+		static value_type construct(void *data) {
+			struct device_details_disk disk;
+			struct device_details cpu;
+
+			::memcpy(&disk, data, sizeof(disk));
+			cpu.dev_size = to_cpu<uint64_t>(disk.dev_size);
+			cpu.mapped_blocks = to_cpu<uint64_t>(disk.mapped_blocks);
+			cpu.transaction_id = to_cpu<uint64_t>(disk.transaction_id);
+			cpu.creation_time = to_cpu<uint32_t>(disk.creation_time);
+			cpu.snapshotted_time = to_cpu<uint32_t>(disk.snapshotted_time);
+
+			return cpu;
+		}
+	};
+#if 0
+	class dev_traits {
+	public:
+		typedef base::__le64 disk_type;
+		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> value_type;
+
+		static value_type construct(void *data) {
+			uint64_t root = uint64_traits::construct(data);
+
+			return value_type
+		}
+	};
+#endif
+
 	class metadata {
 	public:
 		typedef boost::shared_ptr<metadata> ptr;
@@ -75,29 +123,14 @@ namespace multisnap {
 
 		bool device_exists(dev_t dev) const;
 
-		class detail_traits {
-		public:
-			typedef uint64_t value_type;
-		};
-
-		class map_traits {
-		public:
-			typedef block_address value_type;
-		};
-
-		class dev_traits {
-		public:
-			typedef persistent_data::btree<1, map_traits, BLOCK_SIZE> value_type;
-		};
-
 		uint32_t time_;
 
 		persistent_data::transaction_manager<BLOCK_SIZE>::ptr tm_;
 
 		typedef persistent_data::btree<1, detail_traits, BLOCK_SIZE> detail_tree;
-		typedef persistent_data::btree<1, dev_traits, BLOCK_SIZE> dev_tree;
-		typedef persistent_data::btree<2, map_traits, BLOCK_SIZE> mapping_tree;
-		typedef persistent_data::btree<1, map_traits, BLOCK_SIZE> single_mapping_tree;
+		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> dev_tree;
+		typedef persistent_data::btree<2, uint64_traits, BLOCK_SIZE> mapping_tree;
+		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> single_mapping_tree;
 
 		detail_tree details_;
 		dev_tree mappings_top_level_;

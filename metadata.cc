@@ -115,7 +115,7 @@ metadata::create_thin(dev_t dev)
 		throw std::runtime_error("Device already exists");
 
 	single_mapping_tree::ptr new_tree(new single_mapping_tree(tm_));
-	mappings_top_level_.insert(key, *new_tree);
+	mappings_top_level_.insert(key, new_tree->get_root());
 	mappings_.set_root(mappings_top_level_.get_root()); // FIXME: ugly
 }
 
@@ -125,12 +125,14 @@ metadata::create_snap(dev_t dev, dev_t origin)
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
 
-	auto mtree = mappings_top_level_.lookup(origin_key);
-	if (!mtree)
+	auto mtree_root = mappings_top_level_.lookup(origin_key);
+	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
 
-	single_mapping_tree::ptr clone(mtree->clone());
-	mappings_top_level_.insert(snap_key, *clone);
+	single_mapping_tree otree(tm_, *mtree_root);
+
+	single_mapping_tree::ptr clone(otree.clone());
+	mappings_top_level_.insert(snap_key, clone->get_root());
 	mappings_.set_root(mappings_top_level_.get_root()); // FIXME: ugly
 
 	time_++;

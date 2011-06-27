@@ -30,6 +30,8 @@ namespace persistent_data {
 
 		class block_validator {
 		public:
+			typedef boost::shared_ptr<block_validator> ptr;
+
 			virtual ~block_validator() {}
 
 			virtual void check(block const &b) const = 0;
@@ -37,7 +39,7 @@ namespace persistent_data {
 		};
 
 		struct block {
-			typedef boost::optional<block_validator> maybe_validator;
+			typedef boost::optional<typename block_validator::ptr> maybe_validator;
 
 			block(block_address location,
 			      maybe_validator v = maybe_validator())
@@ -47,7 +49,7 @@ namespace persistent_data {
 
 			block_address location_;
 			buffer data_;
-			boost::optional<block_validator> validator_;
+			maybe_validator validator_;
 		};
 		typedef boost::shared_ptr<block> block_ptr;
 
@@ -67,6 +69,8 @@ namespace persistent_data {
 		// locked.
 		class write_ref : public read_ref {
 		public:
+			write_ref(block_ptr b);
+
 			using read_ref::data;
 			buffer &data();
 		};
@@ -86,16 +90,20 @@ namespace persistent_data {
 
 		// Validator variants
 		read_ref
-		read_lock(block_address location, block_validator const &v);
+		read_lock(block_address location,
+			  typename block_validator::ptr const &v);
 
 		boost::optional<read_ref>
-		read_try_lock(block_address location, block_validator const &v);
+		read_try_lock(block_address location,
+			      typename block_validator::ptr const &v);
 
 		write_ref
-		write_lock(block_address location, block_validator const &v);
+		write_lock(block_address location,
+			   typename block_validator::ptr const &v);
 
 		write_ref
-		write_lock_zero(block_address location, block_validator const &v);
+		write_lock_zero(block_address location,
+				typename block_validator::ptr const &v);
 
 		// Use this to commit changes
 		void flush(write_ref super_block);
@@ -110,6 +118,8 @@ namespace persistent_data {
 		int fd_;
 	};
 }
+
+#include "block.tcc"
 
 //----------------------------------------------------------------
 

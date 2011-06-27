@@ -1,16 +1,18 @@
 SOURCE=\
-	block.cc \
 	main.cc \
-	metadata.cc \
-	transaction_manager.cc
+	metadata.cc
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 CPPFLAGS=-Wall -std=c++0x
 INCLUDES=
 LIBS=-lstdc++
 
+.SUFFIXES: .cc .o .d
 
-.SUFFIXES: .cc .o
+%.d: %.cc
+	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$;                  \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
 
 .cc.o:
 	g++ -c $(CPPFLAGS) $(INCLUDES) -o $@ $<
@@ -18,7 +20,4 @@ LIBS=-lstdc++
 multisnap_display: $(OBJECTS)
 	g++ -o $@ $+ $(LIBS)
 
-main.o: block.h
-block.o: block.h
-transaction_manager.o: transaction_manager.h block.h
-metadata.o: block.h transaction_manager.h btree.h metadata.h
+include $(subst .cc,.d,$(SOURCE))

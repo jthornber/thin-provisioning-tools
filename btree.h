@@ -1,6 +1,7 @@
 #ifndef BTREE_H
 #define BTREE_H
 
+#include "endian.h"
 #include "transaction_manager.h"
 
 //----------------------------------------------------------------
@@ -17,8 +18,8 @@ namespace persistent_data {
 		typedef typename block_manager<BlockSize>::read_ref read_ref;
 		typedef typename block_manager<BlockSize>::write_ref write_ref;
 
-		btree(boost::shared_ptr<transaction_manager<BlockSize> > tm);
-		btree(boost::shared_ptr<transaction_manager<BlockSize> > tm,
+		btree(typename persistent_data::transaction_manager<BlockSize>::ptr tm);
+		btree(typename transaction_manager<BlockSize>::ptr tm,
 		      block_address root);
 		~btree();
 
@@ -42,7 +43,22 @@ namespace persistent_data {
 		bool destroy_;
 		block_address root_;
 	};
+
+	struct uint64_traits {
+		typedef base::__le64 disk_type;
+		typedef uint64_t value_type;
+
+		static value_type construct(void *data) {
+			// extra memcpy because I'm paranoid about alignment issues
+			base::__le64 disk;
+
+			::memcpy(&disk, data, sizeof(disk));
+			return base::to_cpu<uint64_t>(disk);
+		}
+	};
 };
+
+#include "btree.tcc"
 
 //----------------------------------------------------------------
 

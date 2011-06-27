@@ -54,6 +54,8 @@ namespace persistent_data {
 	};
 }
 
+#include "transaction_manager.tcc"
+
 //----------------------------------------------------------------
 
 #endif
