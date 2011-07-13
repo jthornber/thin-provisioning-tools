@@ -20,7 +20,7 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;
 
-		block_manager(std::string const &path);
+		block_manager(std::string const &path, block_address nr_blocks);
 		~block_manager();
 
 		typedef unsigned char buffer[BlockSize];
@@ -28,48 +28,50 @@ namespace persistent_data {
 
 		class block;
 
-		class block_validator {
+		class validator {
 		public:
-			typedef boost::shared_ptr<block_validator> ptr;
+			typedef boost::shared_ptr<validator> ptr;
 
-			virtual ~block_validator() {}
+			virtual ~validator() {}
 
 			virtual void check(block const &b) const = 0;
 			virtual void prepare(block &b) const = 0;
 		};
 
 		struct block {
-			typedef boost::optional<typename block_validator::ptr> maybe_validator;
+			typedef boost::shared_ptr<block> ptr;
+			typedef boost::optional<typename validator::ptr> maybe_validator;
 
 			block(block_address location,
 			      maybe_validator v = maybe_validator())
 				: location_(location),
-				  validator_(v) {
+				  validator_(v),
+				  initialised_(false) {
 			}
 
 			block_address location_;
 			buffer data_;
 			maybe_validator validator_;
+			bool initialised_;
 		};
-		typedef boost::shared_ptr<block> block_ptr;
 
 		class read_ref {
 		public:
-			read_ref(block_ptr b);
+			read_ref(typename block::ptr b);
 			virtual ~read_ref() {}
 
 			block_address get_location() const;
 			const_buffer &data() const;
 
 		protected:
-			block_ptr block_;
+			typename block::ptr block_;
 		};
 
 		// Inherited from read_ref, since you can read a block that's write
 		// locked.
 		class write_ref : public read_ref {
 		public:
-			write_ref(block_ptr b);
+			write_ref(typename block::ptr b);
 
 			using read_ref::data;
 			buffer &data();
@@ -77,10 +79,10 @@ namespace persistent_data {
 
 		// Locking methods
 		read_ref
-		read_lock(block_address location);
+		read_lock(block_address location) const;
 
 		boost::optional<read_ref>
-		read_try_lock(block_address location);
+		read_try_lock(block_address location) const;
 
 		write_ref
 		write_lock(block_address location);
@@ -91,31 +93,33 @@ namespace persistent_data {
 		// Validator variants
 		read_ref
 		read_lock(block_address location,
-			  typename block_validator::ptr const &v);
+			  typename validator::ptr const &v) const;
 
 		boost::optional<read_ref>
 		read_try_lock(block_address location,
-			      typename block_validator::ptr const &v);
+			      typename validator::ptr const &v) const;
 
 		write_ref
 		write_lock(block_address location,
-			   typename block_validator::ptr const &v);
+			   typename validator::ptr const &v);
 
 		write_ref
 		write_lock_zero(block_address location,
-				typename block_validator::ptr const &v);
+				typename validator::ptr const &v);
 
 		// Use this to commit changes
 		void flush(write_ref super_block);
 
 	private:
-		void read_block(block &b);
+		void check(block_address b) const;
+
+		void read_block(block &b) const;
 		void write_block(block const &b);
 		void zero_block(block &b);
-
 		void write_and_release(block *b);
 
 		int fd_;
+		block_address nr_blocks_;
 	};
 }
 
