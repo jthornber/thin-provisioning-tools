@@ -22,8 +22,8 @@ namespace persistent_data {
 		virtual void set_count(block_address b, ref_t c) = 0;
 		virtual void commit() = 0;
 
-		virtual void inc_block(block_address b) = 0;
-		virtual void dec_block(block_address b) = 0;
+		virtual void inc(block_address b) = 0;
+		virtual void dec(block_address b) = 0;
 		virtual block_address new_block() = 0;
 
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;

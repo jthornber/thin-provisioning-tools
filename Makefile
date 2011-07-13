@@ -2,7 +2,8 @@ SOURCE=\
 	metadata.cc
 
 PROGRAM_SOURCE=\
-	block_t.cc
+	block_t.cc \
+	space_map_t.cc
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 CPPFLAGS=-Wall -std=c++0x
@@ -23,6 +24,9 @@ multisnap_display: $(OBJECTS) main.o
 	g++ -o $@ $+ $(LIBS)
 
 block_t: block_t.o
+	g++ -o $@ $+ $(LIBS)
+
+space_map_t: space_map_t.o
 	g++ -o $@ $+ $(LIBS)
 
 include $(subst .cc,.d,$(SOURCE))
