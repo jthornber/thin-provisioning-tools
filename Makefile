@@ -3,12 +3,20 @@ SOURCE=\
 
 PROGRAM_SOURCE=\
 	block_t.cc \
-	space_map_t.cc
+	space_map_t.cc \
+	transaction_manager_t.cc
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 CPPFLAGS=-Wall -std=c++0x
 INCLUDES=
 LIBS=-lstdc++
+
+.PHONEY: unit-tests
+
+unit-tests: block_t space_map_t transaction_manager_t
+	./block_t
+	./space_map_t
+	./transaction_manager_t
 
 .SUFFIXES: .cc .o .d
 
@@ -21,13 +29,16 @@ LIBS=-lstdc++
 	g++ -c $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 multisnap_display: $(OBJECTS) main.o
-	g++ -o $@ $+ $(LIBS)
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 block_t: block_t.o
-	g++ -o $@ $+ $(LIBS)
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 space_map_t: space_map_t.o
-	g++ -o $@ $+ $(LIBS)
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+transaction_manager_t: transaction_manager_t.o
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 include $(subst .cc,.d,$(SOURCE))
 include $(subst .cc,.d,$(PROGRAM_SOURCE))

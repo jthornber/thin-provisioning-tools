@@ -14,37 +14,41 @@ namespace persistent_data {
 	class transaction_manager : public boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<transaction_manager<MetadataBlockSize> > ptr;
+		typedef typename block_manager<MetadataBlockSize>::read_ref read_ref;
+		typedef typename block_manager<MetadataBlockSize>::write_ref write_ref;
+		typedef typename block_manager<MetadataBlockSize>::validator::ptr validator;
 
+		// If the space map is persistent, then the caller should
+		// hold onto a reference and remember to call sm_->commit()
+		// and update the superblock before dropping the superblock
+		// reference.
 		transaction_manager(typename block_manager<MetadataBlockSize>::ptr bm,
 				    space_map::ptr sm);
 		~transaction_manager();
 
-		typedef typename block_manager<MetadataBlockSize>::read_ref read_ref;
-		typedef typename block_manager<MetadataBlockSize>::write_ref write_ref;
-		typedef typename block_manager<MetadataBlockSize>::block_validator block_validator;
+		// Drop the superblock reference to commit
+		write_ref begin(block_address superblock);
+		write_ref begin(block_address superblock, validator v);
 
-		void reserve_block(block_address location);
-		void begin();
-		void pre_commit();
-		void commit(write_ref superblock);
-
-		block_address alloc_block();
 		write_ref new_block();
-		write_ref new_block(block_validator const &v);
+		write_ref new_block(validator v);
 
-		write_ref shadow(block_address orig, bool &inc_children);
-		write_ref shadow(block_address orig, block_validator const &v, bool &inc_children);
+		// shadowing returns a new write_ref, and a boolean which
+		// indicates whether the children should be incremented.
+		std::pair<write_ref, bool> shadow(block_address orig);
+		std::pair<write_ref, bool> shadow(block_address orig, validator v);
 
 		read_ref read_lock(block_address b);
-		read_ref read_lock(block_address b, block_validator const &v);
+		read_ref read_lock(block_address b, validator v);
 
-		void inc(block_address b);
-		void dec(block_address b);
-		uint32_t ref_count(block_address b) const;
+		space_map::ptr get_sm() {
+			return sm_;
+		}
 
 	private:
 		void add_shadow(block_address b);
-	        bool is_shadow(block_address b);
+		void remove_shadow(block_address b);
+	        bool is_shadow(block_address b) const;
 		void wipe_shadow_table();
 
 		typename block_manager<MetadataBlockSize>::ptr bm_;

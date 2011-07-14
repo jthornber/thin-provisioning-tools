@@ -4,6 +4,7 @@
 
 using namespace boost;
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -21,98 +22,104 @@ transaction_manager<BlockSize>::~transaction_manager()
 }
 
 template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::reserve_block(block_address location)
+typename transaction_manager<BlockSize>::write_ref
+transaction_manager<BlockSize>::begin(block_address superblock)
 {
-	sm_->inc_block(location);
-}
-
-template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::begin()
-{
-}
-
-template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::pre_commit()
-{
-	sm_->commit();
-}
-
-template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::commit(write_ref superblock)
-{
-	bm_->flush(superblock);
+	auto wr = bm_->superblock(superblock);
 	wipe_shadow_table();
+	return wr;
 }
 
 template <uint32_t BlockSize>
-block_address
-transaction_manager<BlockSize>::alloc_block()
+typename transaction_manager<BlockSize>::write_ref
+transaction_manager<BlockSize>::begin(block_address superblock,
+				      validator v)
 {
-	return sm_->new_block();
+	auto wr = bm_->superblock(superblock, v);
+	wipe_shadow_table();
+	return wr;
 }
 
+// FIXME: these explicit try/catches are gross
 template <uint32_t BlockSize>
 typename transaction_manager<BlockSize>::write_ref
 transaction_manager<BlockSize>::new_block()
 {
 	block_address b = sm_->new_block();
-	add_shadow(b);
-	return bm_->write_lock_zero(b);
+	try {
+		add_shadow(b);
+		try {
+			return bm_->write_lock_zero(b);
+		} catch (...) {
+			remove_shadow(b);
+			throw;
+		}
+
+	} catch (...) {
+		sm_->dec(b);
+		throw;
+	}
 }
 
 template <uint32_t BlockSize>
 typename transaction_manager<BlockSize>::write_ref
-transaction_manager<BlockSize>::new_block(block_validator const &v)
+transaction_manager<BlockSize>::new_block(validator v)
 {
 	block_address b = sm_->new_block();
-	add_shadow(b);
-	return bm_->write_lock_zero(b, v);
+	try {
+		add_shadow(b);
+		try {
+			return bm_->write_lock_zero(b, v);
+		} catch (...) {
+			remove_shadow(b);
+			throw;
+		}
+	} catch (...) {
+		sm_->dec(b);
+		throw;
+	}
 }
 
+// FIXME: make exception safe
 template <uint32_t BlockSize>
-typename transaction_manager<BlockSize>::write_ref
-transaction_manager<BlockSize>::shadow(block_address orig, bool &inc_children)
+pair<typename transaction_manager<BlockSize>::write_ref, bool>
+transaction_manager<BlockSize>::shadow(block_address orig)
 {
 	if (is_shadow(orig) &&
-	    sm_->count_possibly_greater_than_one(orig)) {
-		inc_children = false;
-		return bm_->write_lock(orig);
-	}
+	    !sm_->count_possibly_greater_than_one(orig))
+		return make_pair(bm_->write_lock(orig), false);
 
 	auto src = bm_->read_lock(orig);
 	auto dest = bm_->write_lock_zero(sm_->new_block());
-	::memcpy(dest->data_, src->data_, BlockSize);
+	::memcpy(dest.data(), src.data(), BlockSize);
 
 	ref_t count = sm_->get_count(orig);
-	sm_->dec_block(orig);
-	inc_children = count > 1;
-	add_shadow(dest->location_);
-	return dest;
+	if (count == 0)
+		throw runtime_error("shadowing free block");
+	sm_->dec(orig);
+	add_shadow(dest.get_location());
+	return make_pair(dest, count > 1);
 }
 
+// FIXME: duplicate code
 template <uint32_t BlockSize>
-typename transaction_manager<BlockSize>::write_ref
-transaction_manager<BlockSize>::shadow(block_address orig, block_validator const &v, bool &inc_children)
+pair<typename transaction_manager<BlockSize>::write_ref, bool>
+transaction_manager<BlockSize>::shadow(block_address orig, validator v)
 {
 	if (is_shadow(orig) &&
-	    sm_->count_possibly_greater_than_one(orig)) {
-		inc_children = false;
-		return bm_->write_lock(orig);
-	}
+	    sm_->count_possibly_greater_than_one(orig))
+		return make_pair(bm_->write_lock(orig), false);
 
 	auto src = bm_->read_lock(orig, v);
 	auto dest = bm_->write_lock_zero(sm_->new_block(), v);
 	::memcpy(dest->data_, src->data_, BlockSize);
 
 	ref_t count = sm_->get_count(orig);
-	sm_->dec_block(orig);
-	inc_children = count > 1;
+	if (count == 0)
+		throw runtime_error("shadowing free block");
+	sm_->dec(orig);
 	add_shadow(dest->location_);
-	return dest;
+	return make_pair(dest, count > 1);
 }
 
 template <uint32_t BlockSize>
@@ -124,30 +131,9 @@ transaction_manager<BlockSize>::read_lock(block_address b)
 
 template <uint32_t BlockSize>
 typename transaction_manager<BlockSize>::read_ref
-transaction_manager<BlockSize>::read_lock(block_address b, block_validator const &v)
+transaction_manager<BlockSize>::read_lock(block_address b, validator v)
 {
 	return bm_->read_lock(b, v);
-}
-
-template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::inc(block_address b)
-{
-	sm_->inc_block(b);
-}
-
-template <uint32_t BlockSize>
-void
-transaction_manager<BlockSize>::dec(block_address b)
-{
-	sm_->dec_block(b);
-}
-
-template <uint32_t BlockSize>
-uint32_t
-transaction_manager<BlockSize>::ref_count(block_address b) const
-{
-	return sm_->get_count(b);
 }
 
 template <uint32_t BlockSize>
@@ -158,8 +144,15 @@ transaction_manager<BlockSize>::add_shadow(block_address b)
 }
 
 template <uint32_t BlockSize>
+void
+transaction_manager<BlockSize>::remove_shadow(block_address b)
+{
+	shadows_.erase(b);
+}
+
+template <uint32_t BlockSize>
 bool
-transaction_manager<BlockSize>::is_shadow(block_address b)
+transaction_manager<BlockSize>::is_shadow(block_address b) const
 {
 	return shadows_.count(b) > 0;
 }
