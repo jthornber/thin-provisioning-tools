@@ -9,9 +9,26 @@
 #include <boost/optional.hpp>
 #include <boost/shared_ptr.hpp>
 
+#include <string.h>
+
 //----------------------------------------------------------------
 
 namespace persistent_data {
+
+	class count_adjuster {
+	public:
+		count_adjuster(unsigned &c)
+			: c_(c) {
+			c_++;
+		}
+
+		~count_adjuster() {
+			c_--;
+		}
+
+	private:
+		unsigned &c_;
+	};
 
 	typedef uint64_t block_address;
 
@@ -43,16 +60,25 @@ namespace persistent_data {
 			typedef boost::optional<typename validator::ptr> maybe_validator;
 
 			block(block_address location,
+			      const_buffer &data,
+			      unsigned &count,
+			      unsigned &type_count,
+			      bool is_superblock = false,
 			      maybe_validator v = maybe_validator())
 				: location_(location),
+				  adjuster_(count),
+				  type_adjuster_(type_count),
 				  validator_(v),
-				  initialised_(false) {
+				  is_superblock_(is_superblock) {
+				::memcpy(data_, data, sizeof(data));
 			}
 
 			block_address location_;
+			count_adjuster adjuster_;
+			count_adjuster type_adjuster_;
 			buffer data_;
 			maybe_validator validator_;
-			bool initialised_;
+			bool is_superblock_;
 		};
 
 		class read_ref {
@@ -64,6 +90,7 @@ namespace persistent_data {
 			const_buffer &data() const;
 
 		protected:
+			friend class block_manager;
 			typename block::ptr block_;
 		};
 
@@ -93,33 +120,56 @@ namespace persistent_data {
 		// Validator variants
 		read_ref
 		read_lock(block_address location,
-			  typename validator::ptr const &v) const;
+			  typename validator::ptr v) const;
 
 		boost::optional<read_ref>
 		read_try_lock(block_address location,
-			      typename validator::ptr const &v) const;
+			      typename validator::ptr v) const;
 
 		write_ref
 		write_lock(block_address location,
-			   typename validator::ptr const &v);
+			   typename validator::ptr v);
 
 		write_ref
 		write_lock_zero(block_address location,
-				typename validator::ptr const &v);
+				typename validator::ptr v);
 
-		// Use this to commit changes
-		void flush(write_ref super_block);
+		// The super block is the one that should be written last.
+		// Unlocking this block triggers the following events:
+		//
+		// i) synchronous write of all dirty blocks _except_ the
+		// superblock.
+		//
+		// ii) synchronous write of superblock
+		//
+		// If any locks are held at the time of the superblock
+		// being unlocked then an exception will be thrown.
+		write_ref superblock(block_address b);
+		write_ref superblock_zero(block_address b);
+		write_ref superblock(block_address b,
+				     typename validator::ptr v);
+		write_ref superblock_zero(block_address b,
+					  typename validator::ptr v);
+
+		// If you aren't using a superblock, then this flush method
+		// will write all dirty data.  Throws if any locks are
+		// held.
+		void flush();
 
 	private:
 		void check(block_address b) const;
 
-		void read_block(block &b) const;
-		void write_block(block const &b);
-		void zero_block(block &b);
-		void write_and_release(block *b);
+		void read_buffer(block_address location, buffer &buf) const;
+		void write_buffer(block_address location, const_buffer &buf);
+		void zero_buffer(buffer &buf) const;
+		void read_release(block *b) const;
+		void write_release(block *b);
 
 		int fd_;
 		block_address nr_blocks_;
+		mutable unsigned lock_count_;
+		mutable unsigned superblock_count_;
+		mutable unsigned ordinary_count_;
 	};
 }
 
