@@ -87,5 +87,3 @@ BOOST_AUTO_TEST_CASE(shadow_free_block_fails)
 	BOOST_CHECK_THROW(tm->shadow(1), runtime_error);
 }
 
-// First shadow in a transaction returns a different block
-// Second shadow in a transaction rtu

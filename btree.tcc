@@ -1,243 +1,234 @@
 #include "btree.h"
-
-#include "endian.h"
 #include "transaction_manager.h"
 
-#include <list>
-#include <boost/noncopyable.hpp>
-#include <boost/optional.hpp>
+#include <iostream>
 
-// FIXME: can't have using clauses in a header
-using namespace base;
-using namespace boost;
+using namespace btree_detail;
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
-namespace btree_detail {
-	//------------------------------------------------
-	// On disk data layout for btree nodes
-	enum node_flags {
-		INTERNAL_NODE = 1,
-		LEAF_NODE = 1 << 1
-	};
-
-	struct node_header {
-		__le32 csum;
-		__le32 flags;
-		__le64 blocknr; /* which block this node is supposed to live in */
-
-		__le32 nr_entries;
-		__le32 max_entries;
-	} __attribute__((packed));
-
-	struct disk_node {
-		struct node_header header;
-		__le64 keys[0];
-	} __attribute__((packed));
-
-
-	//------------------------------------------------
-	// Class that acts as an interface over the raw little endian btree
-	// node data.
-	class node_ref {
-	public:
-		enum type {
-			INTERNAL,
-			LEAF
-		};
-
-		node_ref(disk_node *raw)
-			: raw_(raw) {
-		}
-
-		type get_type() const {
-			uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
-			if (flags & INTERNAL_NODE)
-				return INTERNAL;
-			else if (flags & LEAF_NODE)
-				return LEAF;
-			else
-				throw runtime_error("unknow node type");
-		}
-
-		void set_type(type t){
-			uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
-			switch (t) {
-			case INTERNAL:
-				flags |= INTERNAL_NODE;
-				break;
-
-			case LEAF:
-				flags |= LEAF_NODE;
-				break;
-			}
-			raw_->header.flags = to_disk<__le32>(flags);
-		}
-
-		unsigned get_nr_entries() const {
-			return to_cpu<uint32_t>(raw_->header.nr_entries);
-		}
-
-		void set_nr_entries(unsigned n) {
-			raw_->header.nr_entries = to_disk<__le32>(n);
-		}
-
-		unsigned get_max_entries() const {
-			return to_cpu<uint32_t>(raw_->header.max_entries);
-		}
-
-		void set_max_entries(unsigned n) {
-			raw_->header.max_entries = to_disk<__le32>(n);
-		}
-
-		uint64_t key_at(unsigned i) const {
-			return to_cpu<uint64_t>(raw_->keys[i]);
-		}
-
-		template <typename ValueTraits>
-		typename ValueTraits::value_type value_at(unsigned i) const {
-			void *value_base = &raw_->keys[to_cpu<uint32_t>(raw_->header.max_entries)];
-			void *value_ptr = static_cast<unsigned char *>(value_base) +
-				sizeof(typename ValueTraits::disk_type) * i;
-			return ValueTraits::construct(value_ptr);
-		}
-
-	private:
-		disk_node *raw_;
-	};
-
-	//------------------------------------------------
-	// Various searches
-	int bsearch(node_ref const &n, uint64_t key, int want_hi)
-	{
-		int lo = -1, hi = n.get_nr_entries();
-
-		while(hi - lo > 1) {
-			int mid = lo + ((hi - lo) / 2);
-			uint64_t mid_key = n.key_at(mid);
-
-			if (mid_key == key)
-				return mid;
-
-			if (mid_key < key)
-				lo = mid;
-			else
-				hi = mid;
-		}
-
-		return want_hi ? hi : lo;
-	}
-
-	optional<unsigned> exact_search(node_ref const &n, uint64_t key) {
-		int i = bsearch(n, key, 0);
-		if (i < 0 || static_cast<unsigned>(i) >= n.get_nr_entries())
-			return optional<unsigned>();
-
-		return optional<unsigned>(i);
-	}
-
-	//------------------------------------------------
-	//
-	template <uint32_t BlockSize>
-	node_ref to_node(typename block_manager<BlockSize>::read_ref &b)
-	{
-		// FIXME: this should return a const read_ref somehow.
-		return node_ref(
-			reinterpret_cast<disk_node *>(const_cast<unsigned char *>(b.data())));
-	}
-
-	template <uint32_t BlockSize>
-	node_ref to_node(typename block_manager<BlockSize>::write_ref &b)
-	{
-		return node_ref(
-			reinterpret_cast<disk_node *>(const_cast<unsigned char *>(b.data())));
-	}
-
-	unsigned
-	calc_max_entries(uint32_t bs);
-
-	// Spines
-	template <uint32_t BlockSize>
-	class ro_spine : private noncopyable {
-	public:
-		ro_spine(typename transaction_manager<BlockSize>::ptr tm)
-			: tm_(tm) {
-		}
-
-		void step(block_address b) {
-			spine_.push_back(tm_->read_lock(b));
-			if (spine_.size() > 2)
-				spine_.pop_front();
-		}
-
-		node_ref get_node() {
-			return to_node<BlockSize>(spine_.back());
-		}
-
-	private:
-		typename transaction_manager<BlockSize>::ptr tm_;
-		std::list<typename block_manager<BlockSize>::read_ref> spine_;
-	};
-
-	template <uint32_t BlockSize>
-	class shadow_spine : private noncopyable {
-	public:
-		shadow_spine(typename transaction_manager<BlockSize>::ptr tm)
-			: tm_(tm) {
-		}
-
-		void step(block_address b) {
-			spine_.push_back(tm_->shadow(b));
-			if (spine_.size() == 1)
-				root_ = spine_.front().get_location();
-			else if (spine_.size() > 2)
-				spine_.pop_front();
-		}
-
-		node_ref get_node() {
-			return to_node<BlockSize>(spine_.back());
-		}
-
-		node_ref get_parent() {
-			if (spine_.size() < 2)
-				throw std::runtime_error("no parent");
-
-			return to_node<BlockSize>(spine_.front());
-		}
-
-		node_ref get_root() {
-			return root_;
-		}
-
-	private:
-		typename transaction_manager<BlockSize>::ptr tm_;
-		std::list<typename block_manager<BlockSize>::write_ref> spine_;
-		block_address root_;
-	};
-
-	template <typename ValueTraits, uint32_t BlockSize> //, typename Search>
-	optional<typename ValueTraits::value_type>
-	lookup_raw(ro_spine<BlockSize> &spine, block_address block, uint64_t key) {
-
-		using namespace boost;
-		typedef typename ValueTraits::value_type leaf_type;
-
-		for (;;) {
-			spine.step(block);
-			node_ref const &n = spine.get_node();
-
-			auto mi = exact_search(n, key);
-			if (!mi)
-				return optional<leaf_type>();
-
-			if (n.get_type() == node_ref::LEAF)
-				return optional<leaf_type>(n.value_at<ValueTraits>(*mi));
-
-			block = n.value_at<uint64_traits>(*mi);
-		}
-	}
+template <typename ValueTraits, uint32_t BlockSize>
+node_ref<ValueTraits, BlockSize>::node_ref(disk_node *raw)
+	: raw_(raw)
+{
 }
+
+template <typename ValueTraits, uint32_t BlockSize>
+btree_detail::node_type
+node_ref<ValueTraits, BlockSize>::get_type() const
+{
+	uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
+	if (flags & INTERNAL_NODE)
+		return INTERNAL;
+	else if (flags & LEAF_NODE)
+		return LEAF;
+	else
+		throw runtime_error("unknow node type");
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_type(node_type t)
+{
+	uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
+	switch (t) {
+	case INTERNAL:
+		flags |= INTERNAL_NODE;
+		break;
+
+	case LEAF:
+		flags |= LEAF_NODE;
+		break;
+	}
+	raw_->header.flags = to_disk<__le32>(flags);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+unsigned
+node_ref<ValueTraits, BlockSize>::get_nr_entries() const
+{
+	return to_cpu<uint32_t>(raw_->header.nr_entries);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_nr_entries(unsigned n)
+{
+	raw_->header.nr_entries = to_disk<__le32>(n);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+unsigned
+node_ref<ValueTraits, BlockSize>::get_max_entries() const
+{
+	return to_cpu<uint32_t>(raw_->header.max_entries);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_max_entries(unsigned n)
+{
+	raw_->header.max_entries = to_disk<__le32>(n);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_max_entries()
+{
+	set_max_entries(calc_max_entries());
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+uint64_t
+node_ref<ValueTraits, BlockSize>::key_at(unsigned i) const
+{
+	return to_cpu<uint64_t>(raw_->keys[i]);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_key(unsigned i, uint64_t k)
+{
+	raw_->keys[i] = to_disk<__le64>(k);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+typename ValueTraits::value_type
+node_ref<ValueTraits, BlockSize>::value_at(unsigned i) const
+{
+	// We have to copy because of alignment issues.
+	typename ValueTraits::disk_type d;
+	::memcpy(&d, value_ptr(i), sizeof(d));
+
+	typename ValueTraits::value_type v;
+	ValueTraits::unpack(d, v);
+	return v;
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::set_value(unsigned i,
+					    typename ValueTraits::value_type const &v)
+{
+	typename ValueTraits::disk_type d;
+	ValueTraits::pack(v, d);
+	::memcpy(value_ptr(i), &d, sizeof(d));
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::insert_at(unsigned i,
+					    uint64_t key,
+					    typename ValueTraits::value_type const &v)
+{
+	unsigned n = get_nr_entries();
+	if ((n + 1) > get_max_entries())
+		throw runtime_error("too many entries");
+
+	set_nr_entries(n + 1);
+	::memmove(key_ptr(i + 1), key_ptr(i), sizeof(uint64_t));
+	::memmove(value_ptr(i + 1), value_ptr(i), sizeof(typename ValueTraits::disk_type));
+	overwrite_at(i, key, v);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::overwrite_at(unsigned i,
+					       uint64_t key,
+					       typename ValueTraits::value_type const &v)
+{
+	set_key(i, key);
+	set_value(i, v);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void
+node_ref<ValueTraits, BlockSize>::copy_entries(node_ref const &rhs,
+					       unsigned begin,
+					       unsigned end)
+{
+	unsigned count = end - begin;
+	unsigned n = get_nr_entries();
+	if ((n + count) > get_max_entries())
+		throw runtime_error("too many entries");
+
+	set_nr_entries(n + count);
+	::memcpy(rhs.key_ptr(begin), key_ptr(n), sizeof(uint64_t) * count);
+	::memcpy(rhs.value_ptr(begin), value_ptr(n), sizeof(typename ValueTraits::disk_type) * count);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+int
+node_ref<ValueTraits, BlockSize>::bsearch(uint64_t key,
+					  int want_hi) const
+{
+	int lo = -1, hi = get_nr_entries();
+
+	while(hi - lo > 1) {
+		int mid = lo + ((hi - lo) / 2);
+		uint64_t mid_key = key_at(mid);
+
+		if (mid_key == key)
+			return mid;
+
+		if (mid_key < key)
+			lo = mid;
+		else
+			hi = mid;
+	}
+
+	return want_hi ? hi : lo;
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+optional<unsigned>
+node_ref<ValueTraits, BlockSize>::exact_search(uint64_t key) const
+{
+	int i = bsearch(key, 0);
+	if (i < 0 || static_cast<unsigned>(i) >= get_nr_entries())
+		return optional<unsigned>();
+
+	return optional<unsigned>(i);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+int
+node_ref<ValueTraits, BlockSize>::lower_bound(uint64_t key) const
+{
+	return bsearch(key, 0);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+unsigned
+node_ref<ValueTraits, BlockSize>::calc_max_entries(void)
+{
+	uint32_t total;
+
+	// key + value
+	size_t elt_size = sizeof(uint64_t) + sizeof(typename ValueTraits::disk_type);
+	total = (BlockSize - sizeof(struct node_header)) / elt_size;
+	return (total / 3) * 3; // rounds down
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void *
+node_ref<ValueTraits, BlockSize>::key_ptr(unsigned i) const
+{
+	return raw_->keys + i;
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+void *
+node_ref<ValueTraits, BlockSize>::value_ptr(unsigned i) const
+{
+	void *value_base = &raw_->keys[to_cpu<uint32_t>(raw_->header.max_entries)];
+	return static_cast<unsigned char *>(value_base) +
+		sizeof(typename ValueTraits::disk_type) * i;
+}
+
+//----------------------------------------------------------------
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 btree<Levels, ValueTraits, BlockSize>::btree(typename transaction_manager<BlockSize>::ptr tm)
@@ -248,10 +239,10 @@ btree<Levels, ValueTraits, BlockSize>::btree(typename transaction_manager<BlockS
 
 	write_ref root = tm_->new_block();
 
-	node_ref n = to_node<BlockSize>(root);
-	n.set_type(node_ref::LEAF);
+	auto n = to_node<ValueTraits, BlockSize>(root);
+	n.set_type(btree_detail::LEAF);
 	n.set_nr_entries(0);
-	n.set_max_entries(calc_max_entries(BlockSize));
+	n.set_max_entries();
 
 	root_ = root.get_location();
 }
@@ -310,15 +301,41 @@ btree<Levels, ValueTraits, BlockSize>::lookup_ge(key const &key) const
 	return maybe_pair();
 }
 
-#if 0
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 void
-btree<Levels, ValueTraits, BlockSize>::insert(key const &key, typename ValueTraits::value_type const &value)
+btree<Levels, ValueTraits, BlockSize>::
+insert(key const &key,
+       typename ValueTraits::value_type const &value)
 {
 	using namespace btree_detail;
 
+	block_address block = root_;
+	int index = 0;		// FIXME: ???
+	shadow_spine<BlockSize> spine(tm_);
+
+	for (unsigned level = 0; level < Levels - 1; ++level) {
+		bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index);
+
+		auto n = spine.template get_node<uint64_traits>();
+		if (need_insert) {
+			btree<Levels - 1, ValueTraits, BlockSize> new_tree(tm_);
+			n.insert_at(index, key[level], new_tree.get_root());
+		}
+
+		block = n.value_at(index);
+	}
+
+	bool need_insert = insert_location<ValueTraits>(spine, block, key[Levels - 1], &index);
+
+	auto n = spine.template get_node<ValueTraits>();
+	if (need_insert)
+		n.insert_at(index, key[Levels - 1], value);
+	else
+		// FIXME: check if we're overwriting with the same value.
+		n.set_value(index, value);
 }
 
+#if 0
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 void
 btree<Levels, ValueTraits, BlockSize>::remove(key const &key)
@@ -366,4 +383,178 @@ btree<Levels, ValueTraits, BlockSize>::destroy()
 
 }
 #endif
+
+template <unsigned Levels, typename _, uint32_t BlockSize>
+template <typename ValueTraits>
+void
+btree<Levels, _, BlockSize>::
+split_node(btree_detail::shadow_spine<BlockSize> &spine,
+	   block_address parent_index,
+	   uint64_t key,
+	   bool top)
+{
+	auto n = spine.template get_node<ValueTraits>();
+	if (n.get_nr_entries() == n.get_max_entries()) {
+		if (top)
+			split_beneath<ValueTraits>(spine, key);
+		else
+			split_sibling<ValueTraits>(spine, parent_index, key);
+	}
+}
+
+template <unsigned Levels, typename _, uint32_t BlockSize>
+template <typename ValueTraits>
+void
+btree<Levels, _, BlockSize>::
+split_beneath(btree_detail::shadow_spine<BlockSize> &spine,
+	      uint64_t key)
+{
+	using namespace btree_detail;
+
+	node_type type;
+	unsigned nr_left, nr_right;
+
+
+	auto left = tm_->new_block();
+	auto l = to_node<ValueTraits, BlockSize>(left);
+	l.set_nr_entries(0);
+	l.set_max_entries();
+
+	auto right = tm_->new_block();
+	auto r = to_node<ValueTraits, BlockSize>(right);
+	r.set_nr_entries(0);
+	r.set_max_entries();
+
+	{
+		auto p = spine.template get_node<ValueTraits>();
+		nr_left = p.get_nr_entries() / 2;
+		nr_right = p.get_nr_entries() - nr_left;
+		type = p.get_type();
+
+		l.set_type(type);
+		l.copy_entries(p, 0, nr_left);
+
+		r.set_type(type);
+		r.copy_entries(p, nr_left, nr_left + nr_right);
+	}
+
+	{
+		// The parent may have changed value type, so we re-get it.
+		auto p = spine.template get_node<uint64_traits>();
+		p.set_type(btree_detail::INTERNAL);
+		p.set_nr_entries(2);
+
+		p.overwrite_at(0, l.key_at(0), left.get_location());
+		p.overwrite_at(1, r.key_at(0), right.get_location());
+	}
+
+	if (key < r.key_at(0))
+		spine.step(left);
+	else
+		spine.step(right);
+}
+
+template <unsigned Levels, typename _, uint32_t BlockSize>
+template <typename ValueTraits>
+void
+btree<Levels, _, BlockSize>::split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
+					   block_address parent_index,
+					   uint64_t key)
+{
+	using namespace btree_detail;
+
+	auto l = spine.template get_node<ValueTraits>();
+	auto left = spine.get_block();
+
+	auto right = tm_->new_block();
+	auto r = to_node<ValueTraits, BlockSize>(right);
+
+	unsigned nr_left = l.get_nr_entries() / 2;
+	unsigned nr_right = l.get_nr_entries() - nr_left;
+
+	r.set_nr_entries(0);
+	r.set_type(l.get_type());
+	r.set_max_entries(l.get_max_entries());
+	r.copy_entries(l, nr_left, nr_left + nr_right);
+	l.set_nr_entries(nr_left);
+
+	auto p = spine.get_parent();
+	p.overwrite_at(parent_index, l.key_at(0), left);
+	p.insert_at(parent_index + 1, r.key_at(0), right.get_location());
+
+	spine.pop();
+	if (key < r.key_at(0))
+		spine.step(left);
+	else
+		spine.step(right);
+}
+
+// Returns true if we need a new insertion, rather than overwrite.
+template <unsigned Levels, typename _, uint32_t BlockSize>
+template <typename ValueTraits>
+bool
+btree<Levels, _, BlockSize>::
+insert_location(btree_detail::shadow_spine<BlockSize> &spine,
+		block_address block,
+		uint64_t key,
+		int *index)
+{
+	using namespace btree_detail;
+
+	bool top = true; // this isn't the same as spine.has_parent()
+	int i = *index;
+	bool inc = false;
+
+	for (;;) {
+		inc = spine.step(block);
+#if 0
+		if (inc)
+			inc_children<ValueTraits>();
+#endif
+
+		// patch up the parent to point to the new shadow
+		if (spine.has_parent()) {
+			auto p = spine.get_parent();
+			p.set_value(i, spine.get_block());
+		}
+
+		auto internal = spine.template get_node<uint64_traits>();
+
+		// Split the node if we're full
+		if (internal.get_type() == INTERNAL)
+			split_node<uint64_traits>(spine, i, key, top);
+		else
+			split_node<ValueTraits>(spine, i, key, top);
+
+		internal = spine.template get_node<uint64_traits>();
+		i = internal.lower_bound(key);
+		if (internal.get_type() == btree_detail::LEAF)
+			break;
+
+		if (i < 0) {
+			internal.set_key(0, key);
+			i = 0;
+		}
+
+		block = internal.value_at(i);
+		top = false;
+	}
+
+	auto leaf = spine.template get_node<ValueTraits>();
+	// FIXME: gross
+	if (i < 0 || leaf.key_at(i) != key)
+		i++;
+
+	// do decrement the old value if it already exists
+	// FIXME: I'm not sure about this, I don't understand the |inc| reference
+	if (leaf.key_at(i) == key && inc) {
+		// dec old entry
+	}
+	*index = i;
+
+	return ((static_cast<unsigned>(i) >= leaf.get_nr_entries()) ||
+		(leaf.key_at(i) != key));
+}
+
+
 //----------------------------------------------------------------
