@@ -119,4 +119,28 @@ BOOST_AUTO_TEST_CASE(test_set_effects_nr_allocated)
 	}
 }
 
+BOOST_AUTO_TEST_CASE(test_reopen)
+{
+	unsigned char buffer[128];
+
+	{
+		auto sm = create_sm_disk();
+		for (unsigned i = 0, step = 1; i < NR_BLOCKS; i += step, step++) {
+			sm->inc(i);
+		}
+
+		BOOST_CHECK(sm->root_size() <= sizeof(buffer));
+
+		sm->copy_root(buffer, sizeof(buffer));
+	}
+
+	{
+		auto tm = create_tm();
+		auto sm = persistent_data::open_disk_sm<BLOCK_SIZE>(tm, buffer);
+
+		for (unsigned i = 0, step = 1; i < NR_BLOCKS; i += step, step++)
+			BOOST_CHECK_EQUAL(sm->get_count(i), 1);
+	}
+}
+
 //----------------------------------------------------------------

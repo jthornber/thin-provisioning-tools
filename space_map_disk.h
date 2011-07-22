@@ -129,8 +129,8 @@ namespace persistent_data {
 				: tm_(tm),
 				  nr_blocks_(root.nr_blocks_),
 				  nr_allocated_(root.nr_allocated_),
-				  bitmaps_(tm_, root.bitmap_root_, typename sm_disk::index_entry_traits::ref_counter()),
-				  ref_counts_(tm_, root.ref_count_root_, typename ref_count_traits::ref_counter()) {
+				  bitmaps_(tm_, root.bitmap_root_, typename sm_disk_detail::index_entry_traits::ref_counter()),
+				  ref_counts_(tm_, root.ref_count_root_, ref_count_traits::ref_counter()) {
 			}
 
 			block_address get_nr_blocks() const {
