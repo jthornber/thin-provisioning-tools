@@ -11,7 +11,7 @@ using namespace persistent_data;
 //----------------------------------------------------------------
 
 namespace {
-	block_address const NR_BLOCKS = 1023;
+	block_address const NR_BLOCKS = 10237;
 	block_address const SUPERBLOCK = 0;
 	unsigned const BLOCK_SIZE = 4096;
 
@@ -103,6 +103,20 @@ BOOST_AUTO_TEST_CASE(test_set_count)
 	auto sm = create_sm_disk();
 	sm->set_count(43, 5);
 	BOOST_CHECK_EQUAL(sm->get_count(43), 5);
+}
+
+BOOST_AUTO_TEST_CASE(test_set_effects_nr_allocated)
+{
+	auto sm = create_sm_disk();
+	for (unsigned i = 0; i < NR_BLOCKS; i++) {
+		sm->set_count(i, 1);
+		BOOST_CHECK_EQUAL(sm->get_nr_free(), NR_BLOCKS - i - 1);
+	}
+
+	for (unsigned i = 0; i < NR_BLOCKS; i++) {
+		sm->set_count(i, 0);
+		BOOST_CHECK_EQUAL(sm->get_nr_free(), i + 1);
+	}
 }
 
 //----------------------------------------------------------------

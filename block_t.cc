@@ -92,7 +92,6 @@ BOOST_AUTO_TEST_CASE(different_block_sizes)
 		BOOST_CHECK_EQUAL(sizeof(rr.data()), 4096);
 	}
 
-
 	{
 		block_manager<64 * 1024> bm("./test.data", 64);
 		auto rr = bm.read_lock(0);

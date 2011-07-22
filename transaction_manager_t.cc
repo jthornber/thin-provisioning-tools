@@ -18,6 +18,7 @@ namespace {
 		block_manager<4096>::ptr bm(new block_manager<4096>("./test.data", NR_BLOCKS));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
 		transaction_manager<4096>::ptr tm(new transaction_manager<4096>(bm, sm));
+		tm->get_sm()->inc(0);
 		return tm;
 	}
 }
@@ -37,20 +38,29 @@ BOOST_AUTO_TEST_CASE(shadowing)
 
 	auto sm = tm->get_sm();
 	sm->inc(1);
-	auto p = tm->shadow(1);
-	auto b = p.first.get_location();
-	BOOST_CHECK(b != 1);
-	BOOST_CHECK(!p.second);
-	BOOST_CHECK(sm->get_count(1) == 0);
+	block_address b;
 
-	p = tm->shadow(b);
-	BOOST_CHECK(p.first.get_location() == b);
-	BOOST_CHECK(!p.second);
+	{
+		auto p = tm->shadow(1);
+		b = p.first.get_location();
+		BOOST_CHECK(b != 1);
+		BOOST_CHECK(!p.second);
+		BOOST_CHECK(sm->get_count(1) == 0);
+	}
+
+	{
+		auto p = tm->shadow(b);
+		BOOST_CHECK(p.first.get_location() == b);
+		BOOST_CHECK(!p.second);
+	}
 
 	sm->inc(b);
-	p = tm->shadow(b);
-	BOOST_CHECK(p.first.get_location() != b);
-	BOOST_CHECK(p.second);
+
+	{
+		auto p = tm->shadow(b);
+		BOOST_CHECK(p.first.get_location() != b);
+		BOOST_CHECK(p.second);
+	}
 }
 
 BOOST_AUTO_TEST_CASE(multiple_shadowing)

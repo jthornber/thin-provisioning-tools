@@ -112,9 +112,10 @@ block_manager<BlockSize>::write_lock_zero(block_address location)
 
 	buffer buf;
 	zero_buffer(buf);
+	register_lock(location, WRITE_LOCK);
 	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_),
 			      bind(&block_manager<BlockSize>::write_release, this, _1));
-	register_lock(location, WRITE_LOCK);
+
 	return write_ref(b);
 }
 
