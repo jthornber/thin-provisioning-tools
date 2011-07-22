@@ -59,3 +59,5 @@ BOOST_AUTO_TEST_CASE(insert_works)
 		BOOST_CHECK_EQUAL(*l, i);
 	}
 }
+
+//----------------------------------------------------------------
