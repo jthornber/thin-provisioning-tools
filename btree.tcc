@@ -155,8 +155,8 @@ node_ref<ValueTraits, BlockSize>::copy_entries(node_ref const &rhs,
 		throw runtime_error("too many entries");
 
 	set_nr_entries(n + count);
-	::memcpy(rhs.key_ptr(begin), key_ptr(n), sizeof(uint64_t) * count);
-	::memcpy(rhs.value_ptr(begin), value_ptr(n), sizeof(typename ValueTraits::disk_type) * count);
+	::memcpy(key_ptr(n), rhs.key_ptr(begin), sizeof(uint64_t) * count);
+	::memcpy(value_ptr(n), rhs.value_ptr(begin), sizeof(typename ValueTraits::disk_type) * count);
 }
 
 template <typename ValueTraits, uint32_t BlockSize>
@@ -228,12 +228,30 @@ node_ref<ValueTraits, BlockSize>::value_ptr(unsigned i) const
 		sizeof(typename ValueTraits::disk_type) * i;
 }
 
+template <typename ValueTraits, uint32_t BlockSize>
+template <typename RefCounter>
+void
+node_ref<ValueTraits, BlockSize>::inc_children(RefCounter &rc)
+{
+	unsigned nr_entries = get_nr_entries();
+	for (unsigned i = 0; i < nr_entries; i++) {
+		typename ValueTraits::value_type v;
+		typename ValueTraits::disk_type d;
+		::memcpy(&d, value_ptr(i), sizeof(d));
+		ValueTraits::unpack(d, v);
+		rc.inc(v);
+	}
+}
+
 //----------------------------------------------------------------
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
-btree<Levels, ValueTraits, BlockSize>::btree(typename transaction_manager<BlockSize>::ptr tm)
+btree<Levels, ValueTraits, BlockSize>::
+btree(typename transaction_manager<BlockSize>::ptr tm,
+      typename ValueTraits::ref_counter rc)
 	: tm_(tm),
-	  destroy_(false)
+	  destroy_(false),
+	  rc_(rc)
 {
 	using namespace btree_detail;
 
@@ -248,11 +266,14 @@ btree<Levels, ValueTraits, BlockSize>::btree(typename transaction_manager<BlockS
 }
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
-btree<Levels, ValueTraits, BlockSize>::btree(typename transaction_manager<BlockSize>::ptr tm,
-					     block_address root)
+btree<Levels, ValueTraits, BlockSize>::
+btree(typename transaction_manager<BlockSize>::ptr tm,
+      block_address root,
+      typename ValueTraits::ref_counter rc)
 	: tm_(tm),
 	  destroy_(false),
-	  root_(root)
+	  root_(root),
+	  rc_(rc)
 {
 }
 
@@ -318,7 +339,7 @@ insert(key const &key,
 
 		auto n = spine.template get_node<uint64_traits>();
 		if (need_insert) {
-			btree<Levels - 1, ValueTraits, BlockSize> new_tree(tm_);
+			btree<Levels - 1, ValueTraits, BlockSize> new_tree(tm_, rc_);
 			n.insert_at(index, key[level], new_tree.get_root());
 		}
 
@@ -335,20 +356,18 @@ insert(key const &key,
 		n.set_value(index, value);
 }
 
-#if 0
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 void
 btree<Levels, ValueTraits, BlockSize>::remove(key const &key)
 {
 	using namespace btree_detail;
-
 }
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 block_address
 btree<Levels, ValueTraits, BlockSize>::get_root() const
 {
-
+	return root_;
 }
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
@@ -356,25 +375,40 @@ void
 btree<Levels, ValueTraits, BlockSize>::set_root(block_address root)
 {
 	using namespace btree_detail;
-
+	root_ = root;
 }
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
-block_address
-btree<Levels, ValueTraits, BlockSize>::get_root() const
-{
-	using namespace btree_detail;
-
-}
-
-template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
-ptr
+typename btree<Levels, ValueTraits, BlockSize>::ptr
 btree<Levels, ValueTraits, BlockSize>::clone() const
 {
 	using namespace btree_detail;
+	ro_spine<BlockSize> spine(tm_);
 
+	spine.step(root_);
+	auto new_root = tm_->new_block();
+
+	auto o = spine.template get_node<uint64_traits>();
+	if (o.get_type() == INTERNAL) {
+		auto n = to_node<uint64_traits, BlockSize>(new_root);
+		::memcpy(n.raw(), o.raw(), BlockSize);
+
+		typename uint64_traits::ref_counter rc(internal_rc_);
+		n.inc_children(rc);
+	} else {
+		auto n = to_node<ValueTraits, BlockSize>(new_root);
+		::memcpy(n.raw(), o.raw(), BlockSize);
+
+		typename ValueTraits::ref_counter rc(rc_);
+		n.inc_children(rc);
+	}
+
+	return btree<Levels, ValueTraits, BlockSize>::ptr(
+		new btree<Levels, ValueTraits, BlockSize>(
+			tm_, new_root.get_location(), rc_));
 }
 
+#if 0
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 void
 btree<Levels, ValueTraits, BlockSize>::destroy()
@@ -413,7 +447,6 @@ split_beneath(btree_detail::shadow_spine<BlockSize> &spine,
 
 	node_type type;
 	unsigned nr_left, nr_right;
-
 
 	auto left = tm_->new_block();
 	auto l = to_node<ValueTraits, BlockSize>(left);
@@ -457,9 +490,10 @@ split_beneath(btree_detail::shadow_spine<BlockSize> &spine,
 template <unsigned Levels, typename _, uint32_t BlockSize>
 template <typename ValueTraits>
 void
-btree<Levels, _, BlockSize>::split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
-					   block_address parent_index,
-					   uint64_t key)
+btree<Levels, _, BlockSize>::
+split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
+	      block_address parent_index,
+	      uint64_t key)
 {
 	using namespace btree_detail;
 

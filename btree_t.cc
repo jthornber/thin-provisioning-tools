@@ -24,9 +24,11 @@ namespace {
 
 	btree<1, uint64_traits, 4096>::ptr
 	create_btree() {
+		typename uint64_traits::ref_counter rc;
+
 		return btree<1, uint64_traits, 4096>::ptr(
 			new btree<1, uint64_traits, 4096>(
-				create_tm()));
+				create_tm(), rc));
 	}
 }
 

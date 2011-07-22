@@ -11,11 +11,6 @@ unsigned const NR_BLOCKS = 1024;
 
 //----------------------------------------------------------------
 
-namespace {
-}
-
-//----------------------------------------------------------------
-
 BOOST_AUTO_TEST_CASE(test_get_nr_blocks)
 {
 	core_map sm(NR_BLOCKS);

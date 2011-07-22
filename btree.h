@@ -12,9 +12,17 @@
 
 namespace persistent_data {
 
+	template <typename ValueType>
+	class NoOpRefCounter {
+	public:
+		void inc(ValueType const &v) {}
+		void dec(ValueType const &v) {}
+	};
+
 	struct uint64_traits {
 		typedef base::__le64 disk_type;
 		typedef uint64_t value_type;
+		typedef NoOpRefCounter<uint64_t> ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
 			value = base::to_cpu<uint64_t>(disk);
@@ -72,6 +80,8 @@ namespace persistent_data {
 
 			unsigned get_max_entries() const;
 			void set_max_entries(unsigned n);
+
+			// FIXME: remove this, and get the constructor to do it.
 			void set_max_entries(); // calculates the max for you.
 
 			uint64_t key_at(unsigned i) const;
@@ -101,6 +111,14 @@ namespace persistent_data {
 			int bsearch(uint64_t key, int want_hi) const;
 			optional<unsigned> exact_search(uint64_t key) const;
 			int lower_bound(uint64_t key) const;
+
+			template <typename RefCounter>
+			void inc_children(RefCounter &rc);
+
+			// FIXME: remove
+			void *raw() {
+				return raw_;
+			}
 
 		private:
 			static unsigned calc_max_entries(void);
@@ -206,6 +224,10 @@ namespace persistent_data {
 				return to_node<uint64_traits, BlockSize>(spine_.front());
 			}
 
+			block_address get_parent_location() const {
+				return spine_.front().get_location();
+			}
+
 			block_address get_root() const {
 				return root_;
 			}
@@ -216,6 +238,7 @@ namespace persistent_data {
 			block_address root_;
 		};
 
+		// FIXME: make a member of btree
 		template <typename ValueTraits, uint32_t BlockSize>
 		optional<typename ValueTraits::value_type>
 		lookup_raw(ro_spine<BlockSize> &spine, block_address block, uint64_t key) {
@@ -252,9 +275,13 @@ namespace persistent_data {
 		typedef typename block_manager<BlockSize>::read_ref read_ref;
 		typedef typename block_manager<BlockSize>::write_ref write_ref;
 
-		btree(typename persistent_data::transaction_manager<BlockSize>::ptr tm);
+		btree(typename persistent_data::transaction_manager<BlockSize>::ptr tm,
+		      typename ValueTraits::ref_counter rc);
+
 		btree(typename transaction_manager<BlockSize>::ptr tm,
-		      block_address root);
+		      block_address root,
+		      typename ValueTraits::ref_counter rc);
+
 		~btree();
 
 		maybe_value lookup(key const &key) const;
@@ -297,6 +324,8 @@ namespace persistent_data {
 		typename persistent_data::transaction_manager<BlockSize>::ptr tm_;
 		bool destroy_;
 		block_address root_;
+		NoOpRefCounter<uint64_t> internal_rc_;
+		typename ValueTraits::ref_counter rc_;
 	};
 };
 

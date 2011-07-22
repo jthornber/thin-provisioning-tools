@@ -167,6 +167,32 @@ BOOST_AUTO_TEST_CASE(flush_throws_if_held_locks)
 	BOOST_CHECK_THROW(bm->flush(), runtime_error);
 }
 
-// cannot write lock the same block more than once
+BOOST_AUTO_TEST_CASE(no_concurrent_write_locks)
+{
+	auto bm = create_bm();
+	auto wr = bm->write_lock(0);
+	BOOST_CHECK_THROW(bm->write_lock(0), runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(concurrent_read_locks)
+{
+	auto bm = create_bm();
+	auto rr = bm->read_lock(0);
+	bm->read_lock(0);
+}
+
+BOOST_AUTO_TEST_CASE(read_then_write)
+{
+	auto bm = create_bm();
+	bm->read_lock(0);
+	bm->write_lock(0);
+}
+
+BOOST_AUTO_TEST_CASE(write_then_read)
+{
+	auto bm = create_bm();
+	bm->write_lock(0);
+	bm->read_lock(0);
+}
 
 //----------------------------------------------------------------

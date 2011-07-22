@@ -4,6 +4,8 @@
 #include "block.h"
 #include "transaction_manager.h"
 #include "btree.h"
+#include "endian.h"
+#include "metadata_disk_structures.h"
 
 #include <string>
 
@@ -11,76 +13,124 @@
 
 //----------------------------------------------------------------
 
-// FIXME: make a const
-#define BLOCK_SIZE 4096
+namespace thin_provisioning {
+	unsigned const MD_BLOCK_SIZE = 4096;
 
-namespace multisnap {
+	// FIXME: don't use namespaces in a header
+	using namespace base;
+	using namespace persistent_data;
+
 	typedef uint64_t sector_t;
+	typedef uint32_t thin_dev_t;
 
-	struct device_details_disk {
-		__le64 dev_size;
-		__le64 mapped_blocks;
-		__le64 transaction_id;  /* when created */
-		__le32 creation_time;
-		__le32 snapshotted_time;
-	} __attribute__ ((packed));
+	//------------------------------------------------
 
-	struct device_details {
-		uint64_t dev_size;
-		uint64_t mapped_blocks;
-		uint64_t transaction_id;  /* when created */
-		uint32_t creation_time;
-		uint32_t snapshotted_time;
-	};
-
-	struct detail_traits {
-		typedef device_details_disk disk_type;
-		typedef device_details value_type;
-
-		static value_type construct(void *data) {
-			struct device_details_disk disk;
-			struct device_details cpu;
-
-			::memcpy(&disk, data, sizeof(disk));
-			cpu.dev_size = to_cpu<uint64_t>(disk.dev_size);
-			cpu.mapped_blocks = to_cpu<uint64_t>(disk.mapped_blocks);
-			cpu.transaction_id = to_cpu<uint64_t>(disk.transaction_id);
-			cpu.creation_time = to_cpu<uint32_t>(disk.creation_time);
-			cpu.snapshotted_time = to_cpu<uint32_t>(disk.snapshotted_time);
-
-			return cpu;
-		}
-	};
-#if 0
-	class dev_traits {
+	class space_map_ref_counter {
 	public:
+		space_map_ref_counter(space_map::ptr sm)
+			: sm_(sm) {
+		}
+
+		void inc(block_address b) {
+			sm_->inc(b);
+		}
+
+		void dec(block_address b) {
+			sm_->dec(b);
+		}
+
+	private:
+		space_map::ptr sm_;
+	};
+
+	struct block_traits {
 		typedef base::__le64 disk_type;
-		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> value_type;
+		typedef uint64_t value_type;
+		typedef space_map_ref_counter ref_counter;
 
-		static value_type construct(void *data) {
-			uint64_t root = uint64_traits::construct(data);
+		static void unpack(disk_type const &disk, value_type &value) {
+			value = base::to_cpu<uint64_t>(disk);
+		}
 
-			return value_type
+		static void pack(value_type const &value, disk_type &disk) {
+			disk = base::to_disk<base::__le64>(value);
 		}
 	};
-#endif
+
+	//------------------------------------------------
+
+	template <uint32_t BlockSize>
+	class mtree_ref_counter {
+	public:
+		mtree_ref_counter(typename transaction_manager<BlockSize>::ptr tm)
+			: tm_(tm) {
+		}
+
+		void inc(block_address b) {
+		}
+
+		void dec(block_address b) {
+		}
+
+	private:
+		typename transaction_manager<BlockSize>::ptr tm_;
+	};
+
+	template <uint32_t BlockSize>
+	struct mtree_traits {
+		typedef base::__le64 disk_type;
+		typedef uint64_t value_type;
+		typedef mtree_ref_counter<BlockSize> ref_counter;
+
+		static void unpack(disk_type const &disk, value_type &value) {
+			value = base::to_cpu<uint64_t>(disk);
+		}
+
+		static void pack(value_type const &value, disk_type &disk) {
+			disk = base::to_disk<base::__le64>(value);
+		}
+	};
+
+	class metadata;
+	class thin {
+	public:
+		typedef boost::shared_ptr<thin> ptr;
+		typedef boost::optional<block_address> maybe_address;
+
+		thin_dev_t get_dev_t() const;
+		maybe_address lookup(block_address thin_block);
+		void insert(block_address thin_block, block_address data_block);
+		void remove(block_address thin_block);
+
+		void set_snapshot_time(uint32_t time);
+
+		block_address get_mapped_blocks() const;
+		void set_mapped_blocks(block_address count);
+
+	private:
+		friend class metadata;
+		thin(thin_dev_t dev, metadata *metadata);
+
+		thin_dev_t dev_;
+		metadata *metadata_;
+	};
 
 	class metadata {
 	public:
 		typedef boost::shared_ptr<metadata> ptr;
-		typedef persistent_data::block_address block_address;
 
-		metadata(std::string const &metadata_dev,
+		metadata(transaction_manager<MD_BLOCK_SIZE>::ptr tm,
+			 block_address superblock,
 			 sector_t data_block_size,
-			 persistent_data::block_address nr_data_blocks);
+			 block_address nr_data_blocks,
+			 bool create);
 		~metadata();
 
 		void commit();
 
-		typedef uint32_t dev_t;
-		void create_thin(dev_t dev);
-		void create_snap(dev_t dev, dev_t origin);
-		void del(dev_t);
+		void create_thin(thin_dev_t dev);
+		void create_snap(thin_dev_t dev, thin_dev_t origin);
+		void del(thin_dev_t);
 
 		void set_transaction_id(uint64_t id);
 		uint64_t get_transaction_id() const;
@@ -95,46 +145,29 @@ namespace multisnap {
 		sector_t get_data_block_size() const;
 		block_address get_data_dev_size() const;
 
-		class thin {
-		public:
-			typedef boost::shared_ptr<thin> ptr;
-
-			dev_t get_dev_t() const;
-
-			typedef boost::optional<block_address> maybe_address;
-			maybe_address lookup(block_address thin_block);
-			void insert(block_address thin_block, block_address data_block);
-			void remove(block_address thin_block);
-
-			void set_snapshot_time(uint32_t time);
-
-			persistent_data::block_address get_mapped_blocks() const;
-			void set_mapped_blocks(persistent_data::block_address count);
-
-		private:
-			dev_t dev_;
-			metadata::ptr metadata_;
-		};
-
-		thin::ptr open(dev_t);
+		thin::ptr open_thin(thin_dev_t);
 
 	private:
 		friend class thin;
 
-		bool device_exists(dev_t dev) const;
+		bool device_exists(thin_dev_t dev) const;
 
-		uint32_t time_;
+		block_address superblock_;
 
-		persistent_data::transaction_manager<BLOCK_SIZE>::ptr tm_;
+		typedef persistent_data::transaction_manager<MD_BLOCK_SIZE>::ptr tm_ptr;
 
-		typedef persistent_data::btree<1, detail_traits, BLOCK_SIZE> detail_tree;
-		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> dev_tree;
-		typedef persistent_data::btree<2, uint64_traits, BLOCK_SIZE> mapping_tree;
-		typedef persistent_data::btree<1, uint64_traits, BLOCK_SIZE> single_mapping_tree;
+		typedef persistent_data::btree<1, device_details_traits, MD_BLOCK_SIZE> detail_tree;
+		typedef persistent_data::btree<1, mtree_traits<MD_BLOCK_SIZE>, MD_BLOCK_SIZE> dev_tree;
+		typedef persistent_data::btree<2, block_traits, MD_BLOCK_SIZE> mapping_tree;
+		typedef persistent_data::btree<1, block_traits, MD_BLOCK_SIZE> single_mapping_tree;
 
+		tm_ptr tm_;
+		space_map::ptr metadata_sm_;
+		space_map::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;
 		mapping_tree mappings_;
+		superblock sb_;
 	};
 };
 

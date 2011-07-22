@@ -29,8 +29,10 @@ namespace persistent_data {
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
 	};
 
-	class persistent_space_map {
+	class persistent_space_map : public space_map {
 	public:
+		typedef boost::shared_ptr<persistent_space_map> ptr;
+
 		virtual size_t root_size() = 0;
 		virtual void copy_root(void *dest, size_t len) = 0;
 	};

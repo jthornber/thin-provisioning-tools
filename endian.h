@@ -1,16 +1,17 @@
 #ifndef ENDIAN_H
 #define ENDIAN_H
 
+#include <stdint.h>
 #include <boost/static_assert.hpp>
 
 //----------------------------------------------------------------
 
+// FIXME: rename to endian
 namespace base {
 
 	// These are just little wrapper types to make the compiler
 	// understand that the le types are not assignable to the
 	// corresponding cpu type.
-
 	struct __le16 {
 		explicit __le16(uint16_t v = 0)
 			: v_(v) {
@@ -37,6 +38,7 @@ namespace base {
 
 	//--------------------------------
 
+	// FIXME: actually do the conversions !
 	template <typename CPUType, typename DiskType>
 	CPUType	to_cpu(DiskType const &d) {
 		BOOST_STATIC_ASSERT(sizeof(d) == 0);
@@ -76,6 +78,12 @@ namespace base {
 	inline __le64 to_disk<__le64, uint64_t>(uint64_t const &v) {
 		return __le64(v);
 	}
+
+	//--------------------------------
+
+	bool test_bit_le(void const *bits, unsigned b);
+	void set_bit_le(void *bits, unsigned b);
+	void clear_bit_le(void *bits, unsigned b);
 }
 
 //----------------------------------------------------------------

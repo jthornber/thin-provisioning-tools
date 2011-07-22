@@ -11,7 +11,7 @@
 
 namespace persistent_data {
 	template <uint32_t MetadataBlockSize>
-	class transaction_manager : public boost::noncopyable {
+	class transaction_manager : boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<transaction_manager<MetadataBlockSize> > ptr;
 		typedef typename block_manager<MetadataBlockSize>::read_ref read_ref;
@@ -43,6 +43,10 @@ namespace persistent_data {
 
 		space_map::ptr get_sm() {
 			return sm_;
+		}
+
+		typename block_manager<MetadataBlockSize>::ptr get_bm() {
+			return bm_;
 		}
 
 	private:

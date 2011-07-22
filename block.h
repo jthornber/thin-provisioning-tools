@@ -156,6 +156,8 @@ namespace persistent_data {
 		// held.
 		void flush();
 
+		block_address get_nr_blocks() const;
+
 	private:
 		void check(block_address b) const;
 
@@ -165,11 +167,21 @@ namespace persistent_data {
 		void read_release(block *b) const;
 		void write_release(block *b);
 
+		enum lock_type {
+			READ_LOCK,
+			WRITE_LOCK
+		};
+
+		void register_lock(block_address b, lock_type t) const;
+		void unregister_lock(block_address b, lock_type t) const;
+
 		int fd_;
 		block_address nr_blocks_;
 		mutable unsigned lock_count_;
 		mutable unsigned superblock_count_;
 		mutable unsigned ordinary_count_;
+
+		mutable std::map<block_address, std::pair<lock_type, unsigned> > held_locks_;
 	};
 }
 

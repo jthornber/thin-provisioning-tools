@@ -1,3 +1,5 @@
 *~
 *.o
-multisnap_display
+*_t
+*.d
+test.data
