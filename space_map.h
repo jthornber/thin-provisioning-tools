@@ -27,6 +27,8 @@ namespace persistent_data {
 		virtual block_address new_block() = 0;
 
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
+
+		virtual void extend(block_address extra_blocks) = 0;
 	};
 
 	class persistent_space_map : public space_map {

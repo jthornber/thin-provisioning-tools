@@ -67,6 +67,10 @@ namespace persistent_data {
 			return counts_[b] > 1;
 		}
 
+		void extend(block_address extra_blocks) {
+			throw std::runtime_error("not implemented");
+		}
+
 	private:
 		std::vector<ref_t> counts_;
 		unsigned nr_free_;

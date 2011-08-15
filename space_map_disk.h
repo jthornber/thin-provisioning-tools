@@ -67,6 +67,7 @@ namespace persistent_data {
 				for (unsigned i = ie_.none_free_before_; i < end; i++) {
 					if (lookup(i) == 0) {
 						insert(i, 1);
+						ie_.none_free_before_ = i + 1;
 						return i;
 					}
 				}
@@ -108,28 +109,23 @@ namespace persistent_data {
 		};
 
 		template <uint32_t BlockSize>
-		class sm_disk : public persistent_space_map {
+		class sm_disk_base : public persistent_space_map {
 		public:
-			typedef boost::shared_ptr<sm_disk<BlockSize> > ptr;
+			typedef boost::shared_ptr<sm_disk_base<BlockSize> > ptr;
 
-			sm_disk(typename transaction_manager<BlockSize>::ptr tm,
-				block_address nr_blocks)
+			sm_disk_base(typename transaction_manager<BlockSize>::ptr tm)
 				: tm_(tm),
 				  entries_per_block_((BlockSize - sizeof(bitmap_header)) * 4),
 				  nr_blocks_(0),
 				  nr_allocated_(0),
-				  bitmaps_(tm_, typename sm_disk_detail::index_entry_traits::ref_counter()),
 				  ref_counts_(tm_, ref_count_traits::ref_counter()) {
-
-				extend(nr_blocks);
 			}
 
-			sm_disk(typename transaction_manager<BlockSize>::ptr tm,
-				sm_root const &root)
+			sm_disk_base(typename transaction_manager<BlockSize>::ptr tm,
+				     sm_root const &root)
 				: tm_(tm),
 				  nr_blocks_(root.nr_blocks_),
 				  nr_allocated_(root.nr_allocated_),
-				  bitmaps_(tm_, root.bitmap_root_, typename sm_disk_detail::index_entry_traits::ref_counter()),
 				  ref_counts_(tm_, root.ref_count_root_, ref_count_traits::ref_counter()) {
 			}
 
@@ -190,16 +186,12 @@ namespace persistent_data {
 				// beginning.
 				block_address nr_indexes = div_up<block_address>(nr_blocks_, entries_per_block_);
 				for (block_address index = 0; index < nr_indexes; index++) {
-					uint64_t key[1] = {index};
-					auto mie = bitmaps_.lookup(key);
+					auto ie = find_ie(index);
 
-					if (!mie)
-						throw runtime_error("bitmap entry missing from btree");
-
-					bitmap<BlockSize> bm(tm_, *mie);
+					bitmap<BlockSize> bm(tm_, ie);
 					block_address b = bm.find_free((index == nr_indexes - 1) ?
 								       nr_blocks_ % entries_per_block_ : entries_per_block_);
-					bitmaps_.insert(key, bm.get_ie());
+					save_ie(b, bm.get_ie());
 					nr_allocated_++;
 					b = (index * entries_per_block_) + b;
 					assert(get_count(b) == 1);
@@ -213,27 +205,7 @@ namespace persistent_data {
 				return get_count(b) > 1;
 			}
 
-			size_t root_size() {
-				return sizeof(sm_root_disk);
-			}
-
-			void copy_root(void *dest, size_t len) {
-				sm_root_disk d;
-				sm_root v;
-
-				if (len < sizeof(d))
-					throw runtime_error("root too small");
-
-				v.nr_blocks_ = nr_blocks_;
-				v.nr_allocated_ = nr_allocated_;
-				v.bitmap_root_ = bitmaps_.get_root();
-				v.ref_count_root_ = ref_counts_.get_root();
-				sm_root_traits::pack(v, d);
-				::memcpy(dest, &d, sizeof(d));
-			}
-
-		private:
-			void extend(block_address extra_blocks) {
+			virtual void extend(block_address extra_blocks) {
 				block_address nr_blocks = nr_blocks_ + extra_blocks;
 
 				block_address bitmap_count = div_up<block_address>(nr_blocks, entries_per_block_);
@@ -247,20 +219,36 @@ namespace persistent_data {
 						(nr_blocks % entries_per_block_) : entries_per_block_;
 					ie.none_free_before_ = 0;
 
-					uint64_t key[1] = {i};
-					bitmaps_.insert(key, ie);
+					save_ie(i, ie);
 				}
 
 				nr_blocks_ = nr_blocks;
 			}
 
-			ref_t lookup_bitmap(block_address b) const {
-				uint64_t key[1] = {b / entries_per_block_};
-				auto mindex = bitmaps_.lookup(key);
-				if (!mindex)
-					throw runtime_error("Couldn't lookup bitmap");
+		protected:
+			typename transaction_manager<BlockSize>::ptr get_tm() const {
+				return tm_;
+			}
 
-				bitmap<BlockSize> bm(tm_, *mindex);
+			block_address get_nr_allocated() const {
+				return nr_allocated_;
+			}
+
+			block_address get_ref_count_root() const {
+				return ref_counts_.get_root();
+			}
+
+			unsigned get_entries_per_block() const {
+				return entries_per_block_;
+			}
+
+		private:
+			virtual index_entry find_ie(block_address b) const = 0;
+			virtual void save_ie(block_address b, struct index_entry ie) = 0;
+
+			ref_t lookup_bitmap(block_address b) const {
+				index_entry ie = find_ie(b);
+				bitmap<BlockSize> bm(tm_, ie);
 				return bm.lookup(b % entries_per_block_);
 			}
 
@@ -268,14 +256,10 @@ namespace persistent_data {
 				if (n > 3)
 					throw runtime_error("bitmap can only hold 2 bit values");
 
-				uint64_t key[1] = {b / entries_per_block_};
-				auto mindex = bitmaps_.lookup(key);
-				if (!mindex)
-					throw runtime_error("Couldn't lookup bitmap");
-
-				bitmap<BlockSize> bm(tm_, *mindex);
+				auto ie = find_ie(b);
+				bitmap<BlockSize> bm(tm_, ie);
 				bm.insert(b % entries_per_block_, n);
-				bitmaps_.insert(key, bm.get_ie());
+				save_ie(b, bm.get_ie());
 			}
 
 			ref_t lookup_ref_count(block_address b) const {
@@ -301,8 +285,60 @@ namespace persistent_data {
 			block_address nr_blocks_;
 			block_address nr_allocated_;
 
-			btree<1, index_entry_traits, BlockSize> bitmaps_;
 			btree<1, ref_count_traits, BlockSize> ref_counts_;
+		};
+
+		template <uint32_t BlockSize>
+		class sm_disk : public sm_disk_base<BlockSize> {
+		public:
+			typedef boost::shared_ptr<sm_disk<BlockSize> > ptr;
+
+			sm_disk(typename transaction_manager<BlockSize>::ptr tm)
+				: sm_disk_base<BlockSize>(tm),
+				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), typename sm_disk_detail::index_entry_traits::ref_counter()) {
+			}
+
+			sm_disk(typename transaction_manager<BlockSize>::ptr tm,
+				sm_root const &root)
+				: sm_disk_base<BlockSize>(tm, root),
+				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), root.bitmap_root_, typename sm_disk_detail::index_entry_traits::ref_counter()) {
+			}
+
+			size_t root_size() {
+				return sizeof(sm_root_disk);
+			}
+
+			void copy_root(void *dest, size_t len) {
+				sm_root_disk d;
+				sm_root v;
+
+				if (len < sizeof(d))
+					throw runtime_error("root too small");
+
+				v.nr_blocks_ = sm_disk_base<BlockSize>::get_nr_blocks();
+				v.nr_allocated_ = sm_disk_base<BlockSize>::get_nr_allocated();
+				v.bitmap_root_ = bitmaps_.get_root();
+				v.ref_count_root_ = sm_disk_base<BlockSize>::get_ref_count_root();
+				sm_root_traits::pack(v, d);
+				::memcpy(dest, &d, sizeof(d));
+			}
+
+		private:
+			index_entry find_ie(block_address b) const {
+				uint64_t key[1] = {b / sm_disk_base<BlockSize>::get_entries_per_block()};
+				auto mindex = bitmaps_.lookup(key);
+				if (!mindex)
+					throw runtime_error("Couldn't lookup bitmap");
+
+				return *mindex;
+			}
+
+			void save_ie(block_address b, struct index_entry ie) {
+				uint64_t key[1] = {b / sm_disk_base<BlockSize>::get_entries_per_block()};
+				bitmaps_.insert(key, ie);
+			}
+
+			btree<1, index_entry_traits, BlockSize> bitmaps_;
 		};
 	}
 
@@ -312,8 +348,10 @@ namespace persistent_data {
 		       block_address nr_blocks)
 	{
 		using namespace sm_disk_detail;
-		return typename persistent_space_map::ptr(
-			new sm_disk<MetadataBlockSize>(tm, nr_blocks));
+		typename persistent_space_map::ptr sm(
+			new sm_disk<MetadataBlockSize>(tm));
+		sm->extend(nr_blocks);
+		return sm;
 	}
 
 	template <uint32_t MetadataBlockSize>
