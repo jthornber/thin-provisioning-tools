@@ -10,8 +10,9 @@ using namespace std;
 //----------------------------------------------------------------
 
 template <typename ValueTraits, uint32_t BlockSize>
-node_ref<ValueTraits, BlockSize>::node_ref(disk_node *raw)
-	: raw_(raw)
+node_ref<ValueTraits, BlockSize>::node_ref(block_address location, disk_node *raw)
+	: location_(location),
+	  raw_(raw)
 {
 }
 
@@ -84,6 +85,8 @@ template <typename ValueTraits, uint32_t BlockSize>
 uint64_t
 node_ref<ValueTraits, BlockSize>::key_at(unsigned i) const
 {
+	if (i >= get_nr_entries())
+		throw runtime_error("key index out of bounds");
 	return to_cpu<uint64_t>(raw_->keys[i]);
 }
 
@@ -98,6 +101,9 @@ template <typename ValueTraits, uint32_t BlockSize>
 typename ValueTraits::value_type
 node_ref<ValueTraits, BlockSize>::value_at(unsigned i) const
 {
+	if (i >= get_nr_entries())
+		throw runtime_error("value index out of bounds");
+
 	// We have to copy because of alignment issues.
 	typename ValueTraits::disk_type d;
 	::memcpy(&d, value_ptr(i), sizeof(d));
@@ -128,8 +134,8 @@ node_ref<ValueTraits, BlockSize>::insert_at(unsigned i,
 		throw runtime_error("too many entries");
 
 	set_nr_entries(n + 1);
-	::memmove(key_ptr(i + 1), key_ptr(i), sizeof(uint64_t));
-	::memmove(value_ptr(i + 1), value_ptr(i), sizeof(typename ValueTraits::disk_type));
+	::memmove(key_ptr(i + 1), key_ptr(i), sizeof(uint64_t) * (n - i));
+	::memmove(value_ptr(i + 1), value_ptr(i), sizeof(typename ValueTraits::disk_type) * (n - i));
 	overwrite_at(i, key, v);
 }
 
@@ -581,7 +587,7 @@ insert_location(btree_detail::shadow_spine<BlockSize> &spine,
 
 	// do decrement the old value if it already exists
 	// FIXME: I'm not sure about this, I don't understand the |inc| reference
-	if (leaf.key_at(i) == key && inc) {
+	if (static_cast<unsigned>(i) < leaf.get_nr_entries() && leaf.key_at(i) == key && inc) {
 		// dec old entry
 	}
 	*index = i;
