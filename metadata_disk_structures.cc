@@ -9,7 +9,6 @@ using namespace thin_provisioning;
 void
 device_details_traits::unpack(device_details_disk const &disk, device_details &value)
 {
-	value.dev_size_ = to_cpu<uint64_t>(disk.dev_size_);
 	value.mapped_blocks_ = to_cpu<uint64_t>(disk.mapped_blocks_);
 	value.transaction_id_ = to_cpu<uint64_t>(disk.transaction_id_);
 	value.creation_time_ = to_cpu<uint32_t>(disk.creation_time_);
@@ -19,7 +18,6 @@ device_details_traits::unpack(device_details_disk const &disk, device_details &v
 void
 device_details_traits::pack(device_details const &value, device_details_disk &disk)
 {
-	disk.dev_size_ = to_disk<__le64>(value.dev_size_);
 	disk.mapped_blocks_ = to_disk<__le64>(value.mapped_blocks_);
 	disk.transaction_id_ = to_disk<__le64>(value.transaction_id_);
 	disk.creation_time_ = to_disk<__le32>(value.creation_time_);

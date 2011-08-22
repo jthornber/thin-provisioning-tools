@@ -1,7 +1,7 @@
 #ifndef BTREE_H
 #define BTREE_H
 
-#include "endian.h"
+#include "endian_utils.h"
 #include "transaction_manager.h"
 
 #include <boost/noncopyable.hpp>

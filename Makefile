@@ -1,35 +1,36 @@
 SOURCE=\
-	endian.cc \
-	metadata.cc \
-	metadata_disk_structures.cc \
-	space_map_disk.cc \
+	endian_utils.cc \
+	metadata_disk_structures.cc
+
+#	metadata.cc \
 
 TEST_SOURCE=\
-	block_t.cc \
-	btree_t.cc \
-	endian_t.cc \
-	metadata_t.cc \
-	space_map_t.cc \
-	space_map_disk_t.cc \
-	transaction_manager_t.cc \
+	unit-tests/block_t.cc \
+	unit-tests/btree_t.cc \
+	unit-tests/endian_t.cc \
+	unit-tests/space_map_t.cc \
+	unit-tests/space_map_disk_t.cc \
+	unit-tests/transaction_manager_t.cc \
+
+#	unit-tests/metadata_t.cc \
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
-CPPFLAGS=-Wall -std=c++0x -g
-INCLUDES=
+TOP_DIR:=$(PWD)
+CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
 LIBS=-lstdc++
 
 .PHONEY: unit-tests test-programs
 
 test-programs: $(TEST_PROGRAMS)
 
-unit-tests: $(TEST_PROGRAMS)
+unit-test: $(TEST_PROGRAMS)
 	for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; done
 
 .SUFFIXES: .cc .o .d
 
 %.d: %.cc
-	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$;                  \
+	g++ -MM $(CPPFLAGS) $< > $@.$$$$;                  \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
@@ -39,25 +40,25 @@ unit-tests: $(TEST_PROGRAMS)
 multisnap_display: $(OBJECTS) main.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-block_t: block_t.o
+unit-tests/block_t: unit-tests/block_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-btree_t: btree_t.o
+unit-tests/btree_t: unit-tests/btree_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-space_map_t: space_map_t.o
+unit-tests/space_map_t: unit-tests/space_map_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-space_map_disk_t: space_map_disk_t.o $(OBJECTS)
+unit-tests/space_map_disk_t: unit-tests/space_map_disk_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-transaction_manager_t: transaction_manager_t.o
+unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-metadata_t: metadata_t.o $(OBJECTS)
+unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-endian_t: endian_t.o $(OBJECTS)
+unit-tests/endian_t: unit-tests/endian_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 include $(subst .cc,.d,$(SOURCE))

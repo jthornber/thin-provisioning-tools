@@ -1,7 +1,7 @@
 #ifndef SPACE_MAP_DISK_STRUCTURES_H
 #define SPACE_MAP_DISK_STRUCTURES_H
 
-#include "endian.h"
+#include "endian_utils.h"
 #include "btree.h"
 
 //----------------------------------------------------------------

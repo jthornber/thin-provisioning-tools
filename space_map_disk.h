@@ -3,9 +3,9 @@
 
 #include "space_map.h"
 #include "transaction_manager.h"
-#include "endian.h"
+#include "endian_utils.h"
 #include "space_map_disk_structures.h"
-#include "math.h"
+#include "math_utils.h"
 
 //----------------------------------------------------------------
 

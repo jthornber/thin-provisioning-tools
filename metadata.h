@@ -4,7 +4,7 @@
 #include "block.h"
 #include "transaction_manager.h"
 #include "btree.h"
-#include "endian.h"
+#include "endian_utils.h"
 #include "metadata_disk_structures.h"
 
 #include <string>
@@ -119,11 +119,7 @@ namespace thin_provisioning {
 	public:
 		typedef boost::shared_ptr<metadata> ptr;
 
-		metadata(transaction_manager<MD_BLOCK_SIZE>::ptr tm,
-			 block_address superblock,
-			 sector_t data_block_size,
-			 block_address nr_data_blocks,
-			 bool create);
+		metadata(std::string const &dev_path);
 		~metadata();
 
 		void commit();
@@ -162,7 +158,9 @@ namespace thin_provisioning {
 		typedef persistent_data::btree<1, block_traits, MD_BLOCK_SIZE> single_mapping_tree;
 
 		tm_ptr tm_;
-		space_map::ptr metadata_sm_;
+
+		// Ignoring the metadata sm for now, since we don't need it for the basic 'dump' tool
+		// space_map::ptr metadata_sm_;
 		space_map::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;

@@ -1,7 +1,7 @@
 #ifndef METADATA_DISK_STRUCTURES_H
 #define METADATA_DISK_STRUCTURES_H
 
-#include "endian.h"
+#include "endian_utils.h"
 #include "btree.h"
 
 //----------------------------------------------------------------
@@ -10,7 +10,6 @@ namespace thin_provisioning {
 	using namespace base;	// FIXME: don't use namespaces in headers.
 
 	struct device_details_disk {
-		__le64 dev_size_;
 		__le64 mapped_blocks_;
 		__le64 transaction_id_;  /* when created */
 		__le32 creation_time_;
@@ -18,7 +17,6 @@ namespace thin_provisioning {
 	} __attribute__ ((packed));
 
 	struct device_details {
-		uint64_t dev_size_;
 		uint64_t mapped_blocks_;
 		uint64_t transaction_id_;  /* when created */
 		uint32_t creation_time_;
