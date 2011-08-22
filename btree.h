@@ -70,7 +70,11 @@ namespace persistent_data {
 		template <typename ValueTraits, uint32_t BlockSize>
 		class node_ref {
 		public:
-			explicit node_ref(disk_node *raw);
+			explicit node_ref(block_address b, disk_node *raw);
+
+			block_address get_location() const {
+				return location_;
+			}
 
 			node_type get_type() const;
 			void set_type(node_type t);
@@ -126,6 +130,7 @@ namespace persistent_data {
 			void *key_ptr(unsigned i) const;
 			void *value_ptr(unsigned i) const;
 
+			block_address location_;
 			disk_node *raw_;
 		};
 
@@ -137,6 +142,7 @@ namespace persistent_data {
 		{
 			// FIXME: this should return a const read_ref somehow.
 			return node_ref<ValueTraits, BlockSize>(
+				b.get_location(),
 				reinterpret_cast<disk_node *>(
 					const_cast<unsigned char *>(b.data())));
 		}
@@ -146,6 +152,7 @@ namespace persistent_data {
 		to_node(typename block_manager<BlockSize>::write_ref &b)
 		{
 			return node_ref<ValueTraits, BlockSize>(
+				b.get_location(),
 				reinterpret_cast<disk_node *>(
 					const_cast<unsigned char *>(b.data())));
 		}

@@ -31,19 +31,36 @@ namespace {
 				create_tm(), rc));
 	}
 
+	// Checks that a btree is well formed.
+	//
+	// i) No block should be in the tree more than once.
+	//
 	class constraint_visitor : public btree<1, uint64_traits, 4096>::visitor {
-	private:
+	public:
 		void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
-			// cout << "internal: level = " << level << ", nr_entries = " << n.get_nr_entries() << endl;
+			check_duplicate_block(n.get_location());
 		}
 
 		void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
-			// cout << "internal_leaf !" << endl;
+			check_duplicate_block(n.get_location());
 		}
 
 		void visit_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
-			// cout << "leaf: level = " << level << ", nr_entries = " << n.get_nr_entries() << endl;
+			check_duplicate_block(n.get_location());
 		}
+
+	private:
+		void check_duplicate_block(block_address b) {
+			if (seen_.count(b)) {
+				ostringstream out;
+				out << "duplicate block in btree: " << b;
+				throw runtime_error(out.str());
+			}
+
+			seen_.insert(b);
+		}
+
+		set<block_address> seen_;
 	};
 
 	void check_constraints(btree<1, uint64_traits, 4096>::ptr tree) {
@@ -59,6 +76,7 @@ namespace {
 BOOST_AUTO_TEST_CASE(empty_btree_contains_nothing)
 {
 	auto tree = create_btree();
+	check_constraints(tree);
 
 	for (uint64_t i = 0; i < 1000; i++) {
 		uint64_t key[1] = {i};
@@ -68,18 +86,21 @@ BOOST_AUTO_TEST_CASE(empty_btree_contains_nothing)
 
 BOOST_AUTO_TEST_CASE(insert_works)
 {
-	unsigned const COUNT = 1000000;
+	unsigned const COUNT = 100000;
 
 	auto tree = create_btree();
 	for (uint64_t i = 0; i < COUNT; i++) {
 		uint64_t key[1] = {i * 7};
 		uint64_t value = i;
+
 		tree->insert(key, value);
 
 		auto l = tree->lookup(key);
 		BOOST_CHECK(l);
 		BOOST_CHECK_EQUAL(*l, i);
 	}
+
+	check_constraints(tree);
 }
 
 //----------------------------------------------------------------
