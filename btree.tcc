@@ -590,5 +590,36 @@ insert_location(btree_detail::shadow_spine<BlockSize> &spine,
 		(leaf.key_at(i) != key));
 }
 
+template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
+void
+btree<Levels, ValueTraits, BlockSize>::visit(typename visitor::ptr visitor)
+{
+	walk_tree(visitor, 0, root_);
+}
+
+template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
+void
+btree<Levels, ValueTraits, BlockSize>::
+walk_tree(typename visitor::ptr visitor,
+	  unsigned level, block_address b)
+{
+	using namespace btree_detail;
+	auto blk = tm_->read_lock(b);
+	auto o = to_node<uint64_traits, BlockSize>(blk);
+	if (o.get_type() == INTERNAL) {
+		visitor->visit_internal(level, o);
+		for (unsigned i = 0; i < o.get_nr_entries(); i++)
+			walk_tree(visitor, level, o.value_at(i));
+
+	} else if (level < Levels - 1) {
+		visitor->visit_internal_leaf(level, o);
+		for (unsigned i = 0; i < o.get_nr_entries(); i++)
+			walk_tree(visitor, level + 1, o.value_at(i));
+
+	} else {
+		auto ov = to_node<ValueTraits, BlockSize>(blk);
+		visitor->visit_leaf(level, ov);
+	}
+}
 
 //----------------------------------------------------------------

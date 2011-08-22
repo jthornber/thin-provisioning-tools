@@ -299,6 +299,22 @@ namespace persistent_data {
 		// free the on disk btree when the destructor is called
 		void destroy();
 
+
+		// Derive a class from this base class if you need to
+		// inspect the individual nodes that make up a btree.
+		class visitor {
+		public:
+			virtual ~visitor() {}
+			typedef boost::shared_ptr<visitor> ptr;
+
+			virtual void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
+			virtual void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
+			virtual void visit_leaf(unsigned level, btree_detail::node_ref<ValueTraits, BlockSize> const &n) = 0;
+		};
+
+		// Walks the tree in depth first order
+		void visit(typename visitor::ptr visitor);
+
 	private:
 		template <typename ValueTraits2>
 		void split_node(btree_detail::shadow_spine<BlockSize> &spine,
@@ -320,6 +336,9 @@ namespace persistent_data {
 				block_address block,
 				uint64_t key,
 				int *index);
+
+		void walk_tree(typename visitor::ptr visitor,
+			       unsigned level, block_address b);
 
 		typename persistent_data::transaction_manager<BlockSize>::ptr tm_;
 		bool destroy_;

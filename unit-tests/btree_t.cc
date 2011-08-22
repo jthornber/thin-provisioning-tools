@@ -30,6 +30,28 @@ namespace {
 			new btree<1, uint64_traits, 4096>(
 				create_tm(), rc));
 	}
+
+	class constraint_visitor : public btree<1, uint64_traits, 4096>::visitor {
+	private:
+		void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+			// cout << "internal: level = " << level << ", nr_entries = " << n.get_nr_entries() << endl;
+		}
+
+		void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+			// cout << "internal_leaf !" << endl;
+		}
+
+		void visit_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+			// cout << "leaf: level = " << level << ", nr_entries = " << n.get_nr_entries() << endl;
+		}
+	};
+
+	void check_constraints(btree<1, uint64_traits, 4096>::ptr tree) {
+		typedef btree<1, uint64_traits, 4096> tree_type;
+
+		typename tree_type::visitor::ptr v(new constraint_visitor);
+		tree->visit(v);
+	}
 }
 
 //----------------------------------------------------------------
