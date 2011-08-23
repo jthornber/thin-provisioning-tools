@@ -15,14 +15,6 @@ namespace {
 	block_address const NR_BLOCKS = 1024;
 	block_address const SUPERBLOCK = 0;
 
-	transaction_manager<4096>::ptr
-	create_tm() {
-		block_manager<4096>::ptr bm(new block_manager<4096>("./test.data", NR_BLOCKS));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager<4096>::ptr tm(new transaction_manager<4096>(bm, sm));
-		return tm;
-	}
-
 	metadata::ptr
 	create_metadata() {
 		auto tm = create_tm();

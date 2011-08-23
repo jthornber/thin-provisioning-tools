@@ -143,12 +143,13 @@ namespace thin_provisioning {
 
 		thin::ptr open_thin(thin_dev_t);
 
+		// Validation and repair
+		void check();
+
 	private:
 		friend class thin;
 
 		bool device_exists(thin_dev_t dev) const;
-
-		block_address superblock_;
 
 		typedef persistent_data::transaction_manager<MD_BLOCK_SIZE>::ptr tm_ptr;
 
@@ -157,7 +158,9 @@ namespace thin_provisioning {
 		typedef persistent_data::btree<2, block_traits, MD_BLOCK_SIZE> mapping_tree;
 		typedef persistent_data::btree<1, block_traits, MD_BLOCK_SIZE> single_mapping_tree;
 
+		// Declaration order is important here
 		tm_ptr tm_;
+		superblock sb_;
 
 		// Ignoring the metadata sm for now, since we don't need it for the basic 'dump' tool
 		// space_map::ptr metadata_sm_;
@@ -165,7 +168,6 @@ namespace thin_provisioning {
 		detail_tree details_;
 		dev_tree mappings_top_level_;
 		mapping_tree mappings_;
-		superblock sb_;
 	};
 };
 

@@ -3,3 +3,5 @@
 *_t
 *.d
 test.data
+thin_dump
+thin_repair

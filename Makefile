@@ -1,8 +1,7 @@
 SOURCE=\
 	endian_utils.cc \
+	metadata.cc \
 	metadata_disk_structures.cc
-
-#	metadata.cc \
 
 TEST_SOURCE=\
 	unit-tests/block_t.cc \
@@ -11,8 +10,6 @@ TEST_SOURCE=\
 	unit-tests/space_map_t.cc \
 	unit-tests/space_map_disk_t.cc \
 	unit-tests/transaction_manager_t.cc \
-
-#	unit-tests/metadata_t.cc \
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
@@ -38,6 +35,12 @@ unit-test: $(TEST_PROGRAMS)
 	g++ -c $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 multisnap_display: $(OBJECTS) main.o
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+thin_dump: $(OBJECTS) thin_dump.o
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+thin_repair: $(OBJECTS) thin_repair.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 unit-tests/block_t: unit-tests/block_t.o

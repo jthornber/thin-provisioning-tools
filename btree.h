@@ -52,6 +52,8 @@ namespace persistent_data {
 
 			__le32 nr_entries;
 			__le32 max_entries;
+			__le32 value_size;
+			__le32 padding;
 		} __attribute__((packed));
 
 		struct disk_node {
@@ -76,6 +78,8 @@ namespace persistent_data {
 				return location_;
 			}
 
+			block_address get_block_nr() const;
+
 			node_type get_type() const;
 			void set_type(node_type t);
 
@@ -87,6 +91,8 @@ namespace persistent_data {
 
 			// FIXME: remove this, and get the constructor to do it.
 			void set_max_entries(); // calculates the max for you.
+
+			size_t get_value_size() const;
 
 			uint64_t key_at(unsigned i) const;
 			void set_key(unsigned i, uint64_t k);

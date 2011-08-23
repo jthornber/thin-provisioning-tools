@@ -17,6 +17,13 @@ node_ref<ValueTraits, BlockSize>::node_ref(block_address location, disk_node *ra
 }
 
 template <typename ValueTraits, uint32_t BlockSize>
+block_address
+node_ref<ValueTraits, BlockSize>::get_block_nr() const
+{
+	return to_cpu<uint64_t>(raw_->header.blocknr);
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
 btree_detail::node_type
 node_ref<ValueTraits, BlockSize>::get_type() const
 {
@@ -79,6 +86,13 @@ void
 node_ref<ValueTraits, BlockSize>::set_max_entries()
 {
 	set_max_entries(calc_max_entries());
+}
+
+template <typename ValueTraits, uint32_t BlockSize>
+size_t
+node_ref<ValueTraits, BlockSize>::get_value_size() const
+{
+	return to_cpu<uint32_t>(raw_->header.value_size);
 }
 
 template <typename ValueTraits, uint32_t BlockSize>
@@ -610,6 +624,7 @@ walk_tree(typename visitor::ptr visitor,
 	  unsigned level, block_address b)
 {
 	using namespace btree_detail;
+
 	auto blk = tm_->read_lock(b);
 	auto o = to_node<uint64_traits, BlockSize>(blk);
 	if (o.get_type() == INTERNAL) {
