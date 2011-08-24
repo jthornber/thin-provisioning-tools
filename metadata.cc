@@ -35,7 +35,7 @@ namespace {
 
 	superblock read_superblock(block_manager<4096>::ptr bm) {
 		superblock sb;
-		auto r = bm->read_lock(SUPERBLOCK_LOCATION);
+		block_manager<4096>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
@@ -70,7 +70,7 @@ namespace {
 				data_counter_.inc(n.value_at(i).block_);
 		}
 
-		set<uint64_t> get_devices() const {
+		set<uint64_t> const &get_devices() const {
 			return devices_;
 		}
 
@@ -95,7 +95,7 @@ namespace {
 				devices_.insert(n.key_at(i));
 		}
 
-		set<uint64_t> get_devices() const {
+		set<uint64_t> const &get_devices() const {
 			return devices_;
 		}
 
@@ -146,7 +146,7 @@ void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	auto mdetail = metadata_->details_.lookup(key);
+	optional<device_details> mdetail = metadata_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -158,7 +158,7 @@ block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	auto mdetail = metadata_->details_.lookup(key);
+	optional<device_details> mdetail = metadata_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -169,7 +169,7 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	auto mdetail = metadata_->details_.lookup(key);
+	optional<device_details> mdetail = metadata_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -207,8 +207,8 @@ metadata::commit()
 	sb_.data_mapping_root_ = mappings_.get_root();
 	sb_.device_details_root_ = details_.get_root();
 
-	auto superblock = tm_->get_bm()->superblock(SUPERBLOCK_LOCATION);
-        auto disk = reinterpret_cast<superblock_disk *>(superblock.data());
+	write_ref superblock = tm_->get_bm()->superblock(SUPERBLOCK_LOCATION);
+        superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
 	superblock_traits::pack(sb_, *disk);
 }
 
@@ -231,7 +231,7 @@ metadata::create_snap(thin_dev_t dev, thin_dev_t origin)
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
 
-	auto mtree_root = mappings_top_level_.lookup(origin_key);
+	optional<uint64_t> mtree_root = mappings_top_level_.lookup(origin_key);
 	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
 
@@ -244,8 +244,8 @@ metadata::create_snap(thin_dev_t dev, thin_dev_t origin)
 
 	sb_.time_++;
 
-	auto o = open_thin(origin);
-	auto s = open_thin(dev);
+	thin::ptr o = open_thin(origin);
+	thin::ptr s = open_thin(dev);
 	o->set_snapshot_time(sb_.time_);
 	s->set_snapshot_time(sb_.time_);
 	s->set_mapped_blocks(o->get_mapped_blocks());
@@ -310,7 +310,7 @@ thin::ptr
 metadata::open_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
-	auto mdetails = details_.lookup(key);
+	optional<device_details> mdetails = details_.lookup(key);
 	if (!mdetails)
 		throw runtime_error("no such device");
 
@@ -336,13 +336,13 @@ metadata::check()
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
 	mappings_.visit(mv);
-	auto mapped_devs = mv->get_devices();
+	set<uint64_t> const &mapped_devs = mv->get_devices();
 
 	details_validator::ptr dv(new details_validator(metadata_counter));
 	details_.visit(dv);
-	auto details_devs = dv->get_devices();
+	set<uint64_t> const &details_devs = dv->get_devices();
 
-	for (auto it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
+	for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
 		if (details_devs.count(*it) == 0) {
 			ostringstream out;
 			out << "mapping exists for device " << *it
@@ -356,8 +356,9 @@ metadata::check()
 		error_set::ptr data_errors(new error_set("Errors in data reference counts"));
 
 		bool bad = false;
-		auto data_counts = data_counter.get_counts();
-		for (auto it = data_counts.begin(); it != data_counts.end(); ++it) {
+		block_counter::count_map const &data_counts = data_counter.get_counts();
+		for (block_counter::count_map::const_iterator it = data_counts.begin();
+		     it != data_counts.end(); ++it) {
 			uint32_t ref_count = data_sm_->get_count(it->first);
 			if (ref_count != it->second) {
 				ostringstream out;

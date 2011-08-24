@@ -15,7 +15,8 @@ TEST_SOURCE=\
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
 TOP_DIR:=$(PWD)
-CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
+CPPFLAGS=-Wall -g -I$(TOP_DIR)
+#CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
 LIBS=-lstdc++
 
 .PHONEY: unit-tests test-programs

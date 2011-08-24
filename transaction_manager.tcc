@@ -25,7 +25,7 @@ template <uint32_t BlockSize>
 typename transaction_manager<BlockSize>::write_ref
 transaction_manager<BlockSize>::begin(block_address superblock)
 {
-	auto wr = bm_->superblock(superblock);
+	write_ref wr = bm_->superblock(superblock);
 	wipe_shadow_table();
 	return wr;
 }
@@ -35,7 +35,7 @@ typename transaction_manager<BlockSize>::write_ref
 transaction_manager<BlockSize>::begin(block_address superblock,
 				      validator v)
 {
-	auto wr = bm_->superblock(superblock, v);
+	write_ref wr = bm_->superblock(superblock, v);
 	wipe_shadow_table();
 	return wr;
 }
@@ -89,8 +89,8 @@ transaction_manager<BlockSize>::shadow(block_address orig)
 	    !sm_->count_possibly_greater_than_one(orig))
 		return make_pair(bm_->write_lock(orig), false);
 
-	auto src = bm_->read_lock(orig);
-	auto dest = bm_->write_lock_zero(sm_->new_block());
+	read_ref src = bm_->read_lock(orig);
+	write_ref dest = bm_->write_lock_zero(sm_->new_block());
 	::memcpy(dest.data(), src.data(), BlockSize);
 
 	ref_t count = sm_->get_count(orig);
@@ -110,8 +110,8 @@ transaction_manager<BlockSize>::shadow(block_address orig, validator v)
 	    sm_->count_possibly_greater_than_one(orig))
 		return make_pair(bm_->write_lock(orig), false);
 
-	auto src = bm_->read_lock(orig, v);
-	auto dest = bm_->write_lock_zero(sm_->new_block(), v);
+	read_ref src = bm_->read_lock(orig, v);
+	write_ref dest = bm_->write_lock_zero(sm_->new_block(), v);
 	::memcpy(dest->data_, src->data_, BlockSize);
 
 	ref_t count = sm_->get_count(orig);

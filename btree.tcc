@@ -277,7 +277,7 @@ btree(typename transaction_manager<BlockSize>::ptr tm,
 
 	write_ref root = tm_->new_block();
 
-	auto n = to_node<ValueTraits, BlockSize>(root);
+	leaf_node n = to_node<ValueTraits, BlockSize>(root);
 	n.set_type(btree_detail::LEAF);
 	n.set_nr_entries(0);
 	n.set_max_entries();
@@ -357,7 +357,7 @@ insert(key const &key,
 	for (unsigned level = 0; level < Levels - 1; ++level) {
 		bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index);
 
-		auto n = spine.template get_node<uint64_traits>();
+		internal_node n = spine.template get_node<uint64_traits>();
 		if (need_insert) {
 			btree<Levels - 1, ValueTraits, BlockSize> new_tree(tm_, rc_);
 			n.insert_at(index, key[level], new_tree.get_root());
@@ -368,7 +368,7 @@ insert(key const &key,
 
 	bool need_insert = insert_location<ValueTraits>(spine, block, key[Levels - 1], &index);
 
-	auto n = spine.template get_node<ValueTraits>();
+	leaf_node n = spine.template get_node<ValueTraits>();
 	if (need_insert)
 		n.insert_at(index, key[Levels - 1], value);
 	else
@@ -406,17 +406,17 @@ btree<Levels, ValueTraits, BlockSize>::clone() const
 	ro_spine<BlockSize> spine(tm_);
 
 	spine.step(root_);
-	auto new_root = tm_->new_block();
+	write_ref new_root = tm_->new_block();
 
-	auto o = spine.template get_node<uint64_traits>();
+	internal_node o = spine.template get_node<uint64_traits>();
 	if (o.get_type() == INTERNAL) {
-		auto n = to_node<uint64_traits, BlockSize>(new_root);
+		internal_node n = to_node<uint64_traits, BlockSize>(new_root);
 		::memcpy(n.raw(), o.raw(), BlockSize);
 
 		typename uint64_traits::ref_counter rc(internal_rc_);
 		n.inc_children(rc);
 	} else {
-		auto n = to_node<ValueTraits, BlockSize>(new_root);
+		leaf_node n = to_node<ValueTraits, BlockSize>(new_root);
 		::memcpy(n.raw(), o.raw(), BlockSize);
 
 		typename ValueTraits::ref_counter rc(rc_);
@@ -447,7 +447,7 @@ split_node(btree_detail::shadow_spine<BlockSize> &spine,
 	   uint64_t key,
 	   bool top)
 {
-	auto n = spine.template get_node<ValueTraits>();
+	node_ref<ValueTraits, BlockSize> n = spine.template get_node<ValueTraits>();
 	if (n.get_nr_entries() == n.get_max_entries()) {
 		if (top)
 			split_beneath<ValueTraits>(spine, key);
@@ -468,18 +468,18 @@ split_beneath(btree_detail::shadow_spine<BlockSize> &spine,
 	node_type type;
 	unsigned nr_left, nr_right;
 
-	auto left = tm_->new_block();
-	auto l = to_node<ValueTraits, BlockSize>(left);
+	write_ref left = tm_->new_block();
+	node_ref<ValueTraits, BlockSize> l = to_node<ValueTraits, BlockSize>(left);
 	l.set_nr_entries(0);
 	l.set_max_entries();
 
-	auto right = tm_->new_block();
-	auto r = to_node<ValueTraits, BlockSize>(right);
+	write_ref right = tm_->new_block();
+	node_ref<ValueTraits, BlockSize> r = to_node<ValueTraits, BlockSize>(right);
 	r.set_nr_entries(0);
 	r.set_max_entries();
 
 	{
-		auto p = spine.template get_node<ValueTraits>();
+		node_ref<ValueTraits, BlockSize> p = spine.template get_node<ValueTraits>();
 		nr_left = p.get_nr_entries() / 2;
 		nr_right = p.get_nr_entries() - nr_left;
 		type = p.get_type();
@@ -493,10 +493,11 @@ split_beneath(btree_detail::shadow_spine<BlockSize> &spine,
 
 	{
 		// The parent may have changed value type, so we re-get it.
-		auto p = spine.template get_node<uint64_traits>();
+		internal_node p = spine.template get_node<uint64_traits>();
 		p.set_type(btree_detail::INTERNAL);
 		p.set_nr_entries(2);
 
+		// FIXME: set the value_size
 		p.overwrite_at(0, l.key_at(0), left.get_location());
 		p.overwrite_at(1, r.key_at(0), right.get_location());
 	}
@@ -517,11 +518,11 @@ split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
 {
 	using namespace btree_detail;
 
-	auto l = spine.template get_node<ValueTraits>();
-	auto left = spine.get_block();
+	node_ref<ValueTraits, BlockSize> l = spine.template get_node<ValueTraits>();
+	block_address left = spine.get_block();
 
-	auto right = tm_->new_block();
-	auto r = to_node<ValueTraits, BlockSize>(right);
+	write_ref right = tm_->new_block();
+	node_ref<ValueTraits, BlockSize> r = to_node<ValueTraits, BlockSize>(right);
 
 	unsigned nr_left = l.get_nr_entries() / 2;
 	unsigned nr_right = l.get_nr_entries() - nr_left;
@@ -532,7 +533,7 @@ split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
 	r.copy_entries(l, nr_left, nr_left + nr_right);
 	l.set_nr_entries(nr_left);
 
-	auto p = spine.get_parent();
+	internal_node p = spine.get_parent();
 	p.overwrite_at(parent_index, l.key_at(0), left);
 	p.insert_at(parent_index + 1, r.key_at(0), right.get_location());
 
@@ -568,11 +569,11 @@ insert_location(btree_detail::shadow_spine<BlockSize> &spine,
 
 		// patch up the parent to point to the new shadow
 		if (spine.has_parent()) {
-			auto p = spine.get_parent();
+			internal_node p = spine.get_parent();
 			p.set_value(i, spine.get_block());
 		}
 
-		auto internal = spine.template get_node<uint64_traits>();
+		internal_node internal = spine.template get_node<uint64_traits>();
 
 		// Split the node if we're full
 		if (internal.get_type() == INTERNAL)
@@ -594,7 +595,7 @@ insert_location(btree_detail::shadow_spine<BlockSize> &spine,
 		top = false;
 	}
 
-	auto leaf = spine.template get_node<ValueTraits>();
+	node_ref<ValueTraits, BlockSize> leaf = spine.template get_node<ValueTraits>();
 	// FIXME: gross
 	if (i < 0 || leaf.key_at(i) != key)
 		i++;
@@ -626,21 +627,25 @@ walk_tree(typename visitor::ptr visitor,
 {
 	using namespace btree_detail;
 
-	auto blk = tm_->read_lock(b);
-	auto o = to_node<uint64_traits, BlockSize>(blk);
-	if (o.get_type() == INTERNAL) {
-		visitor->visit_internal(level, is_root, o);
-		for (unsigned i = 0; i < o.get_nr_entries(); i++)
-			walk_tree(visitor, level, false, o.value_at(i));
+	try {
+		read_ref blk = tm_->read_lock(b);
+		internal_node o = to_node<uint64_traits, BlockSize>(blk);
+		if (o.get_type() == INTERNAL) {
+			visitor->visit_internal(level, is_root, o);
+			for (unsigned i = 0; i < o.get_nr_entries(); i++)
+				walk_tree(visitor, level, false, o.value_at(i));
 
-	} else if (level < Levels - 1) {
-		visitor->visit_internal_leaf(level, is_root, o);
-		for (unsigned i = 0; i < o.get_nr_entries(); i++)
-			walk_tree(visitor, level + 1, true, o.value_at(i));
+		} else if (level < Levels - 1) {
+			visitor->visit_internal_leaf(level, is_root, o);
+			for (unsigned i = 0; i < o.get_nr_entries(); i++)
+				walk_tree(visitor, level + 1, true, o.value_at(i));
 
-	} else {
-		auto ov = to_node<ValueTraits, BlockSize>(blk);
-		visitor->visit_leaf(level, is_root, ov);
+		} else {
+			leaf_node ov = to_node<ValueTraits, BlockSize>(blk);
+			visitor->visit_leaf(level, is_root, ov);
+		}
+	} catch (...) {		// FIXME: we should only catch terminate_walk type exceptions
+
 	}
 }
 

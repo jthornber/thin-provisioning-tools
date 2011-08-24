@@ -3,9 +3,14 @@
 
 #include "btree.h"
 
+#include "error_set.h"
+
 #include <sstream>
 #include <map>
 #include <set>
+
+using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -16,8 +21,10 @@ namespace persistent_data {
 	//----------------------------------------------------------------
 	class block_counter {
 	public:
+		typedef typename std::map<block_address, unsigned> count_map;
+
 		void inc(block_address b) {
-			auto it = counts_.find(b);
+			typename count_map::iterator it = counts_.find(b);
 			if (it == counts_.end())
 				counts_.insert(make_pair(b, 1));
 #if 0
@@ -27,16 +34,16 @@ namespace persistent_data {
 		}
 
 		unsigned get_count(block_address b) const {
-			auto it = counts_.find(b);
+			count_map::const_iterator it = counts_.find(b);
 			return (it == counts_.end()) ? 0 : it->second;
 		}
 
-		std::map<block_address, unsigned> const &get_counts() const {
+		count_map const &get_counts() const {
 			return counts_;
 		}
 
 	private:
-		std::map<block_address, unsigned> counts_;
+		count_map counts_;
 	};
 
 	//----------------------------------------------------------------
@@ -63,7 +70,8 @@ namespace persistent_data {
 	class btree_validator : public btree<Levels, ValueTraits, BlockSize>::visitor {
 	public:
 		btree_validator(block_counter &counter)
-			: counter_(counter) {
+			: counter_(counter),
+			  errs_(new error_set("btree errors")) {
 		}
 
 		void visit_internal(unsigned level, bool is_root,
@@ -93,12 +101,17 @@ namespace persistent_data {
 			check_nr_entries(n, is_root);
 		}
 
+		boost::optional<error_set::ptr> get_errors() const {
+			return errs_;
+		}
+
 	private:
 		void check_duplicate_block(block_address b) {
 			if (seen_.count(b)) {
 				std::ostringstream out;
 				out << "duplicate block in btree: " << b;
-				throw std::runtime_error(out.str());
+				errs_->add_child(out.str());
+				throw runtime_error(out.str());
 			}
 
 			seen_.insert(b);
@@ -111,7 +124,8 @@ namespace persistent_data {
 				out << "block number mismatch: actually "
 				    << n.get_location()
 				    << ", claims " << n.get_block_nr();
-				throw std::runtime_error(out.str());
+				errs_->add_child(out.str());
+				throw runtime_error(out.str());
 			}
 		}
 
@@ -121,13 +135,14 @@ namespace persistent_data {
 			if (elt_size * n.get_max_entries() + sizeof(node_header) > BlockSize) {
 				std::ostringstream out;
 				out << "max entries too large: " << n.get_max_entries();
-				throw std::runtime_error(out.str());
+				errs_->add_child(out.str());
 			}
 
 			if (n.get_max_entries() % 3) {
 				std::ostringstream out;
 				out << "max entries is not divisible by 3: " << n.get_max_entries();
-				throw std::runtime_error(out.str());
+				errs_->add_child(out.str());
+				throw runtime_error(out.str());
 			}
 		}
 
@@ -138,6 +153,7 @@ namespace persistent_data {
 				out << "bad nr_entries: "
 				    << n.get_nr_entries() << " < "
 				    << n.get_max_entries();
+				errs_->add_child(out.str());
 				throw std::runtime_error(out.str());
 			}
 
@@ -148,12 +164,14 @@ namespace persistent_data {
 				    << n.get_nr_entries()
 				    << ", expected at least "
 				    << min;
+				errs_->add_child(out.str());
 				throw runtime_error(out.str());
 			}
 		}
 
 		block_counter &counter_;
 		std::set<block_address> seen_;
+		error_set::ptr errs_;
 	};
 }
 

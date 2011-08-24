@@ -1,5 +1,6 @@
 #include "block.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -352,7 +353,7 @@ template <uint32_t BlockSize>
 void
 block_manager<BlockSize>::register_lock(block_address b, lock_type t) const
 {
-	auto it = held_locks_.find(b);
+	typename held_map::iterator it = held_locks_.find(b);
 	if (it == held_locks_.end())
 		held_locks_.insert(make_pair(b, make_pair(t, 1)));
 	else {
@@ -370,7 +371,7 @@ template <uint32_t BlockSize>
 void
 block_manager<BlockSize>::unregister_lock(block_address b, lock_type t) const
 {
-	auto it = held_locks_.find(b);
+	typename held_map::iterator it = held_locks_.find(b);
 	if (it == held_locks_.end())
 		throw std::runtime_error("lock not held");
 

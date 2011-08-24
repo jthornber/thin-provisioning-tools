@@ -19,6 +19,9 @@ namespace persistent_data {
 		template <uint32_t BlockSize>
 		class bitmap {
 		public:
+			typedef typename transaction_manager<BlockSize>::read_ref read_ref;
+			typedef typename transaction_manager<BlockSize>::write_ref write_ref;
+
 			bitmap(typename transaction_manager<BlockSize>::ptr tm,
 			       index_entry const &ie)
 				: tm_(tm),
@@ -26,7 +29,7 @@ namespace persistent_data {
 			}
 
 			ref_t lookup(unsigned b) const {
-				auto rr = tm_->read_lock(ie_.blocknr_);
+				read_ref rr = tm_->read_lock(ie_.blocknr_);
 				void const *bits = bitmap_data(rr);
 				ref_t b1 = test_bit_le(bits, b * 2);
 				ref_t b2 = test_bit_le(bits, b * 2 + 1);
@@ -36,7 +39,7 @@ namespace persistent_data {
 			}
 
 			void insert(unsigned b, ref_t n) {
-				auto wr = tm_->shadow(ie_.blocknr_).first;
+				write_ref wr = tm_->shadow(ie_.blocknr_).first;
 				void *bits = bitmap_data(wr);
 				bool was_free = !test_bit_le(bits, b * 2) && !test_bit_le(bits, b * 2 + 1);
 				if (n == 1 || n == 3)
@@ -113,6 +116,8 @@ namespace persistent_data {
 		class sm_disk_base : public persistent_space_map {
 		public:
 			typedef boost::shared_ptr<sm_disk_base<BlockSize> > ptr;
+			typedef typename transaction_manager<BlockSize>::read_ref read_ref;
+			typedef typename transaction_manager<BlockSize>::write_ref write_ref;
 
 			sm_disk_base(typename transaction_manager<BlockSize>::ptr tm)
 				: tm_(tm),
@@ -140,7 +145,7 @@ namespace persistent_data {
 			}
 
 			ref_t get_count(block_address b) const {
-				auto count = lookup_bitmap(b);
+				ref_t count = lookup_bitmap(b);
 				if (count == 3)
 					return lookup_ref_count(b);
 
@@ -188,7 +193,7 @@ namespace persistent_data {
 				// beginning.
 				block_address nr_indexes = div_up<block_address>(nr_blocks_, entries_per_block_);
 				for (block_address index = 0; index < nr_indexes; index++) {
-					auto ie = find_ie(index);
+					index_entry ie = find_ie(index);
 
 					bitmap<BlockSize> bm(tm_, ie);
 					block_address b = bm.find_free((index == nr_indexes - 1) ?
@@ -213,7 +218,7 @@ namespace persistent_data {
 				block_address bitmap_count = div_up<block_address>(nr_blocks, entries_per_block_);
 				block_address old_bitmap_count = div_up<block_address>(nr_blocks_, entries_per_block_);
 				for (block_address i = old_bitmap_count; i < bitmap_count; i++) {
-					auto wr = tm_->new_block();
+					write_ref wr = tm_->new_block();
 
 					struct index_entry ie;
 					ie.blocknr_ = wr.get_location();
@@ -258,7 +263,7 @@ namespace persistent_data {
 				if (n > 3)
 					throw runtime_error("bitmap can only hold 2 bit values");
 
-				auto ie = find_ie(b);
+				index_entry ie = find_ie(b);
 				bitmap<BlockSize> bm(tm_, ie);
 				bm.insert(b % entries_per_block_, n);
 				save_ie(b, bm.get_ie());
@@ -266,7 +271,7 @@ namespace persistent_data {
 
 			ref_t lookup_ref_count(block_address b) const {
 				uint64_t key[1] = {b};
-				auto mvalue = ref_counts_.lookup(key);
+				optional<ref_t> mvalue = ref_counts_.lookup(key);
 				if (!mvalue)
 					throw runtime_error("ref count not in tree");
 				return *mvalue;
@@ -343,7 +348,7 @@ namespace persistent_data {
 		private:
 			index_entry find_ie(block_address b) const {
 				uint64_t key[1] = {b / sm_disk_base<BlockSize>::get_entries_per_block()};
-				auto mindex = bitmaps_.lookup(key);
+				optional<index_entry> mindex = bitmaps_.lookup(key);
 				if (!mindex)
 					throw runtime_error("Couldn't lookup bitmap");
 

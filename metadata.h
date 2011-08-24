@@ -146,6 +146,8 @@ namespace thin_provisioning {
 	class metadata {
 	public:
 		typedef boost::shared_ptr<metadata> ptr;
+		typedef typename block_manager<MD_BLOCK_SIZE>::read_ref read_ref;
+		typedef typename block_manager<MD_BLOCK_SIZE>::write_ref write_ref;
 
 		metadata(std::string const &dev_path);
 		~metadata();

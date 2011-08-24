@@ -189,13 +189,16 @@ namespace persistent_data {
 		template <uint32_t BlockSize>
 		class shadow_spine : private noncopyable {
 		public:
+			typedef typename transaction_manager<BlockSize>::read_ref read_ref;
+			typedef typename transaction_manager<BlockSize>::write_ref write_ref;
+
 			shadow_spine(typename transaction_manager<BlockSize>::ptr tm)
 				: tm_(tm) {
 			}
 
 			// true if the children of the shadow need incrementing
 			bool step(block_address b) {
-				auto p = tm_->shadow(b);
+				pair<write_ref, bool> p = tm_->shadow(b);
 				try {
 					step(p.first);
 				} catch (...) {
@@ -261,16 +264,16 @@ namespace persistent_data {
 
 			for (;;) {
 				spine.step(block);
-				auto leaf = spine.template get_node<ValueTraits>();
+				node_ref<ValueTraits, BlockSize> leaf = spine.template get_node<ValueTraits>();
 
-				auto mi = leaf.exact_search(key);
+				optional<unsigned> mi = leaf.exact_search(key);
 				if (!mi)
 					return optional<leaf_type>();
 
 				if (leaf.get_type() == btree_detail::LEAF)
 					return optional<leaf_type>(leaf.value_at(*mi));
 
-				auto internal = spine.template get_node<uint64_traits>();
+				node_ref<uint64_traits, BlockSize> internal = spine.template get_node<uint64_traits>();
 				block = internal.value_at(*mi);
 			}
 		}
@@ -287,6 +290,8 @@ namespace persistent_data {
 		typedef boost::optional<std::pair<unsigned, value_type> > maybe_pair;
 		typedef typename block_manager<BlockSize>::read_ref read_ref;
 		typedef typename block_manager<BlockSize>::write_ref write_ref;
+		typedef typename btree_detail::node_ref<ValueTraits, BlockSize> leaf_node;
+		typedef typename btree_detail::node_ref<uint64_traits, BlockSize> internal_node;
 
 		btree(typename persistent_data::transaction_manager<BlockSize>::ptr tm,
 		      typename ValueTraits::ref_counter rc);
@@ -320,12 +325,9 @@ namespace persistent_data {
 			virtual ~visitor() {}
 			typedef boost::shared_ptr<visitor> ptr;
 
-			virtual void visit_internal(unsigned level, bool is_root,
-						    btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
-			virtual void visit_internal_leaf(unsigned level, bool is_root,
-							 btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
-			virtual void visit_leaf(unsigned level, bool is_root,
-						btree_detail::node_ref<ValueTraits, BlockSize> const &n) = 0;
+			virtual void visit_internal(unsigned level, bool is_root, internal_node const &n) = 0;
+			virtual void visit_internal_leaf(unsigned level, bool is_root, internal_node const &n) = 0;
+			virtual void visit_leaf(unsigned level, bool is_root, leaf_node const &n) = 0;
 		};
 
 		// Walks the tree in depth first order

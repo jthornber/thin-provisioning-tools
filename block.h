@@ -181,7 +181,8 @@ namespace persistent_data {
 		mutable unsigned superblock_count_;
 		mutable unsigned ordinary_count_;
 
-		mutable std::map<block_address, std::pair<lock_type, unsigned> > held_locks_;
+		typedef std::map<block_address, std::pair<lock_type, unsigned> > held_map;
+		mutable held_map held_locks_;
 	};
 }
 

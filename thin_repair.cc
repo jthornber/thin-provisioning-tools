@@ -2,6 +2,7 @@
 
 #include "metadata.h"
 
+using namespace boost;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
@@ -10,7 +11,7 @@ namespace {
 	int check(string const &path) {
 		metadata md(path);
 
-		auto maybe_errors = md.check();
+		optional<error_set::ptr> maybe_errors = md.check();
 		if (maybe_errors) {
 			cerr << error_selector(*maybe_errors, 3);
 			return 1;
