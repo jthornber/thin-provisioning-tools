@@ -1,6 +1,7 @@
 #ifndef SPACE_MAP_DISK_H
 #define SPACE_MAP_DISK_H
 
+#include "btree_validator.h"
 #include "space_map.h"
 #include "transaction_manager.h"
 #include "endian_utils.h"
@@ -124,6 +125,7 @@ namespace persistent_data {
 			sm_disk_base(typename transaction_manager<BlockSize>::ptr tm,
 				     sm_root const &root)
 				: tm_(tm),
+				  entries_per_block_((BlockSize - sizeof(bitmap_header)) * 4),
 				  nr_blocks_(root.nr_blocks_),
 				  nr_allocated_(root.nr_allocated_),
 				  ref_counts_(tm_, root.ref_count_root_, ref_count_traits::ref_counter()) {
@@ -289,19 +291,29 @@ namespace persistent_data {
 		};
 
 		template <uint32_t BlockSize>
+		class bitmap_tree_validator : public btree_validator<1, index_entry_traits, BlockSize> {
+		public:
+			typedef boost::shared_ptr<bitmap_tree_validator> ptr;
+
+			bitmap_tree_validator(block_counter &counter)
+				: btree_validator<1, index_entry_traits, BlockSize>(counter) {
+			}
+		};
+
+		template <uint32_t BlockSize>
 		class sm_disk : public sm_disk_base<BlockSize> {
 		public:
 			typedef boost::shared_ptr<sm_disk<BlockSize> > ptr;
 
 			sm_disk(typename transaction_manager<BlockSize>::ptr tm)
 				: sm_disk_base<BlockSize>(tm),
-				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), typename sm_disk_detail::index_entry_traits::ref_counter()) {
+				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), typename index_entry_traits::ref_counter()) {
 			}
 
 			sm_disk(typename transaction_manager<BlockSize>::ptr tm,
 				sm_root const &root)
 				: sm_disk_base<BlockSize>(tm, root),
-				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), root.bitmap_root_, typename sm_disk_detail::index_entry_traits::ref_counter()) {
+				  bitmaps_(sm_disk_base<BlockSize>::get_tm(), root.bitmap_root_, typename index_entry_traits::ref_counter()) {
 			}
 
 			size_t root_size() {
@@ -321,6 +333,11 @@ namespace persistent_data {
 				v.ref_count_root_ = sm_disk_base<BlockSize>::get_ref_count_root();
 				sm_root_traits::pack(v, d);
 				::memcpy(dest, &d, sizeof(d));
+			}
+
+			void check(block_counter &counter) {
+				typename bitmap_tree_validator<BlockSize>::ptr v(new bitmap_tree_validator<BlockSize>(counter));
+				bitmaps_.visit(v);
 			}
 
 		private:
@@ -343,7 +360,7 @@ namespace persistent_data {
 	}
 
 	template <uint32_t MetadataBlockSize>
-	persistent_space_map::ptr
+	typename sm_disk_detail::sm_disk<MetadataBlockSize>::ptr
 	create_disk_sm(typename transaction_manager<MetadataBlockSize>::ptr tm,
 		       block_address nr_blocks)
 	{
@@ -355,7 +372,7 @@ namespace persistent_data {
 	}
 
 	template <uint32_t MetadataBlockSize>
-	persistent_space_map::ptr
+	typename sm_disk_detail::sm_disk<MetadataBlockSize>::ptr
 	open_disk_sm(typename transaction_manager<MetadataBlockSize>::ptr tm,
 		     void *root)
 	{
@@ -366,7 +383,7 @@ namespace persistent_data {
 
 		::memcpy(&d, root, sizeof(d));
 		sm_root_traits::unpack(d, v);
-		return typename persistent_space_map::ptr(
+		return typename sm_disk<MetadataBlockSize>::ptr(
 			new sm_disk<MetadataBlockSize>(tm, v));
 	}
 }

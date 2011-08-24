@@ -5,3 +5,4 @@
 test.data
 thin_dump
 thin_repair
+*.metadata

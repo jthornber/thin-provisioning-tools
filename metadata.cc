@@ -1,10 +1,13 @@
 #include "metadata.h"
 
+#include "btree_validator.h"
 #include "core_map.h"
 
 #include <stdexcept>
 #include <sstream>
 #include <iostream>
+#include <set>
+#include <map>
 
 using namespace std;
 using namespace persistent_data;
@@ -38,115 +41,33 @@ namespace {
 		return sb;
 	}
 
-	//----------------------------------------------------------------
-	// This class implements consistency checking for the
-	// btrees in general.  It's worth summarising what is checked:
-	//
-	// Implemented
-	// -----------
-	//
-	// - No block appears in the tree more than once.
-	// - block_nr
-	// - nr_entries < max_entries
-	// - max_entries fits in block
-	// - max_entries is divisible by 3
-	//
-	// Not implemented
-	// ---------------
-	//
-	// - checksum
-	// - leaf | internal flags (this can be inferred from siblings)
-	// - nr_entries > minimum
-	//----------------------------------------------------------------
-	template <uint32_t Levels, typename ValueTraits, uint32_t BlockSize>
-	class btree_validator : public btree<Levels, ValueTraits, BlockSize>::visitor {
-	public:
-		void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			check_duplicate_block(n.get_location());
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n);
-		}
-
-		void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			check_duplicate_block(n.get_location());
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n);
-		}
-
-		void visit_leaf(unsigned level, btree_detail::node_ref<ValueTraits, BlockSize> const &n) {
-			check_duplicate_block(n.get_location());
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n);
-		}
-
-	private:
-		void check_duplicate_block(block_address b) {
-			if (seen_.count(b)) {
-				ostringstream out;
-				out << "duplicate block in btree: " << b;
-				throw runtime_error(out.str());
-			}
-
-			seen_.insert(b);
-		}
-
-		template <typename node>
-		void check_block_nr(node const &n) const {
-			if (n.get_location() != n.get_block_nr()) {
-				ostringstream out;
-				out << "block number mismatch: actually "
-				    << n.get_location()
-				    << ", claims " << n.get_block_nr();
-				throw runtime_error(out.str());
-			}
-		}
-
-		template <typename node>
-		void check_max_entries(node const &n) const {
-			size_t elt_size = sizeof(uint64_t) + n.get_value_size();
-			if (elt_size * n.get_max_entries() + sizeof(node_header) > BlockSize) {
-				ostringstream out;
-				out << "max entries too large: " << n.get_max_entries();
-				throw runtime_error(out.str());
-			}
-
-			if (n.get_max_entries() % 3) {
-				ostringstream out;
-				out << "max entries is not divisible by 3: " << n.get_max_entries();
-				throw runtime_error(out.str());
-			}
-		}
-
-		template <typename node>
-		void check_nr_entries(node const &n) const {
-			if (n.get_nr_entries() > n.get_max_entries()) {
-				ostringstream out;
-				out << "bad nr_entries: "
-				    << n.get_nr_entries() << " < "
-				    << n.get_max_entries();
-				throw runtime_error(out.str());
-			}
-		}
-
-		set<block_address> seen_;
-	};
-
 	// As well as the standard btree checks, we build up a set of what
 	// devices having mappings defined, which can later be cross
-	// referenced with the details tree.
+	// referenced with the details tree.  A separate block_counter is
+	// used to later verify the data space map.
 	class mapping_validator : public btree_validator<2, block_traits, MD_BLOCK_SIZE> {
 	public:
 		typedef boost::shared_ptr<mapping_validator> ptr;
 
-		void visit_internal_leaf(unsigned level,
+		mapping_validator(block_counter &metadata_counter, block_counter &data_counter)
+			: btree_validator<2, block_traits, MD_BLOCK_SIZE>(metadata_counter),
+			  data_counter_(data_counter) {
+		}
+
+		void visit_internal_leaf(unsigned level, bool is_root,
 					 btree_detail::node_ref<uint64_traits, MD_BLOCK_SIZE> const &n) {
-			btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_internal_leaf(level, n);
+			btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_internal_leaf(level, is_root, n);
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
 				devices_.insert(n.key_at(i));
+		}
+
+		void visit_leaf(unsigned level, bool is_root,
+				btree_detail::node_ref<block_traits, MD_BLOCK_SIZE> const &n) {
+			btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
+
+			for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				data_counter_.inc(n.value_at(i).block_);
 		}
 
 		set<uint64_t> get_devices() const {
@@ -154,6 +75,7 @@ namespace {
 		}
 
 	private:
+		block_counter &data_counter_;
 		set<uint64_t> devices_;
 	};
 
@@ -161,9 +83,13 @@ namespace {
 	public:
 		typedef boost::shared_ptr<details_validator> ptr;
 
-		void visit_leaf(unsigned level,
+		details_validator(block_counter &counter)
+			: btree_validator<1, device_details_traits, MD_BLOCK_SIZE>(counter) {
+		}
+
+		void visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<device_details_traits, MD_BLOCK_SIZE> const &n) {
-			btree_validator<1, device_details_traits, MD_BLOCK_SIZE>::visit_leaf(level, n);
+			btree_validator<1, device_details_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
 				devices_.insert(n.key_at(i));
@@ -203,7 +129,10 @@ void
 thin::insert(block_address thin_block, block_address data_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	return metadata_->mappings_.insert(key, data_block);
+	block_time bt;
+	bt.block_ = data_block;
+	bt.time_ = 0;		// FIXME: use current time.
+	return metadata_->mappings_.insert(key, bt);
 }
 
 void
@@ -253,9 +182,10 @@ thin::set_mapped_blocks(block_address count)
 metadata::metadata(std::string const &dev_path)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
+	  data_sm_(open_disk_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
 	  details_(tm_, sb_.device_details_root_, typename device_details_traits::ref_counter()),
 	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter<MD_BLOCK_SIZE>(tm_)),
-	  mappings_(tm_, sb_.data_mapping_root_, space_map_ref_counter(data_sm_))
+	  mappings_(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_))
 {
 #if 0
 	::memset(&sb_, 0, sizeof(sb_));
@@ -290,7 +220,7 @@ metadata::create_thin(thin_dev_t dev)
 	if (device_exists(dev))
 		throw std::runtime_error("Device already exists");
 
-	single_mapping_tree::ptr new_tree(new single_mapping_tree(tm_, space_map_ref_counter(data_sm_)));
+	single_mapping_tree::ptr new_tree(new single_mapping_tree(tm_, block_time_ref_counter(data_sm_)));
 	mappings_top_level_.insert(key, new_tree->get_root());
 	mappings_.set_root(mappings_top_level_.get_root()); // FIXME: ugly
 }
@@ -306,7 +236,7 @@ metadata::create_snap(thin_dev_t dev, thin_dev_t origin)
 		throw std::runtime_error("unknown origin");
 
 	single_mapping_tree otree(tm_, *mtree_root,
-				  space_map_ref_counter(data_sm_));
+				  block_time_ref_counter(data_sm_));
 
 	single_mapping_tree::ptr clone(otree.clone());
 	mappings_top_level_.insert(snap_key, clone->get_root());
@@ -396,14 +326,19 @@ metadata::device_exists(thin_dev_t dev) const
 	return details_.lookup(key);
 }
 
-void
+boost::optional<error_set::ptr>
 metadata::check()
 {
-	mapping_validator::ptr mv(new mapping_validator);
+	error_set::ptr errors(new error_set("Errors in metadata"));
+
+	block_counter metadata_counter, data_counter;
+
+	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
+							data_counter));
 	mappings_.visit(mv);
 	auto mapped_devs = mv->get_devices();
 
-	details_validator::ptr dv(new details_validator);
+	details_validator::ptr dv(new details_validator(metadata_counter));
 	details_.visit(dv);
 	auto details_devs = dv->get_devices();
 
@@ -414,6 +349,32 @@ metadata::check()
 			    << ", yet there is no entry in the details tree.";
 			throw runtime_error(out.str());
 		}
+
+	data_sm_->check(metadata_counter);
+
+	{
+		error_set::ptr data_errors(new error_set("Errors in data reference counts"));
+
+		bool bad = false;
+		auto data_counts = data_counter.get_counts();
+		for (auto it = data_counts.begin(); it != data_counts.end(); ++it) {
+			uint32_t ref_count = data_sm_->get_count(it->first);
+			if (ref_count != it->second) {
+				ostringstream out;
+				out << it->first << ": was " << ref_count
+				    << ", expected " << it->second;
+				data_errors->add_child(out.str());
+				bad = true;
+			}
+		}
+
+		if (bad)
+			errors->add_child(data_errors);
+	}
+
+	return (errors->get_children().size() > 0) ?
+		optional<error_set::ptr>(errors) :
+		optional<error_set::ptr>();
 }
 
 //----------------------------------------------------------------

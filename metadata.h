@@ -2,10 +2,12 @@
 #define MULTISNAP_METADATA_H
 
 #include "block.h"
-#include "transaction_manager.h"
 #include "btree.h"
 #include "endian_utils.h"
+#include "error_set.h"
 #include "metadata_disk_structures.h"
+#include "space_map_disk.h"
+#include "transaction_manager.h"
 
 #include <string>
 
@@ -43,17 +45,43 @@ namespace thin_provisioning {
 		space_map::ptr sm_;
 	};
 
+	struct block_time {
+		uint64_t block_;
+		uint32_t time_;
+	};
+
+	class block_time_ref_counter {
+	public:
+		block_time_ref_counter(space_map::ptr sm)
+			: sm_(sm) {
+		}
+
+		void inc(block_time bt) {
+			sm_->inc(bt.block_);
+		}
+
+		void dec(block_time bt) {
+			sm_->dec(bt.block_);
+		}
+
+	private:
+		space_map::ptr sm_;
+	};
+
 	struct block_traits {
 		typedef base::__le64 disk_type;
-		typedef uint64_t value_type;
-		typedef space_map_ref_counter ref_counter;
+		typedef block_time value_type;
+		typedef block_time_ref_counter ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
-			value = base::to_cpu<uint64_t>(disk);
+			uint64_t v = to_cpu<uint64_t>(disk);
+			value.block_ = v >> 24;
+			value.time_ = v & ((1 << 24) - 1);
 		}
 
 		static void pack(value_type const &value, disk_type &disk) {
-			disk = base::to_disk<base::__le64>(value);
+			uint64_t v = (value.block_ << 24) | value.time_;
+			disk = base::to_disk<base::__le64>(v);
 		}
 	};
 
@@ -95,7 +123,7 @@ namespace thin_provisioning {
 	class thin {
 	public:
 		typedef boost::shared_ptr<thin> ptr;
-		typedef boost::optional<block_address> maybe_address;
+		typedef boost::optional<block_time> maybe_address;
 
 		thin_dev_t get_dev_t() const;
 		maybe_address lookup(block_address thin_block);
@@ -144,7 +172,7 @@ namespace thin_provisioning {
 		thin::ptr open_thin(thin_dev_t);
 
 		// Validation and repair
-		void check();
+		boost::optional<persistent_data::error_set::ptr> check();
 
 	private:
 		friend class thin;
@@ -164,7 +192,7 @@ namespace thin_provisioning {
 
 		// Ignoring the metadata sm for now, since we don't need it for the basic 'dump' tool
 		// space_map::ptr metadata_sm_;
-		space_map::ptr data_sm_;
+		sm_disk_detail::sm_disk<MD_BLOCK_SIZE>::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;
 		mapping_tree mappings_;

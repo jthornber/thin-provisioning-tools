@@ -320,9 +320,12 @@ namespace persistent_data {
 			virtual ~visitor() {}
 			typedef boost::shared_ptr<visitor> ptr;
 
-			virtual void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
-			virtual void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
-			virtual void visit_leaf(unsigned level, btree_detail::node_ref<ValueTraits, BlockSize> const &n) = 0;
+			virtual void visit_internal(unsigned level, bool is_root,
+						    btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
+			virtual void visit_internal_leaf(unsigned level, bool is_root,
+							 btree_detail::node_ref<uint64_traits, BlockSize> const &n) = 0;
+			virtual void visit_leaf(unsigned level, bool is_root,
+						btree_detail::node_ref<ValueTraits, BlockSize> const &n) = 0;
 		};
 
 		// Walks the tree in depth first order
@@ -351,7 +354,8 @@ namespace persistent_data {
 				int *index);
 
 		void walk_tree(typename visitor::ptr visitor,
-			       unsigned level, block_address b);
+			       unsigned level, bool is_root,
+			       block_address b);
 
 		typename persistent_data::transaction_manager<BlockSize>::ptr tm_;
 		bool destroy_;

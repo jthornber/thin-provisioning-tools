@@ -1,5 +1,6 @@
 SOURCE=\
 	endian_utils.cc \
+	error_set.cc \
 	metadata.cc \
 	metadata_disk_structures.cc
 
