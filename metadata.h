@@ -192,7 +192,7 @@ namespace thin_provisioning {
 		tm_ptr tm_;
 		superblock sb_;
 
-		space_map::ptr metadata_sm_;
+		sm_disk_detail::sm_metadata<MD_BLOCK_SIZE>::ptr metadata_sm_;
 		sm_disk_detail::sm_disk<MD_BLOCK_SIZE>::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;

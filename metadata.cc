@@ -375,6 +375,7 @@ metadata::check()
 			throw runtime_error(out.str());
 		}
 
+	metadata_sm_->check(metadata_counter);
 	data_sm_->check(metadata_counter);
 	errors->add_child(check_ref_counts("Errors in metadata block reference counts",
 					   metadata_counter, metadata_sm_));

@@ -407,6 +407,13 @@ namespace persistent_data {
 				::memcpy(dest, &d, sizeof(d));
 			}
 
+			void check(block_counter &counter) {
+				counter.inc(bitmap_root_);
+
+				for (unsigned i = 0; i < entries_.size(); i++)
+					counter.inc(entries_[i].blocknr_);
+			}
+
 		private:
 			index_entry find_ie(block_address ie_index) const {
 				return entries_[ie_index];
@@ -422,7 +429,9 @@ namespace persistent_data {
 
 				metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
 
-				for (unsigned i = 0; i < MAX_METADATA_BITMAPS; i++)
+				unsigned nr_indexes = div_up<block_address>(sm_disk_base<BlockSize>::get_nr_blocks(),
+									    sm_disk_base<BlockSize>::get_entries_per_block());
+				for (unsigned i = 0; i < nr_indexes; i++)
 					index_entry_traits::unpack(*(mdi->index + i), entries_[i]);
 			}
 
