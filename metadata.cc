@@ -183,7 +183,7 @@ metadata::metadata(std::string const &dev_path)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
 	  data_sm_(open_disk_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
-	  details_(tm_, sb_.device_details_root_, typename device_details_traits::ref_counter()),
+	  details_(tm_, sb_.device_details_root_, device_details_traits::ref_counter()),
 	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter<MD_BLOCK_SIZE>(tm_)),
 	  mappings_(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_))
 {

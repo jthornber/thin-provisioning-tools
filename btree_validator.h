@@ -21,10 +21,10 @@ namespace persistent_data {
 	//----------------------------------------------------------------
 	class block_counter {
 	public:
-		typedef typename std::map<block_address, unsigned> count_map;
+		typedef std::map<block_address, unsigned> count_map;
 
 		void inc(block_address b) {
-			typename count_map::iterator it = counts_.find(b);
+			count_map::iterator it = counts_.find(b);
 			if (it == counts_.end())
 				counts_.insert(make_pair(b, 1));
 #if 0
