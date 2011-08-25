@@ -360,10 +360,12 @@ metadata::check()
 
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
+	metadata_counter.inc(mappings_.get_root());
 	mappings_.visit(mv);
 	set<uint64_t> const &mapped_devs = mv->get_devices();
 
 	details_validator::ptr dv(new details_validator(metadata_counter));
+	metadata_counter.inc(details_.get_root());
 	details_.visit(dv);
 	set<uint64_t> const &details_devs = dv->get_devices();
 
@@ -375,6 +377,7 @@ metadata::check()
 			throw runtime_error(out.str());
 		}
 
+	metadata_counter.inc(SUPERBLOCK_LOCATION);
 	metadata_sm_->check(metadata_counter);
 	data_sm_->check(metadata_counter);
 	errors->add_child(check_ref_counts("Errors in metadata block reference counts",
