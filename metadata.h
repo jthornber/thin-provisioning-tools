@@ -192,8 +192,7 @@ namespace thin_provisioning {
 		tm_ptr tm_;
 		superblock sb_;
 
-		// Ignoring the metadata sm for now, since we don't need it for the basic 'dump' tool
-		// space_map::ptr metadata_sm_;
+		space_map::ptr metadata_sm_;
 		sm_disk_detail::sm_disk<MD_BLOCK_SIZE>::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;

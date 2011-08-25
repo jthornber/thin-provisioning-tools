@@ -30,6 +30,13 @@ error_set::add_child(error_set::ptr err)
 }
 
 void
+error_set::add_child(boost::optional<error_set::ptr> maybe_errs)
+{
+	if (maybe_errs)
+		children_.push_back(*maybe_errs);
+}
+
+void
 error_set::add_child(string const &err)
 {
 	error_set::ptr e(new error_set(err));

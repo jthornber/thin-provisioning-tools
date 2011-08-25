@@ -1,6 +1,7 @@
 #ifndef ERROR_SET_H
 #define ERROR_SET_H
 
+#include <boost/optional.hpp>
 #include <boost/shared_ptr.hpp>
 #include <list>
 #include <iosfwd>
@@ -22,6 +23,7 @@ namespace persistent_data {
 		std::string const &get_description() const;
 		std::list<error_set::ptr> const &get_children() const;
 		void add_child(error_set::ptr err);
+		void add_child(boost::optional<error_set::ptr> maybe_errs);
 		void add_child(std::string const &err);
 
 	private:

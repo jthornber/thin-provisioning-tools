@@ -48,7 +48,7 @@ namespace persistent_data {
 			__le32 padding_;
 			__le64 blocknr_;
 
-			struct index_entry index[MAX_METADATA_BITMAPS];
+			struct index_entry_disk index[MAX_METADATA_BITMAPS];
 		} __attribute__ ((packed));
 
 		struct sm_root_disk {

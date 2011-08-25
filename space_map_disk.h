@@ -175,6 +175,7 @@ namespace persistent_data {
 			}
 
 			void commit() {
+				commit_ies();
 			}
 
 			void inc(block_address b) {
@@ -252,9 +253,10 @@ namespace persistent_data {
 		private:
 			virtual index_entry find_ie(block_address b) const = 0;
 			virtual void save_ie(block_address b, struct index_entry ie) = 0;
+			virtual void commit_ies() = 0;
 
 			ref_t lookup_bitmap(block_address b) const {
-				index_entry ie = find_ie(b);
+				index_entry ie = find_ie(b / entries_per_block_);
 				bitmap<BlockSize> bm(tm_, ie);
 				return bm.lookup(b % entries_per_block_);
 			}
@@ -263,7 +265,7 @@ namespace persistent_data {
 				if (n > 3)
 					throw runtime_error("bitmap can only hold 2 bit values");
 
-				index_entry ie = find_ie(b);
+				index_entry ie = find_ie(b / entries_per_block_);
 				bitmap<BlockSize> bm(tm_, ie);
 				bm.insert(b % entries_per_block_, n);
 				save_ie(b, bm.get_ie());
@@ -346,8 +348,8 @@ namespace persistent_data {
 			}
 
 		private:
-			index_entry find_ie(block_address b) const {
-				uint64_t key[1] = {b / sm_disk_base<BlockSize>::get_entries_per_block()};
+			index_entry find_ie(block_address ie_index) const {
+				uint64_t key[1] = {ie_index};
 				optional<index_entry> mindex = bitmaps_.lookup(key);
 				if (!mindex)
 					throw runtime_error("Couldn't lookup bitmap");
@@ -355,12 +357,92 @@ namespace persistent_data {
 				return *mindex;
 			}
 
-			void save_ie(block_address b, struct index_entry ie) {
-				uint64_t key[1] = {b / sm_disk_base<BlockSize>::get_entries_per_block()};
+			void save_ie(block_address ie_index, struct index_entry ie) {
+				uint64_t key[1] = {ie_index};
 				bitmaps_.insert(key, ie);
 			}
 
+			void commit_ies() {
+			}
+
 			btree<1, index_entry_traits, BlockSize> bitmaps_;
+		};
+
+		template <uint32_t BlockSize>
+		class sm_metadata : public sm_disk_base<BlockSize> {
+		public:
+			typedef boost::shared_ptr<sm_metadata<BlockSize> > ptr;
+
+			sm_metadata(typename transaction_manager<BlockSize>::ptr tm)
+				: sm_disk_base<BlockSize>(tm),
+				  entries_(MAX_METADATA_BITMAPS) {
+				// FIXME: allocate a new bitmap root
+			}
+
+			sm_metadata(typename transaction_manager<BlockSize>::ptr tm,
+				    sm_root const &root)
+				: sm_disk_base<BlockSize>(tm, root),
+				  bitmap_root_(root.bitmap_root_),
+				  entries_(MAX_METADATA_BITMAPS) {
+				load_ies();
+			}
+
+			size_t root_size() {
+				return sizeof(sm_root_disk);
+			}
+
+			// FIXME: common code
+			void copy_root(void *dest, size_t len) {
+				sm_root_disk d;
+				sm_root v;
+
+				if (len < sizeof(d))
+					throw runtime_error("root too small");
+
+				v.nr_blocks_ = sm_disk_base<BlockSize>::get_nr_blocks();
+				v.nr_allocated_ = sm_disk_base<BlockSize>::get_nr_allocated();
+				v.bitmap_root_ = bitmap_root_;
+				v.ref_count_root_ = sm_disk_base<BlockSize>::get_ref_count_root();
+				sm_root_traits::pack(v, d);
+				::memcpy(dest, &d, sizeof(d));
+			}
+
+		private:
+			index_entry find_ie(block_address ie_index) const {
+				return entries_[ie_index];
+			}
+
+			void save_ie(block_address ie_index, struct index_entry ie) {
+				entries_[ie_index] = ie;
+			}
+
+			void load_ies() {
+				typename block_manager<BlockSize>::read_ref rr =
+					sm_disk_base<BlockSize>::get_tm()->read_lock(bitmap_root_);
+
+				metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
+
+				for (unsigned i = 0; i < MAX_METADATA_BITMAPS; i++)
+					index_entry_traits::unpack(*(mdi->index + i), entries_[i]);
+			}
+
+			void commit_ies() {
+				std::pair<typename block_manager<BlockSize>::write_ref, bool> p =
+					sm_disk_base<BlockSize>::get_tm()->shadow(bitmap_root_);
+
+				bitmap_root_ = p.first.get_location();
+				metadata_index *mdi = reinterpret_cast<metadata_index *>(&p.first.data());
+
+				mdi->csum_ = to_disk<__le32, uint32_t>(0);
+				mdi->padding_ = to_disk<__le32, uint32_t>(0);
+				mdi->blocknr_ = to_disk<__le64>(bitmap_root_);
+
+				for (unsigned i = 0; i < entries_.size(); i++)
+					index_entry_traits::pack(entries_[i], mdi->index[i]);
+			}
+
+			block_address bitmap_root_;
+			std::vector<index_entry> entries_;
 		};
 	}
 
@@ -390,6 +472,22 @@ namespace persistent_data {
 		sm_root_traits::unpack(d, v);
 		return typename sm_disk<MetadataBlockSize>::ptr(
 			new sm_disk<MetadataBlockSize>(tm, v));
+	}
+
+	template <uint32_t MetadataBlockSize>
+	typename sm_disk_detail::sm_metadata<MetadataBlockSize>::ptr
+	open_metadata_sm(typename transaction_manager<MetadataBlockSize>::ptr tm,
+			 void * root)
+	{
+		using namespace sm_disk_detail;
+
+		sm_root_disk d;
+		sm_root v;
+
+		::memcpy(&d, root, sizeof(d));
+		sm_root_traits::unpack(d, v);
+		return typename sm_metadata<MetadataBlockSize>::ptr(
+			new sm_metadata<MetadataBlockSize>(tm, v));
 	}
 }
 

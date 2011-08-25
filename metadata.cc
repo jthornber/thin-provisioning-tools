@@ -182,6 +182,7 @@ thin::set_mapped_blocks(block_address count)
 metadata::metadata(std::string const &dev_path)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
+	  metadata_sm_(open_metadata_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
 	  data_sm_(open_disk_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
 	  details_(tm_, sb_.device_details_root_, device_details_traits::ref_counter()),
 	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter<MD_BLOCK_SIZE>(tm_)),
@@ -326,6 +327,32 @@ metadata::device_exists(thin_dev_t dev) const
 	return details_.lookup(key);
 }
 
+namespace {
+	// FIXME: this doesn't check for non-zero counts in the sm that are
+	// actually zero.
+	optional<error_set::ptr>
+	check_ref_counts(string const &desc, block_counter const &actual,
+			 space_map::ptr sm) {
+		error_set::ptr errors(new error_set(desc));
+
+		bool bad = false;
+		block_counter::count_map const &counts = actual.get_counts();
+		block_counter::count_map::const_iterator it, end = counts.end();
+		for (it = counts.begin(); it != end; ++it) {
+			uint32_t ref_count = sm->get_count(it->first);
+			if (ref_count != it->second) {
+				ostringstream out;
+				out << it->first << ": was " << ref_count
+				    << ", expected " << it->second;
+				errors->add_child(out.str());
+				bad = true;
+			}
+		}
+
+		return bad ? optional<error_set::ptr>(errors) : optional<error_set::ptr>();
+	}
+}
+
 boost::optional<error_set::ptr>
 metadata::check()
 {
@@ -351,27 +378,10 @@ metadata::check()
 		}
 
 	data_sm_->check(metadata_counter);
-
-	{
-		error_set::ptr data_errors(new error_set("Errors in data reference counts"));
-
-		bool bad = false;
-		block_counter::count_map const &data_counts = data_counter.get_counts();
-		for (block_counter::count_map::const_iterator it = data_counts.begin();
-		     it != data_counts.end(); ++it) {
-			uint32_t ref_count = data_sm_->get_count(it->first);
-			if (ref_count != it->second) {
-				ostringstream out;
-				out << it->first << ": was " << ref_count
-				    << ", expected " << it->second;
-				data_errors->add_child(out.str());
-				bad = true;
-			}
-		}
-
-		if (bad)
-			errors->add_child(data_errors);
-	}
+	errors->add_child(check_ref_counts("Errors in metadata block reference counts",
+					   metadata_counter, metadata_sm_));
+	errors->add_child(check_ref_counts("Errors in data block reference counts",
+					   data_counter, data_sm_));
 
 	return (errors->get_children().size() > 0) ?
 		optional<error_set::ptr>(errors) :
