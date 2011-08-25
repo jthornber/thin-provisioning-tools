@@ -76,20 +76,24 @@ namespace persistent_data {
 
 		void visit_internal(unsigned level, bool is_root,
 				    btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			counter_.inc(n.get_location());
 			check_duplicate_block(n.get_location());
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, is_root);
+
+			for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				counter_.inc(n.value_at(i));
 		}
 
 		void visit_internal_leaf(unsigned level, bool is_root,
 					 btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			counter_.inc(n.get_location());
 			check_duplicate_block(n.get_location());
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, is_root);
+
+			for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				counter_.inc(n.value_at(i));
 		}
 
 		void visit_leaf(unsigned level, bool is_root,

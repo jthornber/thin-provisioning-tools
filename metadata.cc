@@ -328,22 +328,20 @@ metadata::device_exists(thin_dev_t dev) const
 }
 
 namespace {
-	// FIXME: this doesn't check for non-zero counts in the sm that are
-	// actually zero.
 	optional<error_set::ptr>
-	check_ref_counts(string const &desc, block_counter const &actual,
+	check_ref_counts(string const &desc, block_counter const &counts,
 			 space_map::ptr sm) {
 		error_set::ptr errors(new error_set(desc));
 
 		bool bad = false;
-		block_counter::count_map const &counts = actual.get_counts();
-		block_counter::count_map::const_iterator it, end = counts.end();
-		for (it = counts.begin(); it != end; ++it) {
-			uint32_t ref_count = sm->get_count(it->first);
-			if (ref_count != it->second) {
+		for (block_address b = 0; b < sm->get_nr_blocks(); b++) {
+			uint32_t actual = sm->get_count(b);
+			uint32_t expected = counts.get_count(b);
+
+			if (actual != expected) {
 				ostringstream out;
-				out << it->first << ": was " << ref_count
-				    << ", expected " << it->second;
+				out << b << ": was " << actual
+				    << ", expected " << expected;
 				errors->add_child(out.str());
 				bad = true;
 			}
