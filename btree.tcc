@@ -613,7 +613,7 @@ insert_location(btree_detail::shadow_spine<BlockSize> &spine,
 
 template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
 void
-btree<Levels, ValueTraits, BlockSize>::visit(typename visitor::ptr visitor)
+btree<Levels, ValueTraits, BlockSize>::visit(typename visitor::ptr visitor) const
 {
 	walk_tree(visitor, 0, true, root_);
 }
@@ -623,7 +623,7 @@ void
 btree<Levels, ValueTraits, BlockSize>::
 walk_tree(typename visitor::ptr visitor,
 	  unsigned level, bool is_root,
-	  block_address b)
+	  block_address b) const
 {
 	using namespace btree_detail;
 

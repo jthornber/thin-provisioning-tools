@@ -113,6 +113,16 @@ namespace persistent_data {
 		};
 
 		template <uint32_t BlockSize>
+		class ref_count_validator : public btree_validator<1, ref_count_traits, BlockSize> {
+		public:
+			typedef boost::shared_ptr<ref_count_validator> ptr;
+
+			ref_count_validator(block_counter &counter)
+				: btree_validator<1, ref_count_traits, BlockSize>(counter) {
+			}
+		};
+
+		template <uint32_t BlockSize>
 		class sm_disk_base : public persistent_space_map {
 		public:
 			typedef boost::shared_ptr<sm_disk_base<BlockSize> > ptr;
@@ -233,6 +243,12 @@ namespace persistent_data {
 				nr_blocks_ = nr_blocks;
 			}
 
+			virtual void check(block_counter &counter) const {
+				typename ref_count_validator<BlockSize>::ptr v(new ref_count_validator<BlockSize>(counter));
+				counter.inc(ref_counts_.get_root());
+				ref_counts_.visit(v);
+			}
+
 		protected:
 			typename transaction_manager<BlockSize>::ptr get_tm() const {
 				return tm_;
@@ -342,8 +358,11 @@ namespace persistent_data {
 				::memcpy(dest, &d, sizeof(d));
 			}
 
-			void check(block_counter &counter) {
+			void check(block_counter &counter) const {
+				sm_disk_base<BlockSize>::check(counter);
+
 				typename bitmap_tree_validator<BlockSize>::ptr v(new bitmap_tree_validator<BlockSize>(counter));
+				counter.inc(bitmaps_.get_root());
 				bitmaps_.visit(v);
 			}
 
@@ -407,9 +426,10 @@ namespace persistent_data {
 				::memcpy(dest, &d, sizeof(d));
 			}
 
-			void check(block_counter &counter) {
-				counter.inc(bitmap_root_);
+			void check(block_counter &counter) const {
+				sm_disk_base<BlockSize>::check(counter);
 
+				counter.inc(bitmap_root_);
 				for (unsigned i = 0; i < entries_.size(); i++)
 					counter.inc(entries_[i].blocknr_);
 			}

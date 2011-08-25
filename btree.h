@@ -331,7 +331,7 @@ namespace persistent_data {
 		};
 
 		// Walks the tree in depth first order
-		void visit(typename visitor::ptr visitor);
+		void visit(typename visitor::ptr visitor) const;
 
 	private:
 		template <typename ValueTraits2>
@@ -357,7 +357,7 @@ namespace persistent_data {
 
 		void walk_tree(typename visitor::ptr visitor,
 			       unsigned level, bool is_root,
-			       block_address b);
+			       block_address b) const;
 
 		typename persistent_data::transaction_manager<BlockSize>::ptr tm_;
 		bool destroy_;
