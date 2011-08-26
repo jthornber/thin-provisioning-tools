@@ -245,7 +245,6 @@ namespace persistent_data {
 
 			virtual void check(block_counter &counter) const {
 				typename ref_count_validator<BlockSize>::ptr v(new ref_count_validator<BlockSize>(counter));
-				counter.inc(ref_counts_.get_root());
 				ref_counts_.visit(v);
 			}
 
@@ -441,7 +440,8 @@ namespace persistent_data {
 
 				counter.inc(bitmap_root_);
 				for (unsigned i = 0; i < entries_.size(); i++)
-					counter.inc(entries_[i].blocknr_);
+					if (entries_[i].blocknr_ != 0) // superblock
+						counter.inc(entries_[i].blocknr_);
 			}
 
 		private:

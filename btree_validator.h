@@ -27,10 +27,8 @@ namespace persistent_data {
 			count_map::iterator it = counts_.find(b);
 			if (it == counts_.end())
 				counts_.insert(make_pair(b, 1));
-#if 0
 			else
 				it->second++;
-#endif
 		}
 
 		unsigned get_count(block_address b) const {

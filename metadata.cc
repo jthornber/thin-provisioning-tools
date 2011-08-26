@@ -374,12 +374,10 @@ metadata::check()
 
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
-	metadata_counter.inc(mappings_.get_root());
 	mappings_.visit(mv);
 	set<uint64_t> const &mapped_devs = mv->get_devices();
 
 	details_validator::ptr dv(new details_validator(metadata_counter));
-	metadata_counter.inc(details_.get_root());
 	details_.visit(dv);
 	set<uint64_t> const &details_devs = dv->get_devices();
 
