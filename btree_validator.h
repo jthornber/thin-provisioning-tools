@@ -74,51 +74,60 @@ namespace persistent_data {
 			  errs_(new error_set("btree errors")) {
 		}
 
-		void visit_internal(unsigned level, bool is_root,
+		bool visit_internal(unsigned level, bool is_root,
 				    btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			check_duplicate_block(n.get_location());
+			if (already_visited(n))
+				return false;
+
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, is_root);
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				counter_.inc(n.value_at(i));
+			return true;
 		}
 
-		void visit_internal_leaf(unsigned level, bool is_root,
+		bool visit_internal_leaf(unsigned level, bool is_root,
 					 btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
-			check_duplicate_block(n.get_location());
+			if (already_visited(n))
+				return false;
+
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, is_root);
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				counter_.inc(n.value_at(i));
+			return true;
 		}
 
-		void visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<ValueTraits, BlockSize> const &n) {
-			counter_.inc(n.get_location());
-			check_duplicate_block(n.get_location());
+			if (already_visited(n))
+				return false;
+
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, is_root);
+			return true;
 		}
 
 		boost::optional<error_set::ptr> get_errors() const {
 			return errs_;
 		}
 
+	protected:
+		block_counter &get_counter() {
+			return counter_;
+		}
+
 	private:
-		void check_duplicate_block(block_address b) {
-			if (seen_.count(b)) {
-				std::ostringstream out;
-				out << "duplicate block in btree: " << b;
-				errs_->add_child(out.str());
-				throw runtime_error(out.str());
-			}
+		template <typename node>
+		bool already_visited(node const &n) {
+			block_address b = n.get_location();
+
+			counter_.inc(b);
+
+			if (seen_.count(b) > 0)
+				return true;
 
 			seen_.insert(b);
+			return false;
 		}
 
 		template <typename node>

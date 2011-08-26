@@ -54,20 +54,31 @@ namespace {
 			  data_counter_(data_counter) {
 		}
 
-		void visit_internal_leaf(unsigned level, bool is_root,
+		// Sharing can only occur in level 1 nodes.
+		// FIXME: not true once we start having held roots.
+		bool visit_internal_leaf(unsigned level, bool is_root,
 					 btree_detail::node_ref<uint64_traits, MD_BLOCK_SIZE> const &n) {
-			btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_internal_leaf(level, is_root, n);
+
+			bool r = btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_internal_leaf(level, is_root, n);
+			if (!r && level == 0) {
+				throw runtime_error("unexpected sharing in level 0 of mapping tree.");
+			}
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
 				devices_.insert(n.key_at(i));
+
+			return r;
 		}
 
-		void visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<block_traits, MD_BLOCK_SIZE> const &n) {
-			btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
+			bool r = btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
 
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				data_counter_.inc(n.value_at(i).block_);
+			if (r)
+				for (unsigned i = 0; i < n.get_nr_entries(); i++)
+					data_counter_.inc(n.value_at(i).block_);
+
+			return r;
 		}
 
 		set<uint64_t> const &get_devices() const {
@@ -87,12 +98,15 @@ namespace {
 			: btree_validator<1, device_details_traits, MD_BLOCK_SIZE>(counter) {
 		}
 
-		void visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<device_details_traits, MD_BLOCK_SIZE> const &n) {
-			btree_validator<1, device_details_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
+			bool r = btree_validator<1, device_details_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
 
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				devices_.insert(n.key_at(i));
+			if (r)
+				for (unsigned i = 0; i < n.get_nr_entries(); i++)
+					devices_.insert(n.key_at(i));
+
+			return r;
 		}
 
 		set<uint64_t> const &get_devices() const {

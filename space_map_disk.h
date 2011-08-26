@@ -321,6 +321,17 @@ namespace persistent_data {
 			bitmap_tree_validator(block_counter &counter)
 				: btree_validator<1, index_entry_traits, BlockSize>(counter) {
 			}
+
+			bool visit_leaf(unsigned level, bool is_root,
+					btree_detail::node_ref<index_entry_traits, BlockSize> const &n) {
+				bool r = btree_validator<1, index_entry_traits, BlockSize>::visit_leaf(level, is_root, n);
+
+				if (r)
+					for (unsigned i = 0; i < n.get_nr_entries(); i++)
+						btree_validator<1, index_entry_traits, BlockSize>::get_counter().inc(n.value_at(i).blocknr_);
+
+				return r;
+			}
 		};
 
 		template <uint32_t BlockSize>
@@ -362,7 +373,6 @@ namespace persistent_data {
 				sm_disk_base<BlockSize>::check(counter);
 
 				typename bitmap_tree_validator<BlockSize>::ptr v(new bitmap_tree_validator<BlockSize>(counter));
-				counter.inc(bitmaps_.get_root());
 				bitmaps_.visit(v);
 			}
 

@@ -325,9 +325,11 @@ namespace persistent_data {
 			virtual ~visitor() {}
 			typedef boost::shared_ptr<visitor> ptr;
 
-			virtual void visit_internal(unsigned level, bool is_root, internal_node const &n) = 0;
-			virtual void visit_internal_leaf(unsigned level, bool is_root, internal_node const &n) = 0;
-			virtual void visit_leaf(unsigned level, bool is_root, leaf_node const &n) = 0;
+			// The bool return values indicate whether the walk
+			// should be continued into sub trees of the node (true == continue).
+			virtual bool visit_internal(unsigned level, bool is_root, internal_node const &n) = 0;
+			virtual bool visit_internal_leaf(unsigned level, bool is_root, internal_node const &n) = 0;
+			virtual bool visit_leaf(unsigned level, bool is_root, leaf_node const &n) = 0;
 		};
 
 		// Walks the tree in depth first order

@@ -627,25 +627,21 @@ walk_tree(typename visitor::ptr visitor,
 {
 	using namespace btree_detail;
 
-	try {
-		read_ref blk = tm_->read_lock(b);
-		internal_node o = to_node<uint64_traits, BlockSize>(blk);
-		if (o.get_type() == INTERNAL) {
-			visitor->visit_internal(level, is_root, o);
+	read_ref blk = tm_->read_lock(b);
+	internal_node o = to_node<uint64_traits, BlockSize>(blk);
+	if (o.get_type() == INTERNAL) {
+		if (visitor->visit_internal(level, is_root, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++)
 				walk_tree(visitor, level, false, o.value_at(i));
 
-		} else if (level < Levels - 1) {
-			visitor->visit_internal_leaf(level, is_root, o);
+	} else if (level < Levels - 1) {
+		if (visitor->visit_internal_leaf(level, is_root, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++)
 				walk_tree(visitor, level + 1, true, o.value_at(i));
 
-		} else {
-			leaf_node ov = to_node<ValueTraits, BlockSize>(blk);
-			visitor->visit_leaf(level, is_root, ov);
-		}
-	} catch (...) {		// FIXME: we should only catch terminate_walk type exceptions
-
+	} else {
+		leaf_node ov = to_node<ValueTraits, BlockSize>(blk);
+		visitor->visit_leaf(level, is_root, ov);
 	}
 }
 
