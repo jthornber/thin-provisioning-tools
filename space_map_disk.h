@@ -491,7 +491,7 @@ namespace persistent_data {
 		       block_address nr_blocks)
 	{
 		using namespace sm_disk_detail;
-		typename persistent_space_map::ptr sm(
+		typename sm_disk_detail::sm_disk<MetadataBlockSize>::ptr sm(
 			new sm_disk<MetadataBlockSize>(tm));
 		sm->extend(nr_blocks);
 		return sm;

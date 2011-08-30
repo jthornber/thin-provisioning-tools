@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE(different_block_sizes)
 
 BOOST_AUTO_TEST_CASE(read_validator_works)
 {
-	typename block_manager<4096>::block_manager::validator::ptr v(new zero_validator<4096>());
+	block_manager<4096>::block_manager::validator::ptr v(new zero_validator<4096>());
 	auto bm = create_bm(64);
 	bm->write_lock_zero(0);
 	bm->read_lock(0, v);
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE(read_validator_works)
 BOOST_AUTO_TEST_CASE(write_validator_works)
 {
 	auto bm = create_bm(64);
-	typename block_manager<4096>::block_manager::validator::ptr v(new zero_validator<4096>());
+	block_manager<4096>::block_manager::validator::ptr v(new zero_validator<4096>());
 
 	{
 		auto wr = bm->write_lock(0, v);

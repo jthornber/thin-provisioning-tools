@@ -24,7 +24,7 @@ namespace {
 
 	btree<1, uint64_traits, 4096>::ptr
 	create_btree() {
-		typename uint64_traits::ref_counter rc;
+		uint64_traits::ref_counter rc;
 
 		return btree<1, uint64_traits, 4096>::ptr(
 			new btree<1, uint64_traits, 4096>(
@@ -37,16 +37,19 @@ namespace {
 	//
 	class constraint_visitor : public btree<1, uint64_traits, 4096>::visitor {
 	public:
-		void visit_internal(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_internal(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
 			check_duplicate_block(n.get_location());
+			return true;
 		}
 
-		void visit_internal_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_internal_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
 			check_duplicate_block(n.get_location());
+			return true;
 		}
 
-		void visit_leaf(unsigned level, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
 			check_duplicate_block(n.get_location());
+			return true;
 		}
 
 	private:
@@ -66,7 +69,7 @@ namespace {
 	void check_constraints(btree<1, uint64_traits, 4096>::ptr tree) {
 		typedef btree<1, uint64_traits, 4096> tree_type;
 
-		typename tree_type::visitor::ptr v(new constraint_visitor);
+		tree_type::visitor::ptr v(new constraint_visitor);
 		tree->visit(v);
 	}
 }
