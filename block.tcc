@@ -159,15 +159,6 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 
 template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::flush()
-{
-	if (lock_count_ > 0)
-		throw runtime_error("asked to flush while locks are still held");
-	::fsync(fd_);
-}
-
-template <uint32_t BlockSize>
-void
 block_manager<BlockSize>::read_buffer(block_address b, block_manager<BlockSize>::buffer &buffer) const
 {
 	off_t r;

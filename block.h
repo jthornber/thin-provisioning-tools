@@ -149,12 +149,6 @@ namespace persistent_data {
 					  typename validator::ptr v =
 					  typename validator::ptr(new noop_validator()));
 
-		// If you aren't using a superblock, then this flush method
-		// will write all dirty data.  Throws if any locks are
-		// held.
-		// FIXME: do we need this?
-		void flush();
-
 		block_address get_nr_blocks() const;
 
 	private:
