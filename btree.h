@@ -69,7 +69,7 @@ namespace persistent_data {
 		//------------------------------------------------
 		// Class that acts as an interface over the raw little endian btree
 		// node data.
-		template <typename ValueTraits, uint32_t BlockSize>
+		template <typename ValueTraits>
 		class node_ref {
 		public:
 			explicit node_ref(block_address b, disk_node *raw);
@@ -142,31 +142,30 @@ namespace persistent_data {
 
 		//------------------------------------------------
 		//
-		template <typename ValueTraits, uint32_t BlockSize>
-		node_ref<ValueTraits, BlockSize>
-		to_node(typename block_manager<BlockSize>::read_ref &b)
+		template <typename ValueTraits>
+		node_ref<ValueTraits>
+		to_node(typename block_manager<>::read_ref &b)
 		{
 			// FIXME: this should return a const read_ref somehow.
-			return node_ref<ValueTraits, BlockSize>(
+			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
 					const_cast<unsigned char *>(b.data())));
 		}
 
-		template <typename ValueTraits, uint32_t BlockSize>
-		node_ref<ValueTraits, BlockSize>
-		to_node(typename block_manager<BlockSize>::write_ref &b)
+		template <typename ValueTraits>
+		node_ref<ValueTraits>
+		to_node(typename block_manager<>::write_ref &b)
 		{
-			return node_ref<ValueTraits, BlockSize>(
+			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
 					const_cast<unsigned char *>(b.data())));
 		}
 
-		template <uint32_t BlockSize>
 		class ro_spine : private noncopyable {
 		public:
-			ro_spine(typename transaction_manager<BlockSize>::ptr tm)
+			ro_spine(typename transaction_manager::ptr tm)
 				: tm_(tm) {
 			}
 
@@ -177,22 +176,21 @@ namespace persistent_data {
 			}
 
 			template <typename ValueTraits>
-			node_ref<ValueTraits, BlockSize> get_node() {
-				return to_node<ValueTraits, BlockSize>(spine_.back());
+			node_ref<ValueTraits> get_node() {
+				return to_node<ValueTraits>(spine_.back());
 			}
 
 		private:
-			typename transaction_manager<BlockSize>::ptr tm_;
-			std::list<typename block_manager<BlockSize>::read_ref> spine_;
+			typename transaction_manager::ptr tm_;
+			std::list<typename block_manager<>::read_ref> spine_;
 		};
 
-		template <uint32_t BlockSize>
 		class shadow_spine : private noncopyable {
 		public:
-			typedef typename transaction_manager<BlockSize>::read_ref read_ref;
-			typedef typename transaction_manager<BlockSize>::write_ref write_ref;
+			typedef typename transaction_manager::read_ref read_ref;
+			typedef typename transaction_manager::write_ref write_ref;
 
-			shadow_spine(typename transaction_manager<BlockSize>::ptr tm)
+			shadow_spine(typename transaction_manager::ptr tm)
 				: tm_(tm) {
 			}
 
@@ -208,7 +206,7 @@ namespace persistent_data {
 				return p.second;
 			}
 
-			void step(typename transaction_manager<BlockSize>::write_ref b) {
+			void step(typename transaction_manager::write_ref b) {
 				spine_.push_back(b);
 				if (spine_.size() == 1)
 					root_ = spine_.front().get_location();
@@ -221,8 +219,8 @@ namespace persistent_data {
 			}
 
 			template <typename ValueTraits>
-			node_ref<ValueTraits, BlockSize> get_node() {
-				return to_node<ValueTraits, BlockSize>(spine_.back());
+			node_ref<ValueTraits> get_node() {
+				return to_node<ValueTraits>(spine_.back());
 			}
 
 			block_address get_block() const {
@@ -233,11 +231,11 @@ namespace persistent_data {
 				return spine_.size() > 1;
 			}
 
-			node_ref<uint64_traits, BlockSize> get_parent() {
+			node_ref<uint64_traits> get_parent() {
 				if (spine_.size() < 2)
 					throw std::runtime_error("no parent");
 
-				return to_node<uint64_traits, BlockSize>(spine_.front());
+				return to_node<uint64_traits>(spine_.front());
 			}
 
 			block_address get_parent_location() const {
@@ -249,22 +247,22 @@ namespace persistent_data {
 			}
 
 		private:
-			typename transaction_manager<BlockSize>::ptr tm_;
-			std::list<typename block_manager<BlockSize>::write_ref> spine_;
+			typename transaction_manager::ptr tm_;
+			std::list<typename block_manager<>::write_ref> spine_;
 			block_address root_;
 		};
 
 		// FIXME: make a member of btree
-		template <typename ValueTraits, uint32_t BlockSize>
+		template <typename ValueTraits>
 		optional<typename ValueTraits::value_type>
-		lookup_raw(ro_spine<BlockSize> &spine, block_address block, uint64_t key) {
+		lookup_raw(ro_spine &spine, block_address block, uint64_t key) {
 
 			using namespace boost;
 			typedef typename ValueTraits::value_type leaf_type;
 
 			for (;;) {
 				spine.step(block);
-				node_ref<ValueTraits, BlockSize> leaf = spine.template get_node<ValueTraits>();
+				node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
 
 				optional<unsigned> mi = leaf.exact_search(key);
 				if (!mi)
@@ -273,30 +271,30 @@ namespace persistent_data {
 				if (leaf.get_type() == btree_detail::LEAF)
 					return optional<leaf_type>(leaf.value_at(*mi));
 
-				node_ref<uint64_traits, BlockSize> internal = spine.template get_node<uint64_traits>();
+				node_ref<uint64_traits> internal = spine.template get_node<uint64_traits>();
 				block = internal.value_at(*mi);
 			}
 		}
 	}
 
-	template <unsigned Levels, typename ValueTraits, uint32_t BlockSize>
+	template <unsigned Levels, typename ValueTraits>
 	class btree {
 	public:
-		typedef boost::shared_ptr<btree<Levels, ValueTraits, BlockSize> > ptr;
+		typedef boost::shared_ptr<btree<Levels, ValueTraits> > ptr;
 
 		typedef uint64_t key[Levels];
 		typedef typename ValueTraits::value_type value_type;
 		typedef boost::optional<value_type> maybe_value;
 		typedef boost::optional<std::pair<unsigned, value_type> > maybe_pair;
-		typedef typename block_manager<BlockSize>::read_ref read_ref;
-		typedef typename block_manager<BlockSize>::write_ref write_ref;
-		typedef typename btree_detail::node_ref<ValueTraits, BlockSize> leaf_node;
-		typedef typename btree_detail::node_ref<uint64_traits, BlockSize> internal_node;
+		typedef typename block_manager<>::read_ref read_ref;
+		typedef typename block_manager<>::write_ref write_ref;
+		typedef typename btree_detail::node_ref<ValueTraits> leaf_node;
+		typedef typename btree_detail::node_ref<uint64_traits> internal_node;
 
-		btree(typename persistent_data::transaction_manager<BlockSize>::ptr tm,
+		btree(typename persistent_data::transaction_manager::ptr tm,
 		      typename ValueTraits::ref_counter rc);
 
-		btree(typename transaction_manager<BlockSize>::ptr tm,
+		btree(typename transaction_manager::ptr tm,
 		      block_address root,
 		      typename ValueTraits::ref_counter rc);
 
@@ -337,22 +335,22 @@ namespace persistent_data {
 
 	private:
 		template <typename ValueTraits2>
-		void split_node(btree_detail::shadow_spine<BlockSize> &spine,
+		void split_node(btree_detail::shadow_spine &spine,
 				block_address parent_index,
 				uint64_t key,
 				bool top);
 
 		template <typename ValueTraits2>
-		void split_beneath(btree_detail::shadow_spine<BlockSize> &spine, uint64_t key);
+		void split_beneath(btree_detail::shadow_spine &spine, uint64_t key);
 
 		template <typename ValueTraits2>
-		void split_sibling(btree_detail::shadow_spine<BlockSize> &spine,
+		void split_sibling(btree_detail::shadow_spine &spine,
 				   block_address parent_index,
 				   uint64_t key);
 
 		template <typename ValueTraits2>
 		bool
-		insert_location(btree_detail::shadow_spine<BlockSize> &spine,
+		insert_location(btree_detail::shadow_spine &spine,
 				block_address block,
 				uint64_t key,
 				int *index);
@@ -361,7 +359,7 @@ namespace persistent_data {
 			       unsigned level, bool is_root,
 			       block_address b) const;
 
-		typename persistent_data::transaction_manager<BlockSize>::ptr tm_;
+		typename persistent_data::transaction_manager::ptr tm_;
 		bool destroy_;
 		block_address root_;
 		NoOpRefCounter<uint64_t> internal_rc_;

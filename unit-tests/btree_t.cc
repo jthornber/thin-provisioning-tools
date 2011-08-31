@@ -14,40 +14,39 @@ using namespace persistent_data;
 namespace {
 	block_address const NR_BLOCKS = 102400;
 
-	transaction_manager<4096>::ptr
+	transaction_manager::ptr
 	create_tm() {
-		block_manager<4096>::ptr bm(new block_manager<4096>("./test.data", NR_BLOCKS));
+		block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager<4096>::ptr tm(new transaction_manager<4096>(bm, sm));
+		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
 
-	btree<1, uint64_traits, 4096>::ptr
+	btree<1, uint64_traits>::ptr
 	create_btree() {
 		uint64_traits::ref_counter rc;
 
-		return btree<1, uint64_traits, 4096>::ptr(
-			new btree<1, uint64_traits, 4096>(
-				create_tm(), rc));
+		return btree<1, uint64_traits>::ptr(
+			new btree<1, uint64_traits>(create_tm(), rc));
 	}
 
 	// Checks that a btree is well formed.
 	//
 	// i) No block should be in the tree more than once.
 	//
-	class constraint_visitor : public btree<1, uint64_traits, 4096>::visitor {
+	class constraint_visitor : public btree<1, uint64_traits>::visitor {
 	public:
-	  bool visit_internal(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_internal(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits> const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
 
-	  bool visit_internal_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_internal_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits> const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
 
-	  bool visit_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits, 4096> const &n) {
+	  bool visit_leaf(unsigned level, bool is_root, btree_detail::node_ref<uint64_traits> const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
@@ -66,8 +65,8 @@ namespace {
 		set<block_address> seen_;
 	};
 
-	void check_constraints(btree<1, uint64_traits, 4096>::ptr tree) {
-		typedef btree<1, uint64_traits, 4096> tree_type;
+	void check_constraints(btree<1, uint64_traits>::ptr tree) {
+		typedef btree<1, uint64_traits> tree_type;
 
 		tree_type::visitor::ptr v(new constraint_visitor);
 		tree->visit(v);

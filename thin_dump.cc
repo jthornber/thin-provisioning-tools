@@ -6,11 +6,14 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
+//----------------------------------------------------------------
+
 namespace {
 	void dump(string const &path) {
 		metadata md(path);
+		human_readable::ptr emitter(new human_readable);
 
-		md.check();
+		md.dump();
 	}
 
 	void usage(string const &cmd) {
@@ -29,3 +32,5 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+//----------------------------------------------------------------

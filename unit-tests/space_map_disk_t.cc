@@ -13,22 +13,21 @@ using namespace persistent_data;
 namespace {
 	block_address const NR_BLOCKS = 10237;
 	block_address const SUPERBLOCK = 0;
-	unsigned const BLOCK_SIZE = 4096;
 
-	transaction_manager<BLOCK_SIZE>::ptr
+	transaction_manager::ptr
 	create_tm() {
-		block_manager<BLOCK_SIZE>::ptr bm(
-			new block_manager<BLOCK_SIZE>("./test.data", NR_BLOCKS));
+		block_manager<>::ptr bm(
+			new block_manager<>("./test.data", NR_BLOCKS));
 		space_map::ptr sm(new core_map(1024));
-		transaction_manager<BLOCK_SIZE>::ptr tm(
-			new transaction_manager<BLOCK_SIZE>(bm, sm));
+		transaction_manager::ptr tm(
+			new transaction_manager(bm, sm));
 		return tm;
 	}
 
 	persistent_space_map::ptr
 	create_sm_disk() {
 		auto tm = create_tm();
-		return persistent_data::create_disk_sm<BLOCK_SIZE>(tm, NR_BLOCKS);
+		return persistent_data::create_disk_sm(tm, NR_BLOCKS);
 	}
 }
 
@@ -136,7 +135,7 @@ BOOST_AUTO_TEST_CASE(test_reopen)
 
 	{
 		auto tm = create_tm();
-		auto sm = persistent_data::open_disk_sm<BLOCK_SIZE>(tm, buffer);
+		auto sm = persistent_data::open_disk_sm(tm, buffer);
 
 		for (unsigned i = 0, step = 1; i < NR_BLOCKS; i += step, step++)
 			BOOST_CHECK_EQUAL(sm->get_count(i), 1);

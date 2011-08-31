@@ -13,11 +13,11 @@ using namespace persistent_data;
 namespace {
 	block_address const NR_BLOCKS = 1024;
 
-	transaction_manager<4096>::ptr
+	transaction_manager::ptr
 	create_tm() {
-		block_manager<4096>::ptr bm(new block_manager<4096>("./test.data", NR_BLOCKS));
+		block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager<4096>::ptr tm(new transaction_manager<4096>(bm, sm));
+		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		tm->get_sm()->inc(0);
 		return tm;
 	}

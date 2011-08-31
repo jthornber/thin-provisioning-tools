@@ -16,8 +16,6 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	unsigned const MD_BLOCK_SIZE = 4096;
-
 	// FIXME: don't use namespaces in a header
 	using namespace base;
 	using namespace persistent_data;
@@ -87,10 +85,9 @@ namespace thin_provisioning {
 
 	//------------------------------------------------
 
-	template <uint32_t BlockSize>
 	class mtree_ref_counter {
 	public:
-		mtree_ref_counter(typename transaction_manager<BlockSize>::ptr tm)
+		mtree_ref_counter(transaction_manager::ptr tm)
 			: tm_(tm) {
 		}
 
@@ -101,14 +98,13 @@ namespace thin_provisioning {
 		}
 
 	private:
-		typename transaction_manager<BlockSize>::ptr tm_;
+		transaction_manager::ptr tm_;
 	};
 
-	template <uint32_t BlockSize>
 	struct mtree_traits {
 		typedef base::__le64 disk_type;
 		typedef uint64_t value_type;
-		typedef mtree_ref_counter<BlockSize> ref_counter;
+		typedef mtree_ref_counter ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
 			value = base::to_cpu<uint64_t>(disk);
@@ -146,8 +142,8 @@ namespace thin_provisioning {
 	class metadata {
 	public:
 		typedef boost::shared_ptr<metadata> ptr;
-		typedef block_manager<MD_BLOCK_SIZE>::read_ref read_ref;
-		typedef block_manager<MD_BLOCK_SIZE>::write_ref write_ref;
+		typedef block_manager<>::read_ref read_ref;
+		typedef block_manager<>::write_ref write_ref;
 
 		metadata(std::string const &dev_path);
 		~metadata();
@@ -173,27 +169,30 @@ namespace thin_provisioning {
 
 		thin::ptr open_thin(thin_dev_t);
 
-		// Validation and repair
+		// Validation
 		boost::optional<persistent_data::error_set::ptr> check();
+
+		// Dumping metadata
+		void dump();
 
 	private:
 		friend class thin;
 
 		bool device_exists(thin_dev_t dev) const;
 
-		typedef persistent_data::transaction_manager<MD_BLOCK_SIZE>::ptr tm_ptr;
+		typedef persistent_data::transaction_manager::ptr tm_ptr;
 
-		typedef persistent_data::btree<1, device_details_traits, MD_BLOCK_SIZE> detail_tree;
-		typedef persistent_data::btree<1, mtree_traits<MD_BLOCK_SIZE>, MD_BLOCK_SIZE> dev_tree;
-		typedef persistent_data::btree<2, block_traits, MD_BLOCK_SIZE> mapping_tree;
-		typedef persistent_data::btree<1, block_traits, MD_BLOCK_SIZE> single_mapping_tree;
+		typedef persistent_data::btree<1, device_details_traits> detail_tree;
+		typedef persistent_data::btree<1, mtree_traits> dev_tree;
+		typedef persistent_data::btree<2, block_traits> mapping_tree;
+		typedef persistent_data::btree<1, block_traits> single_mapping_tree;
 
 		// Declaration order is important here
 		tm_ptr tm_;
 		superblock sb_;
 
-		sm_disk_detail::sm_metadata<MD_BLOCK_SIZE>::ptr metadata_sm_;
-		sm_disk_detail::sm_disk<MD_BLOCK_SIZE>::ptr data_sm_;
+		checked_space_map::ptr metadata_sm_;
+		checked_space_map::ptr data_sm_;
 		detail_tree details_;
 		dev_tree mappings_top_level_;
 		mapping_tree mappings_;

@@ -25,17 +25,17 @@ namespace {
 	// FIXME: get the file size
 	unsigned const NR_BLOCKS = 1024;
 
-	transaction_manager<4096>::ptr
+	transaction_manager::ptr
 	open_tm(string const &dev_path) {
-		block_manager<4096>::ptr bm(new block_manager<4096>(dev_path, NR_BLOCKS));
+		block_manager<>::ptr bm(new block_manager<>(dev_path, NR_BLOCKS));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager<4096>::ptr tm(new transaction_manager<4096>(bm, sm));
+		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
 
-	superblock read_superblock(block_manager<4096>::ptr bm) {
+	superblock read_superblock(block_manager<>::ptr bm) {
 		superblock sb;
-		block_manager<4096>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
+		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
@@ -45,21 +45,21 @@ namespace {
 	// devices having mappings defined, which can later be cross
 	// referenced with the details tree.  A separate block_counter is
 	// used to later verify the data space map.
-	class mapping_validator : public btree_validator<2, block_traits, MD_BLOCK_SIZE> {
+	class mapping_validator : public btree_validator<2, block_traits> {
 	public:
 		typedef boost::shared_ptr<mapping_validator> ptr;
 
 		mapping_validator(block_counter &metadata_counter, block_counter &data_counter)
-			: btree_validator<2, block_traits, MD_BLOCK_SIZE>(metadata_counter),
+			: btree_validator<2, block_traits>(metadata_counter),
 			  data_counter_(data_counter) {
 		}
 
 		// Sharing can only occur in level 1 nodes.
 		// FIXME: not true once we start having held roots.
 		bool visit_internal_leaf(unsigned level, bool is_root,
-					 btree_detail::node_ref<uint64_traits, MD_BLOCK_SIZE> const &n) {
+					 btree_detail::node_ref<uint64_traits> const &n) {
 
-			bool r = btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_internal_leaf(level, is_root, n);
+			bool r = btree_validator<2, block_traits>::visit_internal_leaf(level, is_root, n);
 			if (!r && level == 0) {
 				throw runtime_error("unexpected sharing in level 0 of mapping tree.");
 			}
@@ -71,8 +71,8 @@ namespace {
 		}
 
 		bool visit_leaf(unsigned level, bool is_root,
-				btree_detail::node_ref<block_traits, MD_BLOCK_SIZE> const &n) {
-			bool r = btree_validator<2, block_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
+				btree_detail::node_ref<block_traits> const &n) {
+			bool r = btree_validator<2, block_traits>::visit_leaf(level, is_root, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -90,17 +90,17 @@ namespace {
 		set<uint64_t> devices_;
 	};
 
-	class details_validator : public btree_validator<1, device_details_traits, MD_BLOCK_SIZE> {
+	class details_validator : public btree_validator<1, device_details_traits> {
 	public:
 		typedef boost::shared_ptr<details_validator> ptr;
 
 		details_validator(block_counter &counter)
-			: btree_validator<1, device_details_traits, MD_BLOCK_SIZE>(counter) {
+			: btree_validator<1, device_details_traits>(counter) {
 		}
 
 		bool visit_leaf(unsigned level, bool is_root,
-				btree_detail::node_ref<device_details_traits, MD_BLOCK_SIZE> const &n) {
-			bool r = btree_validator<1, device_details_traits, MD_BLOCK_SIZE>::visit_leaf(level, is_root, n);
+				btree_detail::node_ref<device_details_traits> const &n) {
+			bool r = btree_validator<1, device_details_traits>::visit_leaf(level, is_root, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -196,10 +196,10 @@ thin::set_mapped_blocks(block_address count)
 metadata::metadata(std::string const &dev_path)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
-	  metadata_sm_(open_metadata_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
-	  data_sm_(open_disk_sm<MD_BLOCK_SIZE>(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
+	  metadata_sm_(open_metadata_sm(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
+	  data_sm_(open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
 	  details_(tm_, sb_.device_details_root_, device_details_traits::ref_counter()),
-	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter<MD_BLOCK_SIZE>(tm_)),
+	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)),
 	  mappings_(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_))
 {
 #if 0

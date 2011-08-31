@@ -64,8 +64,8 @@ namespace persistent_data {
 	// - checksum
 	// - leaf | internal flags (this can be inferred from siblings)
 	//----------------------------------------------------------------
-	template <uint32_t Levels, typename ValueTraits, uint32_t BlockSize>
-	class btree_validator : public btree<Levels, ValueTraits, BlockSize>::visitor {
+	template <uint32_t Levels, typename ValueTraits>
+	class btree_validator : public btree<Levels, ValueTraits>::visitor {
 	public:
 		btree_validator(block_counter &counter)
 			: counter_(counter),
@@ -73,7 +73,7 @@ namespace persistent_data {
 		}
 
 		bool visit_internal(unsigned level, bool is_root,
-				    btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
+				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
 				return false;
 
@@ -84,7 +84,7 @@ namespace persistent_data {
 		}
 
 		bool visit_internal_leaf(unsigned level, bool is_root,
-					 btree_detail::node_ref<uint64_traits, BlockSize> const &n) {
+					 btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
 				return false;
 
@@ -95,7 +95,7 @@ namespace persistent_data {
 		}
 
 		bool visit_leaf(unsigned level, bool is_root,
-				btree_detail::node_ref<ValueTraits, BlockSize> const &n) {
+				btree_detail::node_ref<ValueTraits> const &n) {
 			if (already_visited(n))
 				return false;
 
@@ -143,7 +143,7 @@ namespace persistent_data {
 		template <typename node>
 		void check_max_entries(node const &n) const {
 			size_t elt_size = sizeof(uint64_t) + n.get_value_size();
-			if (elt_size * n.get_max_entries() + sizeof(node_header) > BlockSize) {
+			if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
 				std::ostringstream out;
 				out << "max entries too large: " << n.get_max_entries();
 				errs_->add_child(out.str());

@@ -15,6 +15,8 @@
 
 namespace persistent_data {
 
+	uint32_t const MD_BLOCK_SIZE = 4096;
+
 	class count_adjuster {
 	public:
 		count_adjuster(unsigned &c)
@@ -32,7 +34,7 @@ namespace persistent_data {
 
 	typedef uint64_t block_address;
 
-	template <uint32_t BlockSize>
+	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_manager : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;

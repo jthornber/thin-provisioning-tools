@@ -2,7 +2,9 @@ SOURCE=\
 	endian_utils.cc \
 	error_set.cc \
 	metadata.cc \
-	metadata_disk_structures.cc
+	metadata_disk_structures.cc \
+	space_map_disk.cc \
+	transaction_manager.cc
 
 TEST_SOURCE=\
 	unit-tests/block_t.cc \
@@ -48,16 +50,16 @@ thin_repair: $(OBJECTS) thin_repair.o
 unit-tests/block_t: unit-tests/block_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-unit-tests/btree_t: unit-tests/btree_t.o
+unit-tests/btree_t: unit-tests/btree_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-unit-tests/space_map_t: unit-tests/space_map_t.o
+unit-tests/space_map_t: unit-tests/space_map_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 unit-tests/space_map_disk_t: unit-tests/space_map_disk_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
-unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o
+unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
