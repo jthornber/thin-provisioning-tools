@@ -401,30 +401,8 @@ template <unsigned Levels, typename ValueTraits>
 typename btree<Levels, ValueTraits>::ptr
 btree<Levels, ValueTraits>::clone() const
 {
-	using namespace btree_detail;
-	ro_spine spine(tm_);
-
-	spine.step(root_);
-	write_ref new_root = tm_->new_block();
-
-	internal_node o = spine.template get_node<uint64_traits>();
-	if (o.get_type() == INTERNAL) {
-		internal_node n = to_node<uint64_traits>(new_root);
-		::memcpy(n.raw(), o.raw(), MD_BLOCK_SIZE);
-
-		typename uint64_traits::ref_counter rc(internal_rc_);
-		n.inc_children(rc);
-	} else {
-		leaf_node n = to_node<ValueTraits>(new_root);
-		::memcpy(n.raw(), o.raw(), MD_BLOCK_SIZE);
-
-		typename ValueTraits::ref_counter rc(rc_);
-		n.inc_children(rc);
-	}
-
-	return btree<Levels, ValueTraits>::ptr(
-		new btree<Levels, ValueTraits>(
-			tm_, new_root.get_location(), rc_));
+	tm_->get_sm()->inc(root_);
+	return ptr(new btree<Levels, ValueTraits>(tm_, root_, rc_));
 }
 
 #if 0
