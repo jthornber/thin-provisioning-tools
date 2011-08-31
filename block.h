@@ -57,16 +57,21 @@ namespace persistent_data {
 			virtual void prepare(block &b) const = 0;
 		};
 
+		class noop_validator : public validator {
+		public:
+			void check(block const &b) const {}
+			void prepare(block &b) const {}
+		};
+
 		struct block {
 			typedef boost::shared_ptr<block> ptr;
-			typedef boost::optional<typename validator::ptr> maybe_validator;
 
 			block(block_address location,
 			      const_buffer &data,
 			      unsigned &count,
 			      unsigned &type_count,
-			      bool is_superblock = false,
-			      maybe_validator v = maybe_validator())
+			      bool is_superblock, // FIXME: make this an enum
+			      typename validator::ptr v)
 				: location_(location),
 				  adjuster_(count),
 				  type_adjuster_(type_count),
@@ -79,7 +84,7 @@ namespace persistent_data {
 			count_adjuster adjuster_;
 			count_adjuster type_adjuster_;
 			buffer data_;
-			maybe_validator validator_;
+			typename validator::ptr validator_;
 			bool is_superblock_;
 		};
 
@@ -108,33 +113,24 @@ namespace persistent_data {
 
 		// Locking methods
 		read_ref
-		read_lock(block_address location) const;
-
-		boost::optional<read_ref>
-		read_try_lock(block_address location) const;
-
-		write_ref
-		write_lock(block_address location);
-
-		write_ref
-		write_lock_zero(block_address location);
-
-		// Validator variants
-		read_ref
 		read_lock(block_address location,
-			  typename validator::ptr v) const;
+			  typename validator::ptr v =
+			  typename validator::ptr(new noop_validator())) const;
 
 		boost::optional<read_ref>
 		read_try_lock(block_address location,
-			      typename validator::ptr v) const;
+			      typename validator::ptr v =
+			      typename validator::ptr(new noop_validator())) const;
 
 		write_ref
 		write_lock(block_address location,
-			   typename validator::ptr v);
+			   typename validator::ptr v =
+			   typename validator::ptr(new noop_validator()));
 
 		write_ref
 		write_lock_zero(block_address location,
-				typename validator::ptr v);
+				typename validator::ptr v =
+				typename validator::ptr(new noop_validator()));
 
 		// The super block is the one that should be written last.
 		// Unlocking this block triggers the following events:
@@ -146,16 +142,17 @@ namespace persistent_data {
 		//
 		// If any locks are held at the time of the superblock
 		// being unlocked then an exception will be thrown.
-		write_ref superblock(block_address b);
-		write_ref superblock_zero(block_address b);
 		write_ref superblock(block_address b,
-				     typename validator::ptr v);
+				     typename validator::ptr v =
+				     typename validator::ptr(new noop_validator()));
 		write_ref superblock_zero(block_address b,
-					  typename validator::ptr v);
+					  typename validator::ptr v =
+					  typename validator::ptr(new noop_validator()));
 
 		// If you aren't using a superblock, then this flush method
 		// will write all dirty data.  Throws if any locks are
 		// held.
+		// FIXME: do we need this?
 		void flush();
 
 		block_address get_nr_blocks() const;
