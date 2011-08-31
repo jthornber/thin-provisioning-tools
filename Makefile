@@ -1,3 +1,7 @@
+.PHONEY: all
+
+all: thin_repair thin_dump thin_restore
+
 SOURCE=\
 	endian_utils.cc \
 	error_set.cc \
@@ -27,6 +31,9 @@ test-programs: $(TEST_PROGRAMS)
 	g++ -c $(CPPFLAGS) $(INCLUDES) -o $@ $<
 
 thin_dump: $(OBJECTS) thin_dump.o
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+thin_restore: $(OBJECTS) thin_restore.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 thin_repair: $(OBJECTS) thin_repair.o
