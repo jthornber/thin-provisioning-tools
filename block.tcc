@@ -77,7 +77,7 @@ block_manager<BlockSize>::read_lock(block_address location,
 
 	buffer buf;
 	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, false, v),
+	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
 			      bind(&block_manager::read_release, this, _1));
 	register_lock(location, READ_LOCK);
 	return read_ref(b);
@@ -100,7 +100,7 @@ block_manager<BlockSize>::write_lock(block_address location,
 
 	buffer buf;
 	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, false, v),
+	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
 			      bind(&block_manager::write_release, this, _1));
 	register_lock(location, WRITE_LOCK);
 	return write_ref(b);
@@ -115,7 +115,7 @@ block_manager<BlockSize>::write_lock_zero(block_address location,
 
 	buffer buf;
 	zero_buffer(buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, false, v),
+	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
 			      bind(&block_manager::write_release, this, _1));
 	register_lock(location, WRITE_LOCK);
 	return write_ref(b);
@@ -133,7 +133,7 @@ block_manager<BlockSize>::superblock(block_address location,
 
 	buffer buf;
 	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, superblock_count_, true, v),
+	typename block::ptr b(new block(location, buf, lock_count_, superblock_count_, BT_SUPERBLOCK, v),
 			      bind(&block_manager::write_release, this, _1));
 	register_lock(location, WRITE_LOCK);
 	return write_ref(b);
@@ -225,7 +225,7 @@ template <uint32_t BlockSize>
 void
 block_manager<BlockSize>::write_release(block *b)
 {
-	if (b->is_superblock_) {
+	if (b->bt_ == BT_SUPERBLOCK) {
 		if (lock_count_ != 1)
 			throw runtime_error("superblock isn't the last block");
 	}

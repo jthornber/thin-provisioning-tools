@@ -63,6 +63,11 @@ namespace persistent_data {
 			void prepare(block &b) const {}
 		};
 
+		enum block_type {
+			BT_SUPERBLOCK,
+			BT_NORMAL
+		};
+
 		struct block {
 			typedef boost::shared_ptr<block> ptr;
 
@@ -70,13 +75,13 @@ namespace persistent_data {
 			      const_buffer &data,
 			      unsigned &count,
 			      unsigned &type_count,
-			      bool is_superblock, // FIXME: make this an enum
+			      block_type bt,
 			      typename validator::ptr v)
 				: location_(location),
 				  adjuster_(count),
 				  type_adjuster_(type_count),
 				  validator_(v),
-				  is_superblock_(is_superblock) {
+				  bt_(bt) {
 				::memcpy(data_, data, sizeof(data));
 			}
 
@@ -85,7 +90,7 @@ namespace persistent_data {
 			count_adjuster type_adjuster_;
 			buffer data_;
 			typename validator::ptr validator_;
-			bool is_superblock_;
+			block_type bt_;
 		};
 
 		class read_ref {
