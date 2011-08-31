@@ -109,12 +109,12 @@ namespace {
 		}
 	};
 
-	class ref_count_validator : public btree_validator<1, ref_count_traits> {
+	class ref_count_validator : public btree_checker<1, ref_count_traits> {
 	public:
 		typedef boost::shared_ptr<ref_count_validator> ptr;
 
 		ref_count_validator(block_counter &counter)
-			: btree_validator<1, ref_count_traits>(counter) {
+			: btree_checker<1, ref_count_traits>(counter) {
 		}
 	};
 
@@ -307,21 +307,21 @@ namespace {
 		btree<1, ref_count_traits> ref_counts_;
 	};
 
-	class bitmap_tree_validator : public btree_validator<1, index_entry_traits> {
+	class bitmap_tree_validator : public btree_checker<1, index_entry_traits> {
 	public:
 		typedef boost::shared_ptr<bitmap_tree_validator> ptr;
 
 		bitmap_tree_validator(block_counter &counter)
-			: btree_validator<1, index_entry_traits>(counter) {
+			: btree_checker<1, index_entry_traits>(counter) {
 		}
 
 		bool visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<index_entry_traits> const &n) {
-			bool r = btree_validator<1, index_entry_traits>::visit_leaf(level, is_root, n);
+			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, is_root, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
-					btree_validator<1, index_entry_traits>::get_counter().inc(n.value_at(i).blocknr_);
+					btree_checker<1, index_entry_traits>::get_counter().inc(n.value_at(i).blocknr_);
 
 			return r;
 		}

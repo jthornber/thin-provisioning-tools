@@ -1,7 +1,7 @@
 #ifndef SPACE_MAP_DISK_H
 #define SPACE_MAP_DISK_H
 
-#include "btree_validator.h"
+#include "btree_checker.h"
 #include "space_map.h"
 
 //----------------------------------------------------------------

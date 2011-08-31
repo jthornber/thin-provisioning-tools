@@ -1,5 +1,5 @@
-#ifndef BTREE_VALIDATOR_H
-#define BTREE_VALIDATOR_H
+#ifndef BTREE_CHECKER_H
+#define BTREE_CHECKER_H
 
 #include "btree.h"
 
@@ -65,9 +65,9 @@ namespace persistent_data {
 	// - leaf | internal flags (this can be inferred from siblings)
 	//----------------------------------------------------------------
 	template <uint32_t Levels, typename ValueTraits>
-	class btree_validator : public btree<Levels, ValueTraits>::visitor {
+	class btree_checker : public btree<Levels, ValueTraits>::visitor {
 	public:
-		btree_validator(block_counter &counter)
+		btree_checker(block_counter &counter)
 			: counter_(counter),
 			  errs_(new error_set("btree errors")) {
 		}
