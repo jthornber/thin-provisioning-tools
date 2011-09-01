@@ -12,7 +12,6 @@ namespace {
 	void dump(string const &path) {
 		metadata md(path);
 		//human_readable::ptr emitter(new human_readable);
-
 		// md.dump();
 	}
 

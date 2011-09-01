@@ -318,13 +318,44 @@ namespace {
 		bool visit_leaf(unsigned level, bool is_root,
 				btree_detail::node_ref<index_entry_traits> const &n) {
 			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, is_root, n);
+			if (!r)
+				return r;
 
-			if (r)
-				for (unsigned i = 0; i < n.get_nr_entries(); i++)
-					btree_checker<1, index_entry_traits>::get_counter().inc(n.value_at(i).blocknr_);
+			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+				if (seen_indexes_.count(n.key_at(i)) > 0) {
+					ostringstream out;
+					out << "index entry " << i << " is present twice";
+					throw runtime_error(out.str());
+				}
 
-			return r;
+				seen_indexes_.insert(n.key_at(i));
+				btree_checker<1, index_entry_traits>::get_counter().inc(n.value_at(i).blocknr_);
+			}
+
+			return true;
 		}
+
+		void check_all_index_entries_present(block_address nr_entries) {
+			for (block_address i = 0; i < nr_entries; i++) {
+				if (seen_indexes_.count(i) == 0) {
+					ostringstream out;
+					out << "missing index entry " << i;
+					throw runtime_error(out.str());
+				}
+			}
+
+			set<block_address>::const_iterator it;
+			for (it = seen_indexes_.begin(); it != seen_indexes_.end(); ++it) {
+				if (*it >= nr_entries) {
+					ostringstream out;
+					out << "unexpected index entry " << *it;
+					throw runtime_error(out.str());
+				}
+			}
+		}
+
+	private:
+		set<block_address> seen_indexes_;
 	};
 
 	class sm_disk : public sm_disk_base {
@@ -366,6 +397,9 @@ namespace {
 
 			bitmap_tree_validator::ptr v(new bitmap_tree_validator(counter));
 			bitmaps_.visit(v);
+
+			block_address nr_entries = div_up<block_address>(get_nr_blocks(), get_entries_per_block());
+			v->check_all_index_entries_present(nr_entries);
 		}
 
 	private:
