@@ -4,5 +4,6 @@
 *.d
 test.data
 thin_dump
+thin_restore
 thin_repair
 *.metadata

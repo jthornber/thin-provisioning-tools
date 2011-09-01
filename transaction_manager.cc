@@ -8,7 +8,7 @@ using namespace std;
 
 //----------------------------------------------------------------
 
-transaction_manager::transaction_manager(typename block_manager<>::ptr bm,
+transaction_manager::transaction_manager(block_manager<>::ptr bm,
 					 space_map::ptr sm)
 	: bm_(bm),
 	  sm_(sm)

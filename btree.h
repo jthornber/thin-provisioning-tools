@@ -165,7 +165,7 @@ namespace persistent_data {
 
 		class ro_spine : private noncopyable {
 		public:
-			ro_spine(typename transaction_manager::ptr tm)
+			ro_spine(transaction_manager::ptr tm)
 				: tm_(tm) {
 			}
 
@@ -181,16 +181,16 @@ namespace persistent_data {
 			}
 
 		private:
-			typename transaction_manager::ptr tm_;
-			std::list<typename block_manager<>::read_ref> spine_;
+			transaction_manager::ptr tm_;
+			std::list<block_manager<>::read_ref> spine_;
 		};
 
 		class shadow_spine : private noncopyable {
 		public:
-			typedef typename transaction_manager::read_ref read_ref;
-			typedef typename transaction_manager::write_ref write_ref;
+			typedef transaction_manager::read_ref read_ref;
+			typedef transaction_manager::write_ref write_ref;
 
-			shadow_spine(typename transaction_manager::ptr tm)
+			shadow_spine(transaction_manager::ptr tm)
 				: tm_(tm) {
 			}
 
@@ -206,7 +206,7 @@ namespace persistent_data {
 				return p.second;
 			}
 
-			void step(typename transaction_manager::write_ref b) {
+			void step(transaction_manager::write_ref b) {
 				spine_.push_back(b);
 				if (spine_.size() == 1)
 					root_ = spine_.front().get_location();
@@ -247,8 +247,8 @@ namespace persistent_data {
 			}
 
 		private:
-			typename transaction_manager::ptr tm_;
-			std::list<typename block_manager<>::write_ref> spine_;
+			transaction_manager::ptr tm_;
+			std::list<block_manager<>::write_ref> spine_;
 			block_address root_;
 		};
 

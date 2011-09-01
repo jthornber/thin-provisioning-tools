@@ -81,17 +81,17 @@ namespace {
 		}
 
 	private:
-		void *bitmap_data(typename transaction_manager::write_ref &wr) {
+		void *bitmap_data(transaction_manager::write_ref &wr) {
 			bitmap_header *h = reinterpret_cast<bitmap_header *>(&wr.data()[0]);
 			return h + 1;
 		}
 
-		void const *bitmap_data(typename transaction_manager::read_ref &rr) const {
+		void const *bitmap_data(transaction_manager::read_ref &rr) const {
 			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(&rr.data()[0]);
 			return h + 1;
 		}
 
-		typename transaction_manager::ptr tm_;
+		transaction_manager::ptr tm_;
 		index_entry ie_;
 	};
 
@@ -132,7 +132,7 @@ namespace {
 			  ref_counts_(tm_, ref_count_traits::ref_counter()) {
 		}
 
-		sm_disk_base(typename transaction_manager::ptr tm,
+		sm_disk_base(transaction_manager::ptr tm,
 			     sm_root const &root)
 			: tm_(tm),
 			  entries_per_block_((MD_BLOCK_SIZE - sizeof(bitmap_header)) * 4),
@@ -239,12 +239,12 @@ namespace {
 		}
 
 		virtual void check(block_counter &counter) const {
-			typename ref_count_validator::ptr v(new ref_count_validator(counter));
+			ref_count_validator::ptr v(new ref_count_validator(counter));
 			ref_counts_.visit(v);
 		}
 
 	protected:
-		typename transaction_manager::ptr get_tm() const {
+		transaction_manager::ptr get_tm() const {
 			return tm_;
 		}
 
@@ -364,7 +364,7 @@ namespace {
 		void check(block_counter &counter) const {
 			sm_disk_base::check(counter);
 
-			typename bitmap_tree_validator::ptr v(new bitmap_tree_validator(counter));
+			bitmap_tree_validator::ptr v(new bitmap_tree_validator(counter));
 			bitmaps_.visit(v);
 		}
 
@@ -446,7 +446,7 @@ namespace {
 		}
 
 		void load_ies() {
-			typename block_manager<>::read_ref rr =
+			block_manager<>::read_ref rr =
 				sm_disk_base::get_tm()->read_lock(bitmap_root_);
 
 			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
@@ -458,7 +458,7 @@ namespace {
 		}
 
 		void commit_ies() {
-			std::pair<typename block_manager<>::write_ref, bool> p =
+			std::pair<block_manager<>::write_ref, bool> p =
 				sm_disk_base::get_tm()->shadow(bitmap_root_);
 
 			bitmap_root_ = p.first.get_location();
