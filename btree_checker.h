@@ -78,6 +78,9 @@ namespace persistent_data {
 			if (already_visited(n))
 				return false;
 
+			if (!key)
+			  new_root(level);
+
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, !key);
@@ -92,12 +95,16 @@ namespace persistent_data {
 			if (already_visited(n))
 				return false;
 
+			if (!key)
+			  new_root(level);
+
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, !key);
 			check_ordered_keys(n);
 			check_parent_key(key, n);
 			check_leaf_key(level, n);
+			
 			return true;
 		}
 
@@ -106,6 +113,9 @@ namespace persistent_data {
 				btree_detail::node_ref<ValueTraits> const &n) {
 			if (already_visited(n))
 				return false;
+
+			if (!key)
+			  new_root(level);
 
 			check_block_nr(n);
 			check_max_entries(n);
@@ -238,6 +248,12 @@ namespace persistent_data {
 
 			last_leaf_key_[level] = n.key_at(n.get_nr_entries() - 1);
 		}
+
+     	        void new_root(unsigned level) {
+		  // we're starting a new subtree, so should
+		  // reset the last_leaf value.
+		  last_leaf_key_[level] = boost::optional<uint64_t>();
+	        }
 
 		block_counter &counter_;
 		std::set<block_address> seen_;
