@@ -56,10 +56,11 @@ namespace {
 
 		// Sharing can only occur in level 1 nodes.
 		// FIXME: not true once we start having held roots.
-		bool visit_internal_leaf(unsigned level, bool is_root,
+		bool visit_internal_leaf(unsigned level,
+					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
 
-			bool r = btree_checker<2, block_traits>::visit_internal_leaf(level, is_root, n);
+			bool r = btree_checker<2, block_traits>::visit_internal_leaf(level, key, n);
 			if (!r && level == 0) {
 				throw runtime_error("unexpected sharing in level 0 of mapping tree.");
 			}
@@ -70,9 +71,10 @@ namespace {
 			return r;
 		}
 
-		bool visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level,
+				optional<uint64_t> key,
 				btree_detail::node_ref<block_traits> const &n) {
-			bool r = btree_checker<2, block_traits>::visit_leaf(level, is_root, n);
+			bool r = btree_checker<2, block_traits>::visit_leaf(level, key, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -98,9 +100,10 @@ namespace {
 			: btree_checker<1, device_details_traits>(counter) {
 		}
 
-		bool visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level,
+				optional<uint64_t> key,
 				btree_detail::node_ref<device_details_traits> const &n) {
-			bool r = btree_checker<1, device_details_traits>::visit_leaf(level, is_root, n);
+			bool r = btree_checker<1, device_details_traits>::visit_leaf(level, key, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)

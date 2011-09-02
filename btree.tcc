@@ -592,14 +592,14 @@ template <unsigned Levels, typename ValueTraits>
 void
 btree<Levels, ValueTraits>::visit(typename visitor::ptr visitor) const
 {
-	walk_tree(visitor, 0, true, root_);
+	walk_tree(visitor, 0, boost::optional<uint64_t>(), root_);
 }
 
 template <unsigned Levels, typename ValueTraits>
 void
 btree<Levels, ValueTraits>::
 walk_tree(typename visitor::ptr visitor,
-	  unsigned level, bool is_root,
+	  unsigned level, boost::optional<uint64_t> key,
 	  block_address b) const
 {
 	using namespace btree_detail;
@@ -607,18 +607,18 @@ walk_tree(typename visitor::ptr visitor,
 	read_ref blk = tm_->read_lock(b);
 	internal_node o = to_node<uint64_traits>(blk);
 	if (o.get_type() == INTERNAL) {
-		if (visitor->visit_internal(level, is_root, o))
+		if (visitor->visit_internal(level, key, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++)
-				walk_tree(visitor, level, false, o.value_at(i));
+				walk_tree(visitor, level, o.key_at(i), o.value_at(i));
 
 	} else if (level < Levels - 1) {
-		if (visitor->visit_internal_leaf(level, is_root, o))
+		if (visitor->visit_internal_leaf(level, key, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++)
-				walk_tree(visitor, level + 1, true, o.value_at(i));
+				walk_tree(visitor, level + 1, boost::optional<uint64_t>(), o.value_at(i));
 
 	} else {
 		leaf_node ov = to_node<ValueTraits>(blk);
-		visitor->visit_leaf(level, is_root, ov);
+		visitor->visit_leaf(level, key, ov);
 	}
 }
 

@@ -109,11 +109,11 @@ namespace {
 		}
 	};
 
-	class ref_count_validator : public btree_checker<1, ref_count_traits> {
+	class ref_count_checker : public btree_checker<1, ref_count_traits> {
 	public:
-		typedef boost::shared_ptr<ref_count_validator> ptr;
+		typedef boost::shared_ptr<ref_count_checker> ptr;
 
-		ref_count_validator(block_counter &counter)
+		ref_count_checker(block_counter &counter)
 			: btree_checker<1, ref_count_traits>(counter) {
 		}
 	};
@@ -239,7 +239,7 @@ namespace {
 		}
 
 		virtual void check(block_counter &counter) const {
-			ref_count_validator::ptr v(new ref_count_validator(counter));
+			ref_count_checker::ptr v(new ref_count_checker(counter));
 			ref_counts_.visit(v);
 		}
 
@@ -315,9 +315,10 @@ namespace {
 			: btree_checker<1, index_entry_traits>(counter) {
 		}
 
-		bool visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level,
+				optional<uint64_t> key,
 				btree_detail::node_ref<index_entry_traits> const &n) {
-			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, is_root, n);
+			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, key, n);
 			if (!r)
 				return r;
 

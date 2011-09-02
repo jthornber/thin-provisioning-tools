@@ -325,9 +325,12 @@ namespace persistent_data {
 
 			// The bool return values indicate whether the walk
 			// should be continued into sub trees of the node (true == continue).
-			virtual bool visit_internal(unsigned level, bool is_root, internal_node const &n) = 0;
-			virtual bool visit_internal_leaf(unsigned level, bool is_root, internal_node const &n) = 0;
-			virtual bool visit_leaf(unsigned level, bool is_root, leaf_node const &n) = 0;
+			virtual bool visit_internal(unsigned level, boost::optional<uint64_t> key,
+						    internal_node const &n) = 0;
+			virtual bool visit_internal_leaf(unsigned level, boost::optional<uint64_t> key,
+							 internal_node const &n) = 0;
+			virtual bool visit_leaf(unsigned level, boost::optional<uint64_t> key,
+						leaf_node const &n) = 0;
 		};
 
 		// Walks the tree in depth first order
@@ -356,7 +359,7 @@ namespace persistent_data {
 				int *index);
 
 		void walk_tree(typename visitor::ptr visitor,
-			       unsigned level, bool is_root,
+			       unsigned level, boost::optional<uint64_t> key,
 			       block_address b) const;
 
 		typename persistent_data::transaction_manager::ptr tm_;

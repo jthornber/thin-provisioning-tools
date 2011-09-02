@@ -72,36 +72,47 @@ namespace persistent_data {
 			  errs_(new error_set("btree errors")) {
 		}
 
-		bool visit_internal(unsigned level, bool is_root,
+		bool visit_internal(unsigned level,
+				    optional<uint64_t> key,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
 				return false;
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, is_root);
+			check_nr_entries(n, !key);
+			check_ordered_keys(n);
+			check_parent_key(key, n);
 			return true;
 		}
 
-		bool visit_internal_leaf(unsigned level, bool is_root,
+		bool visit_internal_leaf(unsigned level,
+					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
 				return false;
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, is_root);
+			check_nr_entries(n, !key);
+			check_ordered_keys(n);
+			check_parent_key(key, n);
+			check_leaf_key(level, n);
 			return true;
 		}
 
-		bool visit_leaf(unsigned level, bool is_root,
+		bool visit_leaf(unsigned level,
+				optional<uint64_t> key,
 				btree_detail::node_ref<ValueTraits> const &n) {
 			if (already_visited(n))
 				return false;
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, is_root);
+			check_nr_entries(n, !key);
+			check_ordered_keys(n);
+			check_parent_key(key, n);
+			check_leaf_key(level, n);
 			return true;
 		}
 
@@ -180,9 +191,58 @@ namespace persistent_data {
 			}
 		}
 
+		template <typename node>
+		void check_ordered_keys(node const &n) const {
+			unsigned nr_entries = n.get_nr_entries();
+
+			if (nr_entries == 0)
+				return; // can only happen if a root node
+
+			uint64_t last_key = n.key_at(0);
+
+			for (unsigned i = 1; i < nr_entries; i++) {
+				uint64_t k = n.key_at(i);
+				if (k <= last_key) {
+					ostringstream out;
+					out << "keys are out of order, " << k << " <= " << last_key;
+					throw runtime_error(out.str());
+				}
+				last_key = k;
+			}
+		}
+
+		template <typename node>
+		void check_parent_key(boost::optional<uint64_t> key, node const &n) const {
+			if (!key)
+				return;
+
+			if (*key > n.key_at(0)) {
+				ostringstream out;
+				out << "parent key mismatch: parent was " << *key
+				    << ", but lowest in node was " << n.key_at(0);
+				throw runtime_error(out.str());
+			}
+		}
+
+		template <typename node>
+		void check_leaf_key(unsigned level, node const &n) {
+			if (n.get_nr_entries() == 0)
+				return; // can only happen if a root node
+
+			if (last_leaf_key_[level] && *last_leaf_key_[level] >= n.key_at(0)) {
+				ostringstream out;
+				out << "the last key of the previous leaf was " << *last_leaf_key_[level]
+				    << " and the first key of this leaf is " << n.key_at(0);
+				throw runtime_error(out.str());
+			}
+
+			last_leaf_key_[level] = n.key_at(n.get_nr_entries() - 1);
+		}
+
 		block_counter &counter_;
 		std::set<block_address> seen_;
 		error_set::ptr errs_;
+		boost::optional<uint64_t> last_leaf_key_[Levels];
 	};
 }
 
