@@ -2,6 +2,7 @@
 
 #include "btree_checker.h"
 #include "core_map.h"
+#include "math_utils.h"
 
 #include <stdexcept>
 #include <sstream>
@@ -9,6 +10,13 @@
 #include <set>
 #include <map>
 
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+using namespace base;
 using namespace std;
 using namespace persistent_data;
 using namespace thin_provisioning;
@@ -22,13 +30,42 @@ namespace {
 	unsigned const METADATA_CACHE_SIZE = 1024;
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 
-	// FIXME: get the file size
-	unsigned const NR_BLOCKS = 1024;
+	block_address get_nr_blocks(string const &path) {
+		struct stat info;
+		block_address nr_blocks;
+
+		int r = ::stat(path.c_str(), &info);
+		if (r)
+			throw runtime_error("Couldn't stat dev path");
+
+		if (S_ISREG(info.st_mode))
+			nr_blocks = div_down<block_address>(info.st_size, MD_BLOCK_SIZE);
+
+		else if (S_ISBLK(info.st_mode)) {
+			// To get the size of a block device we need to
+			// open it, and then make an ioctl call.
+			int fd = ::open(path.c_str(), O_RDONLY);
+			if (fd < 0)
+				throw runtime_error("couldn't open block device to ascertain size");
+
+			r = ::ioctl(fd, BLKGETSIZE64, &nr_blocks);
+			if (r) {
+				::close(fd);
+				throw runtime_error("ioctl BLKGETSIZE64 failed");
+			}
+			::close(fd);
+			nr_blocks = div_down<block_address>(nr_blocks, MD_BLOCK_SIZE);
+		} else
+			throw runtime_error("bad path");
+
+		return nr_blocks;
+	}
 
 	transaction_manager::ptr
 	open_tm(string const &dev_path) {
-		block_manager<>::ptr bm(new block_manager<>(dev_path, NR_BLOCKS));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
+		block_address nr_blocks = get_nr_blocks(dev_path);
+		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks));
+		space_map::ptr sm(new core_map(nr_blocks));
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
