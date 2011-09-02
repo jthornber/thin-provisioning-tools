@@ -33,7 +33,7 @@ node_ref<ValueTraits>::get_type() const
 	else if (flags & LEAF_NODE)
 		return LEAF;
 	else
-		throw runtime_error("unknow node type");
+		throw runtime_error("unknown node type");
 }
 
 template <typename ValueTraits>
