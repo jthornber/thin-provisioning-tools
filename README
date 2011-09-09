@@ -1,1 +1,3 @@
-A quick experiment to see how a C++ version would shape up.
+A suite of tools for thin provisioning on Linux.
+
+Requires the g++ and the boost libraries to build.
