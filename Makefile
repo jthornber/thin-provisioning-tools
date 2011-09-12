@@ -3,6 +3,7 @@
 all: thin_repair thin_dump thin_restore
 
 SOURCE=\
+	checksum.cc \
 	endian_utils.cc \
 	error_set.cc \
 	metadata.cc \
@@ -14,7 +15,7 @@ OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)
 CPPFLAGS=-Wall -g -I$(TOP_DIR)
 #CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
-LIBS=-lstdc++
+LIBS=-lz -lstdc++
 
 .PHONEY: test-programs
 
