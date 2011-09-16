@@ -6,6 +6,7 @@ SOURCE=\
 	checksum.cc \
 	endian_utils.cc \
 	error_set.cc \
+	hex_dump.cc \
 	metadata.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \
@@ -15,7 +16,7 @@ OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)
 CPPFLAGS=-Wall -g -I$(TOP_DIR)
 #CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
-LIBS=-lz -lstdc++
+LIBS=-lstdc++
 
 .PHONEY: test-programs
 

@@ -74,6 +74,17 @@ namespace {
 		superblock sb;
 		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+
+		crc32c sum(160774);
+		sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+		if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_)) {
+			ostringstream out;
+			out << "bad checksum in superblock, calculated "
+			    << sum.get_sum()
+			    << ", superblock contains " << to_cpu<uint32_t>(sbd->csum_);
+			throw runtime_error(out.str());
+		}
+
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
 	}

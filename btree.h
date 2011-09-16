@@ -38,6 +38,8 @@ namespace persistent_data {
 		using namespace std;
 		using namespace boost;
 
+		uint32_t const BTREE_CSUM_XOR = 121107;
+
 		//------------------------------------------------
 		// On disk data layout for btree nodes
 		enum node_flags {
@@ -73,6 +75,8 @@ namespace persistent_data {
 		class node_ref {
 		public:
 			explicit node_ref(block_address b, disk_node *raw);
+
+			uint32_t get_checksum() const;
 
 			block_address get_location() const {
 				return location_;
@@ -125,8 +129,11 @@ namespace persistent_data {
 			template <typename RefCounter>
 			void inc_children(RefCounter &rc);
 
-			// FIXME: remove
-			void *raw() {
+			disk_node *raw() {
+				return raw_;
+			}
+
+			disk_node const *raw() const {
 				return raw_;
 			}
 

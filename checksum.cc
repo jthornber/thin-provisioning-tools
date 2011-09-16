@@ -1,25 +1,31 @@
 #include "checksum.h"
 
-#include <zlib.h>
+#include <boost/crc.hpp>
 
 using namespace base;
 
 //----------------------------------------------------------------
 
-crc32::crc32(uint32_t seed)
-	: sum_(seed) {
+crc32c::crc32c(uint32_t xor_value)
+	: xor_value_(xor_value),
+	  sum_(0)
+{
 }
 
 void
-crc32::append(void const *buffer, unsigned len)
+crc32c::append(void const *buffer, unsigned len)
 {
-	sum_ = ::crc32(sum_, reinterpret_cast<Bytef const *>(buffer), len);
+	uint32_t const powers = 0x1EDC6F41;
+
+	boost::crc_basic<32> crc(powers, 0xffffffff, 0, true, true);
+	crc.process_bytes(buffer, len);
+	sum_ = crc.checksum();
 }
 
 uint32_t
-crc32::get_sum() const
+crc32c::get_sum() const
 {
-	return sum_;
+	return sum_ ^ xor_value_;
 }
 
 //----------------------------------------------------------------

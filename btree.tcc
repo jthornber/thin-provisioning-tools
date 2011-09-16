@@ -17,6 +17,13 @@ node_ref<ValueTraits>::node_ref(block_address location, disk_node *raw)
 }
 
 template <typename ValueTraits>
+uint32_t
+node_ref<ValueTraits>::get_checksum() const
+{
+	return to_cpu<uint32_t>(raw_->header.csum);
+}
+
+template <typename ValueTraits>
 block_address
 node_ref<ValueTraits>::get_block_nr() const
 {

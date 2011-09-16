@@ -81,6 +81,11 @@ namespace {
 		}
 
 	private:
+		void check_crc(transaction_manager::read_ref &rr) {
+			crc32c sum(240779);
+			// sum.append(reinterpret_cast<bitmap_header const *>(&rr.data()[0]);
+		}
+
 		void *bitmap_data(transaction_manager::write_ref &wr) {
 			bitmap_header *h = reinterpret_cast<bitmap_header *>(&wr.data()[0]);
 			return h + 1;

@@ -3,7 +3,9 @@
 
 #include "btree.h"
 
+#include "checksum.h"
 #include "error_set.h"
+#include "hex_dump.h"
 
 #include <sstream>
 #include <map>
@@ -78,6 +80,8 @@ namespace persistent_data {
 			if (already_visited(n))
 				return false;
 
+			check_sum(n);
+
 			if (!key)
 			  new_root(level);
 
@@ -95,6 +99,8 @@ namespace persistent_data {
 			if (already_visited(n))
 				return false;
 
+			check_sum(n);
+
 			if (!key)
 			  new_root(level);
 
@@ -104,7 +110,7 @@ namespace persistent_data {
 			check_ordered_keys(n);
 			check_parent_key(key, n);
 			check_leaf_key(level, n);
-			
+
 			return true;
 		}
 
@@ -113,6 +119,8 @@ namespace persistent_data {
 				btree_detail::node_ref<ValueTraits> const &n) {
 			if (already_visited(n))
 				return false;
+
+			check_sum(n);
 
 			if (!key)
 			  new_root(level);
@@ -147,6 +155,22 @@ namespace persistent_data {
 
 			seen_.insert(b);
 			return false;
+		}
+
+		template <typename node>
+		void check_sum(node const &n) const {
+			crc32c sum(BTREE_CSUM_XOR);
+
+			disk_node const *data = n.raw();
+			sum.append(&data->header.flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != n.get_checksum()) {
+				std::ostringstream out;
+				out << "checksum error for block " << n.get_block_nr()
+				    << ", sum was " << sum.get_sum()
+				    << ", expected " << n.get_checksum();
+				errs_->add_child(out.str());
+				throw runtime_error(out.str());
+			}
 		}
 
 		template <typename node>
