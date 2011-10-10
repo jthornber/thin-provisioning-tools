@@ -22,15 +22,19 @@ namespace {
 				      uint64_t time,
 				      uint64_t trans_id,
 				      uint32_t data_block_size) {
-			out_ << "begin superblock: " << uuid
-			     << ", " << time
-			     << ", " << trans_id
-			     << ", " << data_block_size
+			indent();
+			out_ << "<superblock uuid=\"" << uuid << "\""
+			     << " time=\"" << time << "\""
+			     << " transaction=\"" << trans_id << "\""
+			     << " data_block_size=\"" << data_block_size << "\">"
 			     << endl;
+			inc();
 		}
 
 		void end_superblock() {
-			out_ << "end superblock" << endl;
+			dec();
+			indent();
+			out_ << "</superblock>" << endl;
 		}
 
 		void begin_device(uint32_t dev_id,
@@ -49,21 +53,25 @@ namespace {
 
 		void end_device() {
 			dec();
+			indent();
 			out_ << "</device>" << endl;
 		}
 
 		void begin_named_mapping(string const &name) {
-			out_ << "begin named mapping"
-			     << endl;
+			indent();
+			out_ << "<named_mapping>" << endl;
+			inc();
 		}
 
 		void end_named_mapping() {
-			out_ << "end named mapping"
-			     << endl;
+			dec();
+			indent();
+			out_ << "</named_mapping>" << endl;
 		}
 
 		void identifier(string const &name) {
-			out_ << "identifier: " << name << endl;
+			indent();
+			out_ << "<identifier name=\"" << name << "\"/>" << endl;
 		}
 
 		void range_map(uint64_t origin_begin, uint64_t data_begin, uint64_t len) {

@@ -123,6 +123,8 @@ namespace {
 void
 metadata::dump(emitter::ptr e)
 {
+	e->begin_superblock("", sb_.time_, sb_.trans_id_, sb_.data_block_size_);
+
 	details_extractor::ptr de(new details_extractor);
 
 	details_.visit(de);
@@ -144,6 +146,8 @@ metadata::dump(emitter::ptr e)
 
 		e->end_device();
 	}
+
+	e->end_superblock();
 }
 
 //----------------------------------------------------------------
