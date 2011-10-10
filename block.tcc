@@ -51,14 +51,13 @@ block_manager<BlockSize>::write_ref::data()
 //----------------------------------------------------------------
 
 template <uint32_t BlockSize>
-block_manager<BlockSize>::block_manager(std::string const &path, block_address nr_blocks)
+block_manager<BlockSize>::block_manager(std::string const &path, block_address nr_blocks, bool writeable)
 	: nr_blocks_(nr_blocks),
 	  lock_count_(0),
 	  superblock_count_(0),
 	  ordinary_count_(0)
 {
-	//fd_ = ::open(path.c_str(), O_RDWR | O_CREAT, 0666);
-	fd_ = ::open(path.c_str(), O_RDONLY, 0666);
+	fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
 	if (fd_ < 0)
 		throw std::runtime_error("couldn't open file");
 }

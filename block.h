@@ -39,7 +39,7 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;
 
-		block_manager(std::string const &path, block_address nr_blocks);
+		block_manager(std::string const &path, block_address nr_blocks, bool writeable = false);
 		~block_manager();
 
 		typedef unsigned char buffer[BlockSize];
