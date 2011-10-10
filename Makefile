@@ -7,7 +7,9 @@ SOURCE=\
 	endian_utils.cc \
 	error_set.cc \
 	hex_dump.cc \
+	human_readable_format.cc \
 	metadata.cc \
+	metadata_dump.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \
 	transaction_manager.cc

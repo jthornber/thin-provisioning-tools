@@ -57,7 +57,8 @@ block_manager<BlockSize>::block_manager(std::string const &path, block_address n
 	  superblock_count_(0),
 	  ordinary_count_(0)
 {
-	fd_ = ::open(path.c_str(), O_RDWR | O_CREAT, 0666);
+	//fd_ = ::open(path.c_str(), O_RDWR | O_CREAT, 0666);
+	fd_ = ::open(path.c_str(), O_RDONLY, 0666);
 	if (fd_ < 0)
 		throw std::runtime_error("couldn't open file");
 }

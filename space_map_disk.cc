@@ -321,9 +321,10 @@ namespace {
 		}
 
 		bool visit_leaf(unsigned level,
+				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<index_entry_traits> const &n) {
-			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, key, n);
+			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, sub_root, key, n);
 			if (!r)
 				return r;
 

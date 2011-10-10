@@ -75,6 +75,7 @@ namespace persistent_data {
 		}
 
 		bool visit_internal(unsigned level,
+				    bool sub_root,
 				    optional<uint64_t> key,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
@@ -94,6 +95,7 @@ namespace persistent_data {
 		}
 
 		bool visit_internal_leaf(unsigned level,
+					 bool sub_root,
 					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
 			if (already_visited(n))
@@ -115,6 +117,7 @@ namespace persistent_data {
 		}
 
 		bool visit_leaf(unsigned level,
+				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<ValueTraits> const &n) {
 			if (already_visited(n))
