@@ -6,6 +6,8 @@
 using namespace std;
 using namespace thin_provisioning;
 
+namespace tp = thin_provisioning;
+
 //----------------------------------------------------------------
 
 namespace {
@@ -101,8 +103,8 @@ namespace {
 
 //----------------------------------------------------------------
 
-thin_provisioning::emitter::ptr
-thin_provisioning::create_xml_emitter(ostream &out)
+tp::emitter::ptr
+tp::create_xml_emitter(ostream &out)
 {
 	return emitter::ptr(new xml_emitter(out));
 }

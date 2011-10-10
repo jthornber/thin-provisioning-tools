@@ -3,6 +3,7 @@
 
 #include "block.h"
 #include "btree.h"
+#include "emitter.h"
 #include "endian_utils.h"
 #include "error_set.h"
 #include "metadata_disk_structures.h"
@@ -173,7 +174,7 @@ namespace thin_provisioning {
 		boost::optional<persistent_data::error_set::ptr> check();
 
 		// Dumping metadata
-		void dump();
+		void dump(emitter::ptr e);
 
 	private:
 		friend class thin;

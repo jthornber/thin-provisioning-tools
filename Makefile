@@ -19,7 +19,7 @@ OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)
 CPPFLAGS=-Wall -g -I$(TOP_DIR)
 #CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
-LIBS=-lstdc++
+LIBS=-lstdc++ -lboost_program_options
 
 .PHONEY: test-programs
 
