@@ -7,3 +7,4 @@ thin_dump
 thin_restore
 thin_repair
 *.metadata
+bad-metadata
