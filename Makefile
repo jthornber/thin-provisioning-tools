@@ -12,7 +12,8 @@ SOURCE=\
 	metadata_dump.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \
-	transaction_manager.cc
+	transaction_manager.cc \
+	xml_format.cc
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)

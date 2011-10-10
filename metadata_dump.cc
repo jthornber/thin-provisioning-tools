@@ -1,6 +1,7 @@
 #include "metadata.h"
 
 #include "human_readable_format.h"
+#include "xml_format.h"
 
 using namespace persistent_data;
 using namespace thin_provisioning;
@@ -125,7 +126,7 @@ namespace {
 void
 metadata::dump()
 {
-	emitter::ptr e = create_human_readable_emitter(cout);
+	emitter::ptr e = create_xml_emitter(cout);
 
 	details_extractor::ptr de(new details_extractor);
 
