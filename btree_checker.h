@@ -83,14 +83,14 @@ namespace persistent_data {
 
 			check_sum(n);
 
-			if (!key)
+			if (sub_root)
 			  new_root(level);
 
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
-			check_parent_key(key, n);
+			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
 			return true;
 		}
 
@@ -103,14 +103,14 @@ namespace persistent_data {
 
 			check_sum(n);
 
-			if (!key)
+			if (sub_root)
 			  new_root(level);
 
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
-			check_parent_key(key, n);
+			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
 			check_leaf_key(level, n);
 
 			return true;
@@ -125,14 +125,14 @@ namespace persistent_data {
 
 			check_sum(n);
 
-			if (!key)
+			if (sub_root)
 			  new_root(level);
 
 			check_block_nr(n);
 			check_max_entries(n);
 			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
-			check_parent_key(key, n);
+			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
 			check_leaf_key(level, n);
 			return true;
 		}
