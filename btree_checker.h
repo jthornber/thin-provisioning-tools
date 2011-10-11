@@ -88,7 +88,7 @@ namespace persistent_data {
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, !key);
+			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
 			check_parent_key(key, n);
 			return true;
@@ -108,7 +108,7 @@ namespace persistent_data {
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, !key);
+			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
 			check_parent_key(key, n);
 			check_leaf_key(level, n);
@@ -130,7 +130,7 @@ namespace persistent_data {
 
 			check_block_nr(n);
 			check_max_entries(n);
-			check_nr_entries(n, !key);
+			check_nr_entries(n, sub_root);
 			check_ordered_keys(n);
 			check_parent_key(key, n);
 			check_leaf_key(level, n);
