@@ -24,7 +24,7 @@ namespace {
 		void check(block_manager<4096>::block const &blk) const {
 			for (unsigned b = 0; b < BlockSize; b++)
 				if (blk.data_[b] != 0)
-					throw runtime_error("validator check zero");
+ 					throw runtime_error("validator check zero");
 		}
 
 		void prepare(block_manager<4096>::block &blk) const {

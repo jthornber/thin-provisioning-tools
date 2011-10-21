@@ -1,6 +1,7 @@
 TEST_SOURCE=\
 	unit-tests/block_t.cc \
 	unit-tests/btree_t.cc \
+	unit-tests/cache_t.cc \
 	unit-tests/endian_t.cc \
 	unit-tests/space_map_t.cc \
 	unit-tests/space_map_disk_t.cc \
@@ -17,6 +18,9 @@ unit-tests/block_t: unit-tests/block_t.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 unit-tests/btree_t: unit-tests/btree_t.o $(OBJECTS)
+	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+unit-tests/cache_t: unit-tests/cache_t.o $(OBJECTS)
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
 
 unit-tests/space_map_t: unit-tests/space_map_t.o $(OBJECTS)
