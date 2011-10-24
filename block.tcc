@@ -16,46 +16,9 @@ using namespace std;
 //----------------------------------------------------------------
 
 template <uint32_t BlockSize>
-block_manager<BlockSize>::read_ref::read_ref(typename block_manager::block::ptr b)
-	: block_(b)
-{
-}
-
-template <uint32_t BlockSize>
-block_address
-block_manager<BlockSize>::read_ref::get_location() const
-{
-	return block_->location_;
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::const_buffer &
-block_manager<BlockSize>::read_ref::data() const
-{
-	return block_->data_;
-}
-
-template <uint32_t BlockSize>
-block_manager<BlockSize>::write_ref::write_ref(typename block_manager::block::ptr b)
-	: read_ref(b)
-{
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::buffer &
-block_manager<BlockSize>::write_ref::data()
-{
-	return read_ref::block_->data_;
-}
-
-//----------------------------------------------------------------
-
-template <uint32_t BlockSize>
-block_manager<BlockSize>::block_manager(std::string const &path, block_address nr_blocks, bool writeable)
+block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, bool writeable)
 	: nr_blocks_(nr_blocks),
-	  lock_count_(0),
-	  superblock_count_(0),
-	  ordinary_count_(0)
+	  writeable_(writeable)
 {
 	fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
 	if (fd_ < 0)
@@ -63,106 +26,17 @@ block_manager<BlockSize>::block_manager(std::string const &path, block_address n
 }
 
 template <uint32_t BlockSize>
-block_manager<BlockSize>::~block_manager()
+block_io<BlockSize>::~block_io()
 {
 	::close(fd_);
 }
 
 template <uint32_t BlockSize>
-typename block_manager<BlockSize>::read_ref
-block_manager<BlockSize>::read_lock(block_address location,
-				    typename block_manager<BlockSize>::validator::ptr v) const
-{
-	check(location);
-
-	buffer buf;
-	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
-			      bind(&block_manager::read_release, this, _1));
-	register_lock(location, READ_LOCK);
-	return read_ref(b);
-}
-
-template <uint32_t BlockSize>
-optional<typename block_manager<BlockSize>::read_ref>
-block_manager<BlockSize>::read_try_lock(block_address location,
-					typename block_manager<BlockSize>::validator::ptr v) const
-{
-	return read_lock(location, v);
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::write_ref
-block_manager<BlockSize>::write_lock(block_address location,
-				     typename block_manager<BlockSize>::validator::ptr v)
-{
-	check(location);
-
-	buffer buf;
-	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
-			      bind(&block_manager::write_release, this, _1));
-	register_lock(location, WRITE_LOCK);
-	return write_ref(b);
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::write_ref
-block_manager<BlockSize>::write_lock_zero(block_address location,
-					  typename block_manager<BlockSize>::validator::ptr v)
-{
-	check(location);
-
-	buffer buf;
-	zero_buffer(buf);
-	typename block::ptr b(new block(location, buf, lock_count_, ordinary_count_, BT_NORMAL, v),
-			      bind(&block_manager::write_release, this, _1));
-	register_lock(location, WRITE_LOCK);
-	return write_ref(b);
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::write_ref
-block_manager<BlockSize>::superblock(block_address location,
-				     typename block_manager<BlockSize>::validator::ptr v)
-{
-	if (superblock_count_ > 0)
-		throw runtime_error("already have superblock");
-
-	check(location);
-
-	buffer buf;
-	read_buffer(location, buf);
-	typename block::ptr b(new block(location, buf, lock_count_, superblock_count_, BT_SUPERBLOCK, v),
-			      bind(&block_manager::write_release, this, _1));
-	register_lock(location, WRITE_LOCK);
-	return write_ref(b);
-}
-
-template <uint32_t BlockSize>
-typename block_manager<BlockSize>::write_ref
-block_manager<BlockSize>::superblock_zero(block_address location,
-					  typename block_manager<BlockSize>::validator::ptr v)
-{
-	if (superblock_count_ > 0)
-		throw runtime_error("already have superblock");
-
-	check(location);
-
-	buffer buf;
-	zero_buffer(buf);
-	typename block::ptr b(new block(location, buf, lock_count_, superblock_count_, true, v),
-			      bind(&block_manager::write_release, this, _1));
-	register_lock(location, WRITE_LOCK);
-	return write_ref(b);
-}
-
-template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::read_buffer(block_address b, block_manager<BlockSize>::buffer &buffer) const
+block_io<BlockSize>::read_buffer(block_address location, buffer &buffer) const
 {
 	off_t r;
-	r = ::lseek(fd_, BlockSize * b, SEEK_SET);
+	r = ::lseek(fd_, BlockSize * location, SEEK_SET);
 	if (r == (off_t) -1)
 		throw std::runtime_error("lseek failed");
 
@@ -183,10 +57,10 @@ block_manager<BlockSize>::read_buffer(block_address b, block_manager<BlockSize>:
 
 template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::write_buffer(block_address b, block_manager<BlockSize>::const_buffer &buffer)
+block_io<BlockSize>::write_buffer(block_address location, const_buffer &buffer)
 {
 	off_t r;
-	r = ::lseek(fd_, BlockSize * b, SEEK_SET);
+	r = ::lseek(fd_, BlockSize * location, SEEK_SET);
 	if (r == (off_t) -1)
 		throw std::runtime_error("lseek failed");
 
@@ -205,43 +79,237 @@ block_manager<BlockSize>::write_buffer(block_address b, block_manager<BlockSize>
 		throw std::runtime_error("write failed");
 }
 
-template <uint32_t BlockSize>
-void
-block_manager<BlockSize>::zero_buffer(block_manager<BlockSize>::buffer &buffer) const
-{
-	::memset(buffer, 0, BlockSize);
-}
-
-// FIXME: we don't need this anymore
-template <uint32_t BlockSize>
-void
-block_manager<BlockSize>::read_release(block *b) const
-{
-	unregister_lock(b->location_, READ_LOCK);
-	delete b;
-}
+//----------------------------------------------------------------
 
 template <uint32_t BlockSize>
-void
-block_manager<BlockSize>::write_release(block *b)
+block_manager<BlockSize>::block::block(typename block_io<BlockSize>::ptr io,
+				       block_address location,
+				       block_type bt,
+				       typename validator::ptr v,
+				       bool zero)
+	: io_(io),
+	  location_(location),
+	  validator_(v),
+	  bt_(bt),
+	  dirty_(false)
 {
-	if (b->bt_ == BT_SUPERBLOCK) {
-		if (lock_count_ != 1)
-			throw runtime_error("superblock isn't the last block");
+	if (zero) {
+		memset(&data_, 0, sizeof(data_));
+		dirty_ = true;
+	} else {
+		io_->read_buffer(location_, data_);
+		validator_->check(data_, location_);
+	}
+}
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::block::~block()
+{
+	flush();
+}
+
+template <uint32_t BlockSize>
+void
+block_manager<BlockSize>::block::flush()
+{
+	if (dirty_) {
+		validator_->prepare(data_, location_);
+		io_->write_buffer(location_, data_);
+	}
+}
+
+//----------------------------------------------------------------
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::read_ref::read_ref(block_manager<BlockSize> const &bm,
+					     block_ptr b)
+	: bm_(bm),
+	  block_(b),
+	  holders_(new unsigned)
+{
+	*holders_ = 1;
+}
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::read_ref::read_ref(read_ref const &rhs)
+	: bm_(rhs.bm_),
+	  block_(rhs.block_),
+	  holders_(rhs.holders_)
+{
+	(*holders_)++;
+}
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::read_ref::~read_ref()
+{
+	if (!--(*holders_)) {
+		if (block_->bt_ == BT_SUPERBLOCK) {
+			bm_.flush();
+			bm_.cache_.put(block_);
+			bm_.flush();
+		} else
+			bm_.cache_.put(block_);
+
+		delete holders_;
+	}
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::read_ref const &
+block_manager<BlockSize>::read_ref::operator =(read_ref const &rhs)
+{
+	if (this != &rhs) {
+		block_ = rhs.block_;
+		bm_ = rhs.bm_;
+		holders_ = rhs.holders_;
+		(*holders_)++;
+	}
+}
+
+template <uint32_t BlockSize>
+block_address
+block_manager<BlockSize>::read_ref::get_location() const
+{
+	return block_->location_;
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::const_buffer &
+block_manager<BlockSize>::read_ref::data() const
+{
+	return block_->data_;
+}
+
+//--------------------------------
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::write_ref::write_ref(block_manager<BlockSize> const &bm,
+					       block_ptr b)
+	: read_ref(bm, b)
+{
+	b->dirty_ = true;
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::buffer &
+block_manager<BlockSize>::write_ref::data()
+{
+	return read_ref::block_->data_;
+}
+
+//----------------------------------------------------------------
+
+template <uint32_t BlockSize>
+block_manager<BlockSize>::block_manager(std::string const &path,
+					block_address nr_blocks,
+					unsigned max_concurrent_blocks,
+					bool writeable)
+	: io_(new block_io<BlockSize>(path, nr_blocks, writeable)),
+	  cache_(max(64u, max_concurrent_blocks))
+{
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::read_ref
+block_manager<BlockSize>::read_lock(block_address location,
+				    typename block_manager<BlockSize>::validator::ptr v) const
+{
+	check(location);
+	boost::optional<block_ptr> cached_block = cache_.get(location);
+
+	if (cached_block) {
+		(*cached_block)->check_read_lockable();
+		return read_ref(*this, *cached_block);
 	}
 
-	b->validator_->prepare(*b);
+	block_ptr b(new block(io_, location, BT_NORMAL, v));
+	cache_.insert(b);
+	return read_ref(*this, b);
+}
 
-	write_buffer(b->location_, b->data_);
-	unregister_lock(b->location_, WRITE_LOCK);
-	delete b;
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::write_ref
+block_manager<BlockSize>::write_lock(block_address location,
+				     typename block_manager<BlockSize>::validator::ptr v)
+{
+	check(location);
+
+	boost::optional<block_ptr> cached_block = cache_.get(location);
+
+	if (cached_block) {
+		(*cached_block)->check_write_lockable();
+		return write_ref(*this, *cached_block);
+	}
+
+	block_ptr b(new block(io_, location, BT_NORMAL, v));
+	cache_.insert(b);
+	return write_ref(*this, b);
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::write_ref
+block_manager<BlockSize>::write_lock_zero(block_address location,
+					  typename block_manager<BlockSize>::validator::ptr v)
+{
+	check(location);
+
+	boost::optional<block_ptr> cached_block = cache_.get(location);
+	if (cached_block) {
+		(*cached_block)->check_write_lockable();
+		memset(&(*cached_block)->data_, 0, BlockSize);
+		return write_ref(*this, *cached_block);
+	}
+
+	block_ptr b(new block(io_, location, BT_NORMAL, v, true));
+	cache_.insert(b);
+	return write_ref(*this, b);
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::write_ref
+block_manager<BlockSize>::superblock(block_address location,
+				     typename block_manager<BlockSize>::validator::ptr v)
+{
+	check(location);
+
+	boost::optional<block_ptr> cached_block = cache_.get(location);
+
+	if (cached_block) {
+		(*cached_block)->check_write_lockable();
+		(*cached_block)->bt_ = BT_SUPERBLOCK;
+		return write_ref(*this, *cached_block);
+	}
+
+	block_ptr b(new block(io_, location, BT_SUPERBLOCK, v));
+	cache_.insert(b);
+	return write_ref(*this, b);
+}
+
+template <uint32_t BlockSize>
+typename block_manager<BlockSize>::write_ref
+block_manager<BlockSize>::superblock_zero(block_address location,
+					  typename block_manager<BlockSize>::validator::ptr v)
+{
+	check(location);
+
+	boost::optional<block_ptr> cached_block = cache_.get(location);
+
+	if (cached_block) {
+		(*cached_block)->check_write_lockable();
+		memset(&(*cached_block)->data_, 0, BlockSize);
+		return write_ref(*this, *cached_block);
+	}
+
+	block_ptr b(new block(io_, location, BT_SUPERBLOCK, v, true));
+	cache_.insert(b);
+	return write_ref(*this, b);
 }
 
 template <uint32_t BlockSize>
 void
 block_manager<BlockSize>::check(block_address b) const
 {
-	if (b >= nr_blocks_)
+	if (b >= io_->get_nr_blocks())
 		throw std::runtime_error("block address out of bounds");
 }
 
@@ -249,42 +317,22 @@ template <uint32_t BlockSize>
 block_address
 block_manager<BlockSize>::get_nr_blocks() const
 {
-	return nr_blocks_;
-}
-
-// FIXME: how do we unregister if block construction throws?
-template <uint32_t BlockSize>
-void
-block_manager<BlockSize>::register_lock(block_address b, lock_type t) const
-{
-	typename held_map::iterator it = held_locks_.find(b);
-	if (it == held_locks_.end())
-		held_locks_.insert(make_pair(b, make_pair(t, 1)));
-	else {
-		if (it->second.first != t)
-			throw std::runtime_error("lock type mismatch when locking");
-
-		if (it->second.first == WRITE_LOCK)
-			throw std::runtime_error("cannot hold concurrent write locks");
-
-		it->second.second++;
-	}
+	return io_->get_nr_blocks();
 }
 
 template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::unregister_lock(block_address b, lock_type t) const
+block_manager<BlockSize>::write_block(block_ptr b) const
 {
-	typename held_map::iterator it = held_locks_.find(b);
-	if (it == held_locks_.end())
-		throw std::runtime_error("lock not held");
+	b->flush();
+}
 
-	if (it->second.first != t)
-		throw std::runtime_error("lock type mismatch when unlocking");
-
-	it->second.second--;
-	if (it->second.second == 0)
-		held_locks_.erase(it);
+template <uint32_t BlockSize>
+void
+block_manager<BlockSize>::flush() const
+{
+	cache_.iterate_unheld(
+		boost::bind(&block_manager<BlockSize>::write_block, this, _1));
 }
 
 //----------------------------------------------------------------

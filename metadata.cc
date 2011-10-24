@@ -64,7 +64,7 @@ namespace {
 	transaction_manager::ptr
 	open_tm(string const &dev_path) {
 		block_address nr_blocks = get_nr_blocks(dev_path);
-		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks));
+		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks, 8));
 		space_map::ptr sm(new core_map(nr_blocks));
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;

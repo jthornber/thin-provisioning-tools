@@ -37,6 +37,9 @@ namespace base {
 		boost::optional<value_type> get(key_type const &k);
 		void put(value_type const &k);
 
+		template <typename T>
+		void iterate_unheld(T fn) const;
+
 	private:
 		void make_space();
 
@@ -45,11 +48,11 @@ namespace base {
 			// default constructor also, which is a shame.
 			// so we can construct the headers.
 			value_entry()
-				: ref_count_(0) {
+				: ref_count_(1) {
 			}
 
 			explicit value_entry(value_type v)
-				: ref_count_(0),
+				: ref_count_(1),
 				  v_(v) {
 			}
 
@@ -186,18 +189,12 @@ namespace base {
 	cache<ValueTraits>::insert(value_type const &v) {
 		make_space();
 
+		// FIXME: use an auto_ptr to avoid the explicit try/catch
 		value_entry *node = new value_entry(v);
 		try {
-			lru_algo::link_after(&lru_header_, node);
-			try {
-				value_ptr_cmp cmp;
-				lookup_algo::insert_equal(&lookup_header_, &lookup_header_, node, cmp);
-				current_entries_++;
-
-			} catch (...) {
-				lru_algo::unlink(node);
-				throw;
-			}
+			value_ptr_cmp cmp;
+			lookup_algo::insert_equal(&lookup_header_, &lookup_header_, node, cmp);
+			current_entries_++;
 
 		} catch (...) {
 			delete node;
@@ -228,6 +225,9 @@ namespace base {
 		if (node == &lookup_header_)
 			throw std::runtime_error("invalid put");
 
+		if (node->ref_count_ == 0)
+			throw std::runtime_error("invalid put");
+
 		if (!--node->ref_count_)
 			lru_algo::link_after(&lru_header_, node);
 	}
@@ -244,6 +244,17 @@ namespace base {
 			lookup_algo::unlink(node);
 			delete node;
 			current_entries_--;
+		}
+	}
+
+	template <typename ValueTraits>
+	template <typename T>
+	void
+	cache<ValueTraits>::iterate_unheld(T fn) const {
+		value_entry *n = lru_header_.lru_.next_;
+		while (n != &lru_header_) {
+			fn(n->v_);
+			n = n->lru_.next_;
 		}
 	}
 }

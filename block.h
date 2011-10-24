@@ -1,6 +1,8 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
+#include "cache.h"
+
 #include <stdint.h>
 #include <map>
 #include <vector>
@@ -17,35 +19,43 @@ namespace persistent_data {
 
 	uint32_t const MD_BLOCK_SIZE = 4096;
 
-	class count_adjuster {
+	typedef uint64_t block_address;
+
+	template <uint32_t BlockSize>
+	class block_io : private boost::noncopyable {
 	public:
-		count_adjuster(unsigned &c)
-			: c_(c) {
-			c_++;
+		typedef boost::shared_ptr<block_io> ptr;
+		typedef unsigned char buffer[BlockSize];
+		typedef unsigned char const const_buffer[BlockSize];
+
+		block_io(std::string const &path, block_address nr_blocks, bool writeable = false);
+		~block_io();
+
+		block_address get_nr_blocks() const {
+			return nr_blocks_;
 		}
 
-		~count_adjuster() {
-			c_--;
-		}
+		void read_buffer(block_address location, buffer &buf) const;
+		void write_buffer(block_address location, const_buffer &buf);
 
 	private:
-		unsigned &c_;
+		int fd_;
+		block_address nr_blocks_;
+		bool writeable_;
 	};
-
-	typedef uint64_t block_address;
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_manager : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;
 
-		block_manager(std::string const &path, block_address nr_blocks, bool writeable = false);
-		~block_manager();
+		block_manager(std::string const &path,
+			      block_address nr_blocks,
+			      unsigned max_concurrent_locks,
+			      bool writeable = false);
 
 		typedef unsigned char buffer[BlockSize];
 		typedef unsigned char const const_buffer[BlockSize];
-
-		class block;
 
 		class validator {
 		public:
@@ -53,14 +63,14 @@ namespace persistent_data {
 
 			virtual ~validator() {}
 
-			virtual void check(block const &b) const = 0;
-			virtual void prepare(block &b) const = 0;
+			virtual void check(const_buffer &b, block_address location) const = 0;
+			virtual void prepare(buffer &b, block_address location) const = 0;
 		};
 
 		class noop_validator : public validator {
 		public:
-			void check(block const &b) const {}
-			void prepare(block &b) const {}
+			void check(const_buffer &b, block_address location) const {}
+			void prepare(buffer &b, block_address location) const {}
 		};
 
 		enum block_type {
@@ -71,46 +81,57 @@ namespace persistent_data {
 		struct block {
 			typedef boost::shared_ptr<block> ptr;
 
-			block(block_address location,
-			      const_buffer &data,
-			      unsigned &count,
-			      unsigned &type_count,
+			block(typename block_io<BlockSize>::ptr io,
+			      block_address location,
 			      block_type bt,
-			      typename validator::ptr v)
-				: location_(location),
-				  adjuster_(count),
-				  type_adjuster_(type_count),
-				  validator_(v),
-				  bt_(bt) {
-				::memcpy(data_, data, sizeof(data));
+			      typename validator::ptr v,
+			      bool zero = false);
+			~block();
+
+			void check_read_lockable() const {
+				// FIXME: finish
 			}
 
+			void check_write_lockable() const {
+				// FIXME: finish
+			}
+
+			void flush();
+
+			typename block_io<BlockSize>::ptr io_;
 			block_address location_;
-			count_adjuster adjuster_;
-			count_adjuster type_adjuster_;
 			buffer data_;
 			typename validator::ptr validator_;
 			block_type bt_;
+			bool dirty_;
 		};
+		typedef typename block::ptr block_ptr;
 
 		class read_ref {
 		public:
-			read_ref(typename block::ptr b);
-			virtual ~read_ref() {}
+			read_ref(block_manager<BlockSize> const &bm,
+				 block_ptr b);
+			read_ref(read_ref const &rhs);
+			virtual ~read_ref();
+
+			read_ref const &operator =(read_ref const &rhs);
 
 			block_address get_location() const;
 			const_buffer &data() const;
 
 		protected:
-			friend class block_manager;
-			typename block::ptr block_;
+			friend class block_manager; // FIXME: still needed?
+			block_manager<BlockSize> const &bm_;
+			block_ptr block_;
+			unsigned *holders_;
 		};
 
 		// Inherited from read_ref, since you can read a block that's write
 		// locked.
 		class write_ref : public read_ref {
 		public:
-			write_ref(typename block::ptr b);
+			write_ref(block_manager<BlockSize> const &bm,
+				  typename block::ptr b);
 
 			using read_ref::data;
 			buffer &data();
@@ -121,11 +142,6 @@ namespace persistent_data {
 		read_lock(block_address location,
 			  typename validator::ptr v =
 			  typename validator::ptr(new noop_validator())) const;
-
-		boost::optional<read_ref>
-		read_try_lock(block_address location,
-			      typename validator::ptr v =
-			      typename validator::ptr(new noop_validator())) const;
 
 		write_ref
 		write_lock(block_address location,
@@ -156,28 +172,30 @@ namespace persistent_data {
 
 		block_address get_nr_blocks() const;
 
+		void flush() const;
+
 	private:
 		void check(block_address b) const;
-
-		void read_buffer(block_address location, buffer &buf) const;
-		void write_buffer(block_address location, const_buffer &buf);
-		void zero_buffer(buffer &buf) const;
-		void read_release(block *b) const;
-		void write_release(block *b);
+		void write_block(block_ptr b) const;
 
 		enum lock_type {
 			READ_LOCK,
 			WRITE_LOCK
 		};
 
-		void register_lock(block_address b, lock_type t) const;
-		void unregister_lock(block_address b, lock_type t) const;
+		struct cache_traits {
+			typedef typename block::ptr value_type;
+			typedef block_address key_type;
 
-		int fd_;
-		block_address nr_blocks_;
-		mutable unsigned lock_count_;
-		mutable unsigned superblock_count_;
-		mutable unsigned ordinary_count_;
+			static key_type get_key(value_type const &v) {
+				return v->location_;
+			}
+		};
+
+		typename block_io<BlockSize>::ptr io_;
+		mutable base::cache<cache_traits> cache_;
+
+		// FIXME: we need a dirty list as well as a cache
 
 		typedef std::map<block_address, std::pair<lock_type, unsigned> > held_map;
 		mutable held_map held_locks_;
