@@ -80,6 +80,19 @@ namespace {
 			return ie_;
 		}
 
+		void iterate(block_address offset, block_address hi, space_map::iterator &it) const {
+			read_ref rr = tm_->read_lock(ie_.blocknr_);
+			void const *bits = bitmap_data(rr);
+
+			for (unsigned b = 0; b < hi; b++) {
+				ref_t b1 = test_bit_le(bits, b * 2);
+				ref_t b2 = test_bit_le(bits, b * 2 + 1);
+				ref_t result = b2 ? 1 : 0;
+				result |= b1 ? 0b10 : 0;
+				it(offset + b, result);
+			}
+		}
+
 	private:
 		void check_crc(transaction_manager::read_ref &rr) {
 			crc32c sum(240779);
@@ -246,6 +259,34 @@ namespace {
 		virtual void check(block_counter &counter) const {
 			ref_count_checker::ptr v(new ref_count_checker(counter));
 			ref_counts_.visit(v);
+		}
+
+		struct look_aside_iterator : public iterator {
+			look_aside_iterator(sm_disk_base const &smd, iterator &it)
+				: smd_(smd),
+				  it_(it) {
+			}
+
+			virtual void operator () (block_address b, ref_t c) {
+				it_(b, c == 3 ? smd_.lookup_ref_count(b) : c);
+			}
+
+			sm_disk_base const &smd_;
+			iterator &it_;
+		};
+
+		friend struct look_aside_iterator;
+
+		virtual void iterate(iterator &it) const {
+			look_aside_iterator wrapper(*this, it);
+			unsigned nr_indexes = div_up<block_address>(nr_blocks_, entries_per_block_);
+
+			for (unsigned i = 0; i < nr_indexes; i++) {
+				unsigned hi = (i == nr_indexes - 1) ? (nr_blocks_ % entries_per_block_) : entries_per_block_;
+				index_entry ie = find_ie(i);
+				bitmap bm(tm_, ie);
+				bm.iterate(i * entries_per_block_, hi, wrapper);
+			}
 		}
 
 	protected:

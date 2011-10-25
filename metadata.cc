@@ -3,6 +3,7 @@
 #include "btree_checker.h"
 #include "core_map.h"
 #include "math_utils.h"
+#include "space_map_disk.h"
 
 #include <stdexcept>
 #include <sstream>
@@ -396,26 +397,37 @@ metadata::device_exists(thin_dev_t dev) const
 }
 
 namespace {
-	optional<error_set::ptr>
-	check_ref_counts(string const &desc, block_counter const &counts,
-			 space_map::ptr sm) {
-		error_set::ptr errors(new error_set(desc));
+	struct check_count : public space_map::iterator {
+		check_count(string const &desc, block_counter const &expected)
+			: bad_(false),
+			  expected_(expected),
+			  errors_(new error_set(desc)) {
+		}
 
-		bool bad = false;
-		for (block_address b = 0; b < sm->get_nr_blocks(); b++) {
-			uint32_t actual = sm->get_count(b);
-			uint32_t expected = counts.get_count(b);
+		virtual void operator() (block_address b, ref_t actual) {
+			ref_t expected = expected_.get_count(b);
 
 			if (actual != expected) {
 				ostringstream out;
 				out << b << ": was " << actual
 				    << ", expected " << expected;
-				errors->add_child(out.str());
-				bad = true;
+				errors_->add_child(out.str());
+				bad_ = true;
 			}
 		}
 
-		return bad ? optional<error_set::ptr>(errors) : optional<error_set::ptr>();
+		bool bad_;
+		block_counter const &expected_;
+		error_set::ptr errors_;
+	};
+
+	optional<error_set::ptr>
+	check_ref_counts(string const &desc, block_counter const &counts,
+			 space_map::ptr sm) {
+
+		check_count checker(desc, counts);
+		sm->iterate(checker);
+		return checker.bad_ ? optional<error_set::ptr>(checker.errors_) : optional<error_set::ptr>();
 	}
 }
 
