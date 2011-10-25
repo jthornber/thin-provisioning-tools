@@ -18,7 +18,7 @@ namespace {
 				      uint64_t time,
 				      uint64_t trans_id,
 				      uint32_t data_block_size) {
-			out_ << "begin superblock: " << uuid
+			out_ << "begin superblock: \"" << uuid << "\""
 			     << ", " << time
 			     << ", " << trans_id
 			     << ", " << data_block_size

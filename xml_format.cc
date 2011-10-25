@@ -1,8 +1,14 @@
 #include "xml_format.h"
 
-
+#include <boost/lexical_cast.hpp>
+#include <expat.h>
 #include <iostream>
+#include <map>
+#include <sstream>
+#include <stdexcept>
+#include <string.h>
 
+using namespace boost;
 using namespace std;
 using namespace thin_provisioning;
 
@@ -11,6 +17,9 @@ namespace tp = thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	//------------------------------------------------
+	// XML generator
+	//------------------------------------------------
 	class xml_emitter : public emitter {
 	public:
 		xml_emitter(ostream &out)
@@ -107,6 +116,107 @@ namespace {
 		ostream &out_;
 		unsigned indent_;
 	};
+
+	//------------------------------------------------
+	// XML parser
+	//------------------------------------------------
+	typedef std::map<string, string> attributes;
+
+	void build_attributes(attributes &a, char const **attr) {
+		while (*attr) {
+			char const *key = *attr;
+
+			attr++;
+			if (!*attr) {
+				ostringstream out;
+				out << "No value given for xml attribute: " << key;
+				throw runtime_error(out.str());
+			}
+
+			char const *value = *attr;
+			a.insert(make_pair(string(key), string(value)));
+			attr++;
+		}
+	}
+
+	template <typename T>
+	T get_attr(attributes const &attr, string const &key) {
+		attributes::const_iterator it = attr.find(key);
+		if (it == attr.end()) {
+			ostringstream out;
+			out << "could not find attribute: " << key;
+			throw runtime_error(out.str());
+		}
+
+		return lexical_cast<T>(it->second);
+	}
+
+	void parse_superblock(emitter *e, attributes const &attr) {
+		e->begin_superblock(get_attr<string>(attr, "uuid"),
+				    get_attr<uint64_t>(attr, "time"),
+				    get_attr<uint64_t>(attr, "transaction"),
+				    get_attr<uint32_t>(attr, "data_block_size"));
+	}
+
+	void parse_device(emitter *e, attributes const &attr) {
+		e->begin_device(get_attr<uint32_t>(attr, "dev_id"),
+				get_attr<uint64_t>(attr, "mapped_blocks"),
+				get_attr<uint64_t>(attr, "transaction"),
+				get_attr<uint64_t>(attr, "creation_time"),
+				get_attr<uint64_t>(attr, "snap_time"));
+	}
+
+	void parse_range_mapping(emitter *e, attributes const &attr) {
+		e->range_map(get_attr<uint64_t>(attr, "origin_begin"),
+			     get_attr<uint64_t>(attr, "data_begin"),
+			     get_attr<uint64_t>(attr, "length"));
+	}
+
+	void parse_single_mapping(emitter *e, attributes const &attr) {
+		e->single_map(get_attr<uint64_t>(attr, "origin_block"),
+			      get_attr<uint64_t>(attr, "data_block"));
+	}
+
+	void start_tag(void *data, char const *el, char const **attr) {
+		emitter *e = static_cast<emitter *>(data);
+		attributes a;
+
+		build_attributes(a, attr);
+
+		if (!strcmp(el, "superblock"))
+			parse_superblock(e, a);
+
+		else if (!strcmp(el, "device"))
+			parse_device(e, a);
+
+		else if (!strcmp(el, "range_mapping"))
+			parse_range_mapping(e, a);
+
+		else if (!strcmp(el, "single_mapping"))
+			parse_single_mapping(e, a);
+
+		else
+			throw runtime_error("unknown tag type");
+	}
+
+	void end_tag(void *data, const char *el) {
+		emitter *e = static_cast<emitter *>(data);
+
+		if (!strcmp(el, "superblock"))
+			e->end_superblock();
+
+		else if (!strcmp(el, "device"))
+			e->end_device();
+
+		else if (!strcmp(el, "range_mapping")) {
+			// do nothing
+
+		} else if (!strcmp(el, "single_mapping")) {
+			// do nothing
+
+		} else
+			throw runtime_error("unknown tag close");
+	}
 }
 
 //----------------------------------------------------------------
@@ -115,6 +225,34 @@ tp::emitter::ptr
 tp::create_xml_emitter(ostream &out)
 {
 	return emitter::ptr(new xml_emitter(out));
+}
+
+void
+tp::parse_xml(std::istream &in, emitter::ptr e)
+{
+	XML_Parser parser = XML_ParserCreate(NULL);
+	if (!parser)
+		throw runtime_error("couldn't create xml parser");
+
+	XML_SetUserData(parser, e.get());
+	XML_SetElementHandler(parser, start_tag, end_tag);
+
+	while (!in.eof()) {
+		char buffer[4096];
+		in.read(buffer, sizeof(buffer));
+		size_t len = in.gcount();
+		int done = in.eof();
+
+		if (!XML_Parse(parser, buffer, len, done)) {
+			ostringstream out;
+			out << "Parse error at line "
+			    << XML_GetCurrentLineNumber(parser)
+			    << ":\n"
+			    << XML_ErrorString(XML_GetErrorCode(parser))
+			    << endl;
+			throw runtime_error(out.str());
+		}
+	}
 }
 
 //----------------------------------------------------------------

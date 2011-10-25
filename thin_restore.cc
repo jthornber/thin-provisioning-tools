@@ -1,7 +1,10 @@
-#include <iostream>
-
+#include "emitter.h"
+#include "human_readable_format.h"
 #include "metadata.h"
+#include "xml_format.h"
 
+#include <fstream>
+#include <iostream>
 #include <boost/program_options.hpp>
 
 using namespace persistent_data;
@@ -14,7 +17,10 @@ namespace po = boost::program_options;
 
 namespace {
 	void restore(string const &backup_file, string const &dev) {
-		cerr << "not implemented" << endl;
+		emitter::ptr hr = create_human_readable_emitter(cout);
+		ifstream in(backup_file.c_str(), ifstream::in);
+		parse_xml(in, hr);
+		in.close();
 	}
 
 	void usage(po::options_description const &desc) {

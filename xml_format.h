@@ -9,6 +9,7 @@
 
 namespace thin_provisioning {
 	emitter::ptr create_xml_emitter(std::ostream &out);
+	void parse_xml(std::istream &in, emitter::ptr e);
 }
 
 //----------------------------------------------------------------
