@@ -44,6 +44,10 @@ namespace persistent_data {
 			return sm_;
 		}
 
+		void set_sm(space_map::ptr sm) {
+			sm_ = sm;
+		}
+
 		block_manager<>::ptr get_bm() {
 			return bm_;
 		}

@@ -133,7 +133,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e)
 
 	details_extractor::ptr de(new details_extractor);
 
-	md->details_.visit(de);
+	md->details_->visit(de);
 	map<uint64_t, device_details> const &devs = de->get_devices();
 
 	map<uint64_t, device_details>::const_iterator it, end = devs.end();
@@ -148,7 +148,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e)
 				dd.snapshotted_time_);
 
 		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, md->metadata_sm_, md->data_sm_));
-		md->mappings_.visit(me);
+		md->mappings_->visit(me);
 
 		e->end_device();
 	}

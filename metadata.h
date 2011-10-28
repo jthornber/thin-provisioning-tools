@@ -142,9 +142,9 @@ namespace thin_provisioning {
 
 		checked_space_map::ptr metadata_sm_;
 		checked_space_map::ptr data_sm_;
-		detail_tree details_;
-		dev_tree mappings_top_level_;
-		mapping_tree mappings_;
+		detail_tree::ptr details_;
+		dev_tree::ptr mappings_top_level_;
+		mapping_tree::ptr mappings_;
 	};
 }
 

@@ -56,14 +56,14 @@ namespace {
 			// Add entry to the details tree
 			uint64_t key[1] = {dev};
 			device_details details = {mapped_blocks, trans_id, creation_time, snap_time};
-			md_->details_.insert(key, details);
+			md_->details_->insert(key, details);
 
 			// Insert an empty mapping tree
 			single_mapping_tree::ptr new_tree(
 				new single_mapping_tree(md_->tm_,
 							block_time_ref_counter(md_->data_sm_)));
-			md_->mappings_top_level_.insert(key, new_tree->get_root());
-			md_->mappings_.set_root(md_->mappings_top_level_.get_root()); // FIXME: ugly
+			md_->mappings_top_level_->insert(key, new_tree->get_root());
+			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
 			current_device_ = optional<uint32_t>(dev);
 		}
@@ -97,14 +97,14 @@ namespace {
 			block_time bt;
 			bt.block_ = data_block;
 			bt.time_ = time;
-			md_->mappings_.insert(key, bt);
-			md_->mappings_top_level_.set_root(md_->mappings_.get_root());
+			md_->mappings_->insert(key, bt);
+			md_->mappings_top_level_->set_root(md_->mappings_->get_root());
 		}
 
 	private:
 		bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
-			return md_->details_.lookup(key);
+			return md_->details_->lookup(key);
 		}
 
 		metadata::ptr md_;

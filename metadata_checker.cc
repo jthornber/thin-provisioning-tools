@@ -133,11 +133,11 @@ thin_provisioning::metadata_check(metadata::ptr md)
 
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
-	md->mappings_.visit(mv);
+	md->mappings_->visit(mv);
 	set<uint64_t> const &mapped_devs = mv->get_devices();
 
 	details_validator::ptr dv(new details_validator(metadata_counter));
-	md->details_.visit(dv);
+	md->details_->visit(dv);
 	set<uint64_t> const &details_devs = dv->get_devices();
 
 	for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)

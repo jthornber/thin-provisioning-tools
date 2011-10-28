@@ -31,7 +31,7 @@ thin::maybe_address
 thin::lookup(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	return pool_->md_->mappings_.lookup(key);
+	return pool_->md_->mappings_->lookup(key);
 }
 
 void
@@ -41,33 +41,33 @@ thin::insert(block_address thin_block, block_address data_block)
 	block_time bt;
 	bt.block_ = data_block;
 	bt.time_ = 0;		// FIXME: use current time.
-	return pool_->md_->mappings_.insert(key, bt);
+	return pool_->md_->mappings_->insert(key, bt);
 }
 
 void
 thin::remove(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	pool_->md_->mappings_.remove(key);
+	pool_->md_->mappings_->remove(key);
 }
 
 void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->snapshotted_time_ = time;
-	pool_->md_->details_.insert(key, *mdetail);
+	pool_->md_->details_->insert(key, *mdetail);
 }
 
 block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -78,12 +78,12 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->mapped_blocks_ = count;
-	pool_->md_->details_.insert(key, *mdetail);
+	pool_->md_->details_->insert(key, *mdetail);
 }
 
 //--------------------------------
@@ -107,8 +107,8 @@ thin_pool::create_thin(thin_dev_t dev)
 		throw std::runtime_error("Device already exists");
 
 	single_mapping_tree::ptr new_tree(new single_mapping_tree(md_->tm_, block_time_ref_counter(md_->data_sm_)));
-	md_->mappings_top_level_.insert(key, new_tree->get_root());
-	md_->mappings_.set_root(md_->mappings_top_level_.get_root()); // FIXME: ugly
+	md_->mappings_top_level_->insert(key, new_tree->get_root());
+	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
 	// FIXME: doesn't set up the device details
 }
@@ -119,7 +119,7 @@ thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
 
-	optional<uint64_t> mtree_root = md_->mappings_top_level_.lookup(origin_key);
+	optional<uint64_t> mtree_root = md_->mappings_top_level_->lookup(origin_key);
 	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
 
@@ -127,8 +127,8 @@ thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 				  block_time_ref_counter(md_->data_sm_));
 
 	single_mapping_tree::ptr clone(otree.clone());
-	md_->mappings_top_level_.insert(snap_key, clone->get_root());
-	md_->mappings_.set_root(md_->mappings_top_level_.get_root()); // FIXME: ugly
+	md_->mappings_top_level_->insert(snap_key, clone->get_root());
+	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
 	md_->sb_.time_++;
 
@@ -143,7 +143,7 @@ void
 thin_pool::del(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
-	md_->mappings_top_level_.remove(key);
+	md_->mappings_top_level_->remove(key);
 }
 
 void
@@ -198,7 +198,7 @@ thin::ptr
 thin_pool::open_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
-	optional<device_details> mdetails = md_->details_.lookup(key);
+	optional<device_details> mdetails = md_->details_->lookup(key);
 	if (!mdetails)
 		throw runtime_error("no such device");
 
@@ -211,7 +211,7 @@ bool
 thin_pool::device_exists(thin_dev_t dev) const
 {
 	uint64_t key[1] = {dev};
-	return md_->details_.lookup(key);
+	return md_->details_->lookup(key);
 }
 
 //----------------------------------------------------------------

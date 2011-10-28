@@ -65,7 +65,7 @@ namespace {
 		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 
-		crc32c sum(160774);
+		crc32c sum(160774); // FIXME: magic number
 		sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
 		if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_)) {
 			ostringstream out;
@@ -87,10 +87,11 @@ metadata::metadata(std::string const &dev_path, open_type ot)
 	  sb_(read_superblock(tm_->get_bm())),
 	  metadata_sm_(open_metadata_sm(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
 	  data_sm_(open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
-	  details_(tm_, sb_.device_details_root_, device_details_traits::ref_counter()),
-	  mappings_top_level_(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)),
-	  mappings_(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_))
+	  details_(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter())),
+	  mappings_top_level_(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_))),
+	  mappings_(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)))
 {
+	tm_->set_sm(open_metadata_sm(tm_, sb_.metadata_space_map_root_));
 }
 
 #if 0
@@ -104,10 +105,10 @@ metadata::metadata(std::string const &dev_path, open_type ot)
 void
 metadata::commit()
 {
-	sb_.data_mapping_root_ = mappings_.get_root();
-	sb_.device_details_root_ = details_.get_root();
+	sb_.data_mapping_root_ = mappings_->get_root();
+	sb_.device_details_root_ = details_->get_root();
 
-	// FIXME: copy the space map roots
+	// FIXME: commit and copy the space map roots
 
 	write_ref superblock = tm_->get_bm()->superblock(SUPERBLOCK_LOCATION);
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
