@@ -83,20 +83,23 @@ namespace {
 			out_ << "<identifier name=\"" << name << "\"/>" << endl;
 		}
 
-		void range_map(uint64_t origin_begin, uint64_t data_begin, uint64_t len) {
+		void range_map(uint64_t origin_begin, uint64_t data_begin, uint32_t time, uint64_t len) {
 			indent();
 
 			out_ << "<range_mapping origin_begin=\"" << origin_begin << "\""
 			     << " data_begin=\"" << data_begin << "\""
-			     << " length=\"" << len << "\"/>"
-			     << endl;
+			     << " length=\"" << len << "\""
+			     << " time=\"" << time << "\""
+			     << "/>" << endl;
 		}
 
-		void single_map(uint64_t origin_block, uint64_t data_block) {
+		void single_map(uint64_t origin_block, uint64_t data_block, uint32_t time) {
 			indent();
 
 			out_ << "<single_mapping origin_block=\"" << origin_block << "\""
-			     << " data_block=\"" << data_block << "\"/>" << endl;
+			     << " data_block=\"" << data_block << "\""
+			     << " time=\"" << time << "\""
+			     << "/>" << endl;
 		}
 
 	private:
@@ -169,12 +172,14 @@ namespace {
 	void parse_range_mapping(emitter *e, attributes const &attr) {
 		e->range_map(get_attr<uint64_t>(attr, "origin_begin"),
 			     get_attr<uint64_t>(attr, "data_begin"),
+			     get_attr<uint32_t>(attr, "time"),
 			     get_attr<uint64_t>(attr, "length"));
 	}
 
 	void parse_single_mapping(emitter *e, attributes const &attr) {
 		e->single_map(get_attr<uint64_t>(attr, "origin_block"),
-			      get_attr<uint64_t>(attr, "data_block"));
+			      get_attr<uint64_t>(attr, "data_block"),
+			      get_attr<uint32_t>(attr, "time"));
 	}
 
 	void start_tag(void *data, char const *el, char const **attr) {

@@ -109,6 +109,8 @@ thin_pool::create_thin(thin_dev_t dev)
 	single_mapping_tree::ptr new_tree(new single_mapping_tree(md_->tm_, block_time_ref_counter(md_->data_sm_)));
 	md_->mappings_top_level_.insert(key, new_tree->get_root());
 	md_->mappings_.set_root(md_->mappings_top_level_.get_root()); // FIXME: ugly
+
+	// FIXME: doesn't set up the device details
 }
 
 void

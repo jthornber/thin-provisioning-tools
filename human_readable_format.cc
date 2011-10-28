@@ -59,17 +59,20 @@ namespace {
 			out_ << "identifier: " << name << endl;
 		}
 
-		void range_map(uint64_t origin_begin, uint64_t data_begin, uint64_t len) {
+		void range_map(uint64_t origin_begin, uint64_t data_begin, uint32_t time, uint64_t len) {
 			out_ << "    (" << origin_begin
 			     << ".." << origin_begin + len - 1
 			     << ") -> (" << data_begin
 			     << ".." << data_begin + len - 1
-			     << ")" << endl;
+			     << "), "
+			     << time
+			     << endl;
 		}
 
-		void single_map(uint64_t origin_block, uint64_t data_block) {
+		void single_map(uint64_t origin_block, uint64_t data_block, uint32_t time) {
 			out_ << "    " << origin_block
 			     << " -> " << data_block
+			     << ", " << time
 			     << endl;
 		}
 

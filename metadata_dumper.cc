@@ -32,7 +32,8 @@ namespace {
 		bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> maybe_key,
 				btree_detail::node_ref<block_traits> const &n) {
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				add_mapping(n.key_at(i), n.value_at(i).block_);
+				block_time bt = n.value_at(i);
+				add_mapping(n.key_at(i), bt.block_, bt.time_);
 			}
 
 			return true;
@@ -44,9 +45,10 @@ namespace {
 		}
 
 	private:
-		void start_mapping(uint64_t origin_block, uint64_t dest_block) {
+		void start_mapping(uint64_t origin_block, uint64_t dest_block, uint32_t time) {
 			origin_start_ = origin_block;
 			dest_start_ = dest_block;
+			time_ = time;
 			len_ = 1;
 			in_range_ = true;
 		}
@@ -54,25 +56,26 @@ namespace {
 		void end_mapping() {
 			if (in_range_) {
 				if (len_ == 1)
-					e_->single_map(origin_start_, dest_start_);
+					e_->single_map(origin_start_, dest_start_, time_);
 				else
-					e_->range_map(origin_start_, dest_start_, len_);
+					e_->range_map(origin_start_, dest_start_, time_, len_);
 
 				in_range_ = false;
 			}
 		}
 
-		void add_mapping(uint64_t origin_block, uint64_t dest_block) {
+		void add_mapping(uint64_t origin_block, uint64_t dest_block, uint32_t time) {
 			if (!in_range_)
-				start_mapping(origin_block, dest_block);
+				start_mapping(origin_block, dest_block, time);
 
 			else if (origin_block == origin_start_ + len_ &&
-				 dest_block == dest_start_ + len_)
+				 dest_block == dest_start_ + len_ &&
+				 time == time_)
 				len_++;
 
 			else {
 				end_mapping();
-				start_mapping(origin_block, dest_block);
+				start_mapping(origin_block, dest_block, time);
 			}
 		}
 
@@ -83,6 +86,7 @@ namespace {
 
 		bool in_range_;
 		uint64_t origin_start_, dest_start_, len_;
+		uint32_t time_;
 
 	};
 

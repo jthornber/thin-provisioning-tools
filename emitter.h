@@ -43,8 +43,8 @@ namespace thin_provisioning {
 		virtual void end_named_mapping() = 0;
 
 		virtual void identifier(std::string const &name) = 0;
-		virtual void range_map(uint64_t origin_begin, uint64_t data_begin, uint64_t len) = 0;
-		virtual void single_map(uint64_t origin_block, uint64_t data_block) = 0;
+		virtual void range_map(uint64_t origin_begin, uint64_t data_begin, uint32_t time, uint64_t len) = 0;
+		virtual void single_map(uint64_t origin_block, uint64_t data_block, uint32_t time) = 0;
 	};
 }
 
