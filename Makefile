@@ -8,12 +8,12 @@ SOURCE=\
 	error_set.cc \
 	hex_dump.cc \
 	human_readable_format.cc \
-	metadata.cc \
 	metadata_checker.cc \
 	metadata_dumper.cc \
 	metadata_ll.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \
+	thin_pool.cc \
 	transaction_manager.cc \
 	xml_format.cc
 

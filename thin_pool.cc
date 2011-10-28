@@ -1,4 +1,4 @@
-#include "metadata.h"
+#include "thin_pool.h"
 
 #include "btree_checker.h"
 
@@ -15,9 +15,9 @@ using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
-thin::thin(thin_dev_t dev, metadata *metadata)
+thin::thin(thin_dev_t dev, thin_pool *pool)
 	: dev_(dev),
-	  metadata_(metadata)
+	  pool_(pool)
 {
 }
 
@@ -31,7 +31,7 @@ thin::maybe_address
 thin::lookup(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	return metadata_->md_->mappings_.lookup(key);
+	return pool_->md_->mappings_.lookup(key);
 }
 
 void
@@ -41,33 +41,33 @@ thin::insert(block_address thin_block, block_address data_block)
 	block_time bt;
 	bt.block_ = data_block;
 	bt.time_ = 0;		// FIXME: use current time.
-	return metadata_->md_->mappings_.insert(key, bt);
+	return pool_->md_->mappings_.insert(key, bt);
 }
 
 void
 thin::remove(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	metadata_->md_->mappings_.remove(key);
+	pool_->md_->mappings_.remove(key);
 }
 
 void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = metadata_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->snapshotted_time_ = time;
-	metadata_->md_->details_.insert(key, *mdetail);
+	pool_->md_->details_.insert(key, *mdetail);
 }
 
 block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = metadata_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -78,28 +78,28 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = metadata_->md_->details_.lookup(key);
+	optional<device_details> mdetail = pool_->md_->details_.lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->mapped_blocks_ = count;
-	metadata_->md_->details_.insert(key, *mdetail);
+	pool_->md_->details_.insert(key, *mdetail);
 }
 
 //--------------------------------
 
-metadata::metadata(metadata_ll::ptr md)
+thin_pool::thin_pool(metadata_ll::ptr md)
 	: md_(md)
 {
 }
 
-metadata::~metadata()
+thin_pool::~thin_pool()
 {
 
 }
 
 void
-metadata::create_thin(thin_dev_t dev)
+thin_pool::create_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
 
@@ -112,7 +112,7 @@ metadata::create_thin(thin_dev_t dev)
 }
 
 void
-metadata::create_snap(thin_dev_t dev, thin_dev_t origin)
+thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 {
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
@@ -138,62 +138,62 @@ metadata::create_snap(thin_dev_t dev, thin_dev_t origin)
 }
 
 void
-metadata::del(thin_dev_t dev)
+thin_pool::del(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
 	md_->mappings_top_level_.remove(key);
 }
 
 void
-metadata::set_transaction_id(uint64_t id)
+thin_pool::set_transaction_id(uint64_t id)
 {
 	md_->sb_.trans_id_ = id;
 }
 
 uint64_t
-metadata::get_transaction_id() const
+thin_pool::get_transaction_id() const
 {
 	return md_->sb_.trans_id_;
 }
 
 block_address
-metadata::get_held_root() const
+thin_pool::get_held_root() const
 {
 	return md_->sb_.held_root_;
 }
 
 block_address
-metadata::alloc_data_block()
+thin_pool::alloc_data_block()
 {
 	return md_->data_sm_->new_block();
 }
 
 void
-metadata::free_data_block(block_address b)
+thin_pool::free_data_block(block_address b)
 {
 	md_->data_sm_->dec(b);
 }
 
 block_address
-metadata::get_nr_free_data_blocks() const
+thin_pool::get_nr_free_data_blocks() const
 {
 	return md_->data_sm_->get_nr_free();
 }
 
 sector_t
-metadata::get_data_block_size() const
+thin_pool::get_data_block_size() const
 {
 	return md_->sb_.data_block_size_;
 }
 
 block_address
-metadata::get_data_dev_size() const
+thin_pool::get_data_dev_size() const
 {
 	return md_->data_sm_->get_nr_blocks();
 }
 
 thin::ptr
-metadata::open_thin(thin_dev_t dev)
+thin_pool::open_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
 	optional<device_details> mdetails = md_->details_.lookup(key);
@@ -206,7 +206,7 @@ metadata::open_thin(thin_dev_t dev)
 }
 
 bool
-metadata::device_exists(thin_dev_t dev) const
+thin_pool::device_exists(thin_dev_t dev) const
 {
 	uint64_t key[1] = {dev};
 	return md_->details_.lookup(key);

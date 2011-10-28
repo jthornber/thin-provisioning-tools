@@ -9,7 +9,11 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	class metadata;
+	// This interface is very like that in the kernel.  It'll allow us
+	// to write simulators to try out different space maps etc.  Not
+	// currently used by the tools.
+
+	class thin_pool;
 	class thin {
 	public:
 		typedef boost::shared_ptr<thin> ptr;
@@ -26,19 +30,19 @@ namespace thin_provisioning {
 		void set_mapped_blocks(block_address count);
 
 	private:
-		friend class metadata;
-		thin(thin_dev_t dev, metadata *metadata);
+		friend class thin_pool;
+		thin(thin_dev_t dev, thin_pool *pool); // FIXME: pass a reference rather than a ptr
 
 		thin_dev_t dev_;
-		metadata *metadata_;
+		thin_pool *pool_;
 	};
 
-	class metadata {
+	class thin_pool {
 	public:
-		typedef boost::shared_ptr<metadata> ptr;
+		typedef boost::shared_ptr<thin_pool> ptr;
 
-		metadata(metadata_ll::ptr md);
-		~metadata();
+		thin_pool(metadata_ll::ptr md);
+		~thin_pool();
 
 		void create_thin(thin_dev_t dev);
 		void create_snap(thin_dev_t dev, thin_dev_t origin);
@@ -61,7 +65,6 @@ namespace thin_provisioning {
 
 	private:
 		friend class thin;
-
 		bool device_exists(thin_dev_t dev) const;
 
 		metadata_ll::ptr md_;
