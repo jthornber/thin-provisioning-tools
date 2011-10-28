@@ -124,7 +124,12 @@ namespace thin_provisioning {
 	// implementation of metadata.  Implement more specific interfaces
 	// on top of this.
 	struct metadata {
-		metadata(std::string const &dev_path);
+		enum open_type {
+			CREATE,
+			OPEN
+		};
+
+		metadata(std::string const &dev_path, open_type ot);
 
 		void commit();
 

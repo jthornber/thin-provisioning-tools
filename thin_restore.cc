@@ -18,11 +18,16 @@ namespace po = boost::program_options;
 
 namespace {
 	void restore(string const &backup_file, string const &dev) {
-		metadata::ptr md(new metadata(dev));
+		metadata::ptr md(new metadata(dev, metadata::CREATE));
 		emitter::ptr restorer = create_restore_emitter(md);
 		ifstream in(backup_file.c_str(), ifstream::in);
-		parse_xml(in, restorer);
-		in.close();
+		try {
+			parse_xml(in, restorer);
+
+		} catch (...) {
+			in.close();
+			throw;
+		}
 	}
 
 	void usage(po::options_description const &desc) {

@@ -82,7 +82,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-metadata::metadata(std::string const &dev_path)
+metadata::metadata(std::string const &dev_path, open_type ot)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
 	  metadata_sm_(open_metadata_sm(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
@@ -106,6 +106,8 @@ metadata::commit()
 {
 	sb_.data_mapping_root_ = mappings_.get_root();
 	sb_.device_details_root_ = details_.get_root();
+
+	// FIXME: copy the space map roots
 
 	write_ref superblock = tm_->get_bm()->superblock(SUPERBLOCK_LOCATION);
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
