@@ -9,6 +9,7 @@ SOURCE=\
 	hex_dump.cc \
 	human_readable_format.cc \
 	metadata.cc \
+	metadata_ll.cc \
 	metadata_dump.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \

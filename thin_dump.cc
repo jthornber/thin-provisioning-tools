@@ -16,7 +16,8 @@ namespace po = boost::program_options;
 
 namespace {
 	void dump(string const &path, string const &format) {
-		metadata md(path);
+		metadata_ll::ptr ll(new metadata_ll(path));
+		metadata md(ll);
 		emitter::ptr e;
 
 		if (format == "xml")

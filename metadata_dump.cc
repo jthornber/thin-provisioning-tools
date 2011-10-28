@@ -123,11 +123,11 @@ namespace {
 void
 metadata::dump(emitter::ptr e)
 {
-	e->begin_superblock("", sb_.time_, sb_.trans_id_, sb_.data_block_size_);
+	e->begin_superblock("", md_->sb_.time_, md_->sb_.trans_id_, md_->sb_.data_block_size_);
 
 	details_extractor::ptr de(new details_extractor);
 
-	details_.visit(de);
+	md_->details_.visit(de);
 	map<uint64_t, device_details> const &devs = de->get_devices();
 
 	map<uint64_t, device_details>::const_iterator it, end = devs.end();
@@ -141,8 +141,8 @@ metadata::dump(emitter::ptr e)
 				dd.creation_time_,
 				dd.snapshotted_time_);
 
-		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, metadata_sm_, data_sm_));
-		mappings_.visit(me);
+		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, md_->metadata_sm_, md_->data_sm_));
+		md_->mappings_.visit(me);
 
 		e->end_device();
 	}

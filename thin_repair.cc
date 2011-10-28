@@ -9,7 +9,8 @@ using namespace thin_provisioning;
 
 namespace {
 	int check(string const &path) {
-		metadata md(path);
+		metadata_ll::ptr ll(new metadata_ll(path));
+		metadata md(ll);
 
 		optional<error_set::ptr> maybe_errors = md.check();
 		if (maybe_errors) {
