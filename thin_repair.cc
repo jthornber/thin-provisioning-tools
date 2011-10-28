@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "metadata.h"
+#include "metadata_checker.h"
 
 using namespace boost;
 using namespace persistent_data;
@@ -9,10 +10,9 @@ using namespace thin_provisioning;
 
 namespace {
 	int check(string const &path) {
-		metadata_ll::ptr ll(new metadata_ll(path));
-		metadata md(ll);
+		metadata_ll::ptr md(new metadata_ll(path));
 
-		optional<error_set::ptr> maybe_errors = md.check();
+		optional<error_set::ptr> maybe_errors = metadata_check(md);
 		if (maybe_errors) {
 			cerr << error_selector(*maybe_errors, 3);
 			return 1;

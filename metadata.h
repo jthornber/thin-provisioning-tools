@@ -2,11 +2,9 @@
 #define MULTISNAP_METADATA_H
 
 #include "emitter.h"
-#include "error_set.h"
 #include "metadata_ll.h"
 
 #include <string>
-
 #include <boost/shared_ptr.hpp>
 
 //----------------------------------------------------------------
@@ -61,10 +59,6 @@ namespace thin_provisioning {
 		block_address get_data_dev_size() const;
 
 		thin::ptr open_thin(thin_dev_t);
-
-		// FIXME: split out into a separate interface
-		// Validation
-		boost::optional<persistent_data::error_set::ptr> check();
 
 		// FIXME: split out into a separate interface
 		// Dumping metadata
