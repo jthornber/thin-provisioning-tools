@@ -1,6 +1,7 @@
 #include "emitter.h"
 #include "human_readable_format.h"
 #include "metadata.h"
+#include "restore_emitter.h"
 #include "xml_format.h"
 
 #include <fstream>
@@ -17,9 +18,10 @@ namespace po = boost::program_options;
 
 namespace {
 	void restore(string const &backup_file, string const &dev) {
-		emitter::ptr hr = create_human_readable_emitter(cout);
+		metadata::ptr md(new metadata(dev));
+		emitter::ptr restorer = create_restore_emitter(md);
 		ifstream in(backup_file.c_str(), ifstream::in);
-		parse_xml(in, hr);
+		parse_xml(in, restorer);
 		in.close();
 	}
 
