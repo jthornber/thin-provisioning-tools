@@ -12,6 +12,7 @@ SOURCE=\
 	metadata_checker.cc \
 	metadata_dumper.cc \
 	metadata_disk_structures.cc \
+	restore_emitter.cc \
 	space_map_disk.cc \
 	thin_pool.cc \
 	transaction_manager.cc \
