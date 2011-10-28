@@ -2,7 +2,7 @@
 
 #include "math_utils.h"
 #include "space_map_disk.h"
-#include "core_map.h"
+#include "space_map_core.h"
 
 #include <linux/fs.h>
 #include <sys/ioctl.h>
