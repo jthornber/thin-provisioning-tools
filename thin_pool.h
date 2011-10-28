@@ -1,7 +1,7 @@
 #ifndef MULTISNAP_METADATA_H
 #define MULTISNAP_METADATA_H
 
-#include "metadata_ll.h"
+#include "metadata.h"
 
 #include <string>
 #include <boost/shared_ptr.hpp>
@@ -41,7 +41,7 @@ namespace thin_provisioning {
 	public:
 		typedef boost::shared_ptr<thin_pool> ptr;
 
-		thin_pool(metadata_ll::ptr md);
+		thin_pool(metadata::ptr md);
 		~thin_pool();
 
 		void create_thin(thin_dev_t dev);
@@ -67,7 +67,7 @@ namespace thin_provisioning {
 		friend class thin;
 		bool device_exists(thin_dev_t dev) const;
 
-		metadata_ll::ptr md_;
+		metadata::ptr md_;
 	};
 };
 

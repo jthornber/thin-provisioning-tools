@@ -88,7 +88,7 @@ thin::set_mapped_blocks(block_address count)
 
 //--------------------------------
 
-thin_pool::thin_pool(metadata_ll::ptr md)
+thin_pool::thin_pool(metadata::ptr md)
 	: md_(md)
 {
 }

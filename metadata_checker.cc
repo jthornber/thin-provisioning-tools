@@ -125,7 +125,7 @@ namespace {
 //----------------------------------------------------------------
 
 boost::optional<error_set::ptr>
-thin_provisioning::metadata_check(metadata_ll::ptr md)
+thin_provisioning::metadata_check(metadata::ptr md)
 {
 	error_set::ptr errors(new error_set("Errors in metadata"));
 

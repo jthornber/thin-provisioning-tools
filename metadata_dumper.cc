@@ -123,7 +123,7 @@ namespace {
 //----------------------------------------------------------------
 
 void
-thin_provisioning::metadata_dump(metadata_ll::ptr md, emitter::ptr e)
+thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e)
 {
 	e->begin_superblock("", md->sb_.time_, md->sb_.trans_id_, md->sb_.data_block_size_);
 

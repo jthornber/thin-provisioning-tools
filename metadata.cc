@@ -1,4 +1,4 @@
-#include "metadata_ll.h"
+#include "metadata.h"
 
 #include "math_utils.h"
 #include "space_map_disk.h"
@@ -82,7 +82,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-metadata_ll::metadata_ll(std::string const &dev_path)
+metadata::metadata(std::string const &dev_path)
 	: tm_(open_tm(dev_path)),
 	  sb_(read_superblock(tm_->get_bm())),
 	  metadata_sm_(open_metadata_sm(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
@@ -102,7 +102,7 @@ metadata_ll::metadata_ll(std::string const &dev_path)
 #endif
 
 void
-metadata_ll::commit()
+metadata::commit()
 {
 	sb_.data_mapping_root_ = mappings_.get_root();
 	sb_.device_details_root_ = details_.get_root();

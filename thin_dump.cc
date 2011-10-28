@@ -2,7 +2,7 @@
 
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
-#include "metadata_ll.h"
+#include "metadata.h"
 #include "xml_format.h"
 
 #include <boost/program_options.hpp>
@@ -17,7 +17,7 @@ namespace po = boost::program_options;
 
 namespace {
 	void dump(string const &path, string const &format) {
-		metadata_ll::ptr md(new metadata_ll(path));
+		metadata::ptr md(new metadata(path));
 		emitter::ptr e;
 
 		if (format == "xml")

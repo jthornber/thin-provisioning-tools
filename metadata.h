@@ -123,14 +123,14 @@ namespace thin_provisioning {
 	// the in kernel driver.  This class gives access to the low-level
 	// implementation of metadata.  Implement more specific interfaces
 	// on top of this.
-	struct metadata_ll {
-		metadata_ll(std::string const &dev_path);
+	struct metadata {
+		metadata(std::string const &dev_path);
 
 		void commit();
 
 		typedef block_manager<>::read_ref read_ref;
 		typedef block_manager<>::write_ref write_ref;
-		typedef boost::shared_ptr<metadata_ll> ptr;
+		typedef boost::shared_ptr<metadata> ptr;
 
 		tm_ptr tm_;
 		superblock sb_;
