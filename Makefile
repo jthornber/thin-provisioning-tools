@@ -10,8 +10,8 @@ SOURCE=\
 	human_readable_format.cc \
 	metadata.cc \
 	metadata_checker.cc \
+	metadata_dumper.cc \
 	metadata_ll.cc \
-	metadata_dump.cc \
 	metadata_disk_structures.cc \
 	space_map_disk.cc \
 	transaction_manager.cc \

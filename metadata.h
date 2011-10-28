@@ -1,7 +1,6 @@
 #ifndef MULTISNAP_METADATA_H
 #define MULTISNAP_METADATA_H
 
-#include "emitter.h"
 #include "metadata_ll.h"
 
 #include <string>
@@ -59,10 +58,6 @@ namespace thin_provisioning {
 		block_address get_data_dev_size() const;
 
 		thin::ptr open_thin(thin_dev_t);
-
-		// FIXME: split out into a separate interface
-		// Dumping metadata
-		void dump(emitter::ptr e);
 
 	private:
 		friend class thin;
