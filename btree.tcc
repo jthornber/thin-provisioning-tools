@@ -103,6 +103,13 @@ node_ref<ValueTraits>::get_value_size() const
 }
 
 template <typename ValueTraits>
+void
+node_ref<ValueTraits>::set_value_size(size_t s)
+{
+	raw_->header.value_size = to_disk<__le32>(static_cast<uint32_t>(s));
+}
+
+template <typename ValueTraits>
 uint64_t
 node_ref<ValueTraits>::key_at(unsigned i) const
 {
@@ -181,9 +188,9 @@ node_ref<ValueTraits>::copy_entries(node_ref const &rhs,
 	if ((n + count) > get_max_entries())
 		throw runtime_error("too many entries");
 
-	set_nr_entries(n + count);
 	::memcpy(key_ptr(n), rhs.key_ptr(begin), sizeof(uint64_t) * count);
 	::memcpy(value_ptr(n), rhs.value_ptr(begin), sizeof(typename ValueTraits::disk_type) * count);
+	set_nr_entries(n + count);
 }
 
 template <typename ValueTraits>
@@ -214,6 +221,9 @@ node_ref<ValueTraits>::exact_search(uint64_t key) const
 {
 	int i = bsearch(key, 0);
 	if (i < 0 || static_cast<unsigned>(i) >= get_nr_entries())
+		return optional<unsigned>();
+
+	if (key != key_at(i))
 		return optional<unsigned>();
 
 	return optional<unsigned>(i);
@@ -287,6 +297,7 @@ btree(typename transaction_manager::ptr tm,
 	n.set_type(btree_detail::LEAF);
 	n.set_nr_entries(0);
 	n.set_max_entries();
+	n.set_value_size(sizeof(typename ValueTraits::disk_type));
 
 	root_ = root.get_location();
 }
@@ -309,6 +320,22 @@ btree<Levels, ValueTraits>::~btree()
 
 }
 
+namespace {
+	template <typename ValueTraits>
+	struct lower_bound_search {
+		static optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
+			return n.lower_bound(key);
+		}
+	};
+
+	template <typename ValueTraits>
+	struct exact_search {
+		static optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
+			return n.exact_search(key);
+		}
+	};
+}
+
 template <unsigned Levels, typename ValueTraits>
 typename btree<Levels, ValueTraits>::maybe_value
 btree<Levels, ValueTraits>::lookup(key const &key) const
@@ -320,14 +347,14 @@ btree<Levels, ValueTraits>::lookup(key const &key) const
 
         for (unsigned level = 0; level < Levels - 1; ++level) {
 		optional<block_address> mroot =
-			lookup_raw<uint64_traits>(spine, root, key[level]);
+			lookup_raw<uint64_traits, lower_bound_search<uint64_traits> >(spine, root, key[level]);
 		if (!mroot)
 			return maybe_value();
 
 		root = *mroot;
         }
 
-	return lookup_raw<ValueTraits>(spine, root, key[Levels - 1]);
+	return lookup_raw<ValueTraits, exact_search<ValueTraits> >(spine, root, key[Levels - 1]);
 }
 
 template <unsigned Levels, typename ValueTraits>
@@ -423,6 +450,38 @@ btree<Levels, ValueTraits>::destroy()
 #endif
 
 template <unsigned Levels, typename _>
+template <typename ValueTraits, typename Search>
+optional<typename ValueTraits::value_type>
+btree<Levels, _>::
+lookup_raw(ro_spine &spine, block_address block, uint64_t key) const
+{
+	using namespace boost;
+	typedef typename ValueTraits::value_type leaf_type;
+
+	for (;;) {
+		spine.step(block);
+		node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
+
+		optional<unsigned> mi;
+		if (leaf.get_type() == btree_detail::LEAF) {
+			mi = Search::search(leaf, key);
+			if (!mi)
+				return optional<leaf_type>();
+			return optional<leaf_type>(leaf.value_at(*mi));
+
+		}
+
+		mi = leaf.lower_bound(key);
+		if (!mi || *mi < 0)
+			return optional<leaf_type>();
+
+		node_ref<uint64_traits> internal = spine.template get_node<uint64_traits>();
+		block = internal.value_at(*mi);
+	}
+}
+
+
+template <unsigned Levels, typename _>
 template <typename ValueTraits>
 void
 btree<Levels, _>::
@@ -456,14 +515,20 @@ split_beneath(btree_detail::shadow_spine &spine,
 	node_ref<ValueTraits> l = to_node<ValueTraits>(left);
 	l.set_nr_entries(0);
 	l.set_max_entries();
+	l.set_value_size(sizeof(typename ValueTraits::disk_type));
 
 	write_ref right = tm_->new_block();
 	node_ref<ValueTraits> r = to_node<ValueTraits>(right);
 	r.set_nr_entries(0);
 	r.set_max_entries();
+	r.set_value_size(sizeof(typename ValueTraits::disk_type));
 
 	{
 		node_ref<ValueTraits> p = spine.template get_node<ValueTraits>();
+
+		if (p.get_value_size() != sizeof(typename ValueTraits::disk_type))
+			throw std::runtime_error("bad value_size");
+
 		nr_left = p.get_nr_entries() / 2;
 		nr_right = p.get_nr_entries() - nr_left;
 		type = p.get_type();
@@ -480,8 +545,8 @@ split_beneath(btree_detail::shadow_spine &spine,
 		internal_node p = spine.template get_node<uint64_traits>();
 		p.set_type(btree_detail::INTERNAL);
 		p.set_nr_entries(2);
+		p.set_value_size(sizeof(typename uint64_traits::disk_type));
 
-		// FIXME: set the value_size
 		p.overwrite_at(0, l.key_at(0), left.get_location());
 		p.overwrite_at(1, r.key_at(0), right.get_location());
 	}

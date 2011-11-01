@@ -97,6 +97,7 @@ namespace persistent_data {
 			void set_max_entries(); // calculates the max for you.
 
 			size_t get_value_size() const;
+			void set_value_size(size_t);
 
 			uint64_t key_at(unsigned i) const;
 			void set_key(unsigned i, uint64_t k);
@@ -258,30 +259,6 @@ namespace persistent_data {
 			std::list<block_manager<>::write_ref> spine_;
 			block_address root_;
 		};
-
-		// FIXME: make a member of btree
-		template <typename ValueTraits>
-		optional<typename ValueTraits::value_type>
-		lookup_raw(ro_spine &spine, block_address block, uint64_t key) {
-
-			using namespace boost;
-			typedef typename ValueTraits::value_type leaf_type;
-
-			for (;;) {
-				spine.step(block);
-				node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
-
-				optional<unsigned> mi = leaf.exact_search(key);
-				if (!mi)
-					return optional<leaf_type>();
-
-				if (leaf.get_type() == btree_detail::LEAF)
-					return optional<leaf_type>(leaf.value_at(*mi));
-
-				node_ref<uint64_traits> internal = spine.template get_node<uint64_traits>();
-				block = internal.value_at(*mi);
-			}
-		}
 	}
 
 	template <unsigned Levels, typename ValueTraits>
@@ -346,6 +323,10 @@ namespace persistent_data {
 		void visit(typename visitor::ptr visitor) const;
 
 	private:
+		template <typename ValueTraits2, typename Search>
+		optional<typename ValueTraits2::value_type>
+		lookup_raw(btree_detail::ro_spine &spine, block_address block, uint64_t key) const;
+
 		template <typename ValueTraits2>
 		void split_node(btree_detail::shadow_spine &spine,
 				block_address parent_index,
