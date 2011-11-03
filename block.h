@@ -200,6 +200,12 @@ namespace persistent_data {
 		typedef std::map<block_address, std::pair<lock_type, unsigned> > held_map;
 		mutable held_map held_locks_;
 	};
+
+	// A little utility to help build validators
+	inline block_manager<>::validator::ptr
+	mk_validator(block_manager<>::validator *v) {
+		return block_manager<>::validator::ptr(v);
+	}
 }
 
 #include "block.tcc"

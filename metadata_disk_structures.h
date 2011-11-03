@@ -65,6 +65,7 @@ namespace thin_provisioning {
 		__le64 metadata_nr_blocks_;
 
 		__le32 compat_flags_;
+		__le32 compat_ro_flags_;
 		__le32 incompat_flags_;
 	} __attribute__ ((packed));
 
@@ -97,6 +98,7 @@ namespace thin_provisioning {
 		uint64_t metadata_nr_blocks_;
 
 		uint32_t compat_flags_;
+		uint32_t compat_ro_flags_;
 		uint32_t incompat_flags_;
 	};
 

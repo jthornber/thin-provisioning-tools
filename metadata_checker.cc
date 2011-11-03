@@ -134,10 +134,11 @@ thin_provisioning::metadata_check(metadata::ptr md)
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
 	md->mappings_->visit(mv);
-	set<uint64_t> const &mapped_devs = mv->get_devices();
 
+	set<uint64_t> const &mapped_devs = mv->get_devices();
 	details_validator::ptr dv(new details_validator(metadata_counter));
 	md->details_->visit(dv);
+
 	set<uint64_t> const &details_devs = dv->get_devices();
 
 	for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
@@ -150,6 +151,7 @@ thin_provisioning::metadata_check(metadata::ptr md)
 
 	metadata_counter.inc(SUPERBLOCK_LOCATION);
 	md->metadata_sm_->check(metadata_counter);
+
 	md->data_sm_->check(metadata_counter);
 	errors->add_child(check_ref_counts("Errors in metadata block reference counts",
 					   metadata_counter, md->metadata_sm_));

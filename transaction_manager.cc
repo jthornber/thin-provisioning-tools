@@ -98,8 +98,8 @@ pair<transaction_manager::write_ref, bool>
 transaction_manager::shadow(block_address orig, validator v)
 {
 	if (is_shadow(orig) &&
-	    sm_->count_possibly_greater_than_one(orig))
-		return make_pair(bm_->write_lock(orig), false);
+	    !sm_->count_possibly_greater_than_one(orig))
+		return make_pair(bm_->write_lock(orig, v), false);
 
 	read_ref src = bm_->read_lock(orig, v);
 	write_ref dest = bm_->write_lock_zero(sm_->new_block(), v);

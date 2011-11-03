@@ -129,7 +129,9 @@ namespace thin_provisioning {
 			OPEN
 		};
 
-		metadata(std::string const &dev_path, open_type ot);
+		metadata(std::string const &dev_path, open_type ot,
+			 sector_t data_block_size = 128,
+			 block_address nr_data_blocks = 0); // Only used if CREATE
 
 		void commit();
 

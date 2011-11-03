@@ -5,7 +5,6 @@
 
 #include "checksum.h"
 #include "error_set.h"
-#include "hex_dump.h"
 
 #include <sstream>
 #include <map>
@@ -170,7 +169,7 @@ namespace persistent_data {
 				std::ostringstream out;
 				out << "checksum error for block " << n.get_block_nr()
 				    << ", sum was " << sum.get_sum()
-				    << ", expected " << n.get_checksum();
+				    << ", on disk " << n.get_checksum();
 				errs_->add_child(out.str());
 				throw runtime_error(out.str());
 			}

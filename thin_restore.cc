@@ -18,16 +18,21 @@ namespace po = boost::program_options;
 
 namespace {
 	void restore(string const &backup_file, string const &dev) {
-		metadata::ptr md(new metadata(dev, metadata::CREATE));
+		// FIXME: hard coded
+		block_address const NR_BLOCKS = 100000;
+
+		metadata::ptr md(new metadata(dev, metadata::CREATE, 128, NR_BLOCKS));
 		emitter::ptr restorer = create_restore_emitter(md);
 		ifstream in(backup_file.c_str(), ifstream::in);
-		try {
+		// FIXME: 
+		//try {
 			parse_xml(in, restorer);
-
+#if 0
 		} catch (...) {
 			in.close();
 			throw;
 		}
+#endif
 	}
 
 	void usage(po::options_description const &desc) {

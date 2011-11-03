@@ -19,8 +19,27 @@ namespace {
         uint32_t const VERSION = 1;
 	unsigned const METADATA_CACHE_SIZE = 1024;
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
+	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 
-	block_address get_nr_blocks(string const &path) {
+	struct superblock_validator : public block_manager<>::validator {
+		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
+				throw runtime_error("bad checksum in superblock");
+		}
+
+		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			sbd->csum_ = to_disk<base::__le32>(sum.get_sum());
+		}
+	};
+
+	block_address
+	get_nr_blocks(string const &path) {
 		struct stat info;
 		block_address nr_blocks;
 
@@ -52,55 +71,93 @@ namespace {
 	}
 
 	transaction_manager::ptr
-	open_tm(string const &dev_path) {
+	open_tm(string const &dev_path, bool writeable) {
 		block_address nr_blocks = get_nr_blocks(dev_path);
-		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks, 8));
+		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks, 1, writeable));
 		space_map::ptr sm(new core_map(nr_blocks));
+		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
 
-	superblock read_superblock(block_manager<>::ptr bm) {
+	superblock
+	read_superblock(block_manager<>::ptr bm) {
 		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION);
+		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION,
+							    mk_validator(new superblock_validator));
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-
-		crc32c sum(160774); // FIXME: magic number
-		sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
-		if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_)) {
-			ostringstream out;
-			out << "bad checksum in superblock, calculated "
-			    << sum.get_sum()
-			    << ", superblock contains " << to_cpu<uint32_t>(sbd->csum_);
-			throw runtime_error(out.str());
-		}
-
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
+	}
+
+	void
+	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
+		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
+			uint32_t count = rhs->get_count(b);
+			if (count > 0)
+				lhs->set_count(b, rhs->get_count(b));
+		}
 	}
 }
 
 //----------------------------------------------------------------
 
-metadata::metadata(std::string const &dev_path, open_type ot)
-	: tm_(open_tm(dev_path)),
-	  sb_(read_superblock(tm_->get_bm())),
-	  metadata_sm_(open_metadata_sm(tm_, static_cast<void *>(&sb_.metadata_space_map_root_))),
-	  data_sm_(open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_))),
-	  details_(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter())),
-	  mappings_top_level_(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_))),
-	  mappings_(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)))
+metadata::metadata(std::string const &dev_path, open_type ot,
+		   sector_t data_block_size, block_address nr_data_blocks)
 {
-	tm_->set_sm(open_metadata_sm(tm_, sb_.metadata_space_map_root_));
+	switch (ot) {
+	case OPEN:
+		tm_ = open_tm(dev_path, false);
+		sb_ = read_superblock(tm_->get_bm());
+		metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
+		tm_->set_sm(metadata_sm_);
+
+		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
+		details_ = detail_tree::ptr(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
+		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)));
+		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)));
+		break;
+
+	case CREATE:
+		tm_ = open_tm(dev_path, true);
+		space_map::ptr core = tm_->get_sm();
+		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+		copy_space_maps(metadata_sm_, core);
+		tm_->set_sm(metadata_sm_);
+
+		data_sm_ = create_disk_sm(tm_, nr_data_blocks);
+		details_ = detail_tree::ptr(new detail_tree(tm_, device_details_traits::ref_counter()));
+		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, block_time_ref_counter(data_sm_)));
+		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, mappings_->get_root(), mtree_ref_counter(tm_)));
+
+		::memset(&sb_, 0, sizeof(sb_));
+		sb_.magic_ = SUPERBLOCK_MAGIC;
+		sb_.data_mapping_root_ = mappings_->get_root();
+		sb_.device_details_root_ = details_->get_root();
+		sb_.data_block_size_ = data_block_size;
+		sb_.metadata_block_size_ = MD_BLOCK_SIZE;
+		sb_.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
+
+		break;
+	}
 }
 
-#if 0
-	::memset(&sb_, 0, sizeof(sb_));
-	sb_.data_mapping_root_ = mappings_.get_root();
-	sb_.device_details_root_ = details_.get_root();
-	sb_.metadata_block_size_ = MD_BLOCK_SIZE;
-	sb_.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
-#endif
+namespace {
+	void print_superblock(superblock const &sb) {
+		using namespace std;
+
+		cerr << "superblock " << sb.csum_ << endl
+		     << "flags " << sb.flags_ << endl
+		     << "blocknr " << sb.blocknr_ << endl
+		     << "transaction id " << sb.trans_id_ << endl
+		     << "data mapping root " << sb.data_mapping_root_ << endl
+		     << "details root " << sb.device_details_root_ << endl
+		     << "data block size " << sb.data_block_size_ << endl
+		     << "metadata block size " << sb.metadata_block_size_ << endl
+		     << "metadata nr blocks " << sb.metadata_nr_blocks_ << endl
+			;
+	}
+}
 
 void
 metadata::commit()
@@ -108,9 +165,16 @@ metadata::commit()
 	sb_.data_mapping_root_ = mappings_->get_root();
 	sb_.device_details_root_ = details_->get_root();
 
-	// FIXME: commit and copy the space map roots
+	data_sm_->commit();
+	data_sm_->copy_root(&sb_.data_space_map_root_, sizeof(sb_.data_space_map_root_));
 
-	write_ref superblock = tm_->get_bm()->superblock(SUPERBLOCK_LOCATION);
+	metadata_sm_->commit();
+	metadata_sm_->copy_root(&sb_.metadata_space_map_root_, sizeof(sb_.metadata_space_map_root_));
+	print_superblock(sb_);
+
+	superblock_validator v;
+	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION,
+							      mk_validator(new superblock_validator()));
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
 	superblock_traits::pack(sb_, *disk);
 }

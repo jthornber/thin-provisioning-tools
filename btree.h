@@ -177,11 +177,7 @@ namespace persistent_data {
 				: tm_(tm) {
 			}
 
-			void step(block_address b) {
-				spine_.push_back(tm_->read_lock(b));
-				if (spine_.size() > 2)
-					spine_.pop_front();
-			}
+			void step(block_address b);
 
 			template <typename ValueTraits>
 			node_ref<ValueTraits> get_node() {
@@ -203,17 +199,7 @@ namespace persistent_data {
 			}
 
 			// true if the children of the shadow need incrementing
-			bool step(block_address b) {
-				pair<write_ref, bool> p = tm_->shadow(b);
-				try {
-					step(p.first);
-				} catch (...) {
-					tm_->get_sm()->dec(p.first.get_location());
-					throw;
-				}
-				return p.second;
-			}
-
+			bool step(block_address b);
 			void step(transaction_manager::write_ref b) {
 				spine_.push_back(b);
 				if (spine_.size() == 1)

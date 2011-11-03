@@ -18,9 +18,14 @@ SOURCE=\
 	transaction_manager.cc \
 	xml_format.cc
 
+PROGRAM_SOURCE=\
+	thin_dump.cc \
+	thin_repair.cc \
+	thin_restore.cc
+
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)
-CPPFLAGS=-Wall -g -I$(TOP_DIR) -O8
+CPPFLAGS=-Wall -g -I$(TOP_DIR)
 #CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
 LIBS=-lstdc++ -lboost_program_options -lexpat
 
@@ -50,3 +55,4 @@ thin_repair: $(OBJECTS) thin_repair.o
 include unit-tests/Makefile.in
 include $(subst .cc,.d,$(SOURCE))
 include $(subst .cc,.d,$(TEST_SOURCE))
+include $(subst .cc,.d,$(PROGRAM_SOURCE))

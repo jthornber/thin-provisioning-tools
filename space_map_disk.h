@@ -21,7 +21,10 @@ namespace persistent_data {
 	open_disk_sm(transaction_manager::ptr tm, void *root);
 
 	checked_space_map::ptr
-	open_metadata_sm(transaction_manager::ptr tm, void * root);
+	create_metadata_sm(transaction_manager::ptr tm, block_address nr_blocks);
+
+	checked_space_map::ptr
+	open_metadata_sm(transaction_manager::ptr tm, void *root);
 }
 
 //----------------------------------------------------------------

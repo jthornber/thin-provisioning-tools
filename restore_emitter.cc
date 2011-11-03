@@ -38,7 +38,6 @@ namespace {
 				throw runtime_error("missing superblock");
 
 			md_->commit();
-
 			in_superblock_ = false;
 		}
 
@@ -64,7 +63,6 @@ namespace {
 							block_time_ref_counter(md_->data_sm_)));
 			md_->mappings_top_level_->insert(key, new_tree->get_root());
 			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
-
 			current_device_ = optional<uint32_t>(dev);
 		}
 
@@ -99,12 +97,14 @@ namespace {
 			bt.time_ = time;
 			md_->mappings_->insert(key, bt);
 			md_->mappings_top_level_->set_root(md_->mappings_->get_root());
+			md_->data_sm_->inc(data_block);
 		}
 
 	private:
 		bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
-			return md_->details_->lookup(key);
+			detail_tree::maybe_value v = md_->details_->lookup(key);
+			return v;
 		}
 
 		metadata::ptr md_;

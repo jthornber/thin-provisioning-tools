@@ -8,6 +8,7 @@
 
 #include <boost/bind.hpp>
 #include <stdexcept>
+#include <sstream>
 
 using namespace boost;
 using namespace persistent_data;
@@ -20,7 +21,8 @@ block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, 
 	: nr_blocks_(nr_blocks),
 	  writeable_(writeable)
 {
-	fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
+	// fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
+	fd_ = ::open(path.c_str(), writeable ? O_RDWR : O_RDONLY, 0666);
 	if (fd_ < 0)
 		throw std::runtime_error("couldn't open file");
 }
@@ -75,8 +77,17 @@ block_io<BlockSize>::write_buffer(block_address location, const_buffer &buffer)
 		}
 	} while (remaining && ((n > 0) || (n == EINTR) || (n == EAGAIN)));
 
-	if (n < 0)
-		throw std::runtime_error("write failed");
+	if (n < 0) {
+		std::ostringstream out;
+		out << "write failed to block " << location
+		    << ", block size = " << BlockSize
+		    << ", remaining = " << remaining
+		    << ", n = " << n
+		    << ", errno = " << errno
+		    << ", fd_ = " << fd_
+		    << std::endl;
+		throw std::runtime_error(out.str());
+	}
 }
 
 //----------------------------------------------------------------
@@ -277,6 +288,7 @@ block_manager<BlockSize>::superblock(block_address location,
 	if (cached_block) {
 		(*cached_block)->check_write_lockable();
 		(*cached_block)->bt_ = BT_SUPERBLOCK;
+		(*cached_block)->validator_ = v;
 		return write_ref(*this, *cached_block);
 	}
 
@@ -297,10 +309,13 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 	if (cached_block) {
 		(*cached_block)->check_write_lockable();
 		memset(&(*cached_block)->data_, 0, BlockSize);
+		(*cached_block)->validator_ = v;
 		return write_ref(*this, *cached_block);
 	}
 
-	block_ptr b(new block(io_, location, BT_SUPERBLOCK, v, true));
+	block_ptr b(new block(io_, location, BT_SUPERBLOCK,
+			      mk_validator(new noop_validator), true));
+	b->validator_ = v;
 	cache_.insert(b);
 	return write_ref(*this, b);
 }

@@ -1,5 +1,6 @@
 #include "space_map_disk.h"
 
+#include "checksum.h"
 #include "endian_utils.h"
 #include "math_utils.h"
 #include "space_map_disk_structures.h"
@@ -14,6 +15,35 @@ using namespace sm_disk_detail;
 //----------------------------------------------------------------
 
 namespace {
+	uint64_t const BITMAP_CSUM_XOR = 240779;
+
+	struct bitmap_block_validator : public block_manager<>::validator {
+		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(&b);
+			crc32c sum(BITMAP_CSUM_XOR);
+			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
+				throw runtime_error("bad checksum in space map bitmap");
+
+			if (to_cpu<uint64_t>(data->blocknr) != location)
+				throw runtime_error("bad block nr in space map bitmap");
+		}
+
+		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+			bitmap_header *data = reinterpret_cast<bitmap_header *>(&b);
+			data->blocknr = to_disk<base::__le64, uint64_t>(location);
+
+			crc32c sum(BITMAP_CSUM_XOR);
+			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
+			data->csum = to_disk<base::__le32>(sum.get_sum());
+		}
+	};
+
+	block_manager<>::validator::ptr
+	bitmap_validator() {
+		return block_manager<>::validator::ptr(new bitmap_block_validator());
+	}
+
 	class bitmap {
 	public:
 		typedef transaction_manager::read_ref read_ref;
@@ -64,16 +94,16 @@ namespace {
 			}
 		}
 
-		unsigned find_free(unsigned end) {
-			for (unsigned i = ie_.none_free_before_; i < end; i++) {
+		boost::optional<unsigned> find_free(unsigned begin, unsigned end) {
+			for (unsigned i = max(begin, ie_.none_free_before_); i < end; i++) {
 				if (lookup(i) == 0) {
 					insert(i, 1);
 					ie_.none_free_before_ = i + 1;
-					return i;
+					return boost::optional<unsigned>(i);
 				}
 			}
 
-			throw std::runtime_error("no free entry in bitmap");
+			return boost::optional<unsigned>();
 		}
 
 		index_entry const &get_ie() const {
@@ -213,20 +243,23 @@ namespace {
 		}
 
 		block_address new_block() {
-			// silly to always start searching from the
+			// FIXME: silly to always start searching from the
 			// beginning.
 			block_address nr_indexes = div_up<block_address>(nr_blocks_, entries_per_block_);
 			for (block_address index = 0; index < nr_indexes; index++) {
 				index_entry ie = find_ie(index);
 
 				bitmap bm(tm_, ie);
-				block_address b = bm.find_free((index == nr_indexes - 1) ?
-							       nr_blocks_ % entries_per_block_ : entries_per_block_);
-				save_ie(b, bm.get_ie());
-				nr_allocated_++;
-				b = (index * entries_per_block_) + b;
-				assert(get_count(b) == 1);
-				return b;
+				optional<unsigned> maybe_b = bm.find_free(0, (index == nr_indexes - 1) ?
+							  nr_blocks_ % entries_per_block_ : entries_per_block_);
+				if (maybe_b) {
+					block_address b = *maybe_b;
+					save_ie(index, bm.get_ie());
+					nr_allocated_++;
+					b = (index * entries_per_block_) + b;
+					assert(get_count(b) == 1);
+					return b;
+				}
 			}
 
 			throw runtime_error("out of space");
@@ -242,9 +275,9 @@ namespace {
 			block_address bitmap_count = div_up<block_address>(nr_blocks, entries_per_block_);
 			block_address old_bitmap_count = div_up<block_address>(nr_blocks_, entries_per_block_);
 			for (block_address i = old_bitmap_count; i < bitmap_count; i++) {
-				write_ref wr = tm_->new_block();
+				write_ref wr = tm_->new_block(bitmap_validator());
 
-				struct index_entry ie;
+				index_entry ie;
 				ie.blocknr_ = wr.get_location();
 				ie.nr_free_ = i == (bitmap_count - 1) ?
 					(nr_blocks % entries_per_block_) : entries_per_block_;
@@ -324,7 +357,7 @@ namespace {
 			index_entry ie = find_ie(b / entries_per_block_);
 			bitmap bm(tm_, ie);
 			bm.insert(b % entries_per_block_, n);
-			save_ie(b, bm.get_ie());
+			save_ie(b / entries_per_block_, bm.get_ie());
 		}
 
 		ref_t lookup_ref_count(block_address b) const {
@@ -436,6 +469,7 @@ namespace {
 			v.nr_allocated_ = sm_disk_base::get_nr_allocated();
 			v.bitmap_root_ = bitmaps_.get_root();
 			v.ref_count_root_ = sm_disk_base::get_ref_count_root();
+
 			sm_root_traits::pack(v, d);
 			::memcpy(dest, &d, sizeof(d));
 		}
@@ -477,8 +511,8 @@ namespace {
 
 		sm_metadata(transaction_manager::ptr tm)
 			: sm_disk_base(tm),
+			  bitmap_root_(tm->get_sm()->new_block()), // FIXME: add bitmap_index validator
 			  entries_(MAX_METADATA_BITMAPS) {
-			// FIXME: allocate a new bitmap root
 		}
 
 		sm_metadata(transaction_manager::ptr tm,
@@ -505,6 +539,7 @@ namespace {
 			v.nr_allocated_ = sm_disk_base::get_nr_allocated();
 			v.bitmap_root_ = bitmap_root_;
 			v.ref_count_root_ = sm_disk_base::get_ref_count_root();
+
 			sm_root_traits::pack(v, d);
 			::memcpy(dest, &d, sizeof(d));
 		}
@@ -582,13 +617,22 @@ persistent_data::open_disk_sm(transaction_manager::ptr tm, void *root)
 }
 
 checked_space_map::ptr
-persistent_data::open_metadata_sm(transaction_manager::ptr tm, void * root)
+persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address nr_blocks)
+{
+	checked_space_map::ptr sm(new sm_metadata(tm));
+	sm->extend(nr_blocks);
+	return sm;
+}
+
+checked_space_map::ptr
+persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
 {
 	sm_root_disk d;
 	sm_root v;
 
 	::memcpy(&d, root, sizeof(d));
 	sm_root_traits::unpack(d, v);
+
 	return checked_space_map::ptr(new sm_metadata(tm, v));
 }
 
