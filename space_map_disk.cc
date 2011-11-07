@@ -44,6 +44,41 @@ namespace {
 		return block_manager<>::validator::ptr(new bitmap_block_validator());
 	}
 
+	//--------------------------------
+
+	uint64_t const INDEX_CSUM_XOR = 160478;
+
+	// FIXME: factor out the common code in these validators
+	struct index_block_validator : public block_manager<>::validator {
+		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(&b);
+			crc32c sum(INDEX_CSUM_XOR);
+			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
+				throw runtime_error("bad checksum in metadata index block");
+
+			if (to_cpu<uint64_t>(mi->blocknr_) != location)
+				throw runtime_error("bad block nr in metadata index block");
+		}
+
+		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+			metadata_index *mi = reinterpret_cast<metadata_index *>(&b);
+			mi->blocknr_ = to_disk<base::__le64, uint64_t>(location);
+
+			crc32c sum(INDEX_CSUM_XOR);
+			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			mi->csum_ = to_disk<base::__le32>(sum.get_sum());
+		}
+	};
+
+
+	block_manager<>::validator::ptr
+	index_validator() {
+		return block_manager<>::validator::ptr(new index_block_validator());
+	}
+
+	//--------------------------------
+
 	class bitmap {
 	public:
 		typedef transaction_manager::read_ref read_ref;
@@ -56,7 +91,7 @@ namespace {
 		}
 
 		ref_t lookup(unsigned b) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_);
+			read_ref rr = tm_->read_lock(ie_.blocknr_, bitmap_validator());
 			void const *bits = bitmap_data(rr);
 			ref_t b1 = test_bit_le(bits, b * 2);
 			ref_t b2 = test_bit_le(bits, b * 2 + 1);
@@ -66,7 +101,7 @@ namespace {
 		}
 
 		void insert(unsigned b, ref_t n) {
-			write_ref wr = tm_->shadow(ie_.blocknr_).first;
+			write_ref wr = tm_->shadow(ie_.blocknr_, bitmap_validator()).first;
 			void *bits = bitmap_data(wr);
 			bool was_free = !test_bit_le(bits, b * 2) && !test_bit_le(bits, b * 2 + 1);
 			if (n == 1 || n == 3)
@@ -111,7 +146,7 @@ namespace {
 		}
 
 		void iterate(block_address offset, block_address hi, space_map::iterator &it) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_);
+			read_ref rr = tm_->read_lock(ie_.blocknr_, bitmap_validator());
 			void const *bits = bitmap_data(rr);
 
 			for (unsigned b = 0; b < hi; b++) {
@@ -124,11 +159,6 @@ namespace {
 		}
 
 	private:
-		void check_crc(transaction_manager::read_ref &rr) {
-			crc32c sum(240779);
-			// sum.append(reinterpret_cast<bitmap_header const *>(&rr.data()[0]);
-		}
-
 		void *bitmap_data(transaction_manager::write_ref &wr) {
 			bitmap_header *h = reinterpret_cast<bitmap_header *>(&wr.data()[0]);
 			return h + 1;
@@ -511,8 +541,9 @@ namespace {
 
 		sm_metadata(transaction_manager::ptr tm)
 			: sm_disk_base(tm),
-			  bitmap_root_(tm->get_sm()->new_block()), // FIXME: add bitmap_index validator
 			  entries_(MAX_METADATA_BITMAPS) {
+			block_manager<>::write_ref wr = tm->new_block(index_validator());
+			bitmap_root_ = wr.get_location();
 		}
 
 		sm_metadata(transaction_manager::ptr tm,
@@ -564,7 +595,7 @@ namespace {
 
 		void load_ies() {
 			block_manager<>::read_ref rr =
-				sm_disk_base::get_tm()->read_lock(bitmap_root_);
+				sm_disk_base::get_tm()->read_lock(bitmap_root_, index_validator());
 
 			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
 
@@ -576,14 +607,10 @@ namespace {
 
 		void commit_ies() {
 			std::pair<block_manager<>::write_ref, bool> p =
-				sm_disk_base::get_tm()->shadow(bitmap_root_);
+				sm_disk_base::get_tm()->shadow(bitmap_root_, index_validator());
 
 			bitmap_root_ = p.first.get_location();
 			metadata_index *mdi = reinterpret_cast<metadata_index *>(&p.first.data());
-
-			mdi->csum_ = to_disk<__le32, uint32_t>(0);
-			mdi->padding_ = to_disk<__le32, uint32_t>(0);
-			mdi->blocknr_ = to_disk<__le64>(bitmap_root_);
 
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::pack(entries_[i], mdi->index[i]);

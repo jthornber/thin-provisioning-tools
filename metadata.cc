@@ -132,6 +132,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 
 		::memset(&sb_, 0, sizeof(sb_));
 		sb_.magic_ = SUPERBLOCK_MAGIC;
+		sb_.version_ = 1;
 		sb_.data_mapping_root_ = mappings_->get_root();
 		sb_.device_details_root_ = details_->get_root();
 		sb_.data_block_size_ = data_block_size;
