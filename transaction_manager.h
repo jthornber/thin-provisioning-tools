@@ -29,7 +29,6 @@ namespace persistent_data {
 		write_ref begin(block_address superblock);
 		write_ref begin(block_address superblock, validator v);
 
-		write_ref new_block();
 		write_ref new_block(validator v);
 
 		// shadowing returns a new write_ref, and a boolean which

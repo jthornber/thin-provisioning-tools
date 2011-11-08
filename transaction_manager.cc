@@ -35,26 +35,6 @@ transaction_manager::begin(block_address superblock, validator v)
 	return wr;
 }
 
-// FIXME: these explicit try/catches are gross
-transaction_manager::write_ref
-transaction_manager::new_block()
-{
-	block_address b = sm_->new_block();
-	try {
-		add_shadow(b);
-		try {
-			return bm_->write_lock_zero(b);
-		} catch (...) {
-			remove_shadow(b);
-			throw;
-		}
-
-	} catch (...) {
-		sm_->dec(b);
-		throw;
-	}
-}
-
 transaction_manager::write_ref
 transaction_manager::new_block(validator v)
 {
