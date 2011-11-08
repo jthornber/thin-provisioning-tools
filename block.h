@@ -120,7 +120,6 @@ namespace persistent_data {
 			const_buffer &data() const;
 
 		protected:
-			friend class block_manager; // FIXME: still needed?
 			block_manager<BlockSize> const &bm_;
 			block_ptr block_;
 			unsigned *holders_;

@@ -1,6 +1,8 @@
 #ifndef CACHE_H
 #define CACHE_H
 
+#include "deleter.h"
+
 #include <boost/intrusive/circular_list_algorithms.hpp>
 #include <boost/intrusive/rbtree_algorithms.hpp>
 #include <boost/optional.hpp>
@@ -11,18 +13,9 @@
 //----------------------------------------------------------------
 
 namespace base {
-	// FIXME: move somewhere more useful
-	template <typename T>
-	struct deleter {
-		void operator()(T *t) {
-			delete t;
-		}
-	};
-
 	// ValueTraits needs to define value_type, key_type and a get_key()
 	// static function.  Commonly you will want value_type to be a
 	// shared_ptr, with any teardown specific stuff in the destructor.
-
 	template <typename ValueTraits>
 	class cache {
 	public:
@@ -180,7 +173,7 @@ namespace base {
 
 	template <typename ValueTraits>
 	cache<ValueTraits>::~cache() {
-		deleter<value_entry> d;
+		utils::deleter<value_entry> d;
 		lookup_algo::clear_and_dispose(&lookup_header_, d);
 	}
 
