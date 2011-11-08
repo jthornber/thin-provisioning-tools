@@ -39,18 +39,11 @@ transaction_manager::write_ref
 transaction_manager::new_block(validator v)
 {
 	block_address b = sm_->new_block();
-	try {
-		add_shadow(b);
-		try {
-			return bm_->write_lock_zero(b, v);
-		} catch (...) {
-			remove_shadow(b);
-			throw;
-		}
-	} catch (...) {
-		sm_->dec(b);
-		throw;
-	}
+	sm_decrementer decrementer(sm_, b);
+	write_ref wr = bm_->write_lock_zero(b, v);
+	add_shadow(b);
+	decrementer.dont_bother();
+	return wr;
 }
 
 // FIXME: make exception safe
