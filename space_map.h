@@ -48,6 +48,53 @@ namespace persistent_data {
 		virtual size_t root_size() = 0;
 		virtual void copy_root(void *dest, size_t len) = 0;
 	};
+
+	class sm_adjust {
+	public:
+		sm_adjust(space_map::ptr sm, block_address b, int delta)
+			: sm_(sm),
+			  b_(b),
+			  delta_(delta) {
+
+			adjust_count(delta_);
+		}
+
+		~sm_adjust() {
+			adjust_count(-delta_);
+		}
+
+		void release() {
+			delta_ = 0;
+		}
+
+	private:
+		void adjust_count(int delta) {
+			if (delta == 1)
+				sm_->inc(b_);
+
+			else if (delta == -1)
+				sm_->dec(b_);
+
+			else
+				sm_->set_count(b_, sm_->get_count(b_) + delta);
+		}
+
+		space_map::ptr sm_;
+		block_address b_;
+		int delta_;
+	};
+
+	class sm_decrementer {
+	public:
+		sm_decrementer(space_map::ptr sm, block_address b);
+		~sm_decrementer();
+		void dont_bother();
+
+	private:
+		space_map::ptr sm_;
+		block_address b_;
+		bool released_;
+	};
 }
 
 //----------------------------------------------------------------

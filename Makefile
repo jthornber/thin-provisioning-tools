@@ -13,6 +13,7 @@ SOURCE=\
 	metadata_dumper.cc \
 	metadata_disk_structures.cc \
 	restore_emitter.cc \
+	space_map.cc \
 	space_map_disk.cc \
 	thin_pool.cc \
 	transaction_manager.cc \
@@ -25,7 +26,7 @@ PROGRAM_SOURCE=\
 
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=$(PWD)
-CPPFLAGS=-Wall -g -I$(TOP_DIR) -O8
+CPPFLAGS=-Wall -g -I$(TOP_DIR)
 #CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
 LIBS=-lstdc++ -lboost_program_options -lexpat
 
