@@ -8,6 +8,7 @@
 #include <boost/optional.hpp>
 #include <list>
 #include <map>
+#include <memory>
 #include <stdexcept>
 
 //----------------------------------------------------------------
@@ -182,17 +183,11 @@ namespace base {
 	cache<ValueTraits>::insert(value_type const &v) {
 		make_space();
 
-		// FIXME: use an auto_ptr to avoid the explicit try/catch
-		value_entry *node = new value_entry(v);
-		try {
-			value_ptr_cmp cmp;
-			lookup_algo::insert_equal(&lookup_header_, &lookup_header_, node, cmp);
-			current_entries_++;
-
-		} catch (...) {
-			delete node;
-			throw;
-		}
+		std::auto_ptr<value_entry> node(new value_entry(v));
+		value_ptr_cmp cmp;
+		lookup_algo::insert_equal(&lookup_header_, &lookup_header_, node.get(), cmp);
+		node.release();
+		current_entries_++;
 	}
 
 	template <typename ValueTraits>
