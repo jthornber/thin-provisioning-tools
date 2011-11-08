@@ -26,9 +26,7 @@ namespace persistent_data {
 		~transaction_manager();
 
 		// Drop the superblock reference to commit
-		write_ref begin(block_address superblock);
 		write_ref begin(block_address superblock, validator v);
-
 		write_ref new_block(validator v);
 
 		// shadowing returns a new write_ref, and a boolean which

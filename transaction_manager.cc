@@ -20,14 +20,6 @@ transaction_manager::~transaction_manager()
 }
 
 transaction_manager::write_ref
-transaction_manager::begin(block_address superblock)
-{
-	write_ref wr = bm_->superblock(superblock);
-	wipe_shadow_table();
-	return wr;
-}
-
-transaction_manager::write_ref
 transaction_manager::begin(block_address superblock, validator v)
 {
 	write_ref wr = bm_->superblock(superblock, v);
@@ -46,7 +38,6 @@ transaction_manager::new_block(validator v)
 	return wr;
 }
 
-// FIXME: duplicate code
 pair<transaction_manager::write_ref, bool>
 transaction_manager::shadow(block_address orig, validator v)
 {
