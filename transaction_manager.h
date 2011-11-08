@@ -33,7 +33,6 @@ namespace persistent_data {
 
 		// shadowing returns a new write_ref, and a boolean which
 		// indicates whether the children should be incremented.
-		std::pair<write_ref, bool> shadow(block_address orig);
 		std::pair<write_ref, bool> shadow(block_address orig, validator v);
 
 		read_ref read_lock(block_address b);

@@ -46,26 +46,6 @@ transaction_manager::new_block(validator v)
 	return wr;
 }
 
-// FIXME: make exception safe
-pair<transaction_manager::write_ref, bool>
-transaction_manager::shadow(block_address orig)
-{
-	if (is_shadow(orig) &&
-	    !sm_->count_possibly_greater_than_one(orig))
-		return make_pair(bm_->write_lock(orig), false);
-
-	read_ref src = bm_->read_lock(orig);
-	write_ref dest = bm_->write_lock_zero(sm_->new_block());
-	::memcpy(dest.data(), src.data(), MD_BLOCK_SIZE);
-
-	ref_t count = sm_->get_count(orig);
-	if (count == 0)
-		throw runtime_error("shadowing free block");
-	sm_->dec(orig);
-	add_shadow(dest.get_location());
-	return make_pair(dest, count > 1);
-}
-
 // FIXME: duplicate code
 pair<transaction_manager::write_ref, bool>
 transaction_manager::shadow(block_address orig, validator v)
