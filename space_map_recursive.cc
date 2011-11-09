@@ -1,0 +1,220 @@
+#include "space_map_recursive.h"
+
+using namespace persistent_data;
+
+//----------------------------------------------------------------
+
+namespace {
+	struct block_op {
+		enum op {
+			INC,
+			DEC,
+			SET
+		};
+
+		block_op(op o, block_address b)
+			: op_(o),
+			  b_(b) {
+			if (o == SET)
+				throw runtime_error("SET must take an operand");
+		}
+
+		block_op(op o, block_address b, uint32_t rc)
+			: op_(o),
+			  b_(b),
+			  rc_(rc) {
+			if (o != SET)
+				throw runtime_error("only SET takes an operand");
+		}
+
+		op op_;
+		block_address b_;
+		uint32_t rc_;
+	};
+
+	class sm_recursive : public checked_space_map {
+	public:
+		sm_recursive(checked_space_map::ptr sm)
+			: sm_(sm),
+			  recursing_(false) {
+		}
+
+		virtual block_address get_nr_blocks() const {
+			return sm_->get_nr_blocks();
+		}
+
+		virtual block_address get_nr_free() const {
+			return sm_->get_nr_free();
+		}
+
+		virtual ref_t get_count(block_address b) const {
+			cant_recurse("get_count");
+			recursing_const_lock lock(*this);
+			return sm_->get_count(b);
+		}
+
+		virtual void set_count(block_address b, ref_t c) {
+			if (recursing_)
+				add_op(block_op(block_op::SET, b, c));
+			else {
+				recursing_lock lock(*this);
+				return sm_->set_count(b, c);
+			}
+		}
+
+		virtual void commit() {
+			cant_recurse("commit");
+			sm_->commit();
+		}
+
+		virtual void inc(block_address b) {
+			if (recursing_)
+				add_op(block_op(block_op::INC, b));
+			else {
+				recursing_lock lock(*this);
+				return sm_->inc(b);
+			}
+		}
+
+		virtual void dec(block_address b) {
+			if (recursing_)
+				add_op(block_op(block_op::DEC, b));
+			else {
+				recursing_lock lock(*this);
+				return sm_->dec(b);
+			}
+		}
+
+		virtual block_address new_block() {
+			cant_recurse("new_block");
+			recursing_lock lock(*this);
+			return sm_->new_block();
+		}
+
+		virtual bool count_possibly_greater_than_one(block_address b) const {
+			if (recursing_)
+				return true;
+
+			else {
+				recursing_const_lock lock(*this);
+				return sm_->count_possibly_greater_than_one(b);
+			}
+		}
+
+		virtual void extend(block_address extra_blocks) {
+			cant_recurse("extend");
+			recursing_lock lock(*this);
+			return sm_->extend(extra_blocks);
+		}
+
+		virtual size_t root_size() {
+			cant_recurse("root_size");
+			recursing_const_lock lock(*this);
+			return sm_->root_size();
+		}
+
+		virtual void copy_root(void *dest, size_t len) {
+			cant_recurse("copy_root");
+			recursing_const_lock lock(*this);
+			return sm_->copy_root(dest, len);
+		}
+
+		virtual void check(block_counter &counter) const {
+			cant_recurse("check");
+			recursing_const_lock lock(*this);
+			return sm_->check(counter);
+		}
+
+
+		void flush_ops() {
+			op_map::const_iterator it, end = ops_.end();
+			for (it = ops_.begin(); it != end; ++it) {
+				list<block_op> const &ops = it->second;
+				list<block_op>::const_iterator op_it, op_end = ops.end();
+				for (op_it = ops.begin(); op_it != op_end; ++op_it) {
+					recursing_lock lock(*this);
+					switch (op_it->op_) {
+					case block_op::INC:
+						sm_->inc(op_it->b_);
+						break;
+
+					case block_op::DEC:
+						sm_->dec(op_it->b_);
+						break;
+
+					case block_op::SET:
+						sm_->set_count(op_it->b_, op_it->rc_);
+						break;
+					}
+				}
+			}
+
+			ops_.clear();
+		}
+
+	private:
+		void add_op(block_op const &op) {
+			ops_[op.b_].push_back(op);
+		}
+
+		void cant_recurse(string const &method) const {
+			if (recursing_)
+				throw runtime_error("recursive '" + method + "' not supported");
+		}
+
+		void set_recursing() const {
+			recursing_ = true;
+		}
+
+		struct recursing_lock {
+			recursing_lock(sm_recursive &smr)
+				: smr_(smr) {
+				smr_.recursing_ = true;
+			}
+
+			~recursing_lock() {
+				smr_.flush_ops();
+				smr_.recursing_ = false;
+			}
+
+		private:
+			sm_recursive &smr_;
+		};
+
+		struct recursing_const_lock {
+			recursing_const_lock(sm_recursive const &smr)
+				: smr_(smr) {
+				smr_.recursing_ = true;
+			}
+
+			~recursing_const_lock() {
+				smr_.recursing_ = false;
+			}
+
+		private:
+			sm_recursive const &smr_;
+		};
+
+		checked_space_map::ptr sm_;
+		mutable bool recursing_;
+
+		enum op {
+			BOP_INC,
+			BOP_DEC,
+			BOP_SET
+		};
+
+		typedef map<block_address, list<block_op> > op_map;
+		op_map ops_;
+	};
+}
+
+//----------------------------------------------------------------
+
+checked_space_map::ptr
+persistent_data::create_recursive_sm(checked_space_map::ptr sm)
+{
+	return checked_space_map::ptr(new sm_recursive(sm));
+}
+
+//----------------------------------------------------------------

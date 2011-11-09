@@ -15,6 +15,7 @@ SOURCE=\
 	restore_emitter.cc \
 	space_map.cc \
 	space_map_disk.cc \
+	space_map_recursive.cc \
 	thin_pool.cc \
 	transaction_manager.cc \
 	xml_format.cc

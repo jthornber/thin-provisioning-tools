@@ -7,13 +7,6 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	class checked_space_map : public persistent_space_map {
-	public:
-		typedef boost::shared_ptr<checked_space_map> ptr;
-
-		virtual void check(block_counter &counter) const = 0;
-	};
-
 	checked_space_map::ptr
 	create_disk_sm(transaction_manager::ptr tm, block_address nr_blocks);
 

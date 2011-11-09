@@ -2,6 +2,7 @@
 #define SPACE_MAP_H
 
 #include "block.h"
+#include "block_counter.h"
 
 #include <boost/shared_ptr.hpp>
 
@@ -47,6 +48,15 @@ namespace persistent_data {
 
 		virtual size_t root_size() = 0;
 		virtual void copy_root(void *dest, size_t len) = 0;
+	};
+
+	class checked_space_map : public persistent_space_map {
+	public:
+		typedef boost::shared_ptr<checked_space_map> ptr;
+
+		virtual void check(block_counter &counter) const {
+			throw std::runtime_error("not implemented");
+		}
 	};
 
 	class sm_adjust {

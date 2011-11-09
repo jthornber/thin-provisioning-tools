@@ -4,6 +4,7 @@
 #include "endian_utils.h"
 #include "math_utils.h"
 #include "space_map_disk_structures.h"
+#include "space_map_recursive.h"
 #include "transaction_manager.h"
 
 using namespace boost;
@@ -648,7 +649,7 @@ persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address n
 {
 	checked_space_map::ptr sm(new sm_metadata(tm));
 	sm->extend(nr_blocks);
-	return sm;
+	return create_recursive_sm(sm);
 }
 
 checked_space_map::ptr
@@ -660,7 +661,7 @@ persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
 	::memcpy(&d, root, sizeof(d));
 	sm_root_traits::unpack(d, v);
 
-	return checked_space_map::ptr(new sm_metadata(tm, v));
+	return create_recursive_sm(checked_space_map::ptr(new sm_metadata(tm, v)));
 }
 
 //----------------------------------------------------------------

@@ -113,6 +113,36 @@ void _test_set_affects_nr_allocated(space_map::ptr sm)
 	}
 }
 
+// Ref counts below 3 gets stored as bitmaps, above 3 they go into a btree
+// with uint32_t values.  Worth checking this thoroughly, especially for
+// the metadata format which may have complications due to recursion.
+void _test_high_ref_counts(space_map::ptr sm)
+{
+	srand(1234);
+	for (unsigned i = 0; i < NR_BLOCKS; i++)
+		sm->set_count(i, rand() % 6789);
+	sm->commit();
+
+	for (unsigned i = 0; i < NR_BLOCKS; i++) {
+		sm->inc(i);
+		sm->inc(i);
+		if (i % 1000)
+			sm->commit();
+	}
+	sm->commit();
+
+	srand(1234);
+	for (unsigned i = 0; i < NR_BLOCKS; i++)
+		BOOST_CHECK_EQUAL(sm->get_count(i), (rand() % 6789) + 2);
+
+	for (unsigned i = 0; i < NR_BLOCKS; i++)
+		sm->dec(i);
+
+	srand(1234);
+	for (unsigned i = 0; i < NR_BLOCKS; i++)
+		BOOST_CHECK_EQUAL(sm->get_count(i), (rand() % 6789) + 1);
+}
+
 //----------------------------------------------------------------
 
 #if 0
@@ -162,6 +192,12 @@ BOOST_AUTO_TEST_CASE(test_disk_set_affects_nr_allocated)
 {
 	space_map::ptr sm = create_sm_disk();
 	_test_set_affects_nr_allocated(sm);
+}
+
+BOOST_AUTO_TEST_CASE(test_disk_high_ref_counts)
+{
+	space_map::ptr sm = create_sm_disk();
+	_test_high_ref_counts(sm);
 }
 
 BOOST_AUTO_TEST_CASE(test_disk_reopen)
@@ -230,6 +266,12 @@ BOOST_AUTO_TEST_CASE(test_metadata_set_affects_nr_allocated)
 {
 	space_map::ptr sm = create_sm_metadata();
 	_test_set_affects_nr_allocated(sm);
+}
+
+BOOST_AUTO_TEST_CASE(test_metadata_high_ref_counts)
+{
+	space_map::ptr sm = create_sm_metadata();
+	_test_high_ref_counts(sm);
 }
 
 BOOST_AUTO_TEST_CASE(test_metadata_reopen)

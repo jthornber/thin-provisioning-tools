@@ -1,8 +1,8 @@
 #include "metadata.h"
 
 #include "math_utils.h"
-#include "space_map_disk.h"
 #include "space_map_core.h"
+#include "space_map_disk.h"
 
 #include <linux/fs.h>
 #include <sys/ioctl.h>
