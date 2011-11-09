@@ -52,7 +52,7 @@ namespace {
 				  uint64_t creation_time,
 				  uint64_t snap_time) {
 			indent();
-			out_ << "<device dev_id =\"" << dev_id << "\""
+			out_ << "<device dev_id=\"" << dev_id << "\""
 			     << " mapped_blocks=\"" << mapped_blocks << "\""
 			     << " transaction=\"" << trans_id << "\""
 			     << " creation_time=\"" << creation_time << "\""
