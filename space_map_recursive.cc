@@ -36,7 +36,7 @@ namespace {
 	public:
 		sm_recursive(checked_space_map::ptr sm)
 			: sm_(sm),
-			  recursing_(false) {
+			  depth_(0) {
 		}
 
 		virtual block_address get_nr_blocks() const {
@@ -54,7 +54,7 @@ namespace {
 		}
 
 		virtual void set_count(block_address b, ref_t c) {
-			if (recursing_)
+			if (depth_)
 				add_op(block_op(block_op::SET, b, c));
 			else {
 				recursing_lock lock(*this);
@@ -68,7 +68,7 @@ namespace {
 		}
 
 		virtual void inc(block_address b) {
-			if (recursing_)
+			if (depth_)
 				add_op(block_op(block_op::INC, b));
 			else {
 				recursing_lock lock(*this);
@@ -77,7 +77,7 @@ namespace {
 		}
 
 		virtual void dec(block_address b) {
-			if (recursing_)
+			if (depth_)
 				add_op(block_op(block_op::DEC, b));
 			else {
 				recursing_lock lock(*this);
@@ -86,13 +86,15 @@ namespace {
 		}
 
 		virtual block_address new_block() {
-			cant_recurse("new_block");
+			// new_block can recurse, because we know it's
+			// looking up entries in the _previous_
+			// transaction.
 			recursing_lock lock(*this);
 			return sm_->new_block();
 		}
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {
-			if (recursing_)
+			if (depth_)
 				return true;
 
 			else {
@@ -107,6 +109,10 @@ namespace {
 			return sm_->extend(extra_blocks);
 		}
 
+		virtual void iterate(iterator &it) const {
+			sm_->iterate(it);
+		}
+
 		virtual size_t root_size() {
 			cant_recurse("root_size");
 			recursing_const_lock lock(*this);
@@ -119,7 +125,7 @@ namespace {
 			return sm_->copy_root(dest, len);
 		}
 
-		virtual void check(block_counter &counter) const {
+		virtual void check(persistent_data::block_counter &counter) const {
 			cant_recurse("check");
 			recursing_const_lock lock(*this);
 			return sm_->check(counter);
@@ -158,23 +164,19 @@ namespace {
 		}
 
 		void cant_recurse(string const &method) const {
-			if (recursing_)
+			if (depth_)
 				throw runtime_error("recursive '" + method + "' not supported");
-		}
-
-		void set_recursing() const {
-			recursing_ = true;
 		}
 
 		struct recursing_lock {
 			recursing_lock(sm_recursive &smr)
 				: smr_(smr) {
-				smr_.recursing_ = true;
+				smr_.depth_++;
 			}
 
 			~recursing_lock() {
-				smr_.flush_ops();
-				smr_.recursing_ = false;
+				if (!--smr_.depth_)
+					smr_.flush_ops();
 			}
 
 		private:
@@ -184,11 +186,11 @@ namespace {
 		struct recursing_const_lock {
 			recursing_const_lock(sm_recursive const &smr)
 				: smr_(smr) {
-				smr_.recursing_ = true;
+				smr_.depth_++;
 			}
 
 			~recursing_const_lock() {
-				smr_.recursing_ = false;
+				smr_.depth_--;
 			}
 
 		private:
@@ -196,7 +198,7 @@ namespace {
 		};
 
 		checked_space_map::ptr sm_;
-		mutable bool recursing_;
+		mutable int depth_;
 
 		enum op {
 			BOP_INC,

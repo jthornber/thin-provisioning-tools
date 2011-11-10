@@ -38,7 +38,7 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .cc .o .d
 
 %.d: %.cc
-	g++ -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $< > $@.$$$$;                  \
+	g++ -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $< > $@.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
