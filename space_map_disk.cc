@@ -276,7 +276,7 @@ namespace {
 		}
 
 		void commit() {
-			commit_ies();
+			indexes_->commit_ies();
 		}
 
 		void inc(block_address b) {
@@ -295,14 +295,14 @@ namespace {
 			// beginning.
 			block_address nr_indexes = div_up<block_address>(nr_blocks_, ENTRIES_PER_BLOCK);
 			for (block_address index = 0; index < nr_indexes; index++) {
-				index_entry ie = find_ie(index);
+				index_entry ie = indexes_->find_ie(index);
 
 				bitmap bm(tm_, ie);
 				optional<unsigned> maybe_b = bm.find_free(0, (index == nr_indexes - 1) ?
 							  nr_blocks_ % ENTRIES_PER_BLOCK : ENTRIES_PER_BLOCK);
 				if (maybe_b) {
 					block_address b = *maybe_b;
-					save_ie(index, bm.get_ie());
+					indexes_->save_ie(index, bm.get_ie());
 					nr_allocated_++;
 					b = (index * ENTRIES_PER_BLOCK) + b;
 					assert(get_count(b) == 1);
@@ -333,7 +333,7 @@ namespace {
 					(nr_blocks % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
 				ie.none_free_before_ = 0;
 
-				save_ie(i, ie);
+				indexes_->save_ie(i, ie);
 			}
 
 			nr_blocks_ = nr_blocks;
@@ -369,7 +369,7 @@ namespace {
 
 			for (unsigned i = 0; i < nr_indexes; i++) {
 				unsigned hi = (i == nr_indexes - 1) ? (nr_blocks_ % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
-				index_entry ie = find_ie(i);
+				index_entry ie = indexes_->find_ie(i);
 				bitmap bm(tm_, ie);
 				bm.iterate(i * ENTRIES_PER_BLOCK, hi, wrapper);
 			}
@@ -413,21 +413,8 @@ namespace {
 		}
 
 	private:
-		// FIXME: remove these, they're just for the transistion
-		index_entry find_ie(block_address b) const {
-			return indexes_->find_ie(b);
-		}
-
-		void save_ie(block_address b, struct index_entry ie) {
-			return indexes_->save_ie(b, ie);
-		}
-
-		void commit_ies() {
-			return indexes_->commit_ies();
-		}
-
 		ref_t lookup_bitmap(block_address b) const {
-			index_entry ie = find_ie(b / ENTRIES_PER_BLOCK);
+			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
 			bitmap bm(tm_, ie);
 			return bm.lookup(b % ENTRIES_PER_BLOCK);
 		}
@@ -436,10 +423,10 @@ namespace {
 			if (n > 3)
 				throw runtime_error("bitmap can only hold 2 bit values");
 
-			index_entry ie = find_ie(b / ENTRIES_PER_BLOCK);
+			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
 			bitmap bm(tm_, ie);
 			bm.insert(b % ENTRIES_PER_BLOCK, n);
-			save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
+			indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
 		}
 
 		ref_t lookup_ref_count(block_address b) const {
