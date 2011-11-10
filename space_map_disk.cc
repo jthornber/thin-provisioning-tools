@@ -212,14 +212,14 @@ namespace {
 
 	unsigned const ENTRIES_PER_BLOCK = (MD_BLOCK_SIZE - sizeof(bitmap_header)) * 4;
 
-	class sm_disk_base : public checked_space_map {
+	class sm_disk : public checked_space_map {
 	public:
-		typedef boost::shared_ptr<sm_disk_base> ptr;
+		typedef boost::shared_ptr<sm_disk> ptr;
 		typedef transaction_manager::read_ref read_ref;
 		typedef transaction_manager::write_ref write_ref;
 
-		sm_disk_base(index_store::ptr indexes,
-			     transaction_manager::ptr tm)
+		sm_disk(index_store::ptr indexes,
+			transaction_manager::ptr tm)
 			: tm_(tm),
 			  indexes_(indexes),
 			  nr_blocks_(0),
@@ -227,9 +227,9 @@ namespace {
 			  ref_counts_(tm_, ref_count_traits::ref_counter()) {
 		}
 
-		sm_disk_base(index_store::ptr indexes,
-			     transaction_manager::ptr tm,
-			     sm_root const &root)
+		sm_disk(index_store::ptr indexes,
+			transaction_manager::ptr tm,
+			sm_root const &root)
 			: tm_(tm),
 			  indexes_(indexes),
 			  nr_blocks_(root.nr_blocks_),
@@ -348,7 +348,7 @@ namespace {
 		}
 
 		struct look_aside_iterator : public iterator {
-			look_aside_iterator(sm_disk_base const &smd, iterator &it)
+			look_aside_iterator(sm_disk const &smd, iterator &it)
 				: smd_(smd),
 				  it_(it) {
 			}
@@ -357,7 +357,7 @@ namespace {
 				it_(b, c == 3 ? smd_.lookup_ref_count(b) : c);
 			}
 
-			sm_disk_base const &smd_;
+			sm_disk const &smd_;
 			iterator &it_;
 		};
 
@@ -386,10 +386,10 @@ namespace {
 			if (len < sizeof(d))
 				throw runtime_error("root too small");
 
-			v.nr_blocks_ = sm_disk_base::get_nr_blocks();
-			v.nr_allocated_ = sm_disk_base::get_nr_allocated();
+			v.nr_blocks_ = sm_disk::get_nr_blocks();
+			v.nr_allocated_ = sm_disk::get_nr_allocated();
 			v.bitmap_root_ = get_index_store()->get_root();
-			v.ref_count_root_ = sm_disk_base::get_ref_count_root();
+			v.ref_count_root_ = sm_disk::get_ref_count_root();
 
 			sm_root_traits::pack(v, d);
 			::memcpy(dest, &d, sizeof(d));
@@ -577,20 +577,6 @@ namespace {
 		btree<1, index_entry_traits> bitmaps_;
 	};
 
-	class sm_disk : public sm_disk_base {
-	public:
-		typedef boost::shared_ptr<sm_disk> ptr;
-
-		sm_disk(transaction_manager::ptr tm)
-			: sm_disk_base(index_store::ptr(new btree_index_store(tm)), tm) {
-		}
-
-		sm_disk(transaction_manager::ptr tm,
-			sm_root const &root)
-			: sm_disk_base(index_store::ptr(new btree_index_store(tm, root.bitmap_root_)), tm, root) {
-		}
-	};
-
 	class metadata_index_store : public index_store {
 	public:
 		typedef boost::shared_ptr<metadata_index_store> ptr;
@@ -642,6 +628,7 @@ namespace {
 		virtual void check(block_counter &counter, block_address nr_index_entries) const {
 			counter.inc(bitmap_root_);
 			for (unsigned i = 0; i < entries_.size(); i++)
+				// FIXME: this looks like a hack
 				if (entries_[i].blocknr_ != 0) // superblock
 					counter.inc(entries_[i].blocknr_);
 		}
@@ -660,26 +647,6 @@ namespace {
 		block_address bitmap_root_;
 		std::vector<index_entry> entries_;
 	};
-
-	class sm_metadata : public sm_disk_base {
-	public:
-		typedef boost::shared_ptr<sm_metadata> ptr;
-
-		sm_metadata(transaction_manager::ptr tm)
-			: sm_disk_base(index_store::ptr(new metadata_index_store(tm)), tm) {
-		}
-
-		sm_metadata(transaction_manager::ptr tm,
-			    sm_root const &root)
-			: sm_disk_base(mk_index_store(tm, root.bitmap_root_, root.nr_blocks_), tm, root) {
-		}
-
-	private:
-		index_store::ptr mk_index_store(transaction_manager::ptr tm, block_address root, block_address nr_blocks) const {
-			block_address nr_indexes = div_up<block_address>(nr_blocks, ENTRIES_PER_BLOCK);
-			return index_store::ptr(new metadata_index_store(tm, root, nr_indexes));
-		}
-	};
 }
 
 //----------------------------------------------------------------
@@ -688,7 +655,8 @@ checked_space_map::ptr
 persistent_data::create_disk_sm(transaction_manager::ptr tm,
 				block_address nr_blocks)
 {
-	checked_space_map::ptr sm(new sm_disk(tm));
+	index_store::ptr store(new btree_index_store(tm));
+	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
 	return sm;
 }
@@ -701,13 +669,15 @@ persistent_data::open_disk_sm(transaction_manager::ptr tm, void *root)
 
 	::memcpy(&d, root, sizeof(d));
 	sm_root_traits::unpack(d, v);
-	return checked_space_map::ptr(new sm_disk(tm, v));
+	index_store::ptr store(new btree_index_store(tm, v.bitmap_root_));
+	return checked_space_map::ptr(new sm_disk(store, tm, v));
 }
 
 checked_space_map::ptr
 persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address nr_blocks)
 {
-	checked_space_map::ptr sm(new sm_metadata(tm));
+	index_store::ptr store(new metadata_index_store(tm));
+	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
 	return create_recursive_sm(sm);
 }
@@ -720,8 +690,9 @@ persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
 
 	::memcpy(&d, root, sizeof(d));
 	sm_root_traits::unpack(d, v);
-
-	return create_recursive_sm(checked_space_map::ptr(new sm_metadata(tm, v)));
+	block_address nr_indexes = div_up<block_address>(v.nr_blocks_, ENTRIES_PER_BLOCK);
+	index_store::ptr store(new metadata_index_store(tm, v.bitmap_root_, nr_indexes));
+	return create_recursive_sm(checked_space_map::ptr(new sm_disk(store, tm, v)));
 }
 
 //----------------------------------------------------------------
