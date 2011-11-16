@@ -120,13 +120,13 @@ namespace {
 			sm_->iterate(it);
 		}
 
-		virtual size_t root_size() {
+		virtual size_t root_size() const {
 			cant_recurse("root_size");
 			recursing_const_lock lock(*this);
 			return sm_->root_size();
 		}
 
-		virtual void copy_root(void *dest, size_t len) {
+		virtual void copy_root(void *dest, size_t len) const {
 			cant_recurse("copy_root");
 			recursing_const_lock lock(*this);
 			return sm_->copy_root(dest, len);

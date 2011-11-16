@@ -54,9 +54,8 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<persistent_space_map> ptr;
 
-		// FIXME: these two should be const
-		virtual size_t root_size() = 0;
-		virtual void copy_root(void *dest, size_t len) = 0;
+		virtual size_t root_size() const = 0;
+		virtual void copy_root(void *dest, size_t len) const = 0;
 	};
 
 	class checked_space_map : public persistent_space_map {

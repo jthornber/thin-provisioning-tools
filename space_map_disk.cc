@@ -381,11 +381,11 @@ namespace {
 			}
 		}
 
-		virtual size_t root_size() {
+		virtual size_t root_size() const {
 			return sizeof(sm_root_disk);
 		}
 
-		virtual void copy_root(void *dest, size_t len) {
+		virtual void copy_root(void *dest, size_t len) const {
 			sm_root_disk d;
 			sm_root v;
 
