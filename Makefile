@@ -16,6 +16,7 @@ SOURCE=\
 	space_map.cc \
 	space_map_disk.cc \
 	space_map_recursive.cc \
+	space_map_transactional.cc \
 	thin_pool.cc \
 	transaction_manager.cc \
 	xml_format.cc
