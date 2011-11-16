@@ -1,0 +1,8 @@
+<superblock uuid="" time="1" transaction="0" data_block_size="128">
+  <device dev_id ="0" mapped_blocks="16384" transaction="0" creation_time="0" snap_time="1">
+    <range_mapping origin_begin="0" data_begin="0" length="16384" time="0"/>
+  </device>
+  <device dev_id ="1" mapped_blocks="16384" transaction="0" creation_time="1" snap_time="1">
+    <range_mapping origin_begin="0" data_begin="16384" length="16384" time="1"/>
+  </device>
+</superblock>
