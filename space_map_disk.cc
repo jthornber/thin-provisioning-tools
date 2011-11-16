@@ -381,11 +381,11 @@ namespace {
 			}
 		}
 
-		size_t root_size() {
+		virtual size_t root_size() {
 			return sizeof(sm_root_disk);
 		}
 
-		void copy_root(void *dest, size_t len) {
+		virtual void copy_root(void *dest, size_t len) {
 			sm_root_disk d;
 			sm_root v;
 
@@ -399,6 +399,16 @@ namespace {
 
 			sm_root_traits::pack(v, d);
 			::memcpy(dest, &d, sizeof(d));
+		}
+
+		virtual checked_space_map::ptr clone() const {
+			sm_root root;
+			root.nr_blocks_ = nr_blocks_;
+			root.nr_allocated_ = nr_allocated_;
+			root.bitmap_root_ = indexes_->get_root();
+			root.ref_count_root_ = ref_counts_.get_root();
+			return checked_space_map::ptr(
+				new sm_disk(indexes_->clone(), tm_, root));
 		}
 
 	protected:

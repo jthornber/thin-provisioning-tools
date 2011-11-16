@@ -138,6 +138,9 @@ namespace {
 			return sm_->check(counter);
 		}
 
+		virtual checked_space_map::ptr clone() const {
+			return checked_space_map::ptr(new sm_recursive(sm_->clone()));
+		}
 
 		void flush_ops() {
 			op_map::const_iterator it, end = ops_.end();
