@@ -145,4 +145,17 @@ run_list<T>::sub(run_list<T> const &rl)
 	// FIXME: finish
 }
 
+template <typename T>
+const_iterator
+run_list<T>::begin() const
+{
+	return runs_.begin();
+}
+
+const_iterator
+run_list<T>::end() const
+{
+	return runs_.end();
+}
+
 //----------------------------------------------------------------

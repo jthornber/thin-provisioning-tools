@@ -35,6 +35,10 @@ namespace base {
 		void add(run_list<T> const &rl);
 		void sub(run_list<T> const &rl);
 
+		typedef std::set<run<T> >::const_iterator const_iterator;
+		const_iterator begin() const;
+		const_iterator end() const;
+
 	private:
 		bool in_run_(T const &key) const;
 
