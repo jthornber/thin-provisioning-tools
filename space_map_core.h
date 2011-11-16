@@ -52,15 +52,19 @@ namespace persistent_data {
 				nr_free_++;
 		}
 
-		block_address new_block() {
-			for (block_address i = 0; i < counts_.size(); i++)
+		maybe_block new_block() {
+			return new_block(0, counts_.size());
+		}
+
+		maybe_block new_block(block_address begin, block_address end) {
+			for (block_address i = begin; i < min(end, counts_.size()); i++)
 				if (counts_[i] == 0) {
 					counts_[i] = 1;
 					nr_free_--;
 					return i;
 				}
 
-			throw std::runtime_error("no space");
+			return maybe_block();
 		}
 
 		bool count_possibly_greater_than_one(block_address b) const {

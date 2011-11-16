@@ -167,7 +167,11 @@ thin_pool::get_held_root() const
 block_address
 thin_pool::alloc_data_block()
 {
-	return md_->data_sm_->new_block();
+	optional<block_address> mb = md_->data_sm_->new_block();
+	if (!mb)
+		throw runtime_error("couldn't allocate new block");
+
+	return *mb;
 }
 
 void

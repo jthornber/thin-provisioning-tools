@@ -290,16 +290,22 @@ namespace {
 			set_count(b, old - 1);
 		}
 
-		block_address new_block() {
-			// FIXME: silly to always start searching from the
-			// beginning.
-			block_address nr_indexes = div_up<block_address>(nr_blocks_, ENTRIES_PER_BLOCK);
-			for (block_address index = 0; index < nr_indexes; index++) {
+		maybe_block new_block() {
+			// FIXME: keep track of the lowest free block so we
+			// can start searching from a suitable place.
+			return new_block(0, nr_blocks_);
+		}
+
+		maybe_block new_block(block_address begin, block_address end) {
+			block_address begin_index = begin / ENTRIES_PER_BLOCK;
+			block_address end_index = div_up<block_address>(end, ENTRIES_PER_BLOCK);
+
+			for (block_address index = begin_index; index < end_index; index++) {
 				index_entry ie = indexes_->find_ie(index);
 
 				bitmap bm(tm_, ie);
-				optional<unsigned> maybe_b = bm.find_free(0, (index == nr_indexes - 1) ?
-							  nr_blocks_ % ENTRIES_PER_BLOCK : ENTRIES_PER_BLOCK);
+				optional<unsigned> maybe_b = bm.find_free((index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0,
+									  (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK);
 				if (maybe_b) {
 					block_address b = *maybe_b;
 					indexes_->save_ie(index, bm.get_ie());
@@ -310,7 +316,7 @@ namespace {
 				}
 			}
 
-			throw runtime_error("out of space");
+			return maybe_block();
 		}
 
 		bool count_possibly_greater_than_one(block_address b) const {

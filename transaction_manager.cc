@@ -30,10 +30,13 @@ transaction_manager::begin(block_address superblock, validator v)
 transaction_manager::write_ref
 transaction_manager::new_block(validator v)
 {
-	block_address b = sm_->new_block();
-	sm_decrementer decrementer(sm_, b);
-	write_ref wr = bm_->write_lock_zero(b, v);
-	add_shadow(b);
+	optional<block_address> mb = sm_->new_block();
+	if (!mb)
+		throw runtime_error("couldn't allocate new block");
+
+	sm_decrementer decrementer(sm_, *mb);
+	write_ref wr = bm_->write_lock_zero(*mb, v);
+	add_shadow(*mb);
 	decrementer.dont_bother();
 	return wr;
 }
@@ -46,7 +49,12 @@ transaction_manager::shadow(block_address orig, validator v)
 		return make_pair(bm_->write_lock(orig, v), false);
 
 	read_ref src = bm_->read_lock(orig, v);
-	write_ref dest = bm_->write_lock_zero(sm_->new_block(), v);
+
+	optional<block_address> mb = sm_->new_block();
+	if (!mb)
+		throw runtime_error("couldn't allocate new block");
+
+	write_ref dest = bm_->write_lock_zero(*mb, v);
 	::memcpy(dest.data(), src.data(), MD_BLOCK_SIZE);
 
 	ref_t count = sm_->get_count(orig);

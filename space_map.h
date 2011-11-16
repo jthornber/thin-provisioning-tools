@@ -5,6 +5,7 @@
 #include "block_counter.h"
 
 #include <boost/shared_ptr.hpp>
+#include <boost/optional.hpp>
 
 //----------------------------------------------------------------
 
@@ -25,7 +26,14 @@ namespace persistent_data {
 
 		virtual void inc(block_address b) = 0;
 		virtual void dec(block_address b) = 0;
-		virtual block_address new_block() = 0;
+
+		// FIXME: change these to return an optional, failure is
+		// not that rare if we're restricting the area that's
+		// searched.
+		typedef boost::optional<block_address> maybe_block;
+
+		virtual maybe_block new_block() = 0;
+		virtual maybe_block new_block(block_address begin, block_address end) = 0;
 
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
 
