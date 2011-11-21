@@ -55,7 +55,7 @@ namespace {
 			if (end <= search_start_)
 				return maybe_block();
 
-			maybe_block mb = sm_->new_block(max(search_start_, begin), end);
+			maybe_block mb = committed_->new_block(max(search_start_, begin), end);
 			if (mb) {
 				allocated_++;
 				search_start_ = *mb + 1;
@@ -73,12 +73,20 @@ namespace {
 			return sm_->extend(extra_blocks);
 		}
 
+		virtual void iterate(iterator &it) const {
+			sm_->iterate(it);
+		}
+
 		virtual size_t root_size() const {
 			return sm_->root_size();
 		}
 
 		virtual void copy_root(void *dest, size_t len) const {
 			return sm_->copy_root(dest, len);
+		}
+
+		virtual void check(block_counter &counter) const {
+			return sm_->check(counter);
 		}
 
 		virtual checked_space_map::ptr clone() const {
@@ -92,5 +100,14 @@ namespace {
 		block_address search_start_;
 	};
 }
+
+//----------------------------------------------------------------
+
+checked_space_map::ptr
+persistent_data::create_transactional_sm(checked_space_map::ptr sm)
+{
+	return checked_space_map::ptr(new sm_transactional(sm));
+}
+
 
 //----------------------------------------------------------------

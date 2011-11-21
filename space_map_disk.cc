@@ -5,6 +5,7 @@
 #include "math_utils.h"
 #include "space_map_disk_structures.h"
 #include "space_map_recursive.h"
+#include "space_map_transactional.h"
 #include "transaction_manager.h"
 
 using namespace boost;
@@ -661,6 +662,7 @@ persistent_data::create_disk_sm(transaction_manager::ptr tm,
 	index_store::ptr store(new btree_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
+	sm->commit();
 	return sm;
 }
 
@@ -682,7 +684,9 @@ persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address n
 	index_store::ptr store(new metadata_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
-	return create_recursive_sm(sm);
+	sm->commit();
+	return create_transactional_sm(
+		create_recursive_sm(sm));
 }
 
 checked_space_map::ptr
@@ -695,7 +699,9 @@ persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
 	sm_root_traits::unpack(d, v);
 	block_address nr_indexes = div_up<block_address>(v.nr_blocks_, ENTRIES_PER_BLOCK);
 	index_store::ptr store(new metadata_index_store(tm, v.bitmap_root_, nr_indexes));
-	return create_recursive_sm(checked_space_map::ptr(new sm_disk(store, tm, v)));
+	return create_transactional_sm(
+		create_recursive_sm(
+			checked_space_map::ptr(new sm_disk(store, tm, v))));
 }
 
 //----------------------------------------------------------------
