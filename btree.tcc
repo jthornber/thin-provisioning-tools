@@ -93,9 +93,12 @@ btree_detail::node_type
 node_ref<ValueTraits>::get_type() const
 {
 	uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
-	if (flags & INTERNAL_NODE)
+	if (flags & INTERNAL_NODE) {
+		if (flags & LEAF_NODE)
+			throw runtime_error("btree node is both internal and leaf");
 		return INTERNAL;
-	else if (flags & LEAF_NODE)
+
+	} else if (flags & LEAF_NODE)
 		return LEAF;
 	else
 		throw runtime_error("unknown node type");
@@ -108,11 +111,11 @@ node_ref<ValueTraits>::set_type(node_type t)
 	uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
 	switch (t) {
 	case INTERNAL:
-		flags |= INTERNAL_NODE;
+		flags = INTERNAL_NODE;
 		break;
 
 	case LEAF:
-		flags |= LEAF_NODE;
+		flags = LEAF_NODE;
 		break;
 	}
 	raw_->header.flags = to_disk<__le32>(flags);
@@ -602,6 +605,7 @@ split_beneath(btree_detail::shadow_spine &spine,
 		// The parent may have changed value type, so we re-get it.
 		internal_node p = spine.template get_node<uint64_traits>();
 		p.set_type(btree_detail::INTERNAL);
+		p.set_max_entries();
 		p.set_nr_entries(2);
 		p.set_value_size(sizeof(typename uint64_traits::disk_type));
 
@@ -635,8 +639,9 @@ split_sibling(btree_detail::shadow_spine &spine,
 	unsigned nr_right = l.get_nr_entries() - nr_left;
 
 	r.set_nr_entries(0);
+	r.set_max_entries();
 	r.set_type(l.get_type());
-	r.set_max_entries(l.get_max_entries());
+	r.set_value_size(sizeof(typename ValueTraits::disk_type));
 	r.copy_entries(l, nr_left, nr_left + nr_right);
 	l.set_nr_entries(nr_left);
 
