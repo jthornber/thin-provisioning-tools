@@ -1,6 +1,11 @@
 .PHONEY: all
 
-all: thin_repair thin_dump thin_restore
+PROGRAMS=\
+	thin_repair \
+	thin_dump \
+	thin_restore
+
+all: $(PROGRAMS)
 
 SOURCE=\
 	checksum.cc \
@@ -54,6 +59,10 @@ thin_restore: $(OBJECTS) thin_restore.o
 
 thin_repair: $(OBJECTS) thin_repair.o
 	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+
+.PHONEY: clean
+clean:
+	 rm -f *.o unit-tests/*.o $(TEST_PROGRAMS) $(PROGRAMS)
 
 include unit-tests/Makefile.in
 include $(subst .cc,.d,$(SOURCE))

@@ -1,0 +1,135 @@
+################################################################
+## Copyright (C) 20011 Red Hat, Inc. All rights reserved.
+##
+## This file is part of the thin-provisioning-tools source.
+##
+## thin-provisioning-tools is free software: you can redistribute it
+## and/or modify it under the terms of the GNU General Public License
+## as published by the Free Software Foundation, either version 3 of
+## the License, or (at your option) any later version.
+##
+## thin-provisioning-tools is distributed in the hope that it will be
+## useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+## of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License along
+## with thin-provisioning-tools.  If not, see
+## <http://www.gnu.org/licenses/>.
+################################################################
+
+AC_PREREQ(2.61)
+
+################################################################
+dnl -- Process this file with autoconf to produce a configure script.
+AC_INIT
+AC_CONFIG_HEADERS([configure.h])
+
+################################################################################					     
+dnl -- Setup the directory where autoconf has auxilary files								     
+AC_CONFIG_AUX_DIR(autoconf)
+
+################################################################
+dnl -- Checks for programs.
+AC_PROG_AWK
+AC_PROG_CXX([g++])
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+AC_PROG_MKDIR_P
+
+################################################################
+dnl -- Check for header files.
+AC_CHECK_HEADERS(expat.h)
+AC_CHECK_HEADERS(boost/shared_ptr.hpp)
+
+################################################################################
+dnl -- Prefix is /usr by default, the exec_prefix default is setup later
+AC_PREFIX_DEFAULT(/usr)
+
+################################################################################
+dnl -- Setup the ownership of the files
+AC_MSG_CHECKING(file owner)
+AC_ARG_WITH(user,
+	    AC_HELP_STRING([--with-user=USER],
+                           [set the owner of installed files [[USER=]]]),
+            OWNER=$withval)
+AC_MSG_RESULT($OWNER)
+
+if test x$OWNER != x; then
+        INSTALL="$INSTALL -o $OWNER"
+fi
+
+################################################################################
+dnl -- Setup the group ownership of the files
+AC_MSG_CHECKING(group owner)
+AC_ARG_WITH(group,
+            AC_HELP_STRING([--with-group=GROUP],
+                           [set the group owner of installed files [[GROUP=]]]),
+            GROUP=$withval)
+AC_MSG_RESULT($GROUP)
+
+if test x$GROUP != x; then
+        INSTALL="$INSTALL -g $GROUP"
+fi
+
+################################################################################
+dnl -- Enable debugging
+AC_MSG_CHECKING(whether to enable debugging)
+AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug], [enable debugging]),
+              DEBUG=$enableval, DEBUG=no)
+AC_MSG_RESULT($DEBUG)
+
+dnl -- Normally turn off optimisation for debug builds
+if test x$DEBUG = xyes; then
+        COPTIMISE_FLAG=
+fi
+
+################################################################################
+dnl -- Override optimisation
+AC_MSG_CHECKING(for C++ optimisation flag)
+AC_ARG_WITH(optimisation,
+            AC_HELP_STRING([--with-optimisation=OPT],
+                           [C++ optimisation flag [[OPT=-O2]]]),
+            CXXOPTIMISE_FLAG=$withval)
+AC_MSG_RESULT($CXXOPTIMISE_FLAG)
+
+################################################################################
+dnl -- Enable testing
+AC_MSG_CHECKING(whether to enable unit testing)
+AC_ARG_ENABLE(testing,
+              AC_HELP_STRING(--enable-testing, [enable testing targets in the makefile]),
+              TESTING=$enableval, TESTING=no)
+AC_MSG_RESULT($TESTING)
+
+if test "$TESTING" = yes; then
+   AC_PATH_PROG(RUBY19, ruby1.9)
+   AC_PATH_PROG(VALGRIND, valgrind)
+   if test -z "$RUBY19" -o -z "$VALGRIND"; then
+       AC_MSG_ERROR([ruby1.9 and valgrind are required for testing])
+   fi
+fi
+
+################################################################################
+dnl -- Check for getopt
+AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
+
+################################################################################
+dnl VERSION="\"`cat "$srcdir"/VERSION 2>/dev/null || echo Unknown`\""
+
+dnl VER=`cat "$srcdir"/VERSION`
+dnl RELEASE_DATE="\"`echo $VER | $SED 's/.* (//;s/).*//'`\""
+dnl VER=`echo "$VER" | $AWK '{print $1}'`
+dnl RELEASE="\"`echo "$VER" | $AWK -F '-' '{print $2}'`\""
+dnl VER=`echo "$VER" | $AWK -F '-' '{print $1}'`
+dnl VERSION_MAJOR=`echo "$VER" | $AWK -F '.' '{print $1}'`
+dnl VERSION_MINOR=`echo "$VER" | $AWK -F '.' '{print $2}'`
+dnl VERSION_PATCHLEVEL=`echo "$VER" | $AWK -F '[[(.]]' '{print $3}'`
+
+################################################################################
+dnl -- First and last lines should not contain files to generate in order to
+dnl -- keep utility scripts running properly
+AC_CONFIG_FILES([
+Makefile
+unit-tests/Makefile.in
+])
+AC_OUTPUT
