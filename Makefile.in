@@ -69,16 +69,11 @@ thin_repair: $(OBJECTS) thin_repair.o
 clean:
 	 rm -f *.o unit-tests/*.o $(TEST_PROGRAMS) $(PROGRAMS)
 
-
 .PHONEY: install
 install: $(PROGRAMS)
 	$(INSTALL_PROGRAM) -D thin_repair $(BINDIR)/thin_repair
 	$(INSTALL_PROGRAM) -D thin_dump $(BINDIR)/thin_dump
 	$(INSTALL_PROGRAM) -D thin_restore $(BINDIR)/thin_restore
-
-.PHONEY: release
-release:
-	
 
 include $(subst .cc,.d,$(SOURCE))
 include $(subst .cc,.d,$(TEST_SOURCE))
