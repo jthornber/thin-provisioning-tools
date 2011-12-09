@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e
+
+orig_dir=$(pwd)
+
+# usage: mk_release <git tag>
+tag=$1
+echo "creating release tarball for tag '"$tag"'"
+
+tmp=$(mktemp -d)
+dir=$tmp/thin-provisioning-tools-$tag
+
+mkdir $dir
+
+git clone . $dir
+cd $dir
+git checkout $tag
+rm -rf .git
+cd $tmp
+tar jcvf $orig_dir/thin-provisioning-tools-$tag.tar.bz2 thin-provisioning-tools-$tag
+cd $orig_dir
+
+rm -rf $tmp

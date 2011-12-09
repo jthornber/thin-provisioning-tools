@@ -31,11 +31,16 @@ PROGRAM_SOURCE=\
 	thin_repair.cc \
 	thin_restore.cc
 
+CXX=g++
 OBJECTS=$(subst .cc,.o,$(SOURCE))
-TOP_DIR:=$(PWD)
-CPPFLAGS=-Wall -g -I$(TOP_DIR) -O8
-#CPPFLAGS=-Wall -std=c++0x -g -I$(TOP_DIR)
+TOP_DIR:=@top_srcdir@
+CXXFLAGS=-Wall -I$(TOP_DIR)
+CXXFLAGS+=@CXXOPTIMISE_FLAG@
+CXXFLAGS+=@CXXDEBUG_FLAG@
 LIBS=-lstdc++ -lboost_program_options -lexpat
+INSTALL=@INSTALL@
+INSTALL_PROGRAM=$(INSTALL) -m 555
+BINDIR=@prefix@/bin
 
 .PHONEY: test-programs
 
@@ -44,27 +49,41 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .cc .o .d
 
 %.d: %.cc
-	g++ -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $< > $@.$$$$; \
+	$(CXX) -MM -MT $(subst .cc,.o,$<) $(CXXFLAGS) $< > $@.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
 .cc.o:
-	g++ -c $(CPPFLAGS) $(INCLUDES) -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ $<
 
 thin_dump: $(OBJECTS) thin_dump.o
-	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 thin_restore: $(OBJECTS) thin_restore.o
-	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 thin_repair: $(OBJECTS) thin_repair.o
-	g++ $(CPPFLAGS) -o $@ $+ $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 .PHONEY: clean
 clean:
 	 rm -f *.o unit-tests/*.o $(TEST_PROGRAMS) $(PROGRAMS)
 
-include unit-tests/Makefile.in
+
+.PHONEY: install
+install: $(PROGRAMS)
+	$(INSTALL_PROGRAM) -D thin_repair $(BINDIR)/thin_repair
+	$(INSTALL_PROGRAM) -D thin_dump $(BINDIR)/thin_dump
+	$(INSTALL_PROGRAM) -D thin_restore $(BINDIR)/thin_restore
+
+.PHONEY: release
+release:
+	
+
 include $(subst .cc,.d,$(SOURCE))
 include $(subst .cc,.d,$(TEST_SOURCE))
 include $(subst .cc,.d,$(PROGRAM_SOURCE))
+
+ifeq ("$(TESTING)", "yes")
+include unit-tests/Makefile.in
+endif
