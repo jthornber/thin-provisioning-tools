@@ -24,13 +24,9 @@
 #include "metadata.h"
 #include "xml_format.h"
 
-#include <boost/program_options.hpp>
-
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
-
-namespace po = boost::program_options;
 
 //----------------------------------------------------------------
 
@@ -54,7 +50,7 @@ namespace {
 	void usage(void) {
 		cerr << "Usage: thin_dump [options] <metadata device or file>" << endl << endl;
 		cerr << "Options:" << endl;
-                cerr << "  --help                     Produce help message" << endl;
+                cerr << "  -h [ --help ]              Produce help message" << endl;
   		cerr << "  -f [ --format ] arg (=xml) Select format (human_readable|xml)" << endl;
 		cerr << "  -i [ --input ] arg         Input file" << endl;
 	}
@@ -63,7 +59,7 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	const char shortopts[] = "hfi";
+	const char shortopts[] = "hf:i:";
 	string filename, format = "xml";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},

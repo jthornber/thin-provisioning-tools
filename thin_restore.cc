@@ -24,13 +24,11 @@
 
 #include <fstream>
 #include <iostream>
-#include <boost/program_options.hpp>
+#include <getopt.h>
 
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
-
-namespace po = boost::program_options;
 
 //----------------------------------------------------------------
 
@@ -53,45 +51,57 @@ namespace {
 #endif
 	}
 
-	void usage(po::options_description const &desc) {
+	void usage(void) {
 		cerr << "Usage: thin_restore [options]" << endl << endl;
-		cerr << desc;
+		cerr << "Options:" << endl;
+		cerr << "  -h [ --help ]         Produce help message" << endl;
+		cerr << "  -i [ --input ] arg    Input file" << endl;
+		cerr << "  -o [ --output ] arg   Output file" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
-	po::options_description desc("Options");
-	desc.add_options()
-		("help", "Produce help message")
-		("input,i", po::value<string>(), "Input file")
-		("output,o", po::value<string>(), "Output file")
-		;
+	int c;
+	const char *shortopts = "hi:o:";
+	string input, output;
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h'},
+		{ "input", required_argument, NULL, 'i' },
+		{ "output", required_argument, NULL, 'o'},
+		{ NULL, no_argument, NULL, 0 }
+	};
 
-	po::variables_map vm;
-	po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-	po::notify(vm);
-
-	if (vm.count("help")) {
-		usage(desc);
-		return 0;
+	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
+		switch(c) {
+			case 'h':
+				usage();
+				return 1;
+			case 'i':
+				input = optarg;
+				break;
+			case 'o':
+				output = optarg;
+				break;
+		}
 	}
 
-	if (vm.count("input") != 1) {
-		cerr << "No input file provided." << endl;
-		usage(desc);
+	if (argc == 1) {
+		usage();
 		return 1;
 	}
 
-	if (vm.count("output") != 1) {
-		cerr << "No output file provided." << endl;
-		usage(desc);
+        if (input.empty()) {
+		cerr << "No input file name" << endl;
 		return 1;
 	}
 
-	restore(vm["input"].as<string>(),
-		vm["output"].as<string>());
+	if (output.empty()) {
+		cerr << "No output file name" << endl;
+		return 1;
+	}
 
+	restore(input, output);
 	return 0;
 
 }
