@@ -82,9 +82,13 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (argc == 1 ||
-	    filename.empty()) {
+	if (argc == 1) {
 		usage();
+		return 1;
+	}
+
+	if (filename.empty()) {
+		cerr << "No dump file name" << endl;
 		return 1;
 	}
 
