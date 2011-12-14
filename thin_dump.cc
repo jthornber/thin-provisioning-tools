@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include <iostream>
+#include <getopt.h>
 
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
@@ -50,41 +51,48 @@ namespace {
 		metadata_dump(md, e);
 	}
 
-	void usage(po::options_description const &desc) {
+	void usage(void) {
 		cerr << "Usage: thin_dump [options] <metadata device or file>" << endl << endl;
-		cerr << desc;
+		cerr << "Options:" << endl;
+                cerr << "  --help                     Produce help message" << endl;
+  		cerr << "  -f [ --format ] arg (=xml) Select format (human_readable|xml)" << endl;
+		cerr << "  -i [ --input ] arg         Input file" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
-	po::options_description desc("Options");
-	desc.add_options()
-		("help", "Produce help message")
-		("format,f", po::value<string>()->default_value("xml"), "Select format (human_readable|xml)")
-		("input,i", po::value<string>(), "Input file")
-		;
+	int c;
+	const char shortopts[] = "hfi";
+	string filename, format = "xml";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h'},
+		{ "format", required_argument, NULL, 'f' },
+		{ "input", required_argument, NULL, 'i'},
+		{ NULL, no_argument, NULL, 0 }
+	};
 
-	po::positional_options_description p;
-	p.add("input", -1);
-
-	po::variables_map vm;
-	po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
-	po::notify(vm);
-
-	if (vm.count("help")) {
-		usage(desc);
-		return 0;
+	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
+		switch(c) {
+			case 'h':
+				usage();
+				return 1;
+			case 'f':
+				format = optarg;
+				break;
+			case 'i':
+				filename = optarg;
+				break;
+		}
 	}
 
-	if (vm.count("input") != 1) {
-		cerr << "No input file provided." << endl;
-		usage(desc);
+	if (argc == 1 ||
+	    filename.empty()) {
+		usage();
 		return 1;
 	}
 
-	dump(vm["input"].as<string>(), vm["format"].as<string>());
-
+	dump(filename, format);
 	return 0;
 }
 

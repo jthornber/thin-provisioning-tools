@@ -21,7 +21,6 @@
 #include "metadata.h"
 #include "metadata_checker.h"
 
-using namespace boost;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
