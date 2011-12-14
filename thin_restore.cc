@@ -92,12 +92,12 @@ int main(int argc, char **argv)
 	}
 
         if (input.empty()) {
-		cerr << "No input file name" << endl;
+		cerr << "No input file provided." << endl;
 		return 1;
 	}
 
 	if (output.empty()) {
-		cerr << "No output file name" << endl;
+		cerr << "No output file provided." << endl;
 		return 1;
 	}
 

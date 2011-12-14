@@ -88,7 +88,7 @@ int main(int argc, char **argv)
 	}
 
 	if (filename.empty()) {
-		cerr << "No dump file name" << endl;
+		cerr << "No output file provided." << endl;
 		return 1;
 	}
 
