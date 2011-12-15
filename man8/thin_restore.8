@@ -1,0 +1,39 @@
+.TH THIN-PROVISIONING-TOOLS 8 "Thin Provisioning Tools" "Red Hat GmbH" \" -*- nroff -*-
+.SH NAME
+thin_restore \- restore thin provisioning metadata file to device or file
+
+.SH SYNOPSIS
+.B thin_restore [options] file {metadata device|file}
+
+.SH DESCRIPTION
+thin_restore restores thin provisioning metadata created by the
+respective device-mapper target dumped into an XML formated (see
+.B thin_dump(8)
+) file, which optionally can be preproccessed to another device or file.
+If restored to a metadata device, the metadata can be processed
+by the device-mapper target.
+
+.B thin_restore
+  {-i|--input} {device|file}
+  {-o|--output} {device|file}
+
+.B thin_restore
+  -h|--help
+
+.B thin_dump
+  {-V|--version}
+
+.SH EXAMPLE
+"thin_restore -i metadata -o /dev/vg/metadata"
+restores the XML formatted thin provisioning metadata on file "metadata"
+to logical volume /dev/vg/metadata for further processing by the
+respective device-mapper target.
+
+.SH DIAGNOSTICS
+thin_dump returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B thin_dump(8), thin_repair(8)
+
+.SH AUTHOR
+Heinz Mauelshagen <HeinzM@RedHat.com>

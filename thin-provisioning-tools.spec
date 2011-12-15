@@ -28,7 +28,7 @@ manage device-mapper thin provisioning target metadata devices.
 %define _sbindir /usr/sbin
 %define _libdir /%{_lib}
 
-%configure --enable-testing
+%configure
 
 %install
 make install
