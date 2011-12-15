@@ -37,7 +37,7 @@ TOP_DIR:=@top_srcdir@
 CXXFLAGS=-Wall -I$(TOP_DIR)
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
-LIBS=-lstdc++ -lexpat
+LIBS=-lstdc++
 INSTALL=@INSTALL@
 INSTALL_PROGRAM=$(INSTALL) -m 555
 DESTDIR=@prefix@
@@ -57,13 +57,33 @@ test-programs: $(TEST_PROGRAMS)
 .cc.o:
 	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ $<
 
-thin_dump: $(OBJECTS) thin_dump.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+THIN_DUMP_SOURCE=$(SOURCE)
+THIN_RESTORE_SOURCE=$(SOURCE)
+THIN_REPAIR_SOURCE=\
+	checksum.cc \
+	endian_utils.cc \
+	error_set.cc \
+	hex_dump.cc \
+	metadata.cc \
+	metadata_checker.cc \
+	metadata_disk_structures.cc \
+	space_map.cc \
+	space_map_disk.cc \
+	space_map_recursive.cc \
+	space_map_transactional.cc \
+	transaction_manager.cc
 
-thin_restore: $(OBJECTS) thin_restore.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
+THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
+THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
 
-thin_repair: $(OBJECTS) thin_repair.o
+thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) -lexpat
+
+thin_restore: $(THIN_RESTORE_OBJECTS) thin_restore.o
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) -lexpat
+
+thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 .PHONEY: clean
