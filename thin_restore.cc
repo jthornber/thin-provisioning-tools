@@ -54,11 +54,11 @@ namespace {
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options] [file]" << endl << endl;
+		cerr << "Usage: " << cmd << " [options]" << endl << endl;
 		cerr << "Options:" << endl;
 		cerr << "  {-h|--help}" << endl;
-		cerr << "  {-i|--input}" << endl;
-		cerr << "  {-o [ --output} output_file" << endl;
+		cerr << "  {-i|--input} input_file" << endl;
+		cerr << "  {-o [ --output} {device|file}" << endl;
 		cerr << "  {-V|--version}" << endl;
 	}
 }
