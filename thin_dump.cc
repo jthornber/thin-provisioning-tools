@@ -50,7 +50,7 @@ namespace {
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options] {metadata device|file}" << endl << endl;
+		cerr << "Usage: " << cmd << " [options] {device|file}" << endl << endl;
 		cerr << "Options:" << endl;
                 cerr << "  {-h|--help}" << endl;
   		cerr << "  {-f|--format} {xml|human_readable}" << endl;
