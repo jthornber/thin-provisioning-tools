@@ -88,7 +88,7 @@ thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
 
 .PHONEY: clean
 clean:
-	 rm -f *.o unit-tests/*.o $(TEST_PROGRAMS) $(PROGRAMS)
+	 rm -f *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
 
 .PHONEY: install
 install: $(PROGRAMS)
