@@ -1,4 +1,4 @@
-// Copyright (C) 20011 Red Hat, Inc. All rights reserved.
+// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
 //
 // This file is part of the thin-provisioning-tools source.
 //
