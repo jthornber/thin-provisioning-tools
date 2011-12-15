@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include <getopt.h>
+#include <libgen.h>
 
 #include "metadata.h"
 #include "metadata_checker.h"
@@ -61,7 +62,7 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 			case 'h':
-				usage(argv[0]);
+				usage(basename(argv[0]));
 				return 0;
 			case 'V':
 				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
@@ -70,7 +71,7 @@ int main(int argc, char **argv)
 	}
 
 	if (argc != 2) {
-		usage(argv[0]);
+		usage(basename(argv[0]));
 		exit(1);
 	}
 
