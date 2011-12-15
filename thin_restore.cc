@@ -21,6 +21,7 @@
 #include "metadata.h"
 #include "restore_emitter.h"
 #include "xml_format.h"
+#include "version.h"
 
 #include <fstream>
 #include <iostream>
@@ -51,43 +52,48 @@ namespace {
 #endif
 	}
 
-	void usage(void) {
-		cerr << "Usage: thin_restore [options]" << endl << endl;
+	void usage(string const &cmd) {
+		cerr << "Usage: " << cmd << " [options] [file]" << endl << endl;
 		cerr << "Options:" << endl;
-		cerr << "  -h [ --help ]         Produce help message" << endl;
-		cerr << "  -i [ --input ] arg    Input file" << endl;
-		cerr << "  -o [ --output ] arg   Output file" << endl;
+		cerr << "  {-h|--help}" << endl;
+		cerr << "  {-i|--input}" << endl;
+		cerr << "  {-o [ --output} output_file" << endl;
+		cerr << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
-	const char *shortopts = "hi:o:";
+	const char *shortopts = "hi:o:V";
 	string input, output;
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
+		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 			case 'h':
-				usage();
-				return 1;
+				usage(argv[0]);
+				return 0;
 			case 'i':
 				input = optarg;
 				break;
 			case 'o':
 				output = optarg;
 				break;
+			case 'V':
+				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+				return 0;
 		}
 	}
 
 	if (argc == 1) {
-		usage();
+		usage(argv[0]);
 		return 1;
 	}
 

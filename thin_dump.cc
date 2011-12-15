@@ -23,6 +23,7 @@
 #include "metadata_dumper.h"
 #include "metadata.h"
 #include "xml_format.h"
+#include "version.h"
 
 using namespace persistent_data;
 using namespace std;
@@ -47,43 +48,48 @@ namespace {
 		metadata_dump(md, e);
 	}
 
-	void usage(void) {
-		cerr << "Usage: thin_dump [options] <metadata device or file>" << endl << endl;
+	void usage(string const &cmd) {
+		cerr << "Usage: " << cmd << " [options] {metadata device|file}" << endl << endl;
 		cerr << "Options:" << endl;
-                cerr << "  -h [ --help ]              Produce help message" << endl;
-  		cerr << "  -f [ --format ] arg (=xml) Select format (human_readable|xml)" << endl;
-		cerr << "  -i [ --input ] arg         Input file" << endl;
+                cerr << "  {-h|--help}" << endl;
+  		cerr << "  {-f|--format} {xml|human_readable}" << endl;
+		cerr << "  {-i|--input} {xml|human_readable} input_file" << endl;
+		cerr << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
-	const char shortopts[] = "hf:i:";
+	const char shortopts[] = "hf:i:V";
 	string filename, format = "xml";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "input", required_argument, NULL, 'i'},
+		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 			case 'h':
-				usage();
-				return 1;
+				usage(argv[0]);
+				return 0;
 			case 'f':
 				format = optarg;
 				break;
 			case 'i':
 				filename = optarg;
 				break;
+			case 'V':
+				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+				return 0;
 		}
 	}
 
 	if (argc == 1) {
-		usage();
+		usage(argv[0]);
 		return 1;
 	}
 

@@ -17,9 +17,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #include <iostream>
+#include <getopt.h>
 
 #include "metadata.h"
 #include "metadata_checker.h"
+#include "version.h"
 
 using namespace persistent_data;
 using namespace std;
@@ -39,12 +41,34 @@ namespace {
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " <metadata device>" << endl;
+		cerr << "Usage: " << cmd << " {device|file}" << endl;
+		cerr << "Options:" << endl;
+                cerr << "  {-h|--help}" << endl;
+		cerr << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
+	int c;
+	const char shortopts[] = "hV";
+	const struct option longopts[] = {
+		{ "help", no_argument, NULL, 'h'},
+		{ "version", no_argument, NULL, 'V'},
+		{ NULL, no_argument, NULL, 0 }
+	};
+
+	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
+		switch(c) {
+			case 'h':
+				usage(argv[0]);
+				return 0;
+			case 'V':
+				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+				return 0;
+		}
+	}
+
 	if (argc != 2) {
 		usage(argv[0]);
 		exit(1);
