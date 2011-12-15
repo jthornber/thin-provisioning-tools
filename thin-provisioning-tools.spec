@@ -8,7 +8,7 @@ Summary: Device-mapper thin provisioning tools
 Name: thin-provisioning-tools
 Version: 1.0.0
 Release: 1%{?dist}
-License: GPLv2+
+License: GPLv3
 Group: System Environment/Base
 URL: http://sources.redhat.com/lvm2
 BuildRequires: expat-devel, libstdc++-devel
