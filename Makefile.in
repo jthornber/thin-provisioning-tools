@@ -41,7 +41,7 @@ LIBS=-lstdc++
 INSTALL=@INSTALL@
 INSTALL_PROGRAM=$(INSTALL) -m 555
 DESTDIR=@prefix@
-BINDIR=$(DESTDIR)/bin
+BINDIR=$(DESTDIR)/sbin
 
 .PHONEY: test-programs
 
