@@ -19,17 +19,6 @@ Requires: expat, libstdc++
 thin-provisioning-tools contains dump,restore and repair tools to
 manage device-mapper thin provisioning target metadata devices.
 
-%package -n dmraid-events-logwatch
-Summary: dmraid logwatch-based email reporting
-Group: System Environment/Base
-Requires: dmraid-events = %{version}-%{release}, logwatch, /etc/cron.d
-
-%description -n dmraid-events-logwatch
-Provides device failure reporting via logwatch-based email reporting.
-Device failure reporting has to be activated manually by activating the 
-/etc/cron.d/dmeventd-logwatch entry and by calling the dmevent_tool
-(see manual page for examples) for any active RAID sets.
-
 %prep
 %setup -q -n thin-provisioning-tools.%{version}
 
