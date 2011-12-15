@@ -1,55 +1,44 @@
 #
-# Copyright (C)  2011 Red Hat GmbH. All rights reserved.
+# Copyright (C) 2011 Red Hat, Inc
 #
-# See file LICENSE at the top of this source tree for license information.
-#
-
 Summary: Device-mapper thin provisioning tools
-Name: thin-provisioning-tools
-Version: 1.0.0
+Name: device-mapper-persistent-data
+Version: 0.0.1
 Release: 1%{?dist}
 License: GPLv3
 Group: System Environment/Base
 URL: http://sources.redhat.com/lvm2
-BuildRequires: expat-devel, libstdc++-devel
-Source0: ftp://sources.redhat.com/pub/lvm2/thin-provisoning-tools.%{version}.tgz
-Requires: expat, libstdc++
+BuildRequires: expat-devel, libstdc++-devel, boost-devel
+Source0: ftp://sources.redhat.com/pub/lvm2/thin-provisioning-tools-%{version}.tar.bz2
+Requires: expat
 
 %description
 thin-provisioning-tools contains dump,restore and repair tools to
 manage device-mapper thin provisioning target metadata devices.
 
 %prep
-%setup -q -n thin-provisioning-tools.%{version}
+%setup -q -n thin-provisioning-tools-%{version}
 
 %build
-%define _exec_prefix ""
-%define _bindir /bin
-%define _sbindir /usr/sbin
-%define _libdir /%{_lib}
-
-%configure
+%global _root_sbindir /sbin
+%configure --enable-debug --enable-testing
 
 %install
-make install
+make DESTDIR=%{buildroot} install
+mkdir -p %{buildroot}%{_mandir}/man8/
+install -c -m644 man8/* %{buildroot}%{_mandir}/man8/
 
 %clean
-rm -rf $RPM_BUILD_ROOT
-
-%post -p /sbin/ldconfig
-
-%postun -p /sbin/ldconfig
 
 %files
-%defattr(-,root,root,-)
-%doc COPYING COPYING.LIB INSTALL README VERSION WHATS_NEW
-/%{_mandir}/man8/thin_dump.8.gz
-/%{_mandir}/man8/thin_repair.8.gz
-/%{_mandir}/man8/thin_restore.8.gz
-%{_sbindir}/thin_dump
-%{_sbindir}/thin_repair
-%{_sbindir}/thin_restore
+%doc COPYING README
+%{_mandir}/man8/thin_dump.8.gz
+%{_mandir}/man8/thin_repair.8.gz
+%{_mandir}/man8/thin_restore.8.gz
+%{_root_sbindir}/thin_dump
+%{_root_sbindir}/thin_repair
+%{_root_sbindir}/thin_restore
 
 %changelog
-* Thu Dec 15 2011  Heinz Mauelshagen <heinzm@redhat.com> - 1.0.0-1
+* Thu Dec 15 2011  Heinz Mauelshagen <heinzm@redhat.com> - 0.0.1-1
 - Initial version
