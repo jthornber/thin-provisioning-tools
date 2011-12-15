@@ -122,7 +122,7 @@ dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
 
 ################################################################################
-VERSION="\"`cat "$srcdir"/VERSION 2>/dev/null || echo Unknown`\""
+THIN_PROVISIONING_TOOLS_VERSION="\"`cat "$srcdir"/VERSION 2>/dev/null || echo Unknown`\""
 
 VER=`cat "$srcdir"/VERSION`
 RELEASE_DATE="\"`echo $VER | $SED 's/.* (//;s/).*//'`\""
@@ -139,6 +139,8 @@ AC_SUBST(CXXOPTIMISE_FLAG)
 AC_SUBST(INSTALL)
 AC_SUBST(prefix)
 AC_SUBST(RELEASE_DATE)
+AC_SUBST(RELEASE_DATE)
+AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
 
 ################################################################################
 dnl -- First and last lines should not contain files to generate in order to
@@ -146,5 +148,6 @@ dnl -- keep utility scripts running properly
 AC_CONFIG_FILES([
 Makefile
 unit-tests/Makefile.in
+version.h
 ])
 AC_OUTPUT
