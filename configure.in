@@ -117,14 +117,6 @@ AC_ARG_ENABLE(testing,
               TESTING=$enableval, TESTING=no)
 AC_MSG_RESULT($TESTING)
 
-if test "$TESTING" = yes; then
-   AC_PATH_PROG(RUBY19, ruby1.9)
-   AC_PATH_PROG(VALGRIND, valgrind)
-   if test -z "$RUBY19" -o -z "$VALGRIND"; then
-       AC_MSG_ERROR([ruby1.9 and valgrind are required for testing])
-   fi
-fi
-
 ################################################################################
 dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
