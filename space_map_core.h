@@ -75,7 +75,7 @@ namespace persistent_data {
 		}
 
 		maybe_block new_block(block_address begin, block_address end) {
-			for (block_address i = begin; i < min(end, counts_.size()); i++)
+			for (block_address i = begin; i < std::min<block_address>(end, counts_.size()); i++)
 				if (counts_[i] == 0) {
 					counts_[i] = 1;
 					nr_free_--;
