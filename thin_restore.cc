@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iostream>
 #include <getopt.h>
+#include <libgen.h>
 
 using namespace persistent_data;
 using namespace std;
@@ -78,7 +79,7 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 			case 'h':
-				usage(argv[0]);
+				usage(basename(argv[0]));
 				return 0;
 			case 'i':
 				input = optarg;
@@ -93,7 +94,7 @@ int main(int argc, char **argv)
 	}
 
 	if (argc == 1) {
-		usage(argv[0]);
+		usage(basename(argv[0]));
 		return 1;
 	}
 
