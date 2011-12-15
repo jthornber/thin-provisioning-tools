@@ -40,7 +40,8 @@ CXXFLAGS+=@CXXDEBUG_FLAG@
 LIBS=-lstdc++ -lexpat
 INSTALL=@INSTALL@
 INSTALL_PROGRAM=$(INSTALL) -m 555
-BINDIR=@prefix@/bin
+DESTDIR=@prefix@
+BINDIR=$(DESTDIR)/bin
 
 .PHONEY: test-programs
 
