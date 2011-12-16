@@ -31,7 +31,7 @@ PROGRAM_SOURCE=\
 	thin_repair.cc \
 	thin_restore.cc
 
-CXX=g++
+CXX=@CXX@
 OBJECTS=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 CXXFLAGS=-Wall -I$(TOP_DIR)
