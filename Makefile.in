@@ -39,7 +39,6 @@ CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 LIBS=-lstdc++
 INSTALL=@INSTALL@
-INSTALL_PROGRAM=$(INSTALL) -m 755
 DESTDIR=@prefix@
 BINDIR=$(DESTDIR)/sbin
 
@@ -92,9 +91,10 @@ clean:
 
 .PHONEY: install
 install: $(PROGRAMS)
-	$(INSTALL_PROGRAM) -D thin_repair $(BINDIR)/thin_repair
-	$(INSTALL_PROGRAM) -D thin_dump $(BINDIR)/thin_dump
-	$(INSTALL_PROGRAM) -D thin_restore $(BINDIR)/thin_restore
+	$(INSTALL) -m 755 -D thin_repair $(BINDIR)/thin_repair
+	$(INSTALL) -m 755 -D thin_dump $(BINDIR)/thin_dump
+	$(INSTALL) -m 755 -D thin_restore $(BINDIR)/thin_restore
+	$(INSTALL) -m 644 man8/* $(MANDIR)/man8
 
 -include $(subst .cc,.d,$(SOURCE))
 -include $(subst .cc,.d,$(TEST_SOURCE))

@@ -25,8 +25,6 @@ manage device-mapper thin provisioning target metadata devices.
 
 %install
 make DESTDIR=%{buildroot} install
-mkdir -p %{buildroot}%{_mandir}/man8/
-install -c -m644 man8/* %{buildroot}%{_mandir}/man8/
 
 %clean
 
