@@ -16,6 +16,7 @@ mkdir $dir
 git clone . $dir
 cd $dir
 git checkout $tag
+autoreconf
 rm -rf .git
 cd $tmp
 tar jcvf $orig_dir/thin-provisioning-tools-$tag.tar.bz2 thin-provisioning-tools-$tag

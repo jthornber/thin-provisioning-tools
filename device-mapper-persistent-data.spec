@@ -24,7 +24,7 @@ manage device-mapper thin provisioning target metadata devices.
 %configure --enable-debug --enable-testing
 
 %install
-make DESTDIR=%{buildroot} install
+make DESTDIR=%{buildroot} MANDIR=%{_mandir} install
 
 %clean
 
