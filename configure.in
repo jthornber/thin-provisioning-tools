@@ -77,11 +77,11 @@ AC_MSG_CHECKING(group owner)
 AC_ARG_WITH(group,
 	    AC_HELP_STRING([--with-group=GROUP],
 			   [set the group owner of installed files [[GROUP=]]]),
-	    GROUP=$withval)
-AC_MSG_RESULT($GROUP)
+	    INSTALL_GROUP=$withval)
+AC_MSG_RESULT($INSTALL_GROUP)
 
-if test x$GROUP != x; then
-        INSTALL="$INSTALL -g $GROUP"
+if test x$INSTALL_GROUP != x; then
+        INSTALL="$INSTALL -g $INSTALL_GROUP"
 fi
 
 ################################################################################
@@ -140,6 +140,7 @@ AC_SUBST(INSTALL)
 AC_SUBST(prefix)
 AC_SUBST(RELEASE_DATE)
 AC_SUBST(RELEASE_DATE)
+AC_SUBST(TESTING)
 AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
 
 ################################################################################
