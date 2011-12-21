@@ -16,7 +16,7 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-.PHONEY: all
+.PHONY: all
 
 PROGRAMS=\
 	thin_repair \
@@ -71,7 +71,7 @@ INSTALL_DIR = $(INSTALL) -m 755 -d
 INSTALL_PROGRAM = $(INSTALL) -m 755 $(STRIP)
 INSTALL_DATA = $(INSTALL) -p -m 644
 
-.PHONEY: test-programs
+.PHONY: test-programs
 
 test-programs: $(TEST_PROGRAMS)
 
@@ -114,13 +114,12 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin_restore.o
 thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
-.PHONEY: clean distclean
 clean:
 	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
+.PHONY: clean distclean
 
-.PHONEY: install
 install: $(PROGRAMS)
 	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) thin_repair $(BINDIR)/thin_repair
@@ -130,6 +129,7 @@ install: $(PROGRAMS)
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8/thin_repair.8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8/thin_dump.8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8/thin_restore.8
+.PHONY: install
 
 ifeq (,$(findstring $(MAKECMDGOALS),clean distclean))
     -include $(subst .cc,.d,$(SOURCE))
