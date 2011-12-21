@@ -118,7 +118,7 @@ thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
 clean:
 	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
 distclean: clean
-	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile.in
+	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
 
 .PHONEY: install
 install: $(PROGRAMS)
@@ -138,5 +138,5 @@ ifeq (,$(findstring $(MAKECMDGOALS),clean distclean))
 endif
 
 ifeq ("@TESTING@", "yes")
-include unit-tests/Makefile.in
+include unit-tests/Makefile
 endif
