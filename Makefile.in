@@ -1,4 +1,22 @@
-.PHONEY: all
+# Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+#
+# This file is part of the thin-provisioning-tools source.
+#
+# thin-provisioning-tools is free software: you can redistribute it
+# and/or modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# thin-provisioning-tools is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with thin-provisioning-tools.  If not, see
+# <http://www.gnu.org/licenses/>.
+
+.PHONY: all
 
 PROGRAMS=\
 	thin_repair \
@@ -31,30 +49,41 @@ PROGRAM_SOURCE=\
 	thin_repair.cc \
 	thin_restore.cc
 
-CXX=g++
-OBJECTS=$(subst .cc,.o,$(SOURCE))
+CXX:=@CXX@
+OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
-CXXFLAGS=-Wall -I$(TOP_DIR)
+TOP_BUILDDIR:=@top_builddir@
+CXXFLAGS+=-Wall
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
-LIBS=-lstdc++
-INSTALL=@INSTALL@
-PREFIX=@prefix@
-BINDIR=$(DESTDIR)/$(PREFIX)/sbin
+INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR)
+LIBS:=-lstdc++
+LIBEXPAT:=-lexpat
+INSTALL:=@INSTALL@
+STRIP=
+DESTDIR:=@prefix@
+BINDIR:=$(DESTDIR)/sbin
+MANPATH:=$(DESTDIR)$(MANDIR)
 
-.PHONEY: test-programs
+vpath %.cc $(TOP_DIR)
+
+INSTALL_DIR = $(INSTALL) -m 755 -d
+INSTALL_PROGRAM = $(INSTALL) -m 755 $(STRIP)
+INSTALL_DATA = $(INSTALL) -p -m 644
+
+.PHONY: test-programs
 
 test-programs: $(TEST_PROGRAMS)
 
-.SUFFIXES: .cc .o .d
+.SUFFIXES: .d
 
-.cc.d:
-	$(CXX) -MM -MT $(subst .cc,.o,$<) $(CXXFLAGS) $< > $@.$$$$; \
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
-	rm -f $@.$$$$
+%.d: %.cc
+	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	$(RM) $@.$$$$
 
-.cc.o:
-	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ $<
+%.o: %.cc
+	$(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
 THIN_DUMP_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
@@ -77,29 +106,37 @@ THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) -lexpat
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_restore: $(THIN_RESTORE_OBJECTS) thin_restore.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) -lexpat
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
-.PHONEY: clean
 clean:
-	 rm -f *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
+	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
+distclean: clean
+	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
+.PHONY: clean distclean
 
-.PHONEY: install
 install: $(PROGRAMS)
-	$(INSTALL) -m 755 -D thin_repair $(BINDIR)/thin_repair
-	$(INSTALL) -m 755 -D thin_dump $(BINDIR)/thin_dump
-	$(INSTALL) -m 755 -D thin_restore $(BINDIR)/thin_restore
-	$(INSTALL) -m 644 man8/* $(MANDIR)/man8
+	$(INSTALL_DIR) $(BINDIR)
+	$(INSTALL_PROGRAM) thin_repair $(BINDIR)/thin_repair
+	$(INSTALL_PROGRAM) thin_dump $(BINDIR)/thin_dump
+	$(INSTALL_PROGRAM) thin_restore $(BINDIR)/thin_restore
+	$(INSTALL_DIR) $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8/thin_repair.8
+	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8/thin_dump.8
+	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8/thin_restore.8
+.PHONY: install
 
--include $(subst .cc,.d,$(SOURCE))
--include $(subst .cc,.d,$(TEST_SOURCE))
--include $(subst .cc,.d,$(PROGRAM_SOURCE))
+ifeq (,$(findstring $(MAKECMDGOALS),clean distclean))
+    -include $(subst .cc,.d,$(SOURCE))
+    -include $(subst .cc,.d,$(TEST_SOURCE))
+    -include $(subst .cc,.d,$(PROGRAM_SOURCE))
+endif
 
-ifeq ("$(TESTING)", "yes")
-include unit-tests/Makefile.in
+ifeq ("@TESTING@", "yes")
+include unit-tests/Makefile
 endif

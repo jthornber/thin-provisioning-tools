@@ -1,0 +1,65 @@
+# Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+#
+# This file is part of the thin-provisioning-tools source.
+#
+# thin-provisioning-tools is free software: you can redistribute it
+# and/or modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# thin-provisioning-tools is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with thin-provisioning-tools.  If not, see
+# <http://www.gnu.org/licenses/>.
+
+TEST_SOURCE=\
+	unit-tests/cache_t.cc
+
+# FIXME Make these tests work.
+#	unit-tests/block_t.cc \
+	unit-tests/btree_t.cc \
+	unit-tests/endian_t.cc \
+	unit-tests/run_list_t.cc \
+	unit-tests/space_map_t.cc \
+	unit-tests/space_map_disk_t.cc \
+	unit-tests/transaction_manager_t.cc
+
+TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
+
+unit-test: $(TEST_PROGRAMS)
+	for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; done
+
+.PHONY: unit-test
+
+unit-tests/block_t: unit-tests/block_t.o
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS)
+
+unit-tests/btree_t: unit-tests/btree_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/cache_t: unit-tests/cache_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/run_list_t: unit-tests/run_list_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/space_map_t: unit-tests/space_map_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/space_map_disk_t: unit-tests/space_map_disk_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/endian_t: unit-tests/endian_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+all: $(TEST_PROGRAMS)
