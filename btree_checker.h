@@ -210,7 +210,8 @@ namespace persistent_data {
 				out << "too few entries in btree: "
 				    << n.get_nr_entries()
 				    << ", expected at least "
-				    << min;
+				    << min
+				    << "(max_entries = " << n.get_max_entries() << ")";
 				errs_->add_child(out.str());
 				throw runtime_error(out.str());
 			}
