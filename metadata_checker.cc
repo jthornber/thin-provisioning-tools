@@ -149,6 +149,9 @@ thin_provisioning::metadata_check(metadata::ptr md)
 
 	block_counter metadata_counter, data_counter;
 
+	if (md->sb_.held_root_)
+		metadata_counter.inc(md->sb_.held_root_);
+
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));
 	md->mappings_->visit(mv);
