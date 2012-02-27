@@ -45,7 +45,7 @@ namespace {
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
-				throw runtime_error("bad checksum in superblock");
+				throw checksum_error("bad checksum in superblock");
 		}
 
 		virtual void prepare(block_manager<>::buffer &b, block_address location) const {

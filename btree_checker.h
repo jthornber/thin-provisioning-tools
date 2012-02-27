@@ -160,7 +160,7 @@ namespace persistent_data {
 				    << ", sum was " << sum.get_sum()
 				    << ", on disk " << n.get_checksum();
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				throw checksum_error(out.str());
 			}
 		}
 
@@ -172,7 +172,7 @@ namespace persistent_data {
 				    << n.get_location()
 				    << ", claims " << n.get_block_nr();
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				throw checksum_error(out.str());
 			}
 		}
 

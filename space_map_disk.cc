@@ -43,10 +43,10 @@ namespace {
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
-				throw runtime_error("bad checksum in space map bitmap");
+				throw checksum_error("bad checksum in space map bitmap");
 
 			if (to_cpu<uint64_t>(data->blocknr) != location)
-				throw runtime_error("bad block nr in space map bitmap");
+				throw checksum_error("bad block nr in space map bitmap");
 		}
 
 		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
@@ -75,10 +75,10 @@ namespace {
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
-				throw runtime_error("bad checksum in metadata index block");
+				throw checksum_error("bad checksum in metadata index block");
 
 			if (to_cpu<uint64_t>(mi->blocknr_) != location)
-				throw runtime_error("bad block nr in metadata index block");
+				throw checksum_error("bad block nr in metadata index block");
 		}
 
 		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
