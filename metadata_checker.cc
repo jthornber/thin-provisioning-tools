@@ -30,9 +30,10 @@ namespace {
 	class mapping_validator : public btree_checker<2, block_traits> {
 	public:
 		typedef boost::shared_ptr<mapping_validator> ptr;
+		typedef btree_checker<2, block_traits> super;
 
 		mapping_validator(block_counter &metadata_counter, block_counter &data_counter)
-			: btree_checker<2, block_traits>(metadata_counter),
+			: super(metadata_counter),
 			  data_counter_(data_counter) {
 		}
 
@@ -43,7 +44,7 @@ namespace {
 					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
 
-			bool r = btree_checker<2, block_traits>::visit_internal_leaf(level, sub_root, key, n);
+			bool r = super::visit_internal_leaf(level, sub_root, key, n);
 			if (!r && level == 0) {
 				throw runtime_error("unexpected sharing in level 0 of mapping tree.");
 			}
@@ -58,7 +59,7 @@ namespace {
 				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<block_traits> const &n) {
-			bool r = btree_checker<2, block_traits>::visit_leaf(level, sub_root, key, n);
+			bool r = super::visit_leaf(level, sub_root, key, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -79,16 +80,17 @@ namespace {
 	class details_validator : public btree_checker<1, device_details_traits> {
 	public:
 		typedef boost::shared_ptr<details_validator> ptr;
+		typedef btree_checker<1, device_details_traits> super;
 
 		details_validator(block_counter &counter)
-			: btree_checker<1, device_details_traits>(counter) {
+			: super(counter) {
 		}
 
 		bool visit_leaf(unsigned level,
 				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<device_details_traits> const &n) {
-			bool r = btree_checker<1, device_details_traits>::visit_leaf(level, sub_root, key, n);
+			bool r = super::visit_leaf(level, sub_root, key, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
