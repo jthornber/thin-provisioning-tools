@@ -51,7 +51,6 @@ namespace persistent_data {
 	// Not implemented
 	// ---------------
 	//
-	// - checksum
 	// - leaf | internal flags (this can be inferred from siblings)
 	//----------------------------------------------------------------
 	template <uint32_t Levels, typename ValueTraits>
