@@ -27,28 +27,48 @@ namespace {
 	class mappings_extractor : public btree<2, block_traits>::visitor {
 	public:
 		typedef boost::shared_ptr<mappings_extractor> ptr;
+		typedef btree_checker<2, block_traits> checker;
 
 		mappings_extractor(uint64_t dev_id, emitter::ptr e,
 				   space_map::ptr md_sm, space_map::ptr data_sm)
-			: dev_id_(dev_id),
+			: counter_(),
+			  checker_(counter_),
+			  dev_id_(dev_id),
 			  e_(e),
 			  md_sm_(md_sm),
 			  data_sm_(data_sm),
-			  in_range_(false) {
+			  in_range_(false),
+			  found_errors_(false) {
 		}
 
 		bool visit_internal(unsigned level, bool sub_root, boost::optional<uint64_t> key,
 				    btree_detail::node_ref<uint64_traits> const &n) {
+
+			if (!checker_.visit_internal(level, sub_root, key, n)) {
+				found_errors_ = true;
+				return false;
+			}
+
 			return (sub_root && key) ? (*key == dev_id_) : true;
 		}
 
 		bool visit_internal_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
+			if (!checker_.visit_internal_leaf(level, sub_root, key, n)) {
+				found_errors_ = true;
+				return false;
+			}
+
 			return true;
 		}
 
 		bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> maybe_key,
 				btree_detail::node_ref<block_traits> const &n) {
+			if (!checker_.visit_leaf(level, sub_root, maybe_key, n)) {
+				found_errors_ = true;
+				return false;
+			}
+
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
 				block_time bt = n.value_at(i);
 				add_mapping(n.key_at(i), bt.block_, bt.time_);
@@ -57,9 +77,12 @@ namespace {
 			return true;
 		}
 
-
 		void visit_complete() {
 			end_mapping();
+		}
+
+		bool corruption() const {
+			return !checker_.get_errors()->empty();
 		}
 
 	private:
@@ -97,6 +120,9 @@ namespace {
 			}
 		}
 
+		// Declaration order of counter_ and checker_ is important.
+		block_counter counter_;
+		checker checker_;
 		uint64_t dev_id_;
 		emitter::ptr e_;
 		space_map::ptr md_sm_;
@@ -105,28 +131,34 @@ namespace {
 		bool in_range_;
 		uint64_t origin_start_, dest_start_, len_;
 		uint32_t time_;
-
+		bool found_errors_;
 	};
 
 	class details_extractor : public btree<1, device_details_traits>::visitor {
 	public:
 		typedef boost::shared_ptr<details_extractor> ptr;
+		typedef btree_checker<1, device_details_traits> checker;
 
-		details_extractor() {
+		details_extractor()
+			: counter_(),
+			  checker_(counter_, false) {
 		}
 
 		bool visit_internal(unsigned level, bool sub_root, boost::optional<uint64_t> key,
 				    btree_detail::node_ref<uint64_traits> const &n) {
-			return true;
+			return checker_.visit_internal(level, sub_root, key, n);
 		}
 
 		bool visit_internal_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			return true;
+			return checker_.visit_internal_leaf(level, sub_root, key, n);
 		}
 
 		bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> maybe_key,
 				btree_detail::node_ref<device_details_traits> const &n) {
+			if (!checker_.visit_leaf(level, sub_root, maybe_key, n))
+				return false;
+
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
 				devices_.insert(make_pair(n.key_at(i), n.value_at(i)));
 
@@ -137,7 +169,14 @@ namespace {
 			return devices_;
 		}
 
+		bool corruption() const {
+			return !checker_.get_errors()->empty();
+		}
+
 	private:
+		// Declaration order of counter_ and checker_ is important.
+		block_counter counter_;
+		checker checker_;
 		map<uint64_t, device_details> devices_;
 	};
 }
@@ -145,13 +184,16 @@ namespace {
 //----------------------------------------------------------------
 
 void
-thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e)
+thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 {
 	e->begin_superblock("", md->sb_.time_, md->sb_.trans_id_, md->sb_.data_block_size_);
 
 	details_extractor::ptr de(new details_extractor);
 
 	md->details_->visit(de);
+	if (de->corruption() && !repair)
+		throw runtime_error("corruption in device details tree");
+
 	map<uint64_t, device_details> const &devs = de->get_devices();
 
 	map<uint64_t, device_details>::const_iterator it, end = devs.end();
@@ -167,6 +209,12 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e)
 
 		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, md->metadata_sm_, md->data_sm_));
 		md->mappings_->visit(me);
+
+		if (me->corruption() && !repair) {
+			ostringstream out;
+			out << "corruption in mappings for device " << dev_id;
+			throw runtime_error(out.str());
+		}
 
 		e->end_device();
 	}

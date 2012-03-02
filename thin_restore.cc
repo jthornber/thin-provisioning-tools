@@ -35,22 +35,21 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	void restore(string const &backup_file, string const &dev) {
-		// FIXME: hard coded
-		block_address const NR_BLOCKS = 100000;
+	int restore(string const &backup_file, string const &dev) {
+		try {
+			// FIXME: hard coded
+			block_address const NR_BLOCKS = 100000;
 
-		metadata::ptr md(new metadata(dev, metadata::CREATE, 128, NR_BLOCKS));
-		emitter::ptr restorer = create_restore_emitter(md);
-		ifstream in(backup_file.c_str(), ifstream::in);
-		// FIXME: 
-		//try {
+			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, NR_BLOCKS));
+			emitter::ptr restorer = create_restore_emitter(md);
+			ifstream in(backup_file.c_str(), ifstream::in);
 			parse_xml(in, restorer);
-#if 0
-		} catch (...) {
-			in.close();
-			throw;
+		} catch (std::exception &e) {
+			cerr << e.what();
+			return 1;
 		}
-#endif
+
+		return 0;
 	}
 
 	void usage(string const &cmd) {
@@ -108,8 +107,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	restore(input, output);
-	return 0;
+	return restore(input, output);
 
 }
 

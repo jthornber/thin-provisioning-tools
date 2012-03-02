@@ -56,9 +56,10 @@ namespace persistent_data {
 	template <uint32_t Levels, typename ValueTraits>
 	class btree_checker : public btree<Levels, ValueTraits>::visitor {
 	public:
-		btree_checker(block_counter &counter)
+		btree_checker(block_counter &counter, bool avoid_repeated_visits = true)
 			: counter_(counter),
-			  errs_(new error_set("btree errors")) {
+			  errs_(new error_set("btree errors")),
+			  avoid_repeated_visits_(avoid_repeated_visits) {
 		}
 
 		bool visit_internal(unsigned level,
@@ -82,7 +83,7 @@ namespace persistent_data {
 			return check_leaf(level, sub_root, key, n);
 		}
 
-		boost::optional<error_set::ptr> get_errors() const {
+		error_set::ptr get_errors() const {
 			return errs_;
 		}
 
@@ -140,10 +141,13 @@ namespace persistent_data {
 
 			counter_.inc(b);
 
-			if (seen_.count(b) > 0)
-				return true;
+			if (avoid_repeated_visits_) {
+				if (seen_.count(b) > 0)
+					return true;
 
-			seen_.insert(b);
+				seen_.insert(b);
+			}
+
 			return false;
 		}
 
@@ -291,6 +295,7 @@ namespace persistent_data {
 		std::set<block_address> seen_;
 		error_set::ptr errs_;
 		boost::optional<uint64_t> last_leaf_key_[Levels];
+		bool avoid_repeated_visits_;
 	};
 }
 

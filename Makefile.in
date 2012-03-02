@@ -19,7 +19,7 @@
 .PHONY: all
 
 PROGRAMS=\
-	thin_repair \
+	thin_check \
 	thin_dump \
 	thin_restore
 
@@ -45,8 +45,8 @@ SOURCE=\
 	xml_format.cc
 
 PROGRAM_SOURCE=\
+	thin_check.cc \
 	thin_dump.cc \
-	thin_repair.cc \
 	thin_restore.cc
 
 CXX:=@CXX@
@@ -87,7 +87,7 @@ test-programs: $(TEST_PROGRAMS)
 
 THIN_DUMP_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
-THIN_REPAIR_SOURCE=\
+THIN_CHECK_SOURCE=\
 	checksum.cc \
 	endian_utils.cc \
 	error_set.cc \
@@ -103,7 +103,7 @@ THIN_REPAIR_SOURCE=\
 
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
-THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
+THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
@@ -111,7 +111,7 @@ thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
 thin_restore: $(THIN_RESTORE_OBJECTS) thin_restore.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-thin_repair: $(THIN_REPAIR_OBJECTS) thin_repair.o
+thin_check: $(THIN_CHECK_OBJECTS) thin_check.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 clean:
@@ -122,11 +122,11 @@ distclean: clean
 
 install: $(PROGRAMS)
 	$(INSTALL_DIR) $(BINDIR)
-	$(INSTALL_PROGRAM) thin_repair $(BINDIR)/thin_repair
+	$(INSTALL_PROGRAM) thin_check $(BINDIR)/thin_check
 	$(INSTALL_PROGRAM) thin_dump $(BINDIR)/thin_dump
 	$(INSTALL_PROGRAM) thin_restore $(BINDIR)/thin_restore
 	$(INSTALL_DIR) $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8/thin_repair.8
+	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8/thin_check.8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8/thin_dump.8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8/thin_restore.8
 .PHONY: install

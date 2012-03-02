@@ -25,7 +25,10 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	void metadata_dump(metadata::ptr md, emitter::ptr e);
+	// Set the @repair flag if your metadata is corrupt, and you'd like
+	// the dumper to do it's best to recover info.  If not set, any
+	// corruption encountered will cause an exception to be thrown.
+	void metadata_dump(metadata::ptr md, emitter::ptr e, bool repair);
 }
 
 //----------------------------------------------------------------

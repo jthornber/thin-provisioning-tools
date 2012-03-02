@@ -43,6 +43,7 @@ namespace persistent_data {
 		void add_child(error_set::ptr err);
 		void add_child(boost::optional<error_set::ptr> maybe_errs);
 		void add_child(std::string const &err);
+		bool empty() const;
 
 	private:
 		std::string err_;

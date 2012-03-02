@@ -27,27 +27,30 @@ namespace {
 	// devices having mappings defined, which can later be cross
 	// referenced with the details tree.  A separate block_counter is
 	// used to later verify the data space map.
-	class mapping_validator : public btree_checker<2, block_traits> {
+	class mapping_validator : public btree<2, block_traits>::visitor {
 	public:
 		typedef boost::shared_ptr<mapping_validator> ptr;
-		typedef btree_checker<2, block_traits> super;
+		typedef btree_checker<2, block_traits> checker;
 
 		mapping_validator(block_counter &metadata_counter, block_counter &data_counter)
-			: super(metadata_counter),
-			  data_counter_(data_counter) {
+			: checker_(metadata_counter),
+			  data_counter_(data_counter)
+		{
 		}
 
-		// Sharing can only occur in level 1 nodes.
-		// FIXME: not true once we start having held roots.
+		bool visit_internal(unsigned level,
+				    bool sub_root,
+				    optional<uint64_t> key,
+				    btree_detail::node_ref<uint64_traits> const &n) {
+			return checker_.visit_internal(level, sub_root, key, n);
+		}
+
 		bool visit_internal_leaf(unsigned level,
 					 bool sub_root,
 					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
 
-			bool r = super::visit_internal_leaf(level, sub_root, key, n);
-			if (!r && level == 0) {
-				throw runtime_error("unexpected sharing in level 0 of mapping tree.");
-			}
+			bool r = checker_.visit_internal_leaf(level, sub_root, key, n);
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
 				devices_.insert(n.key_at(i));
@@ -59,7 +62,7 @@ namespace {
 				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<block_traits> const &n) {
-			bool r = super::visit_leaf(level, sub_root, key, n);
+			bool r = checker_.visit_leaf(level, sub_root, key, n);
 
 			if (r)
 				for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -73,30 +76,46 @@ namespace {
 		}
 
 	private:
+	        checker checker_;
 		block_counter &data_counter_;
 		set<uint64_t> devices_;
 	};
 
-	class details_validator : public btree_checker<1, device_details_traits> {
+	class details_validator : public btree<1, device_details_traits>::visitor {
 	public:
 		typedef boost::shared_ptr<details_validator> ptr;
-		typedef btree_checker<1, device_details_traits> super;
+		typedef btree_checker<1, device_details_traits> checker;
 
 		details_validator(block_counter &counter)
-			: super(counter) {
+			: checker_(counter) {
+		}
+
+		bool visit_internal(unsigned level,
+				    bool sub_root,
+				    optional<uint64_t> key,
+				    btree_detail::node_ref<uint64_traits> const &n) {
+			return checker_.visit_internal(level, sub_root, key, n);
+		}
+
+		bool visit_internal_leaf(unsigned level,
+					 bool sub_root,
+					 optional<uint64_t> key,
+					 btree_detail::node_ref<uint64_traits> const &n) {
+			return checker_.visit_internal_leaf(level, sub_root, key, n);
 		}
 
 		bool visit_leaf(unsigned level,
 				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<device_details_traits> const &n) {
-			bool r = super::visit_leaf(level, sub_root, key, n);
 
-			if (r)
-				for (unsigned i = 0; i < n.get_nr_entries(); i++)
-					devices_.insert(n.key_at(i));
+			if (!checker_.visit_leaf(level, sub_root, key, n))
+				return false;
 
-			return r;
+			for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				devices_.insert(n.key_at(i));
+
+			return true;
 		}
 
 		set<uint64_t> const &get_devices() const {
@@ -104,6 +123,7 @@ namespace {
 		}
 
 	private:
+		checker checker_;
 		set<uint64_t> devices_;
 	};
 

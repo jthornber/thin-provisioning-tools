@@ -30,11 +30,16 @@ using namespace thin_provisioning;
 
 namespace {
 	int check(string const &path) {
-		metadata::ptr md(new metadata(path, metadata::OPEN));
+		try {
+			metadata::ptr md(new metadata(path, metadata::OPEN));
 
-		optional<error_set::ptr> maybe_errors = metadata_check(md);
-		if (maybe_errors) {
-			cerr << error_selector(*maybe_errors, 3);
+			optional<error_set::ptr> maybe_errors = metadata_check(md);
+			if (maybe_errors) {
+				cerr << error_selector(*maybe_errors, 3);
+				return 1;
+			}
+		} catch (std::exception &e) {
+			cerr << e.what();
 			return 1;
 		}
 

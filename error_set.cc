@@ -61,6 +61,12 @@ error_set::add_child(string const &err)
 	add_child(e);
 }
 
+bool
+error_set::empty() const
+{
+	return !children_.size();
+}
+
 //--------------------------------
 
 namespace {

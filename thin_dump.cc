@@ -33,59 +33,76 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	void dump(string const &path, string const &format) {
-		metadata::ptr md(new metadata(path, metadata::OPEN));
-		emitter::ptr e;
+	int dump(string const &path, string const &format, bool repair) {
+		try {
+			metadata::ptr md(new metadata(path, metadata::OPEN));
+			emitter::ptr e;
 
-		if (format == "xml")
-			e = create_xml_emitter(cout);
-		else if (format == "human_readable")
-			e = create_human_readable_emitter(cout);
-		else {
-			cerr << "unknown format '" << format << "'" << endl;
-			exit(1);
+			if (format == "xml")
+				e = create_xml_emitter(cout);
+			else if (format == "human_readable")
+				e = create_human_readable_emitter(cout);
+			else {
+				cerr << "unknown format '" << format << "'" << endl;
+				exit(1);
+			}
+
+			metadata_dump(md, e, repair);
+		} catch (std::exception &e) {
+			cerr << e.what();
+			return 1;
 		}
 
-		metadata_dump(md, e);
+		return 0;
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options] {device|file}" << endl << endl;
-		cerr << "Options:" << endl;
-                cerr << "  {-h|--help}" << endl;
-  		cerr << "  {-f|--format} {xml|human_readable}" << endl;
-		cerr << "  {-i|--input} {xml|human_readable} input_file" << endl;
-		cerr << "  {-V|--version}" << endl;
+		cerr << "Usage: " << cmd << " [options] {device|file}" << endl << endl
+		     << "Options:" << endl
+		     << "  {-h|--help}" << endl
+		     << "  {-f|--format} {xml|human_readable}" << endl
+		     << "  {-i|--input} {xml|human_readable} input_file" << endl
+		     << "  {-r|--repair}" << endl
+		     << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
+	bool repair = false;
 	const char shortopts[] = "hf:i:V";
 	string filename, format = "xml";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "input", required_argument, NULL, 'i'},
+		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
-			case 'h':
-				usage(basename(argv[0]));
-				return 0;
-			case 'f':
-				format = optarg;
-				break;
-			case 'i':
-				filename = optarg;
-				break;
-			case 'V':
-				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
-				return 0;
+		case 'h':
+			usage(basename(argv[0]));
+			return 0;
+
+		case 'f':
+			format = optarg;
+			break;
+
+		case 'i':
+			filename = optarg;
+			break;
+
+		case 'r':
+			repair = true;
+			break;
+
+		case 'V':
+			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			return 0;
 		}
 	}
 
@@ -99,8 +116,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	dump(filename, format);
-	return 0;
+	return dump(filename, format, repair);
 }
 
 //----------------------------------------------------------------
