@@ -48,12 +48,14 @@ namespace {
 		void begin_superblock(string const &uuid,
 				      uint64_t time,
 				      uint64_t trans_id,
-				      uint32_t data_block_size) {
+				      uint32_t data_block_size,
+				      uint64_t nr_data_blocks) {
 			indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " time=\"" << time << "\""
 			     << " transaction=\"" << trans_id << "\""
-			     << " data_block_size=\"" << data_block_size << "\">"
+			     << " data_block_size=\"" << data_block_size << "\""
+			     << " nr_data_blocks=\"" << nr_data_blocks << "\">"
 			     << endl;
 			inc();
 		}
@@ -176,7 +178,8 @@ namespace {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "time"),
 				    get_attr<uint64_t>(attr, "transaction"),
-				    get_attr<uint32_t>(attr, "data_block_size"));
+				    get_attr<uint32_t>(attr, "data_block_size"),
+				    get_attr<uint64_t>(attr, "nr_data_blocks"));
 	}
 
 	void parse_device(emitter *e, attributes const &attr) {

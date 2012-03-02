@@ -186,7 +186,10 @@ namespace {
 void
 thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 {
-	e->begin_superblock("", md->sb_.time_, md->sb_.trans_id_, md->sb_.data_block_size_);
+	e->begin_superblock("", md->sb_.time_,
+			    md->sb_.trans_id_,
+			    md->sb_.data_block_size_,
+			    md->data_sm_->get_nr_blocks());
 
 	details_extractor::ptr de(new details_extractor);
 

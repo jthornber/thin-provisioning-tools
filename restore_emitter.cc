@@ -38,7 +38,8 @@ namespace {
 		virtual void begin_superblock(std::string const &uuid,
 					      uint64_t time,
 					      uint64_t trans_id,
-					      uint32_t data_block_size) {
+					      uint32_t data_block_size,
+					      uint64_t nr_data_blocks) {
 			in_superblock_ = true;
 
 			superblock &sb = md_->sb_;
@@ -46,6 +47,7 @@ namespace {
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
 			sb.data_block_size_ = data_block_size;
+			md_->data_sm_->extend(nr_data_blocks);
 		}
 
 		virtual void end_superblock() {

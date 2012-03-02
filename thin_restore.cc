@@ -24,9 +24,14 @@
 #include "version.h"
 
 #include <fstream>
-#include <iostream>
 #include <getopt.h>
+#include <iostream>
 #include <libgen.h>
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 using namespace persistent_data;
 using namespace std;
@@ -37,13 +42,11 @@ using namespace thin_provisioning;
 namespace {
 	int restore(string const &backup_file, string const &dev) {
 		try {
-			// FIXME: hard coded
-			block_address const NR_BLOCKS = 100000;
-
-			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, NR_BLOCKS));
+			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
 			emitter::ptr restorer = create_restore_emitter(md);
 			ifstream in(backup_file.c_str(), ifstream::in);
 			parse_xml(in, restorer);
+
 		} catch (std::exception &e) {
 			cerr << e.what();
 			return 1;
