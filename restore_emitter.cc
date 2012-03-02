@@ -33,9 +33,6 @@ namespace {
 		}
 
 		virtual ~restorer() {
-			if (in_superblock_) {
-				throw runtime_error("still in superblock");
-			}
 		}
 
 		virtual void begin_superblock(std::string const &uuid,
