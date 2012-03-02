@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool quiet = false;
-	const char shortopts[] = "hV";
+	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (argc != 2) {
+	if (argc == 1) {
 		usage(basename(argv[0]));
 		exit(1);
 	}

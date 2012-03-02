@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool repair = false;
-	const char shortopts[] = "hf:i:V";
+	const char shortopts[] = "hf:i:rV";
 	string filename, format = "xml";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
