@@ -29,17 +29,19 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int check(string const &path) {
+	int check(string const &path, bool quiet) {
 		try {
 			metadata::ptr md(new metadata(path, metadata::OPEN));
 
 			optional<error_set::ptr> maybe_errors = metadata_check(md);
 			if (maybe_errors) {
-				cerr << error_selector(*maybe_errors, 3);
+				if (!quiet)
+					cerr << error_selector(*maybe_errors, 3);
 				return 1;
 			}
 		} catch (std::exception &e) {
-			cerr << e.what();
+			if (!quiet)
+				cerr << e.what();
 			return 1;
 		}
 
@@ -47,18 +49,21 @@ namespace {
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " {device|file}" << endl;
-		cerr << "Options:" << endl;
-                cerr << "  {-h|--help}" << endl;
-		cerr << "  {-V|--version}" << endl;
+		cerr << "Usage: " << cmd << " {device|file}" << endl
+		     << "Options:" << endl
+		     << "  {-q|--quiet}" << endl
+		     << "  {-h|--help}" << endl
+		     << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
+	bool quiet = false;
 	const char shortopts[] = "hV";
 	const struct option longopts[] = {
+		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -69,6 +74,11 @@ int main(int argc, char **argv)
 		case 'h':
 			usage(basename(argv[0]));
 			return 0;
+
+		case 'q':
+			quiet = true;
+			break;
+
 		case 'V':
 			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
@@ -80,5 +90,5 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	return check(argv[1]);
+	return check(argv[1], quiet);
 }
