@@ -49,7 +49,7 @@ namespace {
 	}
 
 	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " {device|file}" << endl
+		cerr << "Usage: " << cmd << " [options] {device|file}" << endl
 		     << "Options:" << endl
 		     << "  {-q|--quiet}" << endl
 		     << "  {-h|--help}" << endl
@@ -82,10 +82,14 @@ int main(int argc, char **argv)
 		case 'V':
 			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+		default:
+			usage(basename(argv[0]));
+			return 1;
 		}
 	}
 
-	if (argc == 1) {
+	if (argc == optind) {
+		cerr << "No output file provided." << endl;
 		usage(basename(argv[0]));
 		exit(1);
 	}

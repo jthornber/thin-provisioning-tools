@@ -37,8 +37,6 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
-//----------------------------------------------------------------
-
 namespace {
 	int restore(string const &backup_file, string const &dev) {
 		try {
@@ -48,7 +46,7 @@ namespace {
 			parse_xml(in, restorer);
 
 		} catch (std::exception &e) {
-			cerr << e.what();
+			cerr << e.what() << endl;
 			return 1;
 		}
 
@@ -60,7 +58,7 @@ namespace {
 		cerr << "Options:" << endl;
 		cerr << "  {-h|--help}" << endl;
 		cerr << "  {-i|--input} input_file" << endl;
-		cerr << "  {-o [ --output} {device|file}" << endl;
+		cerr << "  {-o|--output} {device|file}" << endl;
 		cerr << "  {-V|--version}" << endl;
 	}
 }
@@ -92,10 +90,13 @@ int main(int argc, char **argv)
 			case 'V':
 				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 				return 0;
+			default:
+				usage(basename(argv[0]));
+				return 1;
 		}
 	}
 
-	if (argc == 1) {
+	if (argc != optind) {
 		usage(basename(argv[0]));
 		return 1;
 	}
@@ -111,7 +112,4 @@ int main(int argc, char **argv)
 	}
 
 	return restore(input, output);
-
 }
-
-//----------------------------------------------------------------
