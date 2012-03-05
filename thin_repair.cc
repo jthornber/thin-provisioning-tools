@@ -75,5 +75,5 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	return check(argv[1]);
+	return check(argv[optind]);
 }
