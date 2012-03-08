@@ -46,7 +46,7 @@ void
 superblock_traits::unpack(superblock_disk const &disk, superblock &value)
 {
 	value.csum_ = to_cpu<uint32_t>(disk.csum_);
-	value.flags_ = to_cpu<uint32_t>(disk.csum_);
+	value.flags_ = to_cpu<uint32_t>(disk.flags_);
 	value.blocknr_ = to_cpu<uint64_t>(disk.blocknr_);
 
 	::memcpy(value.uuid_, disk.uuid_, sizeof(value.uuid_));
@@ -79,7 +79,7 @@ void
 superblock_traits::pack(superblock const &value, superblock_disk &disk)
 {
 	disk.csum_ = to_disk<__le32>(value.csum_);
-	disk.flags_ = to_disk<__le32>(value.csum_);
+	disk.flags_ = to_disk<__le32>(value.flags_);
 	disk.blocknr_ = to_disk<__le64>(value.blocknr_);
 
 	::memcpy(disk.uuid_, value.uuid_, sizeof(disk.uuid_));
