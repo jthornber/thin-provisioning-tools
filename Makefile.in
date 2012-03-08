@@ -19,6 +19,7 @@
 .PHONY: all
 
 PROGRAMS=\
+	thin_debug \
 	thin_check \
 	thin_dump \
 	thin_restore
@@ -85,6 +86,7 @@ test-programs: $(TEST_PROGRAMS)
 %.o: %.cc
 	$(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
+THIN_DEBUG_SOURCE=$(SOURCE)
 THIN_DUMP_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
 THIN_CHECK_SOURCE=\
@@ -101,9 +103,13 @@ THIN_CHECK_SOURCE=\
 	space_map_transactional.cc \
 	transaction_manager.cc
 
+THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
+
+thin_debug: $(THIN_DEBUG_OBJECTS) thin_debug.o
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
