@@ -81,15 +81,19 @@ int main(int argc, char **argv)
 			case 'h':
 				usage(basename(argv[0]));
 				return 0;
+
 			case 'i':
 				input = optarg;
 				break;
+
 			case 'o':
 				output = optarg;
 				break;
+
 			case 'V':
-				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+				cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 				return 0;
+
 			default:
 				usage(basename(argv[0]));
 				return 1;
