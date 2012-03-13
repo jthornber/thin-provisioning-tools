@@ -54,13 +54,13 @@ namespace {
 		return 0;
 	}
 
-	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options] {device|file}" << endl << endl
-		     << "Options:" << endl
-		     << "  {-h|--help}" << endl
-		     << "  {-f|--format} {xml|human_readable}" << endl
-		     << "  {-r|--repair}" << endl
-		     << "  {-V|--version}" << endl;
+	void usage(ostream &out, string const &cmd) {
+		out << "Usage: " << cmd << " [options] {device|file}" << endl
+		    << "Options:" << endl
+		    << "  {-h|--help}" << endl
+		    << "  {-f|--format} {xml|human_readable}" << endl
+		    << "  {-r|--repair}" << endl
+		    << "  {-V|--version}" << endl;
 	}
 }
 
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(basename(argv[0]));
+			usage(cout, basename(argv[0]));
 			return 0;
 
 		case 'f':
@@ -97,14 +97,14 @@ int main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(basename(argv[0]));
+			usage(cerr, basename(argv[0]));
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
-		cerr << "No output file provided." << endl;
-		usage(basename(argv[0]));
+		cerr << "No input file provided." << endl;
+		usage(cerr, basename(argv[0]));
 		return 1;
 	}
 
