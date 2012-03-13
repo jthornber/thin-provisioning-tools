@@ -20,6 +20,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <boost/variant.hpp>
 #include <getopt.h>
 #include <iostream>
 #include <libgen.h>
@@ -40,48 +41,69 @@ using namespace thin_provisioning;
 namespace {
 	typedef vector<string> strings;
 
-	class table_formatter {
+	class formatter {
 	public:
-		virtual ~table_formatter() {}
+		typedef shared_ptr<formatter> ptr;
+
+		virtual ~formatter() {}
 
 		typedef optional<string> maybe_string;
 
-		void field(string const &name, string const &value, maybe_string const &units = maybe_string()) {
-			fields_.push_back(field_type(name, value, units));
+		void field(string const &name, string const &value) {
+			fields_.push_back(field_type(name, value));
 		}
 
-		virtual void output(ostream &out) = 0;
+		void child(string const &name, formatter::ptr t) {
+			fields_.push_back(field_type(name, t));
+		}
+
+		virtual void output(ostream &out, int depth = 0) = 0;
 
 	protected:
-		typedef tuple<string, string, maybe_string> field_type;
+		typedef variant<string, ptr> value;
+		typedef tuple<string, value> field_type;
 
 		vector<field_type> fields_;
 	};
 
 	template <typename T>
 	void
-	field(table_formatter &t, string const &name, T const &value) {
+	field(formatter &t, string const &name, T const &value) {
 		t.field(name, lexical_cast<string>(value));
-	}
-
-	template <typename T>
-	void
-	field(table_formatter &t, string const &name, T const &value, string const &units) {
-		t.field(name, lexical_cast<string>(value), optional<string>(units));
 	}
 
 	//--------------------------------
 
-	class text_formatter : public table_formatter {
+	class xml_formatter : public formatter {
 	public:
-		virtual void output(ostream &out) {
+		virtual void output(ostream &out, int depth)  {
+			indent(depth, out);
+			out << "<fields>" << endl;
 			vector<field_type>::const_iterator it;
 			for (it = fields_.begin(); it != fields_.end(); ++it) {
-				out << it->get<0>() << ": " << it->get<1>();
-				if (it->get<2>())
-					out << " " << *(it->get<2>()) << "(s)";
-				out << endl;
+				if (string const *s = get<string>(&it->get<1>())) {
+					indent(depth + 1, out);
+					out << "<field key=\""
+					    << it->get<0>()
+					    << "\" value=\""
+					    << *s
+					    << "\"/>"
+					    << endl;
+
+				} else {
+					formatter::ptr f = get<formatter::ptr>(it->get<1>());
+					f->output(out, depth + 1);
+				}
 			}
+
+			indent(depth, out);
+			out << "</fields>" << endl;
+		}
+
+	private:
+		void indent(int depth, ostream &out) const {
+			for (int i = 0; i < depth * 2; i++)
+				out << ' ';
 		}
 	};
 
@@ -159,7 +181,7 @@ namespace {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
-			text_formatter f;
+			xml_formatter f;
 
 			superblock const &sb = md_->sb_;
 
@@ -174,18 +196,43 @@ namespace {
 			field(f, "held root", sb.held_root_);
 			field(f, "data mapping root", sb.data_mapping_root_);
 			field(f, "device details root", sb.device_details_root_);
-			field(f, "data block size", sb.data_block_size_, "sector");
-			field(f, "metadata block size", sb.metadata_block_size_, "sector");
+			field(f, "data block size", sb.data_block_size_);
+			field(f, "metadata block size", sb.metadata_block_size_);
 			field(f, "metadata nr blocks", sb.metadata_nr_blocks_);
 			field(f, "compat flags", sb.compat_flags_);
 			field(f, "compat ro flags", sb.compat_ro_flags_);
 			field(f, "incompat flags", sb.incompat_flags_);
 
-			f.output(out);
+			f.output(out, 0);
 		}
 
 	private:
 		metadata::ptr md_;
+	};
+
+	class device_details_show_traits : public device_details_traits {
+	public:
+		static void show(formatter &f, string const &key, device_details const &value) {
+			field(f, "mapped blocks", value.mapped_blocks_);
+			field(f, "transaction id", value.transaction_id_);
+			field(f, "creation time", value.creation_time_);
+			field(f, "snap time", value.snapshotted_time_);
+		}
+	};
+
+	class uint64_show_traits : public uint64_traits {
+	public:
+		static void show(formatter &f, string const &key, uint64_t const &value) {
+			field(f, key, lexical_cast<string>(value));
+		}
+	};
+
+	class block_show_traits : public block_traits {
+	public:
+		static void show(formatter &f, string const &key, block_time const &value) {
+			field(f, "block", value.block_);
+			field(f, "time", value.time_);
+		}
 	};
 
 	template <typename ValueTraits>
@@ -203,9 +250,20 @@ namespace {
 
 			block_address block = lexical_cast<block_address>(args[1]);
 			block_manager<>::read_ref rr = md_->tm_->read_lock(block);
-			node_ref<ValueTraits> n = btree_detail::to_node<ValueTraits>(rr);
 
-			text_formatter f;
+			node_ref<uint64_show_traits> n = btree_detail::to_node<uint64_show_traits>(rr);
+			if (n.get_type() == INTERNAL)
+				show_node<uint64_show_traits>(n, out);
+			else {
+				node_ref<ValueTraits> n = btree_detail::to_node<ValueTraits>(rr);
+				show_node<ValueTraits>(n, out);
+			}
+		}
+
+	private:
+		template <typename VT>
+		void show_node(node_ref<VT> n, ostream &out) {
+			xml_formatter f;
 
 			field(f, "csum", n.get_checksum());
 			field(f, "blocknr", n.get_location());
@@ -214,10 +272,16 @@ namespace {
 			field(f, "max entries", n.get_max_entries());
 			field(f, "value size", n.get_value_size());
 
-			f.output(out);
+			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+				formatter::ptr f2(new xml_formatter);
+				field(*f2, "key", n.key_at(i));
+				VT::show(*f2, "value", n.value_at(i));
+				f.child("child", f2);
+			}
+
+			f.output(out, 0);
 		}
 
-	private:
 		metadata::ptr md_;
 	};
 
@@ -229,7 +293,9 @@ namespace {
 			command_interpreter interp(cin, cout);
 			interp.register_command("hello", command::ptr(new hello));
 			interp.register_command("superblock", command::ptr(new show_superblock(md)));
-			interp.register_command("btree_node", command::ptr(new show_btree_node<device_details_traits>(md)));
+			interp.register_command("m1_node", command::ptr(new show_btree_node<uint64_show_traits>(md)));
+			interp.register_command("m2_node", command::ptr(new show_btree_node<block_show_traits>(md)));
+			interp.register_command("detail_node", command::ptr(new show_btree_node<device_details_show_traits>(md)));
 			interp.enter_main_loop();
 
 		} catch (std::exception &e) {
