@@ -41,7 +41,7 @@ namespace {
 			}
 		} catch (std::exception &e) {
 			if (!quiet)
-				cerr << e.what();
+				cerr << e.what() << endl;
 			return 1;
 		}
 
