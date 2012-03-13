@@ -66,7 +66,7 @@ namespace {
 			throw runtime_error("Couldn't stat dev path");
 
 		if (S_ISREG(info.st_mode))
-			nr_blocks = div_down<block_address>(info.st_size, MD_BLOCK_SIZE);
+			nr_blocks = div_up<block_address>(info.st_size, MD_BLOCK_SIZE);
 
 		else if (S_ISBLK(info.st_mode)) {
 			// To get the size of a block device we need to
