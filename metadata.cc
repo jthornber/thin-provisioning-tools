@@ -65,7 +65,7 @@ namespace {
 		if (r)
 			throw runtime_error("Couldn't stat dev path");
 
-		if (S_ISREG(info.st_mode))
+		if (S_ISREG(info.st_mode) && info.st_size)
 			nr_blocks = div_up<block_address>(info.st_size, MD_BLOCK_SIZE);
 
 		else if (S_ISBLK(info.st_mode)) {
