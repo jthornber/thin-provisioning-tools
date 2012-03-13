@@ -3,37 +3,49 @@
 thin_restore \- restore thin provisioning metadata file to device or file
 
 .SH SYNOPSIS
-.B thin_restore [options] file {metadata device|file}
+.B thin_restore
+.RB [ options ]
+.RB -i
+.I {device|file}
+.RB -o
+.I {device|file}
 
 .SH DESCRIPTION
-thin_restore restores thin provisioning metadata created by the
-respective device-mapper target dumped into an XML formated (see
-.B thin_dump(8)
-) file, which optionally can be preproccessed to another device or file.
+.B thin_restore
+restores thin provisioning metadata created by the
+respective device-mapper target dumped into an XML formatted (see
+.BR thin_dump(8) )
+file, which optionally can be preprocessed to another device or file.
 If restored to a metadata device, the metadata can be processed
 by the device-mapper target.
 
-.B thin_restore
-  {-i|--input} {device|file}
-  {-o|--output} {device|file}
+.IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
+Input file or device with metadata.
 
-.B thin_restore
-  -h|--help
+.IP "\fB\-o, \-\-output\fP \fI{device|file}\fP"
+Output file or device.
 
-.B thin_dump
-  {-V|--version}
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
 
 .SH EXAMPLE
-"thin_restore -i metadata -o /dev/vg/metadata"
-restores the XML formatted thin provisioning metadata on file "metadata"
+Restores the XML formatted thin provisioning metadata on file
+.B metadata
 to logical volume /dev/vg/metadata for further processing by the
-respective device-mapper target.
+respective device-mapper target:
+.sp
+.B thin_restore -i metadata -o /dev/vg/metadata
 
 .SH DIAGNOSTICS
-thin_dump returns an exit code of 0 for success or 1 for error.
+.B thin_dump
+returns an exit code of 0 for success or 1 for error.
 
 .SH SEE ALSO
-.B thin_dump(8), thin_repair(8)
+.B thin_dump(8)
+.B thin_check(8)
 
 .SH AUTHOR
 Joe Thornber <ejt@redhat.com>

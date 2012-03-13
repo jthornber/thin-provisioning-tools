@@ -37,31 +37,30 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
-//----------------------------------------------------------------
-
 namespace {
 	int restore(string const &backup_file, string const &dev) {
 		try {
+			// The block size gets updated by the restorer.
 			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
 			emitter::ptr restorer = create_restore_emitter(md);
 			ifstream in(backup_file.c_str(), ifstream::in);
 			parse_xml(in, restorer);
 
 		} catch (std::exception &e) {
-			cerr << e.what();
+			cerr << e.what() << endl;
 			return 1;
 		}
 
 		return 0;
 	}
 
-	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options]" << endl << endl;
-		cerr << "Options:" << endl;
-		cerr << "  {-h|--help}" << endl;
-		cerr << "  {-i|--input} input_file" << endl;
-		cerr << "  {-o [ --output} {device|file}" << endl;
-		cerr << "  {-V|--version}" << endl;
+	void usage(ostream &out, string const &cmd) {
+		out << "Usage: " << cmd << " [options]" << endl
+		    << "Options:" << endl
+		    << "  {-h|--help}" << endl
+		    << "  {-i|--input} input_file" << endl
+		    << "  {-o|--output} {device|file}" << endl
+		    << "  {-V|--version}" << endl;
 	}
 }
 
@@ -81,37 +80,43 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 			case 'h':
-				usage(basename(argv[0]));
+				usage(cout, basename(argv[0]));
 				return 0;
+
 			case 'i':
 				input = optarg;
 				break;
+
 			case 'o':
 				output = optarg;
 				break;
+
 			case 'V':
-				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+				cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 				return 0;
+
+			default:
+				usage(cerr, basename(argv[0]));
+				return 1;
 		}
 	}
 
-	if (argc == 1) {
-		usage(basename(argv[0]));
+	if (argc != optind) {
+		usage(cerr, basename(argv[0]));
 		return 1;
 	}
 
         if (input.empty()) {
 		cerr << "No input file provided." << endl;
+		usage(cerr, basename(argv[0]));
 		return 1;
 	}
 
 	if (output.empty()) {
 		cerr << "No output file provided." << endl;
+		usage(cerr, basename(argv[0]));
 		return 1;
 	}
 
 	return restore(input, output);
-
 }
-
-//----------------------------------------------------------------

@@ -1,36 +1,46 @@
 .TH THIN_REPAIR 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
 .SH NAME
-thin_repair \- repair thin provisioning metadata on device or file
+thin_check \- repair thin provisioning metadata on device or file
 
 .SH SYNOPSIS
-.B thin_repair {device|file}
+.B thin_check
+.RB [ options ]
+.I {device|file}
 
 .SH DESCRIPTION
-thin_repair checks thin provisioning metadata created by
-the device-mapper thin provisioning target on a device or file (see
+.B thin_check
+checks thin provisioning metadata created by
+the device-mapper thin provisioning target on a
+.I device
+or
+.I file.
+See
 .B thin_dump(8)
-) on how to dump metadata to a file.
-A future release will be able to fix faulty metadata.
+how to dump metadata to a file.
 
-.B thin_repair (device|file}
+.SH OPTIONS
+.IP "\fB\-h, \-\-help\fP" 
+Print help and exit.
 
-.B thin_repair
-  {-h|--help}
-
-.B thin_dump
-  {-V|--version}
+.IP "\fB\-V, \-\-version\fP" 
+Output version information and exit.
 
 .SH EXAMPLE
-"thin_repair /dev/vg/metadata"
-analyses and repairs thin provisioning metadata on logical volume
-/dev/vg/metadata. The device may not be actively used by the target
+Analyses and repairs thin provisioning metadata on logical volume
+/dev/vg/metadata:
+.sp
+.B thin_repair /dev/vg/metadata
+
+The device may not be actively used by the target
 when repairing!
 
 .SH DIAGNOSTICS
-thin_repair returns an exit code of 0 for success or 1 for error.
+.B thin_check
+returns an exit code of 0 for success or 1 for error.
 
 .SH SEE ALSO
-.B thin_dump(8), thin_restore(8)
+.B thin_dump(8)
+.B thin_restore(8)
 
 .SH AUTHOR
 Joe Thornber <ejt@redhat.com>

@@ -30,8 +30,6 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
-//----------------------------------------------------------------
-
 namespace {
 	int dump(string const &path, string const &format, bool repair) {
 		try {
@@ -49,21 +47,20 @@ namespace {
 
 			metadata_dump(md, e, repair);
 		} catch (std::exception &e) {
-			cerr << e.what();
+			cerr << e.what() << endl;
 			return 1;
 		}
 
 		return 0;
 	}
 
-	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " [options] {device|file}" << endl << endl
-		     << "Options:" << endl
-		     << "  {-h|--help}" << endl
-		     << "  {-f|--format} {xml|human_readable}" << endl
-		     << "  {-i|--input} {xml|human_readable} input_file" << endl
-		     << "  {-r|--repair}" << endl
-		     << "  {-V|--version}" << endl;
+	void usage(ostream &out, string const &cmd) {
+		out << "Usage: " << cmd << " [options] {device|file}" << endl
+		    << "Options:" << endl
+		    << "  {-h|--help}" << endl
+		    << "  {-f|--format} {xml|human_readable}" << endl
+		    << "  {-r|--repair}" << endl
+		    << "  {-V|--version}" << endl;
 	}
 }
 
@@ -71,12 +68,11 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool repair = false;
-	const char shortopts[] = "hf:i:rV";
-	string filename, format = "xml";
+	const char shortopts[] = "hf:rV";
+	string format = "xml";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "format", required_argument, NULL, 'f' },
-		{ "input", required_argument, NULL, 'i'},
 		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -85,15 +81,11 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(basename(argv[0]));
+			usage(cout, basename(argv[0]));
 			return 0;
 
 		case 'f':
 			format = optarg;
-			break;
-
-		case 'i':
-			filename = optarg;
 			break;
 
 		case 'r':
@@ -101,22 +93,20 @@ int main(int argc, char **argv)
 			break;
 
 		case 'V':
-			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		default:
+			usage(cerr, basename(argv[0]));
+			return 1;
 		}
 	}
 
-	if (argc == 1) {
-		usage(basename(argv[0]));
+	if (argc == optind) {
+		cerr << "No input file provided." << endl;
+		usage(cerr, basename(argv[0]));
 		return 1;
 	}
 
-	if (filename.empty()) {
-		cerr << "No output file provided." << endl;
-		return 1;
-	}
-
-	return dump(filename, format, repair);
+	return dump(argv[optind], format, repair);
 }
-
-//----------------------------------------------------------------
