@@ -19,17 +19,20 @@ See
 how to dump metadata to a file.
 
 .SH OPTIONS
-.IP "\fB\-h, \-\-help\fP" 
+.IP "\fB\-q, \-\-quiet\fP"
+Suppress output messages, return only exit code.
+
+.IP "\fB\-h, \-\-help\fP"
 Print help and exit.
 
-.IP "\fB\-V, \-\-version\fP" 
+.IP "\fB\-V, \-\-version\fP"
 Output version information and exit.
 
 .SH EXAMPLE
 Analyses and repairs thin provisioning metadata on logical volume
 /dev/vg/metadata:
 .sp
-.B thin_repair /dev/vg/metadata
+.B thin_check /dev/vg/metadata
 
 The device may not be actively used by the target
 when repairing!
