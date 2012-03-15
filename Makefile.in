@@ -62,8 +62,8 @@ LIBS:=-lstdc++
 LIBEXPAT:=-lexpat
 INSTALL:=@INSTALL@
 STRIP=
-DESTDIR:=@prefix@
-BINDIR:=$(DESTDIR)/sbin
+PREFIX:=@prefix@
+BINDIR:=$(DESTDIR)$(PREFIX)/sbin
 MANPATH:=$(DESTDIR)$(MANDIR)
 
 vpath %.cc $(TOP_DIR)
