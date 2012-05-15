@@ -1,4 +1,4 @@
-// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+// Copyright (C) 2012 Red Hat, Inc. All rights reserved.
 //
 // This file is part of the thin-provisioning-tools source.
 //
@@ -16,19 +16,20 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef METADATA_DUMPER_H
-#define METADATA_DUMPER_H
+#ifndef THINP_EXCEPTION_H
+#define THINP_EXCEPTION_H
 
-#include "emitter.h"
-#include "metadata.h"
+#include <stdexcept>
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
-	// Set the @repair flag if your metadata is corrupt, and you'd like
-	// the dumper to do it's best to recover info.  If not set, any
-	// corruption encountered will cause an exception to be thrown.
-	void metadata_dump(metadata::ptr md, emitter::ptr e, bool repair);
+namespace base {
+	class checksum_error : public std::runtime_error {
+	public:
+		explicit checksum_error(std::string const &what)
+			: std::runtime_error(what) {
+		}
+	};
 }
 
 //----------------------------------------------------------------

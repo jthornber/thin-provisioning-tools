@@ -18,11 +18,13 @@
 
 #include "btree.h"
 
+#include "errors.h"
 #include "checksum.h"
 #include "transaction_manager.h"
 
 #include <iostream>
 
+using namespace base;
 using namespace btree_detail;
 using namespace persistent_data;
 using namespace std;
@@ -37,10 +39,10 @@ namespace {
 			crc32c sum(BTREE_CSUM_XOR);
 			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(n->csum))
-				throw runtime_error("bad checksum in btree node");
+				throw checksum_error("bad checksum in btree node");
 
 			if (to_cpu<uint64_t>(n->blocknr) != location)
-				throw runtime_error("bad block nr in btree node");
+				throw checksum_error("bad block nr in btree node");
 		}
 
 		virtual void prepare(block_manager<>::buffer &b, block_address location) const {

@@ -47,7 +47,8 @@ namespace thin_provisioning {
 		virtual void begin_superblock(std::string const &uuid,
 					      uint64_t time,
 					      uint64_t trans_id,
-					      uint32_t data_block_size) = 0;
+					      uint32_t data_block_size,
+					      uint64_t nr_data_blocks) = 0;
 		virtual void end_superblock() = 0;
 
 		virtual void begin_device(uint32_t dev_id,

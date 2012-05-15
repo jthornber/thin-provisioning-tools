@@ -51,81 +51,39 @@ namespace persistent_data {
 	// Not implemented
 	// ---------------
 	//
-	// - checksum
 	// - leaf | internal flags (this can be inferred from siblings)
 	//----------------------------------------------------------------
 	template <uint32_t Levels, typename ValueTraits>
 	class btree_checker : public btree<Levels, ValueTraits>::visitor {
 	public:
-		btree_checker(block_counter &counter)
+		btree_checker(block_counter &counter, bool avoid_repeated_visits = true)
 			: counter_(counter),
-			  errs_(new error_set("btree errors")) {
+			  errs_(new error_set("btree errors")),
+			  avoid_repeated_visits_(avoid_repeated_visits) {
 		}
 
 		bool visit_internal(unsigned level,
 				    bool sub_root,
 				    optional<uint64_t> key,
 				    btree_detail::node_ref<uint64_traits> const &n) {
-			if (already_visited(n))
-				return false;
-
-			check_sum(n);
-
-			if (sub_root)
-			  new_root(level);
-
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n, sub_root);
-			check_ordered_keys(n);
-			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
-			return true;
+			return check_internal(level, sub_root, key, n);
 		}
 
 		bool visit_internal_leaf(unsigned level,
 					 bool sub_root,
 					 optional<uint64_t> key,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			if (already_visited(n))
-				return false;
-
-			check_sum(n);
-
-			if (sub_root)
-			  new_root(level);
-
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n, sub_root);
-			check_ordered_keys(n);
-			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
-			check_leaf_key(level, n);
-
-			return true;
+			return check_leaf(level, sub_root, key, n);
 		}
 
 		bool visit_leaf(unsigned level,
 				bool sub_root,
 				optional<uint64_t> key,
 				btree_detail::node_ref<ValueTraits> const &n) {
-			if (already_visited(n))
-				return false;
-
-			check_sum(n);
-
-			if (sub_root)
-			  new_root(level);
-
-			check_block_nr(n);
-			check_max_entries(n);
-			check_nr_entries(n, sub_root);
-			check_ordered_keys(n);
-			check_parent_key(sub_root ? optional<uint64_t>() : key, n);
-			check_leaf_key(level, n);
-			return true;
+			return check_leaf(level, sub_root, key, n);
 		}
 
-		boost::optional<error_set::ptr> get_errors() const {
+		error_set::ptr get_errors() const {
 			return errs_;
 		}
 
@@ -135,21 +93,66 @@ namespace persistent_data {
 		}
 
 	private:
+		bool check_internal(unsigned level,
+				    bool sub_root,
+				    optional<uint64_t> key,
+				    btree_detail::node_ref<uint64_traits> const &n) {
+			if (!already_visited(n) &&
+			    check_sum(n) &&
+			    check_block_nr(n) &&
+			    check_max_entries(n) &&
+			    check_nr_entries(n, sub_root) &&
+			    check_ordered_keys(n) &&
+			    check_parent_key(sub_root ? optional<uint64_t>() : key, n)) {
+				if (sub_root)
+					new_root(level);
+
+				return true;
+			}
+
+			return false;
+		}
+
+		template <typename ValueTraits2>
+		bool check_leaf(unsigned level,
+			      bool sub_root,
+			      optional<uint64_t> key,
+			      btree_detail::node_ref<ValueTraits2> const &n) {
+			if (!already_visited(n) &&
+			    check_sum(n) &&
+			    check_block_nr(n) &&
+			    check_max_entries(n) &&
+			    check_nr_entries(n, sub_root) &&
+			    check_ordered_keys(n) &&
+			    check_parent_key(sub_root ? optional<uint64_t>() : key, n)) {
+				if (sub_root)
+					new_root(level);
+
+				return check_leaf_key(level, n);
+			}
+
+			return false;
+		}
+
+
 		template <typename node>
 		bool already_visited(node const &n) {
 			block_address b = n.get_location();
 
 			counter_.inc(b);
 
-			if (seen_.count(b) > 0)
-				return true;
+			if (avoid_repeated_visits_) {
+				if (seen_.count(b) > 0)
+					return true;
 
-			seen_.insert(b);
+				seen_.insert(b);
+			}
+
 			return false;
 		}
 
 		template <typename node>
-		void check_sum(node const &n) const {
+		bool check_sum(node const &n) const {
 			crc32c sum(BTREE_CSUM_XOR);
 
 			disk_node const *data = n.raw();
@@ -160,48 +163,55 @@ namespace persistent_data {
 				    << ", sum was " << sum.get_sum()
 				    << ", on disk " << n.get_checksum();
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				return false;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_block_nr(node const &n) const {
+		bool check_block_nr(node const &n) const {
 			if (n.get_location() != n.get_block_nr()) {
 				std::ostringstream out;
 				out << "block number mismatch: actually "
 				    << n.get_location()
 				    << ", claims " << n.get_block_nr();
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				return false;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_max_entries(node const &n) const {
+		bool check_max_entries(node const &n) const {
 			size_t elt_size = sizeof(uint64_t) + n.get_value_size();
 			if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
 				std::ostringstream out;
 				out << "max entries too large: " << n.get_max_entries();
 				errs_->add_child(out.str());
+				return false;
 			}
 
 			if (n.get_max_entries() % 3) {
 				std::ostringstream out;
 				out << "max entries is not divisible by 3: " << n.get_max_entries();
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				return false;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_nr_entries(node const &n, bool is_root) const {
+		bool check_nr_entries(node const &n, bool is_root) const {
 			if (n.get_nr_entries() > n.get_max_entries()) {
 				std::ostringstream out;
 				out << "bad nr_entries: "
 				    << n.get_nr_entries() << " < "
 				    << n.get_max_entries();
 				errs_->add_child(out.str());
-				throw std::runtime_error(out.str());
+				return false;
 			}
 
 			block_address min = n.get_max_entries() / 3;
@@ -213,16 +223,18 @@ namespace persistent_data {
 				    << min
 				    << "(max_entries = " << n.get_max_entries() << ")";
 				errs_->add_child(out.str());
-				throw runtime_error(out.str());
+				return false;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_ordered_keys(node const &n) const {
+		bool check_ordered_keys(node const &n) const {
 			unsigned nr_entries = n.get_nr_entries();
 
 			if (nr_entries == 0)
-				return; // can only happen if a root node
+				return true; // can only happen if a root node
 
 			uint64_t last_key = n.key_at(0);
 
@@ -231,50 +243,59 @@ namespace persistent_data {
 				if (k <= last_key) {
 					ostringstream out;
 					out << "keys are out of order, " << k << " <= " << last_key;
-					throw runtime_error(out.str());
+					errs_->add_child(out.str());
+					return false;
 				}
 				last_key = k;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_parent_key(boost::optional<uint64_t> key, node const &n) const {
+		bool check_parent_key(boost::optional<uint64_t> key, node const &n) const {
 			if (!key)
-				return;
+				return true;
 
 			if (*key > n.key_at(0)) {
 				ostringstream out;
 				out << "parent key mismatch: parent was " << *key
 				    << ", but lowest in node was " << n.key_at(0);
-				throw runtime_error(out.str());
+				errs_->add_child(out.str());
+				return false;
 			}
+
+			return true;
 		}
 
 		template <typename node>
-		void check_leaf_key(unsigned level, node const &n) {
+		bool check_leaf_key(unsigned level, node const &n) {
 			if (n.get_nr_entries() == 0)
-				return; // can only happen if a root node
+				return true; // can only happen if a root node
 
 			if (last_leaf_key_[level] && *last_leaf_key_[level] >= n.key_at(0)) {
 				ostringstream out;
 				out << "the last key of the previous leaf was " << *last_leaf_key_[level]
 				    << " and the first key of this leaf is " << n.key_at(0);
-				throw runtime_error(out.str());
+				errs_->add_child(out.str());
+				return false;
 			}
 
 			last_leaf_key_[level] = n.key_at(n.get_nr_entries() - 1);
+			return true;
 		}
 
      	        void new_root(unsigned level) {
-		  // we're starting a new subtree, so should
-		  // reset the last_leaf value.
-		  last_leaf_key_[level] = boost::optional<uint64_t>();
+			// we're starting a new subtree, so should
+			// reset the last_leaf value.
+			last_leaf_key_[level] = boost::optional<uint64_t>();
 	        }
 
 		block_counter &counter_;
 		std::set<block_address> seen_;
 		error_set::ptr errs_;
 		boost::optional<uint64_t> last_leaf_key_[Levels];
+		bool avoid_repeated_visits_;
 	};
 }
 

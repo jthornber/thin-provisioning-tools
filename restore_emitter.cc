@@ -33,15 +33,13 @@ namespace {
 		}
 
 		virtual ~restorer() {
-			if (in_superblock_) {
-				throw runtime_error("still in superblock");
-			}
 		}
 
 		virtual void begin_superblock(std::string const &uuid,
 					      uint64_t time,
 					      uint64_t trans_id,
-					      uint32_t data_block_size) {
+					      uint32_t data_block_size,
+					      uint64_t nr_data_blocks) {
 			in_superblock_ = true;
 
 			superblock &sb = md_->sb_;
@@ -49,6 +47,7 @@ namespace {
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
 			sb.data_block_size_ = data_block_size;
+			md_->data_sm_->extend(nr_data_blocks);
 		}
 
 		virtual void end_superblock() {
@@ -72,7 +71,7 @@ namespace {
 
 			// Add entry to the details tree
 			uint64_t key[1] = {dev};
-			device_details details = {mapped_blocks, trans_id, creation_time, snap_time};
+			device_details details = {mapped_blocks, trans_id, (uint32_t)creation_time, (uint32_t)snap_time};
 			md_->details_->insert(key, details);
 
 			// Insert an empty mapping tree

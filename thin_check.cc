@@ -29,31 +29,41 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int check(string const &path) {
-		metadata::ptr md(new metadata(path, metadata::OPEN));
+	int check(string const &path, bool quiet) {
+		try {
+			metadata::ptr md(new metadata(path, metadata::OPEN));
 
-		optional<error_set::ptr> maybe_errors = metadata_check(md);
-		if (maybe_errors) {
-			cerr << error_selector(*maybe_errors, 3);
+			optional<error_set::ptr> maybe_errors = metadata_check(md);
+			if (maybe_errors) {
+				if (!quiet)
+					cerr << error_selector(*maybe_errors, 3);
+				return 1;
+			}
+		} catch (std::exception &e) {
+			if (!quiet)
+				cerr << e.what() << endl;
 			return 1;
 		}
 
 		return 0;
 	}
 
-	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " {device|file}" << endl;
-		cerr << "Options:" << endl;
-                cerr << "  {-h|--help}" << endl;
-		cerr << "  {-V|--version}" << endl;
+	void usage(ostream &out, string const &cmd) {
+		out << "Usage: " << cmd << " [options] {device|file}" << endl
+		    << "Options:" << endl
+		    << "  {-q|--quiet}" << endl
+		    << "  {-h|--help}" << endl
+		    << "  {-V|--version}" << endl;
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
-	const char shortopts[] = "hV";
+	bool quiet = false;
+	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
+		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -61,19 +71,29 @@ int main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
-			case 'h':
-				usage(basename(argv[0]));
-				return 0;
-			case 'V':
-				cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
-				return 0;
+		case 'h':
+			usage(cout, basename(argv[0]));
+			return 0;
+
+		case 'q':
+			quiet = true;
+			break;
+
+		case 'V':
+			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			return 0;
+
+		default:
+			usage(cerr, basename(argv[0]));
+			return 1;
 		}
 	}
 
-	if (argc != 2) {
-		usage(basename(argv[0]));
+	if (argc == optind) {
+		cerr << "No input file provided." << endl;
+		usage(cerr, basename(argv[0]));
 		exit(1);
 	}
 
-	return check(argv[1]);
+	return check(argv[optind], quiet);
 }
