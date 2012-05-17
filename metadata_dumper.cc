@@ -32,7 +32,7 @@ namespace {
 		mappings_extractor(uint64_t dev_id, emitter::ptr e,
 				   space_map::ptr md_sm, space_map::ptr data_sm)
 			: counter_(),
-			  checker_(counter_),
+			  checker_(counter_, false),
 			  dev_id_(dev_id),
 			  e_(e),
 			  md_sm_(md_sm),

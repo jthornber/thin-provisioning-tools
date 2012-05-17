@@ -171,8 +171,22 @@ thin_provisioning::metadata_check(metadata::ptr md)
 
 	block_counter metadata_counter, data_counter;
 
-	if (md->sb_.held_root_)
-		metadata_counter.inc(md->sb_.held_root_);
+	if (md->sb_.held_root_) {
+		block_manager<>::ptr bm = md->tm_->get_bm();
+
+
+		block_address root = md->sb_.held_root_;
+
+		metadata_counter.inc(root);
+
+		superblock sb;
+		block_manager<>::read_ref r = bm->read_lock(root);
+		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+		superblock_traits::unpack(*sbd, sb);
+
+		metadata_counter.inc(sb.data_mapping_root_);
+		metadata_counter.inc(sb.device_details_root_);
+	}
 
 	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
 							data_counter));

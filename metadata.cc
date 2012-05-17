@@ -99,9 +99,9 @@ namespace {
 	}
 
 	superblock
-	read_superblock(block_manager<>::ptr bm) {
+	read_superblock(block_manager<>::ptr bm, block_address location = SUPERBLOCK_LOCATION) {
 		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(SUPERBLOCK_LOCATION,
+		block_manager<>::read_ref r = bm->read_lock(location,
 							    mk_validator(new superblock_validator));
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 		superblock_traits::unpack(*sbd, sb);
@@ -159,6 +159,20 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 
 		break;
 	}
+}
+
+metadata::metadata(std::string const &dev_path, block_address held_root)
+{
+	tm_ = open_tm(dev_path, false);
+	sb_ = read_superblock(tm_->get_bm(), held_root);
+	// We don't open the metadata sm for a held root
+	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
+	tm_->set_sm(metadata_sm_);
+
+	data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
+	details_ = detail_tree::ptr(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
+	mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)));
+	mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)));
 }
 
 namespace {

@@ -31,9 +31,12 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int dump(string const &path, string const &format, bool repair) {
+	int dump(string const &path, string const &format, bool repair,
+		 block_address held_root = 0) {
 		try {
-			metadata::ptr md(new metadata(path, metadata::OPEN));
+			metadata::ptr md(held_root ?
+					 new metadata(path, held_root) :
+					 new metadata(path, metadata::OPEN));
 			emitter::ptr e;
 
 			if (format == "xml")
@@ -46,6 +49,7 @@ namespace {
 			}
 
 			metadata_dump(md, e, repair);
+
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
 			return 1;
@@ -60,6 +64,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
+		    << "  {-s|--held-superblock}" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -68,10 +73,14 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool repair = false;
-	const char shortopts[] = "hf:rV";
+	const char shortopts[] = "hs:f:rV";
 	string format = "xml";
+	block_address held_root = 0;
+	char *end_ptr;
+
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
+		{ "held-root", required_argument, NULL, 's' },
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
@@ -92,8 +101,17 @@ int main(int argc, char **argv)
 			repair = true;
 			break;
 
+		case 's':
+			held_root = strtoull(optarg, &end_ptr, 10);
+			if (end_ptr == optarg) {
+				cerr << "couldn't parse <held_root>" << endl;
+				usage(cerr, basename(argv[0]));
+				return 1;
+			}
+			break;
+
 		case 'V':
-			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
 		default:
@@ -108,5 +126,5 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], format, repair);
+	return dump(argv[optind], format, repair, held_root);
 }
