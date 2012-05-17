@@ -40,7 +40,7 @@ block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, 
 	  writeable_(writeable)
 {
 	// fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
-	fd_ = ::open(path.c_str(), writeable ? O_RDWR : O_RDONLY, 0666);
+	fd_ = ::open(path.c_str(), O_DIRECT | O_SYNC | (writeable ? O_RDWR : O_RDONLY), 0666);
 	if (fd_ < 0)
 		throw std::runtime_error("couldn't open file");
 }
@@ -53,7 +53,7 @@ block_io<BlockSize>::~block_io()
 
 template <uint32_t BlockSize>
 void
-block_io<BlockSize>::read_buffer(block_address location, buffer &buffer) const
+block_io<BlockSize>::read_buffer(block_address location, buffer<BlockSize> &buffer) const
 {
 	off_t r;
 	r = ::lseek(fd_, BlockSize * location, SEEK_SET);
@@ -62,7 +62,7 @@ block_io<BlockSize>::read_buffer(block_address location, buffer &buffer) const
 
 	ssize_t n;
 	size_t remaining = BlockSize;
-	unsigned char *buf = buffer;
+	unsigned char *buf = buffer.raw();
 	do {
 		n = ::read(fd_, buf, remaining);
 		if (n > 0) {
@@ -77,7 +77,7 @@ block_io<BlockSize>::read_buffer(block_address location, buffer &buffer) const
 
 template <uint32_t BlockSize>
 void
-block_io<BlockSize>::write_buffer(block_address location, const_buffer &buffer)
+block_io<BlockSize>::write_buffer(block_address location, buffer<BlockSize> const &buffer)
 {
 	off_t r;
 	r = ::lseek(fd_, BlockSize * location, SEEK_SET);
@@ -86,7 +86,7 @@ block_io<BlockSize>::write_buffer(block_address location, const_buffer &buffer)
 
 	ssize_t n;
 	size_t remaining = BlockSize;
-	unsigned char const *buf = buffer;
+	unsigned char const *buf = buffer.raw();
 	do {
 		n = ::write(fd_, buf, remaining);
 		if (n > 0) {
@@ -118,16 +118,17 @@ block_manager<BlockSize>::block::block(typename block_io<BlockSize>::ptr io,
 				       bool zero)
 	: io_(io),
 	  location_(location),
+	  data_(new buffer<BlockSize>()),
 	  validator_(v),
 	  bt_(bt),
 	  dirty_(false)
 {
 	if (zero) {
-		memset(&data_, 0, sizeof(data_));
+		memset(data_->raw(), 0, BlockSize);
 		dirty_ = true;
 	} else {
-		io_->read_buffer(location_, data_);
-		validator_->check(data_, location_);
+		io_->read_buffer(location_, *data_);
+		validator_->check(*data_, location_);
 	}
 }
 
@@ -142,8 +143,8 @@ void
 block_manager<BlockSize>::block::flush()
 {
 	if (dirty_) {
-		validator_->prepare(data_, location_);
-		io_->write_buffer(location_, data_);
+		validator_->prepare(*data_, location_);
+		io_->write_buffer(location_, *data_);
 	}
 }
 
@@ -203,10 +204,10 @@ block_manager<BlockSize>::read_ref::get_location() const
 }
 
 template <uint32_t BlockSize>
-typename block_manager<BlockSize>::const_buffer &
+buffer<BlockSize> const &
 block_manager<BlockSize>::read_ref::data() const
 {
-	return block_->data_;
+	return *block_->data_;
 }
 
 //--------------------------------
@@ -220,10 +221,10 @@ block_manager<BlockSize>::write_ref::write_ref(block_manager<BlockSize> const &b
 }
 
 template <uint32_t BlockSize>
-typename block_manager<BlockSize>::buffer &
+buffer<BlockSize> &
 block_manager<BlockSize>::write_ref::data()
 {
-	return read_ref::block_->data_;
+	return *read_ref::block_->data_;
 }
 
 //----------------------------------------------------------------
@@ -285,7 +286,7 @@ block_manager<BlockSize>::write_lock_zero(block_address location,
 	boost::optional<block_ptr> cached_block = cache_.get(location);
 	if (cached_block) {
 		(*cached_block)->check_write_lockable();
-		memset(&(*cached_block)->data_, 0, BlockSize);
+		memset((*cached_block)->data_->raw(), 0, BlockSize);
 		return write_ref(*this, *cached_block);
 	}
 
@@ -326,7 +327,7 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 
 	if (cached_block) {
 		(*cached_block)->check_write_lockable();
-		memset(&(*cached_block)->data_, 0, BlockSize);
+		memset((*cached_block)->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
 		(*cached_block)->validator_ = v;
 		return write_ref(*this, *cached_block);
 	}

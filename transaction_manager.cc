@@ -73,7 +73,7 @@ transaction_manager::shadow(block_address orig, validator v)
 		throw runtime_error("couldn't allocate new block");
 
 	write_ref dest = bm_->write_lock_zero(*mb, v);
-	::memcpy(dest.data(), src.data(), MD_BLOCK_SIZE);
+	::memcpy(dest.data().raw(), src.data().raw(), MD_BLOCK_SIZE); // FIXME: use buffer copy method
 
 	ref_t count = sm_->get_count(orig);
 	if (count == 0)

@@ -193,7 +193,7 @@ namespace {
 			field(f, "version", sb.version_);
 			field(f, "time", sb.time_);
 			field(f, "trans id", sb.trans_id_);
-			field(f, "held root", sb.held_root_);
+			field(f, "metadata snap", sb.metadata_snap_);
 			field(f, "data mapping root", sb.data_mapping_root_);
 			field(f, "device details root", sb.device_details_root_);
 			field(f, "data block size", sb.data_block_size_);

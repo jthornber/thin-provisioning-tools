@@ -38,7 +38,7 @@ namespace {
 	uint64_t const BITMAP_CSUM_XOR = 240779;
 
 	struct bitmap_block_validator : public block_manager<>::validator {
-		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+		virtual void check(buffer<> const &b, block_address location) const {
 			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(&b);
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -49,7 +49,7 @@ namespace {
 				throw checksum_error("bad block nr in space map bitmap");
 		}
 
-		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+		virtual void prepare(buffer<> &b, block_address location) const {
 			bitmap_header *data = reinterpret_cast<bitmap_header *>(&b);
 			data->blocknr = to_disk<base::__le64, uint64_t>(location);
 
@@ -70,7 +70,7 @@ namespace {
 
 	// FIXME: factor out the common code in these validators
 	struct index_block_validator : public block_manager<>::validator {
-		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+		virtual void check(buffer<> const &b, block_address location) const {
 			metadata_index const *mi = reinterpret_cast<metadata_index const *>(&b);
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -81,7 +81,7 @@ namespace {
 				throw checksum_error("bad block nr in metadata index block");
 		}
 
-		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+		virtual void prepare(buffer<> &b, block_address location) const {
 			metadata_index *mi = reinterpret_cast<metadata_index *>(&b);
 			mi->blocknr_ = to_disk<base::__le64, uint64_t>(location);
 

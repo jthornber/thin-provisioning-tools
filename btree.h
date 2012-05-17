@@ -176,7 +176,7 @@ namespace persistent_data {
 			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data())));
+					const_cast<unsigned char *>(b.data().raw())));
 		}
 
 		template <typename ValueTraits>
@@ -186,7 +186,7 @@ namespace persistent_data {
 			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data())));
+					const_cast<unsigned char *>(b.data().raw())));
 		}
 
 		class ro_spine : private noncopyable {

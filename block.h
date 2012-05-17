@@ -30,6 +30,7 @@
 #include <boost/shared_ptr.hpp>
 
 #include <string.h>
+#include <malloc.h>
 
 //----------------------------------------------------------------
 
@@ -39,12 +40,47 @@ namespace persistent_data {
 
 	typedef uint64_t block_address;
 
-	template <uint32_t BlockSize>
+	template <uint32_t BlockSize = MD_BLOCK_SIZE, uint32_t Alignment = 512>
+	class buffer : private boost::noncopyable {
+	public:
+		unsigned char &operator[](unsigned index) {
+			if (index >= BlockSize)
+				throw std::runtime_error("buffer index out of bounds");
+
+			return data_[index];
+		}
+
+		unsigned char const &operator[](unsigned index) const {
+			if (index >= BlockSize)
+				throw std::runtime_error("buffer index out of bounds");
+
+			return data_[index];
+		}
+
+		unsigned char *raw() {
+			return data_;
+		}
+
+		unsigned char const *raw() const {
+			return data_;
+		}
+
+		static void *operator new(size_t s) {
+			return ::memalign(Alignment, s);
+		}
+
+		static void operator delete(void *p) {
+			free(p);
+		}
+
+	private:
+		unsigned char data_[BlockSize];
+	};
+
+	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_io : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_io> ptr;
-		typedef unsigned char buffer[BlockSize];
-		typedef unsigned char const const_buffer[BlockSize];
 
 		block_io(std::string const &path, block_address nr_blocks, bool writeable = false);
 		~block_io();
@@ -53,8 +89,8 @@ namespace persistent_data {
 			return nr_blocks_;
 		}
 
-		void read_buffer(block_address location, buffer &buf) const;
-		void write_buffer(block_address location, const_buffer &buf);
+		void read_buffer(block_address location, buffer<BlockSize> &buf) const;
+		void write_buffer(block_address location, buffer<BlockSize> const &buf);
 
 	private:
 		int fd_;
@@ -72,23 +108,20 @@ namespace persistent_data {
 			      unsigned max_concurrent_locks,
 			      bool writeable = false);
 
-		typedef unsigned char buffer[BlockSize];
-		typedef unsigned char const const_buffer[BlockSize];
-
 		class validator {
 		public:
 			typedef boost::shared_ptr<validator> ptr;
 
 			virtual ~validator() {}
 
-			virtual void check(const_buffer &b, block_address location) const = 0;
-			virtual void prepare(buffer &b, block_address location) const = 0;
+			virtual void check(buffer<BlockSize> const &b, block_address location) const = 0;
+			virtual void prepare(buffer<BlockSize> &b, block_address location) const = 0;
 		};
 
 		class noop_validator : public validator {
 		public:
-			void check(const_buffer &b, block_address location) const {}
-			void prepare(buffer &b, block_address location) const {}
+			void check(buffer<BlockSize> const &b, block_address location) const {}
+			void prepare(buffer<BlockSize> &b, block_address location) const {}
 		};
 
 		enum block_type {
@@ -96,7 +129,7 @@ namespace persistent_data {
 			BT_NORMAL
 		};
 
-		struct block {
+		struct block : private boost::noncopyable {
 			typedef boost::shared_ptr<block> ptr;
 
 			block(typename block_io<BlockSize>::ptr io,
@@ -118,12 +151,12 @@ namespace persistent_data {
 
 			typename block_io<BlockSize>::ptr io_;
 			block_address location_;
-			buffer data_;
+			std::auto_ptr<buffer<BlockSize> > data_;
 			typename validator::ptr validator_;
 			block_type bt_;
 			bool dirty_;
 		};
-		typedef typename block::ptr block_ptr;
+		typedef typename block::ptr block_ptr; // FIXME: remove
 
 		class read_ref {
 		public:
@@ -135,7 +168,7 @@ namespace persistent_data {
 			read_ref const &operator =(read_ref const &rhs);
 
 			block_address get_location() const;
-			const_buffer &data() const;
+			buffer<BlockSize> const &data() const;
 
 		protected:
 			block_manager<BlockSize> const &bm_;
@@ -151,7 +184,7 @@ namespace persistent_data {
 				  typename block::ptr b);
 
 			using read_ref::data;
-			buffer &data();
+			buffer<BlockSize> &data();
 		};
 
 		// Locking methods

@@ -66,7 +66,7 @@ namespace thin_provisioning {
 
 		__le64 trans_id_;
 		/* root for userspace's transaction (for migration and friends) */
-		__le64 held_root_;
+		__le64 metadata_snap_;
 
 		__u8 data_space_map_root_[SPACE_MAP_ROOT_SIZE];
 		__u8 metadata_space_map_root_[SPACE_MAP_ROOT_SIZE];
@@ -99,7 +99,7 @@ namespace thin_provisioning {
 
 		uint64_t trans_id_;
 		/* root for userspace's transaction (for migration and friends) */
-		uint64_t held_root_;
+		uint64_t metadata_snap_;
 
 		unsigned char data_space_map_root_[SPACE_MAP_ROOT_SIZE];
 		unsigned char metadata_space_map_root_[SPACE_MAP_ROOT_SIZE];

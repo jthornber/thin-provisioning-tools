@@ -33,7 +33,7 @@ using namespace std;
 
 namespace {
 	struct btree_node_validator : public block_manager<>::validator {
-		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+		virtual void check(buffer<> const &b, block_address location) const {
 			disk_node const *data = reinterpret_cast<disk_node const *>(&b);
 			node_header const *n = &data->header;
 			crc32c sum(BTREE_CSUM_XOR);
@@ -45,7 +45,7 @@ namespace {
 				throw checksum_error("bad block nr in btree node");
 		}
 
-		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+		virtual void prepare(buffer<> &b, block_address location) const {
 			disk_node *data = reinterpret_cast<disk_node *>(&b);
 			node_header *n = &data->header;
 			n->blocknr = to_disk<base::__le64, uint64_t>(location);

@@ -171,11 +171,11 @@ thin_provisioning::metadata_check(metadata::ptr md)
 
 	block_counter metadata_counter, data_counter;
 
-	if (md->sb_.held_root_) {
+	if (md->sb_.metadata_snap_) {
 		block_manager<>::ptr bm = md->tm_->get_bm();
 
 
-		block_address root = md->sb_.held_root_;
+		block_address root = md->sb_.metadata_snap_;
 
 		metadata_counter.inc(root);
 

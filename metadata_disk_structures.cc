@@ -55,7 +55,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &value)
 	value.time_ = to_cpu<uint32_t>(disk.time_);
 
 	value.trans_id_ = to_cpu<uint64_t>(disk.trans_id_);
-	value.held_root_ = to_cpu<uint64_t>(disk.held_root_);
+	value.metadata_snap_ = to_cpu<uint64_t>(disk.metadata_snap_);
 
 	::memcpy(value.data_space_map_root_,
 		 disk.data_space_map_root_,
@@ -88,7 +88,7 @@ superblock_traits::pack(superblock const &value, superblock_disk &disk)
 	disk.time_ = to_disk<__le32>(value.time_);
 
 	disk.trans_id_ = to_disk<__le64>(value.trans_id_);
-	disk.held_root_ = to_disk<__le64>(value.held_root_);
+	disk.metadata_snap_ = to_disk<__le64>(value.metadata_snap_);
 
 	::memcpy(disk.data_space_map_root_,
 		 value.data_space_map_root_,

@@ -40,7 +40,7 @@ namespace {
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 
 	struct superblock_validator : public block_manager<>::validator {
-		virtual void check(block_manager<>::const_buffer &b, block_address location) const {
+		virtual void check(buffer<> const &b, block_address location) const {
 			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -48,7 +48,7 @@ namespace {
 				throw checksum_error("bad checksum in superblock");
 		}
 
-		virtual void prepare(block_manager<>::buffer &b, block_address location) const {
+		virtual void prepare(buffer<> &b, block_address location) const {
 			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -127,6 +127,10 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 	case OPEN:
 		tm_ = open_tm(dev_path, false);
 		sb_ = read_superblock(tm_->get_bm());
+
+		if (sb_.version_ != 1)
+			throw runtime_error("unknown metadata version");
+
 		metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
 		tm_->set_sm(metadata_sm_);
 
@@ -161,10 +165,10 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 	}
 }
 
-metadata::metadata(std::string const &dev_path, block_address held_root)
+metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 {
 	tm_ = open_tm(dev_path, false);
-	sb_ = read_superblock(tm_->get_bm(), held_root);
+	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
 	// We don't open the metadata sm for a held root
 	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
 	tm_->set_sm(metadata_sm_);
@@ -208,7 +212,7 @@ metadata::commit()
 	superblock_validator v;
 	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION,
 							      mk_validator(new superblock_validator()));
-        superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
+        superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
 	superblock_traits::pack(sb_, *disk);
 }
 
