@@ -19,6 +19,7 @@
 #include "xml_format.h"
 
 #include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
 #include <expat.h>
 #include <iostream>
 #include <map>
@@ -49,13 +50,19 @@ namespace {
 				      uint64_t time,
 				      uint64_t trans_id,
 				      uint32_t data_block_size,
-				      uint64_t nr_data_blocks) {
+				      uint64_t nr_data_blocks,
+				      optional<uint64_t> metadata_snap) {
 			indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " time=\"" << time << "\""
 			     << " transaction=\"" << trans_id << "\""
 			     << " data_block_size=\"" << data_block_size << "\""
-			     << " nr_data_blocks=\"" << nr_data_blocks << "\">"
+			     << " nr_data_blocks=\"" << nr_data_blocks;
+
+			if (metadata_snap)
+				out_ << " metadata_snap=\"" << *metadata_snap;
+
+			out_ << "\">"
 			     << endl;
 			inc();
 		}
@@ -174,12 +181,23 @@ namespace {
 		return lexical_cast<T>(it->second);
 	}
 
+	template <typename T>
+	optional<T> get_opt_attr(attributes const &attr, string const &key) {
+		typedef optional<T> rtype;
+		attributes::const_iterator it = attr.find(key);
+		if (it == attr.end())
+			return rtype();
+
+		return rtype(lexical_cast<T>(it->second));
+	}
+
 	void parse_superblock(emitter *e, attributes const &attr) {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "time"),
 				    get_attr<uint64_t>(attr, "transaction"),
 				    get_attr<uint32_t>(attr, "data_block_size"),
-				    get_attr<uint64_t>(attr, "nr_data_blocks"));
+				    get_attr<uint64_t>(attr, "nr_data_blocks"),
+				    get_opt_attr<uint64_t>(attr, "metadata_snap"));
 	}
 
 	void parse_device(emitter *e, attributes const &attr) {

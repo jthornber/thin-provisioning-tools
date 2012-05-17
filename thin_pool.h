@@ -69,7 +69,7 @@ namespace thin_provisioning {
 		void set_transaction_id(uint64_t id);
 		uint64_t get_transaction_id() const;
 
-		block_address get_held_root() const;
+		block_address get_metadata_snap() const;
 
 		block_address alloc_data_block();
 		void free_data_block(block_address b);

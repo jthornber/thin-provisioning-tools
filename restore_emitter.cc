@@ -39,7 +39,8 @@ namespace {
 					      uint64_t time,
 					      uint64_t trans_id,
 					      uint32_t data_block_size,
-					      uint64_t nr_data_blocks) {
+					      uint64_t nr_data_blocks,
+					      optional<uint64_t> metadata_snap) {
 			in_superblock_ = true;
 
 			superblock &sb = md_->sb_;
@@ -47,6 +48,7 @@ namespace {
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
 			sb.data_block_size_ = data_block_size;
+			sb.metadata_snap_ = metadata_snap ? *metadata_snap : 0;
 			md_->data_sm_->extend(nr_data_blocks);
 		}
 

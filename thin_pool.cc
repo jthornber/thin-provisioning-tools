@@ -177,9 +177,9 @@ thin_pool::get_transaction_id() const
 }
 
 block_address
-thin_pool::get_held_root() const
+thin_pool::get_metadata_snap() const
 {
-	return md_->sb_.held_root_;
+	return md_->sb_.metadata_snap_;
 }
 
 block_address

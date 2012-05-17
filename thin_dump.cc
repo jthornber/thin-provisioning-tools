@@ -32,10 +32,10 @@ using namespace thin_provisioning;
 
 namespace {
 	int dump(string const &path, string const &format, bool repair,
-		 block_address held_root = 0) {
+		 block_address metadata_snap = 0) {
 		try {
-			metadata::ptr md(held_root ?
-					 new metadata(path, held_root) :
+			metadata::ptr md(metadata_snap ?
+					 new metadata(path, metadata_snap) :
 					 new metadata(path, metadata::OPEN));
 			emitter::ptr e;
 
@@ -64,7 +64,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
-		    << "  {-s|--held-superblock}" << endl
+		    << "  {-m|--metadata-snap}" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -73,14 +73,14 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool repair = false;
-	const char shortopts[] = "hs:f:rV";
+	const char shortopts[] = "hm:f:rV";
 	string format = "xml";
-	block_address held_root = 0;
+	block_address metadata_snap = 0;
 	char *end_ptr;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
-		{ "held-root", required_argument, NULL, 's' },
+		{ "metadata-snap", required_argument, NULL, 'm' },
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
@@ -101,17 +101,17 @@ int main(int argc, char **argv)
 			repair = true;
 			break;
 
-		case 's':
-			held_root = strtoull(optarg, &end_ptr, 10);
+		case 'm':
+			metadata_snap = strtoull(optarg, &end_ptr, 10);
 			if (end_ptr == optarg) {
-				cerr << "couldn't parse <held_root>" << endl;
+				cerr << "couldn't parse <metadata_snap>" << endl;
 				usage(cerr, basename(argv[0]));
 				return 1;
 			}
 			break;
 
 		case 'V':
-			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
 		default:
@@ -126,5 +126,5 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], format, repair, held_root);
+	return dump(argv[optind], format, repair, metadata_snap);
 }

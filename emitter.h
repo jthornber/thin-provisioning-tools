@@ -20,6 +20,7 @@
 #define EMITTER_H
 
 #include <boost/shared_ptr.hpp>
+#include <boost/optional.hpp>
 #include <string>
 #include <stdint.h>
 
@@ -48,7 +49,8 @@ namespace thin_provisioning {
 					      uint64_t time,
 					      uint64_t trans_id,
 					      uint32_t data_block_size,
-					      uint64_t nr_data_blocks) = 0;
+					      uint64_t nr_data_blocks,
+					      boost::optional<uint64_t> metadata_snap) = 0;
 		virtual void end_superblock() = 0;
 
 		virtual void begin_device(uint32_t dev_id,
