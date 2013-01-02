@@ -19,12 +19,12 @@
 #ifndef METADATA_LL_H
 #define METADATA_LL_H
 
-#include "block.h"
-#include "btree.h"
-#include "endian_utils.h"
-#include "metadata_disk_structures.h"
-#include "space_map_disk.h"
-#include "transaction_manager.h"
+#include "persistent-data/block.h"
+#include "persistent-data/btree.h"
+#include "persistent-data/endian_utils.h"
+#include "thin-provisioning/metadata_disk_structures.h"
+#include "persistent-data/space_map_disk.h"
+#include "persistent-data/transaction_manager.h"
 
 //----------------------------------------------------------------
 

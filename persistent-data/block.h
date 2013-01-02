@@ -19,7 +19,7 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include "cache.h"
+#include "persistent-data/cache.h"
 
 #include <stdint.h>
 #include <map>

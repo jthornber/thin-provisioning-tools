@@ -16,11 +16,11 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "metadata.h"
+#include "thin-provisioning/metadata.h"
 
-#include "math_utils.h"
-#include "space_map_core.h"
-#include "space_map_disk.h"
+#include "persistent-data/math_utils.h"
+#include "persistent-data/space_map_core.h"
+#include "persistent-data/space_map_disk.h"
 
 #include <linux/fs.h>
 #include <sys/ioctl.h>

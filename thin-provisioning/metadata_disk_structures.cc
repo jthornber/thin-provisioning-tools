@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "metadata_disk_structures.h"
+#include "thin-provisioning/metadata_disk_structures.h"
 
 #include <string.h>
 

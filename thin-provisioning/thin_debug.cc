@@ -28,9 +28,9 @@
 #include <string>
 #include <vector>
 
-#include "btree.h"
-#include "metadata.h"
-#include "metadata_checker.h"
+#include "persistent-data/btree.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/metadata_checker.h"
 #include "version.h"
 
 using namespace boost;

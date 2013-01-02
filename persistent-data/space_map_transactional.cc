@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "space_map_transactional.h"
+#include "persistent-data/space_map_transactional.h"
 
 //----------------------------------------------------------------
 

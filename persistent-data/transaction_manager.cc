@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "transaction_manager.h"
+#include "persistent-data/transaction_manager.h"
 
 #include <string.h>
 

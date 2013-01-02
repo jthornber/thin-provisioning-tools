@@ -20,8 +20,8 @@
 #include <getopt.h>
 #include <libgen.h>
 
-#include "metadata.h"
-#include "metadata_checker.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/metadata_checker.h"
 #include "version.h"
 
 using namespace persistent_data;

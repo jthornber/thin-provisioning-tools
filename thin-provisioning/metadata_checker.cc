@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "metadata_checker.h"
+#include "thin-provisioning/metadata_checker.h"
 
 using namespace thin_provisioning;
 

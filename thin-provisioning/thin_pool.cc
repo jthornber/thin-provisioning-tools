@@ -16,9 +16,9 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "thin_pool.h"
+#include "thin-provisioning/thin_pool.h"
 
-#include "btree_checker.h"
+#include "persistent-data/btree_checker.h"
 
 #include <stdexcept>
 #include <sstream>

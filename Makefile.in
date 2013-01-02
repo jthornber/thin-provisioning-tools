@@ -27,28 +27,28 @@ PROGRAMS=\
 all: $(PROGRAMS)
 
 SOURCE=\
-	checksum.cc \
-	endian_utils.cc \
-	error_set.cc \
-	hex_dump.cc \
-	human_readable_format.cc \
-	metadata.cc \
-	metadata_checker.cc \
-	metadata_dumper.cc \
-	metadata_disk_structures.cc \
-	restore_emitter.cc \
-	space_map.cc \
-	space_map_disk.cc \
-	space_map_recursive.cc \
-	space_map_transactional.cc \
-	thin_pool.cc \
-	transaction_manager.cc \
-	xml_format.cc
+	persistent-data/checksum.cc \
+	persistent-data/endian_utils.cc \
+	persistent-data/error_set.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space_map_disk.cc \
+	persistent-data/space_map_recursive.cc \
+	persistent-data/space_map_transactional.cc \
+	persistent-data/transaction_manager.cc \
+	thin-provisioning/human_readable_format.cc \
+	thin-provisioning/metadata.cc \
+	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/metadata_disk_structures.cc \
+	thin-provisioning/metadata_dumper.cc \
+	thin-provisioning/restore_emitter.cc \
+	thin-provisioning/thin_pool.cc \
+	thin-provisioning/xml_format.cc
 
 PROGRAM_SOURCE=\
-	thin_check.cc \
-	thin_dump.cc \
-	thin_restore.cc
+	thin-provisioning/thin_check.cc \
+	thin-provisioning/thin_dump.cc \
+	thin-provisioning/thin_restore.cc
 
 CXX:=@CXX@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
@@ -57,7 +57,7 @@ TOP_BUILDDIR:=@top_builddir@
 CXXFLAGS+=-Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
-INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR)
+INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-lstdc++
 LIBEXPAT:=-lexpat
 INSTALL:=@INSTALL@
@@ -86,39 +86,58 @@ test-programs: $(TEST_PROGRAMS)
 %.o: %.cc
 	$(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
+# CACHE_CHECK_SOURCE=\
+# 	persistent-data/checksum.cc \
+# 	persistent-data/endian_utils.cc \
+# 	persistent-data/error_set.cc \
+# 	persistent-data/hex_dump.cc \
+# 	cacmetadata.cc \
+# 	metadata_checker.cc \
+# 	cache_metadata_disk_structures.cc \
+# 	space_map.cc \
+# 	space_map_disk.cc \
+# 	space_map_recursive.cc \
+# 	space_map_transactional.cc \
+# 	transaction_manager.cc
+
 THIN_DEBUG_SOURCE=$(SOURCE)
 THIN_DUMP_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
 THIN_CHECK_SOURCE=\
-	checksum.cc \
-	endian_utils.cc \
-	error_set.cc \
-	hex_dump.cc \
-	metadata.cc \
-	metadata_checker.cc \
-	metadata_disk_structures.cc \
-	space_map.cc \
-	space_map_disk.cc \
-	space_map_recursive.cc \
-	space_map_transactional.cc \
-	transaction_manager.cc
+	persistent-data/checksum.cc \
+	persistent-data/endian_utils.cc \
+	persistent-data/error_set.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space_map_disk.cc \
+	persistent-data/space_map_recursive.cc \
+	persistent-data/space_map_transactional.cc \
+	persistent-data/transaction_manager.cc \
+	thin-provisioning/metadata.cc \
+	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/metadata_disk_structures.cc
+
+#CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 
-thin_debug: $(THIN_DEBUG_OBJECTS) thin_debug.o
+thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-thin_dump: $(THIN_DUMP_OBJECTS) thin_dump.o
+thin_dump: $(THIN_DUMP_OBJECTS) thin-provisioning/thin_dump.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-thin_restore: $(THIN_RESTORE_OBJECTS) thin_restore.o
+thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-thin_check: $(THIN_CHECK_OBJECTS) thin_check.o
+thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+
+#cache_check: $(CACHE_CHECK_OBJECTS) cache_check.o
+#	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 clean:
 	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)

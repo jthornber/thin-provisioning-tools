@@ -19,8 +19,8 @@
 #ifndef METADATA_CHECKER_H
 #define METADATA_CHECKER_H
 
-#include "error_set.h"
-#include "metadata.h"
+#include "persistent-data/error_set.h"
+#include "thin-provisioning/metadata.h"
 
 //----------------------------------------------------------------
 

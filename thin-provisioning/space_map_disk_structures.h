@@ -19,8 +19,8 @@
 #ifndef SPACE_MAP_DISK_STRUCTURES_H
 #define SPACE_MAP_DISK_STRUCTURES_H
 
-#include "endian_utils.h"
-#include "btree.h"
+#include "persistent-data/endian_utils.h"
+#include "persistent-data/btree.h"
 
 //----------------------------------------------------------------
 
