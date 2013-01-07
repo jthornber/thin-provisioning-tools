@@ -31,6 +31,7 @@ SOURCE=\
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space_map_disk.cc \
 	persistent-data/space_map_recursive.cc \
@@ -108,6 +109,7 @@ THIN_CHECK_SOURCE=\
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space_map_disk.cc \
 	persistent-data/space_map_recursive.cc \

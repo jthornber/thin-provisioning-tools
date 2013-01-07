@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <sstream>
 
+// FIXME: remove these from a header!
 using namespace boost;
 using namespace persistent_data;
 using namespace std;
@@ -180,6 +181,7 @@ block_manager<BlockSize>::read_ref::~read_ref()
 		} else
 			bm_.cache_.put(block_);
 
+		bm_.tracker_.unlock(block_->location_);
 		delete holders_;
 	}
 }
@@ -235,7 +237,8 @@ block_manager<BlockSize>::block_manager(std::string const &path,
 					unsigned max_concurrent_blocks,
 					bool writeable)
 	: io_(new block_io<BlockSize>(path, nr_blocks, writeable)),
-	  cache_(max(64u, max_concurrent_blocks))
+	  cache_(max(64u, max_concurrent_blocks)),
+	  tracker_(0, nr_blocks)
 {
 }
 
@@ -244,17 +247,24 @@ typename block_manager<BlockSize>::read_ref
 block_manager<BlockSize>::read_lock(block_address location,
 				    typename block_manager<BlockSize>::validator::ptr v) const
 {
-	check(location);
-	boost::optional<block_ptr> cached_block = cache_.get(location);
+	tracker_.read_lock(location);
+	try {
+		check(location);
+		boost::optional<block_ptr> cached_block = cache_.get(location);
 
-	if (cached_block) {
-		(*cached_block)->check_read_lockable();
-		return read_ref(*this, *cached_block);
+		if (cached_block) {
+			(*cached_block)->check_read_lockable();
+			return read_ref(*this, *cached_block);
+		}
+
+		block_ptr b(new block(io_, location, BT_NORMAL, v));
+		cache_.insert(b);
+		return read_ref(*this, b);
+
+	} catch (...) {
+		tracker_.unlock(location);
+		throw;
 	}
-
-	block_ptr b(new block(io_, location, BT_NORMAL, v));
-	cache_.insert(b);
-	return read_ref(*this, b);
 }
 
 template <uint32_t BlockSize>
@@ -262,18 +272,26 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::write_lock(block_address location,
 				     typename block_manager<BlockSize>::validator::ptr v)
 {
-	check(location);
+	tracker_.write_lock(location);
+	try {
+		check(location);
 
-	boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<block_ptr> cached_block = cache_.get(location);
 
-	if (cached_block) {
-		(*cached_block)->check_write_lockable();
-		return write_ref(*this, *cached_block);
+		if (cached_block) {
+			(*cached_block)->check_write_lockable();
+			return write_ref(*this, *cached_block);
+		}
+
+		block_ptr b(new block(io_, location, BT_NORMAL, v));
+		cache_.insert(b);
+		return write_ref(*this, b);
+
+	} catch (...) {
+		tracker_.unlock(location);
+		throw;
 	}
 
-	block_ptr b(new block(io_, location, BT_NORMAL, v));
-	cache_.insert(b);
-	return write_ref(*this, b);
 }
 
 template <uint32_t BlockSize>
@@ -281,18 +299,25 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::write_lock_zero(block_address location,
 					  typename block_manager<BlockSize>::validator::ptr v)
 {
-	check(location);
+	tracker_.write_lock(location);
+	try {
+		check(location);
 
-	boost::optional<block_ptr> cached_block = cache_.get(location);
-	if (cached_block) {
-		(*cached_block)->check_write_lockable();
-		memset((*cached_block)->data_->raw(), 0, BlockSize);
-		return write_ref(*this, *cached_block);
+		boost::optional<block_ptr> cached_block = cache_.get(location);
+		if (cached_block) {
+			(*cached_block)->check_write_lockable();
+			memset((*cached_block)->data_->raw(), 0, BlockSize);
+			return write_ref(*this, *cached_block);
+		}
+
+		block_ptr b(new block(io_, location, BT_NORMAL, v, true));
+		cache_.insert(b);
+		return write_ref(*this, b);
+
+	} catch (...) {
+		tracker_.unlock(location);
+		throw;
 	}
-
-	block_ptr b(new block(io_, location, BT_NORMAL, v, true));
-	cache_.insert(b);
-	return write_ref(*this, b);
 }
 
 template <uint32_t BlockSize>
@@ -300,20 +325,27 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::superblock(block_address location,
 				     typename block_manager<BlockSize>::validator::ptr v)
 {
-	check(location);
+	tracker_.write_lock(location);
+	try {
+		check(location);
 
-	boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<block_ptr> cached_block = cache_.get(location);
 
-	if (cached_block) {
-		(*cached_block)->check_write_lockable();
-		(*cached_block)->bt_ = BT_SUPERBLOCK;
-		(*cached_block)->validator_ = v;
-		return write_ref(*this, *cached_block);
+		if (cached_block) {
+			(*cached_block)->check_write_lockable();
+			(*cached_block)->bt_ = BT_SUPERBLOCK;
+			(*cached_block)->validator_ = v;
+			return write_ref(*this, *cached_block);
+		}
+
+		block_ptr b(new block(io_, location, BT_SUPERBLOCK, v));
+		cache_.insert(b);
+		return write_ref(*this, b);
+
+	} catch (...) {
+		tracker_.unlock(location);
+		throw;
 	}
-
-	block_ptr b(new block(io_, location, BT_SUPERBLOCK, v));
-	cache_.insert(b);
-	return write_ref(*this, b);
 }
 
 template <uint32_t BlockSize>
@@ -321,22 +353,29 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::superblock_zero(block_address location,
 					  typename block_manager<BlockSize>::validator::ptr v)
 {
-	check(location);
+	tracker_.write_lock(location);
+	try {
+		check(location);
 
-	boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<block_ptr> cached_block = cache_.get(location);
 
-	if (cached_block) {
-		(*cached_block)->check_write_lockable();
-		memset((*cached_block)->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
-		(*cached_block)->validator_ = v;
-		return write_ref(*this, *cached_block);
+		if (cached_block) {
+			(*cached_block)->check_write_lockable();
+			memset((*cached_block)->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
+			(*cached_block)->validator_ = v;
+			return write_ref(*this, *cached_block);
+		}
+
+		block_ptr b(new block(io_, location, BT_SUPERBLOCK,
+				      mk_validator(new noop_validator), true));
+		b->validator_ = v;
+		cache_.insert(b);
+		return write_ref(*this, b);
+
+	} catch (...) {
+		tracker_.unlock(location);
+		throw;
 	}
-
-	block_ptr b(new block(io_, location, BT_SUPERBLOCK,
-			      mk_validator(new noop_validator), true));
-	b->validator_ = v;
-	cache_.insert(b);
-	return write_ref(*this, b);
 }
 
 template <uint32_t BlockSize>

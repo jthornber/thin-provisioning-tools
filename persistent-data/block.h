@@ -20,6 +20,7 @@
 #define BLOCK_H
 
 #include "persistent-data/cache.h"
+#include "persistent-data/lock_tracker.h"
 
 #include <stdint.h>
 #include <map>
@@ -246,9 +247,7 @@ namespace persistent_data {
 		mutable base::cache<cache_traits> cache_;
 
 		// FIXME: we need a dirty list as well as a cache
-
-		typedef std::map<block_address, std::pair<lock_type, unsigned> > held_map;
-		mutable held_map held_locks_;
+		mutable lock_tracker tracker_;
 	};
 
 	// A little utility to help build validators
