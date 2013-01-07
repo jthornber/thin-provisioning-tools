@@ -60,6 +60,21 @@ lock_tracker::write_lock(uint64_t key)
 }
 
 void
+lock_tracker::superblock_lock(uint64_t key)
+{
+	if (superblock_)
+		throw runtime_error("superblock already held");
+
+	superblock_ = boost::optional<uint64_t>(key);
+	try {
+		write_lock(key);
+
+	} catch (...) {
+		superblock_ = boost::optional<uint64_t>();
+	}
+}
+
+void
 lock_tracker::unlock(uint64_t key)
 {
 	check_key(key);
@@ -72,6 +87,9 @@ lock_tracker::unlock(uint64_t key)
 		locks_.insert(make_pair(key, it->second - 1));
 	else
 		locks_.erase(key);
+
+	if (superblock_ && *superblock_ == key)
+		superblock_ = boost::optional<uint64_t>();
 }
 
 bool

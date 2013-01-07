@@ -20,6 +20,7 @@
 #define LOCK_TRACKER_H
 
 #include <boost/noncopyable.hpp>
+#include <boost/optional.hpp>
 #include <map>
 #include <stdint.h>
 
@@ -33,6 +34,7 @@ namespace persistent_data {
 
 		void read_lock(uint64_t key);
 		void write_lock(uint64_t key);
+		void superblock_lock(uint64_t key);
 		void unlock(uint64_t key);
 
 	private:
@@ -45,6 +47,7 @@ namespace persistent_data {
 
 		// Positive for read lock, negative for write lock
 		LockMap locks_;
+		boost::optional<uint64_t> superblock_;
 
 		uint64_t low_;
 		uint64_t high_;

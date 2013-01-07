@@ -325,7 +325,7 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::superblock(block_address location,
 				     typename block_manager<BlockSize>::validator::ptr v)
 {
-	tracker_.write_lock(location);
+	tracker_.superblock_lock(location);
 	try {
 		check(location);
 
@@ -353,7 +353,7 @@ typename block_manager<BlockSize>::write_ref
 block_manager<BlockSize>::superblock_zero(block_address location,
 					  typename block_manager<BlockSize>::validator::ptr v)
 {
-	tracker_.write_lock(location);
+	tracker_.superblock_lock(location);
 	try {
 		check(location);
 
