@@ -36,12 +36,12 @@ lock_tracker::read_lock(uint64_t key)
 {
 	check_key(key);
 
-	LockMap::const_iterator it = locks_.find(key);
+	LockMap::iterator it = locks_.find(key);
 	if (found(it)) {
 		if (it->second < 0)
 			throw runtime_error("already write locked");
 
-		locks_.insert(make_pair(key, it->second + 1));
+		it->second++;
 
 	} else
 		locks_.insert(make_pair(key, 1));
@@ -83,13 +83,18 @@ lock_tracker::unlock(uint64_t key)
 	if (!found(it))
 		throw runtime_error("not locked");
 
+	if (superblock_ && *superblock_ == key) {
+		if (locks_.size() > 1)
+			throw runtime_error("superblock unlocked while other locks still held");
+
+		superblock_ = boost::optional<uint64_t>();
+	}
+
 	if (it->second > 1)
 		locks_.insert(make_pair(key, it->second - 1));
 	else
 		locks_.erase(key);
 
-	if (superblock_ && *superblock_ == key)
-		superblock_ = boost::optional<uint64_t>();
 }
 
 bool
