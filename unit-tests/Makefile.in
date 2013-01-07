@@ -17,16 +17,16 @@
 # <http://www.gnu.org/licenses/>.
 
 TEST_SOURCE=\
-	unit-tests/cache_t.cc
+	unit-tests/cache_t.cc \
+	unit-tests/block_t.cc
 
-# FIXME Make these tests work.
-#	unit-tests/block_t.cc \
-	unit-tests/btree_t.cc \
-	unit-tests/endian_t.cc \
-	unit-tests/run_list_t.cc \
-	unit-tests/space_map_t.cc \
-	unit-tests/space_map_disk_t.cc \
-	unit-tests/transaction_manager_t.cc
+# FIXME: reinstate
+	# unit-tests/btree_t.cc \
+	# unit-tests/endian_t.cc \
+	# unit-tests/run_list_t.cc \
+	# unit-tests/space_map_t.cc \
+	# unit-tests/space_map_disk_t.cc \
+	# unit-tests/transaction_manager_t.cc
 
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
 
@@ -35,31 +35,31 @@ unit-test: $(TEST_PROGRAMS)
 
 .PHONY: unit-test
 
-unit-tests/block_t: unit-tests/block_t.o
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS)
+unit-tests/block_t: unit-tests/block_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/btree_t: unit-tests/btree_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/cache_t: unit-tests/cache_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/run_list_t: unit-tests/run_list_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/space_map_t: unit-tests/space_map_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/space_map_disk_t: unit-tests/space_map_disk_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/endian_t: unit-tests/endian_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 all: $(TEST_PROGRAMS)

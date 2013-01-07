@@ -8,3 +8,4 @@ thin_restore
 thin_repair
 *.metadata
 bad-metadata
+Makefile

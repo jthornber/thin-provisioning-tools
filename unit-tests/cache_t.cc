@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "cache.h"
+#include "persistent-data/cache.h"
 
 #define BOOST_TEST_MODULE CacheTests
 #include <boost/test/included/unit_test.hpp>

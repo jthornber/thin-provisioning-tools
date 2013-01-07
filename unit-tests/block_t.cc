@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "block.h"
+#include "persistent-data/block.h"
 
 #define BOOST_TEST_MODULE BlockManagerTests
 #include <boost/test/included/unit_test.hpp>
@@ -34,20 +34,20 @@ namespace {
 
 	template <uint32_t BlockSize>
 	void check_all_bytes(typename block_manager<BlockSize>::read_ref const &rr, int v) {
-		typename block_manager<BlockSize>::const_buffer &data = rr.data();
+		persistent_data::buffer<BlockSize> const &data = rr.data();
 		for (unsigned b = 0; b < BlockSize; b++)
 			BOOST_CHECK_EQUAL(data[b], v);
 	}
 
 	template <uint32_t BlockSize>
-	class zero_validator : public block_manager<BlockSize>::validator {
-		void check(block_manager<4096>::const_buffer &data, block_address location) const {
+	struct zero_validator : public block_manager<BlockSize>::validator {
+		virtual void check(buffer<BlockSize> const &data, block_address location) const {
 			for (unsigned b = 0; b < BlockSize; b++)
 				if (data[b] != 0)
  					throw runtime_error("validator check zero");
 		}
 
-		void prepare(block_manager<4096>::buffer &data, block_address location) const {
+		virtual void prepare(buffer<BlockSize> &data, block_address location) const {
 			cerr << "zeroing" << endl;
 			for (unsigned b = 0; b < BlockSize; b++)
 				data[b] = 0;
@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE(writes_persist)
 	bm4096::ptr bm = create_bm(nr);
 	for (unsigned i = 0; i < nr; i++) {
 		bm4096::write_ref wr = bm->write_lock(i);
-		::memset(wr.data(), i, 4096);
+		::memset(wr.data().raw(), i, 4096);
 	}
 
 	for (unsigned i = 0; i < nr; i++) {
@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(write_validator_works)
 
 	{
 		bm4096::write_ref wr = bm->write_lock(0, v);
-		::memset(wr.data(), 23, sizeof(wr.data()));
+		::memset(wr.data().raw(), 23, sizeof(wr.data().raw()));
 	}
 
 	bm->flush();		// force the prepare method to be called
@@ -182,15 +182,6 @@ BOOST_AUTO_TEST_CASE(references_can_be_copied)
 	bm4096::write_ref wr1 = bm->write_lock(0);
 	bm4096::write_ref wr2(wr1);
 }
-
-#if 0
-BOOST_AUTO_TEST_CASE(flush_throws_if_held_locks)
-{
-	bm4096::ptr bm = create_bm();
-	bm4096::write_ref wr = bm->write_lock(0);
-	BOOST_CHECK_THROW(bm->flush(), runtime_error);
-}
-#endif
 
 BOOST_AUTO_TEST_CASE(no_concurrent_write_locks)
 {

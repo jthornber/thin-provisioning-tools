@@ -79,6 +79,7 @@ test-programs: $(TEST_PROGRAMS)
 
 .SUFFIXES: .d
 
+# FIXME: not working
 %.d: %.cc
 	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
@@ -142,7 +143,7 @@ thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
 #	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 clean:
-	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS)
+	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS)
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
 .PHONY: clean distclean
