@@ -172,7 +172,7 @@ namespace persistent_data {
 			buffer<BlockSize> const &data() const;
 
 		protected:
-			block_manager<BlockSize> const &bm_;
+			block_manager<BlockSize> const *bm_;
 			block_ptr block_;
 			unsigned *holders_;
 		};

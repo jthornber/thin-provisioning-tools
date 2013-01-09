@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "run_list.h"
+#include "persistent-data/run_list.h"
 
 #define BOOST_TEST_MODULE RunListTests
 #include <boost/test/included/unit_test.hpp>

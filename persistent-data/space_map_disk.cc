@@ -323,8 +323,10 @@ namespace {
 				index_entry ie = indexes_->find_ie(index);
 
 				bitmap bm(tm_, ie);
-				optional<unsigned> maybe_b = bm.find_free((index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0,
-									  (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK);
+				unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
+				unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
+
+				optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 				if (maybe_b) {
 					block_address b = *maybe_b;
 					indexes_->save_ie(index, bm.get_ie());

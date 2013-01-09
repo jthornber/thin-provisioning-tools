@@ -16,8 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "space_map.h"
-#include "core_map.h"
+#include "persistent-data/space_map.h"
 
 #define BOOST_TEST_MODULE SpaceMapTests
 #include <boost/test/included/unit_test.hpp>

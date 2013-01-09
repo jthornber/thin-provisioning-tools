@@ -16,9 +16,9 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "transaction_manager.h"
-#include "space_map_core.h"
-#include "btree.h"
+#include "persistent-data/transaction_manager.h"
+#include "persistent-data/space_map_core.h"
+#include "persistent-data/btree.h"
 
 #define BOOST_TEST_MODULE BTreeTests
 #include <boost/test/included/unit_test.hpp>

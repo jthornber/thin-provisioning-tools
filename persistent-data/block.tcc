@@ -154,7 +154,7 @@ block_manager<BlockSize>::block::flush()
 template <uint32_t BlockSize>
 block_manager<BlockSize>::read_ref::read_ref(block_manager<BlockSize> const &bm,
 					     block_ptr b)
-	: bm_(bm),
+	: bm_(&bm),
 	  block_(b),
 	  holders_(new unsigned)
 {
@@ -175,13 +175,13 @@ block_manager<BlockSize>::read_ref::~read_ref()
 {
 	if (!--(*holders_)) {
 		if (block_->bt_ == BT_SUPERBLOCK) {
-			bm_.flush();
-			bm_.cache_.put(block_);
-			bm_.flush();
+			bm_->flush();
+			bm_->cache_.put(block_);
+			bm_->flush();
 		} else
-			bm_.cache_.put(block_);
+			bm_->cache_.put(block_);
 
-		bm_.tracker_.unlock(block_->location_);
+		bm_->tracker_.unlock(block_->location_);
 		delete holders_;
 	}
 }
@@ -196,6 +196,8 @@ block_manager<BlockSize>::read_ref::operator =(read_ref const &rhs)
 		holders_ = rhs.holders_;
 		(*holders_)++;
 	}
+
+	return *this;
 }
 
 template <uint32_t BlockSize>
