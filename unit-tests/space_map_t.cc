@@ -1,4 +1,4 @@
-// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+// Copyright (C) 2011-2012 Red Hat, Inc. All rights reserved.
 //
 // This file is part of the thin-provisioning-tools source.
 //
@@ -19,6 +19,7 @@
 #include "persistent-data/space_map_disk.h"
 #include "persistent-data/space_map_core.h"
 #include "persistent-data/space_map_careful_alloc.h"
+#include "persistent-data/space_map_recursive.h"
 
 #define BOOST_TEST_MODULE SpaceMapDiskTests
 #include <boost/test/included/unit_test.hpp>
@@ -44,16 +45,14 @@ namespace {
 		return tm;
 	}
 
-	class sm_core_creator {
-	public:
+	struct sm_core_creator {
 		static space_map::ptr
 		create() {
 			return space_map::ptr(new persistent_data::core_map(NR_BLOCKS));
 		}
 	};
 
-	class sm_careful_alloc_creator {
-	public:
+	struct sm_careful_alloc_creator {
 		static space_map::ptr
 		create() {
 			return create_careful_alloc_sm(
@@ -62,8 +61,16 @@ namespace {
 		}
 	};
 
-	class sm_disk_creator {
-	public:
+	struct sm_recursive_creator {
+		static checked_space_map::ptr
+		create() {
+			return create_recursive_sm(
+				checked_space_map::ptr(
+					new core_map(NR_BLOCKS)));
+		}
+	};
+
+	struct sm_disk_creator {
 		static persistent_space_map::ptr
 		create() {
 			transaction_manager::ptr tm = create_tm();
@@ -77,8 +84,7 @@ namespace {
 		}
 	};
 
-	class sm_metadata_creator {
-	public:
+	struct sm_metadata_creator {
 		static persistent_space_map::ptr
 		create() {
 			transaction_manager::ptr tm = create_tm();
@@ -264,11 +270,15 @@ BOOST_AUTO_TEST_CASE(test_sm_careful_alloc)
 	do_tests<sm_careful_alloc_creator>(space_map_tests);
 }
 
+BOOST_AUTO_TEST_CASE(test_sm_recursive)
+{
+	do_tests<sm_recursive_creator>(space_map_tests);
+}
+
 BOOST_AUTO_TEST_CASE(test_sm_disk)
 {
 	do_tests<sm_disk_creator>(space_map_tests);
 	test_sm_reopen<sm_disk_creator>();
-
 }
 
 BOOST_AUTO_TEST_CASE(test_sm_metadata)
