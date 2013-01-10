@@ -22,9 +22,10 @@
 #include "persistent-data/block.h"
 #include "persistent-data/btree.h"
 #include "persistent-data/endian_utils.h"
-#include "thin-provisioning/metadata_disk_structures.h"
-#include "persistent-data/space_map_disk.h"
+#include "persistent-data/space-maps/disk.h"
 #include "persistent-data/transaction_manager.h"
+
+#include "thin-provisioning/metadata_disk_structures.h"
 
 //----------------------------------------------------------------
 

@@ -16,15 +16,15 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "space_map_disk.h"
+#include "disk.h"
+#include "disk_structures.h"
+#include "recursive.h"
+#include "careful_alloc.h"
 
-#include "checksum.h"
-#include "endian_utils.h"
-#include "math_utils.h"
-#include "space_map_disk_structures.h"
-#include "space_map_recursive.h"
-#include "space_map_careful_alloc.h"
-#include "transaction_manager.h"
+#include "persistent-data/checksum.h"
+#include "persistent-data/endian_utils.h"
+#include "persistent-data/math_utils.h"
+#include "persistent-data/transaction_manager.h"
 
 using namespace boost;
 using namespace persistent_data;

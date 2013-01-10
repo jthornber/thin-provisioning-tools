@@ -19,8 +19,8 @@
 #include "thin-provisioning/metadata.h"
 
 #include "persistent-data/math_utils.h"
-#include "persistent-data/space_map_core.h"
-#include "persistent-data/space_map_disk.h"
+#include "persistent-data/space-maps/core.h"
+#include "persistent-data/space-maps/disk.h"
 
 #include <linux/fs.h>
 #include <sys/ioctl.h>

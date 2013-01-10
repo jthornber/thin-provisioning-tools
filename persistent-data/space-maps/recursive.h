@@ -16,18 +16,15 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef SPACE_MAP_CAREFUL_ALLOC_H
-#define SPACE_MAP_CAREFUL_ALLOC_H
+#ifndef SPACE_MAP_RECURSIVE_H
+#define SPACE_MAP_RECURSIVE_H
 
-#include "space_map.h"
+#include "persistent-data/space_map.h"
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	// This space map ensures no blocks are allocated which have been
-	// freed within the current transaction.  This is a common
-	// requirement when we want resilience to crashes.
-	checked_space_map::ptr create_careful_alloc_sm(checked_space_map::ptr sm);
+	checked_space_map::ptr create_recursive_sm(checked_space_map::ptr sm);
 }
 
 //----------------------------------------------------------------

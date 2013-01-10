@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "persistent-data/space_map_careful_alloc.h"
+#include "persistent-data/space-maps/careful_alloc.h"
 
 #include <set>
 

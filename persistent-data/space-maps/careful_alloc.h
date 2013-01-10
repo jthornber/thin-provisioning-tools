@@ -16,26 +16,18 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef SPACE_MAP_DISK_H
-#define SPACE_MAP_DISK_H
+#ifndef SPACE_MAP_CAREFUL_ALLOC_H
+#define SPACE_MAP_CAREFUL_ALLOC_H
 
-#include "btree_checker.h"
-#include "space_map.h"
+#include "persistent-data/space_map.h"
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	checked_space_map::ptr
-	create_disk_sm(transaction_manager::ptr tm, block_address nr_blocks);
-
-	checked_space_map::ptr
-	open_disk_sm(transaction_manager::ptr tm, void *root);
-
-	checked_space_map::ptr
-	create_metadata_sm(transaction_manager::ptr tm, block_address nr_blocks);
-
-	checked_space_map::ptr
-	open_metadata_sm(transaction_manager::ptr tm, void *root);
+	// This space map ensures no blocks are allocated which have been
+	// freed within the current transaction.  This is a common
+	// requirement when we want resilience to crashes.
+	checked_space_map::ptr create_careful_alloc_sm(checked_space_map::ptr sm);
 }
 
 //----------------------------------------------------------------

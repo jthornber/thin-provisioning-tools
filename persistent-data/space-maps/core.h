@@ -19,7 +19,7 @@
 #ifndef CORE_MAP_H
 #define CORE_MAP_H
 
-#include "space_map.h"
+#include "persistent-data/space_map.h"
 
 //----------------------------------------------------------------
 

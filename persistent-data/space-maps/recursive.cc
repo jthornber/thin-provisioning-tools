@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "persistent-data/space_map_recursive.h"
+#include "persistent-data/space-maps/recursive.h"
 
 using namespace persistent_data;
 

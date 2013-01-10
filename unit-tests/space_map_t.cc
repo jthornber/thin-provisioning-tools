@@ -16,10 +16,10 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "persistent-data/space_map_disk.h"
-#include "persistent-data/space_map_core.h"
-#include "persistent-data/space_map_careful_alloc.h"
-#include "persistent-data/space_map_recursive.h"
+#include "persistent-data/space-maps/disk.h"
+#include "persistent-data/space-maps/core.h"
+#include "persistent-data/space-maps/careful_alloc.h"
+#include "persistent-data/space-maps/recursive.h"
 
 #define BOOST_TEST_MODULE SpaceMapDiskTests
 #include <boost/test/included/unit_test.hpp>

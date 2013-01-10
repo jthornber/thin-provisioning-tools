@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "persistent-data/space_map_disk.h"
+#include "persistent-data/space-maps/disk.h"
 
 #define BOOST_TEST_MODULE EndianTests
 #include <boost/test/included/unit_test.hpp>

@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/transaction_manager.h"
-#include "persistent-data/space_map_core.h"
+#include "persistent-data/space-maps/core.h"
 #include "persistent-data/btree.h"
 
 #define BOOST_TEST_MODULE BTreeTests
