@@ -24,7 +24,7 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	
+
 	// FIXME: change name 'transactional' is so vague.
 
 	// This space map ensures no blocks are allocated which have been

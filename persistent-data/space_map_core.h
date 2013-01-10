@@ -24,8 +24,10 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	class core_map : public space_map {
+	class core_map : public checked_space_map {
 	public:
+		typedef boost::shared_ptr<core_map> ptr;
+
 		core_map(block_address nr_blocks)
 			: counts_(nr_blocks, 0),
 			  nr_free_(nr_blocks) {
@@ -91,6 +93,20 @@ namespace persistent_data {
 
 		void extend(block_address extra_blocks) {
 			throw std::runtime_error("not implemented");
+		}
+
+		// FIXME: meaningless, but this class is only used for testing
+		size_t root_size() const {
+			return 0;
+		}
+
+		// FIXME: meaningless, but this class is only used for testing
+		virtual void copy_root(void *dest, size_t len) const {
+			throw std::runtime_error("not implemented");
+		}
+
+		checked_space_map::ptr clone() const {
+			return ptr(new core_map(*this));
 		}
 
 	private:

@@ -18,6 +18,7 @@
 
 #include "persistent-data/space_map_disk.h"
 #include "persistent-data/space_map_core.h"
+#include "persistent-data/space_map_transactional.h"
 
 #define BOOST_TEST_MODULE SpaceMapDiskTests
 #include <boost/test/included/unit_test.hpp>
@@ -37,7 +38,7 @@ namespace {
 	create_tm() {
 		block_manager<>::ptr bm(
 			new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, true));
-		space_map::ptr sm(new core_map(1024));
+		space_map::ptr sm(new core_map(NR_BLOCKS));
 		transaction_manager::ptr tm(
 			new transaction_manager(bm, sm));
 		return tm;
@@ -48,6 +49,16 @@ namespace {
 		static space_map::ptr
 		create() {
 			return space_map::ptr(new persistent_data::core_map(NR_BLOCKS));
+		}
+	};
+
+	class sm_transactional_creator {
+	public:
+		static space_map::ptr
+		create() {
+			return create_transactional_sm(
+				checked_space_map::ptr(
+					new core_map(NR_BLOCKS)));
 		}
 	};
 
@@ -246,6 +257,11 @@ namespace {
 BOOST_AUTO_TEST_CASE(test_sm_core)
 {
 	do_tests<sm_core_creator>(space_map_tests);
+}
+
+BOOST_AUTO_TEST_CASE(test_sm_transactional)
+{
+	do_tests<sm_transactional_creator>(space_map_tests);
 }
 
 BOOST_AUTO_TEST_CASE(test_sm_disk)
