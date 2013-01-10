@@ -124,4 +124,3 @@ BOOST_AUTO_TEST_CASE(shadow_free_block_fails)
 	write_ref superblock = tm->begin(0, noop_validator());
 	BOOST_CHECK_THROW(tm->shadow(1, noop_validator()), runtime_error);
 }
-
