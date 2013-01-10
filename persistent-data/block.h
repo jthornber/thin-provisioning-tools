@@ -157,12 +157,11 @@ namespace persistent_data {
 			block_type bt_;
 			bool dirty_;
 		};
-		typedef typename block::ptr block_ptr; // FIXME: remove
 
 		class read_ref {
 		public:
 			read_ref(block_manager<BlockSize> const &bm,
-				 block_ptr b);
+				 typename block::ptr b);
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
 
@@ -173,7 +172,7 @@ namespace persistent_data {
 
 		protected:
 			block_manager<BlockSize> const *bm_;
-			block_ptr block_;
+			typename block::ptr block_;
 			unsigned *holders_;
 		};
 
@@ -227,7 +226,7 @@ namespace persistent_data {
 
 	private:
 		void check(block_address b) const;
-		void write_block(block_ptr b) const;
+		void write_block(typename block::ptr b) const;
 
 		enum lock_type {
 			READ_LOCK,

@@ -153,7 +153,7 @@ block_manager<BlockSize>::block::flush()
 
 template <uint32_t BlockSize>
 block_manager<BlockSize>::read_ref::read_ref(block_manager<BlockSize> const &bm,
-					     block_ptr b)
+					     typename block::ptr b)
 	: bm_(&bm),
 	  block_(b),
 	  holders_(new unsigned)
@@ -218,7 +218,7 @@ block_manager<BlockSize>::read_ref::data() const
 
 template <uint32_t BlockSize>
 block_manager<BlockSize>::write_ref::write_ref(block_manager<BlockSize> const &bm,
-					       block_ptr b)
+					       typename block::ptr b)
 	: read_ref(bm, b)
 {
 	b->dirty_ = true;
@@ -252,14 +252,14 @@ block_manager<BlockSize>::read_lock(block_address location,
 	tracker_.read_lock(location);
 	try {
 		check(location);
-		boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
 			(*cached_block)->check_read_lockable();
 			return read_ref(*this, *cached_block);
 		}
 
-		block_ptr b(new block(io_, location, BT_NORMAL, v));
+		typename block::ptr b(new block(io_, location, BT_NORMAL, v));
 		cache_.insert(b);
 		return read_ref(*this, b);
 
@@ -278,14 +278,14 @@ block_manager<BlockSize>::write_lock(block_address location,
 	try {
 		check(location);
 
-		boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
 			(*cached_block)->check_write_lockable();
 			return write_ref(*this, *cached_block);
 		}
 
-		block_ptr b(new block(io_, location, BT_NORMAL, v));
+		typename block::ptr b(new block(io_, location, BT_NORMAL, v));
 		cache_.insert(b);
 		return write_ref(*this, b);
 
@@ -305,14 +305,14 @@ block_manager<BlockSize>::write_lock_zero(block_address location,
 	try {
 		check(location);
 
-		boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 		if (cached_block) {
 			(*cached_block)->check_write_lockable();
 			memset((*cached_block)->data_->raw(), 0, BlockSize);
 			return write_ref(*this, *cached_block);
 		}
 
-		block_ptr b(new block(io_, location, BT_NORMAL, v, true));
+		typename block::ptr b(new block(io_, location, BT_NORMAL, v, true));
 		cache_.insert(b);
 		return write_ref(*this, b);
 
@@ -331,7 +331,7 @@ block_manager<BlockSize>::superblock(block_address location,
 	try {
 		check(location);
 
-		boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
 			(*cached_block)->check_write_lockable();
@@ -340,7 +340,7 @@ block_manager<BlockSize>::superblock(block_address location,
 			return write_ref(*this, *cached_block);
 		}
 
-		block_ptr b(new block(io_, location, BT_SUPERBLOCK, v));
+		typename block::ptr b(new block(io_, location, BT_SUPERBLOCK, v));
 		cache_.insert(b);
 		return write_ref(*this, b);
 
@@ -359,7 +359,7 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 	try {
 		check(location);
 
-		boost::optional<block_ptr> cached_block = cache_.get(location);
+		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
 			(*cached_block)->check_write_lockable();
@@ -368,7 +368,7 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 			return write_ref(*this, *cached_block);
 		}
 
-		block_ptr b(new block(io_, location, BT_SUPERBLOCK,
+		typename block::ptr b(new block(io_, location, BT_SUPERBLOCK,
 				      mk_validator(new noop_validator), true));
 		b->validator_ = v;
 		cache_.insert(b);
@@ -397,7 +397,7 @@ block_manager<BlockSize>::get_nr_blocks() const
 
 template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::write_block(block_ptr b) const
+block_manager<BlockSize>::write_block(typename block::ptr b) const
 {
 	b->flush();
 }
