@@ -94,28 +94,39 @@ BOOST_AUTO_TEST_CASE(shadowing)
 BOOST_AUTO_TEST_CASE(multiple_shadowing)
 {
 	transaction_manager::ptr tm = create_tm();
-	write_ref superblock = tm->begin(0, noop_validator());
-
 	space_map::ptr sm = tm->get_sm();
 	sm->set_count(1, 3);
+	block_address b, b2;
 
-	pair<write_ref, bool> p = tm->shadow(1, noop_validator());
-	block_address b = p.first.get_location();
-	BOOST_CHECK(b != 1);
-	BOOST_CHECK(p.second);
+	{
+		write_ref superblock = tm->begin(0, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		b = p.first.get_location();
+		BOOST_CHECK(b != 1);
+		BOOST_CHECK(p.second);
+		sm->commit();
+	}
 
-	p = tm->shadow(1, noop_validator());
-	block_address b2 = p.first.get_location();
-	BOOST_CHECK(b2 != 1);
-	BOOST_CHECK(b2 != b);
-	BOOST_CHECK(p.second);
+	{
+		write_ref superblock = tm->begin(0, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		b2 = p.first.get_location();
+		BOOST_CHECK(b2 != 1);
+		BOOST_CHECK(b2 != b);
+		BOOST_CHECK(p.second);
+		sm->commit();
+	}
 
-	p = tm->shadow(1, noop_validator());
-	block_address b3 = p.first.get_location();
-	BOOST_CHECK(b3 != b2);
-	BOOST_CHECK(b3 != b);
-	BOOST_CHECK(b3 != 1);
-	BOOST_CHECK(!p.second);
+	{
+		write_ref superblock = tm->begin(0, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		block_address b3 = p.first.get_location();
+		BOOST_CHECK(b3 != b2);
+		BOOST_CHECK(b3 != b);
+		BOOST_CHECK(b3 != 1);
+		BOOST_CHECK(!p.second);
+		sm->commit();
+	}
 }
 
 BOOST_AUTO_TEST_CASE(shadow_free_block_fails)
