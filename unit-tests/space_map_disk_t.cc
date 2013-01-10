@@ -43,6 +43,14 @@ namespace {
 		return tm;
 	}
 
+	class sm_core_creator {
+	public:
+		static space_map::ptr
+		create() {
+			return space_map::ptr(new persistent_data::core_map(NR_BLOCKS));
+		}
+	};
+
 	class sm_disk_creator {
 	public:
 		static persistent_space_map::ptr
@@ -234,6 +242,11 @@ namespace {
 }
 
 //----------------------------------------------------------------
+
+BOOST_AUTO_TEST_CASE(test_sm_core)
+{
+	do_tests<sm_core_creator>(space_map_tests);
+}
 
 BOOST_AUTO_TEST_CASE(test_sm_disk)
 {
