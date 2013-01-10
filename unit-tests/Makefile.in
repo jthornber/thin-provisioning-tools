@@ -21,7 +21,7 @@ TEST_SOURCE=\
 	unit-tests/block_t.cc \
 	unit-tests/btree_t.cc \
 	unit-tests/endian_t.cc \
-	unit-tests/space_map_disk_t.cc \
+	unit-tests/space_map_t.cc \
 	unit-tests/transaction_manager_t.cc
 
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
