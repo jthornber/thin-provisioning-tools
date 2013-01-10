@@ -18,7 +18,7 @@
 
 #include "persistent-data/space_map_disk.h"
 #include "persistent-data/space_map_core.h"
-#include "persistent-data/space_map_transactional.h"
+#include "persistent-data/space_map_careful_alloc.h"
 
 #define BOOST_TEST_MODULE SpaceMapDiskTests
 #include <boost/test/included/unit_test.hpp>
@@ -52,11 +52,11 @@ namespace {
 		}
 	};
 
-	class sm_transactional_creator {
+	class sm_careful_alloc_creator {
 	public:
 		static space_map::ptr
 		create() {
-			return create_transactional_sm(
+			return create_careful_alloc_sm(
 				checked_space_map::ptr(
 					new core_map(NR_BLOCKS)));
 		}
@@ -259,9 +259,9 @@ BOOST_AUTO_TEST_CASE(test_sm_core)
 	do_tests<sm_core_creator>(space_map_tests);
 }
 
-BOOST_AUTO_TEST_CASE(test_sm_transactional)
+BOOST_AUTO_TEST_CASE(test_sm_careful_alloc)
 {
-	do_tests<sm_transactional_creator>(space_map_tests);
+	do_tests<sm_careful_alloc_creator>(space_map_tests);
 }
 
 BOOST_AUTO_TEST_CASE(test_sm_disk)

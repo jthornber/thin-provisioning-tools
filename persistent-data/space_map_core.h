@@ -72,17 +72,19 @@ namespace persistent_data {
 				nr_free_++;
 		}
 
-		maybe_block new_block() {
-			return new_block(0, counts_.size());
-		}
+		maybe_block new_block(span_iterator &it) {
+			for (maybe_span ms = it.first(); ms; ms = it.next()) {
+				for (block_address b = ms->first; b < ms->second; b++) {
+					if (b >= counts_.size())
+						throw std::runtime_error("block out of bounds");
 
-		maybe_block new_block(block_address begin, block_address end) {
-			for (block_address i = begin; i < std::min<block_address>(end, counts_.size()); i++)
-				if (counts_[i] == 0) {
-					counts_[i] = 1;
-					nr_free_--;
-					return i;
+					if (!counts_[b]) {
+						counts_[b] = 1;
+						nr_free_--;
+						return maybe_block(b);
+					}
 				}
+			}
 
 			return maybe_block();
 		}
@@ -92,7 +94,7 @@ namespace persistent_data {
 		}
 
 		void extend(block_address extra_blocks) {
-			throw std::runtime_error("not implemented");
+			throw std::runtime_error("'extend' not implemented");
 		}
 
 		// FIXME: meaningless, but this class is only used for testing
@@ -102,7 +104,7 @@ namespace persistent_data {
 
 		// FIXME: meaningless, but this class is only used for testing
 		virtual void copy_root(void *dest, size_t len) const {
-			throw std::runtime_error("not implemented");
+			throw std::runtime_error("'copy root' not implemented");
 		}
 
 		checked_space_map::ptr clone() const {

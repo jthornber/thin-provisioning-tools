@@ -16,20 +16,18 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef SPACE_MAP_TRANSACTIONAL_H
-#define SPACE_MAP_TRANSACTIONAL_H
+#ifndef SPACE_MAP_CAREFUL_ALLOC_H
+#define SPACE_MAP_CAREFUL_ALLOC_H
 
 #include "space_map.h"
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
-
-	// FIXME: change name 'transactional' is so vague.
-
 	// This space map ensures no blocks are allocated which have been
-	// freed within the current transaction.
-	checked_space_map::ptr create_transactional_sm(checked_space_map::ptr sm);
+	// freed within the current transaction.  This is a common
+	// requirement when we want resilience to crashes.
+	checked_space_map::ptr create_careful_alloc_sm(checked_space_map::ptr sm);
 }
 
 //----------------------------------------------------------------

@@ -103,19 +103,11 @@ namespace {
 			}
 		}
 
-		// new_block must not recurse.
-		virtual boost::optional<block_address>
-		new_block() {
-			cant_recurse("new_block");
+		virtual maybe_block
+		new_block(span_iterator &it) {
+			cant_recurse("new_block()");
 			recursing_lock lock(*this);
-			return sm_->new_block();
-		}
-
-		virtual boost::optional<block_address>
-		new_block(block_address begin, block_address end) {
-			cant_recurse("new_block(range)");
-			recursing_lock lock(*this);
-			return sm_->new_block(begin, end);
+			return sm_->new_block(it);
 		}
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {

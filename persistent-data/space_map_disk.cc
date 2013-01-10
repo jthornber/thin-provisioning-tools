@@ -23,7 +23,7 @@
 #include "math_utils.h"
 #include "space_map_disk_structures.h"
 #include "space_map_recursive.h"
-#include "space_map_transactional.h"
+#include "space_map_careful_alloc.h"
 #include "transaction_manager.h"
 
 using namespace boost;
@@ -309,31 +309,31 @@ namespace {
 			set_count(b, old - 1);
 		}
 
-		maybe_block new_block() {
-			// FIXME: keep track of the lowest free block so we
-			// can start searching from a suitable place.
-			return new_block(0, nr_blocks_);
-		}
+		// FIXME: keep track of the lowest free block so we
+		// can start searching from a suitable place.
+		maybe_block new_block(span_iterator &it) {
+			for (maybe_span ms = it.first(); ms; ms = it.next()) {
+				block_address begin = ms->first;
+				block_address end = ms->second;
 
-		maybe_block new_block(block_address begin, block_address end) {
-			block_address begin_index = begin / ENTRIES_PER_BLOCK;
-			block_address end_index = div_up<block_address>(end, ENTRIES_PER_BLOCK);
+				block_address begin_index = begin / ENTRIES_PER_BLOCK;
+				block_address end_index = div_up<block_address>(end, ENTRIES_PER_BLOCK);
 
-			for (block_address index = begin_index; index < end_index; index++) {
-				index_entry ie = indexes_->find_ie(index);
+				for (block_address index = begin_index; index < end_index; index++) {
+					index_entry ie = indexes_->find_ie(index);
 
-				bitmap bm(tm_, ie);
-				unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
-				unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
+					bitmap bm(tm_, ie);
+					unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
+					unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
 
-				optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
-				if (maybe_b) {
-					block_address b = *maybe_b;
-					indexes_->save_ie(index, bm.get_ie());
-					nr_allocated_++;
-					b = (index * ENTRIES_PER_BLOCK) + b;
-					assert(get_count(b) == 1);
-					return b;
+					optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
+					if (maybe_b) {
+						indexes_->save_ie(index, bm.get_ie());
+						nr_allocated_++;
+						block_address b = (index * ENTRIES_PER_BLOCK) + *maybe_b;
+						assert(get_count(b) == 1);
+						return b;
+					}
 				}
 			}
 
@@ -705,7 +705,7 @@ persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address n
 	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
 	sm->commit();
-	return create_transactional_sm(
+	return create_careful_alloc_sm(
 		create_recursive_sm(sm));
 }
 
@@ -719,7 +719,7 @@ persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
 	sm_root_traits::unpack(d, v);
 	block_address nr_indexes = div_up<block_address>(v.nr_blocks_, ENTRIES_PER_BLOCK);
 	index_store::ptr store(new metadata_index_store(tm, v.bitmap_root_, nr_indexes));
-	return create_transactional_sm(
+	return create_careful_alloc_sm(
 		create_recursive_sm(
 			checked_space_map::ptr(new sm_disk(store, tm, v))));
 }

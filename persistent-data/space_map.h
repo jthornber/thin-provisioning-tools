@@ -24,11 +24,14 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
+#include <functional>
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	typedef uint32_t ref_t;
+
+	// FIXME: document these methods
 
 	class space_map {
 	public:
@@ -50,8 +53,40 @@ namespace persistent_data {
 		// searched.
 		typedef boost::optional<block_address> maybe_block;
 
-		virtual maybe_block new_block() = 0;
-		virtual maybe_block new_block(block_address begin, block_address end) = 0;
+		typedef std::pair<block_address, block_address> span;
+		typedef boost::optional<span> maybe_span;
+
+		struct span_iterator {
+			typedef boost::optional<span> maybe_span;
+
+			virtual maybe_span first() = 0;
+			virtual maybe_span next() = 0;
+		};
+
+		struct single_span_iterator : public span_iterator {
+			single_span_iterator(span const &s)
+			  : s_(s) {
+			}
+
+			virtual maybe_span first() {
+				return maybe_span(s_);
+			}
+
+			virtual maybe_span next() {
+				return maybe_span();
+			}
+
+		private:
+			span s_;
+		};
+
+		// deliberately not virtual
+		maybe_block new_block() {
+			single_span_iterator it(span(0, get_nr_blocks()));
+			return new_block(it);
+		}
+
+		virtual maybe_block new_block(span_iterator &it) = 0;
 
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
 
@@ -64,7 +99,7 @@ namespace persistent_data {
 		};
 
 		virtual void iterate(iterator &it) const {
-			throw std::runtime_error("not implemented");
+			throw std::runtime_error("iterate() not implemented");
 		}
 	};
 
@@ -81,9 +116,10 @@ namespace persistent_data {
 		typedef boost::shared_ptr<checked_space_map> ptr;
 
 		virtual void check(block_counter &counter) const {
-			throw std::runtime_error("not implemented");
+			throw std::runtime_error("'check' not implemented");
 		}
 
+		// FIXME: should this be in the base space_map class?
 		virtual ptr clone() const = 0;
 	};
 
