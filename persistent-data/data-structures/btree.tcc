@@ -18,9 +18,9 @@
 
 #include "btree.h"
 
-#include "errors.h"
-#include "checksum.h"
-#include "transaction_manager.h"
+#include "persistent-data/errors.h"
+#include "persistent-data/checksum.h"
+#include "persistent-data/transaction_manager.h"
 
 #include <iostream>
 

@@ -19,8 +19,8 @@
 #ifndef BTREE_H
 #define BTREE_H
 
-#include "endian_utils.h"
-#include "transaction_manager.h"
+#include "persistent-data/endian_utils.h"
+#include "persistent-data/transaction_manager.h"
 
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>

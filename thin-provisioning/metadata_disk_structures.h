@@ -20,7 +20,7 @@
 #define METADATA_DISK_STRUCTURES_H
 
 #include "persistent-data/endian_utils.h"
-#include "persistent-data/btree.h"
+#include "persistent-data/data-structures/btree.h"
 
 //----------------------------------------------------------------
 

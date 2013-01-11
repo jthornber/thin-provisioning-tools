@@ -19,10 +19,11 @@
 #ifndef BTREE_CHECKER_H
 #define BTREE_CHECKER_H
 
-#include "block_counter.h"
 #include "btree.h"
-#include "checksum.h"
-#include "error_set.h"
+
+#include "persistent-data/block_counter.h"
+#include "persistent-data/checksum.h"
+#include "persistent-data/error_set.h"
 
 #include <sstream>
 #include <map>

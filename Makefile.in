@@ -32,11 +32,13 @@ SOURCE=\
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
+	persistent-data/transaction_manager.cc \
+	\
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
-	persistent-data/transaction_manager.cc \
+	\
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
@@ -112,9 +114,9 @@ THIN_CHECK_SOURCE=\
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/space_map.cc \
-	persistent-data/space_map_disk.cc \
-	persistent-data/space_map_recursive.cc \
-	persistent-data/space_map_careful_alloc.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \

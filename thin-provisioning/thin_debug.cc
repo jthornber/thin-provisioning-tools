@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-#include "persistent-data/btree.h"
+#include "persistent-data/data-structures/btree.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
 #include "version.h"
