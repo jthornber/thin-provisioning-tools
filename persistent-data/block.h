@@ -82,8 +82,12 @@ namespace persistent_data {
 	class block_io : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_io> ptr;
+		enum mode {
+			READ_ONLY,
+			READ_WRITE,
+		};
 
-		block_io(std::string const &path, block_address nr_blocks, bool writeable = false);
+		block_io(std::string const &path, block_address nr_blocks, mode m);
 		~block_io();
 
 		block_address get_nr_blocks() const {
@@ -96,6 +100,7 @@ namespace persistent_data {
 	private:
 		int fd_;
 		block_address nr_blocks_;
+		mode mode_;
 		bool writeable_;
 	};
 
@@ -107,7 +112,7 @@ namespace persistent_data {
 		block_manager(std::string const &path,
 			      block_address nr_blocks,
 			      unsigned max_concurrent_locks,
-			      bool writeable = false);
+			      typename block_io<BlockSize>::mode m);
 
 		class validator {
 		public:

@@ -91,7 +91,11 @@ namespace {
 	transaction_manager::ptr
 	open_tm(string const &dev_path, bool writeable) {
 		block_address nr_blocks = get_nr_blocks(dev_path);
-		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks, 1, writeable));
+		typename block_io<>::mode m = writeable ?
+			block_io<>::READ_WRITE :
+			block_io<>::READ_ONLY;
+
+		block_manager<>::ptr bm(new block_manager<>(dev_path, nr_blocks, 1, m));
 		space_map::ptr sm(new core_map(nr_blocks));
 		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));

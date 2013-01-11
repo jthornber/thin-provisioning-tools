@@ -36,12 +36,28 @@ using namespace std;
 //----------------------------------------------------------------
 
 template <uint32_t BlockSize>
-block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, bool writeable)
+block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, mode m)
 	: nr_blocks_(nr_blocks),
-	  writeable_(writeable)
+	  mode_(m)
 {
+	int fd_mode = O_DIRECT | O_SYNC;
+
+	switch (m) {
+	case READ_ONLY:
+		fd_mode |= O_RDONLY;
+		break;
+
+	case READ_WRITE:
+		fd_mode |= O_RDWR;
+		break;
+
+	default:
+		throw runtime_error("unsupported mode");
+		break;
+	}
+
 	// fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
-	fd_ = ::open(path.c_str(), O_DIRECT | O_SYNC | (writeable ? O_RDWR : O_RDONLY), 0666);
+	fd_ = ::open(path.c_str(), fd_mode, 0666);
 	if (fd_ < 0)
 		throw std::runtime_error("couldn't open file");
 }
@@ -237,8 +253,8 @@ template <uint32_t BlockSize>
 block_manager<BlockSize>::block_manager(std::string const &path,
 					block_address nr_blocks,
 					unsigned max_concurrent_blocks,
-					bool writeable)
-	: io_(new block_io<BlockSize>(path, nr_blocks, writeable)),
+					typename block_io<BlockSize>::mode mode)
+	: io_(new block_io<BlockSize>(path, nr_blocks, mode)),
 	  cache_(max(64u, max_concurrent_blocks)),
 	  tracker_(0, nr_blocks)
 {
