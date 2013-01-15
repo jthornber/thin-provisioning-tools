@@ -85,9 +85,11 @@ namespace {
 		}
 
 		int fd = open_file(path, O_CREAT | O_RDWR);
-		int r = ::fallocate(fd, 0, 0, file_size);
+
+		// fallocate didn't seem to work
+		int r = ::lseek(fd, file_size, SEEK_SET);
 		if (r < 0)
-			syscall_failed("fallocate");
+			syscall_failed("lseek");
 
 		return fd;
 	}
