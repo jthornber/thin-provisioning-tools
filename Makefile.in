@@ -81,7 +81,6 @@ test-programs: $(TEST_PROGRAMS)
 
 .SUFFIXES: .d
 
-# FIXME: not working
 %.d: %.cc
 	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
@@ -161,12 +160,11 @@ install: $(PROGRAMS)
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8/thin_restore.8
 .PHONY: install
 
-ifeq (,$(findstring $(MAKECMDGOALS),clean distclean))
-    -include $(subst .cc,.d,$(SOURCE))
-    -include $(subst .cc,.d,$(TEST_SOURCE))
-    -include $(subst .cc,.d,$(PROGRAM_SOURCE))
-endif
-
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
 endif
+
+-include $(subst .cc,.d,$(SOURCE))
+-include $(subst .cc,.d,$(TEST_SOURCE))
+-include $(subst .cc,.d,$(PROGRAM_SOURCE))
+
