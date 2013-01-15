@@ -28,9 +28,12 @@ using namespace std;
 namespace {
 	unsigned const MAX_HELD_LOCKS = 16;
 
-	block_manager<4096>::ptr create_bm(block_address nr = 1024) {
-		return block_manager<4096>::ptr(
-			new block_manager<4096>("./test.data", nr, MAX_HELD_LOCKS, block_io<>::READ_WRITE));
+	template <uint32_t BlockSize>
+	typename block_manager<BlockSize>::ptr
+	create_bm(block_address nr = 1024) {
+		return typename block_manager<BlockSize>::ptr(
+			new block_manager<BlockSize>("./test.data", nr, MAX_HELD_LOCKS,
+						     block_io<BlockSize>::READ_WRITE));
 	}
 
 	template <uint32_t BlockSize>
@@ -68,14 +71,14 @@ BOOST_AUTO_TEST_CASE(bad_path)
 
 BOOST_AUTO_TEST_CASE(out_of_range_access)
 {
-	bm4096::ptr bm = create_bm(1024);
+	bm4096::ptr bm = create_bm<4096>(1024);
 	BOOST_CHECK_THROW(bm->read_lock(1024), runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(read_lock_all_blocks)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm(nr);
+	bm4096::ptr bm = create_bm<4096>(nr);
 	for (unsigned i = 0; i < nr; i++)
 		bm->read_lock(i);
 }
@@ -83,7 +86,7 @@ BOOST_AUTO_TEST_CASE(read_lock_all_blocks)
 BOOST_AUTO_TEST_CASE(write_lock_all_blocks)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm(nr);
+	bm4096::ptr bm = create_bm<4096>(nr);
 	for (unsigned i = 0; i < nr; i++)
 		bm->write_lock(i);
 }
@@ -91,7 +94,7 @@ BOOST_AUTO_TEST_CASE(write_lock_all_blocks)
 BOOST_AUTO_TEST_CASE(writes_persist)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm(nr);
+	bm4096::ptr bm = create_bm<4096>(nr);
 	for (unsigned i = 0; i < nr; i++) {
 		bm4096::write_ref wr = bm->write_lock(i);
 		::memset(wr.data().raw(), i, 4096);
@@ -105,21 +108,21 @@ BOOST_AUTO_TEST_CASE(writes_persist)
 
 BOOST_AUTO_TEST_CASE(write_lock_zero_zeroes)
 {
-	bm4096::ptr bm = create_bm(64);
+	bm4096::ptr bm = create_bm<4096>(64);
 	check_all_bytes<4096>(bm->write_lock_zero(23), 0);
 }
 
 BOOST_AUTO_TEST_CASE(different_block_sizes)
 {
 	{
-		bm4096 bm("./test.data", 64, 1, block_io<>::READ_WRITE);
-		bm4096::read_ref rr = bm.read_lock(0);
+		bm4096::ptr bm = create_bm<4096>(64);
+		bm4096::read_ref rr = bm->read_lock(0);
 		BOOST_CHECK_EQUAL(sizeof(rr.data()), 4096);
 	}
 
 	{
-		block_manager<64 * 1024> bm("./test.data", 64, 1, block_io<64 * 1024>::READ_WRITE);
-		block_manager<64 * 1024>::read_ref rr = bm.read_lock(0);
+		block_manager<64 * 1024>::ptr bm = create_bm<64 * 1024>(64);
+		block_manager<64 * 1024>::read_ref rr = bm->read_lock(0);
 		BOOST_CHECK_EQUAL(sizeof(rr.data()), 64 * 1024);
 	}
 }
@@ -127,14 +130,14 @@ BOOST_AUTO_TEST_CASE(different_block_sizes)
 BOOST_AUTO_TEST_CASE(read_validator_works)
 {
 	bm4096::block_manager::validator::ptr v(new zero_validator<4096>());
-	bm4096::ptr bm = create_bm(64);
+	bm4096::ptr bm = create_bm<4096>(64);
 	bm->write_lock_zero(0);
 	bm->read_lock(0, v);
 }
 
 BOOST_AUTO_TEST_CASE(write_validator_works)
 {
-	bm4096::ptr bm = create_bm(64);
+	bm4096::ptr bm = create_bm<4096>(64);
 	bm4096::block_manager::validator::ptr v(new zero_validator<4096>());
 
 	{
@@ -148,28 +151,28 @@ BOOST_AUTO_TEST_CASE(write_validator_works)
 
 BOOST_AUTO_TEST_CASE(cannot_have_two_superblocks)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref superblock = bm->superblock(0);
 	BOOST_CHECK_THROW(bm->superblock(1), runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(can_have_subsequent_superblocks)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 }
 
 BOOST_AUTO_TEST_CASE(superblocks_can_change_address)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(1); }
 }
 
 BOOST_AUTO_TEST_CASE(superblock_must_be_last)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	{
 		bm4096::read_ref rr = bm->read_lock(63);
 		{
@@ -180,35 +183,35 @@ BOOST_AUTO_TEST_CASE(superblock_must_be_last)
 
 BOOST_AUTO_TEST_CASE(references_can_be_copied)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref wr1 = bm->write_lock(0);
 	bm4096::write_ref wr2(wr1);
 }
 
 BOOST_AUTO_TEST_CASE(no_concurrent_write_locks)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref wr = bm->write_lock(0);
 	BOOST_CHECK_THROW(bm->write_lock(0), runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(concurrent_read_locks)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm4096::read_ref rr = bm->read_lock(0);
 	bm->read_lock(0);
 }
 
 BOOST_AUTO_TEST_CASE(read_then_write)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm->read_lock(0);
 	bm->write_lock(0);
 }
 
 BOOST_AUTO_TEST_CASE(write_then_read)
 {
-	bm4096::ptr bm = create_bm();
+	bm4096::ptr bm = create_bm<4096>();
 	bm->write_lock(0);
 	bm->read_lock(0);
 }
