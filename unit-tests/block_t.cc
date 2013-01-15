@@ -20,6 +20,7 @@
 
 #define BOOST_TEST_MODULE BlockManagerTests
 #include <boost/test/included/unit_test.hpp>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -31,9 +32,14 @@ namespace {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::ptr
 	create_bm(block_address nr = 1024) {
+		string const path("./test.data");
+		int r = system("rm -f ./test.data");
+		if (r < 0)
+			throw runtime_error("couldn't rm -f ./test.data");
+
 		return typename block_manager<BlockSize>::ptr(
-			new block_manager<BlockSize>("./test.data", nr, MAX_HELD_LOCKS,
-						     block_io<BlockSize>::READ_WRITE));
+			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
+						     block_io<BlockSize>::CREATE));
 	}
 
 	template <uint32_t BlockSize>
