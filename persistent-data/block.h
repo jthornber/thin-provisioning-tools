@@ -85,6 +85,7 @@ namespace persistent_data {
 		enum mode {
 			READ_ONLY,
 			READ_WRITE,
+			CREATE
 		};
 
 		block_io(std::string const &path, block_address nr_blocks, mode m);

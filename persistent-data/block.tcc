@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 
 #include <boost/bind.hpp>
 #include <stdexcept>
@@ -35,37 +37,102 @@ using namespace std;
 
 //----------------------------------------------------------------
 
+namespace {
+	using namespace std;
+
+	int const DEFAULT_MODE = 0666;
+	int const OPEN_FLAGS = O_DIRECT | O_SYNC;
+
+	// FIXME: introduce a new exception for this, or at least lift this
+	// to exception.h
+	void syscall_failed(char const *call) {
+		char buffer[128];
+		char *msg = strerror_r(errno, buffer, sizeof(buffer));
+
+		ostringstream out;
+		out << "syscall '" << call << "' failed: " << msg;
+		throw runtime_error(out.str());
+	}
+
+	int open_file(string const &path, int flags) {
+		int fd = ::open(path.c_str(), OPEN_FLAGS | flags, DEFAULT_MODE);
+		if (fd < 0)
+			syscall_failed("open");
+
+		return fd;
+	}
+
+	bool file_exists(string const &path) {
+		typename ::stat info;
+
+		int r = ::stat(path.c_str(), &info);
+		if (r) {
+			if (errno == ENOENT)
+				return false;
+
+			syscall_failed("stat");
+			return false; // never get here
+
+		} else
+			return S_ISREG(info.st_mode) || S_ISBLK(info.st_mode);
+	}
+
+	int create_block_file(string const &path, off_t file_size) {
+		if (file_exists(path)) {
+			ostringstream out;
+			out << __FUNCTION__ << ": file '" << path << "' already exists";
+			throw runtime_error(out.str());
+		}
+
+		int fd = open_file(path, O_CREAT | O_RDWR);
+		int r = ::fallocate(fd, 0, 0, file_size);
+		if (r < 0)
+			syscall_failed("fallocate");
+
+		return fd;
+	}
+
+	int open_block_file(string const &path, off_t min_size, bool writeable) {
+		if (!file_exists(path)) {
+			ostringstream out;
+			out << __FUNCTION__ << ": file '" << path << "' doesn't exist";
+			throw runtime_error(out.str());
+		}
+
+		return open_file(path, writeable ? O_RDWR : O_RDONLY);
+	}
+};
+
 template <uint32_t BlockSize>
 block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, mode m)
 	: nr_blocks_(nr_blocks),
 	  mode_(m)
 {
-	int fd_mode = O_DIRECT | O_SYNC;
+	off_t file_size = nr_blocks * BlockSize;
 
 	switch (m) {
 	case READ_ONLY:
-		fd_mode |= O_RDONLY;
+		fd_ = open_block_file(path, file_size, false);
 		break;
 
 	case READ_WRITE:
-		fd_mode |= O_RDWR;
+		fd_ = open_block_file(path, file_size, true);
+		break;
+
+	case CREATE:
+		fd_ = create_block_file(path, file_size);
 		break;
 
 	default:
 		throw runtime_error("unsupported mode");
-		break;
 	}
-
-	// fd_ = ::open(path.c_str(), writeable ? (O_RDWR | O_CREAT) : O_RDONLY, 0666);
-	fd_ = ::open(path.c_str(), fd_mode, 0666);
-	if (fd_ < 0)
-		throw std::runtime_error("couldn't open file");
 }
 
 template <uint32_t BlockSize>
 block_io<BlockSize>::~block_io()
 {
-	::close(fd_);
+	if (::close(fd_) < 0)
+		syscall_failed("close");
 }
 
 template <uint32_t BlockSize>

@@ -29,7 +29,8 @@ namespace {
 	unsigned const MAX_HELD_LOCKS = 16;
 
 	block_manager<4096>::ptr create_bm(block_address nr = 1024) {
-		return block_manager<4096>::ptr(new block_manager<4096>("./test.data", nr, MAX_HELD_LOCKS, true));
+		return block_manager<4096>::ptr(
+			new block_manager<4096>("./test.data", nr, MAX_HELD_LOCKS, block_io<>::READ_WRITE));
 	}
 
 	template <uint32_t BlockSize>
@@ -61,7 +62,8 @@ namespace {
 
 BOOST_AUTO_TEST_CASE(bad_path)
 {
-	BOOST_CHECK_THROW(bm4096("/bogus/bogus/bogus", 1234, 4), runtime_error);
+	BOOST_CHECK_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_io<>::READ_WRITE),
+			  runtime_error);
 }
 
 BOOST_AUTO_TEST_CASE(out_of_range_access)
@@ -110,13 +112,13 @@ BOOST_AUTO_TEST_CASE(write_lock_zero_zeroes)
 BOOST_AUTO_TEST_CASE(different_block_sizes)
 {
 	{
-		bm4096 bm("./test.data", 64, 1);
+		bm4096 bm("./test.data", 64, 1, block_io<>::READ_WRITE);
 		bm4096::read_ref rr = bm.read_lock(0);
 		BOOST_CHECK_EQUAL(sizeof(rr.data()), 4096);
 	}
 
 	{
-		block_manager<64 * 1024> bm("./test.data", 64, true);
+		block_manager<64 * 1024> bm("./test.data", 64, 1, block_io<64 * 1024>::READ_WRITE);
 		block_manager<64 * 1024>::read_ref rr = bm.read_lock(0);
 		BOOST_CHECK_EQUAL(sizeof(rr.data()), 64 * 1024);
 	}
