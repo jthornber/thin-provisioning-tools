@@ -41,6 +41,32 @@ namespace persistent_data {
 
 	typedef uint64_t block_address;
 
+	// Heinz: could you move this to a separate file.  Add a big
+	// comment explaining that you should allocate it on the heap if
+	// you want the alignment guarantees.  Then write a test suite
+	// (buffer_t) that covers the following cases.
+	//
+	// - Allocate several on the heap, check they have the requested
+	//   alignment.  Try for various Alignments.  If memalign has
+	//   restrictions could you document (eg, power of 2).
+
+	// - you can use the [] to set a value in a non-const instance
+
+	// - you can't use the [] to set a value in a const instance - not
+	//   sure how to do this, since it'll be a compile time error.
+
+	// - you can use [] to read back a value that you've set.
+
+	// - [] to read works in a const instance.
+
+	// - you can use raw() to get and set values.
+
+	// - an exception is thrown if you put too large an index in []
+
+	// - check you can't copy a buffer via a copy constructor or ==
+	// - (again a compile time error, just experiment so you understand
+	// - boost::noncopyable).
+
 	template <uint32_t BlockSize = MD_BLOCK_SIZE, uint32_t Alignment = 512>
 	class buffer : private boost::noncopyable {
 	public:
