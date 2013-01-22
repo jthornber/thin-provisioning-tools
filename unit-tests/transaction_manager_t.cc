@@ -57,7 +57,7 @@ namespace {
 BOOST_AUTO_TEST_CASE(commit_succeeds)
 {
 	transaction_manager::ptr tm = create_tm();
-	tm->begin(0, block_manager<>::validator::ptr(new block_manager<>::noop_validator));
+	tm->begin(0, noop_validator());
 }
 
 BOOST_AUTO_TEST_CASE(shadowing)
