@@ -20,60 +20,40 @@
 #define BUFFER_H
 
 #include <stdint.h>
-#include <stdlib.h>
+// #include <stdlib.h>
+#include <malloc.h>
+
+#include <boost/noncopyable.hpp>
+#include <boost/optional.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include <stdexcept>
-#include <boost/noncopyable.hpp>
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
+	uint32_t const DEFAULT_BUFFER_SIZE = 4096;
 
-	uint32_t const MD_BLOCK_SIZE = 4096;
-
-	// Allocate buffer
+	// Allocate buffer of Size with Alignment imposed.
 	//
 	// Allocation needs to be on the heap in order to provide alignment guarantees!
 	// 
-	// Alignment must be a power of two and a multiple of sizeof(void *)
+	// Alignment must be a power of two.
 
-
-	// Heinz: could you move this to a separate file.  Add a big
-	// comment explaining that you should allocate it on the heap if
-	// you want the alignment guarantees.  Then write a test suite
-	// (buffer_t) that covers the following cases.
-	//
-	// - Allocate several on the heap, check they have the requested
-	//   alignment.  Try for various Alignments.  If memalign has
-	//   restrictions could you document (eg, power of 2).
-
-	// - you can use the [] to set a value in a non-const instance
-
-	// - you can't use the [] to set a value in a const instance - not
-	//   sure how to do this, since it'll be a compile time error.
-
-	// - you can use [] to read back a value that you've set.
-
-	// - [] to read works in a const instance.
-
-	// - you can use raw() to get and set values.
-
-	// - an exception is thrown if you put too large an index in []
-
-	// - check you can't copy a buffer via a copy constructor or ==
-	// - (again a compile time error, just experiment so you understand
-	// - boost::noncopyable).
-
-	template <uint32_t BlockSize = MD_BLOCK_SIZE, uint32_t Alignment = 512>
+	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 512>
 	class buffer : private boost::noncopyable {
 	public:
+		typedef boost::shared_ptr<buffer> ptr;
+
 		unsigned char &operator[](unsigned index) {
 			check_index(index);
+
 			return data_[index];
 		}
 
 		unsigned char const &operator[](unsigned index) const {
 			check_index(index);
+
 			return data_[index];
 		}
 
@@ -86,20 +66,25 @@ namespace persistent_data {
 		}
 
 		static void *operator new(size_t s) {
-			void *r;
+			// void *r;
+			// return posix_memalign(&r, Alignment, s) ? NULL : r;
 
-			return ::posix_memalign(&r, Alignment, s) ? r : (void*) NULL;
+			// Allocates size bytes and returns a pointer to the
+			// allocated memory. The memory address will be a
+			// multiple of 'Alignment', which must be a power of two
+			return memalign(Alignment, s);
 		}
 
 		static void operator delete(void *p) {
 			free(p);
 		}
 
-	private:
-		unsigned char data_[BlockSize];
+	protected:
+		unsigned char data_[Size];
 
+	private:
 		static void check_index(unsigned index) {
-			if (index >= BlockSize)
+			if (index >= Size)
 				throw std::runtime_error("buffer index out of bounds");
 		}
 

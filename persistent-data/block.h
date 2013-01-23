@@ -31,12 +31,14 @@
 #include <boost/optional.hpp>
 #include <boost/shared_ptr.hpp>
 
-#include <string.h>
-#include <malloc.h>
+#include <string>
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
+
+	uint32_t const MD_BLOCK_SIZE = 4096;
+
 	typedef uint64_t block_address;
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>
