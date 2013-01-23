@@ -88,7 +88,6 @@ namespace persistent_data {
 			if (index >= Size)
 				throw std::runtime_error("buffer index out of bounds");
 		}
-
 	};
 }
 
