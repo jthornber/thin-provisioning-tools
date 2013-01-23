@@ -80,10 +80,9 @@ namespace persistent_data {
 			free(p);
 		}
 
-	protected:
+	private:
 		unsigned char data_[Size];
 
-	private:
 		static void check_index(unsigned index) {
 			if (index >= Size)
 				throw std::runtime_error("buffer index out of bounds");
