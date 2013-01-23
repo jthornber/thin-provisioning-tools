@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_access)
 BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
 {
 	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr const b = create_buffer<sz, align>();
+	buffer<sz, align>::const_ptr b = create_buffer<sz, align>();
 
 	(*b)[0] = 0; // Compile time error accessing read-only location 
 }

@@ -44,6 +44,7 @@ namespace persistent_data {
 	class buffer : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<buffer> ptr;
+		typedef boost::shared_ptr<buffer const> const_ptr;
 
 		unsigned char &operator[](unsigned index) {
 			check_index(index);
