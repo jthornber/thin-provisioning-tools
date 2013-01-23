@@ -93,7 +93,7 @@ namespace persistent_data {
 
 		static void check_index(unsigned index) {
 			if (index >= Size)
-				throw std::runtime_error("buffer index out of bounds");
+				throw std::range_error("buffer index out of bounds");
 		}
 	};
 }

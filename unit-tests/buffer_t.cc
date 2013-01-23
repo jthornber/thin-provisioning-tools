@@ -16,6 +16,9 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+// Set to one to add compile time checks.
+#define	COMPILE_TIME_ERROR	0
+
 #include "persistent-data/buffer.h"
 
 #define BOOST_TEST_MODULE BufferTests
@@ -49,14 +52,16 @@ namespace {
 
 //----------------------------------------------------------------
 
+#if COMPILE_TIME_ERROR
 BOOST_AUTO_TEST_CASE(buffer_copy_fails)
 {
 	uint32_t const sz = 8, align = 8;
 	buffer<sz, align>::ptr b1 = create_buffer<sz, align>();
 	buffer<sz, align>::ptr b2;
 
-	// *b2 = *b1; // Compile time failure
+	*b2 = *b1; // Compile time failure
 }
+#endif
 
 BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_access)
 {
@@ -69,9 +74,18 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_access)
 	BOOST_CHECK(p[0] == 0);
 	p[0] = 4;
 	BOOST_CHECK(p[0] == 4);
-
-	// pc[0] = 5; // Compile time error accessing read-only location
 }
+
+#if COMPILE_TIME_ERROR
+BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_const_access)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+	unsigned char const *pc = b->raw();
+
+	pc[0] = 5; // Compile time error accessing read-only location
+}
+#endif
 
 BOOST_AUTO_TEST_CASE(buffer_8_a_8_access)
 {
@@ -82,7 +96,7 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_access)
 	BOOST_CHECK_EQUAL((*b)[0], 0);
 }
 
-#if 0
+#if COMPILE_TIME_ERROR
 BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
 {
 	uint32_t const sz = 8, align = 8;
@@ -92,15 +106,24 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
 }
 #endif
 
+BOOST_AUTO_TEST_CASE(buffer_8_a_8_oob)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	BOOST_CHECK_THROW((*b)[8], std::range_error);
+}
+
 // 8 byte buffer size, varying alignment from 1 - 7
+#if COMPILE_TIME_ERROR
 BOOST_AUTO_TEST_CASE(buffer_128_a_1_fails)
 {
 	uint32_t const sz = 128, align = 1;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
 
 	BOOST_CHECK(!b);
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 1);
 }
+#endif
 
 BOOST_AUTO_TEST_CASE(buffer_128_a_2_succeeds)
 {
@@ -110,6 +133,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_2_succeeds)
 	BOOST_CHECK(b);
 }
 
+#if COMPILE_TIME_ERROR
 BOOST_AUTO_TEST_CASE(buffer_128_a_3_fails)
 {
 	uint32_t const sz = 128, align = 3;
@@ -117,6 +141,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_3_fails)
 
 	BOOST_CHECK(!b);
 }
+#endif
 
 BOOST_AUTO_TEST_CASE(buffer_128_a_4_succeeds)
 {
@@ -126,6 +151,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_4_succeeds)
 	BOOST_CHECK(b);
 }
 
+#if COMPILE_TIME_ERROR
 BOOST_AUTO_TEST_CASE(buffer_128_a_5_fails)
 {
 	uint32_t const sz = 128, align = 5;
@@ -149,6 +175,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_7_fails)
 
 	BOOST_CHECK(!b);
 }
+#endif
 
 // Varying buffer size, alignment 8
 BOOST_AUTO_TEST_CASE(buffer_8_a_8)
@@ -329,5 +356,6 @@ BOOST_AUTO_TEST_CASE(buffer_8192_a_16)
 	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
 }
 
+#undef	COMPILE_TIME_ERROR
 
 //----------------------------------------------------------------
