@@ -32,6 +32,7 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
+	// Joe has buffer<> in other parts of the code, so...
 	uint32_t const DEFAULT_BUFFER_SIZE = 4096;
 
 	// Allocate buffer of Size with Alignment imposed.
