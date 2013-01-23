@@ -44,7 +44,7 @@ namespace persistent_data {
 	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 512>
 	class buffer : private boost::noncopyable {
 	public:
-		BOOST_STATIC_ASSERT_MSG((Alignment > 1) && !(Alignment & (Alignment - 1)),
+		BOOST_STATIC_ASSERT_MSG((Alignment > 1) & !(Alignment & (Alignment - 1)),
 					"Alignment must be a power of two.");
 
 		typedef boost::shared_ptr<buffer> ptr;
