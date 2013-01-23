@@ -32,19 +32,19 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	// Joe has buffer<> in other parts of the code, so...
 	uint32_t const DEFAULT_BUFFER_SIZE = 4096;
 
 	// Allocate buffer of Size with Alignment imposed.
 	//
-	// Allocation needs to be on the heap in order to provide alignment guarantees!
-	// 
+	// Allocation needs to be on the heap in order to provide alignment
+	// guarantees.
+	//
 	// Alignment must be a power of two.
-
 	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 512>
 	class buffer : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<buffer> ptr;
+		typedef boost::shared_ptr<buffer const> const_ptr;
 
 		unsigned char &operator[](unsigned index) {
 			check_index(index);

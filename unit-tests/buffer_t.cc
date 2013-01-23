@@ -82,12 +82,20 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_access)
 	BOOST_CHECK_EQUAL((*b)[0], '\0');
 }
 
+BOOST_AUTO_TEST_CASE(buffer_8_a_8_oob)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	BOOST_CHECK_NO_THROW((*b)[8] = 0);
+}
+
 BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
 {
 	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr const b = create_buffer<sz, align>();
+	buffer<sz, align>::const_ptr b = create_buffer<sz, align>();
 
-	(*b)[0] = 0; // Compile time error accessing read-only location 
+	// (*b)[0] = 0; // Compile time error accessing read-only location 
 }
 
 // 8 byte buffer size, varying alignment from 1 - 7
