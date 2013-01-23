@@ -26,6 +26,7 @@
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/static_assert.hpp>
 
 #include <stdexcept>
 
@@ -43,6 +44,9 @@ namespace persistent_data {
 	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 512>
 	class buffer : private boost::noncopyable {
 	public:
+		BOOST_STATIC_ASSERT_MSG((Alignment > 1) && !(Alignment & (Alignment - 1)),
+					"Alignment must be a power of two.");
+
 		typedef boost::shared_ptr<buffer> ptr;
 		typedef boost::shared_ptr<buffer const> const_ptr;
 
@@ -73,7 +77,11 @@ namespace persistent_data {
 			// Allocates size bytes and returns a pointer to the
 			// allocated memory. The memory address will be a
 			// multiple of 'Alignment', which must be a power of two
-			return memalign(Alignment, s);
+			void *mem = memalign(Alignment, s);
+			if (!mem)
+				throw std::bad_alloc();
+
+			return mem;
 		}
 
 		static void operator delete(void *p) {
