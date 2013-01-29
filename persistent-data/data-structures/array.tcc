@@ -71,8 +71,8 @@ array<ValueTraits>::array(typename persistent_data::transaction_manager::ptr tm,
 			  value_type const &default_value)
 	: tm_(tm),
 	  destroy_(false),
-	  block_tree_(tm, array_block_traits<ValueTraits>()),
 	  entries_per_block_(calc_max_entries(sizeof(value_type), MD_BLOCK_SIZE)),
+	  block_tree_(tm, typename btree_traits::ref_counter()),
 	  rc_(rc)
 {
 }
@@ -83,8 +83,8 @@ array<ValueTraits>::array(typename persistent_data::transaction_manager::ptr tm,
 			  block_address root)
 	: tm_(tm),
 	  destroy_(false),
-	  block_tree_(tm, root, array_block_traits<ValueTraits>()),
 	  entries_per_block_(calc_max_entries(sizeof(value_type), MD_BLOCK_SIZE)),
+	  block_tree_(tm, root, typename btree_traits::ref_counter()),
 	  rc_(rc)
 {
 }

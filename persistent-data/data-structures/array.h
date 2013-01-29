@@ -142,9 +142,13 @@ namespace persistent_data {
 		tm_ptr tm_;
 		bool destroy_;
 		unsigned entries_per_block_; // FIXME: initialise
-		btree<1, array_block_traits<ValueTraits> > block_tree_;
+
+		typedef array_block_traits<ValueTraits> btree_traits;
+		btree<1, btree_traits> block_tree_;
 		typename ValueTraits::ref_counter rc_;
 	};
+
+	// FIXME: we need an array checker
 }
 
 #include "array.tcc"
