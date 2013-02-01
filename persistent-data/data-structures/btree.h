@@ -29,7 +29,7 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-
+	// FIXME: why is this class capitalised? fix.
 	template <typename ValueType>
 	class NoOpRefCounter {
 	public:
