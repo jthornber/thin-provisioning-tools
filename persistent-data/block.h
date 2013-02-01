@@ -129,6 +129,8 @@ namespace persistent_data {
 
 		class read_ref {
 		public:
+			static uint32_t const BLOCK_SIZE = BlockSize;
+
 			read_ref(block_manager<BlockSize> const &bm,
 				 typename block::ptr b);
 			read_ref(read_ref const &rhs);
