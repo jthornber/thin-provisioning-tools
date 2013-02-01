@@ -29,9 +29,8 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	// FIXME: why is this class capitalised? fix.
 	template <typename ValueType>
-	class NoOpRefCounter {
+	class no_op_ref_counter {
 	public:
 		void inc(ValueType const &v) {}
 		void dec(ValueType const &v) {}
@@ -40,7 +39,7 @@ namespace persistent_data {
 	struct uint64_traits {
 		typedef base::__le64 disk_type;
 		typedef uint64_t value_type;
-		typedef NoOpRefCounter<uint64_t> ref_counter;
+		typedef no_op_ref_counter<uint64_t> ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
 			value = base::to_cpu<uint64_t>(disk);
@@ -359,7 +358,7 @@ namespace persistent_data {
 		typename persistent_data::transaction_manager::ptr tm_;
 		bool destroy_;
 		block_address root_;
-		NoOpRefCounter<uint64_t> internal_rc_;
+		no_op_ref_counter<uint64_t> internal_rc_;
 		typename ValueTraits::ref_counter rc_;
 	};
 };

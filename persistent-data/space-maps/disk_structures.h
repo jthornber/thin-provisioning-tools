@@ -45,7 +45,7 @@ namespace persistent_data {
 		struct index_entry_traits {
 			typedef index_entry_disk disk_type;
 			typedef index_entry value_type;
-			typedef NoOpRefCounter<index_entry> ref_counter;
+			typedef no_op_ref_counter<index_entry> ref_counter;
 
 			static void unpack(disk_type const &disk, value_type &value) {
 				value.blocknr_ = to_cpu<uint64_t>(disk.blocknr_);
@@ -88,7 +88,7 @@ namespace persistent_data {
 		struct sm_root_traits {
 			typedef sm_root_disk disk_type;
 			typedef sm_root value_type;
-			typedef NoOpRefCounter<sm_root> ref_counter;
+			typedef no_op_ref_counter<sm_root> ref_counter;
 
 			static void unpack(disk_type const &disk, value_type &value) {
 				value.nr_blocks_ = to_cpu<uint64_t>(disk.nr_blocks_);

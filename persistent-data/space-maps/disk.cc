@@ -196,7 +196,7 @@ namespace {
 	struct ref_count_traits {
 		typedef __le32 disk_type;
 		typedef uint32_t value_type;
-		typedef NoOpRefCounter<uint32_t> ref_counter;
+		typedef no_op_ref_counter<uint32_t> ref_counter;
 
 		static void unpack(disk_type const &d, value_type &v) {
 			v = to_cpu<value_type>(d);

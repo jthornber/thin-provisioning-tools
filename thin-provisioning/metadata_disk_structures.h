@@ -44,7 +44,7 @@ namespace thin_provisioning {
 	struct device_details_traits {
 		typedef device_details_disk disk_type;
 		typedef device_details value_type;
-		typedef persistent_data::NoOpRefCounter<device_details> ref_counter;
+		typedef persistent_data::no_op_ref_counter<device_details> ref_counter;
 
 		static void unpack(device_details_disk const &disk, device_details &value);
 		static void pack(device_details const &value, device_details_disk &disk);
@@ -123,7 +123,7 @@ namespace thin_provisioning {
 	struct superblock_traits {
 		typedef superblock_disk disk_type;
 		typedef superblock value_type;
-		typedef NoOpRefCounter<superblock> ref_counter;
+		typedef no_op_ref_counter<superblock> ref_counter;
 
 		static void unpack(superblock_disk const &disk, superblock &value);
 		static void pack(superblock const &value, superblock_disk &disk);
