@@ -17,7 +17,7 @@
 # <http://www.gnu.org/licenses/>.
 
 TEST_SOURCE=\
-	unit-tests/array_t.cc \
+	unit-tests/array_block_t.cc \
 	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
 	unit-tests/block_t.cc \
@@ -29,11 +29,11 @@ TEST_SOURCE=\
 TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
 
 unit-test: $(TEST_PROGRAMS)
-	for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; done
+	r=0; for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; [ $$? -ne 0 ] && r=1; done; exit $$r
 
 .PHONY: unit-test
 
-unit-tests/array_t: unit-tests/array_t.o $(OBJECTS)
+unit-tests/array_block_t: unit-tests/array_block_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/buffer_t: unit-tests/buffer_t.o $(OBJECTS)

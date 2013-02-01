@@ -17,31 +17,18 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/block.h"
+#include "test_utils.h"
 
 #define BOOST_TEST_MODULE BlockManagerTests
 #include <boost/test/included/unit_test.hpp>
 #include <stdlib.h>
 
 using namespace std;
+using namespace test;
 
 //----------------------------------------------------------------
 
 namespace {
-	unsigned const MAX_HELD_LOCKS = 16;
-
-	template <uint32_t BlockSize>
-	typename block_manager<BlockSize>::ptr
-	create_bm(block_address nr = 1024) {
-		string const path("./test.data");
-		int r = system("rm -f ./test.data");
-		if (r < 0)
-			throw runtime_error("couldn't rm -f ./test.data");
-
-		return typename block_manager<BlockSize>::ptr(
-			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
-						     block_io<BlockSize>::CREATE));
-	}
-
 	template <uint32_t BlockSize>
 	void check_all_bytes(typename block_manager<BlockSize>::read_ref const &rr, int v) {
 		persistent_data::buffer<BlockSize> const &data = rr.data();
