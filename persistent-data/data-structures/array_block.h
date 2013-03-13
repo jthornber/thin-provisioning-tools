@@ -41,22 +41,26 @@ namespace persistent_data {
 		typedef typename ValueTraits::value_type value_type;
 		typedef typename ValueTraits::ref_counter ref_counter;
 
+		enum block_state {
+			BLOCK_NEW,
+			BLOCK_EXISTS
+		};
+
 		array_block(RefType ref,
-			    ref_counter rc,
-			    uint32_t value_size)
+			    ref_counter rc)
 			: ref_(ref),
 			  rc_(rc) {
-
-			using namespace base;
-			struct array_block_disk *header = get_header();
-			header->max_entries = to_disk<__le32>(calc_max_entries(value_size));
-			header->nr_entries = to_disk<__le32>(static_cast<uint32_t>(0));
-			header->value_size = to_disk<__le32>(value_size);
 		}
 
-		array_block(RefType ref, ref_counter rc)
-			: ref_(ref),
-			  rc_(rc) {
+		// I hate separate initialisation.  But we can't have the
+		// constructor using non-const methods (get_header())
+		// otherwise we can't instance this with a read_ref.
+		void setup_empty() {
+			using namespace base;
+			struct array_block_disk *header = get_header();
+			header->max_entries = to_disk<__le32>(calc_max_entries());
+			header->nr_entries = to_disk<__le32>(static_cast<uint32_t>(0));
+			header->value_size = to_disk<__le32>(static_cast<uint32_t>(sizeof(disk_type)));
 		}
 
 		uint32_t max_entries() const {
@@ -74,8 +78,13 @@ namespace persistent_data {
 		void grow(uint32_t nr, value_type const &default_value) {
 			uint32_t old_nr = nr_entries();
 
-			if (nr >= max_entries())
-				throw runtime_error("array_block index out of bounds");
+			if (nr > max_entries()) {
+				std::ostringstream out;
+				out << "array_block::grow called with more than max_entries ("
+				    << nr << " > " << max_entries();
+
+				throw runtime_error(out.str());
+			}
 
 			if (nr <= old_nr)
 				throw runtime_error("array_block grow method called with smaller size");
@@ -124,11 +133,12 @@ namespace persistent_data {
 			return rc_;
 		}
 
-	private:
-		static uint32_t calc_max_entries(uint32_t value_size) {
-			return (RefType::BLOCK_SIZE - sizeof(array_block_disk)) / value_size;
+		static uint32_t calc_max_entries() {
+			return (RefType::BLOCK_SIZE - sizeof(array_block_disk)) /
+				sizeof(typename ValueTraits::disk_type);
 		}
 
+	private:
 		void set_nr_entries(uint32_t nr) {
 			using namespace base;
 			array_block_disk *h = get_header();

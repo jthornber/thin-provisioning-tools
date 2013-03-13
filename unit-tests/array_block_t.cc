@@ -98,7 +98,9 @@ namespace {
 	new_array_block(transaction_manager::ptr tm) {
 		uint64_traits::ref_counter rc(MAX_VALUE);
 		write_ref wr = tm->new_block(validator());
-		return make_pair(ablock64(wr, rc, sizeof(uint64_t)), wr.get_location());
+		ablock64 b(wr, rc);
+		b.setup_empty();
+		return make_pair(b, wr.get_location());
 	}
 
 	ablock64
