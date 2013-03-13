@@ -21,6 +21,7 @@
 
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/transaction_manager.h"
+#include "persistent-data/data-structures/ref_counter.h"
 
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
@@ -29,13 +30,6 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-	template <typename ValueType>
-	class no_op_ref_counter {
-	public:
-		void inc(ValueType const &v) {}
-		void dec(ValueType const &v) {}
-	};
-
 	struct uint64_traits {
 		typedef base::__le64 disk_type;
 		typedef uint64_t value_type;
