@@ -153,6 +153,8 @@ BOOST_AUTO_TEST_CASE(can_create_an_empty_array)
 
 BOOST_AUTO_TEST_CASE(read_only_array_blocks_are_possible)
 {
+	unsigned const COUNT = 10;
+
 	block_address loc;
 	transaction_manager::ptr tm = create_tm();
 
@@ -167,21 +169,75 @@ BOOST_AUTO_TEST_CASE(read_only_array_blocks_are_possible)
 
 		BOOST_CHECK_THROW(b.get(0), runtime_error);
 		BOOST_CHECK_THROW(b.set(0, 12345LL), runtime_error);
+
+		b.grow(COUNT, 0);
+		for (unsigned i = 0; i < COUNT; i++)
+			b.set(i, i);
 	}
 
 	{
 		ablock64_r b = read_array_block(tm, loc);
+
+		BOOST_CHECK_EQUAL(b.nr_entries(), COUNT);
+		BOOST_CHECK_EQUAL(b.value_size(), sizeof(uint64_t));
+		BOOST_CHECK_EQUAL(b.max_entries(), (4096 - 24) / 8);
+
+		for (unsigned i = 0; i < COUNT; i++)
+			BOOST_CHECK_EQUAL(b.get(i), i);
+	}
+}
+
+BOOST_AUTO_TEST_CASE(updating_reopened_array_block)
+{
+	unsigned const COUNT = 10;
+
+	block_address loc;
+	transaction_manager::ptr tm = create_tm();
+
+	{
+		pair<ablock64, block_address> p = new_array_block(tm);
+		ablock64 &b = p.first;
+		loc = p.second;
 
 		BOOST_CHECK_EQUAL(b.nr_entries(), 0);
 		BOOST_CHECK_EQUAL(b.value_size(), sizeof(uint64_t));
 		BOOST_CHECK_EQUAL(b.max_entries(), (4096 - 24) / 8);
 
 		BOOST_CHECK_THROW(b.get(0), runtime_error);
+		BOOST_CHECK_THROW(b.set(0, 12345LL), runtime_error);
 
-		// Compile time error as expected
-		// BOOST_CHECK_THROW(b.set(0, 12345LL), runtime_error);
+		b.grow(COUNT, 0);
+		for (unsigned i = 0; i < COUNT; i++)
+			b.set(i, i);
+	}
+
+	{
+		ablock64 b = open_array_block(tm, loc);
+
+		BOOST_CHECK_EQUAL(b.nr_entries(), COUNT);
+		BOOST_CHECK_EQUAL(b.value_size(), sizeof(uint64_t));
+		BOOST_CHECK_EQUAL(b.max_entries(), (4096 - 24) / 8);
+
+		for (unsigned i = 0; i < COUNT; i++)
+			BOOST_CHECK_EQUAL(b.get(i), i);
+
+		for (unsigned i = 0; i < COUNT; i++)
+			b.set(i, i + 37);
+	}
+
+	{
+		ablock64_r b = read_array_block(tm, loc);
+
+		BOOST_CHECK_EQUAL(b.nr_entries(), COUNT);
+		BOOST_CHECK_EQUAL(b.value_size(), sizeof(uint64_t));
+		BOOST_CHECK_EQUAL(b.max_entries(), (4096 - 24) / 8);
+
+		for (unsigned i = 0; i < COUNT; i++)
+			BOOST_CHECK_EQUAL(b.get(i), i + 37);
 	}
 }
+
+
 
 BOOST_AUTO_TEST_CASE(growing)
 {
@@ -201,6 +257,18 @@ BOOST_AUTO_TEST_CASE(growing)
 
 		BOOST_CHECK_THROW(b.grow(i - 1, default_value), runtime_error);
 	}
+}
+
+BOOST_AUTO_TEST_CASE(grow_does_not_touch_existing_values)
+{
+	transaction_manager::ptr tm = create_tm();
+	pair<ablock64, block_address> p = new_array_block(tm);
+	ablock64 &b = p.first;
+
+	b.grow(10, 123);
+	BOOST_CHECK_EQUAL(b.get(9), 123);
+	b.grow(20, 234);
+	BOOST_CHECK_EQUAL(b.get(9), 123);
 }
 
 BOOST_AUTO_TEST_CASE(shrinking)

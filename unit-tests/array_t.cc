@@ -20,6 +20,8 @@
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/array.h"
 
+#include <vector>
+
 #define BOOST_TEST_MODULE ArrayTests
 #include <boost/test/included/unit_test.hpp>
 
@@ -50,6 +52,14 @@ namespace {
 		if (nr_entries)
 			a->grow(nr_entries, default_value);
 
+		return a;
+	}
+
+	typename array64::ptr
+	open_array(block_address root, unsigned nr_entries) {
+		uint64_traits::ref_counter rc;
+
+		typename array64::ptr a(new array64(create_tm(), rc, root, nr_entries));
 		return a;
 	}
 }
@@ -96,6 +106,7 @@ unsigned array_size(T (&)[size]) {
 
 BOOST_AUTO_TEST_CASE(grow)
 {
+	unsigned const COUNT = 10000;
 	unsigned const STEPS[] = {
 		17, 71, 137, 277, 439, 683, 967
 	};
@@ -103,20 +114,56 @@ BOOST_AUTO_TEST_CASE(grow)
 	for (unsigned s = 0; s < array_size(STEPS); s++) {
 
 		unsigned step = STEPS[s];
-		cerr << "testing grow with step size " << step << endl;
 
-		unsigned const COUNT = 10000;
+		vector<unsigned> chunks;
+		for (unsigned c = 0; c < COUNT; c += step)
+			chunks.push_back(c);
+		chunks.push_back(COUNT);
+
 		array<uint64_traits>::ptr a = create_array(0, 123);
 
-		for (unsigned i = 0; i < COUNT; i = min(i + step, COUNT)) {
-			a->grow(i + step, i);
+		for (unsigned i = 1; i < chunks.size(); i++) {
+			if (i > 1)
+				BOOST_CHECK_EQUAL(a->get(chunks[i - 1] - 1), i - 1);
 
-			for (unsigned j = i; j < i + step; j++)
+			a->grow(chunks[i], i);
+
+			if (i > 1)
+				BOOST_CHECK_EQUAL(a->get(chunks[i - 1] - 1), i - 1);
+
+			for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
 				BOOST_CHECK_EQUAL(a->get(j), i);
 
-			BOOST_CHECK_THROW(a->get(i + step), runtime_error);
+			BOOST_CHECK_THROW(a->get(chunks[i] + 1), runtime_error);
 		}
 	}
+}
+
+BOOST_AUTO_TEST_CASE(reopen_array)
+{
+	unsigned const COUNT = 10000;
+	block_address root;
+
+	{
+		typename array64::ptr a = create_array(COUNT, 123);
+
+		for (unsigned i = 0; i < COUNT; i += 7)
+			a->set(i, 234);
+
+		root = a->get_root();
+	}
+
+	{
+		typename array64::ptr a = open_array(root, COUNT);
+
+		for (unsigned i = 0; i < COUNT; i++)
+			BOOST_CHECK_EQUAL(a->get(i), i % 7 ? 123: 234);
+	}
+}
+
+BOOST_AUTO_TEST_CASE(destroy)
+{
+	// FIXME: pending
 }
 
 //----------------------------------------------------------------

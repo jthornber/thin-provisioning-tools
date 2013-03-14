@@ -19,6 +19,7 @@
 TEST_SOURCE=\
 	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \
+	unit-tests/bitset_t.cc \
 	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
 	unit-tests/block_t.cc \
@@ -38,6 +39,9 @@ unit-tests/array_t: unit-tests/array_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/array_block_t: unit-tests/array_block_t.o $(OBJECTS)
+	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+unit-tests/bitset_t: unit-tests/bitset_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/buffer_t: unit-tests/buffer_t.o $(OBJECTS)

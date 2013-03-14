@@ -56,11 +56,13 @@ namespace persistent_data {
 		struct array_dim {
 			array_dim(unsigned nr_entries, unsigned entries_per_block)
 				: nr_full_blocks(nr_entries / entries_per_block),
-				  nr_entries_in_last_block(nr_entries % entries_per_block) {
+				  nr_entries_in_last_block(nr_entries % entries_per_block),
+				  nr_total_blocks(nr_full_blocks + (nr_entries_in_last_block ? 1 : 0)) {
 			}
 
 			unsigned nr_full_blocks;
 			unsigned nr_entries_in_last_block;
+			unsigned nr_total_blocks;
 		};
 
 		unsigned calc_max_entries(size_t value_size, size_t block_size)
@@ -143,8 +145,8 @@ namespace persistent_data {
 
 		array(tm_ptr tm,
 		      typename ValueTraits::ref_counter rc,
-		      unsigned nr_entries,
-		      block_address root)
+		      block_address root,
+		      unsigned nr_entries)
 			: tm_(tm),
 			  entries_per_block_(rblock::calc_max_entries()),
 			  nr_entries_(nr_entries),
@@ -207,8 +209,10 @@ namespace persistent_data {
 				else if (old_dim_.nr_entries_in_last_block > 0)
 					grow_extend_tail_block(new_dim_.nr_entries_in_last_block);
 
-				else
+				else if (new_dim_.nr_entries_in_last_block)
 					grow_add_tail_block();
+
+				a_.nr_entries_ = new_nr_entries;
 			}
 
 		private:
@@ -230,17 +234,16 @@ namespace persistent_data {
 				if (old_dim_.nr_entries_in_last_block > 0)
 					grow_extend_tail_block(entries_per_block_);
 
-				insert_full_ablocks(old_dim_.nr_full_blocks + (old_dim_.nr_entries_in_last_block ? 1 : 0),
-						    new_dim_.nr_full_blocks);
+				insert_full_ablocks(old_dim_.nr_total_blocks, new_dim_.nr_full_blocks);
 
 				if (new_dim_.nr_entries_in_last_block > 0)
 					grow_add_tail_block();
 			}
 
 			void grow_extend_tail_block(unsigned new_nr_entries) {
-				uint64_t last_block = div_up<uint64_t>(a_.nr_entries_, entries_per_block_);
+				uint64_t last_block = a_.nr_entries_ / entries_per_block_;
 				wblock b = a_.shadow_ablock(last_block);
-				b.grow(new_nr_entries % entries_per_block_, v_);
+				b.grow(new_nr_entries, v_);
 			}
 
 			array<ValueTraits> &a_;
