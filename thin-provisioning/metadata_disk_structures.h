@@ -125,8 +125,8 @@ namespace thin_provisioning {
 		typedef superblock value_type;
 		typedef no_op_ref_counter<superblock> ref_counter;
 
-		static void unpack(superblock_disk const &disk, superblock &value);
-		static void pack(superblock const &value, superblock_disk &disk);
+		static void unpack(superblock_disk const &disk, superblock &core);
+		static void pack(superblock const &core, superblock_disk &disk);
 	};
 }
 
