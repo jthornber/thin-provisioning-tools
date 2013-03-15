@@ -19,7 +19,7 @@
 #include <iostream>
 #include <getopt.h>
 #include <libgen.h>
-
+#if 0
 #include "human_readable_format.h"
 #include "cache_metadata_dumper.h"
 #include "cache_metadata.h"
@@ -117,3 +117,9 @@ int main(int argc, char **argv)
 
 	return dump(argv[optind], format, repair, metadata_snap);
 }
+#else
+int main(int argc, char **argv)
+{
+	return 1;
+}
+#endif

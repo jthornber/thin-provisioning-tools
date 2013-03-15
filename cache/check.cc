@@ -20,6 +20,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#if 0
 #include "array.h"
 #include "metadata.h"
 #include "metadata_checker.h"
@@ -97,4 +98,10 @@ int main(int argc, char **argv)
 	}
 
 	return check(argv[optind], quiet);
+}
+#else
+int main(int argc, char **argv)
+{
+	cerr << "not implemented" << endl;
+	return 1;
 }

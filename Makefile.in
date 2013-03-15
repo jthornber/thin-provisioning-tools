@@ -19,6 +19,10 @@
 .PHONY: all
 
 PROGRAMS=\
+	cache_check \
+	cache_dump \
+	cache_restore \
+	\
 	thin_debug \
 	thin_check \
 	thin_dump \
@@ -39,6 +43,8 @@ SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	\
+	cache/metadata_disk_structures.cc \
+	\
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
@@ -49,6 +55,10 @@ SOURCE=\
 	thin-provisioning/xml_format.cc
 
 PROGRAM_SOURCE=\
+	cache/check.cc \
+	cache/dump.cc \
+	cache/restore.cc \
+	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_restore.cc
@@ -89,19 +99,8 @@ test-programs: $(TEST_PROGRAMS)
 %.o: %.cc
 	$(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
-# CACHE_CHECK_SOURCE=\
-# 	persistent-data/checksum.cc \
-# 	persistent-data/endian_utils.cc \
-# 	persistent-data/error_set.cc \
-# 	persistent-data/hex_dump.cc \
-# 	cacmetadata.cc \
-# 	metadata_checker.cc \
-# 	cache_metadata_disk_structures.cc \
-# 	space_map.cc \
-# 	space_map_disk.cc \
-# 	space_map_recursive.cc \
-# 	space_map_transactional.cc \
-# 	transaction_manager.cc
+#----------------------------------------------------------------
+# Thin provisioning tools
 
 THIN_DEBUG_SOURCE=$(SOURCE)
 THIN_DUMP_SOURCE=$(SOURCE)
@@ -121,8 +120,6 @@ THIN_CHECK_SOURCE=\
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/metadata_disk_structures.cc
 
-#CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
-
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
@@ -140,8 +137,26 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
 	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
-#cache_check: $(CACHE_CHECK_OBJECTS) cache_check.o
-#	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+#----------------------------------------------------------------
+# Cache tools
+
+CACHE_CHECK_SOURCE=\
+	persistent-data/checksum.cc \
+	persistent-data/endian_utils.cc \
+	persistent-data/error_set.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+	cache/metadata_disk_structures.cc
+
+CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
+
+cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
+	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 clean:
 	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS)
