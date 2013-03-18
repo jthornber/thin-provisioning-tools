@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "cache_metadata_disk_structures.h"
+#include "metadata_disk_structures.h"
 
 #include <string.h>
 
@@ -68,7 +68,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 }
 
 void
-superblock_traits::pack(superblock const &value, superblock_disk &disk)
+superblock_traits::pack(superblock const &core, superblock_disk &disk)
 {
 	disk.csum = to_disk<__le32>(core.csum);
 	disk.flags = to_disk<__le32>(core.flags);

@@ -105,3 +105,4 @@ int main(int argc, char **argv)
 	cerr << "not implemented" << endl;
 	return 1;
 }
+#endif

@@ -19,8 +19,8 @@
 #ifndef CACHE_METADATA_DISK_STRUCTURES_H
 #define CACHE_METADATA_DISK_STRUCTURES_H
 
-#include "endian_utils.h"
-#include "btree.h"
+#include "persistent-data/endian_utils.h"
+#include "persistent-data/data-structures/btree.h"
 
 //----------------------------------------------------------------
 
@@ -29,6 +29,8 @@ namespace cache_tools {
 	using namespace base;	// FIXME: don't use namespaces in headers.
 
 	unsigned const SPACE_MAP_ROOT_SIZE = 128;
+	unsigned const CACHE_POLICY_NAME_SIZE = 16;
+	unsigned const CACHE_POLICY_VERSION_SIZE = 3;
 
 	typedef unsigned char __u8;
 
@@ -58,9 +60,9 @@ namespace cache_tools {
 		__le32 metadata_block_size; /* in 512-byte sectors */
 		__le32 cache_blocks;
 
-		__le32 compat_flags_;
-		__le32 compat_ro_flags_;
-		__le32 incompat_flags_;
+		__le32 compat_flags;
+		__le32 compat_ro_flags;
+		__le32 incompat_flags;
 
 		__le32 read_hits;
 		__le32 read_misses;
@@ -94,9 +96,9 @@ namespace cache_tools {
 		uint32_t metadata_block_size; /* in 512-byte sectors */
 		uint32_t cache_blocks;
 
-		uint32_t compat_flags_;
-		uint32_t compat_ro_flags_;
-		uint32_t incompat_flags_;
+		uint32_t compat_flags;
+		uint32_t compat_ro_flags;
+		uint32_t incompat_flags;
 
 		uint32_t read_hits;
 		uint32_t read_misses;
