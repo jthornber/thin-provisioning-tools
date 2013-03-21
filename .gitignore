@@ -3,9 +3,14 @@
 *_t
 *.d
 test.data
+
+thin_check
 thin_dump
 thin_restore
 thin_repair
+
+cache_check
+
 *.metadata
 bad-metadata
 Makefile
