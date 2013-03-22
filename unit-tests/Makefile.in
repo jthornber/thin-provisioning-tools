@@ -16,33 +16,6 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-TEST_SOURCE=$(GMOCK_SOURCE) \
-	unit-tests/array_block_t.cc \
-	unit-tests/array_t.cc \
-	unit-tests/bitset_t.cc \
-	unit-tests/cache_t.cc \
-	unit-tests/block_t.cc \
-	unit-tests/btree_t.cc \
-	unit-tests/endian_t.cc \
-	unit-tests/space_map_t.cc \
-	unit-tests/transaction_manager_t.cc
-
-TEST_PROGRAMS=$(subst .cc,,$(TEST_SOURCE))
-
-unit-test: $(TEST_PROGRAMS)
-	r=0; for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; [ $$? -ne 0 ] && r=1; done; exit $$r
-
-.PHONY: unit-test
-
-unit-tests/run_list_t: unit-tests/run_list_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-#----------------------------------------------------------------
-# gmock tests
-
 GMOCK_DIR=gmock-1.6.0/
 GMOCK_INCLUDES=\
 	-Igmock-1.6.0/include \
