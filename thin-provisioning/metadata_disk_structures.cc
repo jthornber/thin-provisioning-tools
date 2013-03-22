@@ -36,10 +36,10 @@ device_details_traits::unpack(device_details_disk const &disk, device_details &v
 void
 device_details_traits::pack(device_details const &value, device_details_disk &disk)
 {
-	disk.mapped_blocks_ = to_disk<__le64>(value.mapped_blocks_);
-	disk.transaction_id_ = to_disk<__le64>(value.transaction_id_);
-	disk.creation_time_ = to_disk<__le32>(value.creation_time_);
-	disk.snapshotted_time_ = to_disk<__le32>(value.snapshotted_time_);
+	disk.mapped_blocks_ = to_disk<le64>(value.mapped_blocks_);
+	disk.transaction_id_ = to_disk<le64>(value.transaction_id_);
+	disk.creation_time_ = to_disk<le32>(value.creation_time_);
+	disk.snapshotted_time_ = to_disk<le32>(value.snapshotted_time_);
 }
 
 void
@@ -78,17 +78,17 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &value)
 void
 superblock_traits::pack(superblock const &value, superblock_disk &disk)
 {
-	disk.csum_ = to_disk<__le32>(value.csum_);
-	disk.flags_ = to_disk<__le32>(value.flags_);
-	disk.blocknr_ = to_disk<__le64>(value.blocknr_);
+	disk.csum_ = to_disk<le32>(value.csum_);
+	disk.flags_ = to_disk<le32>(value.flags_);
+	disk.blocknr_ = to_disk<le64>(value.blocknr_);
 
 	::memcpy(disk.uuid_, value.uuid_, sizeof(disk.uuid_));
-	disk.magic_ = to_disk<__le64>(value.magic_);
-	disk.version_ = to_disk<__le32>(value.version_);
-	disk.time_ = to_disk<__le32>(value.time_);
+	disk.magic_ = to_disk<le64>(value.magic_);
+	disk.version_ = to_disk<le32>(value.version_);
+	disk.time_ = to_disk<le32>(value.time_);
 
-	disk.trans_id_ = to_disk<__le64>(value.trans_id_);
-	disk.metadata_snap_ = to_disk<__le64>(value.metadata_snap_);
+	disk.trans_id_ = to_disk<le64>(value.trans_id_);
+	disk.metadata_snap_ = to_disk<le64>(value.metadata_snap_);
 
 	::memcpy(disk.data_space_map_root_,
 		 value.data_space_map_root_,
@@ -97,15 +97,15 @@ superblock_traits::pack(superblock const &value, superblock_disk &disk)
 		 value.metadata_space_map_root_,
 		 sizeof(disk.metadata_space_map_root_));
 
-	disk.data_mapping_root_ = to_disk<__le64>(value.data_mapping_root_);
-	disk.device_details_root_ = to_disk<__le64>(value.device_details_root_);
-	disk.data_block_size_ = to_disk<__le32>(value.data_block_size_);
+	disk.data_mapping_root_ = to_disk<le64>(value.data_mapping_root_);
+	disk.device_details_root_ = to_disk<le64>(value.device_details_root_);
+	disk.data_block_size_ = to_disk<le32>(value.data_block_size_);
 
-	disk.metadata_block_size_ = to_disk<__le32>(value.metadata_block_size_);
-	disk.metadata_nr_blocks_ = to_disk<__le64>(value.metadata_nr_blocks_);
+	disk.metadata_block_size_ = to_disk<le32>(value.metadata_block_size_);
+	disk.metadata_nr_blocks_ = to_disk<le64>(value.metadata_nr_blocks_);
 
-	disk.compat_flags_ = to_disk<__le32>(value.compat_flags_);
-	disk.incompat_flags_ = to_disk<__le32>(value.incompat_flags_);
+	disk.compat_flags_ = to_disk<le32>(value.compat_flags_);
+	disk.incompat_flags_ = to_disk<le32>(value.incompat_flags_);
 }
 
 //----------------------------------------------------------------

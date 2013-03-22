@@ -52,7 +52,7 @@ namespace {
 			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
-			sbd->csum_ = to_disk<base::__le32>(sum.get_sum());
+			sbd->csum_ = to_disk<base::le32>(sum.get_sum());
 		}
 	};
 

@@ -93,10 +93,10 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .d
 
 %.d: %.cc
-	@echo "    [dependencies] $<"
-	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
-	$(RM) $@.$$$$
+	@echo "    [DEP] $<"
+	$(V)$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	$(V)sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	$(V)$(RM) $@.$$$$
 
 %.o: %.cc
 	@echo "    [CXX] $<"
@@ -105,8 +105,8 @@ test-programs: $(TEST_PROGRAMS)
 #----------------------------------------------------------------
 # libpdata
 lib/libpdata.a: $(PDATA_OBJECTS)
-	@echo "    [AR] $<"
-	$(V)ar -rv $@ $(PDATA_OBJECTS) 2>&1 > /dev/null
+	@echo "    [AR]  $<"
+	$(V)ar -rv $@ $(PDATA_OBJECTS) > /dev/null 2>&1
 
 #----------------------------------------------------------------
 # Thin provisioning tools
@@ -135,19 +135,19 @@ THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
-	@echo "    [LD] $@"
+	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin-provisioning/thin_dump.o
-	@echo "    [LD] $@"
+	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
-	@echo "    [LD] $@"
+	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
-	@echo "    [LD] $@"
+	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 #----------------------------------------------------------------
@@ -169,7 +169,7 @@ CACHE_CHECK_SOURCE=\
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
 cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
-	@echo "    [LD] $@"
+	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 .PHONY: clean distclean

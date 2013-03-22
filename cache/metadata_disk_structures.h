@@ -35,39 +35,39 @@ namespace cache_tools {
 	typedef unsigned char __u8;
 
 	struct superblock_disk {
-		__le32 csum;
-		__le32 flags;
-		__le64 blocknr;
+		le32 csum;
+		le32 flags;
+		le64 blocknr;
 
 		__u8 uuid[16];
-		__le64 magic;
-		__le32 version;
+		le64 magic;
+		le32 version;
 
 		__u8 policy_name[CACHE_POLICY_NAME_SIZE];
-		__le32 policy_version[CACHE_POLICY_VERSION_SIZE];
-		__le32 policy_hint_size;
+		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
+		le32 policy_hint_size;
 
 		__u8 metadata_space_map_root[SPACE_MAP_ROOT_SIZE];
 
-		__le64 mapping_root;
-		__le64 hint_root;
+		le64 mapping_root;
+		le64 hint_root;
 
-		__le64 discard_root;
-		__le64 discard_block_size;
-		__le64 discard_nr_blocks;
+		le64 discard_root;
+		le64 discard_block_size;
+		le64 discard_nr_blocks;
 
-		__le32 data_block_size; /* in 512-byte sectors */
-		__le32 metadata_block_size; /* in 512-byte sectors */
-		__le32 cache_blocks;
+		le32 data_block_size; /* in 512-byte sectors */
+		le32 metadata_block_size; /* in 512-byte sectors */
+		le32 cache_blocks;
 
-		__le32 compat_flags;
-		__le32 compat_ro_flags;
-		__le32 incompat_flags;
+		le32 compat_flags;
+		le32 compat_ro_flags;
+		le32 incompat_flags;
 
-		__le32 read_hits;
-		__le32 read_misses;
-		__le32 write_hits;
-		__le32 write_misses;
+		le32 read_hits;
+		le32 read_misses;
+		le32 write_hits;
+		le32 write_misses;
 	} __attribute__ ((packed));
 
 	struct superblock {

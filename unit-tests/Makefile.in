@@ -35,8 +35,8 @@ lib/libgmock.a: $(GMOCK_DEPS)
 	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
 	@echo "    [CXX] gmock"
 	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
-	@echo "    [AR] $<"
-	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o 2>&1 > /dev/null
+	@echo "    [AR]  $<"
+	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
 
 MOCK_SOURCE=\
 	unit-tests/gmock_main.cc \
@@ -63,7 +63,7 @@ MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
 	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
 
 unit-tests/unit_tests: $(MOCK_OBJECTS) lib/libgmock.a lib/libpdata.a
-	@echo "    [LD] $<"
+	@echo "    [LD]  $<"
 	$(V)g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
 .PHONEY: unit-test

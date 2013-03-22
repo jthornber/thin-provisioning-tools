@@ -28,10 +28,10 @@ namespace thin_provisioning {
 	using namespace base;	// FIXME: don't use namespaces in headers.
 
 	struct device_details_disk {
-		__le64 mapped_blocks_;
-		__le64 transaction_id_;  /* when created */
-		__le32 creation_time_;
-		__le32 snapshotted_time_;
+		le64 mapped_blocks_;
+		le64 transaction_id_;  /* when created */
+		le32 creation_time_;
+		le32 snapshotted_time_;
 	} __attribute__ ((packed));
 
 	struct device_details {
@@ -55,36 +55,36 @@ namespace thin_provisioning {
 	typedef unsigned char __u8;
 
 	struct superblock_disk {
-		__le32 csum_;
-		__le32 flags_;
-		__le64 blocknr_;
+		le32 csum_;
+		le32 flags_;
+		le64 blocknr_;
 
 		__u8 uuid_[16];
-		__le64 magic_;
-		__le32 version_;
-		__le32 time_;
+		le64 magic_;
+		le32 version_;
+		le32 time_;
 
-		__le64 trans_id_;
+		le64 trans_id_;
 		/* root for userspace's transaction (for migration and friends) */
-		__le64 metadata_snap_;
+		le64 metadata_snap_;
 
 		__u8 data_space_map_root_[SPACE_MAP_ROOT_SIZE];
 		__u8 metadata_space_map_root_[SPACE_MAP_ROOT_SIZE];
 
 		/* 2 level btree mapping (dev_id, (dev block, time)) -> data block */
-		__le64 data_mapping_root_;
+		le64 data_mapping_root_;
 
 		/* device detail root mapping dev_id -> device_details */
-		__le64 device_details_root_;
+		le64 device_details_root_;
 
-		__le32 data_block_size_; /* in 512-byte sectors */
+		le32 data_block_size_; /* in 512-byte sectors */
 
-		__le32 metadata_block_size_; /* in 512-byte sectors */
-		__le64 metadata_nr_blocks_;
+		le32 metadata_block_size_; /* in 512-byte sectors */
+		le64 metadata_nr_blocks_;
 
-		__le32 compat_flags_;
-		__le32 compat_ro_flags_;
-		__le32 incompat_flags_;
+		le32 compat_flags_;
+		le32 compat_ro_flags_;
+		le32 incompat_flags_;
 	} __attribute__ ((packed));
 
 	struct superblock {

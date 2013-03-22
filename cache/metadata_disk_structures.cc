@@ -70,44 +70,44 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 void
 superblock_traits::pack(superblock const &core, superblock_disk &disk)
 {
-	disk.csum = to_disk<__le32>(core.csum);
-	disk.flags = to_disk<__le32>(core.flags);
-	disk.blocknr = to_disk<__le64>(core.blocknr);
+	disk.csum = to_disk<le32>(core.csum);
+	disk.flags = to_disk<le32>(core.flags);
+	disk.blocknr = to_disk<le64>(core.blocknr);
 
 	::memcpy(disk.uuid, core.uuid, sizeof(disk.uuid));
-	disk.magic = to_disk<__le64>(core.magic);
-	disk.version = to_disk<__le32>(core.version);
+	disk.magic = to_disk<le64>(core.magic);
+	disk.version = to_disk<le32>(core.version);
 
 	::memcpy(disk.policy_name, core.policy_name, sizeof(disk.policy_name));
 
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
-		disk.policy_version[i] = to_disk<__le32>(core.policy_version[i]);
+		disk.policy_version[i] = to_disk<le32>(core.policy_version[i]);
 
-	disk.policy_hint_size = to_disk<__le32>(core.policy_hint_size);
+	disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
 
 	::memcpy(disk.metadata_space_map_root,
 		 core.metadata_space_map_root,
 		 sizeof(disk.metadata_space_map_root));
 
-	disk.mapping_root = to_disk<__le64>(core.mapping_root);
-	disk.hint_root = to_disk<__le64>(core.hint_root);
+	disk.mapping_root = to_disk<le64>(core.mapping_root);
+	disk.hint_root = to_disk<le64>(core.hint_root);
 
-	disk.discard_root = to_disk<__le64>(core.discard_root);
-	disk.discard_block_size = to_disk<__le64>(core.discard_block_size);
-	disk.discard_nr_blocks = to_disk<__le64>(core.discard_nr_blocks);
+	disk.discard_root = to_disk<le64>(core.discard_root);
+	disk.discard_block_size = to_disk<le64>(core.discard_block_size);
+	disk.discard_nr_blocks = to_disk<le64>(core.discard_nr_blocks);
 
-	disk.data_block_size = to_disk<__le32>(core.data_block_size);
-	disk.metadata_block_size = to_disk<__le32>(core.metadata_block_size);
-	disk.cache_blocks = to_disk<__le32>(core.cache_blocks);
+	disk.data_block_size = to_disk<le32>(core.data_block_size);
+	disk.metadata_block_size = to_disk<le32>(core.metadata_block_size);
+	disk.cache_blocks = to_disk<le32>(core.cache_blocks);
 
-	disk.compat_flags = to_disk<__le32>(core.compat_flags);
-	disk.compat_ro_flags = to_disk<__le32>(core.compat_ro_flags);
-	disk.incompat_flags = to_disk<__le32>(core.incompat_flags);
+	disk.compat_flags = to_disk<le32>(core.compat_flags);
+	disk.compat_ro_flags = to_disk<le32>(core.compat_ro_flags);
+	disk.incompat_flags = to_disk<le32>(core.incompat_flags);
 
-	disk.read_hits = to_disk<__le32>(core.read_hits);
-	disk.read_misses = to_disk<__le32>(core.read_misses);
-	disk.write_hits = to_disk<__le32>(core.write_hits);
-	disk.write_misses = to_disk<__le32>(core.write_misses);
+	disk.read_hits = to_disk<le32>(core.read_hits);
+	disk.read_misses = to_disk<le32>(core.read_misses);
+	disk.write_hits = to_disk<le32>(core.write_hits);
+	disk.write_misses = to_disk<le32>(core.write_misses);
 }
 
 //----------------------------------------------------------------

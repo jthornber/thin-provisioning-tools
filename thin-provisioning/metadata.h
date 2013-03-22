@@ -83,7 +83,7 @@ namespace thin_provisioning {
 	};
 
 	struct block_traits {
-		typedef base::__le64 disk_type;
+		typedef base::le64 disk_type;
 		typedef block_time value_type;
 		typedef block_time_ref_counter ref_counter;
 
@@ -95,7 +95,7 @@ namespace thin_provisioning {
 
 		static void pack(value_type const &value, disk_type &disk) {
 			uint64_t v = (value.block_ << 24) | value.time_;
-			disk = base::to_disk<base::__le64>(v);
+			disk = base::to_disk<base::le64>(v);
 		}
 	};
 
@@ -118,7 +118,7 @@ namespace thin_provisioning {
 	};
 
 	struct mtree_traits {
-		typedef base::__le64 disk_type;
+		typedef base::le64 disk_type;
 		typedef uint64_t value_type;
 		typedef mtree_ref_counter ref_counter;
 
@@ -127,7 +127,7 @@ namespace thin_provisioning {
 		}
 
 		static void pack(value_type const &value, disk_type &disk) {
-			disk = base::to_disk<base::__le64>(value);
+			disk = base::to_disk<base::le64>(value);
 		}
 	};
 
