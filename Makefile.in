@@ -93,19 +93,20 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .d
 
 %.d: %.cc
-	@echo "    [dependencies] $@"
+	@echo "    [dependencies] $<"
 	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
 	$(RM) $@.$$$$
 
 %.o: %.cc
-	@echo "    [CXX] $@"
+	@echo "    [CXX] $<"
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
 #----------------------------------------------------------------
 # libpdata
 lib/libpdata.a: $(PDATA_OBJECTS)
-	ar -rv $@ $(PDATA_OBJECTS)
+	@echo "    [AR] $<"
+	$(V)ar -rv $@ $(PDATA_OBJECTS) 2>&1 > /dev/null
 
 #----------------------------------------------------------------
 # Thin provisioning tools

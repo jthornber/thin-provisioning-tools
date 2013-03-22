@@ -31,9 +31,12 @@ GMOCK_DEPS=\
 	$(wildcard $(GMOCK_DIR)/gtest/src/*.cc)
 
 lib/libgmock.a: $(GMOCK_DEPS)
-	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
-	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
-	ar -rv lib/libgmock.a gtest-all.o gmock-all.o
+	@echo "    [CXX] gtest"
+	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
+	@echo "    [CXX] gmock"
+	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
+	@echo "    [AR] $<"
+	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o 2>&1 > /dev/null
 
 MOCK_SOURCE=\
 	unit-tests/gmock_main.cc \
@@ -49,6 +52,8 @@ MOCK_SOURCE=\
 	unit-tests/space_map_t.cc \
 	unit-tests/transaction_manager_t.cc
 
+MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
+
 # .gmo files are plain .o files, only they've been built with gmock
 # include paths.
 .SUFFIXES: .gmo
@@ -57,10 +62,11 @@ MOCK_SOURCE=\
 	@echo "    [CXX] $<"
 	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
 
-MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
-
-unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/libgmock.a lib/libpdata.a
+unit-tests/unit_tests: $(MOCK_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD] $<"
-	g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
+	$(V)g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
-all: $(TEST_PROGRAMS)
+.PHONEY: unit-test
+
+unit-test: unit-tests/unit_tests
+	unit-tests/unit_tests
