@@ -34,9 +34,6 @@ unit-test: $(TEST_PROGRAMS)
 
 .PHONY: unit-test
 
-unit-tests/btree_t: unit-tests/btree_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
 unit-tests/run_list_t: unit-tests/run_list_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
@@ -81,6 +78,7 @@ MOCK_SOURCE=\
 	unit-tests/array_t.cc \
 	unit-tests/bitset_t.cc \
 	unit-tests/block_t.cc \
+	unit-tests/btree_t.cc \
 	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
 	unit-tests/endian_t.cc

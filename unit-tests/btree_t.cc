@@ -16,16 +16,14 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/btree.h"
 
-#define BOOST_TEST_MODULE BTreeTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace std;
-using namespace boost;
 using namespace persistent_data;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -102,18 +100,18 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(empty_btree_contains_nothing)
+TEST(BtreeTests, empty_btree_contains_nothing)
 {
 	btree<1, uint64_traits>::ptr tree = create_btree();
 	check_constraints(tree);
 
 	for (uint64_t i = 0; i < 1000; i++) {
 		uint64_t key[1] = {i};
-		BOOST_CHECK(!tree->lookup(key));
+		ASSERT_FALSE(tree->lookup(key));
 	}
 }
 
-BOOST_AUTO_TEST_CASE(insert_works)
+TEST(BtreeTests, insert_works)
 {
 	unsigned const COUNT = 100000;
 
@@ -125,36 +123,36 @@ BOOST_AUTO_TEST_CASE(insert_works)
 		tree->insert(key, value);
 
 		btree<1, uint64_traits>::maybe_value l = tree->lookup(key);
-		BOOST_REQUIRE(l);
-		BOOST_CHECK_EQUAL(*l, i);
+		ASSERT_TRUE(l);
+		ASSERT_THAT(*l, Eq(i));
 	}
 
 	check_constraints(tree);
 }
 
-BOOST_AUTO_TEST_CASE(insert_does_not_insert_imaginary_values)
+TEST(BtreeTests, insert_does_not_insert_imaginary_values)
 {
 	btree<1, uint64_traits>::ptr tree = create_btree();
 	uint64_t key[1] = {0};
 	uint64_t value = 100;
 
 	btree<1, uint64_traits>::maybe_value l = tree->lookup(key);
-	BOOST_CHECK(!l);
+	ASSERT_FALSE(l);
 
 	key[0] = 1;
 	l = tree->lookup(key);
-	BOOST_CHECK(!l);
+	ASSERT_FALSE(l);
 
 	key[0] = 0;
 	tree->insert(key, value);
 
 	l = tree->lookup(key);
-	BOOST_REQUIRE(l);
-	BOOST_CHECK_EQUAL(*l, 100);
+	ASSERT_TRUE(l);
+	ASSERT_THAT(*l, Eq(100u));
 
 	key[0] = 1;
 	l = tree->lookup(key);
-	BOOST_CHECK(!l);
+	ASSERT_FALSE(l);
 
 	check_constraints(tree);
 }
