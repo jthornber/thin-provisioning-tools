@@ -34,9 +34,6 @@ unit-test: $(TEST_PROGRAMS)
 
 .PHONY: unit-test
 
-unit-tests/array_block_t: unit-tests/array_block_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
 unit-tests/bitset_t: unit-tests/bitset_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
@@ -93,6 +90,7 @@ lib/libgmock.a: $(GMOCK_DEPS)
 MOCK_SOURCE=\
 	unit-tests/gmock_main.cc \
 	\
+	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \
 	unit-tests/buffer_t.cc
 
