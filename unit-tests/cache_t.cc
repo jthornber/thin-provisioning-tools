@@ -16,16 +16,15 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/cache.h"
-
-#define BOOST_TEST_MODULE CacheTests
-#include <boost/test/included/unit_test.hpp>
 
 #include <boost/shared_ptr.hpp>
 
 using namespace boost;
 using namespace base;
 using namespace std;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -66,12 +65,12 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(cache_creation)
+TEST(CacheTests, cache_creation)
 {
 	cache<ThingTraits> c(16);
 }
 
-BOOST_AUTO_TEST_CASE(cache_caches)
+TEST(CacheTests, cache_caches)
 {
 	unsigned const COUNT = 16;
 	cache<ThingTraits> c(COUNT);
@@ -82,20 +81,20 @@ BOOST_AUTO_TEST_CASE(cache_caches)
 	}
 
 	for (unsigned i = 0; i < COUNT; i++)
-		BOOST_ASSERT(c.get(i));
+		ASSERT_TRUE(c.get(i));
 }
 
-BOOST_AUTO_TEST_CASE(new_entries_have_a_ref_count_of_one)
+TEST(CacheTests, new_entries_have_a_ref_count_of_one)
 {
 	cache<ThingTraits> c(16);
 
 	c.insert(Thing(0));
 	c.put(Thing(0));
 
-	BOOST_CHECK_THROW(c.put(Thing(0)), runtime_error);
+	ASSERT_THROW(c.put(Thing(0)), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(cache_drops_elements)
+TEST(CacheTests, cache_drops_elements)
 {
 	unsigned const COUNT = 1024;
 	unsigned const CACHE_SIZE = 16;
@@ -107,13 +106,13 @@ BOOST_AUTO_TEST_CASE(cache_drops_elements)
 	}
 
 	for (unsigned i = 0; i < COUNT - CACHE_SIZE; i++)
-		BOOST_ASSERT(!c.get(i));
+		ASSERT_FALSE(c.get(i));
 
 	for (unsigned i = COUNT - CACHE_SIZE; i < COUNT; i++)
-		BOOST_ASSERT(c.get(i));
+		ASSERT_TRUE(c.get(i));
 }
 
-BOOST_AUTO_TEST_CASE(held_entries_count_towards_the_cache_limit)
+TEST(CacheTests, held_entries_count_towards_the_cache_limit)
 {
 	unsigned const CACHE_SIZE = 16;
 	cache<ThingTraits> c(CACHE_SIZE);
@@ -122,10 +121,10 @@ BOOST_AUTO_TEST_CASE(held_entries_count_towards_the_cache_limit)
 	for (i = 0; i < CACHE_SIZE; i++)
 		c.insert(Thing(i));
 
-	BOOST_CHECK_THROW(c.insert(Thing(i)), runtime_error);
+	ASSERT_THROW(c.insert(Thing(i)), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(put_works)
+TEST(CacheTests, put_works)
 {
 	unsigned const CACHE_SIZE = 16;
 	cache<ThingTraits> c(CACHE_SIZE);
@@ -140,7 +139,7 @@ BOOST_AUTO_TEST_CASE(put_works)
 	c.insert(Thing(i));
 }
 
-BOOST_AUTO_TEST_CASE(multiple_gets_works)
+TEST(CacheTests, multiple_gets_works)
 {
 	unsigned const CACHE_SIZE = 16;
 	cache<ThingTraits> c(CACHE_SIZE);
@@ -153,10 +152,10 @@ BOOST_AUTO_TEST_CASE(multiple_gets_works)
 		c.put(Thing(i));
 	}
 
-	BOOST_CHECK_THROW(c.insert(Thing(i)), runtime_error);
+	ASSERT_THROW(c.insert(Thing(i)), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(shared_ptr_cache_works)
+TEST(CacheTests, shared_ptr_cache_works)
 {
 	unsigned const CACHE_SIZE = 16;
 	cache<SharedThingTraits> c(CACHE_SIZE);
@@ -165,8 +164,8 @@ BOOST_AUTO_TEST_CASE(shared_ptr_cache_works)
 		c.insert(shared_ptr<Thing>(new Thing(i)));
 		optional<shared_ptr<Thing> > maybe_ptr = c.get(i);
 
-		BOOST_ASSERT(maybe_ptr);
-		BOOST_ASSERT((*maybe_ptr)->key_ == i);
+		ASSERT_TRUE(maybe_ptr);
+		ASSERT_THAT((*maybe_ptr)->key_, Eq(i));
 	}
 }
 
