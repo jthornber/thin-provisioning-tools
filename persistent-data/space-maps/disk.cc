@@ -51,11 +51,11 @@ namespace {
 
 		virtual void prepare(buffer<> &b, block_address location) const {
 			bitmap_header *data = reinterpret_cast<bitmap_header *>(&b);
-			data->blocknr = to_disk<base::__le64, uint64_t>(location);
+			data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
-			data->csum = to_disk<base::__le32>(sum.get_sum());
+			data->csum = to_disk<base::le32>(sum.get_sum());
 		}
 	};
 
@@ -83,11 +83,11 @@ namespace {
 
 		virtual void prepare(buffer<> &b, block_address location) const {
 			metadata_index *mi = reinterpret_cast<metadata_index *>(&b);
-			mi->blocknr_ = to_disk<base::__le64, uint64_t>(location);
+			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
-			mi->csum_ = to_disk<base::__le32>(sum.get_sum());
+			mi->csum_ = to_disk<base::le32>(sum.get_sum());
 		}
 	};
 
@@ -194,7 +194,7 @@ namespace {
 	};
 
 	struct ref_count_traits {
-		typedef __le32 disk_type;
+		typedef le32 disk_type;
 		typedef uint32_t value_type;
 		typedef no_op_ref_counter<uint32_t> ref_counter;
 

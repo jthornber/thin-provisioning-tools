@@ -64,11 +64,6 @@ namespace persistent_data {
 			unsigned nr_entries_in_last_block;
 			unsigned nr_total_blocks;
 		};
-
-		unsigned calc_max_entries(size_t value_size, size_t block_size)
-		{
-			return (block_size - sizeof(struct array_block_disk)) / value_size;
-		}
 	}
 
 	template <typename ValueTraits>

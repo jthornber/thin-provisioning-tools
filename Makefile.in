@@ -174,7 +174,7 @@ cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 .PHONY: clean distclean
 
 clean:
-	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS)
+	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d unit-tests/*.gmo $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS) $(GMOCK_OBJECTS) lib/*.a
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile

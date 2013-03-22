@@ -77,7 +77,7 @@ TEST(ArrayTests, get_elements)
 	array<uint64_traits>::ptr tree = create_array(COUNT, 123);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		ASSERT_THAT(tree->get(i), Eq(123));
+		ASSERT_THAT(tree->get(i), Eq(123u));
 
 	ASSERT_THROW(tree->get(COUNT), runtime_error);
 }
@@ -91,7 +91,7 @@ TEST(ArrayTests, set_elements)
 		tree->set(i, 124);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		ASSERT_THAT(tree->get(i), Eq(124));
+		ASSERT_THAT(tree->get(i), Eq(124u));
 
 	ASSERT_THROW(tree->get(COUNT), runtime_error);
 }
@@ -154,7 +154,7 @@ TEST(ArrayTests, reopen_array)
 		typename array64::ptr a = open_array(root, COUNT);
 
 		for (unsigned i = 0; i < COUNT; i++)
-			ASSERT_THAT(a->get(i), Eq(i % 7 ? 123: 234));
+			ASSERT_THAT(a->get(i), Eq(i % 7 ? 123u : 234u));
 	}
 }
 

@@ -31,9 +31,9 @@ namespace persistent_data {
 
 	namespace sm_disk_detail {
 		struct index_entry_disk {
-			__le64 blocknr_;
-			__le32 nr_free_;
-			__le32 none_free_before_;
+			le64 blocknr_;
+			le32 nr_free_;
+			le32 none_free_before_;
 		} __attribute__ ((packed));
 
 		struct index_entry {
@@ -54,9 +54,9 @@ namespace persistent_data {
 			}
 
 			static void pack(value_type const &value, disk_type &disk) {
-				disk.blocknr_ = to_disk<__le64>(value.blocknr_);
-				disk.nr_free_ = to_disk<__le32>(value.nr_free_);
-				disk.none_free_before_ = to_disk<__le32>(value.none_free_before_);
+				disk.blocknr_ = to_disk<le64>(value.blocknr_);
+				disk.nr_free_ = to_disk<le32>(value.nr_free_);
+				disk.none_free_before_ = to_disk<le32>(value.none_free_before_);
 			}
 		};
 
@@ -64,18 +64,18 @@ namespace persistent_data {
 		unsigned const ENTRIES_PER_BYTE = 4;
 
 		struct metadata_index {
-			__le32 csum_;
-			__le32 padding_;
-			__le64 blocknr_;
+			le32 csum_;
+			le32 padding_;
+			le64 blocknr_;
 
 			struct index_entry_disk index[MAX_METADATA_BITMAPS];
 		} __attribute__ ((packed));
 
 		struct sm_root_disk {
-			__le64 nr_blocks_;
-			__le64 nr_allocated_;
-			__le64 bitmap_root_;
-			__le64 ref_count_root_;
+			le64 nr_blocks_;
+			le64 nr_allocated_;
+			le64 bitmap_root_;
+			le64 ref_count_root_;
 		} __attribute__ ((packed));
 
 		struct sm_root {
@@ -98,17 +98,17 @@ namespace persistent_data {
 			}
 
 			static void pack(value_type const &value, disk_type &disk) {
-				disk.nr_blocks_ = to_disk<__le64>(value.nr_blocks_);
-				disk.nr_allocated_ = to_disk<__le64>(value.nr_allocated_);
-				disk.bitmap_root_ = to_disk<__le64>(value.bitmap_root_);
-				disk.ref_count_root_ = to_disk<__le64>(value.ref_count_root_);
+				disk.nr_blocks_ = to_disk<le64>(value.nr_blocks_);
+				disk.nr_allocated_ = to_disk<le64>(value.nr_allocated_);
+				disk.bitmap_root_ = to_disk<le64>(value.bitmap_root_);
+				disk.ref_count_root_ = to_disk<le64>(value.ref_count_root_);
 			}
 		};
 
 		struct bitmap_header {
-			__le32 csum;
-			__le32 not_used;
-			__le64 blocknr;
+			le32 csum;
+			le32 not_used;
+			le64 blocknr;
 		} __attribute__ ((packed));
 	}
 }

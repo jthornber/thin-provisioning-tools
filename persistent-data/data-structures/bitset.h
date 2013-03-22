@@ -27,7 +27,7 @@
 namespace persistent_data {
 	namespace bitset_detail {
 		struct bitset_traits {
-			typedef base::__le64 disk_type;
+			typedef base::le64 disk_type;
 			typedef uint64_t value_type;
 			typedef no_op_ref_counter<uint64_t> ref_counter;
 
@@ -36,7 +36,7 @@ namespace persistent_data {
 			}
 
 			static void pack(value_type const &value, disk_type &disk) {
-				disk = base::to_disk<base::__le64>(value);
+				disk = base::to_disk<base::le64>(value);
 			}
 		};
 	}

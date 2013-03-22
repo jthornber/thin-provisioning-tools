@@ -16,18 +16,16 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/bitset.h"
 
 #include <vector>
 
-#define BOOST_TEST_MODULE ArrayTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace std;
-using namespace boost;
 using namespace persistent_data;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -55,13 +53,13 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(create_empty_bitset)
+TEST(BitsetTests, create_empty_bitset)
 {
 	bitset::ptr bs = create_bitset();
-	BOOST_CHECK_THROW(bs->get(0), runtime_error);
+	ASSERT_THROW(bs->get(0), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(grow_default_false)
+TEST(BitsetTests, grow_default_false)
 {
 	unsigned const COUNT = 100000;
 
@@ -69,10 +67,10 @@ BOOST_AUTO_TEST_CASE(grow_default_false)
 	bs->grow(COUNT, false);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		BOOST_CHECK_EQUAL(bs->get(i), false);
+		ASSERT_FALSE(bs->get(i));
 }
 
-BOOST_AUTO_TEST_CASE(grow_default_true)
+TEST(BitsetTests, grow_default_true)
 {
 	unsigned const COUNT = 100000;
 
@@ -80,19 +78,19 @@ BOOST_AUTO_TEST_CASE(grow_default_true)
 	bs->grow(COUNT, true);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		BOOST_CHECK_EQUAL(bs->get(i), true);
+		ASSERT_TRUE(bs->get(i));
 }
 
-BOOST_AUTO_TEST_CASE(grow_throws_if_actualy_asked_to_shrink)
+TEST(BitsetTests, grow_throws_if_actualy_asked_to_shrink)
 {
 	unsigned const COUNT = 100000;
 
 	bitset::ptr bs = create_bitset();
 	bs->grow(COUNT, false);
-	BOOST_CHECK_THROW(bs->grow(COUNT / 2, false), runtime_error);
+	ASSERT_THROW(bs->grow(COUNT / 2, false), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(multiple_grow_calls)
+TEST(BitsetTests, multiple_grow_calls)
 {
 	unsigned const COUNT = 100000;
 	unsigned const STEP = 37;
@@ -109,7 +107,7 @@ BOOST_AUTO_TEST_CASE(multiple_grow_calls)
 		bs->grow(chunks[i], default_value);
 
 		for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
-			BOOST_CHECK_EQUAL(bs->get(j), default_value);
+			ASSERT_THAT(bs->get(j), Eq(default_value));
 
 		default_value = !default_value;
 	}
@@ -117,23 +115,23 @@ BOOST_AUTO_TEST_CASE(multiple_grow_calls)
 	default_value = true;
 	for (unsigned i = 1; i < chunks.size(); i++) {
 		for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
-			BOOST_CHECK_EQUAL(bs->get(j), default_value);
+			ASSERT_THAT(bs->get(j), Eq(default_value));
 
 		default_value = !default_value;
 	}
 }
 
-BOOST_AUTO_TEST_CASE(set_out_of_bounds_throws)
+TEST(BitsetTests, set_out_of_bounds_throws)
 {
 	unsigned const COUNT = 100000;
 	bitset::ptr bs = create_bitset();
 
-	BOOST_CHECK_THROW(bs->set(0, true), runtime_error);
+	ASSERT_THROW(bs->set(0, true), runtime_error);
 	bs->grow(COUNT, true);
-	BOOST_CHECK_THROW(bs->set(COUNT, true), runtime_error);
+	ASSERT_THROW(bs->set(COUNT, true), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(set_works)
+TEST(BitsetTests, set_works)
 {
 	unsigned const COUNT = 100000;
 	bitset::ptr bs = create_bitset();
@@ -142,12 +140,11 @@ BOOST_AUTO_TEST_CASE(set_works)
 	for (unsigned i = 0; i < COUNT; i += 7)
 		bs->set(i, false);
 
-	for (unsigned i = 0; i < COUNT; i++) {
-		BOOST_CHECK_EQUAL(bs->get(i), i % 7 ? true : false);
-	}
+	for (unsigned i = 0; i < COUNT; i++)
+		ASSERT_THAT(bs->get(i), Eq(i % 7 ? true : false));
 }
 
-BOOST_AUTO_TEST_CASE(reopen_works)
+TEST(BitsetTests, reopen_works)
 {
 	unsigned const COUNT = 100000;
 	block_address root;
@@ -165,7 +162,7 @@ BOOST_AUTO_TEST_CASE(reopen_works)
 	{
 		bitset::ptr bs = open_bitset(root, COUNT);
 		for (unsigned i = 0; i < COUNT; i++)
-			BOOST_CHECK_EQUAL(bs->get(i), i % 7 ? true : false);
+			ASSERT_THAT(bs->get(i), Eq(i % 7 ? true : false));
 	}
 }
 
