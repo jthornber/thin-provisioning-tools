@@ -52,10 +52,6 @@ unit-tests/transaction_manager_t: unit-tests/transaction_manager_t.o $(OBJECTS)
 unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-unit-tests/endian_t: unit-tests/endian_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-
 #----------------------------------------------------------------
 # gmock tests
 
@@ -86,7 +82,8 @@ MOCK_SOURCE=\
 	unit-tests/bitset_t.cc \
 	unit-tests/block_t.cc \
 	unit-tests/buffer_t.cc \
-	unit-tests/cache_t.cc
+	unit-tests/cache_t.cc \
+	unit-tests/endian_t.cc
 
 # .gmo files are plain .o files, only they've been built with gmock
 # include paths.
