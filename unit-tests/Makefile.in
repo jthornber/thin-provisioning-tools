@@ -82,7 +82,13 @@ GMOCK_INCLUDES=\
 GMOCK_LIBS=\
 	-Llib -lgmock -lpthread
 
-lib/gmock.a:
+GMOCK_DEPS=\
+	$(wildcard $(GMOCK_DIR)/include/*.h) \
+	$(wildcard $(GMOCK_DIR)/src/*.cc) \
+	$(wildcard $(GMOCK_DIR)/gtest/include/*.h) \
+	$(wildcard $(GMOCK_DIR)/gtest/src/*.cc)
+
+lib/libgmock.a: $(GMOCK_DEPS)
 	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
 	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
 	ar -rv lib/libgmock.a gtest-all.o gmock-all.o
@@ -101,7 +107,7 @@ MOCK_SOURCE=\
 
 MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
 
-unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/gmock.a
+unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/libgmock.a
 	g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS)
 
 all: $(TEST_PROGRAMS)
