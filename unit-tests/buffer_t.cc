@@ -19,12 +19,13 @@
 // Set to one to add compile time checks.
 #define	COMPILE_TIME_ERROR	0
 
+#include "gmock/gmock.h"
 #include "persistent-data/buffer.h"
 
-#define BOOST_TEST_MODULE BufferTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace persistent_data;
+using namespace testing;
+
+// FIXME: get rid of these comments, the tests should be self explanatory
 
 // - Allocate several on the heap, check they have the requested
 //   alignment.  Try for various Alignments.  If memalign has
@@ -48,12 +49,92 @@ namespace {
 	create_buffer(void) {
 		return typename buffer<Size, Alignment>::ptr(new buffer<Size, Alignment>());
 	}
+
+	template <typename buffer>
+	void assert_aligned(buffer const &b) {
+		ASSERT_THAT((unsigned long) b.raw() & (buffer::ALIGNMENT - 1), Eq(0u));
+	}
 }
 
 //----------------------------------------------------------------
 
+TEST(BufferTest, buffer_8_a_8_raw_access)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+	unsigned char *p = b->raw();
+	// unsigned char const *pc = b->raw();
+
+	p[0] = 0;
+	ASSERT_THAT(p[0], Eq(0));
+	p[0] = 4;
+	ASSERT_THAT(p[0], Eq(4));
+}
+
+TEST(BufferTest, buffer_8_a_8_access)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	(*b)[0] = 0;
+	ASSERT_THAT((*b)[0], Eq(0));
+}
+
+TEST(BufferTest, buffer_8_a_8_oob)
+{
+	uint32_t const sz = 8, align = 8;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	ASSERT_THROW((*b)[8], std::range_error);
+}
+
+TEST(BufferTest, buffer_128_a_2_succeeds)
+{
+	uint32_t const sz = 128, align = 2;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	ASSERT_TRUE(b);
+}
+
+TEST(BufferTest, buffer_128_a_4_succeeds)
+{
+	uint32_t const sz = 128, align = 4;
+	buffer<sz, align>::ptr b = create_buffer<sz, align>();
+
+	ASSERT_TRUE(b);
+}
+
+// Varying buffer size, alignment 8
+TEST(BufferTest, obeys_alignment)
+{
+	assert_aligned(*create_buffer<8, 8>());
+	assert_aligned(*create_buffer<16, 8>());
+	assert_aligned(*create_buffer<32, 8>());
+	assert_aligned(*create_buffer<64, 8>());
+	assert_aligned(*create_buffer<128, 8>());
+	assert_aligned(*create_buffer<256, 8>());
+	assert_aligned(*create_buffer<512, 8>());
+	assert_aligned(*create_buffer<1024, 8>());
+	assert_aligned(*create_buffer<2048, 8>());
+	assert_aligned(*create_buffer<4096, 8>());
+	assert_aligned(*create_buffer<8192, 8>());
+
+	assert_aligned(*create_buffer<8, 16>());
+	assert_aligned(*create_buffer<16, 16>());
+	assert_aligned(*create_buffer<32, 16>());
+	assert_aligned(*create_buffer<64, 16>());
+	assert_aligned(*create_buffer<128, 16>());
+	assert_aligned(*create_buffer<256, 16>());
+	assert_aligned(*create_buffer<512, 16>());
+	assert_aligned(*create_buffer<1024, 16>());
+	assert_aligned(*create_buffer<2048, 16>());
+	assert_aligned(*create_buffer<4096, 16>());
+	assert_aligned(*create_buffer<8192, 16>());
+}
+
+#if 0
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_copy_fails)
+TEST(BufferTest, buffer_copy_fails)
 {
 	uint32_t const sz = 8, align = 8;
 	buffer<sz, align>::ptr b1 = create_buffer<sz, align>();
@@ -63,21 +144,8 @@ BOOST_AUTO_TEST_CASE(buffer_copy_fails)
 }
 #endif
 
-BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_access)
-{
-	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-	unsigned char *p = b->raw();
-	// unsigned char const *pc = b->raw();
-
-	p[0] = 0;
-	BOOST_CHECK(p[0] == 0);
-	p[0] = 4;
-	BOOST_CHECK(p[0] == 4);
-}
-
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_const_access)
+TEST(BufferTest, buffer_8_a_8_raw_const_access)
 {
 	uint32_t const sz = 8, align = 8;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
@@ -87,17 +155,8 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_raw_const_access)
 }
 #endif
 
-BOOST_AUTO_TEST_CASE(buffer_8_a_8_access)
-{
-	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	(*b)[0] = 0;
-	BOOST_CHECK_EQUAL((*b)[0], 0);
-}
-
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
+TEST(BufferTest, buffer_8_a_8_const_access)
 {
 	uint32_t const sz = 8, align = 8;
 	buffer<sz, align>::const_ptr b = create_buffer<sz, align>();
@@ -106,36 +165,21 @@ BOOST_AUTO_TEST_CASE(buffer_8_a_8_const_access)
 }
 #endif
 
-BOOST_AUTO_TEST_CASE(buffer_8_a_8_oob)
-{
-	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_THROW((*b)[8], std::range_error);
-}
 
 // 8 byte buffer size, varying alignment from 1 - 7
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_128_a_1_fails)
+TEST(BufferTest, buffer_128_a_1_fails)
 {
 	uint32_t const sz = 128, align = 1;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
 
 	BOOST_CHECK(!b);
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 1);
+	ASSERT_THAT((unsigned long) b->raw() & (align - 1), 1);
 }
 #endif
 
-BOOST_AUTO_TEST_CASE(buffer_128_a_2_succeeds)
-{
-	uint32_t const sz = 128, align = 2;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK(b);
-}
-
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_128_a_3_fails)
+TEST(BufferTest, buffer_128_a_3_fails)
 {
 	uint32_t const sz = 128, align = 3;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
@@ -144,16 +188,8 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_3_fails)
 }
 #endif
 
-BOOST_AUTO_TEST_CASE(buffer_128_a_4_succeeds)
-{
-	uint32_t const sz = 128, align = 4;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK(b);
-}
-
 #if COMPILE_TIME_ERROR
-BOOST_AUTO_TEST_CASE(buffer_128_a_5_fails)
+TEST(BufferTest, buffer_128_a_5_fails)
 {
 	uint32_t const sz = 128, align = 5;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
@@ -161,7 +197,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_5_fails)
 	BOOST_CHECK(!b);
 }
 
-BOOST_AUTO_TEST_CASE(buffer_128_a_6_fails)
+TEST(BufferTest, buffer_128_a_6_fails)
 {
 	uint32_t const sz = 128, align = 6;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
@@ -169,7 +205,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_6_fails)
 	BOOST_CHECK(!b);
 }
 
-BOOST_AUTO_TEST_CASE(buffer_128_a_7_fails)
+TEST(BufferTest, buffer_128_a_7_fails)
 {
 	uint32_t const sz = 128, align = 7;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
@@ -178,185 +214,7 @@ BOOST_AUTO_TEST_CASE(buffer_128_a_7_fails)
 }
 #endif
 
-// Varying buffer size, alignment 8
-BOOST_AUTO_TEST_CASE(buffer_8_a_8)
-{
-	uint32_t const sz = 8, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_16_a_8)
-{
-	uint32_t const sz = 16, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_32_a_8)
-{
-	uint32_t const sz = 32, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_64_a_8)
-{
-	uint32_t const sz = 64, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_128_a_8)
-{
-	uint32_t const sz = 128, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_256_a_8)
-{
-	uint32_t const sz = 256, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_512_a_8)
-{
-	uint32_t const sz = 512, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_1024_a_8)
-{
-	uint32_t const sz = 1024, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_2048_a_8)
-{
-	uint32_t const sz = 2048, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_4096_a_8)
-{
-	uint32_t const sz = 4096, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_8192_a_8)
-{
-	uint32_t const sz = 8192, align = 8;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-
-// Varying buffer size, alignment 16
-BOOST_AUTO_TEST_CASE(buffer_8_a_16)
-{
-	uint32_t const sz = 8, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_16_a_16)
-{
-	uint32_t const sz = 16, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_32_a_16)
-{
-	uint32_t const sz = 32, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_64_a_16)
-{
-	uint32_t const sz = 64, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_128_a_16)
-{
-	uint32_t const sz = 128, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_256_a_16)
-{
-	uint32_t const sz = 256, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_512_a_16)
-{
-	uint32_t const sz = 512, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_1024_a_16)
-{
-	uint32_t const sz = 1024, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_2048_a_16)
-{
-	uint32_t const sz = 2048, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_4096_a_16)
-{
-	uint32_t const sz = 4096, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
-
-BOOST_AUTO_TEST_CASE(buffer_8192_a_16)
-{
-	uint32_t const sz = 8192, align = 16;
-	buffer<sz, align>::ptr b = create_buffer<sz, align>();
-
-	BOOST_CHECK_EQUAL((unsigned long) b->raw() & (align - 1), 0);
-}
 
 #undef	COMPILE_TIME_ERROR
-
+#endif
 //----------------------------------------------------------------

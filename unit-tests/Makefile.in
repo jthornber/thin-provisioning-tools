@@ -20,7 +20,6 @@ TEST_SOURCE=\
 	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \
 	unit-tests/bitset_t.cc \
-	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
 	unit-tests/block_t.cc \
 	unit-tests/btree_t.cc \
@@ -42,9 +41,6 @@ unit-tests/array_block_t: unit-tests/array_block_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/bitset_t: unit-tests/bitset_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-unit-tests/buffer_t: unit-tests/buffer_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/block_t: unit-tests/block_t.o $(OBJECTS)
@@ -91,10 +87,21 @@ lib/gmock.a:
 	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
 	ar -rv lib/libgmock.a gtest-all.o gmock-all.o
 
-unit-tests/gmock_t.o: unit-tests/gmock_t.cc
-	g++ -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
+MOCK_SOURCE=\
+	unit-tests/gmock_main.cc \
+	\
+	unit-tests/buffer_t.cc
 
-unit-tests/gmock_t: unit-tests/gmock_t.o lib/gmock.a
-	g++ $(CXXFLAGS) -o $@ $< $(LIBS) $(GMOCK_LIBS)
+# .gmo files are plain .o files, only they've been built with gmock
+# include paths.
+.SUFFIXES: .gmo
+
+%.gmo: %.cc
+	$(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
+
+MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
+
+unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/gmock.a
+	g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS)
 
 all: $(TEST_PROGRAMS)

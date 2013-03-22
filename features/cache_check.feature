@@ -70,7 +70,17 @@ Feature: cache_check
     And block 1 is zeroed
 
     When I run `cache_check input`
+
     And the stderr should contain:
     """
     input: No superblock found
     """
+
+  Scenario: A valid metadata area passes
+    Given metadata containing:
+    """
+    """
+
+    When I run cache_check
+
+    Then it should pass

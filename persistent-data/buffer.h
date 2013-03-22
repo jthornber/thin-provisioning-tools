@@ -47,6 +47,7 @@ namespace persistent_data {
 		BOOST_STATIC_ASSERT_MSG((Alignment > 1) & !(Alignment & (Alignment - 1)),
 					"Alignment must be a power of two.");
 
+		static uint32_t const ALIGNMENT = Alignment;
 		typedef boost::shared_ptr<buffer> ptr;
 		typedef boost::shared_ptr<buffer const> const_ptr;
 
