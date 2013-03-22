@@ -16,18 +16,17 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/array.h"
 
 #include <vector>
 
-#define BOOST_TEST_MODULE ArrayTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace std;
 using namespace boost;
 using namespace persistent_data;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -66,26 +65,24 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(can_create_an_empty_array)
+TEST(ArrayTests, can_create_an_empty_array)
 {
 	array<uint64_traits>::ptr tree = create_array(0, 0);
-
-	BOOST_CHECK_THROW(tree->get(0), runtime_error);
+	ASSERT_THROW(tree->get(0), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(get_elements)
+TEST(ArrayTests, get_elements)
 {
 	unsigned const COUNT = 10000;
 	array<uint64_traits>::ptr tree = create_array(COUNT, 123);
 
-	for (unsigned i = 0; i < COUNT; i++) {
-		BOOST_CHECK_EQUAL(tree->get(i), 123);
-	}
+	for (unsigned i = 0; i < COUNT; i++)
+		ASSERT_THAT(tree->get(i), Eq(123));
 
-	BOOST_CHECK_THROW(tree->get(COUNT), runtime_error);
+	ASSERT_THROW(tree->get(COUNT), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(set_elements)
+TEST(ArrayTests, set_elements)
 {
 	unsigned const COUNT = 10000;
 	array<uint64_traits>::ptr tree = create_array(COUNT, 123);
@@ -94,9 +91,9 @@ BOOST_AUTO_TEST_CASE(set_elements)
 		tree->set(i, 124);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		BOOST_CHECK_EQUAL(tree->get(i), 124);
+		ASSERT_THAT(tree->get(i), Eq(124));
 
-	BOOST_CHECK_THROW(tree->get(COUNT), runtime_error);
+	ASSERT_THROW(tree->get(COUNT), runtime_error);
 }
 
 template <typename T, unsigned size>
@@ -104,7 +101,7 @@ unsigned array_size(T (&)[size]) {
 	return size;
 }
 
-BOOST_AUTO_TEST_CASE(grow)
+TEST(ArrayTests, grow)
 {
 	unsigned const COUNT = 10000;
 	unsigned const STEPS[] = {
@@ -124,22 +121,22 @@ BOOST_AUTO_TEST_CASE(grow)
 
 		for (unsigned i = 1; i < chunks.size(); i++) {
 			if (i > 1)
-				BOOST_CHECK_EQUAL(a->get(chunks[i - 1] - 1), i - 1);
+				ASSERT_THAT(a->get(chunks[i - 1] - 1), Eq(i - 1));
 
 			a->grow(chunks[i], i);
 
 			if (i > 1)
-				BOOST_CHECK_EQUAL(a->get(chunks[i - 1] - 1), i - 1);
+				ASSERT_THAT(a->get(chunks[i - 1] - 1), Eq(i - 1));
 
 			for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
-				BOOST_CHECK_EQUAL(a->get(j), i);
+				ASSERT_THAT(a->get(j), Eq(i));
 
-			BOOST_CHECK_THROW(a->get(chunks[i] + 1), runtime_error);
+			ASSERT_THROW(a->get(chunks[i] + 1), runtime_error);
 		}
 	}
 }
 
-BOOST_AUTO_TEST_CASE(reopen_array)
+TEST(ArrayTests, reopen_array)
 {
 	unsigned const COUNT = 10000;
 	block_address root;
@@ -157,11 +154,11 @@ BOOST_AUTO_TEST_CASE(reopen_array)
 		typename array64::ptr a = open_array(root, COUNT);
 
 		for (unsigned i = 0; i < COUNT; i++)
-			BOOST_CHECK_EQUAL(a->get(i), i % 7 ? 123: 234);
+			ASSERT_THAT(a->get(i), Eq(i % 7 ? 123: 234));
 	}
 }
 
-BOOST_AUTO_TEST_CASE(destroy)
+TEST(Array_Tests, destroy)
 {
 	// FIXME: pending
 }

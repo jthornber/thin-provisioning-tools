@@ -45,11 +45,11 @@ namespace persistent_data {
 
 			virtual void prepare(buffer<> &b, block_address location) const {
 				array_block_disk *data = reinterpret_cast<array_block_disk *>(&b);
-				data->blocknr = to_disk<base::__le64, uint64_t>(location);
+				data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 				crc32c sum(ARRAY_CSUM_XOR);
 				sum.append(&data->max_entries, MD_BLOCK_SIZE - sizeof(uint32_t));
-				data->csum = to_disk<base::__le32>(sum.get_sum());
+				data->csum = to_disk<base::le32>(sum.get_sum());
 			}
 		};
 
@@ -109,7 +109,7 @@ namespace persistent_data {
 		friend class block_ref_counter;
 
 		struct block_traits {
-			typedef base::__le64 disk_type;
+			typedef base::le64 disk_type;
 			typedef block_address value_type;
 			typedef block_ref_counter ref_counter;
 
@@ -118,7 +118,7 @@ namespace persistent_data {
 			}
 
 			static void pack(value_type const &value, disk_type &disk) {
-				disk = base::to_disk<base::__le64>(value);
+				disk = base::to_disk<base::le64>(value);
 			}
 		};
 

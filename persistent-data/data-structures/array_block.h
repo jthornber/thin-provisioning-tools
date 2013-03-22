@@ -25,11 +25,11 @@
 
 namespace persistent_data {
 	struct array_block_disk {
-		base::__le32 csum;
-		base::__le32 max_entries;
-		base::__le32 nr_entries;
-		base::__le32 value_size;
-		base::__le64 blocknr;
+		base::le32 csum;
+		base::le32 max_entries;
+		base::le32 nr_entries;
+		base::le32 value_size;
+		base::le64 blocknr;
 	} __attribute__((packed));
 
 	// RefType should be either a read_ref or write_ref from block_manager
@@ -58,9 +58,9 @@ namespace persistent_data {
 		void setup_empty() {
 			using namespace base;
 			struct array_block_disk *header = get_header();
-			header->max_entries = to_disk<__le32>(calc_max_entries());
-			header->nr_entries = to_disk<__le32>(static_cast<uint32_t>(0));
-			header->value_size = to_disk<__le32>(static_cast<uint32_t>(sizeof(disk_type)));
+			header->max_entries = to_disk<le32>(calc_max_entries());
+			header->nr_entries = to_disk<le32>(static_cast<uint32_t>(0));
+			header->value_size = to_disk<le32>(static_cast<uint32_t>(sizeof(disk_type)));
 		}
 
 		uint32_t max_entries() const {
@@ -142,7 +142,7 @@ namespace persistent_data {
 		void set_nr_entries(uint32_t nr) {
 			using namespace base;
 			array_block_disk *h = get_header();
-			h->nr_entries = to_disk<__le32>(nr);
+			h->nr_entries = to_disk<le32>(nr);
 		}
 
 		void grow_(uint32_t nr, value_type const &default_value) {

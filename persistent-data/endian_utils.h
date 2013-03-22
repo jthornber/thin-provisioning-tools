@@ -31,24 +31,24 @@ namespace base {
 	// These are just little wrapper types to make the compiler
 	// understand that the le types are not assignable to the
 	// corresponding cpu type.
-	struct __le16 {
-		explicit __le16(uint16_t v = 0)
+	struct le16 {
+		explicit le16(uint16_t v = 0)
 			: v_(v) {
 		}
 
 		uint16_t v_;
 	} __attribute__((packed));
 
-	struct __le32 {
-		explicit __le32(uint32_t v = 0)
+	struct le32 {
+		explicit le32(uint32_t v = 0)
 			: v_(v) {
 		}
 
 		uint32_t v_;
 	} __attribute__((packed));
 
-	struct __le64 {
-		explicit __le64(uint64_t v = 0)
+	struct le64 {
+		explicit le64(uint64_t v = 0)
 			: v_(v) {
 		}
 
@@ -69,33 +69,33 @@ namespace base {
 	}
 
 	template <>
-	inline uint16_t to_cpu<uint16_t, __le16>(__le16 const &d) {
+	inline uint16_t to_cpu<uint16_t, le16>(le16 const &d) {
 		return le16toh(d.v_);
 	}
 
 	template <>
-	inline __le16 to_disk<__le16, uint16_t>(uint16_t const &v) {
-		return __le16(htole16(v));
+	inline le16 to_disk<le16, uint16_t>(uint16_t const &v) {
+		return le16(htole16(v));
 	}
 
 	template <>
-	inline uint32_t to_cpu<uint32_t, __le32>(__le32 const &d) {
+	inline uint32_t to_cpu<uint32_t, le32>(le32 const &d) {
 		return le32toh(d.v_);
 	}
 
 	template <>
-	inline __le32 to_disk<__le32, uint32_t>(uint32_t const &v) {
-		return __le32(htole32(v));
+	inline le32 to_disk<le32, uint32_t>(uint32_t const &v) {
+		return le32(htole32(v));
 	}
 
 	template <>
-	inline uint64_t to_cpu<uint64_t, __le64>(__le64 const &d) {
+	inline uint64_t to_cpu<uint64_t, le64>(le64 const &d) {
 		return le64toh(d.v_);
 	}
 
 	template <>
-	inline __le64 to_disk<__le64, uint64_t>(uint64_t const &v) {
-		return __le64(htole64(v));
+	inline le64 to_disk<le64, uint64_t>(uint64_t const &v) {
+		return le64(htole64(v));
 	}
 
 	//--------------------------------

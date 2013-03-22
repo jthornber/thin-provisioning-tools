@@ -21,8 +21,6 @@
 V=@
 PROGRAMS=\
 	cache_check \
-	cache_dump \
-	cache_restore \
 	\
 	thin_debug \
 	thin_check \
@@ -31,7 +29,7 @@ PROGRAMS=\
 
 all: $(PROGRAMS)
 
-SOURCE=\
+PDATA_SOURCE=\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
@@ -42,7 +40,11 @@ SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/space-maps/careful_alloc.cc
+PDATA_OBJECTS=$(subst .cc,.o,$(PDATA_SOURCE))
+
+SOURCE=\
+	$(PDATA_SOURCE) \
 	\
 	cache/metadata_disk_structures.cc \
 	\
@@ -57,8 +59,6 @@ SOURCE=\
 
 PROGRAM_SOURCE=\
 	cache/check.cc \
-	cache/dump.cc \
-	cache/restore.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
@@ -93,14 +93,19 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .d
 
 %.d: %.cc
-	@echo "    [dependencies] $<"
-	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	$(V) sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
-	$(V) $(RM) $@.$$$$
+	@echo "    [dependencies] $@"
+	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	$(RM) $@.$$$$
 
 %.o: %.cc
-	@echo "    [CXX] $<"
+	@echo "    [CXX] $@"
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
+
+#----------------------------------------------------------------
+# libpdata
+lib/libpdata.a: $(PDATA_OBJECTS)
+	ar -rv $@ $(PDATA_OBJECTS)
 
 #----------------------------------------------------------------
 # Thin provisioning tools
@@ -129,16 +134,20 @@ THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	@echo "    [LD] $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin-provisioning/thin_dump.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	@echo "    [LD] $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	@echo "    [LD] $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+	@echo "    [LD] $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
 #----------------------------------------------------------------
 # Cache tools
@@ -159,13 +168,16 @@ CACHE_CHECK_SOURCE=\
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
 cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
-	$(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+	@echo "    [LD] $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+
+.PHONY: clean distclean
 
 clean:
 	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS)
+
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
-.PHONY: clean distclean
 
 install: $(PROGRAMS)
 	$(INSTALL_DIR) $(BINDIR)

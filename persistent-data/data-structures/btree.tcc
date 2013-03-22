@@ -48,11 +48,11 @@ namespace {
 		virtual void prepare(buffer<> &b, block_address location) const {
 			disk_node *data = reinterpret_cast<disk_node *>(&b);
 			node_header *n = &data->header;
-			n->blocknr = to_disk<base::__le64, uint64_t>(location);
+			n->blocknr = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(BTREE_CSUM_XOR);
 			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			n->csum = to_disk<base::__le32>(sum.get_sum());
+			n->csum = to_disk<base::le32>(sum.get_sum());
 		}
 	};
 
@@ -138,7 +138,7 @@ node_ref<ValueTraits>::set_type(node_type t)
 		flags = LEAF_NODE;
 		break;
 	}
-	raw_->header.flags = to_disk<__le32>(flags);
+	raw_->header.flags = to_disk<le32>(flags);
 }
 
 template <typename ValueTraits>
@@ -152,7 +152,7 @@ template <typename ValueTraits>
 void
 node_ref<ValueTraits>::set_nr_entries(unsigned n)
 {
-	raw_->header.nr_entries = to_disk<__le32>(n);
+	raw_->header.nr_entries = to_disk<le32>(n);
 }
 
 template <typename ValueTraits>
@@ -166,7 +166,7 @@ template <typename ValueTraits>
 void
 node_ref<ValueTraits>::set_max_entries(unsigned n)
 {
-	raw_->header.max_entries = to_disk<__le32>(n);
+	raw_->header.max_entries = to_disk<le32>(n);
 }
 
 template <typename ValueTraits>
@@ -187,7 +187,7 @@ template <typename ValueTraits>
 void
 node_ref<ValueTraits>::set_value_size(size_t s)
 {
-	raw_->header.value_size = to_disk<__le32>(static_cast<uint32_t>(s));
+	raw_->header.value_size = to_disk<le32>(static_cast<uint32_t>(s));
 }
 
 template <typename ValueTraits>
@@ -203,7 +203,7 @@ template <typename ValueTraits>
 void
 node_ref<ValueTraits>::set_key(unsigned i, uint64_t k)
 {
-	raw_->keys[i] = to_disk<__le64>(k);
+	raw_->keys[i] = to_disk<le64>(k);
 }
 
 template <typename ValueTraits>

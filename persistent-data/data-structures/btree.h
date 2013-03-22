@@ -31,7 +31,7 @@
 
 namespace persistent_data {
 	struct uint64_traits {
-		typedef base::__le64 disk_type;
+		typedef base::le64 disk_type;
 		typedef uint64_t value_type;
 		typedef no_op_ref_counter<uint64_t> ref_counter;
 
@@ -40,7 +40,7 @@ namespace persistent_data {
 		}
 
 		static void pack(value_type const &value, disk_type &disk) {
-			disk = base::to_disk<base::__le64>(value);
+			disk = base::to_disk<base::le64>(value);
 		}
 	};
 
@@ -59,19 +59,19 @@ namespace persistent_data {
 		};
 
 		struct node_header {
-			__le32 csum;
-			__le32 flags;
-			__le64 blocknr; /* which block this node is supposed to live in */
+			le32 csum;
+			le32 flags;
+			le64 blocknr; /* which block this node is supposed to live in */
 
-			__le32 nr_entries;
-			__le32 max_entries;
-			__le32 value_size;
-			__le32 padding;
+			le32 nr_entries;
+			le32 max_entries;
+			le32 value_size;
+			le32 padding;
 		} __attribute__((packed));
 
 		struct disk_node {
 			struct node_header header;
-			__le64 keys[0];
+			le64 keys[0];
 		} __attribute__((packed));
 
 		enum node_type {

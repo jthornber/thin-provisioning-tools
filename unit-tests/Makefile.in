@@ -16,7 +16,7 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-TEST_SOURCE=\
+TEST_SOURCE=$(GMOCK_SOURCE) \
 	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \
 	unit-tests/bitset_t.cc \
@@ -33,9 +33,6 @@ unit-test: $(TEST_PROGRAMS)
 	r=0; for p in $(TEST_PROGRAMS); do echo Running $$p; ./$$p; [ $$? -ne 0 ] && r=1; done; exit $$r
 
 .PHONY: unit-test
-
-unit-tests/array_t: unit-tests/array_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 unit-tests/array_block_t: unit-tests/array_block_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
@@ -80,7 +77,7 @@ GMOCK_INCLUDES=\
 	-Igmock-1.6.0/gtest/include
 
 GMOCK_LIBS=\
-	-Llib -lgmock -lpthread
+	-Llib -lpdata -lgmock -lpthread
 
 GMOCK_DEPS=\
 	$(wildcard $(GMOCK_DIR)/include/*.h) \
@@ -96,6 +93,7 @@ lib/libgmock.a: $(GMOCK_DEPS)
 MOCK_SOURCE=\
 	unit-tests/gmock_main.cc \
 	\
+	unit-tests/array_t.cc \
 	unit-tests/buffer_t.cc
 
 # .gmo files are plain .o files, only they've been built with gmock
@@ -108,8 +106,8 @@ MOCK_SOURCE=\
 
 MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
 
-unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/libgmock.a
+unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD] $<"
-	$(V) g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS)
+	g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
 all: $(TEST_PROGRAMS)
