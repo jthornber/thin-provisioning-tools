@@ -16,15 +16,13 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 
-#define BOOST_TEST_MODULE TransactionManagerTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace std;
-using namespace boost;
 using namespace persistent_data;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -54,13 +52,13 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(commit_succeeds)
+TEST(TransactionManagerTests, commit_succeeds)
 {
 	transaction_manager::ptr tm = create_tm();
 	tm->begin(0, noop_validator());
 }
 
-BOOST_AUTO_TEST_CASE(shadowing)
+TEST(TransactionManagerTests, shadowing)
 {
 	transaction_manager::ptr tm = create_tm();
 	block_manager<>::write_ref superblock = tm->begin(0, noop_validator());
@@ -72,27 +70,27 @@ BOOST_AUTO_TEST_CASE(shadowing)
 	{
 		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
 		b = p.first.get_location();
-		BOOST_CHECK(b != 1);
-		BOOST_CHECK(!p.second);
-		BOOST_CHECK(sm->get_count(1) == 0);
+		ASSERT_THAT(b, Ne(1u));
+		ASSERT_FALSE(p.second);
+		ASSERT_THAT(sm->get_count(1), Eq(0u));
 	}
 
 	{
 		pair<write_ref, bool> p = tm->shadow(b, noop_validator());
-		BOOST_CHECK(p.first.get_location() == b);
-		BOOST_CHECK(!p.second);
+		ASSERT_THAT(p.first.get_location(), Eq(b));
+		ASSERT_FALSE(p.second);
 	}
 
 	sm->inc(b);
 
 	{
 		pair<write_ref, bool> p = tm->shadow(b, noop_validator());
-		BOOST_CHECK(p.first.get_location() != b);
-		BOOST_CHECK(p.second);
+		ASSERT_THAT(p.first.get_location(), Ne(b));
+		ASSERT_TRUE(p.second);
 	}
 }
 
-BOOST_AUTO_TEST_CASE(multiple_shadowing)
+TEST(TransactionManagerTests, multiple_shadowing)
 {
 	transaction_manager::ptr tm = create_tm();
 	space_map::ptr sm = tm->get_sm();
@@ -103,8 +101,8 @@ BOOST_AUTO_TEST_CASE(multiple_shadowing)
 		write_ref superblock = tm->begin(0, noop_validator());
 		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
 		b = p.first.get_location();
-		BOOST_CHECK(b != 1);
-		BOOST_CHECK(p.second);
+		ASSERT_THAT(b, Ne(1u));
+		ASSERT_TRUE(p.second);
 		sm->commit();
 	}
 
@@ -112,9 +110,9 @@ BOOST_AUTO_TEST_CASE(multiple_shadowing)
 		write_ref superblock = tm->begin(0, noop_validator());
 		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
 		b2 = p.first.get_location();
-		BOOST_CHECK(b2 != 1);
-		BOOST_CHECK(b2 != b);
-		BOOST_CHECK(p.second);
+		ASSERT_THAT(b2, Ne(1u));
+		ASSERT_THAT(b2, Ne(b));
+		ASSERT_TRUE(p.second);
 		sm->commit();
 	}
 
@@ -122,17 +120,19 @@ BOOST_AUTO_TEST_CASE(multiple_shadowing)
 		write_ref superblock = tm->begin(0, noop_validator());
 		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
 		block_address b3 = p.first.get_location();
-		BOOST_CHECK(b3 != b2);
-		BOOST_CHECK(b3 != b);
-		BOOST_CHECK(b3 != 1);
-		BOOST_CHECK(!p.second);
+		ASSERT_THAT(b3, Ne(b2));
+		ASSERT_THAT(b3, Ne(b));
+		ASSERT_THAT(b3, Ne(1u));
+		ASSERT_FALSE(p.second);
 		sm->commit();
 	}
 }
 
-BOOST_AUTO_TEST_CASE(shadow_free_block_fails)
+TEST(TransactionManagerTests, shadow_free_block_fails)
 {
 	transaction_manager::ptr tm = create_tm();
 	write_ref superblock = tm->begin(0, noop_validator());
-	BOOST_CHECK_THROW(tm->shadow(1, noop_validator()), runtime_error);
+	ASSERT_THROW(tm->shadow(1, noop_validator()), runtime_error);
 }
+
+//----------------------------------------------------------------
