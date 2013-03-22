@@ -16,15 +16,14 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/block.h"
 #include "test_utils.h"
-
-#define BOOST_TEST_MODULE BlockManagerTests
-#include <boost/test/included/unit_test.hpp>
 #include <stdlib.h>
 
 using namespace std;
 using namespace test;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -33,7 +32,7 @@ namespace {
 	void check_all_bytes(typename block_manager<BlockSize>::read_ref const &rr, int v) {
 		persistent_data::buffer<BlockSize> const &data = rr.data();
 		for (unsigned b = 0; b < BlockSize; b++)
-			BOOST_CHECK_EQUAL(data[b], v);
+			ASSERT_THAT(data[b], Eq(static_cast<unsigned char>(v)));
 	}
 
 	template <uint32_t BlockSize>
@@ -45,7 +44,6 @@ namespace {
 		}
 
 		virtual void prepare(buffer<BlockSize> &data, block_address location) const {
-			cerr << "zeroing" << endl;
 			for (unsigned b = 0; b < BlockSize; b++)
 				data[b] = 0;
 		}
@@ -56,19 +54,19 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(bad_path)
+TEST(BlockTests, bad_path)
 {
-	BOOST_CHECK_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_io<>::READ_WRITE),
+	ASSERT_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_io<>::READ_WRITE),
 			  runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(out_of_range_access)
+TEST(BlockTests, out_of_range_access)
 {
 	bm4096::ptr bm = create_bm<4096>(1024);
-	BOOST_CHECK_THROW(bm->read_lock(1024), runtime_error);
+	ASSERT_THROW(bm->read_lock(1024), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(read_lock_all_blocks)
+TEST(BlockTests, read_lock_all_blocks)
 {
 	block_address const nr = 64;
 	bm4096::ptr bm = create_bm<4096>(nr);
@@ -76,7 +74,7 @@ BOOST_AUTO_TEST_CASE(read_lock_all_blocks)
 		bm->read_lock(i);
 }
 
-BOOST_AUTO_TEST_CASE(write_lock_all_blocks)
+TEST(BlockTests, write_lock_all_blocks)
 {
 	block_address const nr = 64;
 	bm4096::ptr bm = create_bm<4096>(nr);
@@ -84,7 +82,7 @@ BOOST_AUTO_TEST_CASE(write_lock_all_blocks)
 		bm->write_lock(i);
 }
 
-BOOST_AUTO_TEST_CASE(writes_persist)
+TEST(BlockTests, writes_persist)
 {
 	block_address const nr = 64;
 	bm4096::ptr bm = create_bm<4096>(nr);
@@ -99,28 +97,28 @@ BOOST_AUTO_TEST_CASE(writes_persist)
 	}
 }
 
-BOOST_AUTO_TEST_CASE(write_lock_zero_zeroes)
+TEST(BlockTests, write_lock_zero_zeroes)
 {
 	bm4096::ptr bm = create_bm<4096>(64);
 	check_all_bytes<4096>(bm->write_lock_zero(23), 0);
 }
 
-BOOST_AUTO_TEST_CASE(different_block_sizes)
+TEST(BlockTests, different_block_sizes)
 {
 	{
 		bm4096::ptr bm = create_bm<4096>(64);
 		bm4096::read_ref rr = bm->read_lock(0);
-		BOOST_CHECK_EQUAL(sizeof(rr.data()), 4096);
+		ASSERT_THAT(sizeof(rr.data()), Eq(4096u));
 	}
 
 	{
 		block_manager<64 * 1024>::ptr bm = create_bm<64 * 1024>(64);
 		block_manager<64 * 1024>::read_ref rr = bm->read_lock(0);
-		BOOST_CHECK_EQUAL(sizeof(rr.data()), 64 * 1024);
+		ASSERT_THAT(sizeof(rr.data()), Eq(64u * 1024u));
 	}
 }
 
-BOOST_AUTO_TEST_CASE(read_validator_works)
+TEST(BlockTests, read_validator_works)
 {
 	bm4096::block_manager::validator::ptr v(new zero_validator<4096>());
 	bm4096::ptr bm = create_bm<4096>(64);
@@ -128,7 +126,7 @@ BOOST_AUTO_TEST_CASE(read_validator_works)
 	bm->read_lock(0, v);
 }
 
-BOOST_AUTO_TEST_CASE(write_validator_works)
+TEST(BlockTests, write_validator_works)
 {
 	bm4096::ptr bm = create_bm<4096>(64);
 	bm4096::block_manager::validator::ptr v(new zero_validator<4096>());
@@ -142,67 +140,67 @@ BOOST_AUTO_TEST_CASE(write_validator_works)
 	check_all_bytes<4096>(bm->read_lock(0), 0);
 }
 
-BOOST_AUTO_TEST_CASE(cannot_have_two_superblocks)
+TEST(BlockTests, cannot_have_two_superblocks)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref superblock = bm->superblock(0);
-	BOOST_CHECK_THROW(bm->superblock(1), runtime_error);
+	ASSERT_THROW(bm->superblock(1), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(can_have_subsequent_superblocks)
+TEST(BlockTests, can_have_subsequent_superblocks)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 }
 
-BOOST_AUTO_TEST_CASE(superblocks_can_change_address)
+TEST(BlockTests, superblocks_can_change_address)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(1); }
 }
 
-BOOST_AUTO_TEST_CASE(superblock_must_be_last)
+TEST(BlockTests, superblock_must_be_last)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	{
 		bm4096::read_ref rr = bm->read_lock(63);
 		{
-			BOOST_CHECK_THROW(bm->superblock(0), runtime_error);
+			ASSERT_THROW(bm->superblock(0), runtime_error);
 		}
 	}
 }
 
-BOOST_AUTO_TEST_CASE(references_can_be_copied)
+TEST(BlockTests, references_can_be_copied)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref wr1 = bm->write_lock(0);
 	bm4096::write_ref wr2(wr1);
 }
 
-BOOST_AUTO_TEST_CASE(no_concurrent_write_locks)
+TEST(BlockTests, no_concurrent_write_locks)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref wr = bm->write_lock(0);
-	BOOST_CHECK_THROW(bm->write_lock(0), runtime_error);
+	ASSERT_THROW(bm->write_lock(0), runtime_error);
 }
 
-BOOST_AUTO_TEST_CASE(concurrent_read_locks)
+TEST(BlockTests, concurrent_read_locks)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm4096::read_ref rr = bm->read_lock(0);
 	bm->read_lock(0);
 }
 
-BOOST_AUTO_TEST_CASE(read_then_write)
+TEST(BlockTests, read_then_write)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm->read_lock(0);
 	bm->write_lock(0);
 }
 
-BOOST_AUTO_TEST_CASE(write_then_read)
+TEST(BlockTests, write_then_read)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm->write_lock(0);
