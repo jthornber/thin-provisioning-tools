@@ -18,6 +18,7 @@
 
 .PHONY: all
 
+V=@
 PROGRAMS=\
 	cache_check \
 	cache_dump \
@@ -92,12 +93,14 @@ test-programs: $(TEST_PROGRAMS)
 .SUFFIXES: .d
 
 %.d: %.cc
-	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
-	$(RM) $@.$$$$
+	@echo "    [dependencies] $<"
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	$(V) sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	$(V) $(RM) $@.$$$$
 
 %.o: %.cc
-	$(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
+	@echo "    [CXX] $<"
+	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
 #----------------------------------------------------------------
 # Thin provisioning tools

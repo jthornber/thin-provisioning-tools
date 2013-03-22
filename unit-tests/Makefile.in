@@ -103,11 +103,13 @@ MOCK_SOURCE=\
 .SUFFIXES: .gmo
 
 %.gmo: %.cc
-	$(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
+	@echo "    [CXX] $<"
+	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
 
 MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
 
 unit-tests/gmock_tests: $(MOCK_OBJECTS) lib/libgmock.a
-	g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS)
+	@echo "    [LD] $<"
+	$(V) g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS)
 
 all: $(TEST_PROGRAMS)
