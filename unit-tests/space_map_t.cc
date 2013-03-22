@@ -16,17 +16,15 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "gmock/gmock.h"
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/careful_alloc.h"
 #include "persistent-data/space-maps/recursive.h"
 
-#define BOOST_TEST_MODULE SpaceMapDiskTests
-#include <boost/test/included/unit_test.hpp>
-
 using namespace std;
-using namespace boost;
 using namespace persistent_data;
+using namespace testing;
 
 //----------------------------------------------------------------
 
@@ -102,22 +100,22 @@ namespace {
 
 	void test_get_nr_blocks(space_map::ptr sm)
 	{
-		BOOST_CHECK_EQUAL(sm->get_nr_blocks(), NR_BLOCKS);
+		ASSERT_THAT(sm->get_nr_blocks(), Eq(NR_BLOCKS));
 	}
 
 	void test_get_nr_free(space_map::ptr sm)
 	{
-		BOOST_REQUIRE_EQUAL(sm->get_nr_free(), NR_BLOCKS);
+		ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS));
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++) {
 			optional<block_address> mb = sm->new_block();
-			BOOST_REQUIRE(mb);
-			BOOST_REQUIRE_EQUAL(sm->get_nr_free(), NR_BLOCKS - i - 1);
+			ASSERT_TRUE(mb);
+			ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS - i - 1));
 		}
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++) {
 			sm->dec(i);
-			BOOST_REQUIRE_EQUAL(sm->get_nr_free(), i + 1);
+			ASSERT_THAT(sm->get_nr_free(), Eq(i + 1));
 		}
 	}
 
@@ -129,7 +127,7 @@ namespace {
 			mb = sm->new_block();
 
 		mb = sm->new_block();
-		BOOST_REQUIRE(!mb);
+		ASSERT_FALSE(mb);
 	}
 
 	void test_inc_and_dec(space_map::ptr sm)
@@ -137,12 +135,12 @@ namespace {
 		block_address b = 63;
 
 		for (unsigned i = 0; i < 50; i++) {
-			BOOST_REQUIRE_EQUAL(sm->get_count(b), i);
+			ASSERT_THAT(sm->get_count(b), Eq(i));
 			sm->inc(b);
 		}
 
 		for (unsigned i = 50; i > 0; i--) {
-			BOOST_REQUIRE_EQUAL(sm->get_count(b), i);
+			ASSERT_THAT(sm->get_count(b), Eq(i));
 			sm->dec(b);
 		}
 	}
@@ -150,7 +148,7 @@ namespace {
 	void test_not_allocated_twice(space_map::ptr sm)
 	{
 		optional<block_address> mb = sm->new_block();
-		BOOST_REQUIRE(mb);
+		ASSERT_TRUE(mb);
 
 		for (;;) {
 			boost::optional<block_address> b = sm->new_block();
@@ -158,26 +156,26 @@ namespace {
 				break;
 
 			if (b)
-				BOOST_REQUIRE(*b != *mb);
+				ASSERT_TRUE(*b != *mb);
 		}
 	}
 
 	void test_set_count(space_map::ptr sm)
 	{
 		sm->set_count(43, 5);
-		BOOST_REQUIRE_EQUAL(sm->get_count(43), 5);
+		ASSERT_THAT(sm->get_count(43), Eq(5u));
 	}
 
 	void test_set_affects_nr_allocated(space_map::ptr sm)
 	{
 		for (unsigned i = 0; i < NR_BLOCKS; i++) {
 			sm->set_count(i, 1);
-			BOOST_REQUIRE_EQUAL(sm->get_nr_free(), NR_BLOCKS - i - 1);
+			ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS - i - 1));
 		}
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++) {
 			sm->set_count(i, 0);
-			BOOST_REQUIRE_EQUAL(sm->get_nr_free(), i + 1);
+			ASSERT_THAT(sm->get_nr_free(), Eq(i + 1));
 		}
 	}
 
@@ -202,14 +200,14 @@ namespace {
 
 		srand(1234);
 		for (unsigned i = 0; i < NR_BLOCKS; i++)
-			BOOST_REQUIRE_EQUAL(sm->get_count(i), (rand() % 6789) + 2);
+			ASSERT_THAT(sm->get_count(i), Eq((rand() % 6789u) + 2u));
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++)
 			sm->dec(i);
 
 		srand(1234);
 		for (unsigned i = 0; i < NR_BLOCKS; i++)
-			BOOST_REQUIRE_EQUAL(sm->get_count(i), (rand() % 6789) + 1);
+			ASSERT_THAT(sm->get_count(i), Eq((rand() % 6789u) + 1u));
 	}
 
 	template <typename SMCreator>
@@ -223,7 +221,7 @@ namespace {
 				sm->inc(i);
 			sm->commit();
 
-			BOOST_REQUIRE(sm->root_size() <= sizeof(buffer));
+			ASSERT_THAT(sm->root_size(), Le(sizeof(buffer)));
 			sm->copy_root(buffer, sizeof(buffer));
 		}
 
@@ -231,7 +229,7 @@ namespace {
 			persistent_space_map::ptr sm = SMCreator::open(buffer);
 
 			for (unsigned i = 0, step = 1; i < NR_BLOCKS; i += step, step++)
-				BOOST_REQUIRE_EQUAL(sm->get_count(i), 1);
+				ASSERT_THAT(sm->get_count(i), Eq(1u));
 		}
 	}
 
@@ -260,28 +258,28 @@ namespace {
 
 //----------------------------------------------------------------
 
-BOOST_AUTO_TEST_CASE(test_sm_core)
+TEST(SpaceMapTests, test_sm_core)
 {
 	do_tests<sm_core_creator>(space_map_tests);
 }
 
-BOOST_AUTO_TEST_CASE(test_sm_careful_alloc)
+TEST(SpaceMapTests, test_sm_careful_alloc)
 {
 	do_tests<sm_careful_alloc_creator>(space_map_tests);
 }
 
-BOOST_AUTO_TEST_CASE(test_sm_recursive)
+TEST(SpaceMapTests, test_sm_recursive)
 {
 	do_tests<sm_recursive_creator>(space_map_tests);
 }
 
-BOOST_AUTO_TEST_CASE(test_sm_disk)
+TEST(SpaceMapTests, test_sm_disk)
 {
 	do_tests<sm_disk_creator>(space_map_tests);
 	test_sm_reopen<sm_disk_creator>();
 }
 
-BOOST_AUTO_TEST_CASE(test_sm_metadata)
+TEST(SpaceMapTests, test_sm_metadata)
 {
 	do_tests<sm_metadata_creator>(space_map_tests);
 	test_sm_reopen<sm_metadata_creator>();

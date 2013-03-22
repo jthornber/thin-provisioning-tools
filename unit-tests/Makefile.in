@@ -37,9 +37,6 @@ unit-test: $(TEST_PROGRAMS)
 unit-tests/run_list_t: unit-tests/run_list_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-unit-tests/space_map_t: unit-tests/space_map_t.o $(OBJECTS)
-	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
 unit-tests/space_map_disk_t: unit-tests/space_map_disk_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
@@ -81,7 +78,8 @@ MOCK_SOURCE=\
 	unit-tests/btree_t.cc \
 	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
-	unit-tests/endian_t.cc
+	unit-tests/endian_t.cc \
+	unit-tests/space_map_t.cc
 
 # .gmo files are plain .o files, only they've been built with gmock
 # include paths.
