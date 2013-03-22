@@ -74,4 +74,27 @@ unit-tests/metadata_t: unit-tests/metadata_t.o $(OBJECTS)
 unit-tests/endian_t: unit-tests/endian_t.o $(OBJECTS)
 	g++ $(CXXFLAGS) $(INCLUDES) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
+
+#----------------------------------------------------------------
+# gmock tests
+
+GMOCK_DIR=gmock-1.6.0/
+GMOCK_INCLUDES=\
+	-Igmock-1.6.0/include \
+	-Igmock-1.6.0/gtest/include
+
+GMOCK_LIBS=\
+	-Llib -lgmock -lpthread
+
+lib/gmock.a:
+	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
+	g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
+	ar -rv lib/libgmock.a gtest-all.o gmock-all.o
+
+unit-tests/gmock_t.o: unit-tests/gmock_t.cc
+	g++ -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
+
+unit-tests/gmock_t: unit-tests/gmock_t.o lib/gmock.a
+	g++ $(CXXFLAGS) -o $@ $< $(LIBS) $(GMOCK_LIBS)
+
 all: $(TEST_PROGRAMS)
