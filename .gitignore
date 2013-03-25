@@ -15,3 +15,8 @@ cache_check
 *.metadata
 bad-metadata
 Makefile
+
+unit-tests/Makefile
+unit-tests/unit_tests
+
+gmock-1.6.0/
