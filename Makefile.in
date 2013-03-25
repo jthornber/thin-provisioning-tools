@@ -94,9 +94,9 @@ test-programs: $(TEST_PROGRAMS)
 
 %.d: %.cc
 	@echo "    [DEP] $<"
-	$(V)$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	$(V)sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
-	$(V)$(RM) $@.$$$$
+	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	$(RM) $@.$$$$
 
 %.o: %.cc
 	@echo "    [CXX] $<"
@@ -199,3 +199,9 @@ endif
 -include $(subst .cc,.d,$(TEST_SOURCE))
 -include $(subst .cc,.d,$(PROGRAM_SOURCE))
 
+.PHONEY: features
+
+features: thin_check cache_check
+	cucumber --no-color --format progress
+
+test: features unit-test
