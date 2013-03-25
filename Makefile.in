@@ -86,15 +86,19 @@ INSTALL_DIR = $(INSTALL) -m 755 -d
 INSTALL_PROGRAM = $(INSTALL) -m 755 $(STRIP)
 INSTALL_DATA = $(INSTALL) -p -m 644
 
-.PHONY: test-programs
-
-test-programs: $(TEST_PROGRAMS)
+ifeq ("@TESTING@", "yes")
+TEST_INCLUDES=\
+	-Igmock-1.6.0/include \
+	-Igmock-1.6.0/gtest/include
+else
+TEST_INCLUDES=
+endif
 
 .SUFFIXES: .d
 
 %.d: %.cc
 	@echo "    [DEP] $<"
-	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
+	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
 	$(RM) $@.$$$$
 
@@ -172,10 +176,15 @@ cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
+DEPEND_FILES=\
+	$(subst .cc,.d,$(SOURCE)) \
+	$(subst .cc,.d,$(TEST_SOURCE)) \
+	 $(subst .cc,.d,$(PROGRAM_SOURCE))
+
 .PHONY: clean distclean
 
 clean:
-	$(RM) *.o unit-tests/*.o *.d unit-tests/*.d unit-tests/*.gmo $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS) $(GMOCK_OBJECTS) lib/*.a
+	$(RM) *.o unit-tests/*.o $(DEPEND_FILES) unit-tests/*.gmo $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS) $(GMOCK_OBJECTS) lib/*.a
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
@@ -193,11 +202,6 @@ install: $(PROGRAMS)
 
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
-endif
-
--include $(subst .cc,.d,$(SOURCE))
--include $(subst .cc,.d,$(TEST_SOURCE))
--include $(subst .cc,.d,$(PROGRAM_SOURCE))
 
 .PHONEY: features
 
@@ -205,3 +209,7 @@ features: thin_check cache_check
 	cucumber --no-color --format progress
 
 test: features unit-test
+endif
+
+-include $(DEPEND_FILES)
+

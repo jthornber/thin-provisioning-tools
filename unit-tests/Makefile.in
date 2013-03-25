@@ -38,7 +38,7 @@ lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [AR]  $<"
 	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
 
-MOCK_SOURCE=\
+TEST_SOURCE=\
 	unit-tests/gmock_main.cc \
 	\
 	unit-tests/array_block_t.cc \
@@ -52,7 +52,7 @@ MOCK_SOURCE=\
 	unit-tests/space_map_t.cc \
 	unit-tests/transaction_manager_t.cc
 
-MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
+TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 # .gmo files are plain .o files, only they've been built with gmock
 # include paths.
@@ -62,9 +62,9 @@ MOCK_OBJECTS=$(subst .cc,.gmo,$(MOCK_SOURCE))
 	@echo "    [CXX] $<"
 	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
 
-unit-tests/unit_tests: $(MOCK_OBJECTS) lib/libgmock.a lib/libpdata.a
+unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"
-	$(V)g++ $(CXXFLAGS) -o $@ $(MOCK_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
+	$(V)g++ $(CXXFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
 .PHONEY: unit-test
 
