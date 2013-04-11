@@ -41,7 +41,7 @@ PDATA_SOURCE=\
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc
-PDATA_OBJECTS=$(subst .cc,.o,$(PDATA_SOURCE))
+#PDATA_OBJECTS=$(subst .cc,.o,$(PDATA_SOURCE))
 
 SOURCE=\
 	$(PDATA_SOURCE) \
@@ -56,6 +56,7 @@ SOURCE=\
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/xml_format.cc
+PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 PROGRAM_SOURCE=\
 	cache/check.cc \

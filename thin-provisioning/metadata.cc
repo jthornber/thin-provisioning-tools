@@ -83,6 +83,7 @@ namespace {
 			::close(fd);
 			nr_blocks = div_down<block_address>(nr_blocks, MD_BLOCK_SIZE);
 		} else
+			// FIXME: needs a better message
 			throw runtime_error("bad path");
 
 		return nr_blocks;
