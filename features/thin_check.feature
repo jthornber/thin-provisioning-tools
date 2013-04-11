@@ -37,4 +37,11 @@ Feature: thin_check
       {-q|--quiet}
       {-h|--help}
       {-V|--version}
+      {--super-block-only}
     """
+
+  @announce
+  Scenario: --super-block-only check passes on valid metadata
+    Given valid metadata
+    When I run thin_check with --super-block-only
+    Then it should pass

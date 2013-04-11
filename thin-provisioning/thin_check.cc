@@ -53,7 +53,8 @@ namespace {
 		    << "Options:" << endl
 		    << "  {-q|--quiet}" << endl
 		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl;
+		    << "  {-V|--version}" << endl
+		    << "  {--super-block-only}" << endl;
 	}
 }
 
@@ -66,6 +67,7 @@ int main(int argc, char **argv)
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
+		{ "super-block-only", no_argument, NULL, 0},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
