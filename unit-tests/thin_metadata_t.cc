@@ -17,6 +17,7 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	// FIXME: duplication with block.tcc, factor out a file_utils unit
 	void rm_f(string path) {
 		struct stat info;
 		int r = ::stat(path.c_str(), &info);
@@ -37,7 +38,6 @@ namespace {
 		::unlink(path.c_str());
 	}
 
-	// FIXME: duplication with block.tcc, factor out a file_utils unit
 	void create_sized_file(string const &path, uint64_t file_size) {
 		int fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0666);
 		if (fd < 0)
@@ -68,3 +68,5 @@ TEST(ThinMetadataTests, create)
 	create_sized_file(path, 4096 * 1024);
 	metadata::ptr md(new metadata(path, metadata::CREATE, 128, 102400));
 }
+
+//----------------------------------------------------------------

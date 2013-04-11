@@ -254,6 +254,15 @@ namespace {
 		test_set_affects_nr_allocated,
 		test_high_ref_counts
 	};
+
+	void
+	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
+		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
+			uint32_t count = rhs->get_count(b);
+			if (count > 0)
+				lhs->set_count(b, rhs->get_count(b));
+		}
+	}
 }
 
 //----------------------------------------------------------------
@@ -283,6 +292,19 @@ TEST(SpaceMapTests, test_sm_metadata)
 {
 	do_tests<sm_metadata_creator>(space_map_tests);
 	test_sm_reopen<sm_metadata_creator>();
+}
+
+TEST(SpaceMapTests, test_metadata_and_disk)
+{
+	block_manager<>::ptr bm(
+		new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_io<>::READ_WRITE));
+	space_map::ptr core_sm(new core_map(NR_BLOCKS));
+	transaction_manager::ptr tm(new transaction_manager(bm, core_sm));
+	persistent_space_map::ptr metadata_sm = persistent_data::create_metadata_sm(tm, NR_BLOCKS);
+	copy_space_maps(metadata_sm, core_sm);
+	tm->set_sm(metadata_sm);
+
+	persistent_space_map::ptr data_sm_ = create_disk_sm(tm, NR_BLOCKS * 2);
 }
 
 //----------------------------------------------------------------
