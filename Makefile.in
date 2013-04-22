@@ -100,7 +100,7 @@ endif
 %.d: %.cc
 	@echo "    [DEP] $<"
 	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $@ : Makefile ,g' < $@.$$$$ > $@; \
 	$(RM) $@.$$$$
 
 %.o: %.cc
@@ -180,7 +180,7 @@ cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
 	$(subst .cc,.d,$(TEST_SOURCE)) \
-	 $(subst .cc,.d,$(PROGRAM_SOURCE))
+	$(subst .cc,.d,$(PROGRAM_SOURCE))
 
 .PHONY: clean distclean
 

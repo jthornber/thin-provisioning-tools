@@ -50,6 +50,7 @@ TEST_SOURCE=\
 	unit-tests/cache_t.cc \
 	unit-tests/endian_t.cc \
 	unit-tests/space_map_t.cc \
+	unit-tests/span_iterator_t.cc \
 	unit-tests/thin_metadata_t.cc \
 	unit-tests/transaction_manager_t.cc
 
