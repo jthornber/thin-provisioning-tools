@@ -1,0 +1,3 @@
+* restoring an xml file that specifies 0 data blocks fails in an unexpected way.
+
+  Need to check the case where blocks past the end are specified in the ranges.
