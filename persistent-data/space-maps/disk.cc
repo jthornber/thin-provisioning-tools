@@ -150,13 +150,9 @@ namespace {
 		}
 
 		boost::optional<unsigned> find_free(unsigned begin, unsigned end) {
-			for (unsigned i = max(begin, ie_.none_free_before_); i < end; i++) {
-				if (lookup(i) == 0) {
-					insert(i, 1);
-					ie_.none_free_before_ = i + 1;
+			for (unsigned i = max(begin, ie_.none_free_before_); i < end; i++)
+				if (lookup(i) == 0)
 					return boost::optional<unsigned>(i);
-				}
-			}
 
 			return boost::optional<unsigned>();
 		}
@@ -311,7 +307,7 @@ namespace {
 
 		// FIXME: keep track of the lowest free block so we
 		// can start searching from a suitable place.
-		maybe_block new_block(span_iterator &it) {
+		maybe_block find_free(span_iterator &it) {
 			for (maybe_span ms = it.first(); ms; ms = it.next()) {
 				block_address begin = ms->first;
 				block_address end = ms->second;
@@ -328,10 +324,7 @@ namespace {
 
 					optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 					if (maybe_b) {
-						indexes_->save_ie(index, bm.get_ie());
-						nr_allocated_++;
 						block_address b = (index * ENTRIES_PER_BLOCK) + *maybe_b;
-						assert(get_count(b) == 1);
 						return b;
 					}
 				}

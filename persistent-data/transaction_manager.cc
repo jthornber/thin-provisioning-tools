@@ -50,7 +50,7 @@ transaction_manager::new_block(validator v)
 {
 	optional<block_address> mb = sm_->new_block();
 	if (!mb)
-		throw runtime_error("couldn't allocate new block");
+		throw runtime_error("transaction_manager::new_block() couldn't allocate new block");
 
 	sm_decrementer decrementer(sm_, *mb);
 	write_ref wr = bm_->write_lock_zero(*mb, v);
@@ -62,25 +62,21 @@ transaction_manager::new_block(validator v)
 pair<transaction_manager::write_ref, bool>
 transaction_manager::shadow(block_address orig, validator v)
 {
-	if (is_shadow(orig) &&
-	    !sm_->count_possibly_greater_than_one(orig))
-		return make_pair(bm_->write_lock(orig, v), false);
+	bool need_inc = sm_->count_possibly_greater_than_one(orig);
+	if (is_shadow(orig) && !need_inc)
+		return make_pair(bm_->write_lock(orig, v), need_inc);
 
 	read_ref src = bm_->read_lock(orig, v);
-
 	optional<block_address> mb = sm_->new_block();
 	if (!mb)
-		throw runtime_error("couldn't allocate new block");
+		throw runtime_error("transaction_manager::shadow() couldn't allocate new block");
 
 	write_ref dest = bm_->write_lock_zero(*mb, v);
 	::memcpy(dest.data().raw(), src.data().raw(), MD_BLOCK_SIZE); // FIXME: use buffer copy method
 
-	ref_t count = sm_->get_count(orig);
-	if (count == 0)
-		throw runtime_error("shadowing free block");
 	sm_->dec(orig);
 	add_shadow(dest.get_location());
-	return make_pair(dest, count > 1);
+	return make_pair(dest, need_inc);
 }
 
 transaction_manager::read_ref

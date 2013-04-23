@@ -71,7 +71,8 @@ namespace persistent_data {
 
 		void get_current_span_from_sub_it() {
 			current_span_ = sub_it_.next();
-			current_begin_ = current_span_->first;
+			if (current_span_)
+				current_begin_ = current_span_->first;
 		}
 
 		maybe_span next_() {

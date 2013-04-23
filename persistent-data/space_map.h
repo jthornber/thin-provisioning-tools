@@ -86,7 +86,7 @@ namespace persistent_data {
 			return new_block(it);
 		}
 
-		virtual maybe_block new_block(span_iterator &it) = 0;
+		virtual maybe_block find_free(span_iterator &it) = 0;
 
 		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
 
@@ -100,6 +100,17 @@ namespace persistent_data {
 
 		virtual void iterate(iterator &it) const {
 			throw std::runtime_error("iterate() not implemented");
+		}
+
+
+		// This is a concrete method
+		maybe_block new_block(span_iterator &it) {
+			maybe_block mb = find_free(it);
+
+			if (mb)
+				inc(*mb);
+
+			return mb;
 		}
 	};
 

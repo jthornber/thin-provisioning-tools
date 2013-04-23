@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/space-maps/recursive.h"
+#include "persistent-data/space-maps/subtracting_span_iterator.h"
 
 using namespace persistent_data;
 
@@ -54,7 +55,8 @@ namespace {
 	public:
 		sm_recursive(checked_space_map::ptr sm)
 			: sm_(sm),
-			  depth_(0) {
+			  depth_(0),
+			  flush_in_progress_(false) {
 		}
 
 		virtual block_address get_nr_blocks() const {
@@ -66,9 +68,29 @@ namespace {
 		}
 
 		virtual ref_t get_count(block_address b) const {
-			cant_recurse("get_count");
-			recursing_const_lock lock(*this);
-			return sm_->get_count(b);
+			ref_t count = sm_->get_count(b);
+
+			op_map::const_iterator ops_it = ops_.find(b);
+			if (ops_it != ops_.end()) {
+				list<block_op>::const_iterator it, end = ops_it->second.end();
+				for (it = ops_it->second.begin(); it != end; ++it) {
+					switch (it->op_) {
+					case block_op::INC:
+						count++;
+						break;
+
+					case block_op::DEC:
+						count--;
+						break;
+
+					case block_op::SET:
+						count = it->b_;
+						break;
+					}
+				}
+			}
+
+			return count;
 		}
 
 		virtual void set_count(block_address b, ref_t c) {
@@ -104,20 +126,44 @@ namespace {
 		}
 
 		virtual maybe_block
-		new_block(span_iterator &it) {
-			cant_recurse("new_block()");
+		find_free(span_iterator &it) {
 			recursing_lock lock(*this);
-			return sm_->new_block(it);
+
+			subtracting_span_iterator filtered_it(it, allocated_blocks_);
+			return sm_->find_free(filtered_it);
 		}
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {
-			if (depth_)
-				return true;
+			recursing_const_lock lock(*this);
+			bool gto = sm_->count_possibly_greater_than_one(b);
+			if (!gto) {
+				ref_t count = 1;
 
-			else {
-				recursing_const_lock lock(*this);
-				return sm_->count_possibly_greater_than_one(b);
+				// FIXME: duplication
+				op_map::const_iterator ops_it = ops_.find(b);
+				if (ops_it != ops_.end()) {
+					list<block_op>::const_iterator it, end = ops_it->second.end();
+					for (it = ops_it->second.begin(); it != end; ++it) {
+						switch (it->op_) {
+						case block_op::INC:
+							count++;
+							break;
+
+						case block_op::DEC:
+							count--;
+							break;
+
+						case block_op::SET:
+							count = it->b_;
+							break;
+						}
+					}
+				}
+
+				gto = count > 1;
 			}
+
+			return gto;
 		}
 
 		virtual void extend(block_address extra_blocks) {
@@ -153,12 +199,23 @@ namespace {
 		}
 
 		void flush_ops() {
+			if (flush_in_progress_)
+				return;
+
+			flush_in_progress_ = true;
+			flush_ops_();
+			flush_in_progress_ = false;
+		}
+
+	private:
+		void flush_ops_() {
 			op_map::const_iterator it, end = ops_.end();
 			for (it = ops_.begin(); it != end; ++it) {
+				recursing_lock lock(*this);
+
 				list<block_op> const &ops = it->second;
 				list<block_op>::const_iterator op_it, op_end = ops.end();
 				for (op_it = ops.begin(); op_it != op_end; ++op_it) {
-					recursing_lock lock(*this);
 					switch (op_it->op_) {
 					case block_op::INC:
 						sm_->inc(op_it->b_);
@@ -176,11 +233,14 @@ namespace {
 			}
 
 			ops_.clear();
+			allocated_blocks_.clear();
 		}
 
-	private:
 		void add_op(block_op const &op) {
 			ops_[op.b_].push_back(op);
+
+			if (op.op_ == block_op::INC || (op.op_ == block_op::SET && op.rc_ > 0))
+				allocated_blocks_.insert(op.b_);
 		}
 
 		void cant_recurse(string const &method) const {
@@ -228,6 +288,9 @@ namespace {
 
 		typedef map<block_address, list<block_op> > op_map;
 		op_map ops_;
+
+		subtracting_span_iterator::block_set allocated_blocks_;
+		bool flush_in_progress_;
 	};
 }
 

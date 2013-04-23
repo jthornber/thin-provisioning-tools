@@ -72,17 +72,14 @@ namespace persistent_data {
 				nr_free_++;
 		}
 
-		maybe_block new_block(span_iterator &it) {
+		maybe_block find_free(span_iterator &it) {
 			for (maybe_span ms = it.first(); ms; ms = it.next()) {
 				for (block_address b = ms->first; b < ms->second; b++) {
 					if (b >= counts_.size())
 						throw std::runtime_error("block out of bounds");
 
-					if (!counts_[b]) {
-						counts_[b] = 1;
-						nr_free_--;
+					if (!counts_[b])
 						return maybe_block(b);
-					}
 				}
 			}
 

@@ -17,16 +17,12 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/space-maps/careful_alloc.h"
-
-#include <set>
+#include "persistent-data/space-maps/subtracting_span_iterator.h"
 
 //----------------------------------------------------------------
 
 namespace {
 	class sm_careful_alloc : public checked_space_map {
-	private:
-		typedef set<block_address> block_set;
-
 	public:
 		typedef shared_ptr<sm_careful_alloc> ptr;
 
@@ -72,63 +68,9 @@ namespace {
 				mark_freed(b);
 		}
 
-		// FIXME: rewrite with tests using the run_list stuff.
-		class no_freed_blocks_iterator : public span_iterator {
-		public:
-			no_freed_blocks_iterator(span_iterator &sub_it,
-						 block_set const &freed_blocks)
-				: sub_it_(sub_it),
-				  freed_blocks_(freed_blocks) {
-			}
-
-			virtual maybe_span first() {
-				current_span_ = sub_it_.first();
-
-				if (current_span_)
-					current_begin_ = current_span_->first;
-
-				return next();
-			}
-
-			virtual maybe_span next() {
-				if (!current_span_)
-					return current_span_;
-
-				if (current_begin_ == current_span_->second) {
-					current_span_ = sub_it_.next();
-					if (!current_span_)
-						return current_span_;
-
-					current_begin_ = current_span_->first;
-				}
-
-				// FIXME: slow
-				while (current_begin_ != current_span_->second &&
-				       freed_blocks_.count(current_begin_))
-					current_begin_++;
-
-				block_address b = current_begin_;
-
-				// FIXME: factor out common code
-				while (current_begin_ != current_span_->second &&
-				       !freed_blocks_.count(current_begin_))
-					current_begin_++;
-
-				block_address e = current_begin_;
-
-				return maybe_span(span(b, e));
-			}
-
-		private:
-			span_iterator &sub_it_;
-			block_set const &freed_blocks_;
-			maybe_span current_span_;
-			block_address current_begin_;
-		};
-
-		virtual maybe_block new_block(span_iterator &it) {
-			no_freed_blocks_iterator filtered_it(it, freed_blocks_);
-			return sm_->new_block(filtered_it);
+		virtual maybe_block find_free(span_iterator &it) {
+			subtracting_span_iterator filtered_it(it, freed_blocks_);
+			return sm_->find_free(filtered_it);
 		}
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {
@@ -173,7 +115,7 @@ namespace {
 		}
 
 		checked_space_map::ptr sm_;
-		block_set freed_blocks_;
+		subtracting_span_iterator::block_set freed_blocks_;
 	};
 }
 
