@@ -16,7 +16,10 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "thin-provisioning/file_utils.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
+#include "thin-provisioning/superblock_validator.h"
 
 using namespace thin_provisioning;
 
@@ -159,65 +162,116 @@ namespace {
 		sm->iterate(checker);
 		return checker.bad_ ? optional<error_set::ptr>(checker.errors_) : optional<error_set::ptr>();
 	}
+
+	class metadata_checker {
+	public:
+		metadata_checker(string const &dev_path)
+		: bm_(open_bm(dev_path)) {
+		}
+
+		boost::optional<error_set::ptr> check() {
+#if 1
+			// FIXME: finish
+			error_set::ptr errors(new error_set("Errors in metadata"));
+			superblock sb = read_superblock();
+			return errors;
+#else
+			error_set::ptr errors(new error_set("Errors in metadata"));
+
+			block_counter metadata_counter, data_counter;
+
+			if (md->sb_.metadata_snap_) {
+				block_manager<>::ptr bm = md->tm_->get_bm();
+
+
+				block_address root = md->sb_.metadata_snap_;
+
+				metadata_counter.inc(root);
+
+				superblock sb;
+				block_manager<>::read_ref r = bm->read_lock(root);
+				superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+				superblock_traits::unpack(*sbd, sb);
+
+				metadata_counter.inc(sb.data_mapping_root_);
+				metadata_counter.inc(sb.device_details_root_);
+			}
+
+			mapping_validator::ptr mv(new mapping_validator(metadata_counter,
+									data_counter));
+			md->mappings_->visit(mv);
+
+			set<uint64_t> const &mapped_devs = mv->get_devices();
+			details_validator::ptr dv(new details_validator(metadata_counter));
+			md->details_->visit(dv);
+
+			set<uint64_t> const &details_devs = dv->get_devices();
+
+			for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
+				if (details_devs.count(*it) == 0) {
+					ostringstream out;
+					out << "mapping exists for device " << *it
+					    << ", yet there is no entry in the details tree.";
+					throw runtime_error(out.str());
+				}
+
+			metadata_counter.inc(SUPERBLOCK_LOCATION);
+			md->metadata_sm_->check(metadata_counter);
+
+			md->data_sm_->check(metadata_counter);
+			errors->add_child(check_ref_counts("Errors in metadata block reference counts",
+							   metadata_counter, md->metadata_sm_));
+			errors->add_child(check_ref_counts("Errors in data block reference counts",
+							   data_counter, md->data_sm_));
+
+			return (errors->get_children().size() > 0) ?
+				optional<error_set::ptr>(errors) :
+				optional<error_set::ptr>();
+#endif
+		}
+
+	private:
+		static block_manager<>::ptr
+		open_bm(string const &dev_path) {
+			block_address nr_blocks = thin_provisioning::get_nr_blocks(dev_path);
+			return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, block_io<>::READ_ONLY));
+		}
+
+		// FIXME: common code with metadata.cc
+		superblock read_superblock() {
+			superblock sb;
+			block_manager<>::read_ref r = bm_->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+			superblock_traits::unpack(*sbd, sb);
+			return sb;
+		}
+
+		typedef block_manager<>::read_ref read_ref;
+		typedef block_manager<>::write_ref write_ref;
+		typedef boost::shared_ptr<metadata> ptr;
+
+		block_manager<>::ptr bm_;
+#if 0
+		tm_ptr tm_;
+		superblock sb_;
+
+		checked_space_map::ptr metadata_sm_;
+		checked_space_map::ptr data_sm_;
+		detail_tree::ptr details_;
+		dev_tree::ptr mappings_top_level_;
+		mapping_tree::ptr mappings_;
+#endif
+	};
 }
 
 
 //----------------------------------------------------------------
 
 boost::optional<error_set::ptr>
-thin_provisioning::metadata_check(metadata::ptr md)
+thin_provisioning::metadata_check(std::string const &dev_path)
 {
-	error_set::ptr errors(new error_set("Errors in metadata"));
-
-	block_counter metadata_counter, data_counter;
-
-	if (md->sb_.metadata_snap_) {
-		block_manager<>::ptr bm = md->tm_->get_bm();
-
-
-		block_address root = md->sb_.metadata_snap_;
-
-		metadata_counter.inc(root);
-
-		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(root);
-		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-		superblock_traits::unpack(*sbd, sb);
-
-		metadata_counter.inc(sb.data_mapping_root_);
-		metadata_counter.inc(sb.device_details_root_);
-	}
-
-	mapping_validator::ptr mv(new mapping_validator(metadata_counter,
-							data_counter));
-	md->mappings_->visit(mv);
-
-	set<uint64_t> const &mapped_devs = mv->get_devices();
-	details_validator::ptr dv(new details_validator(metadata_counter));
-	md->details_->visit(dv);
-
-	set<uint64_t> const &details_devs = dv->get_devices();
-
-	for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
-		if (details_devs.count(*it) == 0) {
-			ostringstream out;
-			out << "mapping exists for device " << *it
-			    << ", yet there is no entry in the details tree.";
-			throw runtime_error(out.str());
-		}
-
-	metadata_counter.inc(SUPERBLOCK_LOCATION);
-	md->metadata_sm_->check(metadata_counter);
-
-	md->data_sm_->check(metadata_counter);
-	errors->add_child(check_ref_counts("Errors in metadata block reference counts",
-					   metadata_counter, md->metadata_sm_));
-	errors->add_child(check_ref_counts("Errors in data block reference counts",
-					   data_counter, md->data_sm_));
-
-	return (errors->get_children().size() > 0) ?
-		optional<error_set::ptr>(errors) :
-		optional<error_set::ptr>();
+	metadata_checker checker(dev_path);
+	return checker.check();
 }
 
 //----------------------------------------------------------------

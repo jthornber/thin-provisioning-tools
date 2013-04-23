@@ -31,9 +31,7 @@ using namespace thin_provisioning;
 namespace {
 	int check(string const &path, bool quiet) {
 		try {
-			metadata::ptr md(new metadata(path, metadata::OPEN));
-
-			optional<error_set::ptr> maybe_errors = metadata_check(md);
+			optional<error_set::ptr> maybe_errors = metadata_check(path);
 			if (maybe_errors) {
 				if (!quiet)
 					cerr << error_selector(*maybe_errors, 3);
@@ -61,13 +59,13 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	bool quiet = false;
+	bool quiet = false, superblock_only = false;
 	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
-		{ "super-block-only", no_argument, NULL, 0},
+		{ "super-block-only", no_argument, NULL, 1},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -85,6 +83,10 @@ int main(int argc, char **argv)
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
+		case 1:
+			superblock_only = true;
+			break;
+
 		default:
 			usage(cerr, basename(argv[0]));
 			return 1;
@@ -96,6 +98,7 @@ int main(int argc, char **argv)
 		usage(cerr, basename(argv[0]));
 		exit(1);
 	}
+
 
 	return check(argv[optind], quiet);
 }

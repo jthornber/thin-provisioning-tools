@@ -40,8 +40,17 @@ Feature: thin_check
       {--super-block-only}
     """
 
-  @announce
+  Scenario: Unrecognised option should cause failure
+    When I run `thin_check --hedeghogs-only`
+    Then it should fail
+
   Scenario: --super-block-only check passes on valid metadata
     Given valid metadata
     When I run thin_check with --super-block-only
     Then it should pass
+
+  @announce
+  Scenario: --super-block-only check fails with corrupt superblock
+    Given a corrupt superblock
+    When I run thin_check with --super-block-only
+    Then it should fail

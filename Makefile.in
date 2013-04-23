@@ -48,12 +48,14 @@ SOURCE=\
 	\
 	cache/metadata_disk_structures.cc \
 	\
+	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/metadata_disk_structures.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/restore_emitter.cc \
+	thin-provisioning/superblock_validator.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/xml_format.cc
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
@@ -130,9 +132,11 @@ THIN_CHECK_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
+	thin-provisioning/file_utils.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
-	thin-provisioning/metadata_disk_structures.cc
+	thin-provisioning/metadata_disk_structures.cc \
+	thin-provisioning/superblock_validator.cc
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))

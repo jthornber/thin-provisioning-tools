@@ -16,7 +16,9 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/metadata.h"
+#include "thin-provisioning/superblock_validator.h"
 
 #include "persistent-data/math_utils.h"
 #include "persistent-data/space-maps/core.h"
@@ -28,66 +30,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+using namespace base;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
-	uint32_t const SUPERBLOCK_MAGIC = 27022010;
-        uint32_t const VERSION = 1;
 	unsigned const METADATA_CACHE_SIZE = 1024;
-        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
-	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
-
-	struct superblock_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
-			crc32c sum(SUPERBLOCK_CSUM_SEED);
-			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
-				throw checksum_error("bad checksum in superblock");
-		}
-
-		virtual void prepare(buffer<> &b, block_address location) const {
-			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
-			crc32c sum(SUPERBLOCK_CSUM_SEED);
-			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
-			sbd->csum_ = to_disk<base::le32>(sum.get_sum());
-		}
-	};
-
-	block_address
-	get_nr_blocks(string const &path) {
-		struct stat info;
-		block_address nr_blocks;
-
-		int r = ::stat(path.c_str(), &info);
-		if (r)
-			throw runtime_error("Couldn't stat dev path");
-
-		if (S_ISREG(info.st_mode) && info.st_size)
-			nr_blocks = div_up<block_address>(info.st_size, MD_BLOCK_SIZE);
-
-		else if (S_ISBLK(info.st_mode)) {
-			// To get the size of a block device we need to
-			// open it, and then make an ioctl call.
-			int fd = ::open(path.c_str(), O_RDONLY);
-			if (fd < 0)
-				throw runtime_error("couldn't open block device to ascertain size");
-
-			r = ::ioctl(fd, BLKGETSIZE64, &nr_blocks);
-			if (r) {
-				::close(fd);
-				throw runtime_error("ioctl BLKGETSIZE64 failed");
-			}
-			::close(fd);
-			nr_blocks = div_down<block_address>(nr_blocks, MD_BLOCK_SIZE);
-		} else
-			// FIXME: needs a better message
-			throw runtime_error("bad path");
-
-		return nr_blocks;
-	}
 
 	transaction_manager::ptr
 	open_tm(string const &dev_path, bool writeable) {
@@ -106,8 +55,7 @@ namespace {
 	superblock
 	read_superblock(block_manager<>::ptr bm, block_address location = SUPERBLOCK_LOCATION) {
 		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(location,
-							    mk_validator(new superblock_validator));
+		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
@@ -214,9 +162,7 @@ metadata::commit()
 	metadata_sm_->copy_root(&sb_.metadata_space_map_root_, sizeof(sb_.metadata_space_map_root_));
 	print_superblock(sb_);
 
-	superblock_validator v;
-	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION,
-							      mk_validator(new superblock_validator()));
+	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
 	superblock_traits::pack(sb_, *disk);
 }

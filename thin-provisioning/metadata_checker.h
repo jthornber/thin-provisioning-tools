@@ -20,12 +20,13 @@
 #define METADATA_CHECKER_H
 
 #include "persistent-data/error_set.h"
-#include "thin-provisioning/metadata.h"
 
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	boost::optional<persistent_data::error_set::ptr> metadata_check(metadata::ptr md);
+	// FIXME: pass in flags like --super-block-only
+	boost::optional<persistent_data::error_set::ptr>
+	metadata_check(std::string const &dev_path);
 }
 
 //----------------------------------------------------------------

@@ -11,6 +11,10 @@ module ThinpWorld
     'metadata.bin'
   end
 
+  def corrupt_block(n)
+    write_block(n, change_random_byte(read_block(n)))
+  end
+
   # FIXME: we should really break out the xml stuff from
   # thinp-test-suite and put in a gem in this repo.
   def write_valid_xml(path)
@@ -23,6 +27,32 @@ module ThinpWorld
 </superblock>
 EOF
     end
+  end
+
+  private
+  def read_block(n)
+    b = nil
+
+    File.open(dev_file, "r") do |f|
+      f.seek(n * 4096)
+      b = f.read(4096)
+    end
+
+    b
+  end
+
+  def write_block(n, b)
+    File.open(dev_file, "w") do |f|
+      f.seek(n * 4096)
+      f.write(b)
+    end
+  end
+
+  def change_random_byte(b)
+    i = rand(b.size)
+    puts "changing byte #{i}"
+    b.setbyte(i, (b.getbyte(i) + 1) % 256)
+    b
   end
 end
 
