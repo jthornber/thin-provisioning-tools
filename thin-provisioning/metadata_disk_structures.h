@@ -128,6 +128,8 @@ namespace thin_provisioning {
 		static void unpack(superblock_disk const &disk, superblock &core);
 		static void pack(superblock const &core, superblock_disk &disk);
 	};
+
+	block_address const SUPERBLOCK_LOCATION = 0;
 }
 
 //----------------------------------------------------------------

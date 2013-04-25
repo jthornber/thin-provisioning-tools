@@ -21,9 +21,154 @@
 #include "thin-provisioning/metadata_checker.h"
 #include "thin-provisioning/superblock_validator.h"
 
+using namespace persistent_data;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
+
+void
+metadata_damage::set_message(std::string const &message)
+{
+	message_ = message;
+}
+
+std::string const &
+metadata_damage::get_message() const
+{
+	return message_;
+}
+
+//--------------------------------
+
+void
+super_block_corruption::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+missing_device_details::missing_device_details(uint64_t missing_begin,
+					       uint64_t missing_end)
+	: missing_begin_(missing_begin),
+	  missing_end_(missing_end)
+{
+}
+
+void
+missing_device_details::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+missing_devices::missing_devices(uint64_t missing_begin,
+				 uint64_t missing_end)
+	: missing_begin_(missing_begin),
+	  missing_end_(missing_end)
+{
+}
+
+void
+missing_devices::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+missing_mappings::missing_mappings(uint64_t dev,
+				   uint64_t missing_begin,
+				   uint64_t missing_end)
+	: dev_(dev),
+	  missing_begin_(missing_begin),
+	  missing_end_(missing_end)
+{
+}
+
+void
+missing_mappings::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+bad_metadata_ref_count::bad_metadata_ref_count(block_address b,
+					       ref_t actual,
+					       ref_t expected)
+	: b_(b),
+	  actual_(actual),
+	  expected_(expected)
+{
+}
+
+void
+bad_metadata_ref_count::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+bad_data_ref_count::bad_data_ref_count(block_address b,
+				       ref_t actual,
+				       ref_t expected)
+	: b_(b),
+	  actual_(actual),
+	  expected_(expected)
+{
+}
+
+void
+bad_data_ref_count::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+missing_metadata_ref_counts::missing_metadata_ref_counts(block_address missing_begin,
+							 block_address missing_end)
+	: missing_begin_(missing_begin),
+	  missing_end_(missing_end)
+{
+}
+
+void
+missing_metadata_ref_counts::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+missing_data_ref_counts::missing_data_ref_counts(block_address missing_begin,
+						 block_address missing_end)
+	: missing_begin_(missing_begin),
+	  missing_end_(missing_end)
+{
+}
+
+void
+missing_data_ref_counts::visit(metadata_damage_visitor &visitor) const
+{
+	visitor.visit(*this);
+}
+
+//--------------------------------
+
+void
+metadata_damage_visitor::visit(metadata_damage const &damage)
+{
+	damage.visit(*this);
+}
+
+//----------------------------------------------------------------
+
+#if 0
+
 
 namespace {
 	// As well as the standard btree checks, we build up a set of what
@@ -166,19 +311,24 @@ namespace {
 	class metadata_checker {
 	public:
 		metadata_checker(string const &dev_path)
-		: bm_(open_bm(dev_path)) {
+		: bm_(open_bm(dev_path)),
+		  errors_(new error_set("Errors in metadata")) {
 		}
 
 		boost::optional<error_set::ptr> check() {
 #if 1
-			// FIXME: finish
-			error_set::ptr errors(new error_set("Errors in metadata"));
 			superblock sb = read_superblock();
-			return errors;
+
+			// FIXME: check version?
+
+			check_mappings();
+
+			return (errors_->get_children().size() > 0) ?
+				optional<error_set::ptr>(errors_) :
+				optional<error_set::ptr>();
 #else
 			error_set::ptr errors(new error_set("Errors in metadata"));
 
-			block_counter metadata_counter, data_counter;
 
 			if (md->sb_.metadata_snap_) {
 				block_manager<>::ptr bm = md->tm_->get_bm();
@@ -197,9 +347,6 @@ namespace {
 				metadata_counter.inc(sb.device_details_root_);
 			}
 
-			mapping_validator::ptr mv(new mapping_validator(metadata_counter,
-									data_counter));
-			md->mappings_->visit(mv);
 
 			set<uint64_t> const &mapped_devs = mv->get_devices();
 			details_validator::ptr dv(new details_validator(metadata_counter));
@@ -246,11 +393,26 @@ namespace {
 			return sb;
 		}
 
+		void check_mappings() {
+			mapping_validator::ptr mv(
+				new mapping_validator(metadata_counter_,
+						      data_counter_));
+
+			
+
+			md->mappings_->visit(mv);
+		}
+
 		typedef block_manager<>::read_ref read_ref;
 		typedef block_manager<>::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
 		block_manager<>::ptr bm_;
+		error_set::ptr errors_;
+
+		block_counter metadata_counter_, data_counter_;
+
+
 #if 0
 		tm_ptr tm_;
 		superblock sb_;
@@ -275,3 +437,4 @@ thin_provisioning::metadata_check(std::string const &dev_path)
 }
 
 //----------------------------------------------------------------
+#endif

@@ -34,8 +34,6 @@ namespace thin_provisioning {
 	using namespace base;
 	using namespace persistent_data;
 
-	block_address const SUPERBLOCK_LOCATION = 0;
-
 	typedef uint64_t sector_t;
 	typedef uint32_t thin_dev_t;
 
@@ -148,17 +146,27 @@ namespace thin_provisioning {
 			OPEN
 		};
 
+		typedef block_manager<>::read_ref read_ref;
+		typedef block_manager<>::write_ref write_ref;
+		typedef boost::shared_ptr<metadata> ptr;
+
+
+		// Deprecated: it would be better if we passed in an already
+		// constructed block_manager.
 		metadata(std::string const &dev_path, open_type ot,
 			 sector_t data_block_size = 128,
 			 block_address nr_data_blocks = 0); // Only used if CREATE
 
 		metadata(std::string const &dev_path, block_address metadata_snap);
 
+		// ... use these instead ...
+		metadata(block_manager<>::ptr bm, open_type ot,
+			 sector_t data_block_size = 128,
+			 block_address nr_data_blocks = 0); // Only used if CREATE
+		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+
 		void commit();
 
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
-		typedef boost::shared_ptr<metadata> ptr;
 
 		tm_ptr tm_;
 		superblock sb_;

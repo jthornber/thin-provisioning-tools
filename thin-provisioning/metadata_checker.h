@@ -19,14 +19,140 @@
 #ifndef METADATA_CHECKER_H
 #define METADATA_CHECKER_H
 
+#include "persistent-data/block.h"
 #include "persistent-data/error_set.h"
+#include "persistent-data/space_map.h"
+
+#include <deque>
 
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	// FIXME: pass in flags like --super-block-only
-	boost::optional<persistent_data::error_set::ptr>
-	metadata_check(std::string const &dev_path);
+	class metadata_damage_visitor;
+
+	// Base class for all types of metadata damage.  Used in reporting.
+	class metadata_damage {
+	public:
+		typedef boost::shared_ptr<metadata_damage> ptr;
+		virtual ~metadata_damage() {}
+		virtual void visit(metadata_damage_visitor &visitor) const = 0;
+
+		void set_message(std::string const &message);
+		std::string const &get_message() const;
+
+	private:
+		std::string message_;
+	};
+
+	class super_block_corruption : public metadata_damage {
+		void visit(metadata_damage_visitor &visitor) const;
+	};
+
+	struct missing_device_details : public metadata_damage {
+		missing_device_details(uint64_t missing_begin,
+				       uint64_t missing_end);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		uint64_t missing_begin_;
+		uint64_t missing_end_;
+	};
+
+	struct missing_devices : public metadata_damage {
+		missing_devices(uint64_t missing_begin,
+				uint64_t missing_end);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		uint64_t missing_begin_;
+		uint64_t missing_end_;
+	};
+
+	struct missing_mappings : public metadata_damage {
+		missing_mappings(uint64_t dev,
+				 uint64_t missing_begin,
+				 uint64_t missing_end);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		uint64_t dev_;
+		uint64_t missing_begin_;
+		uint64_t missing_end_;
+	};
+
+	struct bad_metadata_ref_count : public metadata_damage {
+		bad_metadata_ref_count(block_address b,
+				       ref_t actual,
+				       ref_t expected);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		block_address b_;
+		ref_t actual_;
+		ref_t expected_;
+	};
+
+	struct bad_data_ref_count : public metadata_damage {
+		bad_data_ref_count(block_address b,
+				   ref_t actual,
+				   ref_t expected);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		block_address b_;
+		ref_t actual_;
+		ref_t expected_;
+	};
+
+	struct missing_metadata_ref_counts : public metadata_damage {
+		missing_metadata_ref_counts(block_address missing_begin,
+					    block_address missing_end);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		block_address missing_begin_;
+		block_address missing_end_;
+	};
+
+	struct missing_data_ref_counts : public metadata_damage {
+		missing_data_ref_counts(block_address missing_begin,
+					block_address missing_end);
+
+		virtual void visit(metadata_damage_visitor &visitor) const;
+
+		block_address missing_begin_;
+		block_address missing_end_;
+	};
+
+	class metadata_damage_visitor {
+	public:
+		typedef boost::shared_ptr<metadata_damage_visitor> ptr;
+
+		virtual ~metadata_damage_visitor() {}
+
+		void visit(metadata_damage const &damage);
+		virtual void visit(super_block_corruption const &damage) = 0;
+		virtual void visit(missing_device_details const &damage) = 0;
+		virtual void visit(missing_devices const &damage) = 0;
+		virtual void visit(missing_mappings const &damage) = 0;
+		virtual void visit(bad_metadata_ref_count const &damage) = 0;
+		virtual void visit(bad_data_ref_count const &damage) = 0;
+		virtual void visit(missing_metadata_ref_counts const &damage) = 0;
+		virtual void visit(missing_data_ref_counts const &damage) = 0;
+	};
+
+	typedef std::deque<metadata_damage::ptr> damage_list;
+	typedef boost::shared_ptr<damage_list> damage_list_ptr;
+
+	//--------------------------------
+
+	class checker {
+	public:
+		typedef boost::shared_ptr<checker> ptr;
+
+		virtual ~checker() {};
+		virtual damage_list_ptr check() = 0;
+	};
 }
 
 //----------------------------------------------------------------
