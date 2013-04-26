@@ -210,8 +210,9 @@ block_manager<BlockSize>::block::block(typename block_io<BlockSize>::ptr io,
 	  dirty_(false)
 {
 	if (zero) {
+		// FIXME: duplicate memset
 		memset(data_->raw(), 0, BlockSize);
-		dirty_ = true;
+		dirty_ = true;	// redundant?
 	} else {
 		io_->read_buffer(location_, *data_);
 		validator_->check(*data_, location_);
@@ -237,14 +238,19 @@ block_manager<BlockSize>::block::flush()
 
 template <uint32_t BlockSize>
 void
-block_manager<BlockSize>::block::change_validator(typename block_manager<BlockSize>::validator::ptr v)
+block_manager<BlockSize>::block::change_validator(typename block_manager<BlockSize>::validator::ptr v,
+						  bool check)
 {
 	if (v.get() != validator_.get()) {
 		if (dirty_)
+			// It may have already happened, by calling
+			// this we ensure we're consistent.
 			validator_->prepare(*data_, location_);
 
 		validator_ = v;
-		validator_->check(*data_, location_);
+
+		if (check)
+			validator_->check(*data_, location_);
 	}
 }
 
@@ -383,7 +389,10 @@ block_manager<BlockSize>::write_lock(block_address location,
 		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
-			(*cached_block)->check_write_lockable();
+			typename block::ptr cb = *cached_block;
+			cb->check_write_lockable();
+			cb->change_validator(v);
+
 			return write_ref(*this, *cached_block);
 		}
 
@@ -409,8 +418,11 @@ block_manager<BlockSize>::write_lock_zero(block_address location,
 
 		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 		if (cached_block) {
-			(*cached_block)->check_write_lockable();
+			typename block::ptr cb = *cached_block;
+			cb->check_write_lockable();
+			cb->change_validator(v, false);
 			memset((*cached_block)->data_->raw(), 0, BlockSize);
+
 			return write_ref(*this, *cached_block);
 		}
 
@@ -436,9 +448,11 @@ block_manager<BlockSize>::superblock(block_address location,
 		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
-			(*cached_block)->check_write_lockable();
-			(*cached_block)->bt_ = BT_SUPERBLOCK;
-			(*cached_block)->validator_ = v;
+			typename block::ptr cb = *cached_block;
+			cb->check_write_lockable();
+			cb->bt_ = BT_SUPERBLOCK;
+			cb->change_validator(v);
+
 			return write_ref(*this, *cached_block);
 		}
 
@@ -464,15 +478,16 @@ block_manager<BlockSize>::superblock_zero(block_address location,
 		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
-			(*cached_block)->check_write_lockable();
-			memset((*cached_block)->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
-			(*cached_block)->validator_ = v;
+			typename block::ptr cb = *cached_block;
+			cb->check_write_lockable();
+			cb->bt_ = BT_SUPERBLOCK;
+			cb->change_validator(v, false);
+			memset(cb->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
+
 			return write_ref(*this, *cached_block);
 		}
 
-		typename block::ptr b(new block(io_, location, BT_SUPERBLOCK,
-				      mk_validator(new noop_validator), true));
-		b->validator_ = v;
+		typename block::ptr b(new block(io_, location, BT_SUPERBLOCK, v, true));
 		cache_.insert(b);
 		return write_ref(*this, b);
 

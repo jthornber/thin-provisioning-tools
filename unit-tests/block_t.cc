@@ -49,6 +49,14 @@ namespace {
 		}
 	};
 
+	class validator_mock : public block_manager<4096>::validator {
+	public:
+		typedef boost::shared_ptr<validator_mock> ptr;
+
+		MOCK_CONST_METHOD2(check, void(buffer<4096> const &, block_address));
+		MOCK_CONST_METHOD2(prepare, void(buffer<4096> &, block_address));
+	};
+
 	typedef block_manager<4096> bm4096;
 }
 
@@ -205,6 +213,173 @@ TEST(BlockTests, write_then_read)
 	bm4096::ptr bm = create_bm<4096>();
 	bm->write_lock(0);
 	bm->read_lock(0);
+}
+
+//----------------------------------------------------------------
+
+namespace {
+	class ValidatorTests : public Test {
+	public:
+		ValidatorTests()
+			: bm(create_bm<4096>()),
+			  vmock(new validator_mock),
+			  vmock2(new validator_mock) {
+		}
+
+		void expect_check(validator_mock::ptr v) {
+			EXPECT_CALL(*v, check(_, Eq(0ull))).Times(1);
+		}
+
+		void expect_prepare(validator_mock::ptr v) {
+			EXPECT_CALL(*v, prepare(_, Eq(0ull))).Times(1);
+		}
+
+		bm4096::ptr bm;
+		validator_mock::ptr vmock;
+		validator_mock::ptr vmock2;
+	};
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, check_on_read_lock)
+{
+	expect_check(vmock);
+	bm4096::read_ref rr = bm->read_lock(0, vmock);
+}
+
+TEST_F(ValidatorTests, check_only_called_once_on_read_lock)
+{
+	{
+		expect_check(vmock);
+		bm4096::read_ref rr = bm->read_lock(0, vmock);
+	}
+
+	bm4096::read_ref rr = bm->read_lock(0, vmock);
+}
+
+TEST_F(ValidatorTests, validator_can_be_changed_by_read_lock)
+{
+	{
+		expect_check(vmock);
+		bm4096::read_ref rr = bm->read_lock(0, vmock);
+	}
+
+	{
+		expect_check(vmock2);
+		bm4096::read_ref rr = bm->read_lock(0, vmock2);
+	}
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, check_and_prepare_on_write_lock)
+{
+	expect_check(vmock);
+	expect_prepare(vmock);
+	bm4096::write_ref wr = bm->write_lock(0, vmock);
+}
+
+TEST_F(ValidatorTests, check_only_called_once_on_write_lock)
+{
+	{
+		expect_check(vmock);
+		bm4096::write_ref wr = bm->write_lock(0, vmock);
+	}
+
+	bm4096::write_ref wr = bm->write_lock(0, vmock);
+	expect_prepare(vmock);
+}
+
+TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock)
+{
+	{
+		expect_check(vmock);
+		expect_prepare(vmock);
+		bm4096::write_ref wr = bm->write_lock(0, vmock);
+	}
+
+	{
+		expect_check(vmock2);
+		expect_prepare(vmock2);
+		bm4096::write_ref wr = bm->write_lock(0, vmock2);
+	}
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, no_check_but_prepare_on_write_lock_zero)
+{
+	expect_prepare(vmock);
+	bm4096::write_ref wr = bm->write_lock_zero(0, vmock);
+}
+
+TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock_zero)
+{
+	expect_prepare(vmock);
+	expect_prepare(vmock2);
+
+	{
+		bm4096::write_ref wr = bm->write_lock_zero(0, vmock);
+	}
+
+	bm4096::write_ref wr = bm->write_lock_zero(0, vmock2);
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, check_and_prepare_on_superblock_lock)
+{
+	expect_check(vmock);
+	expect_prepare(vmock);
+	bm4096::write_ref wr = bm->superblock(0, vmock);
+}
+
+TEST_F(ValidatorTests, check_only_called_once_on_superblock_lock)
+{
+	{
+		expect_check(vmock);
+		expect_prepare(vmock);
+		bm4096::write_ref wr = bm->superblock(0, vmock);
+	}
+
+	bm4096::write_ref wr = bm->superblock(0, vmock);
+	expect_prepare(vmock);
+}
+
+TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_lock)
+{
+	{
+		expect_check(vmock);
+		expect_prepare(vmock);
+		bm4096::write_ref wr = bm->write_lock(0, vmock);
+	}
+
+	{
+		expect_check(vmock2);
+		expect_prepare(vmock2);
+		bm4096::write_ref wr = bm->write_lock(0, vmock2);
+	}
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, no_check_but_prepare_on_superblock_lock_zero)
+{
+	expect_prepare(vmock);
+	bm4096::write_ref wr = bm->superblock_zero(0, vmock);
+}
+
+TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_zero)
+{
+	expect_prepare(vmock);
+	expect_prepare(vmock2);
+
+	{
+		bm4096::write_ref wr = bm->write_lock(0, vmock);
+	}
+
+	bm4096::write_ref wr = bm->write_lock(0, vmock2);
 }
 
 //----------------------------------------------------------------
