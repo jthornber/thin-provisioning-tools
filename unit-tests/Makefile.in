@@ -40,6 +40,7 @@ lib/libgmock.a: $(GMOCK_DEPS)
 
 TEST_SOURCE=\
 	unit-tests/gmock_main.cc \
+	unit-tests/test_utils.cc \
 	\
 	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \

@@ -11,7 +11,7 @@ namespace {
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 
-	struct validator : public block_manager<>::validator {
+	struct sb_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
 			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
@@ -34,7 +34,7 @@ namespace {
 block_manager<>::validator::ptr
 thin_provisioning::superblock_validator()
 {
-	return block_manager<>::validator::ptr(new validator);
+	return block_manager<>::validator::ptr(new sb_validator);
 }
 
 //----------------------------------------------------------------

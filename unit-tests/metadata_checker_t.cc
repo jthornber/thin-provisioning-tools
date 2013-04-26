@@ -120,8 +120,7 @@ namespace {
 		}
 
 		void corrupt_superblock() {
-			block_manager<>::write_ref wr = bm_->write_lock(0);
-			wr.data()[57] = 0;
+			zero_block(bm_, SUPERBLOCK_LOCATION);
 		}
 
 		with_temp_directory dir_;

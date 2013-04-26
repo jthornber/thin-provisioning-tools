@@ -35,6 +35,8 @@ namespace test {
 			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
 						     block_io<BlockSize>::CREATE));
 	}
+
+	void zero_block(block_manager<>::ptr bm, block_address b);
 }
 
 //----------------------------------------------------------------
