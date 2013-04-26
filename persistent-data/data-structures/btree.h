@@ -184,8 +184,10 @@ namespace persistent_data {
 
 		class ro_spine : private noncopyable {
 		public:
-			ro_spine(transaction_manager::ptr tm)
-				: tm_(tm) {
+			ro_spine(transaction_manager::ptr tm,
+				 typename block_manager<>::validator::ptr v)
+				: tm_(tm),
+				  validator_(v) {
 			}
 
 			void step(block_address b);
@@ -197,6 +199,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
+			typename block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
@@ -205,8 +208,11 @@ namespace persistent_data {
 			typedef transaction_manager::read_ref read_ref;
 			typedef transaction_manager::write_ref write_ref;
 
-			shadow_spine(transaction_manager::ptr tm)
-				: tm_(tm) {
+			shadow_spine(transaction_manager::ptr tm,
+				     typename block_manager<>::validator::ptr v)
+
+				: tm_(tm),
+				  validator_(v) {
 			}
 
 			// true if the children of the shadow need incrementing
@@ -253,6 +259,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
+			typename block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
 			block_address root_;
 		};
@@ -354,6 +361,7 @@ namespace persistent_data {
 		block_address root_;
 		no_op_ref_counter<uint64_t> internal_rc_;
 		typename ValueTraits::ref_counter rc_;
+		typename block_manager<>::validator::ptr validator_;
 	};
 };
 

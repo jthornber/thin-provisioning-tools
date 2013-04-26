@@ -55,11 +55,6 @@ namespace {
 			n->csum = to_disk<base::le32>(sum.get_sum());
 		}
 	};
-
-	block_manager<>::validator::ptr
-	btree_validator() {
-		return block_manager<>::validator::ptr(new btree_node_validator);
-	}
 }
 
 //----------------------------------------------------------------
@@ -67,7 +62,7 @@ namespace {
 inline void
 ro_spine::step(block_address b)
 {
-	spine_.push_back(tm_->read_lock(b, btree_validator()));
+	spine_.push_back(tm_->read_lock(b, validator_));
 	if (spine_.size() > 2)
 		spine_.pop_front();
 }
@@ -75,7 +70,7 @@ ro_spine::step(block_address b)
 inline bool
 shadow_spine::step(block_address b)
 {
-	pair<write_ref, bool> p = tm_->shadow(b, btree_validator());
+	pair<write_ref, bool> p = tm_->shadow(b, validator_);
 	try {
 		step(p.first);
 	} catch (...) {
@@ -368,11 +363,12 @@ btree(typename transaction_manager::ptr tm,
       typename ValueTraits::ref_counter rc)
 	: tm_(tm),
 	  destroy_(false),
-	  rc_(rc)
+	  rc_(rc),
+	  validator_(new btree_node_validator)
 {
 	using namespace btree_detail;
 
-	write_ref root = tm_->new_block(btree_validator());
+	write_ref root = tm_->new_block(validator_);
 
 	leaf_node n = to_node<ValueTraits>(root);
 	n.set_type(btree_detail::LEAF);
@@ -391,7 +387,8 @@ btree(typename transaction_manager::ptr tm,
 	: tm_(tm),
 	  destroy_(false),
 	  root_(root),
-	  rc_(rc)
+	  rc_(rc),
+	  validator_(new btree_node_validator)
 {
 }
 
@@ -423,7 +420,7 @@ btree<Levels, ValueTraits>::lookup(key const &key) const
 {
 	using namespace btree_detail;
 
-        ro_spine spine(tm_);
+        ro_spine spine(tm_, validator_);
 	block_address root = root_;
 
         for (unsigned level = 0; level < Levels - 1; ++level) {
@@ -466,7 +463,7 @@ insert(key const &key,
 
 	block_address block = root_;
 	int index = 0;		// FIXME: ???
-	shadow_spine spine(tm_);
+	shadow_spine spine(tm_, validator_);
 
 	for (unsigned level = 0; level < Levels - 1; ++level) {
 		bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index);
@@ -592,13 +589,13 @@ split_beneath(btree_detail::shadow_spine &spine,
 	node_type type;
 	unsigned nr_left, nr_right;
 
-	write_ref left = tm_->new_block(btree_validator());
+	write_ref left = tm_->new_block(validator_);
 	node_ref<ValueTraits> l = to_node<ValueTraits>(left);
 	l.set_nr_entries(0);
 	l.set_max_entries();
 	l.set_value_size(sizeof(typename ValueTraits::disk_type));
 
-	write_ref right = tm_->new_block(btree_validator());
+	write_ref right = tm_->new_block(validator_);
 	node_ref<ValueTraits> r = to_node<ValueTraits>(right);
 	r.set_nr_entries(0);
 	r.set_max_entries();
@@ -652,7 +649,7 @@ split_sibling(btree_detail::shadow_spine &spine,
 	node_ref<ValueTraits> l = spine.template get_node<ValueTraits>();
 	block_address left = spine.get_block();
 
-	write_ref right = tm_->new_block(btree_validator());
+	write_ref right = tm_->new_block(validator_);
 	node_ref<ValueTraits> r = to_node<ValueTraits>(right);
 
 	unsigned nr_left = l.get_nr_entries() / 2;

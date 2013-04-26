@@ -59,11 +59,6 @@ namespace {
 		}
 	};
 
-	block_manager<>::validator::ptr
-	bitmap_validator() {
-		return block_manager<>::validator::ptr(new bitmap_block_validator());
-	}
-
 	//--------------------------------
 
 	uint64_t const INDEX_CSUM_XOR = 160478;
@@ -91,7 +86,6 @@ namespace {
 		}
 	};
 
-
 	block_manager<>::validator::ptr
 	index_validator() {
 		return block_manager<>::validator::ptr(new index_block_validator());
@@ -105,13 +99,15 @@ namespace {
 		typedef transaction_manager::write_ref write_ref;
 
 		bitmap(transaction_manager::ptr tm,
-		       index_entry const &ie)
+		       index_entry const &ie,
+		       block_manager<>::validator::ptr v)
 			: tm_(tm),
+			  validator_(v),
 			  ie_(ie) {
 		}
 
 		ref_t lookup(unsigned b) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_, bitmap_validator());
+			read_ref rr = tm_->read_lock(ie_.blocknr_, validator_);
 			void const *bits = bitmap_data(rr);
 			ref_t b1 = test_bit_le(bits, b * 2);
 			ref_t b2 = test_bit_le(bits, b * 2 + 1);
@@ -121,7 +117,7 @@ namespace {
 		}
 
 		void insert(unsigned b, ref_t n) {
-			write_ref wr = tm_->shadow(ie_.blocknr_, bitmap_validator()).first;
+			write_ref wr = tm_->shadow(ie_.blocknr_, validator_).first;
 			void *bits = bitmap_data(wr);
 			bool was_free = !test_bit_le(bits, b * 2) && !test_bit_le(bits, b * 2 + 1);
 			if (n == 1 || n == 3)
@@ -162,7 +158,7 @@ namespace {
 		}
 
 		void iterate(block_address offset, block_address hi, space_map::iterator &it) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_, bitmap_validator());
+			read_ref rr = tm_->read_lock(ie_.blocknr_, validator_);
 			void const *bits = bitmap_data(rr);
 
 			for (unsigned b = 0; b < hi; b++) {
@@ -186,6 +182,8 @@ namespace {
 		}
 
 		transaction_manager::ptr tm_;
+		block_manager<>::validator::ptr validator_;
+
 		index_entry ie_;
 	};
 
@@ -236,6 +234,7 @@ namespace {
 		sm_disk(index_store::ptr indexes,
 			transaction_manager::ptr tm)
 			: tm_(tm),
+			  bitmap_validator_(new bitmap_block_validator),
 			  indexes_(indexes),
 			  nr_blocks_(0),
 			  nr_allocated_(0),
@@ -246,6 +245,7 @@ namespace {
 			transaction_manager::ptr tm,
 			sm_root const &root)
 			: tm_(tm),
+			  bitmap_validator_(new bitmap_block_validator),
 			  indexes_(indexes),
 			  nr_blocks_(root.nr_blocks_),
 			  nr_allocated_(root.nr_allocated_),
@@ -318,7 +318,7 @@ namespace {
 				for (block_address index = begin_index; index < end_index; index++) {
 					index_entry ie = indexes_->find_ie(index);
 
-					bitmap bm(tm_, ie);
+					bitmap bm(tm_, ie, bitmap_validator_);
 					unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
 					unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
 
@@ -345,7 +345,7 @@ namespace {
 
 			indexes_->resize(bitmap_count);
 			for (block_address i = old_bitmap_count; i < bitmap_count; i++) {
-				write_ref wr = tm_->new_block(bitmap_validator());
+				write_ref wr = tm_->new_block(bitmap_validator_);
 
 				index_entry ie;
 				ie.blocknr_ = wr.get_location();
@@ -390,7 +390,7 @@ namespace {
 			for (unsigned i = 0; i < nr_indexes; i++) {
 				unsigned hi = (i == nr_indexes - 1) ? (nr_blocks_ % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
 				index_entry ie = indexes_->find_ie(i);
-				bitmap bm(tm_, ie);
+				bitmap bm(tm_, ie, bitmap_validator_);
 				bm.iterate(i * ENTRIES_PER_BLOCK, hi, wrapper);
 			}
 		}
@@ -445,7 +445,7 @@ namespace {
 	private:
 		ref_t lookup_bitmap(block_address b) const {
 			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
-			bitmap bm(tm_, ie);
+			bitmap bm(tm_, ie, bitmap_validator_);
 			return bm.lookup(b % ENTRIES_PER_BLOCK);
 		}
 
@@ -454,7 +454,7 @@ namespace {
 				throw runtime_error("bitmap can only hold 2 bit values");
 
 			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
-			bitmap bm(tm_, ie);
+			bitmap bm(tm_, ie, bitmap_validator_);
 			bm.insert(b % ENTRIES_PER_BLOCK, n);
 			indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
 		}
@@ -478,6 +478,7 @@ namespace {
 		}
 
 		transaction_manager::ptr tm_;
+		block_manager<>::validator::ptr bitmap_validator_;
 		index_store::ptr indexes_;
 		block_address nr_blocks_;
 		block_address nr_allocated_;

@@ -31,6 +31,7 @@ namespace persistent_data {
 	namespace array_detail {
 		uint32_t const ARRAY_CSUM_XOR = 595846735;
 
+		// FIXME: this isn't used!
 		struct array_block_validator : public block_manager<>::validator {
 			virtual void check(buffer<> const &b, block_address location) const {
 				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(&b);
@@ -135,7 +136,8 @@ namespace persistent_data {
 			  nr_entries_(0),
 			  block_rc_(tm->get_sm(), *this),
 			  block_tree_(tm, block_rc_),
-			  rc_(rc) {
+			  rc_(rc),
+			  validator_(new block_manager<>::noop_validator()) {
 		}
 
 		array(tm_ptr tm,
@@ -147,7 +149,8 @@ namespace persistent_data {
 			  nr_entries_(nr_entries),
 			  block_rc_(tm->get_sm(), *this),
 			  block_tree_(tm, root, block_rc_),
-			  rc_(rc) {
+			  rc_(rc),
+			  validator_(new block_manager<>::noop_validator()) {
 		}
 
 		unsigned get_nr_entries() const {
@@ -253,11 +256,6 @@ namespace persistent_data {
 
 		//--------------------------------
 
-		block_manager<>::validator::ptr validator() const {
-			return block_manager<>::validator::ptr(
-				new block_manager<>::noop_validator());
-		}
-
 		block_address lookup_block_address(unsigned array_index) const {
 			uint64_t key[1] = {array_index};
 			boost::optional<uint64_t> addr = block_tree_.lookup(key);
@@ -272,7 +270,7 @@ namespace persistent_data {
 
 		wblock new_ablock(unsigned ablock_index) {
 			uint64_t key[1] = {ablock_index};
-			write_ref b = tm_->new_block(validator());
+			write_ref b = tm_->new_block(validator_);
 			block_address location = b.get_location();
 
 			wblock wb(b, rc_);
@@ -283,13 +281,13 @@ namespace persistent_data {
 
 		rblock get_ablock(unsigned ablock_index) const {
 			block_address addr = lookup_block_address(ablock_index);
-			return rblock(tm_->read_lock(addr, validator()), rc_);
+			return rblock(tm_->read_lock(addr, validator_), rc_);
 		}
 
 		wblock shadow_ablock(unsigned ablock_index) {
 			uint64_t key[1] = {ablock_index};
 			block_address addr = lookup_block_address(ablock_index);
-			std::pair<write_ref, bool> p = tm_->shadow(addr, validator());
+			std::pair<write_ref, bool> p = tm_->shadow(addr, validator_);
 			wblock wb = wblock(p.first, rc_);
 
 			if (p.second)
@@ -301,7 +299,7 @@ namespace persistent_data {
 		}
 
 		void dec_ablock_entries(block_address addr) {
-			rblock b(tm_->read_lock(addr, validator()), rc_);
+			rblock b(tm_->read_lock(addr, validator_), rc_);
 			b.dec_all_entries();
 		}
 
@@ -311,6 +309,7 @@ namespace persistent_data {
 		block_ref_counter block_rc_;
 		btree<1, block_traits> block_tree_;
 		typename ValueTraits::ref_counter rc_;
+		block_manager<>::validator::ptr validator_;
 	};
 }
 
