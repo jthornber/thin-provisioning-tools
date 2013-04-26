@@ -119,6 +119,8 @@ namespace persistent_data {
 
 			void flush();
 
+			void change_validator(typename block_manager<BlockSize>::validator::ptr v);
+
 			typename block_io<BlockSize>::ptr io_;
 			block_address location_;
 			std::auto_ptr<buffer<BlockSize> > data_;

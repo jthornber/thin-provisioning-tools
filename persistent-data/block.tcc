@@ -235,6 +235,19 @@ block_manager<BlockSize>::block::flush()
 	}
 }
 
+template <uint32_t BlockSize>
+void
+block_manager<BlockSize>::block::change_validator(typename block_manager<BlockSize>::validator::ptr v)
+{
+	if (v.get() != validator_.get()) {
+		if (dirty_)
+			validator_->prepare(*data_, location_);
+
+		validator_ = v;
+		validator_->check(*data_, location_);
+	}
+}
+
 //----------------------------------------------------------------
 
 template <uint32_t BlockSize>
@@ -341,9 +354,9 @@ block_manager<BlockSize>::read_lock(block_address location,
 		boost::optional<typename block::ptr> cached_block = cache_.get(location);
 
 		if (cached_block) {
-			(*cached_block)->check_read_lockable();
-
-			// FIXME: a different validator may now be set.
+			typename block::ptr cb = *cached_block;
+			cb->check_read_lockable();
+			cb->change_validator(v);
 
 			return read_ref(*this, *cached_block);
 		}
