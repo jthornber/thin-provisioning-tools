@@ -231,6 +231,7 @@ block_manager<BlockSize>::block::flush()
 	if (dirty_) {
 		validator_->prepare(*data_, location_);
 		io_->write_buffer(location_, *data_);
+		dirty_ = false;
 	}
 }
 
@@ -341,6 +342,9 @@ block_manager<BlockSize>::read_lock(block_address location,
 
 		if (cached_block) {
 			(*cached_block)->check_read_lockable();
+
+			// FIXME: a different validator may now be set.
+
 			return read_ref(*this, *cached_block);
 		}
 
