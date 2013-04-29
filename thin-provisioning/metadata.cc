@@ -208,7 +208,6 @@ metadata::commit()
 
 	metadata_sm_->commit();
 	metadata_sm_->copy_root(&sb_.metadata_space_map_root_, sizeof(sb_.metadata_space_map_root_));
-	print_superblock(sb_);
 
 	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
