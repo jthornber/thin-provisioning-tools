@@ -114,6 +114,20 @@ namespace {
 
 	//--------------------------------
 
+	class damage_visitor_mock : public metadata_damage_visitor {
+	public:
+		MOCK_METHOD1(visit, void(super_block_corruption const &));
+		MOCK_METHOD1(visit, void(missing_device_details const &));
+		MOCK_METHOD1(visit, void(missing_devices const &));
+		MOCK_METHOD1(visit, void(missing_mappings const &));
+		MOCK_METHOD1(visit, void(bad_metadata_ref_count const &));
+		MOCK_METHOD1(visit, void(bad_data_ref_count const &));
+		MOCK_METHOD1(visit, void(missing_metadata_ref_counts const &));
+		MOCK_METHOD1(visit, void(missing_data_ref_counts const &));
+	};
+
+	//--------------------------------
+
 	class MetadataCheckerTests : public Test {
 	public:
 		MetadataCheckerTests()
@@ -139,7 +153,11 @@ namespace {
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
 	};
+}
 
+//----------------------------------------------------------------
+
+namespace {
 	class SuperBlockCheckerTests : public MetadataCheckerTests {
 	public:
 		void corrupt_superblock() {
@@ -147,8 +165,6 @@ namespace {
 		}
 	};
 }
-
-//----------------------------------------------------------------
 
 TEST_F(SuperBlockCheckerTests, creation_requires_a_block_manager)
 {
@@ -209,7 +225,12 @@ TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
 	zero_block(devices_root());
 
 	damage_list_ptr damage = mk_checker()->check();
-	ASSERT_THAT(damage->size(), Gt(0u));
+	ASSERT_THAT(damage->size(), Eq(1u));
+
+	damage_visitor_mock v;
+	EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(missing_device_details(range64())))));
+
+	(*damage->begin())->visit(v);
 }
 
 //----------------------------------------------------------------
