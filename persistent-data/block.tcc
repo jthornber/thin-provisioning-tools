@@ -527,4 +527,11 @@ block_manager<BlockSize>::flush() const
 		boost::bind(&block_manager<BlockSize>::write_block, this, _1));
 }
 
+template <uint32_t BlockSize>
+bool
+block_manager<BlockSize>::is_locked(block_address b) const
+{
+	return tracker_.is_locked(b);
+}
+
 //----------------------------------------------------------------

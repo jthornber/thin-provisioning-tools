@@ -116,5 +116,12 @@ lock_tracker::check_key(uint64_t key) const
 		throw runtime_error("invalid key");
 }
 
+bool
+lock_tracker::is_locked(uint64_t key) const
+{
+	check_key(key);
+	return found(locks_.find(key));
+}
+
 //----------------------------------------------------------------
 

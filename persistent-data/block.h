@@ -198,6 +198,11 @@ namespace persistent_data {
 
 		void flush() const;
 
+
+		// This is just for unit tests, don't call in application
+		// code.
+		bool is_locked(block_address b) const;
+
 	private:
 		void check(block_address b) const;
 		void write_block(typename block::ptr b) const;

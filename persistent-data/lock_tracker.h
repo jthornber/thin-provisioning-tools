@@ -37,6 +37,8 @@ namespace persistent_data {
 		void superblock_lock(uint64_t key);
 		void unlock(uint64_t key);
 
+		bool is_locked(uint64_t key) const;
+
 	private:
 		typedef std::map<uint64_t, int> LockMap;
 
