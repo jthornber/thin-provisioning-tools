@@ -102,14 +102,24 @@ namespace {
 			emitter::ptr restorer = create_restore_emitter(md);
 
 			restorer->begin_superblock("test-generated", 0, 0, 128, 10240, boost::optional<uint64_t>());
+
+			list<uint32_t>::const_iterator it, end = devices_.end();
+			for (it = devices_.begin(); it != end; ++it) {
+				restorer->begin_device(*it, 0, 0, 0, 0);
+				restorer->end_device();
+			}
+
 			restorer->end_superblock();
 		}
 
-		// FIXME: add methods to specify volumes with particular
-		// mapping patterns.
+		void add_device(uint32_t dev) {
+			devices_.push_back(dev);
+		}
 
 	private:
 		block_manager<>::ptr bm_;
+
+		list<uint32_t> devices_;
 	};
 
 	//--------------------------------
@@ -131,10 +141,12 @@ namespace {
 	class MetadataCheckerTests : public Test {
 	public:
 		MetadataCheckerTests()
-			: bm_(create_bm<BLOCK_SIZE>()) {
+			: bm_(create_bm<BLOCK_SIZE>()),
+			  builder_(bm_) {
+		}
 
-			metadata_builder builder(bm_);
-			builder.build();
+		metadata_builder &get_builder() {
+			return builder_;
 		}
 
 		superblock read_superblock() {
@@ -152,6 +164,7 @@ namespace {
 
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
+		metadata_builder builder_;
 	};
 }
 
@@ -160,6 +173,10 @@ namespace {
 namespace {
 	class SuperBlockCheckerTests : public MetadataCheckerTests {
 	public:
+		SuperBlockCheckerTests() {
+			get_builder().build();
+		}
+
 		void corrupt_superblock() {
 			zero_block(SUPERBLOCK_LOCATION);
 		}
@@ -195,9 +212,6 @@ TEST_F(SuperBlockCheckerTests, fails_with_bad_checksum)
 namespace {
 	class DeviceCheckerTests : public MetadataCheckerTests {
 	public:
-		DeviceCheckerTests() {
-		}
-
 		block_address devices_root() {
 			superblock sb = read_superblock();
 			return sb.device_details_root_;
@@ -211,17 +225,34 @@ namespace {
 
 TEST_F(DeviceCheckerTests, create_require_a_block_manager_and_a_root_block)
 {
+	get_builder().build();
 	mk_checker();
 }
 
-TEST_F(DeviceCheckerTests, passes_with_valid_metadata_and_zero_devices)
+TEST_F(DeviceCheckerTests, passes_with_valid_metadata_containing_zero_devices)
 {
+	get_builder().build();
+	damage_list_ptr damage = mk_checker()->check();
+	ASSERT_THAT(damage->size(), Eq(0u));
+}
+
+TEST_F(DeviceCheckerTests, passes_with_valid_metadata_containing_some_devices)
+{
+	metadata_builder &b = get_builder();
+
+	b.add_device(1);
+	b.add_device(5);
+	b.add_device(76);
+
+	b.build();
+
 	damage_list_ptr damage = mk_checker()->check();
 	ASSERT_THAT(damage->size(), Eq(0u));
 }
 
 TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
 {
+	get_builder().build();
 	zero_block(devices_root());
 
 	damage_list_ptr damage = mk_checker()->check();
