@@ -23,6 +23,8 @@
 #include "persistent-data/error_set.h"
 #include "persistent-data/space_map.h"
 
+#include "thin-provisioning/range.h"
+
 #include <deque>
 
 //----------------------------------------------------------------
@@ -53,36 +55,28 @@ namespace thin_provisioning {
 		void visit(metadata_damage_visitor &visitor) const;
 	};
 
-	struct missing_device_details : public metadata_damage {
-		missing_device_details(uint64_t missing_begin,
-				       uint64_t missing_end);
+	typedef range<uint64_t> range64;
 
+	struct missing_device_details : public metadata_damage {
+		missing_device_details(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
 
-		uint64_t missing_begin_;
-		uint64_t missing_end_;
+		range64 missing_;
 	};
 
 	struct missing_devices : public metadata_damage {
-		missing_devices(uint64_t missing_begin,
-				uint64_t missing_end);
-
+		missing_devices(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
 
-		uint64_t missing_begin_;
-		uint64_t missing_end_;
+		range64 missing_;
 	};
 
 	struct missing_mappings : public metadata_damage {
-		missing_mappings(uint64_t dev,
-				 uint64_t missing_begin,
-				 uint64_t missing_end);
-
+		missing_mappings(uint64_t dev, range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
 
 		uint64_t dev_;
-		uint64_t missing_begin_;
-		uint64_t missing_end_;
+		range64 missing_;
 	};
 
 	struct bad_metadata_ref_count : public metadata_damage {
@@ -110,23 +104,17 @@ namespace thin_provisioning {
 	};
 
 	struct missing_metadata_ref_counts : public metadata_damage {
-		missing_metadata_ref_counts(block_address missing_begin,
-					    block_address missing_end);
-
+		missing_metadata_ref_counts(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
 
-		block_address missing_begin_;
-		block_address missing_end_;
+		range64 missing_;
 	};
 
 	struct missing_data_ref_counts : public metadata_damage {
-		missing_data_ref_counts(block_address missing_begin,
-					block_address missing_end);
-
+		missing_data_ref_counts(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
 
-		block_address missing_begin_;
-		block_address missing_end_;
+		range64 missing_;
 	};
 
 	class metadata_damage_visitor {

@@ -8,8 +8,11 @@
 namespace thin_provisioning {
 	class device_checker : public checker {
 	public:
-		device_checker(block_manager::ptr bm);
+		device_checker(block_manager::ptr bm, block_address btree_root);
 		damage_list_ptr check();
+
+	private:
+		block_address root_;
 	};
 }
 

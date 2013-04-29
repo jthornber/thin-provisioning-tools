@@ -6,6 +6,7 @@
 #include "thin-provisioning/device_checker.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock_checker.h"
+#include "thin-provisioning/superblock_validator.h"
 
 #include <unistd.h>
 
@@ -122,23 +123,28 @@ namespace {
 			builder.build();
 		}
 
+		superblock read_superblock() {
+			superblock sb;
+
+			block_manager<>::read_ref r = bm_->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+			superblock_traits::unpack(*sbd, sb);
+			return sb;
+		}
+
+		void zero_block(block_address b) {
+			::test::zero_block(bm_, b);
+		}
+
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
-
 	};
 
 	class SuperBlockCheckerTests : public MetadataCheckerTests {
 	public:
 		void corrupt_superblock() {
-			zero_block(bm_, SUPERBLOCK_LOCATION);
+			zero_block(SUPERBLOCK_LOCATION);
 		}
-	};
-
-	//--------------------------------
-
-	class DevicesCheckerTests : public MetadataCheckerTests {
-	public:
-		
 	};
 }
 
@@ -170,9 +176,40 @@ TEST_F(SuperBlockCheckerTests, fails_with_bad_checksum)
 
 //----------------------------------------------------------------
 
-TEST_F(DevicesCheckerTests, create_require_a_block_manager)
+namespace {
+	class DeviceCheckerTests : public MetadataCheckerTests {
+	public:
+		DeviceCheckerTests() {
+		}
+
+		block_address devices_root() {
+			superblock sb = read_superblock();
+			return sb.device_details_root_;
+		}
+
+		device_checker::ptr mk_checker() {
+			return device_checker::ptr(new device_checker(bm_, devices_root()));
+		}
+	};
+}
+
+TEST_F(DeviceCheckerTests, create_require_a_block_manager_and_a_root_block)
 {
-	device_checker dc(bm_);
+	mk_checker();
+}
+
+TEST_F(DeviceCheckerTests, passes_with_valid_metadata_and_zero_devices)
+{
+	damage_list_ptr damage = mk_checker()->check();
+	ASSERT_THAT(damage->size(), Eq(0u));
+}
+
+TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
+{
+	zero_block(devices_root());
+
+	damage_list_ptr damage = mk_checker()->check();
+	ASSERT_THAT(damage->size(), Gt(0u));
 }
 
 //----------------------------------------------------------------

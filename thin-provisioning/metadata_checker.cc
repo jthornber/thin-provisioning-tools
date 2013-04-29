@@ -48,10 +48,8 @@ super_block_corruption::visit(metadata_damage_visitor &visitor) const
 
 //--------------------------------
 
-missing_device_details::missing_device_details(uint64_t missing_begin,
-					       uint64_t missing_end)
-	: missing_begin_(missing_begin),
-	  missing_end_(missing_end)
+missing_device_details::missing_device_details(range64 missing)
+	: missing_(missing)
 {
 }
 
@@ -63,10 +61,8 @@ missing_device_details::visit(metadata_damage_visitor &visitor) const
 
 //--------------------------------
 
-missing_devices::missing_devices(uint64_t missing_begin,
-				 uint64_t missing_end)
-	: missing_begin_(missing_begin),
-	  missing_end_(missing_end)
+missing_devices::missing_devices(range64 missing)
+	: missing_(missing)
 {
 }
 
@@ -78,12 +74,9 @@ missing_devices::visit(metadata_damage_visitor &visitor) const
 
 //--------------------------------
 
-missing_mappings::missing_mappings(uint64_t dev,
-				   uint64_t missing_begin,
-				   uint64_t missing_end)
+missing_mappings::missing_mappings(uint64_t dev, range64 missing)
 	: dev_(dev),
-	  missing_begin_(missing_begin),
-	  missing_end_(missing_end)
+	  missing_(missing)
 {
 }
 
@@ -129,10 +122,8 @@ bad_data_ref_count::visit(metadata_damage_visitor &visitor) const
 
 //--------------------------------
 
-missing_metadata_ref_counts::missing_metadata_ref_counts(block_address missing_begin,
-							 block_address missing_end)
-	: missing_begin_(missing_begin),
-	  missing_end_(missing_end)
+missing_metadata_ref_counts::missing_metadata_ref_counts(range64 missing)
+	: missing_(missing)
 {
 }
 
@@ -144,10 +135,8 @@ missing_metadata_ref_counts::visit(metadata_damage_visitor &visitor) const
 
 //--------------------------------
 
-missing_data_ref_counts::missing_data_ref_counts(block_address missing_begin,
-						 block_address missing_end)
-	: missing_begin_(missing_begin),
-	  missing_end_(missing_end)
+missing_data_ref_counts::missing_data_ref_counts(range64 missing)
+	: missing_(missing)
 {
 }
 
@@ -233,52 +222,6 @@ namespace {
 	private:
 	        checker checker_;
 		block_counter &data_counter_;
-		set<uint64_t> devices_;
-	};
-
-	class details_validator : public btree<1, device_details_traits>::visitor {
-	public:
-		typedef boost::shared_ptr<details_validator> ptr;
-		typedef btree_checker<1, device_details_traits> checker;
-
-		details_validator(block_counter &counter)
-			: checker_(counter) {
-		}
-
-		bool visit_internal(unsigned level,
-				    bool sub_root,
-				    optional<uint64_t> key,
-				    btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal(level, sub_root, key, n);
-		}
-
-		bool visit_internal_leaf(unsigned level,
-					 bool sub_root,
-					 optional<uint64_t> key,
-					 btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal_leaf(level, sub_root, key, n);
-		}
-
-		bool visit_leaf(unsigned level,
-				bool sub_root,
-				optional<uint64_t> key,
-				btree_detail::node_ref<device_details_traits> const &n) {
-
-			if (!checker_.visit_leaf(level, sub_root, key, n))
-				return false;
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				devices_.insert(n.key_at(i));
-
-			return true;
-		}
-
-		set<uint64_t> const &get_devices() const {
-			return devices_;
-		}
-
-	private:
-		checker checker_;
 		set<uint64_t> devices_;
 	};
 
