@@ -53,6 +53,7 @@ namespace thin_provisioning {
 
 	class super_block_corruption : public metadata_damage {
 		void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(super_block_corruption const &rhs) const;
 	};
 
 	typedef range<uint64_t> range64;
@@ -60,6 +61,7 @@ namespace thin_provisioning {
 	struct missing_device_details : public metadata_damage {
 		missing_device_details(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(missing_device_details const &rhs) const;
 
 		range64 missing_;
 	};
@@ -67,6 +69,7 @@ namespace thin_provisioning {
 	struct missing_devices : public metadata_damage {
 		missing_devices(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(missing_devices const &rhs) const;
 
 		range64 missing_;
 	};
@@ -74,6 +77,7 @@ namespace thin_provisioning {
 	struct missing_mappings : public metadata_damage {
 		missing_mappings(uint64_t dev, range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(missing_mappings const &rhs) const;
 
 		uint64_t dev_;
 		range64 missing_;
@@ -85,6 +89,7 @@ namespace thin_provisioning {
 				       ref_t expected);
 
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(bad_metadata_ref_count const &rhs) const;
 
 		block_address b_;
 		ref_t actual_;
@@ -97,6 +102,7 @@ namespace thin_provisioning {
 				   ref_t expected);
 
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(bad_data_ref_count const &rhs) const;
 
 		block_address b_;
 		ref_t actual_;
@@ -106,6 +112,7 @@ namespace thin_provisioning {
 	struct missing_metadata_ref_counts : public metadata_damage {
 		missing_metadata_ref_counts(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(missing_metadata_ref_counts const &rhs) const;
 
 		range64 missing_;
 	};
@@ -113,6 +120,7 @@ namespace thin_provisioning {
 	struct missing_data_ref_counts : public metadata_damage {
 		missing_data_ref_counts(range64 missing);
 		virtual void visit(metadata_damage_visitor &visitor) const;
+		bool operator ==(missing_data_ref_counts const &rhs) const;
 
 		range64 missing_;
 	};

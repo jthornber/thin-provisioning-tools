@@ -46,6 +46,12 @@ super_block_corruption::visit(metadata_damage_visitor &visitor) const
 	visitor.visit(*this);
 }
 
+bool
+super_block_corruption::operator ==(super_block_corruption const &rhs) const
+{
+	return true;
+}
+
 //--------------------------------
 
 missing_device_details::missing_device_details(range64 missing)
@@ -57,6 +63,12 @@ void
 missing_device_details::visit(metadata_damage_visitor &visitor) const
 {
 	visitor.visit(*this);
+}
+
+bool
+missing_device_details::operator ==(missing_device_details const &rhs) const
+{
+	return missing_ == rhs.missing_;
 }
 
 //--------------------------------
@@ -72,6 +84,12 @@ missing_devices::visit(metadata_damage_visitor &visitor) const
 	visitor.visit(*this);
 }
 
+bool
+missing_devices::operator ==(missing_devices const &rhs) const
+{
+	return missing_ == rhs.missing_;
+}
+
 //--------------------------------
 
 missing_mappings::missing_mappings(uint64_t dev, range64 missing)
@@ -84,6 +102,12 @@ void
 missing_mappings::visit(metadata_damage_visitor &visitor) const
 {
 	visitor.visit(*this);
+}
+
+bool
+missing_mappings::operator ==(missing_mappings const &rhs) const
+{
+	return dev_ == rhs.dev_ && missing_ == rhs.missing_;
 }
 
 //--------------------------------
@@ -103,6 +127,12 @@ bad_metadata_ref_count::visit(metadata_damage_visitor &visitor) const
 	visitor.visit(*this);
 }
 
+bool
+bad_metadata_ref_count::operator ==(bad_metadata_ref_count const &rhs) const
+{
+	return b_ == rhs.b_ && actual_ == rhs.actual_ && expected_ == rhs.expected_;
+}
+
 //--------------------------------
 
 bad_data_ref_count::bad_data_ref_count(block_address b,
@@ -120,6 +150,12 @@ bad_data_ref_count::visit(metadata_damage_visitor &visitor) const
 	visitor.visit(*this);
 }
 
+bool
+bad_data_ref_count::operator ==(bad_data_ref_count const &rhs) const
+{
+	return b_ == rhs.b_ && actual_ == rhs.actual_ && expected_ == rhs.expected_;
+}
+
 //--------------------------------
 
 missing_metadata_ref_counts::missing_metadata_ref_counts(range64 missing)
@@ -133,6 +169,12 @@ missing_metadata_ref_counts::visit(metadata_damage_visitor &visitor) const
 	visitor.visit(*this);
 }
 
+bool
+missing_metadata_ref_counts::operator ==(missing_metadata_ref_counts const &rhs) const
+{
+	return missing_ == rhs.missing_;
+}
+
 //--------------------------------
 
 missing_data_ref_counts::missing_data_ref_counts(range64 missing)
@@ -144,6 +186,12 @@ void
 missing_data_ref_counts::visit(metadata_damage_visitor &visitor) const
 {
 	visitor.visit(*this);
+}
+
+bool
+missing_data_ref_counts::operator ==(missing_data_ref_counts const &rhs) const
+{
+	return missing_ == rhs.missing_;
 }
 
 //--------------------------------
