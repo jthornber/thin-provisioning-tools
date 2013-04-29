@@ -16,6 +16,10 @@ namespace thin_provisioning {
 			  end_(end) {
 		}
 
+		bool operator ==(range<T> const &r) const {
+			return (begin_ == r.begin_ && end_ == r.end_);
+		}
+
 		maybe begin_;
 		maybe end_;
 	};
