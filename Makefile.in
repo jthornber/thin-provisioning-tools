@@ -48,6 +48,7 @@ SOURCE=\
 	\
 	cache/metadata_disk_structures.cc \
 	\
+	thin-provisioning/device_checker.cc \
 	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/metadata.cc \
@@ -55,10 +56,11 @@ SOURCE=\
 	thin-provisioning/metadata_disk_structures.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/restore_emitter.cc \
-	thin-provisioning/superblock_validator.cc \
 	thin-provisioning/superblock_checker.cc \
+	thin-provisioning/superblock_validator.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/xml_format.cc
+
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 PROGRAM_SOURCE=\

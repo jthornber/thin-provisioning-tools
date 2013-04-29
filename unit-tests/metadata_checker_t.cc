@@ -3,6 +3,7 @@
 #include "test_utils.h"
 
 #include "persistent-data/block.h"
+#include "thin-provisioning/device_checker.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock_checker.h"
 
@@ -110,21 +111,34 @@ namespace {
 		block_manager<>::ptr bm_;
 	};
 
-	class SuperBlockCheckerTests : public Test {
+	//--------------------------------
+
+	class MetadataCheckerTests : public Test {
 	public:
-		SuperBlockCheckerTests()
+		MetadataCheckerTests()
 			: bm_(create_bm<BLOCK_SIZE>()) {
 
 			metadata_builder builder(bm_);
 			builder.build();
 		}
 
+		with_temp_directory dir_;
+		block_manager<>::ptr bm_;
+
+	};
+
+	class SuperBlockCheckerTests : public MetadataCheckerTests {
+	public:
 		void corrupt_superblock() {
 			zero_block(bm_, SUPERBLOCK_LOCATION);
 		}
+	};
 
-		with_temp_directory dir_;
-		block_manager<>::ptr bm_;
+	//--------------------------------
+
+	class DevicesCheckerTests : public MetadataCheckerTests {
+	public:
+		
 	};
 }
 
@@ -152,6 +166,13 @@ TEST_F(SuperBlockCheckerTests, fails_with_bad_checksum)
 
 	metadata_damage::ptr d = *damage->begin();
 	ASSERT_THAT(dynamic_cast<super_block_corruption *>(d.get()), NotNull());
+}
+
+//----------------------------------------------------------------
+
+TEST_F(DevicesCheckerTests, create_require_a_block_manager)
+{
+	device_checker dc(bm_);
 }
 
 //----------------------------------------------------------------

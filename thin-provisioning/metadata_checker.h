@@ -153,6 +153,7 @@ namespace thin_provisioning {
 
 	class checker {
 	public:
+		typedef persistent_data::block_manager<> block_manager;
 		typedef boost::shared_ptr<checker> ptr;
 
 		virtual ~checker() {};
