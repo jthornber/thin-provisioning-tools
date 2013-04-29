@@ -165,6 +165,13 @@ metadata_damage_visitor::visit(metadata_damage const &damage)
 	damage.visit(*this);
 }
 
+//--------------------------------
+
+checker::checker(block_manager::ptr bm)
+	: bm_(bm)
+{
+}
+
 //----------------------------------------------------------------
 
 #if 0

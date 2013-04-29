@@ -10,11 +10,6 @@ namespace thin_provisioning {
 	public:
 		superblock_checker(block_manager::ptr bm);
 		damage_list_ptr check();
-
-	private:
-		// FIXME: surely we can push these down to the base class?
-		block_manager::ptr bm_;
-		damage_list_ptr damage;
 	};
 }
 

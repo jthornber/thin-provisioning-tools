@@ -9,8 +9,7 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 superblock_checker::superblock_checker(block_manager::ptr bm)
-	: bm_(bm),
-	  damage(new damage_list)
+	: checker(bm)
 {
 }
 

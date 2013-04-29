@@ -5,7 +5,7 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 device_checker::device_checker(block_manager::ptr bm)
-	: bm_(bm)
+	: checker(bm)
 {
 }
 

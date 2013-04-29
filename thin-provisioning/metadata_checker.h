@@ -156,8 +156,13 @@ namespace thin_provisioning {
 		typedef persistent_data::block_manager<> block_manager;
 		typedef boost::shared_ptr<checker> ptr;
 
+		checker(block_manager::ptr bm);
+
 		virtual ~checker() {};
 		virtual damage_list_ptr check() = 0;
+
+	protected:
+		block_manager::ptr bm_;
 	};
 }
 

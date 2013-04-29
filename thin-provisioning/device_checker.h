@@ -10,10 +10,6 @@ namespace thin_provisioning {
 	public:
 		device_checker(block_manager::ptr bm);
 		damage_list_ptr check();
-
-	private:
-		block_manager::ptr bm_;
-		damage_list_ptr damage_;
 	};
 }
 
