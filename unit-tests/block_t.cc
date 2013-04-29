@@ -242,6 +242,13 @@ namespace {
 		validator_mock::ptr vmock;
 		validator_mock::ptr vmock2;
 	};
+
+	class my_error : public runtime_error {
+	public:
+		my_error(string const &msg)
+		: runtime_error(msg) {
+		}
+	};
 }
 
 //--------------------------------
@@ -399,6 +406,18 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_zero)
 	expect_prepare(vmock2);
 
 	bm4096::write_ref wr = bm->superblock_zero(0, vmock2);
+}
+
+//--------------------------------
+
+TEST_F(ValidatorTests, validator_check_failure_gets_passed_up)
+{
+	validator_mock::ptr v(new validator_mock);
+
+	EXPECT_CALL(*v, check(_, Eq(0ull))).Times(1).WillOnce(Throw(my_error("bang!")));
+
+	ASSERT_THROW(bm->read_lock(0, v), my_error);
+	ASSERT_FALSE(bm->is_locked(0));
 }
 
 //----------------------------------------------------------------
