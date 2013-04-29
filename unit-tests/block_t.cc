@@ -230,6 +230,10 @@ namespace {
 			EXPECT_CALL(*v, check(_, Eq(0ull))).Times(1);
 		}
 
+		void expect_no_check(validator_mock::ptr v) {
+			EXPECT_CALL(*v, check(_, Eq(0ull))).Times(0);
+		}
+
 		void expect_prepare(validator_mock::ptr v) {
 			EXPECT_CALL(*v, prepare(_, Eq(0ull))).Times(1);
 		}
@@ -255,6 +259,7 @@ TEST_F(ValidatorTests, check_only_called_once_on_read_lock)
 		bm4096::read_ref rr = bm->read_lock(0, vmock);
 	}
 
+	expect_no_check(vmock);
 	bm4096::read_ref rr = bm->read_lock(0, vmock);
 }
 
@@ -266,6 +271,7 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_read_lock)
 	}
 
 	{
+		expect_no_check(vmock);
 		expect_check(vmock2);
 		bm4096::read_ref rr = bm->read_lock(0, vmock2);
 	}
@@ -287,8 +293,10 @@ TEST_F(ValidatorTests, check_only_called_once_on_write_lock)
 		bm4096::write_ref wr = bm->write_lock(0, vmock);
 	}
 
-	bm4096::write_ref wr = bm->write_lock(0, vmock);
+	expect_no_check(vmock);
 	expect_prepare(vmock);
+
+	bm4096::write_ref wr = bm->write_lock(0, vmock);
 }
 
 TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock)
@@ -310,19 +318,21 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock)
 
 TEST_F(ValidatorTests, no_check_but_prepare_on_write_lock_zero)
 {
+	expect_no_check(vmock);
 	expect_prepare(vmock);
 	bm4096::write_ref wr = bm->write_lock_zero(0, vmock);
 }
 
 TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock_zero)
 {
-	expect_prepare(vmock);
-	expect_prepare(vmock2);
-
 	{
+		expect_no_check(vmock);
+		expect_prepare(vmock);
 		bm4096::write_ref wr = bm->write_lock_zero(0, vmock);
 	}
 
+	expect_no_check(vmock2);
+	expect_prepare(vmock2);
 	bm4096::write_ref wr = bm->write_lock_zero(0, vmock2);
 }
 
@@ -343,8 +353,10 @@ TEST_F(ValidatorTests, check_only_called_once_on_superblock_lock)
 		bm4096::write_ref wr = bm->superblock(0, vmock);
 	}
 
-	bm4096::write_ref wr = bm->superblock(0, vmock);
+	expect_no_check(vmock);
 	expect_prepare(vmock);
+
+	bm4096::write_ref wr = bm->superblock(0, vmock);
 }
 
 TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_lock)
@@ -352,12 +364,15 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_lock)
 	{
 		expect_check(vmock);
 		expect_prepare(vmock);
+
 		bm4096::write_ref wr = bm->write_lock(0, vmock);
 	}
 
 	{
+		expect_no_check(vmock);
 		expect_check(vmock2);
 		expect_prepare(vmock2);
+
 		bm4096::write_ref wr = bm->write_lock(0, vmock2);
 	}
 }
@@ -366,18 +381,22 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_lock)
 
 TEST_F(ValidatorTests, no_check_but_prepare_on_superblock_lock_zero)
 {
+	expect_no_check(vmock);
 	expect_prepare(vmock);
+
 	bm4096::write_ref wr = bm->superblock_zero(0, vmock);
 }
 
 TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_zero)
 {
-	expect_prepare(vmock);
-	expect_prepare(vmock2);
-
 	{
+		expect_no_check(vmock);
+		expect_prepare(vmock);
 		bm4096::write_ref wr = bm->write_lock(0, vmock);
 	}
+
+	expect_no_check(vmock2);
+	expect_prepare(vmock2);
 
 	bm4096::write_ref wr = bm->write_lock(0, vmock2);
 }
