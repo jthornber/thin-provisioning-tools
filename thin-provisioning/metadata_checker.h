@@ -44,6 +44,11 @@ namespace thin_provisioning {
 		std::string message_;
 	};
 
+	// FIXME: there's a mix of abstraction here, some classes represent
+	// the actual damage on disk (bad_ref_count), others represent the
+	// repercussions (missing_mapping).  Need to revist, probably once
+	// we've got the reporting layer in.
+
 	class super_block_corruption : public metadata_damage {
 		void visit(metadata_damage_visitor &visitor) const;
 	};
