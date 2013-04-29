@@ -392,13 +392,13 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_superblock_zero)
 	{
 		expect_no_check(vmock);
 		expect_prepare(vmock);
-		bm4096::write_ref wr = bm->write_lock(0, vmock);
+		bm4096::write_ref wr = bm->superblock_zero(0, vmock);
 	}
 
 	expect_no_check(vmock2);
 	expect_prepare(vmock2);
 
-	bm4096::write_ref wr = bm->write_lock(0, vmock2);
+	bm4096::write_ref wr = bm->superblock_zero(0, vmock2);
 }
 
 //----------------------------------------------------------------
