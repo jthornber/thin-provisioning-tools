@@ -36,7 +36,6 @@ superblock_checker::check()
 		metadata_damage::ptr err(new super_block_corruption);
 		err->set_message("checksum error");
 		damage->push_back(err);
-		return damage;
 	}
 
 	return damage;
