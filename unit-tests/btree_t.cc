@@ -52,26 +52,24 @@ namespace {
 	//
 	class constraint_visitor : public btree<1, uint64_traits>::visitor {
 	public:
+		typedef btree_detail::node_location node_location;
 		typedef btree_detail::node_ref<uint64_traits> internal_node;
 		typedef btree_detail::node_ref<uint64_traits> leaf_node;
 
-		bool visit_internal(unsigned level, bool sub_root,
-				    boost::optional<uint64_t> key,
+		bool visit_internal(node_location const &loc,
 				    internal_node const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
 
-	  bool visit_internal_leaf(unsigned level, bool sub_root,
-				   boost::optional<uint64_t> key,
-				   internal_node const &n) {
+		bool visit_internal_leaf(node_location const &loc,
+					 internal_node const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
 
-	  bool visit_leaf(unsigned level, bool sub_root,
-			  boost::optional<uint64_t> key,
-			  leaf_node const &n) {
+		bool visit_leaf(node_location const &loc,
+				leaf_node const &n) {
 			check_duplicate_block(n.get_location());
 			return true;
 		}
@@ -94,7 +92,7 @@ namespace {
 		typedef btree<1, uint64_traits> tree_type;
 
 		tree_type::visitor::ptr v(new constraint_visitor);
-		tree->visit(v);
+		tree->visit_depth_first(v);
 	}
 }
 

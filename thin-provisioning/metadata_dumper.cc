@@ -27,6 +27,7 @@ namespace {
 	class mappings_extractor : public btree<2, block_traits>::visitor {
 	public:
 		typedef boost::shared_ptr<mappings_extractor> ptr;
+		typedef btree_detail::node_location node_location;
 		typedef btree_checker<2, block_traits> checker;
 
 		mappings_extractor(uint64_t dev_id, emitter::ptr e,
@@ -41,20 +42,20 @@ namespace {
 			  found_errors_(false) {
 		}
 
-		bool visit_internal(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+		bool visit_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 
-			if (!checker_.visit_internal(level, sub_root, key, n)) {
+			if (!checker_.visit_internal(loc, n)) {
 				found_errors_ = true;
 				return false;
 			}
 
-			return (sub_root && key) ? (*key == dev_id_) : true;
+			return (loc.sub_root && loc.key) ? (*loc.key == dev_id_) : true;
 		}
 
-		bool visit_internal_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+		bool visit_internal_leaf(node_location const &loc,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			if (!checker_.visit_internal_leaf(level, sub_root, key, n)) {
+			if (!checker_.visit_internal_leaf(loc, n)) {
 				found_errors_ = true;
 				return false;
 			}
@@ -62,9 +63,9 @@ namespace {
 			return true;
 		}
 
-		bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> maybe_key,
+		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<block_traits> const &n) {
-			if (!checker_.visit_leaf(level, sub_root, maybe_key, n)) {
+			if (!checker_.visit_leaf(loc, n)) {
 				found_errors_ = true;
 				return false;
 			}
@@ -136,6 +137,7 @@ namespace {
 
 	class details_extractor : public btree<1, device_details_traits>::visitor {
 	public:
+		typedef typename btree<1, device_details_traits>::visitor::node_location node_location;
 		typedef boost::shared_ptr<details_extractor> ptr;
 		typedef btree_checker<1, device_details_traits> checker;
 
@@ -144,19 +146,19 @@ namespace {
 			  checker_(counter_, false) {
 		}
 
-		bool visit_internal(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+		bool visit_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal(level, sub_root, key, n);
+			return checker_.visit_internal(loc, n);
 		}
 
-		bool visit_internal_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+		bool visit_internal_leaf(node_location const &loc,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal_leaf(level, sub_root, key, n);
+			return checker_.visit_internal_leaf(loc, n);
 		}
 
-		bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> maybe_key,
+		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<device_details_traits> const &n) {
-			if (!checker_.visit_leaf(level, sub_root, maybe_key, n))
+			if (!checker_.visit_leaf(loc, n))
 				return false;
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -198,7 +200,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 
 	details_extractor::ptr de(new details_extractor);
 
-	md->details_->visit(de);
+	md->details_->visit_depth_first(de);
 	if (de->corruption() && !repair)
 		throw runtime_error("corruption in device details tree");
 
@@ -216,7 +218,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 				dd.snapshotted_time_);
 
 		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, md->metadata_sm_, md->data_sm_));
-		md->mappings_->visit(me);
+		md->mappings_->visit_depth_first(me);
 
 		if (me->corruption() && !repair) {
 			ostringstream out;

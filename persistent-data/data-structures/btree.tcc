@@ -742,37 +742,57 @@ insert_location(btree_detail::shadow_spine &spine,
 
 template <unsigned Levels, typename ValueTraits>
 void
-btree<Levels, ValueTraits>::visit(typename visitor::ptr visitor) const
+btree<Levels, ValueTraits>::visit_depth_first(typename visitor::ptr visitor) const
 {
-	walk_tree(visitor, 0, true, boost::optional<uint64_t>(), root_);
+	node_location loc;
+
+	loc.level = 0;
+	loc.depth = 0;
+	loc.sub_root = true;
+	loc.key = boost::optional<uint64_t>();
+
+	walk_tree(visitor, loc, root_);
 	visitor->visit_complete();
 }
 
 template <unsigned Levels, typename ValueTraits>
 void
-btree<Levels, ValueTraits>::
-walk_tree(typename visitor::ptr visitor,
-	  unsigned level, bool sub_root,
-	  boost::optional<uint64_t> key,
-	  block_address b) const
+btree<Levels, ValueTraits>::walk_tree(typename visitor::ptr visitor,
+				      node_location const &loc,
+				      block_address b) const
 {
 	using namespace btree_detail;
 
 	read_ref blk = tm_->read_lock(b);
 	internal_node o = to_node<uint64_traits>(blk);
 	if (o.get_type() == INTERNAL) {
-		if (visitor->visit_internal(level, sub_root, key, o))
-			for (unsigned i = 0; i < o.get_nr_entries(); i++)
-				walk_tree(visitor, level, false, o.key_at(i), o.value_at(i));
+		if (visitor->visit_internal(loc, o))
+			for (unsigned i = 0; i < o.get_nr_entries(); i++) {
+				node_location loc2(loc);
 
-	} else if (level < Levels - 1) {
-		if (visitor->visit_internal_leaf(level, sub_root, key, o))
-			for (unsigned i = 0; i < o.get_nr_entries(); i++)
-				walk_tree(visitor, level + 1, true, boost::optional<uint64_t>(o.key_at(i)), o.value_at(i));
+				loc2.depth = loc.depth + 1;
+				loc2.sub_root = false;
+				loc2.key = boost::optional<uint64_t>(o.key_at(i));
+
+				walk_tree(visitor, loc2, o.value_at(i));
+			}
+
+	} else if (loc.level < Levels - 1) {
+		if (visitor->visit_internal_leaf(loc, o))
+			for (unsigned i = 0; i < o.get_nr_entries(); i++) {
+				node_location loc2(loc);
+
+				loc2.level = loc.level + 1;
+				loc2.depth = loc.depth + 1;
+				loc2.sub_root = true;
+				loc2.key = boost::optional<uint64_t>(o.key_at(i));
+
+				walk_tree(visitor, loc, o.value_at(i));
+			}
 
 	} else {
 		leaf_node ov = to_node<ValueTraits>(blk);
-		visitor->visit_leaf(level, sub_root, key, ov);
+		visitor->visit_leaf(loc, ov);
 	}
 }
 

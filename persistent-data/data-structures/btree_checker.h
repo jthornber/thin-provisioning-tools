@@ -57,31 +57,27 @@ namespace persistent_data {
 	template <uint32_t Levels, typename ValueTraits>
 	class btree_checker : public btree<Levels, ValueTraits>::visitor {
 	public:
+		typedef btree_detail::node_location node_location;
+
 		btree_checker(block_counter &counter, bool avoid_repeated_visits = true)
 			: counter_(counter),
 			  errs_(new error_set("btree errors")),
 			  avoid_repeated_visits_(avoid_repeated_visits) {
 		}
 
-		bool visit_internal(unsigned level,
-				    bool sub_root,
-				    optional<uint64_t> key,
+		bool visit_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
-			return check_internal(level, sub_root, key, n);
+			return check_internal(loc, n);
 		}
 
-		bool visit_internal_leaf(unsigned level,
-					 bool sub_root,
-					 optional<uint64_t> key,
+		bool visit_internal_leaf(node_location const &loc,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			return check_leaf(level, sub_root, key, n);
+			return check_leaf(loc, n);
 		}
 
-		bool visit_leaf(unsigned level,
-				bool sub_root,
-				optional<uint64_t> key,
+		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<ValueTraits> const &n) {
-			return check_leaf(level, sub_root, key, n);
+			return check_leaf(loc, n);
 		}
 
 		error_set::ptr get_errors() const {
@@ -94,19 +90,17 @@ namespace persistent_data {
 		}
 
 	private:
-		bool check_internal(unsigned level,
-				    bool sub_root,
-				    optional<uint64_t> key,
+		bool check_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (!already_visited(n) &&
 			    check_sum(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, sub_root) &&
+			    check_nr_entries(n, loc.sub_root) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(sub_root ? optional<uint64_t>() : key, n)) {
-				if (sub_root)
-					new_root(level);
+			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.sub_root)
+					new_root(loc.level);
 
 				return true;
 			}
@@ -115,21 +109,19 @@ namespace persistent_data {
 		}
 
 		template <typename ValueTraits2>
-		bool check_leaf(unsigned level,
-			      bool sub_root,
-			      optional<uint64_t> key,
-			      btree_detail::node_ref<ValueTraits2> const &n) {
+		bool check_leaf(node_location const &loc,
+				btree_detail::node_ref<ValueTraits2> const &n) {
 			if (!already_visited(n) &&
 			    check_sum(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, sub_root) &&
+			    check_nr_entries(n, loc.sub_root) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(sub_root ? optional<uint64_t>() : key, n)) {
-				if (sub_root)
-					new_root(level);
+			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.sub_root)
+					new_root(loc.level);
 
-				return check_leaf_key(level, n);
+				return check_leaf_key(loc.level, n);
 			}
 
 			return false;

@@ -361,7 +361,7 @@ namespace {
 
 		virtual void check(block_counter &counter) const {
 			ref_count_checker::ptr v(new ref_count_checker(counter));
-			ref_counts_.visit(v);
+			ref_counts_.visit_depth_first(v);
 
 			block_address nr_entries = div_up<block_address>(get_nr_blocks(), ENTRIES_PER_BLOCK);
 			indexes_->check(counter, nr_entries);
@@ -488,17 +488,16 @@ namespace {
 
 	class bitmap_tree_validator : public btree_checker<1, index_entry_traits> {
 	public:
+		typedef typename btree_checker<1, index_entry_traits>::visitor::node_location node_location;
 		typedef boost::shared_ptr<bitmap_tree_validator> ptr;
 
 		bitmap_tree_validator(block_counter &counter)
 			: btree_checker<1, index_entry_traits>(counter) {
 		}
 
-		bool visit_leaf(unsigned level,
-				bool sub_root,
-				optional<uint64_t> key,
+		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<index_entry_traits> const &n) {
-			bool r = btree_checker<1, index_entry_traits>::visit_leaf(level, sub_root, key, n);
+			bool r = btree_checker<1, index_entry_traits>::visit_leaf(loc, n);
 			if (!r)
 				return r;
 
@@ -586,7 +585,7 @@ namespace {
 
 		virtual void check(block_counter &counter, block_address nr_index_entries) const {
 			bitmap_tree_validator::ptr v(new bitmap_tree_validator(counter));
-			bitmaps_.visit(v);
+			bitmaps_.visit_depth_first(v);
 			v->check_all_index_entries_present(nr_index_entries);
 		}
 

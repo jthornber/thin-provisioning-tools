@@ -14,13 +14,12 @@ using namespace thin_provisioning;
 namespace {
 	// FIXME: duplication with metadata.cc
 	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
+	open_core_tm(block_manager<>::ptr bm) {
 		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
 		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
-
 
 	class device_visitor : public btree<1, device_details_traits>::visitor {
 	public:
@@ -31,26 +30,20 @@ namespace {
 			: checker_(counter) {
 		}
 
-		bool visit_internal(unsigned level,
-				    bool sub_root,
-				    optional<uint64_t> key,
+		bool visit_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal(level, sub_root, key, n);
+			return checker_.visit_internal(loc, n);
 		}
 
-		bool visit_internal_leaf(unsigned level,
-					 bool sub_root,
-					 optional<uint64_t> key,
+		bool visit_internal_leaf(node_location const &loc,
 					 btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal_leaf(level, sub_root, key, n);
+			return checker_.visit_internal_leaf(loc, n);
 		}
 
-		bool visit_leaf(unsigned level,
-				bool sub_root,
-				optional<uint64_t> key,
+		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<device_details_traits> const &n) {
 
-			if (!checker_.visit_leaf(level, sub_root, key, n))
+			if (!checker_.visit_leaf(loc, n))
 				return false;
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -83,13 +76,13 @@ device_checker::check()
 {
 	block_counter counter;
 	device_visitor::ptr v(new device_visitor(counter));
-	transaction_manager::ptr tm(open_tm(bm_));
+	transaction_manager::ptr tm(open_core_tm(bm_));
 	detail_tree::ptr details(new detail_tree(tm, root_,
 						 device_details_traits::ref_counter()));
 	damage_list_ptr damage(new damage_list);
 
 	try {
-		details->visit(v);
+		details->visit_depth_first(v);
 
 	} catch (std::exception const &e) {
 

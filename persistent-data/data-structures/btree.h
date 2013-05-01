@@ -263,6 +263,14 @@ namespace persistent_data {
 			std::list<block_manager<>::write_ref> spine_;
 			block_address root_;
 		};
+
+		// Used when visiting the nodes that make up a btree.
+		struct node_location {
+			unsigned level;
+			unsigned depth;
+			bool sub_root;
+			boost::optional<uint64_t> key;
+		};
 	}
 
 	template <unsigned Levels, typename ValueTraits>
@@ -308,23 +316,25 @@ namespace persistent_data {
 		// inspect the individual nodes that make up a btree.
 		class visitor {
 		public:
-			virtual ~visitor() {}
 			typedef boost::shared_ptr<visitor> ptr;
+			typedef btree_detail::node_location node_location;
+
+			virtual ~visitor() {}
 
 			// The bool return values indicate whether the walk
 			// should be continued into sub trees of the node (true == continue).
-			virtual bool visit_internal(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+			virtual bool visit_internal(node_location const &l,
 						    internal_node const &n) = 0;
-			virtual bool visit_internal_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+			virtual bool visit_internal_leaf(node_location const &l,
 							 internal_node const &n) = 0;
-			virtual bool visit_leaf(unsigned level, bool sub_root, boost::optional<uint64_t> key,
+			virtual bool visit_leaf(node_location const &l,
 						leaf_node const &n) = 0;
 
 			virtual void visit_complete() {}
 		};
 
 		// Walks the tree in depth first order
-		void visit(typename visitor::ptr visitor) const;
+		void visit_depth_first(typename visitor::ptr visitor) const;
 
 	private:
 		template <typename ValueTraits2, typename Search>
@@ -353,7 +363,7 @@ namespace persistent_data {
 				int *index);
 
 		void walk_tree(typename visitor::ptr visitor,
-			       unsigned level, bool root, boost::optional<uint64_t> key,
+			       btree_detail::node_location const &loc,
 			       block_address b) const;
 
 		typename persistent_data::transaction_manager::ptr tm_;
