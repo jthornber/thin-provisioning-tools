@@ -101,7 +101,8 @@ namespace {
 			metadata::ptr md(new metadata(bm_, metadata::CREATE, 128, 10240));
 			emitter::ptr restorer = create_restore_emitter(md);
 
-			restorer->begin_superblock("test-generated", 0, 0, 128, 10240, boost::optional<uint64_t>());
+			restorer->begin_superblock("test-generated", 0, 0, 128, 10240,
+						   boost::optional<uint64_t>());
 
 			list<uint32_t>::const_iterator it, end = devices_.end();
 			for (it = devices_.begin(); it != end; ++it) {
@@ -120,6 +121,70 @@ namespace {
 		block_manager<>::ptr bm_;
 
 		list<uint32_t> devices_;
+	};
+
+	class devices_visitor : public detail_tree::visitor {
+	public:
+		struct node_info {
+			bool leaf;
+			unsigned level;
+			block_address b;
+			range<uint64_t> keys;
+		};
+
+		typedef btree_detail::node_location node_location;
+		typedef boost::shared_ptr<devices_visitor> ptr;
+
+		virtual bool visit_internal(node_location const &loc,
+					    detail_tree::internal_node const &n) {
+			record_node(false, loc.level, loc.key, n);
+			return true;
+		}
+
+		virtual bool visit_internal_leaf(node_location const &loc,
+						 detail_tree::internal_node const &n) {
+			record_node(true, loc.level, loc.key, n);
+			return true;
+		}
+
+
+		virtual bool visit_leaf(node_location const &loc,
+					detail_tree::leaf_node const &n) {
+			record_node(true, loc.level, loc.key, n);
+			return true;
+		}
+
+		virtual void visit_complete() {
+		}
+
+		list<node_info> const &get_nodes() const {
+			return nodes_;
+		}
+
+	private:
+		template <typename N>
+		void record_node(bool leaf, unsigned level,
+				 boost::optional<uint64_t> key,
+				 N const &n) {
+			node_info ni;
+
+			ni.leaf = leaf;
+			ni.level = level;
+			ni.b = n.get_location();
+
+			if (n.get_nr_entries())
+				ni.keys = range<uint64_t>(n.key_at(0));
+			else {
+				if (key)
+					ni.keys = range<uint64_t>(*key);
+				else
+					ni.keys = range<uint64_t>();
+			}
+
+			nodes_.push_back(ni);
+		}
+
+		list<node_info> nodes_;
 	};
 
 	//--------------------------------
@@ -141,7 +206,7 @@ namespace {
 	class MetadataCheckerTests : public Test {
 	public:
 		MetadataCheckerTests()
-			: bm_(create_bm<BLOCK_SIZE>()),
+			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
 			  builder_(bm_) {
 		}
 
@@ -262,6 +327,30 @@ TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
 	EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(missing_device_details(range64())))));
 
 	(*damage->begin())->visit(v);
+}
+
+TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devices_being_flagged_as_missing)
+{
+	metadata_builder &b = get_builder();
+
+	for (unsigned i = 0; i < 1000; i++)
+		b.add_device(i);
+
+	b.build();
+
+	devices_visitor::ptr scanner(new devices_visitor);
+	transaction_manager::ptr tm = open_temporary_tm(bm_);
+	detail_tree::ptr devices(new detail_tree(tm, devices_root(),
+						 device_details_traits::ref_counter()));
+	devices->visit_depth_first(scanner);
+
+	list<devices_visitor::node_info>::const_iterator it, end = scanner->get_nodes().end();
+	for (it = scanner->get_nodes().begin(); it != end; ++it) {
+		cerr << "block " << it->b << ", keys" << it->keys << endl;
+	}
+
+	damage_list_ptr damage = mk_checker()->check();
+	ASSERT_THAT(damage->size(), Eq(1u));
 }
 
 //----------------------------------------------------------------
