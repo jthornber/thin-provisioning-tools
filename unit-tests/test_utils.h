@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/block.h"
+#include "persistent-data/transaction_manager.h"
 
 //----------------------------------------------------------------
 
@@ -35,6 +36,9 @@ namespace test {
 			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
 						     block_io<BlockSize>::CREATE));
 	}
+
+	// Don't use this to update the metadata.
+	transaction_manager::ptr open_temporary_tm(block_manager<>::ptr bm);
 
 	void zero_block(block_manager<>::ptr bm, block_address b);
 }
