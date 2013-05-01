@@ -488,7 +488,7 @@ namespace {
 
 	class bitmap_tree_validator : public btree_checker<1, index_entry_traits> {
 	public:
-		typedef typename btree_checker<1, index_entry_traits>::visitor::node_location node_location;
+		typedef btree_detail::node_location node_location;
 		typedef boost::shared_ptr<bitmap_tree_validator> ptr;
 
 		bitmap_tree_validator(block_counter &counter)
