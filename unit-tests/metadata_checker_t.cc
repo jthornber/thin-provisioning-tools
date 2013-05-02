@@ -8,8 +8,9 @@
 #include "thin-provisioning/superblock_checker.h"
 #include "thin-provisioning/superblock_validator.h"
 
-#include <vector>
+#include <stdlib.h>
 #include <unistd.h>
+#include <vector>
 
 using namespace persistent_data;
 using namespace std;
@@ -161,6 +162,13 @@ namespace {
 
 		vector<node_info> const &get_nodes() const {
 			return nodes_;
+		}
+
+		node_info const &random_node() const {
+			if (nodes_.empty())
+				throw runtime_error("no nodes in btree");
+
+			return nodes_[::random() % nodes_.size()];
 		}
 
 	private:
@@ -342,7 +350,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 {
 	metadata_builder &b = get_builder();
 
-	for (unsigned i = 0; i < 10000; i++)
+	for (unsigned i = 0; i < 2000; i++)
 		b.add_device(i);
 
 	b.build();
@@ -352,14 +360,16 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 	detail_tree::ptr devices(new detail_tree(tm, devices_root(),
 						 device_details_traits::ref_counter()));
 	devices->visit_depth_first(scanner);
-
-	vector<devices_visitor::node_info>::const_iterator it, end = scanner->get_nodes().end();
-	for (it = scanner->get_nodes().begin(); it != end; ++it) {
-		cerr << "block " << it->b << ", depth " << it->depth << ", keys" << it->keys << endl;
-	}
+	devices_visitor::node_info n = scanner->random_node();
+	zero_block(n.b);
 
 	damage_list_ptr damage = mk_checker()->check();
 	ASSERT_THAT(damage->size(), Eq(1u));
+
+	damage_visitor_mock v;
+	EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(missing_device_details(range64(n.keys))))));
+
+	(*damage->begin())->visit(v);
 }
 
 //----------------------------------------------------------------
