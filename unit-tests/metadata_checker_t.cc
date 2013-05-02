@@ -8,6 +8,7 @@
 #include "thin-provisioning/superblock_checker.h"
 #include "thin-provisioning/superblock_validator.h"
 
+#include <vector>
 #include <unistd.h>
 
 using namespace persistent_data;
@@ -20,7 +21,7 @@ using namespace thin_provisioning;
 
 namespace {
 	block_address const BLOCK_SIZE = 4096;
-	block_address const NR_BLOCKS = 10240;
+	block_address const NR_BLOCKS = 102400;
 
 	// FIXME: move to utils
 	class with_directory {
@@ -127,6 +128,7 @@ namespace {
 	public:
 		struct node_info {
 			bool leaf;
+			unsigned depth;
 			unsigned level;
 			block_address b;
 			range<uint64_t> keys;
@@ -137,54 +139,61 @@ namespace {
 
 		virtual bool visit_internal(node_location const &loc,
 					    detail_tree::internal_node const &n) {
-			record_node(false, loc.level, loc.key, n);
+			record_node(false, loc, n);
 			return true;
 		}
 
 		virtual bool visit_internal_leaf(node_location const &loc,
 						 detail_tree::internal_node const &n) {
-			record_node(true, loc.level, loc.key, n);
+			record_node(true, loc, n);
 			return true;
 		}
 
 
 		virtual bool visit_leaf(node_location const &loc,
 					detail_tree::leaf_node const &n) {
-			record_node(true, loc.level, loc.key, n);
+			record_node(true, loc, n);
 			return true;
 		}
 
 		virtual void visit_complete() {
 		}
 
-		list<node_info> const &get_nodes() const {
+		vector<node_info> const &get_nodes() const {
 			return nodes_;
 		}
 
 	private:
+		// We rely on the visit order being depth first, lowest to highest.
 		template <typename N>
-		void record_node(bool leaf, unsigned level,
-				 boost::optional<uint64_t> key,
-				 N const &n) {
-			node_info ni;
+		void record_node(bool leaf, node_location const &loc, N const &n) {
+			node_info tmp;
+			nodes_.push_back(tmp);
+			node_info &ni = nodes_.back();
 
 			ni.leaf = leaf;
-			ni.level = level;
+			ni.depth = loc.depth;
+			ni.level = loc.level;
 			ni.b = n.get_location();
 
 			if (n.get_nr_entries())
-				ni.keys = range<uint64_t>(n.key_at(0));
+				ni.keys = range<uint64_t>(n.key_at(0), n.key_at(n.get_nr_entries() - 1));
 			else {
-				if (key)
-					ni.keys = range<uint64_t>(*key);
+				if (loc.key)
+					ni.keys = range<uint64_t>(*loc.key);
 				else
 					ni.keys = range<uint64_t>();
 			}
 
-			nodes_.push_back(ni);
+			if (last_node_at_depth_.size() > loc.depth) {
+				last_node_at_depth_[loc.depth]->keys.end_ = ni.keys.begin_;
+				last_node_at_depth_[loc.depth] = &ni;
+			} else
+				last_node_at_depth_.push_back(&ni);
 		}
 
-		list<node_info> nodes_;
+		vector<node_info> nodes_;
+		vector<node_info *> last_node_at_depth_;
 	};
 
 	//--------------------------------
@@ -333,7 +342,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 {
 	metadata_builder &b = get_builder();
 
-	for (unsigned i = 0; i < 1000; i++)
+	for (unsigned i = 0; i < 10000; i++)
 		b.add_device(i);
 
 	b.build();
@@ -344,9 +353,9 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 						 device_details_traits::ref_counter()));
 	devices->visit_depth_first(scanner);
 
-	list<devices_visitor::node_info>::const_iterator it, end = scanner->get_nodes().end();
+	vector<devices_visitor::node_info>::const_iterator it, end = scanner->get_nodes().end();
 	for (it = scanner->get_nodes().begin(); it != end; ++it) {
-		cerr << "block " << it->b << ", keys" << it->keys << endl;
+		cerr << "block " << it->b << ", depth " << it->depth << ", keys" << it->keys << endl;
 	}
 
 	damage_list_ptr damage = mk_checker()->check();
