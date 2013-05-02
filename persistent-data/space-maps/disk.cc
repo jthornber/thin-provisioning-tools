@@ -360,7 +360,7 @@ namespace {
 		}
 
 		virtual void check(block_counter &counter) const {
-			ref_count_checker::ptr v(new ref_count_checker(counter));
+			ref_count_checker v(counter);
 			ref_counts_.visit_depth_first(v);
 
 			block_address nr_entries = div_up<block_address>(get_nr_blocks(), ENTRIES_PER_BLOCK);
@@ -584,9 +584,9 @@ namespace {
 		}
 
 		virtual void check(block_counter &counter, block_address nr_index_entries) const {
-			bitmap_tree_validator::ptr v(new bitmap_tree_validator(counter));
+			bitmap_tree_validator v(counter);
 			bitmaps_.visit_depth_first(v);
-			v->check_all_index_entries_present(nr_index_entries);
+			v.check_all_index_entries_present(nr_index_entries);
 		}
 
 	private:

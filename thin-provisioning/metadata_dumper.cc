@@ -198,13 +198,12 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 			    md->data_sm_->get_nr_blocks(),
 			    md_snap);
 
-	details_extractor::ptr de(new details_extractor);
-
+	details_extractor de;
 	md->details_->visit_depth_first(de);
-	if (de->corruption() && !repair)
+	if (de.corruption() && !repair)
 		throw runtime_error("corruption in device details tree");
 
-	map<uint64_t, device_details> const &devs = de->get_devices();
+	map<uint64_t, device_details> const &devs = de.get_devices();
 
 	map<uint64_t, device_details>::const_iterator it, end = devs.end();
 	for (it = devs.begin(); it != end; ++it) {
@@ -217,10 +216,10 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 				dd.creation_time_,
 				dd.snapshotted_time_);
 
-		mappings_extractor::ptr me(new mappings_extractor(dev_id, e, md->metadata_sm_, md->data_sm_));
+		mappings_extractor me(dev_id, e, md->metadata_sm_, md->data_sm_);
 		md->mappings_->visit_depth_first(me);
 
-		if (me->corruption() && !repair) {
+		if (me.corruption() && !repair) {
 			ostringstream out;
 			out << "corruption in mappings for device " << dev_id;
 			throw runtime_error(out.str());

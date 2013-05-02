@@ -75,7 +75,7 @@ damage_list_ptr
 device_checker::check()
 {
 	block_counter counter;
-	device_visitor::ptr v(new device_visitor(counter));
+	device_visitor v(counter);
 	transaction_manager::ptr tm(open_core_tm(bm_));
 	detail_tree::ptr details(new detail_tree(tm, root_,
 						 device_details_traits::ref_counter()));

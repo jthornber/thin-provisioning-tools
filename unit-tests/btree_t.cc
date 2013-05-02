@@ -91,7 +91,7 @@ namespace {
 	void check_constraints(btree<1, uint64_traits>::ptr tree) {
 		typedef btree<1, uint64_traits> tree_type;
 
-		tree_type::visitor::ptr v(new constraint_visitor);
+		constraint_visitor v;
 		tree->visit_depth_first(v);
 	}
 }

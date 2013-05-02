@@ -355,12 +355,12 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 
 	b.build();
 
-	devices_visitor::ptr scanner(new devices_visitor);
+	devices_visitor scanner;
 	transaction_manager::ptr tm = open_temporary_tm(bm_);
 	detail_tree::ptr devices(new detail_tree(tm, devices_root(),
 						 device_details_traits::ref_counter()));
 	devices->visit_depth_first(scanner);
-	devices_visitor::node_info n = scanner->random_node();
+	devices_visitor::node_info n = scanner.random_node();
 	zero_block(n.b);
 
 	damage_list_ptr damage = mk_checker()->check();

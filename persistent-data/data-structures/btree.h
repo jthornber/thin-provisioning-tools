@@ -334,7 +334,7 @@ namespace persistent_data {
 		};
 
 		// Walks the tree in depth first order
-		void visit_depth_first(typename visitor::ptr visitor) const;
+		void visit_depth_first(visitor &visitor) const;
 
 	private:
 		template <typename ValueTraits2, typename Search>
@@ -362,7 +362,7 @@ namespace persistent_data {
 				uint64_t key,
 				int *index);
 
-		void walk_tree(typename visitor::ptr visitor,
+		void walk_tree(visitor &visitor,
 			       btree_detail::node_location const &loc,
 			       block_address b) const;
 
