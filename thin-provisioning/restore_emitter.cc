@@ -77,15 +77,17 @@ namespace {
 			md_->details_->insert(key, details);
 
 			// Insert an empty mapping tree
-			single_mapping_tree::ptr new_tree(
-				new single_mapping_tree(md_->tm_,
-							block_time_ref_counter(md_->data_sm_)));
-			md_->mappings_top_level_->insert(key, new_tree->get_root());
-			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
+			current_mapping_.reset(new single_mapping_tree(md_->tm_,
+								       block_time_ref_counter(md_->data_sm_)));
 			current_device_ = optional<uint32_t>(dev);
 		}
 
 		virtual void end_device() {
+			uint64_t key[1] = {*current_device_};
+
+			md_->mappings_top_level_->insert(key, current_mapping_->get_root());
+			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
+
 			current_device_ = optional<uint32_t>();
 		}
 
@@ -110,17 +112,16 @@ namespace {
 			if (!current_device_)
 				throw runtime_error("not in device");
 
-			uint64_t key[2] = {*current_device_, origin_block};
+			uint64_t key[1] = {origin_block};
 			block_time bt;
 			bt.block_ = data_block;
 			bt.time_ = time;
-			md_->mappings_->insert(key, bt);
-			md_->mappings_top_level_->set_root(md_->mappings_->get_root());
+			current_mapping_->insert(key, bt);
 			md_->data_sm_->inc(data_block);
 		}
 
 	private:
-		bool device_exists(thin_dev_t dev) const {
+	bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
 			detail_tree::maybe_value v = md_->details_->lookup(key);
 			return v;
@@ -129,6 +130,7 @@ namespace {
 		metadata::ptr md_;
 		bool in_superblock_;
 		optional<uint32_t> current_device_;
+		single_mapping_tree::ptr current_mapping_;
 	};
 }
 
