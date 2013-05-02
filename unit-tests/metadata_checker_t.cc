@@ -299,22 +299,28 @@ namespace {
 			return sb.device_details_root_;
 		}
 
-		device_checker::ptr mk_checker() {
-			return device_checker::ptr(new device_checker(bm_, devices_root()));
+		device_checker &dev_checker() {
+			if (!dev_checker_.get())
+				dev_checker_.reset(new device_checker(bm_, devices_root()));
+
+			return *dev_checker_;
 		}
+
+	private:
+		auto_ptr<device_checker> dev_checker_;
 	};
 }
 
 TEST_F(DeviceCheckerTests, create_require_a_block_manager_and_a_root_block)
 {
 	get_builder().build();
-	mk_checker();
+	dev_checker();
 }
 
 TEST_F(DeviceCheckerTests, passes_with_valid_metadata_containing_zero_devices)
 {
 	get_builder().build();
-	damage_list_ptr damage = mk_checker()->check();
+	damage_list_ptr damage = dev_checker().check();
 	ASSERT_THAT(damage->size(), Eq(0u));
 }
 
@@ -328,7 +334,7 @@ TEST_F(DeviceCheckerTests, passes_with_valid_metadata_containing_some_devices)
 
 	b.build();
 
-	damage_list_ptr damage = mk_checker()->check();
+	damage_list_ptr damage = dev_checker().check();
 	ASSERT_THAT(damage->size(), Eq(0u));
 }
 
@@ -337,7 +343,7 @@ TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
 	get_builder().build();
 	zero_block(devices_root());
 
-	damage_list_ptr damage = mk_checker()->check();
+	damage_list_ptr damage = dev_checker().check();
 	ASSERT_THAT(damage->size(), Eq(1u));
 
 	damage_visitor_mock v;
@@ -363,7 +369,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 	devices_visitor::node_info n = scanner.random_node();
 	zero_block(n.b);
 
-	damage_list_ptr damage = mk_checker()->check();
+	damage_list_ptr damage = dev_checker().check();
 	ASSERT_THAT(damage->size(), Eq(1u));
 
 	damage_visitor_mock v;
