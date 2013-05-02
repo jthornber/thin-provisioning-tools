@@ -306,6 +306,15 @@ namespace {
 			return *dev_checker_;
 		}
 
+		void damage_should_include(damage_list_ptr damage, missing_device_details const &md) {
+			ASSERT_THAT(damage->size(), Gt(0u));
+
+			damage_visitor_mock v;
+			EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(md))));
+
+			(*damage->begin())->visit(v);
+		}
+
 	private:
 		auto_ptr<device_checker> dev_checker_;
 	};
@@ -344,18 +353,17 @@ TEST_F(DeviceCheckerTests, fails_with_corrupt_root)
 	zero_block(devices_root());
 
 	damage_list_ptr damage = dev_checker().check();
-	ASSERT_THAT(damage->size(), Eq(1u));
-
-	damage_visitor_mock v;
-	EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(missing_device_details(range64())))));
-
-	(*damage->begin())->visit(v);
+	damage_should_include(damage, missing_device_details(range64()));
 }
 
 TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devices_being_flagged_as_missing)
 {
 	metadata_builder &b = get_builder();
 
+	// FIXME: We should optimise the restorer so it clones the mapping
+	// tree for zero mapping devices, rather than allocating a new one.
+	// It would save allocating a heap of blocks, and more importantly
+	// make these tests run much faster.
 	for (unsigned i = 0; i < 2000; i++)
 		b.add_device(i);
 
@@ -370,12 +378,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 	zero_block(n.b);
 
 	damage_list_ptr damage = dev_checker().check();
-	ASSERT_THAT(damage->size(), Eq(1u));
-
-	damage_visitor_mock v;
-	EXPECT_CALL(v, visit(Matcher<missing_device_details const &>(Eq(missing_device_details(range64(n.keys))))));
-
-	(*damage->begin())->visit(v);
+	damage_should_include(damage, missing_device_details(range64(n.keys)));
 }
 
 //----------------------------------------------------------------
