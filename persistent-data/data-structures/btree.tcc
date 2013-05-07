@@ -763,7 +763,7 @@ btree<Levels, ValueTraits>::walk_tree(visitor &v,
 {
 	using namespace btree_detail;
 
-	read_ref blk = tm_->read_lock(b);
+	read_ref blk = tm_->read_lock(b, validator_);
 	internal_node o = to_node<uint64_traits>(blk);
 	if (o.get_type() == INTERNAL) {
 		if (v.visit_internal(loc, o))
