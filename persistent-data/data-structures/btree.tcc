@@ -761,6 +761,26 @@ btree<Levels, ValueTraits>::walk_tree(visitor &v,
 				      node_location const &loc,
 				      block_address b) const
 {
+	try {
+		walk_tree_internal(v, loc, b);
+
+	} catch (std::runtime_error const &e) {
+		switch (v.error_accessing_node(loc, b, e.what())) {
+		case visitor::EXCEPTION_HANDLED:
+			break;
+
+		case visitor::RETHROW_EXCEPTION:
+			throw;
+		}
+	}
+}
+
+template <unsigned Levels, typename ValueTraits>
+void
+btree<Levels, ValueTraits>::walk_tree_internal(visitor &v,
+					       node_location const &loc,
+					       block_address b) const
+{
 	using namespace btree_detail;
 
 	read_ref blk = tm_->read_lock(b, validator_);

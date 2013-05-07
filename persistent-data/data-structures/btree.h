@@ -331,6 +331,17 @@ namespace persistent_data {
 						leaf_node const &n) = 0;
 
 			virtual void visit_complete() {}
+
+
+			enum error_outcome {
+				EXCEPTION_HANDLED,
+				RETHROW_EXCEPTION
+			};
+
+			virtual error_outcome error_accessing_node(node_location const &l, block_address b,
+							  std::string const &what) {
+				return RETHROW_EXCEPTION;
+			}
 		};
 
 		// Walks the tree in depth first order
@@ -365,6 +376,10 @@ namespace persistent_data {
 		void walk_tree(visitor &visitor,
 			       btree_detail::node_location const &loc,
 			       block_address b) const;
+
+		void walk_tree_internal(visitor &visitor,
+					btree_detail::node_location const &loc,
+					block_address b) const;
 
 		typename persistent_data::transaction_manager::ptr tm_;
 		bool destroy_;
