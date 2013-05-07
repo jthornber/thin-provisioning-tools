@@ -8,6 +8,7 @@
 #include "thin-provisioning/superblock_checker.h"
 #include "thin-provisioning/superblock_validator.h"
 
+#include <boost/noncopyable.hpp>
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
@@ -128,6 +129,8 @@ namespace {
 	class devices_visitor : public detail_tree::visitor {
 	public:
 		struct node_info {
+			typedef boost::shared_ptr<node_info> ptr;
+
 			bool leaf;
 			unsigned depth;
 			unsigned level;
@@ -160,7 +163,7 @@ namespace {
 		virtual void visit_complete() {
 		}
 
-		vector<node_info> const &get_nodes() const {
+		vector<node_info::ptr> const &get_nodes() const {
 			return nodes_;
 		}
 
@@ -168,40 +171,42 @@ namespace {
 			if (nodes_.empty())
 				throw runtime_error("no nodes in btree");
 
-			return nodes_[::random() % nodes_.size()];
+			return *nodes_[::random() % nodes_.size()];
 		}
 
 	private:
 		// We rely on the visit order being depth first, lowest to highest.
 		template <typename N>
 		void record_node(bool leaf, node_location const &loc, N const &n) {
-			node_info tmp;
-			nodes_.push_back(tmp);
-			node_info &ni = nodes_.back();
+			node_info::ptr ni(new node_info);
 
-			ni.leaf = leaf;
-			ni.depth = loc.depth;
-			ni.level = loc.level;
-			ni.b = n.get_location();
+			ni->leaf = leaf;
+			ni->depth = loc.depth;
+			ni->level = loc.level;
+			ni->b = n.get_location();
 
 			if (n.get_nr_entries())
-				ni.keys = range<uint64_t>(n.key_at(0), n.key_at(n.get_nr_entries() - 1));
+				ni->keys = range<uint64_t>(n.key_at(0));
 			else {
 				if (loc.key)
-					ni.keys = range<uint64_t>(*loc.key);
+					ni->keys = range<uint64_t>(*loc.key);
 				else
-					ni.keys = range<uint64_t>();
+					ni->keys = range<uint64_t>();
 			}
 
 			if (last_node_at_depth_.size() > loc.depth) {
-				last_node_at_depth_[loc.depth]->keys.end_ = ni.keys.begin_;
-				last_node_at_depth_[loc.depth] = &ni;
+				node_info::ptr &last = last_node_at_depth_[loc.depth];
+
+				last->keys.end_ = ni->keys.begin_;
+				last_node_at_depth_[loc.depth] = ni;
 			} else
-				last_node_at_depth_.push_back(&ni);
+				last_node_at_depth_.push_back(ni);
+
+			nodes_.push_back(ni);
 		}
 
-		vector<node_info> nodes_;
-		vector<node_info *> last_node_at_depth_;
+		vector<node_info::ptr> nodes_;
+		vector<node_info::ptr> last_node_at_depth_;
 	};
 
 	//--------------------------------
@@ -364,7 +369,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 	// tree for zero mapping devices, rather than allocating a new one.
 	// It would save allocating a heap of blocks, and more importantly
 	// make these tests run much faster.
-	for (unsigned i = 0; i < 2000; i++)
+	for (unsigned i = 0; i < 20000; i++)
 		b.add_device(i);
 
 	b.build();
@@ -374,6 +379,7 @@ TEST_F(DeviceCheckerTests, damaging_some_btree_nodes_results_in_the_correct_devi
 	detail_tree::ptr devices(new detail_tree(tm, devices_root(),
 						 device_details_traits::ref_counter()));
 	devices->visit_depth_first(scanner);
+
 	devices_visitor::node_info n = scanner.random_node();
 	zero_block(n.b);
 
