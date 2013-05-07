@@ -93,7 +93,6 @@ namespace persistent_data {
 		bool check_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (!already_visited(n) &&
-			    check_sum(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
 			    check_nr_entries(n, loc.sub_root) &&
@@ -112,7 +111,6 @@ namespace persistent_data {
 		bool check_leaf(node_location const &loc,
 				btree_detail::node_ref<ValueTraits2> const &n) {
 			if (!already_visited(n) &&
-			    check_sum(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
 			    check_nr_entries(n, loc.sub_root) &&
@@ -142,24 +140,6 @@ namespace persistent_data {
 			}
 
 			return false;
-		}
-
-		template <typename node>
-		bool check_sum(node const &n) const {
-			crc32c sum(BTREE_CSUM_XOR);
-
-			disk_node const *data = n.raw();
-			sum.append(&data->header.flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != n.get_checksum()) {
-				std::ostringstream out;
-				out << "checksum error for block " << n.get_block_nr()
-				    << ", sum was " << sum.get_sum()
-				    << ", on disk " << n.get_checksum();
-				errs_->add_child(out.str());
-				return false;
-			}
-
-			return true;
 		}
 
 		template <typename node>
