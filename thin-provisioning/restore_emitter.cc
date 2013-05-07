@@ -29,10 +29,13 @@ namespace {
 	public:
 		restorer(metadata::ptr md)
 			: md_(md),
-			  in_superblock_(false) {
+			  in_superblock_(false),
+			  empty_mapping_(new_mapping_tree()) {
 		}
 
 		virtual ~restorer() {
+			// FIXME: replace with a call to empty_mapping_->destroy()
+			md_->metadata_sm_->dec(empty_mapping_->get_root());
 		}
 
 		virtual void begin_superblock(std::string const &uuid,
@@ -76,9 +79,7 @@ namespace {
 			device_details details = {mapped_blocks, trans_id, (uint32_t)creation_time, (uint32_t)snap_time};
 			md_->details_->insert(key, details);
 
-			// Insert an empty mapping tree
-			current_mapping_.reset(new single_mapping_tree(md_->tm_,
-								       block_time_ref_counter(md_->data_sm_)));
+			current_mapping_ = empty_mapping_->clone();
 			current_device_ = optional<uint32_t>(dev);
 		}
 
@@ -121,7 +122,13 @@ namespace {
 		}
 
 	private:
-	bool device_exists(thin_dev_t dev) const {
+		single_mapping_tree::ptr new_mapping_tree() {
+			return single_mapping_tree::ptr(
+				new single_mapping_tree(md_->tm_,
+							block_time_ref_counter(md_->data_sm_)));
+		}
+
+		bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
 			detail_tree::maybe_value v = md_->details_->lookup(key);
 			return v;
@@ -131,6 +138,7 @@ namespace {
 		bool in_superblock_;
 		optional<uint32_t> current_device_;
 		single_mapping_tree::ptr current_mapping_;
+		single_mapping_tree::ptr empty_mapping_;
 	};
 }
 
