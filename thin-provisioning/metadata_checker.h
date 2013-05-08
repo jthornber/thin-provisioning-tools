@@ -21,9 +21,8 @@
 
 #include "persistent-data/block.h"
 #include "persistent-data/error_set.h"
+#include "persistent-data/range.h"
 #include "persistent-data/space_map.h"
-
-#include "thin-provisioning/range.h"
 
 #include <deque>
 
@@ -56,7 +55,7 @@ namespace thin_provisioning {
 		bool operator ==(super_block_corruption const &rhs) const;
 	};
 
-	typedef range<uint64_t> range64;
+	typedef base::range<uint64_t> range64;
 
 	struct missing_device_details : public metadata_damage {
 		missing_device_details(range64 missing);

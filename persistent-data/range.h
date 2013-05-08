@@ -1,12 +1,12 @@
-#ifndef THIN_RANGE_H
-#define THIN_RANGE_H
+#ifndef PERSISTENT_DATA_RANGE_H
+#define PERSISTENT_DATA_RANGE_H
 
 #include <boost/optional.hpp>
 #include <ostream>
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace base {
 	template <typename T>
 	class range {
 	public:
