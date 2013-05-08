@@ -2,10 +2,35 @@
 #define PERSISTENT_DATA_DATA_STRUCTURES_DAMAGE_VISITOR_H
 
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/range.h"
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
+
+	namespace btree_detail {
+		struct damage {
+			typedef boost::shared_ptr<damage> ptr;
+
+			damage(unsigned level,
+			       range<uint64_t> lost_keys,
+			       std::string const &desc)
+				: level_(level),
+				  lost_keys_(lost_keys),
+				  desc_(desc) {
+			}
+
+			// Does _not_ compare the descriptions
+			bool operator ==(damage const &rhs) const {
+				return (level_ == rhs.level_) &&
+					(lost_keys_ == rhs.lost_keys_);
+			}
+
+			unsigned level_;
+			range<uint64_t> lost_keys_;
+			std::string desc_;
+		};
+	}
 
 	//----------------------------------------------------------------
 
@@ -61,6 +86,15 @@ namespace persistent_data {
 			return check_leaf(loc, n);
 		}
 
+		typedef typename btree<Levels, ValueTraits>::visitor::error_outcome error_outcome;
+
+		error_outcome error_accessing_node(node_location const &l, block_address b,
+						   std::string const &what) {
+			report_damage(what);
+			return btree<Levels, ValueTraits>::visitor::EXCEPTION_HANDLED;
+		}
+
+
 	private:
 		bool check_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
@@ -115,13 +149,14 @@ namespace persistent_data {
 		}
 
 		template <typename node>
-		bool check_block_nr(node const &n) const {
+		bool check_block_nr(node const &n) {
 			if (n.get_location() != n.get_block_nr()) {
 				std::ostringstream out;
 				out << "block number mismatch: actually "
 				    << n.get_location()
 				    << ", claims " << n.get_block_nr();
-				//errs_->add_child(out.str());
+
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -129,19 +164,19 @@ namespace persistent_data {
 		}
 
 		template <typename node>
-		bool check_max_entries(node const &n) const {
+		bool check_max_entries(node const &n) {
 			size_t elt_size = sizeof(uint64_t) + n.get_value_size();
 			if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
 				std::ostringstream out;
 				out << "max entries too large: " << n.get_max_entries();
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
 			if (n.get_max_entries() % 3) {
 				std::ostringstream out;
 				out << "max entries is not divisible by 3: " << n.get_max_entries();
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -149,13 +184,13 @@ namespace persistent_data {
 		}
 
 		template <typename node>
-		bool check_nr_entries(node const &n, bool is_root) const {
+		bool check_nr_entries(node const &n, bool is_root) {
 			if (n.get_nr_entries() > n.get_max_entries()) {
 				std::ostringstream out;
 				out << "bad nr_entries: "
 				    << n.get_nr_entries() << " < "
 				    << n.get_max_entries();
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -167,7 +202,7 @@ namespace persistent_data {
 				    << ", expected at least "
 				    << min
 				    << "(max_entries = " << n.get_max_entries() << ")";
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -175,7 +210,7 @@ namespace persistent_data {
 		}
 
 		template <typename node>
-		bool check_ordered_keys(node const &n) const {
+		bool check_ordered_keys(node const &n) {
 			unsigned nr_entries = n.get_nr_entries();
 
 			if (nr_entries == 0)
@@ -188,7 +223,7 @@ namespace persistent_data {
 				if (k <= last_key) {
 					ostringstream out;
 					out << "keys are out of order, " << k << " <= " << last_key;
-					//errs_->add_child(out.str());
+					report_damage(n, out.str());
 					return false;
 				}
 				last_key = k;
@@ -198,7 +233,7 @@ namespace persistent_data {
 		}
 
 		template <typename node>
-		bool check_parent_key(boost::optional<uint64_t> key, node const &n) const {
+		bool check_parent_key(boost::optional<uint64_t> key, node const &n) {
 			if (!key)
 				return true;
 
@@ -206,7 +241,7 @@ namespace persistent_data {
 				ostringstream out;
 				out << "parent key mismatch: parent was " << *key
 				    << ", but lowest in node was " << n.key_at(0);
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -222,7 +257,7 @@ namespace persistent_data {
 				ostringstream out;
 				out << "the last key of the previous leaf was " << *last_leaf_key_[level]
 				    << " and the first key of this leaf is " << n.key_at(0);
-				//errs_->add_child(out.str());
+				report_damage(n, out.str());
 				return false;
 			}
 
@@ -236,8 +271,22 @@ namespace persistent_data {
 			last_leaf_key_[level] = boost::optional<uint64_t>();
 		}
 
+		template <typename node>
+		void report_damage(node const &n, std::string const &desc) {
+			range<uint64_t> lost_keys;
+			damage d(0, lost_keys, desc);
+			damage_visitor_.visit(d);
+		}
+
+		void report_damage(std::string const &desc) {
+			range<uint64_t> lost_keys;
+			damage d(0, lost_keys, desc);
+			damage_visitor_.visit(d);
+		}
+
 		block_counter &counter_;
 		bool avoid_repeated_visits_;
+
 		ValueVisitor &value_visitor_;
 		DamageVisitor &damage_visitor_;
 
