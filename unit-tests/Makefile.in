@@ -47,6 +47,7 @@ TEST_SOURCE=\
 	unit-tests/bitset_t.cc \
 	unit-tests/block_t.cc \
 	unit-tests/btree_t.cc \
+	unit-tests/btree_damage_visitor_t.cc \
 	unit-tests/buffer_t.cc \
 	unit-tests/cache_t.cc \
 	unit-tests/endian_t.cc \
