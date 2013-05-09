@@ -30,7 +30,8 @@ namespace persistent_data {
 
 		core_map(block_address nr_blocks)
 			: counts_(nr_blocks, 0),
-			  nr_free_(nr_blocks) {
+			  nr_free_(nr_blocks),
+			  search_start_(0ull) {
 		}
 
 		block_address get_nr_blocks() const {
@@ -49,8 +50,12 @@ namespace persistent_data {
 			if (counts_[b] == 0 && c > 0)
 				nr_free_--;
 
-			else if (counts_[b] > 0 && c == 0)
+			else if (counts_[b] > 0 && c == 0) {
+				if (b < search_start_)
+					search_start_ = b;
+
 				nr_free_++;
+			}
 
 			counts_[b] = c;
 		}
@@ -68,13 +73,19 @@ namespace persistent_data {
 		void dec(block_address b) {
 			counts_[b]--;
 
-			if (counts_[b] == 0)
+			if (counts_[b] == 0) {
+				if (b < search_start_)
+					search_start_ = b;
 				nr_free_++;
+			}
 		}
 
 		maybe_block find_free(span_iterator &it) {
 			for (maybe_span ms = it.first(); ms; ms = it.next()) {
-				for (block_address b = ms->first; b < ms->second; b++) {
+				if (search_start_ >= ms->second)
+					continue;
+
+				for (block_address b = max(search_start_, ms->first); b < ms->second; b++) {
 					if (b >= counts_.size())
 						throw std::runtime_error("block out of bounds");
 
@@ -111,6 +122,7 @@ namespace persistent_data {
 	private:
 		std::vector<ref_t> counts_;
 		unsigned nr_free_;
+		block_address search_start_;
 	};
 }
 
