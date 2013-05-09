@@ -83,7 +83,16 @@ namespace persistent_data {
 
 		bool visit_leaf(node_location const &loc,
 				btree_detail::node_ref<ValueTraits> const &n) {
-			return check_leaf(loc, n);
+			bool r = check_leaf(loc, n);
+
+			// If anything goes wrong with the checks, we skip
+			// the value visiting.
+			if (!r)
+				return false;
+
+			visit_values(n);
+
+			return true;
 		}
 
 		typedef typename btree<Levels, ValueTraits>::visitor::error_outcome error_outcome;
@@ -94,8 +103,13 @@ namespace persistent_data {
 			return btree<Levels, ValueTraits>::visitor::EXCEPTION_HANDLED;
 		}
 
-
 	private:
+		void visit_values(btree_detail::node_ref<ValueTraits> const &n) {
+			unsigned nr = n.get_nr_entries();
+			for (unsigned i = 0; i < nr; i++)
+				value_visitor_.visit(n.value_at(i));
+		}
+
 		bool check_internal(node_location const &loc,
 				    btree_detail::node_ref<uint64_traits> const &n) {
 			if (!already_visited(n) &&
