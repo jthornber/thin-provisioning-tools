@@ -270,7 +270,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-TEST_F(BTreeDamageVisitorTests, visiting_an_empty_tree)
+TEST_F(BTreeDamageVisitorTests, an_empty_tree)
 {
 	expect_no_values();
 	expect_no_damage();
@@ -278,7 +278,7 @@ TEST_F(BTreeDamageVisitorTests, visiting_an_empty_tree)
 	run();
 }
 
-TEST_F(BTreeDamageVisitorTests, visiting_a_tree_with_a_trashed_root)
+TEST_F(BTreeDamageVisitorTests, tree_with_a_trashed_root)
 {
 	trash_block(tree_->get_root());
 
@@ -288,7 +288,7 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_tree_with_a_trashed_root)
 	run();
 }
 
-TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_no_damage)
+TEST_F(BTreeDamageVisitorTests, populated_tree_with_no_damage)
 {
 	insert_values(10000);
 
@@ -298,7 +298,7 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_no_damage)
 	run();
 }
 
-TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_damaged_leaf_node)
+TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 {
 	insert_values(10000);
 	commit();
@@ -318,7 +318,7 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_damaged_leaf_no
 	run();
 }
 
-TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_sequence_of_damaged_leaf_nodes)
+TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_nodes)
 {
 	insert_values(10000);
 	commit();
@@ -341,6 +341,45 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_sequence_of_dam
 	expect_value_range(0, begin);
 	expect_value_range(end, 10000);
 	expect_damage(0, range<block_address>(begin, end));
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
+{
+	insert_values(10000);
+	commit();
+
+	vector<typename node_info::ptr> const &nodes = get_nodes();
+
+	unsigned target = 0;
+	unsigned i = node_index_of_nth_leaf(nodes, target);
+
+	block_address end = *nodes[i]->keys.end_;
+	trash_block(nodes[i]->b);
+
+	expect_damage(0, range<block_address>(0ull, end));
+	expect_value_range(end, 10000);
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
+{
+	insert_values(10000);
+	commit();
+
+	vector<typename node_info::ptr> const &nodes = get_nodes();
+
+	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
+	unsigned target = nr_leaf - 1;
+	unsigned i = node_index_of_nth_leaf(nodes, target);
+
+	block_address begin = *nodes[i]->keys.begin_;
+	trash_block(nodes[i]->b);
+
+	expect_value_range(0, begin);
+	expect_damage(0, range<block_address>(begin));
 
 	run();
 }
