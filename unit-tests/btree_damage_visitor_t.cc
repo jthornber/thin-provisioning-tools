@@ -208,6 +208,41 @@ namespace {
 			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
 		}
 
+		typedef typename btree_layout<1, thing_traits>::node_info node_info;
+
+		vector<typename node_info::ptr> get_nodes() {
+			btree_layout<1, thing_traits> layout;
+			tree_->visit_depth_first(layout);
+			return layout.get_nodes();
+		}
+
+		unsigned node_index_of_nth_leaf(vector<typename node_info::ptr> const &nodes,
+						unsigned target) const {
+			unsigned i;
+			for (i = 0; i < nodes.size(); i++)
+				if (nodes[i]->leaf) {
+					if (!target)
+						break;
+					else
+						target--;
+				}
+
+			if (target)
+				throw runtime_error("not that many leaf nodes");
+
+			return i;
+		}
+
+		unsigned get_nr_leaf_nodes(vector<typename node_info::ptr> const &nodes) {
+			unsigned nr_leaf = 0;
+
+			for (unsigned i = 0; i < nodes.size(); i++)
+				if (nodes[i]->leaf)
+					nr_leaf++;
+
+			return nr_leaf;
+		}
+
 		void run() {
 			// We must commit before we do the test to ensure
 			// all the block numbers and checksums are written
@@ -268,32 +303,14 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_damaged_leaf_no
 	insert_values(10000);
 	commit();
 
-	btree_layout<1, thing_traits> layout;
-	tree_->visit_depth_first(layout);
+	vector<typename node_info::ptr> const &nodes = get_nodes();
 
-	typedef typename btree_layout<1, thing_traits>::node_info node_info;
-	vector<typename node_info::ptr> const &nodes = layout.get_nodes();
-
-	unsigned nr_leaf = 0;
-	for (unsigned i = 0; i < nodes.size(); i++)
-		if (nodes[i]->leaf)
-			nr_leaf++;
-
+	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
 	unsigned target = random() % nr_leaf;
-	unsigned i;
-	for (i = 0; i < nodes.size(); i++)
-		if (nodes[i]->leaf) {
-			if (!target)
-				break;
-			else
-				target--;
-		}
-
+	unsigned i = node_index_of_nth_leaf(nodes, target);
 	typename node_info::ptr n = nodes[i];
 
 	trash_block(n->b);
-	cerr << "trashed leaf node with keys " << n->keys << endl;
-
 	expect_value_range(0, *n->keys.begin_);
 	expect_value_range(*n->keys.end_, 10000);
 	expect_damage(0, n->keys);
@@ -306,26 +323,11 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_sequence_of_dam
 	insert_values(10000);
 	commit();
 
-	btree_layout<1, thing_traits> layout;
-	tree_->visit_depth_first(layout);
+	vector<typename node_info::ptr> const &nodes = get_nodes();
 
-	typedef typename btree_layout<1, thing_traits>::node_info node_info;
-	vector<typename node_info::ptr> const &nodes = layout.get_nodes();
-
-	unsigned nr_leaf = 0;
-	for (unsigned i = 0; i < nodes.size(); i++)
-		if (nodes[i]->leaf)
-			nr_leaf++;
-
+	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
 	unsigned target = random() % (nr_leaf - 6);
-	unsigned i;
-	for (i = 0; i < nodes.size(); i++)
-		if (nodes[i]->leaf) {
-			if (!target)
-				break;
-			else
-				target--;
-		}
+	unsigned i = node_index_of_nth_leaf(nodes, target);
 
 	block_address begin = *nodes[i]->keys.begin_, end;
 	for (unsigned count = 0; count < 5 && i < nodes.size(); i++, count++) {
@@ -333,7 +335,6 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_sequence_of_dam
 		if (n->leaf) {
 			end = *n->keys.end_;
 			trash_block(n->b);
-			cerr << "trashed leaf node with keys " << n->keys << endl;
 		}
 	}
 
