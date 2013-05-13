@@ -30,6 +30,68 @@ namespace persistent_data {
 			range<uint64_t> lost_keys_;
 			std::string desc_;
 		};
+
+		class damage_tracker {
+		public:
+			damage_tracker()
+				: damaged_(false),
+				  damage_begin_(0) {
+			}
+
+			typedef range<block_address> range64;
+			typedef boost::optional<range64> maybe_range64;
+
+			void bad_node() {
+				damaged_ = true;
+			}
+
+			maybe_range64 good_internal(block_address begin) {
+				maybe_range64 r;
+
+				if (damaged_) {
+					r = maybe_range64(range64(damage_begin_, begin));
+					damaged_ = false;
+				}
+
+				damage_begin_ = begin;
+				return r;
+			}
+
+			// remembe 'end' is the one-past-the-end value, so
+			// take the last key in the leaf and add one.
+			maybe_range64 good_leaf(block_address begin, block_address end) {
+				maybe_range64 r;
+
+				if (damaged_) {
+					r = maybe_range64(range64(damage_begin_, begin));
+					damaged_ = false;
+				}
+
+				damage_begin_ = end;
+				return r;
+			}
+
+			maybe_range64 end() {
+				if (damaged_)
+					return maybe_range64(damage_begin_);
+				else
+					return maybe_range64();
+			}
+
+		private:
+			bool damaged_;
+			block_address damage_begin_;
+		};
+
+		inline
+		std::ostream &operator <<(std::ostream &out, damage_tracker::maybe_range64 const &mr) {
+			if (mr)
+				out << "Just " << *mr;
+			else
+				out << "Nothing";
+
+			return out;
+		}
 	}
 
 	//----------------------------------------------------------------
@@ -68,7 +130,8 @@ namespace persistent_data {
 			: counter_(counter),
 			  avoid_repeated_visits_(true),
 			  value_visitor_(value_visitor),
-			  damage_visitor_(damage_visitor) {
+			  damage_visitor_(damage_visitor),
+			  key_end_(0) {
 		}
 
 		bool visit_internal(node_location const &loc,
@@ -121,6 +184,8 @@ namespace persistent_data {
 				if (loc.sub_root)
 					new_root(loc.level);
 
+				update_key_end(n.key_at(n.get_nr_entries() - 1) + 1ull);
+
 				return true;
 			}
 
@@ -139,7 +204,11 @@ namespace persistent_data {
 				if (loc.sub_root)
 					new_root(loc.level);
 
-				return check_leaf_key(loc.level, n);
+				bool r = check_leaf_key(loc.level, n);
+				if (r)
+					update_key_end(n.key_at(n.get_nr_entries() - 1) + 1ull);
+
+				return r;
 			}
 
 			return false;
@@ -285,18 +354,32 @@ namespace persistent_data {
 			last_leaf_key_[level] = boost::optional<uint64_t>();
 		}
 
+		void update_key_end(uint64_t end) {
+			key_end_ = max(end, key_end_);
+		}
+
 		template <typename node>
 		void report_damage(node const &n, std::string const &desc) {
-			range<uint64_t> lost_keys;
+			range<uint64_t> lost_keys(key_end_);
 			damage d(0, lost_keys, desc);
+
+			cerr << "damage: keys = " << lost_keys << " " << desc << endl;
 			damage_visitor_.visit(d);
 		}
 
+		//--------------------------------
+
+		// damage tracking
+
 		void report_damage(std::string const &desc) {
-			range<uint64_t> lost_keys;
+			range<uint64_t> lost_keys(key_end_);
 			damage d(0, lost_keys, desc);
+
+			cerr << "damage: keys = " << lost_keys << " " << desc << endl;
 			damage_visitor_.visit(d);
 		}
+
+		//--------------------------------
 
 		block_counter &counter_;
 		bool avoid_repeated_visits_;
@@ -306,6 +389,8 @@ namespace persistent_data {
 
 		std::set<block_address> seen_;
 		boost::optional<uint64_t> last_leaf_key_[Levels];
+
+		uint64_t key_end_;
 	};
 }
 
