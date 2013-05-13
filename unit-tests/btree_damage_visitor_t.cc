@@ -301,4 +301,47 @@ TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_damaged_leaf_no
 	run();
 }
 
+TEST_F(BTreeDamageVisitorTests, visiting_a_populated_tree_with_a_sequence_of_damaged_leaf_nodes)
+{
+	insert_values(10000);
+	commit();
+
+	btree_layout<1, thing_traits> layout;
+	tree_->visit_depth_first(layout);
+
+	typedef typename btree_layout<1, thing_traits>::node_info node_info;
+	vector<typename node_info::ptr> const &nodes = layout.get_nodes();
+
+	unsigned nr_leaf = 0;
+	for (unsigned i = 0; i < nodes.size(); i++)
+		if (nodes[i]->leaf)
+			nr_leaf++;
+
+	unsigned target = random() % (nr_leaf - 6);
+	unsigned i;
+	for (i = 0; i < nodes.size(); i++)
+		if (nodes[i]->leaf) {
+			if (!target)
+				break;
+			else
+				target--;
+		}
+
+	block_address begin = *nodes[i]->keys.begin_, end;
+	for (unsigned count = 0; count < 5 && i < nodes.size(); i++, count++) {
+		typename node_info::ptr n = nodes[i];
+		if (n->leaf) {
+			end = *n->keys.end_;
+			trash_block(n->b);
+			cerr << "trashed leaf node with keys " << n->keys << endl;
+		}
+	}
+
+	expect_value_range(0, begin);
+	expect_value_range(end, 10000);
+	expect_damage(0, range<block_address>(begin, end));
+
+	run();
+}
+
 //----------------------------------------------------------------
