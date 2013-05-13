@@ -31,6 +31,13 @@ namespace persistent_data {
 			std::string desc_;
 		};
 
+		inline std::ostream &operator <<(std::ostream &out, damage const &d) {
+			out << "btree damage[level = " << d.level_
+			    << ", effected_keys = " << d.lost_keys_
+			    << ", \"" << d.desc_ << "\"]";
+			return out;
+		}
+
 		class damage_tracker {
 		public:
 			damage_tracker()
@@ -123,6 +130,8 @@ namespace persistent_data {
 	class btree_damage_visitor : public btree<Levels, ValueTraits>::visitor {
 	public:
 		typedef btree_detail::node_location node_location;
+		typedef range<block_address> range64;
+		typedef boost::optional<range64> maybe_range64;
 
 		btree_damage_visitor(block_counter &counter,
 				     ValueVisitor &value_visitor,
@@ -130,8 +139,7 @@ namespace persistent_data {
 			: counter_(counter),
 			  avoid_repeated_visits_(true),
 			  value_visitor_(value_visitor),
-			  damage_visitor_(damage_visitor),
-			  key_end_(0) {
+			  damage_visitor_(damage_visitor) {
 		}
 
 		bool visit_internal(node_location const &loc,
@@ -156,6 +164,10 @@ namespace persistent_data {
 			visit_values(n);
 
 			return true;
+		}
+
+		void visit_complete() {
+			end_walk();
 		}
 
 		typedef typename btree<Levels, ValueTraits>::visitor::error_outcome error_outcome;
@@ -184,8 +196,7 @@ namespace persistent_data {
 				if (loc.sub_root)
 					new_root(loc.level);
 
-				update_key_end(n.key_at(n.get_nr_entries() - 1) + 1ull);
-
+				good_internal(n.key_at(0));
 				return true;
 			}
 
@@ -205,8 +216,8 @@ namespace persistent_data {
 					new_root(loc.level);
 
 				bool r = check_leaf_key(loc.level, n);
-				if (r)
-					update_key_end(n.key_at(n.get_nr_entries() - 1) + 1ull);
+				if (r && n.get_nr_entries() > 0)
+					good_leaf(n.key_at(0), n.key_at(n.get_nr_entries() - 1) + 1);
 
 				return r;
 			}
@@ -239,7 +250,7 @@ namespace persistent_data {
 				    << n.get_location()
 				    << ", claims " << n.get_block_nr();
 
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -252,14 +263,14 @@ namespace persistent_data {
 			if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
 				std::ostringstream out;
 				out << "max entries too large: " << n.get_max_entries();
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
 			if (n.get_max_entries() % 3) {
 				std::ostringstream out;
 				out << "max entries is not divisible by 3: " << n.get_max_entries();
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -273,7 +284,7 @@ namespace persistent_data {
 				out << "bad nr_entries: "
 				    << n.get_nr_entries() << " < "
 				    << n.get_max_entries();
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -285,7 +296,7 @@ namespace persistent_data {
 				    << ", expected at least "
 				    << min
 				    << "(max_entries = " << n.get_max_entries() << ")";
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -306,7 +317,7 @@ namespace persistent_data {
 				if (k <= last_key) {
 					ostringstream out;
 					out << "keys are out of order, " << k << " <= " << last_key;
-					report_damage(n, out.str());
+					report_damage(out.str());
 					return false;
 				}
 				last_key = k;
@@ -324,7 +335,7 @@ namespace persistent_data {
 				ostringstream out;
 				out << "parent key mismatch: parent was " << *key
 				    << ", but lowest in node was " << n.key_at(0);
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -340,7 +351,7 @@ namespace persistent_data {
 				ostringstream out;
 				out << "the last key of the previous leaf was " << *last_leaf_key_[level]
 				    << " and the first key of this leaf is " << n.key_at(0);
-				report_damage(n, out.str());
+				report_damage(out.str());
 				return false;
 			}
 
@@ -354,29 +365,54 @@ namespace persistent_data {
 			last_leaf_key_[level] = boost::optional<uint64_t>();
 		}
 
-		void update_key_end(uint64_t end) {
-			key_end_ = max(end, key_end_);
-		}
-
-		template <typename node>
-		void report_damage(node const &n, std::string const &desc) {
-			range<uint64_t> lost_keys(key_end_);
-			damage d(0, lost_keys, desc);
-
-			cerr << "damage: keys = " << lost_keys << " " << desc << endl;
-			damage_visitor_.visit(d);
-		}
-
 		//--------------------------------
 
 		// damage tracking
 
 		void report_damage(std::string const &desc) {
-			range<uint64_t> lost_keys(key_end_);
-			damage d(0, lost_keys, desc);
+			damage_reasons_.push_back(desc);
+			dt_.bad_node();
+		}
 
-			cerr << "damage: keys = " << lost_keys << " " << desc << endl;
+		void good_internal(block_address b) {
+			maybe_range64 mr = dt_.good_internal(b);
+			if (mr)
+				issue_damage(*mr);
+		}
+
+		void good_leaf(block_address b, block_address e) {
+			maybe_range64 mr = dt_.good_leaf(b, e);
+
+			if (mr)
+				issue_damage(*mr);
+		}
+
+		void end_walk() {
+			maybe_range64 mr = dt_.end();
+			if (mr)
+				issue_damage(*mr);
+		}
+
+		void issue_damage(range64 const &r) {
+			// FIXME: we don't really know what level
+			// the damage is coming from
+			damage d(0, r, build_damage_desc());
+			clear_damage_desc();
 			damage_visitor_.visit(d);
+		}
+
+		std::string build_damage_desc() const {
+			std::string r;
+
+			std::list<std::string>::const_iterator it, end = damage_reasons_.end();
+			for (it = damage_reasons_.begin(); it != end; ++it)
+				r += *it;
+
+			return r;
+		}
+
+		void clear_damage_desc() {
+			damage_reasons_.clear();
 		}
 
 		//--------------------------------
@@ -390,7 +426,8 @@ namespace persistent_data {
 		std::set<block_address> seen_;
 		boost::optional<uint64_t> last_leaf_key_[Levels];
 
-		uint64_t key_end_;
+		damage_tracker dt_;
+		std::list<std::string> damage_reasons_;
 	};
 }
 
