@@ -210,10 +210,14 @@ namespace {
 
 		typedef typename btree_layout<1, thing_traits>::node_info node_info;
 
-		vector<typename node_info::ptr> get_nodes() {
-			btree_layout<1, thing_traits> layout;
-			tree_->visit_depth_first(layout);
-			return layout.get_nodes();
+		vector<typename node_info::ptr> const &get_nodes() {
+			if (!nodes_) {
+				btree_layout<1, thing_traits> layout;
+				tree_->visit_depth_first(layout);
+				nodes_ = layout.get_nodes(); // expensive copy, but it's only a test
+			}
+
+			return *nodes_;
 		}
 
 		unsigned node_index_of_nth_leaf(vector<typename node_info::ptr> const &nodes,
@@ -243,6 +247,40 @@ namespace {
 			return nr_leaf;
 		}
 
+		node_info::ptr random_leaf_node() {
+			vector<typename node_info::ptr> const &nodes = get_nodes();
+
+			unsigned nr_leaf = get_nr_leaf_nodes(nodes);
+			unsigned target = random() % nr_leaf;
+			unsigned i = node_index_of_nth_leaf(nodes, target);
+
+			return nodes[i];
+		}
+
+		vector<node_info::ptr> get_random_leaf_nodes(unsigned count) {
+			vector<node_info::ptr> const &nodes = get_nodes();
+
+			unsigned nr_leaf = get_nr_leaf_nodes(nodes);
+			unsigned target = random() % (nr_leaf - count);
+			unsigned i = node_index_of_nth_leaf(nodes, target);
+
+			vector<node_info::ptr> v;
+
+			for (; i < nodes.size() && count; i++) {
+				if (nodes[i]->leaf) {
+					count--;
+					v.push_back(nodes[i]);
+				}
+			}
+
+			return v;
+		}
+
+		void trash_blocks(vector<node_info::ptr> const &blocks) {
+			for (unsigned i = 0; i < blocks.size(); i++)
+				trash_block(blocks[i]->b);
+		}
+
 		void run() {
 			// We must commit before we do the test to ensure
 			// all the block numbers and checksums are written
@@ -262,6 +300,9 @@ namespace {
 
 		thing_traits::ref_counter rc_;
 		btree<1, thing_traits>::ptr tree_;
+
+		optional<vector<typename node_info::ptr> > nodes_;
+
 
 		value_visitor_mock value_visitor_;
 		damage_visitor_mock damage_visitor_;
@@ -303,12 +344,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 	insert_values(10000);
 	commit();
 
-	vector<typename node_info::ptr> const &nodes = get_nodes();
-
-	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
-	unsigned target = random() % nr_leaf;
-	unsigned i = node_index_of_nth_leaf(nodes, target);
-	typename node_info::ptr n = nodes[i];
+	node_info::ptr n = random_leaf_node();
 
 	trash_block(n->b);
 	expect_value_range(0, *n->keys.begin_);
@@ -323,23 +359,15 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	insert_values(10000);
 	commit();
 
-	vector<typename node_info::ptr> const &nodes = get_nodes();
+	unsigned const COUNT = 5;
+	vector<node_info::ptr> nodes = get_random_leaf_nodes(COUNT);
 
-	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
-	unsigned target = random() % (nr_leaf - 6);
-	unsigned i = node_index_of_nth_leaf(nodes, target);
+	trash_blocks(nodes);
+	block_address begin = *nodes[0]->keys.begin_;
+	block_address end = *nodes[COUNT - 1]->keys.end_;
 
-	block_address begin = *nodes[i]->keys.begin_, end;
-	for (unsigned count = 0; count < 5 && i < nodes.size(); i++, count++) {
-		typename node_info::ptr n = nodes[i];
-		if (n->leaf) {
-			end = *n->keys.end_;
-			trash_block(n->b);
-		}
-	}
-
-	expect_value_range(0, begin);
-	expect_value_range(end, 10000);
+	expect_value_range(0, *nodes[0]->keys.begin_);
+	expect_value_range(*nodes[COUNT - 1]->keys.end_, 10000);
 	expect_damage(0, range<block_address>(begin, end));
 
 	run();
