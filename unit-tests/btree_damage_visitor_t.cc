@@ -75,73 +75,74 @@ namespace {
 	class btree_layout {
 	public:
 		btree_layout(vector<node_info::ptr> const &ns)
-			: nodes_(ns) {
+			: nodes_(ns.size(), node_info()) {
+			for (unsigned i = 0; i < ns.size(); i++)
+				nodes_[i] = *ns[i];
 		}
 
-		static bool is_leaf(node_info::ptr n) {
-			return n->leaf;
+		static bool is_leaf(node_info const &n) {
+			return n.leaf;
 		}
 
-		static bool is_internal(node_info::ptr n) {
-			return !n->leaf;
-		}
-
-		template <typename Predicate>
-		unsigned nth_node(unsigned target, Predicate const &pred) const {
-			unsigned i;
-
-			for (i = 0; i < nodes_.size(); i++)
-				if (pred(nodes_[i])) {
-					if (!target)
-						break;
-					else
-						target--;
-				}
-
-			if (target)
-				throw runtime_error("not that many nodes");
-
-			return i;
+		static bool is_internal(node_info const &n) {
+			return !n.leaf;
 		}
 
 		template <typename Predicate>
 		unsigned get_nr_nodes(Predicate const &pred) const {
 			unsigned nr = 0;
 
-			for (unsigned i = 0; i < nodes_.size(); i++)
-				if (pred(nodes_[i]))
+			for (auto n : nodes_)
+				if (pred(n))
 					nr++;
 
 			return nr;
 		}
 
 		template <typename Predicate>
-		node_info::ptr get_node(unsigned index, Predicate const &pred) const {
-			unsigned ni = nth_node(index, pred);
-			return nodes_[ni];
+		node_info get_node(unsigned target, Predicate const &pred) const {
+			unsigned i = 0;
+
+			for (auto n : nodes_) {
+				if (pred(n)) {
+					if (!target)
+						break;
+					else
+						target--;
+				}
+
+				i++;
+			}
+
+			if (target)
+				throw runtime_error("not that many nodes");
+
+			return nodes_[i];
 		}
 
 		template <typename Predicate>
-		node_info::ptr random_node(Predicate const &pred) const {
+		node_info random_node(Predicate const &pred) const {
 			unsigned nr = get_nr_nodes(pred);
 			unsigned target = random() % nr;
-			unsigned i = nth_node(target, pred);
-
-			return get_node(i, pred);
+			return get_node(target, pred);
 		}
 
 		template <typename Predicate>
-		node_ptr_array get_random_nodes(unsigned count, Predicate const &pred) const {
+		node_array get_random_nodes(unsigned count, Predicate const &pred) const {
 			unsigned nr = get_nr_nodes(pred);
-			unsigned target = random() % (nr - count);
-			unsigned i = nth_node(target, pred);
+			unsigned target = count + random() % (nr - count);
 
-			node_ptr_array v;
+			node_array v;
 
-			for (; i < nodes_.size() && count; i++) {
-				if (pred(nodes_[i])) {
-					count--;
-					v.push_back(nodes_[i]);
+			for (auto n : nodes_) {
+				if (!target)
+					break;
+
+				if (pred(n)) {
+					if (target <= count)
+						v.push_back(n);
+
+					target--;
 				}
 			}
 
@@ -149,7 +150,7 @@ namespace {
 		}
 
 	private:
-		vector<node_info::ptr> nodes_;
+		node_array nodes_;
 	};
 
 	//--------------------------------
@@ -294,11 +295,6 @@ namespace {
 			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
 		}
 
-		void trash_blocks(node_ptr_array const &blocks) {
-			for (unsigned i = 0; i < blocks.size(); i++)
-				trash_block(blocks[i]->b);
-		}
-
 		void run() {
 			// We must commit before we do the test to ensure
 			// all the block numbers and checksums are written
@@ -372,12 +368,12 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 	insert_values(10000);
 	tree_complete();
 
-	node_info::ptr n = layout_->random_node(btree_layout::is_leaf);
+	node_info n = layout_->random_node(btree_layout::is_leaf);
 
-	trash_block(n->b);
-	expect_value_range(0, *n->keys.begin_);
-	expect_value_range(*n->keys.end_, 10000);
-	expect_damage(0, n->keys);
+	trash_block(n.b);
+	expect_value_range(0, *n.keys.begin_);
+	expect_value_range(*n.keys.end_, 10000);
+	expect_damage(0, n.keys);
 
 	run();
 }
@@ -388,15 +384,16 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	tree_complete();
 
 	unsigned const COUNT = 5;
-	node_ptr_array nodes = layout_->get_random_nodes(COUNT, btree_layout::is_leaf);
+	node_array nodes = layout_->get_random_nodes(COUNT, btree_layout::is_leaf);
 
-	trash_blocks(nodes);
+	for (auto n : nodes)
+		trash_block(n.b);
 
-	block_address begin = *nodes[0]->keys.begin_;
-	block_address end = *nodes[COUNT - 1]->keys.end_;
+	block_address begin = *nodes[0].keys.begin_;
+	block_address end = *nodes[COUNT - 1].keys.end_;
 
-	expect_value_range(0, *nodes[0]->keys.begin_);
-	expect_value_range(*nodes[COUNT - 1]->keys.end_, 10000);
+	expect_value_range(0, *nodes[0].keys.begin_);
+	expect_value_range(*nodes[COUNT - 1].keys.end_, 10000);
 	expect_damage(0, range<block_address>(begin, end));
 
 	run();
@@ -407,10 +404,10 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 	insert_values(10000);
 	tree_complete();
 
-	node_info::ptr n = layout_->get_node(0, btree_layout::is_leaf);
+	node_info n = layout_->get_node(0, btree_layout::is_leaf);
 
-	block_address end = *n->keys.end_;
-	trash_block(n->b);
+	block_address end = *n.keys.end_;
+	trash_block(n.b);
 
 	expect_damage(0, range<block_address>(0ull, end));
 	expect_value_range(end, 10000);
@@ -423,11 +420,11 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	insert_values(10000);
 	tree_complete();
 
-	node_info::ptr n = layout_->get_node(
+	node_info n = layout_->get_node(
 		layout_->get_nr_nodes(btree_layout::is_leaf) - 1,
 		btree_layout::is_leaf);
-	block_address begin = *n->keys.begin_;
-	trash_block(n->b);
+	block_address begin = *n.keys.begin_;
+	trash_block(n.b);
 
 	expect_value_range(0, begin);
 	expect_damage(0, range<block_address>(begin));
@@ -440,12 +437,12 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 	insert_values(10000);
 	tree_complete();
 
-	node_info::ptr n = layout_->random_node(btree_layout::is_internal);
+	node_info n = layout_->random_node(btree_layout::is_internal);
 
-	optional<block_address> begin = n->keys.begin_;
-	optional<block_address> end = n->keys.end_;
+	optional<block_address> begin = n.keys.begin_;
+	optional<block_address> end = n.keys.end_;
 
-	trash_block(n->b);
+	trash_block(n.b);
 
 	expect_value_range(0, *begin);
 	expect_damage(0, range<block_address>(begin, end));
