@@ -57,19 +57,23 @@ namespace {
 		}
 	};
 
+	//--------------------------------
+
+	struct node_info {
+		typedef boost::shared_ptr<node_info> ptr;
+
+		bool leaf;
+		unsigned depth;
+		unsigned level;
+		block_address b;
+		range<uint64_t> keys;
+	};
+
+	typedef vector<node_info::ptr> node_array;
+
 	template <uint32_t Levels, typename ValueTraits>
 	class btree_layout : public btree<Levels, ValueTraits>::visitor {
 	public:
-		struct node_info {
-			typedef boost::shared_ptr<node_info> ptr;
-
-			bool leaf;
-			unsigned depth;
-			unsigned level;
-			block_address b;
-			range<uint64_t> keys;
-		};
-
 		typedef btree_detail::node_location node_location;
 		typedef btree<Levels, ValueTraits> tree;
 		typedef boost::shared_ptr<btree_layout> ptr;
@@ -96,7 +100,7 @@ namespace {
 		virtual void visit_complete() {
 		}
 
-		vector<typename node_info::ptr> const &get_nodes() const {
+		node_array const &get_nodes() const {
 			return nodes_;
 		}
 
@@ -111,7 +115,7 @@ namespace {
 		// We rely on the visit order being depth first, lowest to highest.
 		template <typename N>
 		void record_node(bool leaf, node_location const &loc, N const &n) {
-			typename node_info::ptr ni(new node_info);
+			node_info::ptr ni(new node_info);
 
 			ni->leaf = leaf;
 			ni->depth = loc.depth;
@@ -128,7 +132,7 @@ namespace {
 			}
 
 			if (last_node_at_depth_.size() > loc.depth) {
-				typename node_info::ptr &last = last_node_at_depth_[loc.depth];
+				node_info::ptr &last = last_node_at_depth_[loc.depth];
 
 				last->keys.end_ = ni->keys.begin_;
 				last_node_at_depth_[loc.depth] = ni;
@@ -138,9 +142,11 @@ namespace {
 			nodes_.push_back(ni);
 		}
 
-		vector<typename node_info::ptr> nodes_;
-		vector<typename node_info::ptr> last_node_at_depth_;
+		node_array nodes_;
+		node_array last_node_at_depth_;
 	};
+
+	//----------------------------------
 
 	class value_visitor_mock {
 	public:
@@ -211,9 +217,7 @@ namespace {
 			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
 		}
 
-		typedef typename btree_layout<1, thing_traits>::node_info node_info;
-
-		vector<typename node_info::ptr> const &get_nodes() {
+		node_array const &get_nodes() {
 			if (!nodes_) {
 				btree_layout<1, thing_traits> layout;
 				tree_->visit_depth_first(layout);
@@ -223,11 +227,11 @@ namespace {
 			return *nodes_;
 		}
 
-		unsigned node_index_of_nth_leaf(vector<typename node_info::ptr> const &nodes,
-						unsigned target) const {
+		unsigned nth_node(node_array const &nodes, unsigned target, bool leaf) const {
 			unsigned i;
+
 			for (i = 0; i < nodes.size(); i++)
-				if (nodes[i]->leaf) {
+				if (nodes[i]->leaf == leaf) {
 					if (!target)
 						break;
 					else
@@ -235,31 +239,13 @@ namespace {
 				}
 
 			if (target)
-				throw runtime_error("not that many leaf nodes");
-
-			return i;
-		}
-
-		// FIXME: remove duplication with above
-		unsigned node_index_of_nth_internal(vector<typename node_info::ptr> const &nodes,
-						    unsigned target) const {
-			unsigned i;
-			for (i = 0; i < nodes.size(); i++)
-				if (!nodes[i]->leaf) {
-					if (!target)
-						break;
-					else
-						target--;
-				}
-
-			if (target)
-				throw runtime_error("not that many internal nodes");
+				throw runtime_error("not that many nodes");
 
 			return i;
 		}
 
 		unsigned get_nr_leaf_nodes() {
-			vector<typename node_info::ptr> const &nodes = get_nodes();
+			node_array const &nodes = get_nodes();
 			unsigned nr_leaf = 0;
 
 			for (unsigned i = 0; i < nodes.size(); i++)
@@ -271,7 +257,7 @@ namespace {
 
 		// FIXME: remove duplication
 		unsigned get_nr_internal_nodes() {
-			vector<typename node_info::ptr> const &nodes = get_nodes();
+			node_array const &nodes = get_nodes();
 
 			unsigned nr_internal = 0;
 
@@ -279,44 +265,43 @@ namespace {
 				if (!nodes[i]->leaf)
 					nr_internal++;
 
-			cerr << "internal nodes: " << nr_internal << endl;
 			return nr_internal;
 		}
 
 		node_info::ptr get_leaf_node(unsigned index) {
-			vector<typename node_info::ptr> const &nodes = get_nodes();
-			unsigned ni = node_index_of_nth_leaf(nodes, index);
+			node_array const &nodes = get_nodes();
+			unsigned ni = nth_node(nodes, index, true);
 			return nodes[ni];
 		}
 
 		node_info::ptr random_leaf_node() {
-			vector<typename node_info::ptr> const &nodes = get_nodes();
+			node_array const &nodes = get_nodes();
 
 			unsigned nr_leaf = get_nr_leaf_nodes();
 			unsigned target = random() % nr_leaf;
-			unsigned i = node_index_of_nth_leaf(nodes, target);
+			unsigned i = nth_node(nodes, target, true);
 
 			return nodes[i];
 		}
 
 		node_info::ptr random_internal_node() {
-			vector<typename node_info::ptr> const &nodes = get_nodes();
+			node_array const &nodes = get_nodes();
 
 			unsigned nr_internal = get_nr_internal_nodes();
 			unsigned target = random() % nr_internal;
-			unsigned i = node_index_of_nth_internal(nodes, target);
+			unsigned i = nth_node(nodes, target, false);
 
 			return nodes[i];
 		}
 
-		vector<node_info::ptr> get_random_leaf_nodes(unsigned count) {
-			vector<node_info::ptr> const &nodes = get_nodes();
+		node_array get_random_leaf_nodes(unsigned count) {
+			node_array const &nodes = get_nodes();
 
 			unsigned nr_leaf = get_nr_leaf_nodes();
 			unsigned target = random() % (nr_leaf - count);
-			unsigned i = node_index_of_nth_leaf(nodes, target);
+			unsigned i = nth_node(nodes, target, true);
 
-			vector<node_info::ptr> v;
+			node_array v;
 
 			for (; i < nodes.size() && count; i++) {
 				if (nodes[i]->leaf) {
@@ -328,7 +313,7 @@ namespace {
 			return v;
 		}
 
-		void trash_blocks(vector<node_info::ptr> const &blocks) {
+		void trash_blocks(node_array const &blocks) {
 			for (unsigned i = 0; i < blocks.size(); i++)
 				trash_block(blocks[i]->b);
 		}
@@ -353,7 +338,7 @@ namespace {
 		thing_traits::ref_counter rc_;
 		btree<1, thing_traits>::ptr tree_;
 
-		optional<vector<typename node_info::ptr> > nodes_;
+		optional<node_array> nodes_;
 
 
 		value_visitor_mock value_visitor_;
@@ -412,7 +397,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	commit();
 
 	unsigned const COUNT = 5;
-	vector<node_info::ptr> nodes = get_random_leaf_nodes(COUNT);
+	node_array nodes = get_random_leaf_nodes(COUNT);
 
 	trash_blocks(nodes);
 
@@ -464,13 +449,16 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 
 	node_info::ptr n = random_internal_node();
 
-	block_address begin = *n->keys.begin_;
-	block_address end = *n->keys.end_;
+	optional<block_address> begin = n->keys.begin_;
+	optional<block_address> end = n->keys.end_;
+
 	trash_block(n->b);
 
-	expect_value_range(0, begin);
+	expect_value_range(0, *begin);
 	expect_damage(0, range<block_address>(begin, end));
-	expect_value_range(end, 10000);
+
+	if (end)
+		expect_value_range(*end, 10000);
 
 	run();
 }
