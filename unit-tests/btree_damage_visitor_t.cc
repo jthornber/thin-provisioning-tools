@@ -36,6 +36,9 @@ namespace {
 	struct thing_disk {
 		le32 x;
 		le64 y;
+
+		// To ensure we have fewer entries per leaf, and thus more internal nodes.
+		char padding[200];
 	};
 
 	struct thing_traits {
@@ -237,7 +240,26 @@ namespace {
 			return i;
 		}
 
-		unsigned get_nr_leaf_nodes(vector<typename node_info::ptr> const &nodes) {
+		// FIXME: remove duplication with above
+		unsigned node_index_of_nth_internal(vector<typename node_info::ptr> const &nodes,
+						    unsigned target) const {
+			unsigned i;
+			for (i = 0; i < nodes.size(); i++)
+				if (!nodes[i]->leaf) {
+					if (!target)
+						break;
+					else
+						target--;
+				}
+
+			if (target)
+				throw runtime_error("not that many internal nodes");
+
+			return i;
+		}
+
+		unsigned get_nr_leaf_nodes() {
+			vector<typename node_info::ptr> const &nodes = get_nodes();
 			unsigned nr_leaf = 0;
 
 			for (unsigned i = 0; i < nodes.size(); i++)
@@ -247,12 +269,42 @@ namespace {
 			return nr_leaf;
 		}
 
+		// FIXME: remove duplication
+		unsigned get_nr_internal_nodes() {
+			vector<typename node_info::ptr> const &nodes = get_nodes();
+
+			unsigned nr_internal = 0;
+
+			for (unsigned i = 0; i < nodes.size(); i++)
+				if (!nodes[i]->leaf)
+					nr_internal++;
+
+			cerr << "internal nodes: " << nr_internal << endl;
+			return nr_internal;
+		}
+
+		node_info::ptr get_leaf_node(unsigned index) {
+			vector<typename node_info::ptr> const &nodes = get_nodes();
+			unsigned ni = node_index_of_nth_leaf(nodes, index);
+			return nodes[ni];
+		}
+
 		node_info::ptr random_leaf_node() {
 			vector<typename node_info::ptr> const &nodes = get_nodes();
 
-			unsigned nr_leaf = get_nr_leaf_nodes(nodes);
+			unsigned nr_leaf = get_nr_leaf_nodes();
 			unsigned target = random() % nr_leaf;
 			unsigned i = node_index_of_nth_leaf(nodes, target);
+
+			return nodes[i];
+		}
+
+		node_info::ptr random_internal_node() {
+			vector<typename node_info::ptr> const &nodes = get_nodes();
+
+			unsigned nr_internal = get_nr_internal_nodes();
+			unsigned target = random() % nr_internal;
+			unsigned i = node_index_of_nth_internal(nodes, target);
 
 			return nodes[i];
 		}
@@ -260,7 +312,7 @@ namespace {
 		vector<node_info::ptr> get_random_leaf_nodes(unsigned count) {
 			vector<node_info::ptr> const &nodes = get_nodes();
 
-			unsigned nr_leaf = get_nr_leaf_nodes(nodes);
+			unsigned nr_leaf = get_nr_leaf_nodes();
 			unsigned target = random() % (nr_leaf - count);
 			unsigned i = node_index_of_nth_leaf(nodes, target);
 
@@ -363,6 +415,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	vector<node_info::ptr> nodes = get_random_leaf_nodes(COUNT);
 
 	trash_blocks(nodes);
+
 	block_address begin = *nodes[0]->keys.begin_;
 	block_address end = *nodes[COUNT - 1]->keys.end_;
 
@@ -378,13 +431,10 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 	insert_values(10000);
 	commit();
 
-	vector<typename node_info::ptr> const &nodes = get_nodes();
+	node_info::ptr n = get_leaf_node(0);
 
-	unsigned target = 0;
-	unsigned i = node_index_of_nth_leaf(nodes, target);
-
-	block_address end = *nodes[i]->keys.end_;
-	trash_block(nodes[i]->b);
+	block_address end = *n->keys.end_;
+	trash_block(n->b);
 
 	expect_damage(0, range<block_address>(0ull, end));
 	expect_value_range(end, 10000);
@@ -397,17 +447,30 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	insert_values(10000);
 	commit();
 
-	vector<typename node_info::ptr> const &nodes = get_nodes();
-
-	unsigned nr_leaf = get_nr_leaf_nodes(nodes);
-	unsigned target = nr_leaf - 1;
-	unsigned i = node_index_of_nth_leaf(nodes, target);
-
-	block_address begin = *nodes[i]->keys.begin_;
-	trash_block(nodes[i]->b);
+	node_info::ptr n = get_leaf_node(get_nr_leaf_nodes() - 1);
+	block_address begin = *n->keys.begin_;
+	trash_block(n->b);
 
 	expect_value_range(0, begin);
 	expect_damage(0, range<block_address>(begin));
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitorTests, damaged_internal)
+{
+	insert_values(10000);
+	commit();
+
+	node_info::ptr n = random_internal_node();
+
+	block_address begin = *n->keys.begin_;
+	block_address end = *n->keys.end_;
+	trash_block(n->b);
+
+	expect_value_range(0, begin);
+	expect_damage(0, range<block_address>(begin, end));
+	expect_value_range(end, 10000);
 
 	run();
 }
