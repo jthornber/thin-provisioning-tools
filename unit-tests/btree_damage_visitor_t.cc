@@ -227,11 +227,20 @@ namespace {
 			return *nodes_;
 		}
 
-		unsigned nth_node(node_array const &nodes, unsigned target, bool leaf) const {
+		static bool is_leaf(node_info::ptr n) {
+			return n->leaf;
+		}
+
+		static bool is_internal(node_info::ptr n) {
+			return !n->leaf;
+		}
+
+		template <typename Predicate>
+		unsigned nth_node(node_array const &nodes, unsigned target, Predicate const &pred) const {
 			unsigned i;
 
 			for (i = 0; i < nodes.size(); i++)
-				if (nodes[i]->leaf == leaf) {
+				if (pred(nodes[i])) {
 					if (!target)
 						break;
 					else
@@ -244,42 +253,33 @@ namespace {
 			return i;
 		}
 
-		unsigned get_nr_leaf_nodes() {
+		template <typename Predicate>
+		unsigned get_nr_nodes(Predicate const &pred) {
 			node_array const &nodes = get_nodes();
-			unsigned nr_leaf = 0;
+			unsigned nr = 0;
 
 			for (unsigned i = 0; i < nodes.size(); i++)
-				if (nodes[i]->leaf)
-					nr_leaf++;
+				if (pred(nodes[i]))
+					nr++;
 
-			return nr_leaf;
-		}
-
-		// FIXME: remove duplication
-		unsigned get_nr_internal_nodes() {
-			node_array const &nodes = get_nodes();
-
-			unsigned nr_internal = 0;
-
-			for (unsigned i = 0; i < nodes.size(); i++)
-				if (!nodes[i]->leaf)
-					nr_internal++;
-
-			return nr_internal;
+			return nr;
 		}
 
 		node_info::ptr get_leaf_node(unsigned index) {
 			node_array const &nodes = get_nodes();
-			unsigned ni = nth_node(nodes, index, true);
+
+			unsigned ni = nth_node(nodes, index, is_leaf);
 			return nodes[ni];
 		}
 
 		node_info::ptr random_leaf_node() {
 			node_array const &nodes = get_nodes();
 
-			unsigned nr_leaf = get_nr_leaf_nodes();
+			unsigned nr_leaf = get_nr_nodes(is_leaf);
 			unsigned target = random() % nr_leaf;
-			unsigned i = nth_node(nodes, target, true);
+
+
+			unsigned i = nth_node(nodes, target, is_leaf);
 
 			return nodes[i];
 		}
@@ -287,9 +287,9 @@ namespace {
 		node_info::ptr random_internal_node() {
 			node_array const &nodes = get_nodes();
 
-			unsigned nr_internal = get_nr_internal_nodes();
+			unsigned nr_internal = get_nr_nodes(is_internal);
 			unsigned target = random() % nr_internal;
-			unsigned i = nth_node(nodes, target, false);
+			unsigned i = nth_node(nodes, target, is_internal);
 
 			return nodes[i];
 		}
@@ -297,9 +297,9 @@ namespace {
 		node_array get_random_leaf_nodes(unsigned count) {
 			node_array const &nodes = get_nodes();
 
-			unsigned nr_leaf = get_nr_leaf_nodes();
+			unsigned nr_leaf = get_nr_nodes(is_leaf);
 			unsigned target = random() % (nr_leaf - count);
-			unsigned i = nth_node(nodes, target, true);
+			unsigned i = nth_node(nodes, target, is_leaf);
 
 			node_array v;
 
@@ -432,7 +432,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	insert_values(10000);
 	commit();
 
-	node_info::ptr n = get_leaf_node(get_nr_leaf_nodes() - 1);
+	node_info::ptr n = get_leaf_node(get_nr_nodes(is_leaf) - 1);
 	block_address begin = *n->keys.begin_;
 	trash_block(n->b);
 
