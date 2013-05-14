@@ -69,14 +69,97 @@ namespace {
 		range<uint64_t> keys;
 	};
 
-	typedef vector<node_info::ptr> node_array;
+	typedef vector<node_info> node_array;
+	typedef vector<node_info::ptr> node_ptr_array;
+
+	class btree_layout {
+	public:
+		btree_layout(vector<node_info::ptr> const &ns)
+			: nodes_(ns) {
+		}
+
+		static bool is_leaf(node_info::ptr n) {
+			return n->leaf;
+		}
+
+		static bool is_internal(node_info::ptr n) {
+			return !n->leaf;
+		}
+
+		template <typename Predicate>
+		unsigned nth_node(unsigned target, Predicate const &pred) const {
+			unsigned i;
+
+			for (i = 0; i < nodes_.size(); i++)
+				if (pred(nodes_[i])) {
+					if (!target)
+						break;
+					else
+						target--;
+				}
+
+			if (target)
+				throw runtime_error("not that many nodes");
+
+			return i;
+		}
+
+		template <typename Predicate>
+		unsigned get_nr_nodes(Predicate const &pred) const {
+			unsigned nr = 0;
+
+			for (unsigned i = 0; i < nodes_.size(); i++)
+				if (pred(nodes_[i]))
+					nr++;
+
+			return nr;
+		}
+
+		template <typename Predicate>
+		node_info::ptr get_node(unsigned index, Predicate const &pred) const {
+			unsigned ni = nth_node(index, pred);
+			return nodes_[ni];
+		}
+
+		template <typename Predicate>
+		node_info::ptr random_node(Predicate const &pred) const {
+			unsigned nr = get_nr_nodes(pred);
+			unsigned target = random() % nr;
+			unsigned i = nth_node(target, pred);
+
+			return get_node(i, pred);
+		}
+
+		template <typename Predicate>
+		node_ptr_array get_random_nodes(unsigned count, Predicate const &pred) const {
+			unsigned nr = get_nr_nodes(pred);
+			unsigned target = random() % (nr - count);
+			unsigned i = nth_node(target, pred);
+
+			node_ptr_array v;
+
+			for (; i < nodes_.size() && count; i++) {
+				if (pred(nodes_[i])) {
+					count--;
+					v.push_back(nodes_[i]);
+				}
+			}
+
+			return v;
+		}
+
+	private:
+		vector<node_info::ptr> nodes_;
+	};
+
+	//--------------------------------
 
 	template <uint32_t Levels, typename ValueTraits>
-	class btree_layout : public btree<Levels, ValueTraits>::visitor {
+	class btree_layout_visitor : public btree<Levels, ValueTraits>::visitor {
 	public:
 		typedef btree_detail::node_location node_location;
 		typedef btree<Levels, ValueTraits> tree;
-		typedef boost::shared_ptr<btree_layout> ptr;
+		typedef boost::shared_ptr<btree_layout_visitor> ptr;
 
 		virtual bool visit_internal(node_location const &loc,
 					    typename tree::internal_node const &n) {
@@ -100,15 +183,8 @@ namespace {
 		virtual void visit_complete() {
 		}
 
-		node_array const &get_nodes() const {
-			return nodes_;
-		}
-
-		node_info const &random_node() const {
-			if (nodes_.empty())
-				throw runtime_error("no nodes in btree");
-
-			return *nodes_[::random() % nodes_.size()];
+		btree_layout get_layout() {
+			return btree_layout(nodes_);
 		}
 
 	private:
@@ -142,8 +218,8 @@ namespace {
 			nodes_.push_back(ni);
 		}
 
-		node_array nodes_;
-		node_array last_node_at_depth_;
+		node_ptr_array nodes_;
+		node_ptr_array last_node_at_depth_;
 	};
 
 	//----------------------------------
@@ -173,8 +249,9 @@ namespace {
 			return sm;
 		}
 
-		void commit() {
-			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
+		void tree_complete() {
+			commit();
+			discover_layout();
 		}
 
 		void trash_block(block_address b) {
@@ -217,103 +294,7 @@ namespace {
 			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
 		}
 
-		node_array const &get_nodes() {
-			if (!nodes_) {
-				btree_layout<1, thing_traits> layout;
-				tree_->visit_depth_first(layout);
-				nodes_ = layout.get_nodes(); // expensive copy, but it's only a test
-			}
-
-			return *nodes_;
-		}
-
-		static bool is_leaf(node_info::ptr n) {
-			return n->leaf;
-		}
-
-		static bool is_internal(node_info::ptr n) {
-			return !n->leaf;
-		}
-
-		template <typename Predicate>
-		unsigned nth_node(node_array const &nodes, unsigned target, Predicate const &pred) const {
-			unsigned i;
-
-			for (i = 0; i < nodes.size(); i++)
-				if (pred(nodes[i])) {
-					if (!target)
-						break;
-					else
-						target--;
-				}
-
-			if (target)
-				throw runtime_error("not that many nodes");
-
-			return i;
-		}
-
-		template <typename Predicate>
-		unsigned get_nr_nodes(Predicate const &pred) {
-			node_array const &nodes = get_nodes();
-			unsigned nr = 0;
-
-			for (unsigned i = 0; i < nodes.size(); i++)
-				if (pred(nodes[i]))
-					nr++;
-
-			return nr;
-		}
-
-		node_info::ptr get_leaf_node(unsigned index) {
-			node_array const &nodes = get_nodes();
-
-			unsigned ni = nth_node(nodes, index, is_leaf);
-			return nodes[ni];
-		}
-
-		node_info::ptr random_leaf_node() {
-			node_array const &nodes = get_nodes();
-
-			unsigned nr_leaf = get_nr_nodes(is_leaf);
-			unsigned target = random() % nr_leaf;
-
-
-			unsigned i = nth_node(nodes, target, is_leaf);
-
-			return nodes[i];
-		}
-
-		node_info::ptr random_internal_node() {
-			node_array const &nodes = get_nodes();
-
-			unsigned nr_internal = get_nr_nodes(is_internal);
-			unsigned target = random() % nr_internal;
-			unsigned i = nth_node(nodes, target, is_internal);
-
-			return nodes[i];
-		}
-
-		node_array get_random_leaf_nodes(unsigned count) {
-			node_array const &nodes = get_nodes();
-
-			unsigned nr_leaf = get_nr_nodes(is_leaf);
-			unsigned target = random() % (nr_leaf - count);
-			unsigned i = nth_node(nodes, target, is_leaf);
-
-			node_array v;
-
-			for (; i < nodes.size() && count; i++) {
-				if (nodes[i]->leaf) {
-					count--;
-					v.push_back(nodes[i]);
-				}
-			}
-
-			return v;
-		}
-
-		void trash_blocks(node_array const &blocks) {
+		void trash_blocks(node_ptr_array const &blocks) {
 			for (unsigned i = 0; i < blocks.size(); i++)
 				trash_block(blocks[i]->b);
 		}
@@ -338,11 +319,21 @@ namespace {
 		thing_traits::ref_counter rc_;
 		btree<1, thing_traits>::ptr tree_;
 
-		optional<node_array> nodes_;
-
+		optional<btree_layout> layout_;
 
 		value_visitor_mock value_visitor_;
 		damage_visitor_mock damage_visitor_;
+
+	private:
+		void commit() {
+			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
+		}
+
+		void discover_layout() {
+			btree_layout_visitor<1, thing_traits> visitor;
+			tree_->visit_depth_first(visitor);
+			layout_ = visitor.get_layout();
+		}
 	};
 }
 
@@ -379,9 +370,9 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_no_damage)
 TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 {
 	insert_values(10000);
-	commit();
+	tree_complete();
 
-	node_info::ptr n = random_leaf_node();
+	node_info::ptr n = layout_->random_node(btree_layout::is_leaf);
 
 	trash_block(n->b);
 	expect_value_range(0, *n->keys.begin_);
@@ -394,10 +385,10 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_nodes)
 {
 	insert_values(10000);
-	commit();
+	tree_complete();
 
 	unsigned const COUNT = 5;
-	node_array nodes = get_random_leaf_nodes(COUNT);
+	node_ptr_array nodes = layout_->get_random_nodes(COUNT, btree_layout::is_leaf);
 
 	trash_blocks(nodes);
 
@@ -414,9 +405,9 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 {
 	insert_values(10000);
-	commit();
+	tree_complete();
 
-	node_info::ptr n = get_leaf_node(0);
+	node_info::ptr n = layout_->get_node(0, btree_layout::is_leaf);
 
 	block_address end = *n->keys.end_;
 	trash_block(n->b);
@@ -430,9 +421,11 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 {
 	insert_values(10000);
-	commit();
+	tree_complete();
 
-	node_info::ptr n = get_leaf_node(get_nr_nodes(is_leaf) - 1);
+	node_info::ptr n = layout_->get_node(
+		layout_->get_nr_nodes(btree_layout::is_leaf) - 1,
+		btree_layout::is_leaf);
 	block_address begin = *n->keys.begin_;
 	trash_block(n->b);
 
@@ -445,9 +438,9 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 TEST_F(BTreeDamageVisitorTests, damaged_internal)
 {
 	insert_values(10000);
-	commit();
+	tree_complete();
 
-	node_info::ptr n = random_internal_node();
+	node_info::ptr n = layout_->random_node(btree_layout::is_internal);
 
 	optional<block_address> begin = n->keys.begin_;
 	optional<block_address> end = n->keys.end_;
