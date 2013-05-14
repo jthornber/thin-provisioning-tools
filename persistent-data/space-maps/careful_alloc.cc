@@ -24,7 +24,7 @@
 namespace {
 	class sm_careful_alloc : public checked_space_map {
 	public:
-		typedef shared_ptr<sm_careful_alloc> ptr;
+		typedef std::shared_ptr<sm_careful_alloc> ptr;
 
 		sm_careful_alloc(checked_space_map::ptr sm)
 			: sm_(sm) {

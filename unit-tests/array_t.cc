@@ -32,7 +32,7 @@ using namespace testing;
 
 namespace {
 	block_address const NR_BLOCKS = 102400;
-	typedef array<uint64_traits> array64;
+	typedef persistent_data::array<uint64_traits> array64;
 
 	transaction_manager::ptr
 	create_tm() {
@@ -67,14 +67,14 @@ namespace {
 
 TEST(ArrayTests, can_create_an_empty_array)
 {
-	array<uint64_traits>::ptr tree = create_array(0, 0);
+	persistent_data::array<uint64_traits>::ptr tree = create_array(0, 0);
 	ASSERT_THROW(tree->get(0), runtime_error);
 }
 
 TEST(ArrayTests, get_elements)
 {
 	unsigned const COUNT = 10000;
-	array<uint64_traits>::ptr tree = create_array(COUNT, 123);
+	persistent_data::array<uint64_traits>::ptr tree = create_array(COUNT, 123);
 
 	for (unsigned i = 0; i < COUNT; i++)
 		ASSERT_THAT(tree->get(i), Eq(123u));
@@ -85,7 +85,7 @@ TEST(ArrayTests, get_elements)
 TEST(ArrayTests, set_elements)
 {
 	unsigned const COUNT = 10000;
-	array<uint64_traits>::ptr tree = create_array(COUNT, 123);
+	persistent_data::array<uint64_traits>::ptr tree = create_array(COUNT, 123);
 
 	for (unsigned i = 0; i < COUNT; i++)
 		tree->set(i, 124);
@@ -117,7 +117,7 @@ TEST(ArrayTests, grow)
 			chunks.push_back(c);
 		chunks.push_back(COUNT);
 
-		array<uint64_traits>::ptr a = create_array(0, 123);
+		persistent_data::array<uint64_traits>::ptr a = create_array(0, 123);
 
 		for (unsigned i = 1; i < chunks.size(); i++) {
 			if (i > 1)
