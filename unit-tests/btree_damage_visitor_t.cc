@@ -69,6 +69,14 @@ namespace {
 		range<uint64_t> keys;
 	};
 
+	bool is_leaf(node_info const &n) {
+		return n.leaf;
+	}
+
+	bool is_internal(node_info const &n) {
+		return !n.leaf;
+	}
+
 	typedef vector<node_info> node_array;
 	typedef vector<node_info::ptr> node_ptr_array;
 
@@ -78,14 +86,6 @@ namespace {
 			: nodes_(ns.size(), node_info()) {
 			for (unsigned i = 0; i < ns.size(); i++)
 				nodes_[i] = *ns[i];
-		}
-
-		static bool is_leaf(node_info const &n) {
-			return n.leaf;
-		}
-
-		static bool is_internal(node_info const &n) {
-			return !n.leaf;
 		}
 
 		template <typename Predicate>
@@ -368,7 +368,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 	insert_values(10000);
 	tree_complete();
 
-	node_info n = layout_->random_node(btree_layout::is_leaf);
+	node_info n = layout_->random_node(is_leaf);
 
 	trash_block(n.b);
 	expect_value_range(0, *n.keys.begin_);
@@ -384,7 +384,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	tree_complete();
 
 	unsigned const COUNT = 5;
-	node_array nodes = layout_->get_random_nodes(COUNT, btree_layout::is_leaf);
+	node_array nodes = layout_->get_random_nodes(COUNT, is_leaf);
 
 	for (auto n : nodes)
 		trash_block(n.b);
@@ -404,7 +404,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 	insert_values(10000);
 	tree_complete();
 
-	node_info n = layout_->get_node(0, btree_layout::is_leaf);
+	node_info n = layout_->get_node(0, is_leaf);
 
 	block_address end = *n.keys.end_;
 	trash_block(n.b);
@@ -421,8 +421,8 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	tree_complete();
 
 	node_info n = layout_->get_node(
-		layout_->get_nr_nodes(btree_layout::is_leaf) - 1,
-		btree_layout::is_leaf);
+		layout_->get_nr_nodes(is_leaf) - 1,
+		is_leaf);
 	block_address begin = *n.keys.begin_;
 	trash_block(n.b);
 
@@ -437,7 +437,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 	insert_values(10000);
 	tree_complete();
 
-	node_info n = layout_->random_node(btree_layout::is_internal);
+	node_info n = layout_->random_node(is_internal);
 
 	optional<block_address> begin = n.keys.begin_;
 	optional<block_address> end = n.keys.end_;
