@@ -746,11 +746,6 @@ btree<Levels, ValueTraits>::visit_depth_first(visitor &v) const
 {
 	node_location loc;
 
-	loc.level = 0;
-	loc.depth = 0;
-	loc.sub_root = true;
-	loc.key = boost::optional<uint64_t>();
-
 	walk_tree(v, loc, root_);
 	v.visit_complete();
 }
@@ -785,29 +780,28 @@ btree<Levels, ValueTraits>::walk_tree_internal(visitor &v,
 
 	read_ref blk = tm_->read_lock(b, validator_);
 	internal_node o = to_node<uint64_traits>(blk);
+
+	// FIXME: use a switch statement
 	if (o.get_type() == INTERNAL) {
 		if (v.visit_internal(loc, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++) {
 				node_location loc2(loc);
 
-				loc2.depth = loc.depth + 1;
-				loc2.sub_root = false;
-				loc2.key = boost::optional<uint64_t>(o.key_at(i));
+				loc2.inc_depth();
+				loc2.key = o.key_at(i);
 
 				walk_tree(v, loc2, o.value_at(i));
 			}
 
-	} else if (loc.level < Levels - 1) {
+	} else if (loc.path.size() < Levels - 1) {
 		if (v.visit_internal_leaf(loc, o))
 			for (unsigned i = 0; i < o.get_nr_entries(); i++) {
 				node_location loc2(loc);
 
-				loc2.level = loc.level + 1;
-				loc2.depth = loc.depth + 1;
-				loc2.sub_root = true;
-				loc2.key = boost::optional<uint64_t>(o.key_at(i));
+				loc2.push_key(o.key_at(i));
+				loc2.key = optional<uint64_t>();
 
-				walk_tree(v, loc, o.value_at(i));
+				walk_tree(v, loc2, o.value_at(i));
 			}
 
 	} else {

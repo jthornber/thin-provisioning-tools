@@ -95,11 +95,11 @@ namespace persistent_data {
 			if (!already_visited(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, loc.sub_root) &&
+			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
-				if (loc.sub_root)
-					new_root(loc.level);
+			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
 				return true;
 			}
@@ -113,13 +113,13 @@ namespace persistent_data {
 			if (!already_visited(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, loc.sub_root) &&
+			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
-				if (loc.sub_root)
-					new_root(loc.level);
+			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
-				return check_leaf_key(loc.level, n);
+				return check_leaf_key(loc.level(), n);
 			}
 
 			return false;

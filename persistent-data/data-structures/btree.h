@@ -26,6 +26,7 @@
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <list>
+#include <deque>
 
 //----------------------------------------------------------------
 
@@ -266,9 +267,36 @@ namespace persistent_data {
 
 		// Used when visiting the nodes that make up a btree.
 		struct node_location {
-			unsigned level;
+			node_location()
+				: depth(0) {
+			}
+
+			void inc_depth() {
+				depth++;
+			}
+
+			void push_key(uint64_t k) {
+				path.push_back(k);
+				depth = 0;
+			}
+
+			bool is_sub_root() const {
+				return depth == 0; // && path.size();
+			}
+
+			unsigned level() const {
+				return path.size();
+			}
+
+			// Keys used to access this sub tree
+			std::deque<uint64_t> path;
+
+			// in this sub tree
 			unsigned depth;
-			bool sub_root;
+
+			// This is the key from the parent node to this
+			// node.  If this node is a root then there will be
+			// no parent, and hence no key.
 			boost::optional<uint64_t> key;
 		};
 	}

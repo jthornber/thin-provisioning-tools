@@ -115,7 +115,7 @@ namespace {
 
 			ni->leaf = leaf;
 			ni->depth = loc.depth;
-			ni->level = loc.level;
+			ni->level = loc.level();
 			ni->b = n.get_location();
 
 			if (n.get_nr_entries())

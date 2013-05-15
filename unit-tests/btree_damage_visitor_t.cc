@@ -196,7 +196,7 @@ namespace {
 
 			ni->leaf = leaf;
 			ni->depth = loc.depth;
-			ni->level = loc.level;
+			ni->level = loc.level();
 			ni->b = n.get_location();
 
 			if (n.get_nr_entries())
@@ -235,28 +235,78 @@ namespace {
 		MOCK_METHOD1(visit, void(btree_detail::damage const &));
 	};
 
-	class BTreeDamageVisitorTests : public Test {
+	class DamageTests : public Test {
 	public:
-		BTreeDamageVisitorTests()
+		DamageTests()
 			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
 			  sm_(setup_core_map()),
-			  tm_(new transaction_manager(bm_, sm_)),
-			  tree_(new btree<1, thing_traits>(tm_, rc_)) {
+			  tm_(new transaction_manager(bm_, sm_)) {
 		}
 
-		space_map::ptr setup_core_map() {
-			space_map::ptr sm(new core_map(NR_BLOCKS));
-			sm->inc(SUPERBLOCK);
-			return sm;
-		}
+		virtual ~DamageTests() {}
 
 		void tree_complete() {
 			commit();
 			discover_layout();
 		}
 
+		void run() {
+			commit();
+			run_();
+		}
+
 		void trash_block(block_address b) {
 			::test::zero_block(bm_, b);
+		}
+
+		//--------------------------------
+
+		void expect_no_values() {
+			EXPECT_CALL(value_visitor_, visit(_)).Times(0);
+		}
+
+		void expect_no_damage() {
+			EXPECT_CALL(damage_visitor_, visit(_)).Times(0);
+		}
+
+		void expect_damage(unsigned level, range<uint64_t> keys) {
+			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
+		}
+
+		//--------------------------------
+
+		with_temp_directory dir_;
+		block_manager<>::ptr bm_;
+		space_map::ptr sm_;
+		transaction_manager::ptr tm_;
+		thing_traits::ref_counter rc_;
+
+		optional<btree_layout> layout_;
+
+		value_visitor_mock value_visitor_;
+		damage_visitor_mock damage_visitor_;
+
+	private:
+		space_map::ptr setup_core_map() {
+			space_map::ptr sm(new core_map(NR_BLOCKS));
+			sm->inc(SUPERBLOCK);
+			return sm;
+		}
+
+		void commit() {
+			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
+		}
+
+		virtual void discover_layout() = 0;
+		virtual void run_() = 0;
+	};
+
+	//--------------------------------
+
+	class BTreeDamageVisitorTests : public DamageTests {
+	public:
+		BTreeDamageVisitorTests()
+			: tree_(new btree<1, thing_traits>(tm_, rc_)) {
 		}
 
 		void insert_values(unsigned nr) {
@@ -266,10 +316,6 @@ namespace {
 
 				tree_->insert(key, value);
 			}
-		}
-
-		void expect_no_values() {
-			EXPECT_CALL(value_visitor_, visit(_)).Times(0);
 		}
 
 		void expect_value_range(uint64_t begin, uint64_t end) {
@@ -287,48 +333,75 @@ namespace {
 			EXPECT_CALL(value_visitor_, visit(Eq(thing(n, n + 1234)))).Times(1);
 		}
 
-		void expect_no_damage() {
-			EXPECT_CALL(damage_visitor_, visit(_)).Times(0);
+		btree<1, thing_traits>::ptr tree_;
+
+	private:
+		virtual void discover_layout() {
+			btree_layout_visitor<1, thing_traits> visitor;
+			tree_->visit_depth_first(visitor);
+			layout_ = visitor.get_layout();
 		}
 
-		void expect_damage(unsigned level, range<uint64_t> keys) {
-			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
-		}
-
-		void run() {
-			// We must commit before we do the test to ensure
-			// all the block numbers and checksums are written
-			// to the btree nodes.
-			commit();
-
+		virtual void run_() {
 			block_counter counter;
 			btree_damage_visitor<value_visitor_mock, damage_visitor_mock, 1, thing_traits>
 				visitor(counter, value_visitor_, damage_visitor_);
 			tree_->visit_depth_first(visitor);
 		}
+	};
 
-		with_temp_directory dir_;
-		block_manager<>::ptr bm_;
-		space_map::ptr sm_;
-		transaction_manager::ptr tm_;
+	//--------------------------------
 
-		thing_traits::ref_counter rc_;
-		btree<1, thing_traits>::ptr tree_;
-
-		optional<btree_layout> layout_;
-
-		value_visitor_mock value_visitor_;
-		damage_visitor_mock damage_visitor_;
-
-	private:
-		void commit() {
-			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
+	// 2 level btree
+	class BTreeDamageVisitor2Tests : public DamageTests {
+	public:
+		BTreeDamageVisitor2Tests()
+			: tree_(new btree<2, thing_traits>(tm_, rc_)) {
 		}
 
-		void discover_layout() {
-			btree_layout_visitor<1, thing_traits> visitor;
+		void insert_values(unsigned nr_sub_trees, unsigned nr_values) {
+			for (unsigned i = 0; i < nr_sub_trees; i++)
+				insert_sub_tree_values(i, nr_values);
+		}
+
+		void insert_sub_tree_values(unsigned sub_tree, unsigned nr_values) {
+			for (unsigned i = 0; i < nr_values; i++) {
+				uint64_t key[2] = {sub_tree, i};
+				thing value(key_to_value(key));
+				tree_->insert(key, value);
+			}
+		}
+
+		void expect_values(unsigned nr_sub_trees, unsigned nr_values) {
+			for (unsigned i = 0; i < nr_sub_trees; i++)
+				expect_sub_tree_values(i, nr_values);
+		}
+
+		void expect_sub_tree_values(unsigned sub_tree, unsigned nr_values) {
+			for (unsigned i = 0; i < nr_values; i++) {
+				uint64_t key[2] = {sub_tree, i};
+				EXPECT_CALL(value_visitor_, visit(Eq(key_to_value(key))));
+			}
+		}
+
+		btree<2, thing_traits>::ptr tree_;
+
+	private:
+		thing key_to_value(uint64_t key[2]) {
+			return thing(key[0] * 1000000 + key[1], key[1] + 1234);
+		}
+
+		virtual void discover_layout() {
+			btree_layout_visitor<2, thing_traits> visitor;
 			tree_->visit_depth_first(visitor);
 			layout_ = visitor.get_layout();
+		}
+
+		virtual void run_() {
+			block_counter counter;
+			btree_damage_visitor<value_visitor_mock, damage_visitor_mock, 2, thing_traits>
+				visitor(counter, value_visitor_, damage_visitor_);
+			tree_->visit_depth_first(visitor);
 		}
 	};
 }
@@ -449,6 +522,36 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 
 	if (end)
 		expect_value_range(*end, 10000);
+
+	run();
+}
+
+//----------------------------------------------------------------
+
+TEST_F(BTreeDamageVisitor2Tests, empty_tree)
+{
+	expect_no_damage();
+	expect_no_values();
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitor2Tests, tree_with_a_trashed_root)
+{
+	trash_block(tree_->get_root());
+
+	expect_no_values();
+	expect_damage(0, range<uint64_t>(0ull));
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitor2Tests, populated_tree_with_no_damage)
+{
+	insert_values(10, 10);
+
+	expect_values(10, 10);
+	expect_no_damage();
 
 	run();
 }

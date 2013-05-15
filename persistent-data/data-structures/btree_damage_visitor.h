@@ -38,6 +38,8 @@ namespace persistent_data {
 			return out;
 		}
 
+		// Tracks damage in a single level btree.  Use multiple
+		// trackers if you have a multilayer tree.
 		class damage_tracker {
 		public:
 			damage_tracker()
@@ -190,11 +192,11 @@ namespace persistent_data {
 			if (!already_visited(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, loc.sub_root) &&
+			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
-				if (loc.sub_root)
-					new_root(loc.level);
+			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
 				good_internal(n.key_at(0));
 				return true;
@@ -209,13 +211,13 @@ namespace persistent_data {
 			if (!already_visited(n) &&
 			    check_block_nr(n) &&
 			    check_max_entries(n) &&
-			    check_nr_entries(n, loc.sub_root) &&
+			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.sub_root ? optional<uint64_t>() : loc.key, n)) {
-				if (loc.sub_root)
-					new_root(loc.level);
+			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
-				bool r = check_leaf_key(loc.level, n);
+				bool r = check_leaf_key(loc.level(), n);
 				if (r && n.get_nr_entries() > 0)
 					good_leaf(n.key_at(0), n.key_at(n.get_nr_entries() - 1) + 1);
 
@@ -291,7 +293,7 @@ namespace persistent_data {
 			block_address min = n.get_max_entries() / 3;
 			if (!is_root && (n.get_nr_entries() < min)) {
 				ostringstream out;
-				out << "too few entries in btree: "
+				out << "too few entries in btree_node: "
 				    << n.get_nr_entries()
 				    << ", expected at least "
 				    << min

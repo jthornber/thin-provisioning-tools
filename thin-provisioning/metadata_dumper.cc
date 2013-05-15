@@ -50,7 +50,7 @@ namespace {
 				return false;
 			}
 
-			return (loc.sub_root && loc.key) ? (*loc.key == dev_id_) : true;
+			return (loc.is_sub_root() && loc.key) ? (*loc.key == dev_id_) : true;
 		}
 
 		bool visit_internal_leaf(node_location const &loc,
