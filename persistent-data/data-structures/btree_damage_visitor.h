@@ -91,16 +91,6 @@ namespace persistent_data {
 			bool damaged_;
 			block_address damage_begin_;
 		};
-
-		inline
-		std::ostream &operator <<(std::ostream &out, damage_tracker::maybe_range64 const &mr) {
-			if (mr)
-				out << "Just " << *mr;
-			else
-				out << "Nothing";
-
-			return out;
-		}
 	}
 
 	//----------------------------------------------------------------

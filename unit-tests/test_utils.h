@@ -109,6 +109,18 @@ namespace test {
 
 		std::auto_ptr<with_directory> dir_;
 	};
+
+	//--------------------------------
+
+	template <typename T>
+	std::ostream &operator <<(std::ostream &out, boost::optional<T> const &maybe) {
+		if (maybe)
+			out << "Just [" << *maybe << "]";
+		else
+			out << "Nothing";
+
+		return out;
+	}
 }
 
 //----------------------------------------------------------------
