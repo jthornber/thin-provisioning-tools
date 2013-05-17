@@ -304,10 +304,6 @@ namespace {
 			EXPECT_CALL(damage_visitor_, visit(_, _)).Times(0);
 		}
 
-		void expect_damage(unsigned level, range<uint64_t> keys) {
-			EXPECT_CALL(damage_visitor_, visit(EmptyPath(), DamagedKeys(keys))).Times(1);
-		}
-
 		//--------------------------------
 
 		with_temp_directory dir_;
@@ -368,6 +364,10 @@ namespace {
 			EXPECT_CALL(value_visitor_, visit(EmptyPath(), Eq(thing(n, n + 1234)))).Times(1);
 		}
 
+		void expect_damage(range<uint64_t> keys) {
+			EXPECT_CALL(damage_visitor_, visit(EmptyPath(), DamagedKeys(keys))).Times(1);
+		}
+
 		btree<1, thing_traits>::ptr tree_;
 
 	private:
@@ -420,6 +420,10 @@ namespace {
 			}
 		}
 
+		void expect_damage(btree_path path, range<uint64_t> keys) {
+			EXPECT_CALL(damage_visitor_, visit(Eq(path), DamagedKeys(keys))).Times(1);
+		}
+
 		btree<2, thing_traits>::ptr tree_;
 
 	private:
@@ -455,7 +459,7 @@ TEST_F(BTreeDamageVisitorTests, tree_with_a_trashed_root)
 	trash_block(tree_->get_root());
 
 	expect_no_values();
-	expect_damage(0, range<uint64_t>(0ull));
+	expect_damage(range<uint64_t>(0ull));
 
 	run();
 }
@@ -480,7 +484,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 	trash_block(n.b);
 	expect_value_range(0, *n.keys.begin_);
 	expect_value_range(*n.keys.end_, 10000);
-	expect_damage(0, n.keys);
+	expect_damage(n.keys);
 
 	run();
 }
@@ -501,7 +505,7 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 
 	expect_value_range(0, *nodes[0].keys.begin_);
 	expect_value_range(*nodes[COUNT - 1].keys.end_, 10000);
-	expect_damage(0, range<block_address>(begin, end));
+	expect_damage(range<block_address>(begin, end));
 
 	run();
 }
@@ -516,7 +520,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 	block_address end = *n.keys.end_;
 	trash_block(n.b);
 
-	expect_damage(0, range<block_address>(0ull, end));
+	expect_damage(range<block_address>(0ull, end));
 	expect_value_range(end, 10000);
 
 	run();
@@ -534,7 +538,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	trash_block(n.b);
 
 	expect_value_range(0, begin);
-	expect_damage(0, range<block_address>(begin));
+	expect_damage(range<block_address>(begin));
 
 	run();
 }
@@ -552,7 +556,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 	trash_block(n.b);
 
 	expect_value_range(0, *begin);
-	expect_damage(0, range<block_address>(begin, end));
+	expect_damage(range<block_address>(begin, end));
 
 	if (end)
 		expect_value_range(*end, 10000);
@@ -575,7 +579,9 @@ TEST_F(BTreeDamageVisitor2Tests, tree_with_a_trashed_root)
 	trash_block(tree_->get_root());
 
 	expect_no_values();
-	expect_damage(0, range<uint64_t>(0ull));
+
+	btree_path path;
+	expect_damage(path, range<uint64_t>(0ull));
 
 	run();
 }
