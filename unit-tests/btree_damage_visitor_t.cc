@@ -66,9 +66,10 @@ namespace {
 	struct node_info {
 		typedef boost::shared_ptr<node_info> ptr;
 
+		btree_detail::btree_path path;
+
 		bool leaf;
 		unsigned depth;
-		unsigned level;
 		block_address b;
 		range<uint64_t> keys;
 	};
@@ -198,9 +199,9 @@ namespace {
 		void record_node(bool leaf, node_location const &loc, N const &n) {
 			node_info::ptr ni(new node_info);
 
+			ni->path = loc.path;
 			ni->leaf = leaf;
 			ni->depth = loc.depth;
-			ni->level = loc.level();
 			ni->b = n.get_location();
 
 			if (n.get_nr_entries())
