@@ -225,6 +225,10 @@ namespace {
 
 	//----------------------------------
 
+	MATCHER_P(DamagedKeys, keys, "") {
+		return arg.lost_keys_ == keys;
+	}
+
 	class value_visitor_mock {
 	public:
 		MOCK_METHOD1(visit, void(thing const &));
@@ -270,7 +274,7 @@ namespace {
 		}
 
 		void expect_damage(unsigned level, range<uint64_t> keys) {
-			EXPECT_CALL(damage_visitor_, visit(Eq(damage(keys, "foo")))).Times(1);
+			EXPECT_CALL(damage_visitor_, visit(DamagedKeys(keys))).Times(1);
 		}
 
 		//--------------------------------

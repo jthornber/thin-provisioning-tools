@@ -18,11 +18,6 @@ namespace persistent_data {
 				  desc_(desc) {
 			}
 
-			// FIXME: Write a matcher instead.  Does _not_ compare the descriptions
-			bool operator ==(damage const &rhs) const {
-				return (lost_keys_ == rhs.lost_keys_);
-			}
-
 			range<uint64_t> lost_keys_;
 			std::string desc_;
 		};
