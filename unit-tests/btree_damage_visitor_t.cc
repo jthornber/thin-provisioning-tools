@@ -344,9 +344,7 @@ namespace {
 
 		virtual void run_() {
 			block_counter counter;
-			btree_damage_visitor<value_visitor_mock, damage_visitor_mock, 1, thing_traits>
-				visitor(counter, value_visitor_, damage_visitor_);
-			tree_->visit_depth_first(visitor);
+			btree_visit_values(*tree_, counter, value_visitor_, damage_visitor_);
 		}
 	};
 
@@ -399,9 +397,7 @@ namespace {
 
 		virtual void run_() {
 			block_counter counter;
-			btree_damage_visitor<value_visitor_mock, damage_visitor_mock, 2, thing_traits>
-				visitor(counter, value_visitor_, damage_visitor_);
-			tree_->visit_depth_first(visitor);
+			btree_visit_values(*tree_, counter, value_visitor_, damage_visitor_);
 		}
 	};
 }
