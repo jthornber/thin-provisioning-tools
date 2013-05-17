@@ -568,6 +568,7 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 
 TEST_F(BTreeDamageVisitor2Tests, empty_tree)
 {
+	tree_complete();
 	expect_no_damage();
 	expect_no_values();
 
@@ -576,6 +577,7 @@ TEST_F(BTreeDamageVisitor2Tests, empty_tree)
 
 TEST_F(BTreeDamageVisitor2Tests, tree_with_a_trashed_root)
 {
+	tree_complete();
 	trash_block(tree_->get_root());
 
 	expect_no_values();
@@ -589,6 +591,7 @@ TEST_F(BTreeDamageVisitor2Tests, tree_with_a_trashed_root)
 TEST_F(BTreeDamageVisitor2Tests, populated_tree_with_no_damage)
 {
 	insert_values(10, 10);
+	tree_complete();
 
 	expect_values(10, 10);
 	expect_no_damage();
