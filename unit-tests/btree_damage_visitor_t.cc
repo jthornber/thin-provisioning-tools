@@ -74,6 +74,28 @@ namespace {
 		range<uint64_t> keys;
 	};
 
+	ostream &operator <<(ostream &out, node_info const &ni) {
+		out << "node_info [leaf = " << ni.leaf
+		    << ", depth " << ni.depth
+		    << ", path [";
+
+		bool first = true;
+		for (auto k : ni.path) {
+			if (first)
+				first = false;
+			else
+				out << ", ";
+
+			out << k;
+		}
+
+		out << "], b " << ni.b
+		    << ", keys " << ni.keys
+		    << "]";
+
+		return out;
+	}
+
 	bool is_leaf(node_info const &n) {
 		return n.leaf;
 	}
@@ -393,7 +415,8 @@ namespace {
 				uint64_t key[2] = {sub_tree, i};
 				btree_path path;
 				path.push_back(sub_tree);
-				EXPECT_CALL(value_visitor_, visit(Eq(path), Eq(key_to_value(key))));
+				EXPECT_CALL(value_visitor_, visit(Eq(path),
+								  Eq(key_to_value(key))));
 			}
 		}
 
