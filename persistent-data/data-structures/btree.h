@@ -265,6 +265,9 @@ namespace persistent_data {
 			block_address root_;
 		};
 
+		// Used to keep a record of a nested btree's position.
+		typedef std::vector<uint64_t> btree_path;
+
 		// Used when visiting the nodes that make up a btree.
 		struct node_location {
 			node_location()
@@ -289,7 +292,7 @@ namespace persistent_data {
 			}
 
 			// Keys used to access this sub tree
-			std::deque<uint64_t> path;
+			btree_path path;
 
 			// in this sub tree
 			unsigned depth;
