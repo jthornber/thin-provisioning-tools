@@ -270,7 +270,7 @@ namespace {
 		}
 
 		void expect_damage(unsigned level, range<uint64_t> keys) {
-			EXPECT_CALL(damage_visitor_, visit(Eq(damage(level, keys, "foo")))).Times(1);
+			EXPECT_CALL(damage_visitor_, visit(Eq(damage(keys, "foo")))).Times(1);
 		}
 
 		//--------------------------------

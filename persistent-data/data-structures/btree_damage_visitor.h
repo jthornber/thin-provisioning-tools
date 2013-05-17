@@ -12,28 +12,23 @@ namespace persistent_data {
 		struct damage {
 			typedef boost::shared_ptr<damage> ptr;
 
-			damage(unsigned level,
-			       range<uint64_t> lost_keys,
+			damage(range<uint64_t> lost_keys,
 			       std::string const &desc)
-				: level_(level),
-				  lost_keys_(lost_keys),
+				: lost_keys_(lost_keys),
 				  desc_(desc) {
 			}
 
-			// Does _not_ compare the descriptions
+			// FIXME: Write a matcher instead.  Does _not_ compare the descriptions
 			bool operator ==(damage const &rhs) const {
-				return (level_ == rhs.level_) &&
-					(lost_keys_ == rhs.lost_keys_);
+				return (lost_keys_ == rhs.lost_keys_);
 			}
 
-			unsigned level_;
 			range<uint64_t> lost_keys_;
 			std::string desc_;
 		};
 
 		inline std::ostream &operator <<(std::ostream &out, damage const &d) {
-			out << "btree damage[level = " << d.level_
-			    << ", effected_keys = " << d.lost_keys_
+			out << "btree damage[lost_keys = " << d.lost_keys_
 			    << ", \"" << d.desc_ << "\"]";
 			return out;
 		}
@@ -387,7 +382,7 @@ namespace persistent_data {
 			void issue_damage(range64 const &r) {
 				// FIXME: we don't really know what level
 				// the damage is coming from
-				damage d(0, r, build_damage_desc());
+				damage d(r, build_damage_desc());
 				clear_damage_desc();
 				damage_visitor_.visit(d);
 			}
