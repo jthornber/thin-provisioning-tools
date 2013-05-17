@@ -21,6 +21,16 @@ namespace base {
 			return (begin_ == r.begin_ && end_ == r.end_);
 		}
 
+		bool contains(T const &v) const {
+			if (begin_ && v < *begin_)
+				return false;
+
+			if (end_ && v >= *end_)
+				return false;
+
+			return true;
+		}
+
 		maybe begin_;
 		maybe end_;
 	};
