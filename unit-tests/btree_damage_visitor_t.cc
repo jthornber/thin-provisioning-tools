@@ -234,14 +234,18 @@ namespace {
 		return arg.lost_keys_ == keys;
 	}
 
+	MATCHER(EmptyPath, "") {
+		return arg == btree_path();
+	}
+
 	class value_visitor_mock {
 	public:
-		MOCK_METHOD1(visit, void(thing const &));
+		MOCK_METHOD2(visit, void(btree_path const &, thing const &));
 	};
 
 	class damage_visitor_mock {
 	public:
-		MOCK_METHOD1(visit, void(btree_detail::damage const &));
+		MOCK_METHOD2(visit, void(btree_path const &, btree_detail::damage const &));
 	};
 
 	class DamageTests : public Test {
@@ -271,15 +275,15 @@ namespace {
 		//--------------------------------
 
 		void expect_no_values() {
-			EXPECT_CALL(value_visitor_, visit(_)).Times(0);
+			EXPECT_CALL(value_visitor_, visit(_, _)).Times(0);
 		}
 
 		void expect_no_damage() {
-			EXPECT_CALL(damage_visitor_, visit(_)).Times(0);
+			EXPECT_CALL(damage_visitor_, visit(_, _)).Times(0);
 		}
 
 		void expect_damage(unsigned level, range<uint64_t> keys) {
-			EXPECT_CALL(damage_visitor_, visit(DamagedKeys(keys))).Times(1);
+			EXPECT_CALL(damage_visitor_, visit(EmptyPath(), DamagedKeys(keys))).Times(1);
 		}
 
 		//--------------------------------
@@ -329,7 +333,7 @@ namespace {
 
 		void expect_value_range(uint64_t begin, uint64_t end) {
 			while (begin < end) {
-				EXPECT_CALL(value_visitor_, visit(Eq(thing(begin, begin + 1234)))).Times(1);
+				EXPECT_CALL(value_visitor_, visit(EmptyPath(), Eq(thing(begin, begin + 1234)))).Times(1);
 				begin++;
 			}
 		}
@@ -339,7 +343,7 @@ namespace {
 		}
 
 		void expect_value(unsigned n) {
-			EXPECT_CALL(value_visitor_, visit(Eq(thing(n, n + 1234)))).Times(1);
+			EXPECT_CALL(value_visitor_, visit(EmptyPath(), Eq(thing(n, n + 1234)))).Times(1);
 		}
 
 		btree<1, thing_traits>::ptr tree_;
@@ -387,7 +391,9 @@ namespace {
 		void expect_sub_tree_values(unsigned sub_tree, unsigned nr_values) {
 			for (unsigned i = 0; i < nr_values; i++) {
 				uint64_t key[2] = {sub_tree, i};
-				EXPECT_CALL(value_visitor_, visit(Eq(key_to_value(key))));
+				btree_path path;
+				path.push_back(sub_tree);
+				EXPECT_CALL(value_visitor_, visit(Eq(path), Eq(key_to_value(key))));
 			}
 		}
 

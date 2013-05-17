@@ -142,7 +142,7 @@ namespace persistent_data {
 				if (!r)
 					return false;
 
-				visit_values(n);
+				visit_values(loc.path, n);
 
 				return true;
 			}
@@ -160,10 +160,11 @@ namespace persistent_data {
 			}
 
 		private:
-			void visit_values(btree_detail::node_ref<ValueTraits> const &n) {
+			void visit_values(btree_path const &path,
+					  node_ref<ValueTraits> const &n) {
 				unsigned nr = n.get_nr_entries();
 				for (unsigned i = 0; i < nr; i++)
-					value_visitor_.visit(n.value_at(i));
+					value_visitor_.visit(path, n.value_at(i));
 			}
 
 			bool check_internal(node_location const &loc,
@@ -379,7 +380,7 @@ namespace persistent_data {
 				// the damage is coming from
 				damage d(r, build_damage_desc());
 				clear_damage_desc();
-				damage_visitor_.visit(d);
+				damage_visitor_.visit(btree_path(), d);
 			}
 
 			std::string build_damage_desc() const {
