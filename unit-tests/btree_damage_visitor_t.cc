@@ -33,6 +33,10 @@ namespace {
 		uint64_t y;
 	};
 
+	ostream &operator <<(ostream &out, thing const &t) {
+		return out << "thing [" << t.x << ", " << t.y << "]";
+	}
+
 	struct thing_disk {
 		le32 x;
 		le64 y;
