@@ -399,11 +399,8 @@ namespace persistent_data {
 					issue_damage(path_tracker_.current_path(), *mr);
 			}
 
-			// FIXME: duplicate code
 			void end_walk() {
-				maybe_range64 mr = dt_.end();
-				if (mr)
-					issue_damage(path_tracker_.current_path(), *mr);
+				maybe_issue_damage(path_tracker_.current_path());
 			}
 
 			void issue_damage(btree_path const &path, range64 const &r) {
@@ -426,20 +423,19 @@ namespace persistent_data {
 				damage_reasons_.clear();
 			}
 
-			//--------------------------------
+			void maybe_issue_damage(btree_path const &path) {
+				maybe_range64 mr = dt_.end();
+				if (mr)
+					issue_damage(path, *mr);
+			}
 
 			void update_path(btree_path const &path) {
 				boost::optional<btree_path> old_path = path_tracker_.next_path(path);
-				if (old_path) {
+				if (old_path)
 					// we need to emit any errors that
 					// were accrued against the old
 					// path.
-
-					// FIXME: duplicate code with end_walk()
-					maybe_range64 mr = dt_.end();
-					if (mr)
-						issue_damage(*old_path, *mr);
-				}
+					maybe_issue_damage(*old_path);
 			}
 
 			//--------------------------------
