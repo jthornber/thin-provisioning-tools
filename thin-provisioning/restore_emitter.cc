@@ -130,7 +130,7 @@ namespace {
 
 		bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
-			detail_tree::maybe_value v = md_->details_->lookup(key);
+			device_tree::maybe_value v = md_->details_->lookup(key);
 			return v;
 		}
 

@@ -48,7 +48,7 @@ SOURCE=\
 	\
 	cache/metadata_disk_structures.cc \
 	\
-	thin-provisioning/device_checker.cc \
+	thin-provisioning/device_tree.cc \
 	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/metadata.cc \

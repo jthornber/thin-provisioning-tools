@@ -3,7 +3,6 @@
 #include "test_utils.h"
 
 #include "persistent-data/block.h"
-#include "thin-provisioning/device_checker.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock_checker.h"
 #include "thin-provisioning/superblock_validator.h"

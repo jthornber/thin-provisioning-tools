@@ -7,7 +7,6 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
-
 	namespace btree_detail {
 		struct damage {
 			typedef boost::shared_ptr<damage> ptr;

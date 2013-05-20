@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/superblock_validator.h"
@@ -106,7 +107,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		tm_->set_sm(metadata_sm_);
 
 		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-		details_ = detail_tree::ptr(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
+		details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)));
 		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)));
 		break;
@@ -119,7 +120,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		tm_->set_sm(metadata_sm_);
 
 		data_sm_ = create_disk_sm(tm_, nr_data_blocks);
-		details_ = detail_tree::ptr(new detail_tree(tm_, device_details_traits::ref_counter()));
+		details_ = device_tree::ptr(new device_tree(tm_, device_details_traits::ref_counter()));
 		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, block_time_ref_counter(data_sm_)));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, mappings_->get_root(), mtree_ref_counter(tm_)));
 
@@ -145,7 +146,7 @@ metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 	tm_->set_sm(metadata_sm_);
 
 	data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-	details_ = detail_tree::ptr(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
+	details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
 	mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)));
 	mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)));
 }
@@ -167,7 +168,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		tm_->set_sm(metadata_sm_);
 
 		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-		details_ = detail_tree::ptr(new detail_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
+		details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_details_traits::ref_counter()));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_, mtree_ref_counter(tm_)));
 		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_, block_time_ref_counter(data_sm_)));
 		break;
@@ -180,7 +181,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		tm_->set_sm(metadata_sm_);
 
 		data_sm_ = create_disk_sm(tm_, nr_data_blocks);
-		details_ = detail_tree::ptr(new detail_tree(tm_, device_details_traits::ref_counter()));
+		details_ = device_tree::ptr(new device_tree(tm_, device_details_traits::ref_counter()));
 		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, block_time_ref_counter(data_sm_)));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, mappings_->get_root(), mtree_ref_counter(tm_)));
 

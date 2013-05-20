@@ -26,6 +26,7 @@
 #include "persistent-data/transaction_manager.h"
 
 #include "thin-provisioning/metadata_disk_structures.h"
+#include "thin-provisioning/device_tree.h"
 
 //----------------------------------------------------------------
 
@@ -131,7 +132,6 @@ namespace thin_provisioning {
 
 	// FIXME: should these be in a sub-namespace?
 	typedef persistent_data::transaction_manager::ptr tm_ptr;
-	typedef persistent_data::btree<1, device_details_traits> detail_tree;
 	typedef persistent_data::btree<1, mtree_traits> dev_tree;
 	typedef persistent_data::btree<2, block_traits> mapping_tree;
 	typedef persistent_data::btree<1, block_traits> single_mapping_tree;
@@ -173,7 +173,7 @@ namespace thin_provisioning {
 
 		checked_space_map::ptr metadata_sm_;
 		checked_space_map::ptr data_sm_;
-		detail_tree::ptr details_;
+		device_tree::ptr details_;
 		dev_tree::ptr mappings_top_level_;
 		mapping_tree::ptr mappings_;
 	};
