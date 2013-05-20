@@ -73,7 +73,7 @@ void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
+	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -85,7 +85,7 @@ block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
+	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -96,7 +96,7 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_details> mdetail = pool_->md_->details_->lookup(key);
+	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -220,7 +220,7 @@ thin::ptr
 thin_pool::open_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
-	optional<device_details> mdetails = md_->details_->lookup(key);
+	optional<device_tree_detail::device_details> mdetails = md_->details_->lookup(key);
 	if (!mdetails)
 		throw runtime_error("no such device");
 

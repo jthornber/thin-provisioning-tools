@@ -135,11 +135,11 @@ namespace {
 		bool found_errors_;
 	};
 
-	class details_extractor : public btree<1, device_details_traits>::visitor {
+	class details_extractor : public btree<1, device_tree_detail::device_details_traits>::visitor {
 	public:
-		typedef typename btree<1, device_details_traits>::visitor::node_location node_location;
+		typedef typename btree<1, device_tree_detail::device_details_traits>::visitor::node_location node_location;
 		typedef boost::shared_ptr<details_extractor> ptr;
-		typedef btree_checker<1, device_details_traits> checker;
+		typedef btree_checker<1, device_tree_detail::device_details_traits> checker;
 
 		details_extractor()
 			: counter_(),
@@ -157,7 +157,7 @@ namespace {
 		}
 
 		bool visit_leaf(node_location const &loc,
-				btree_detail::node_ref<device_details_traits> const &n) {
+				btree_detail::node_ref<device_tree_detail::device_details_traits> const &n) {
 			if (!checker_.visit_leaf(loc, n))
 				return false;
 
@@ -167,7 +167,7 @@ namespace {
 			return true;
 		}
 
-		map<uint64_t, device_details> const &get_devices() const {
+		map<uint64_t, device_tree_detail::device_details> const &get_devices() const {
 			return devices_;
 		}
 
@@ -179,7 +179,7 @@ namespace {
 		// Declaration order of counter_ and checker_ is important.
 		block_counter counter_;
 		checker checker_;
-		map<uint64_t, device_details> devices_;
+		map<uint64_t, device_tree_detail::device_details> devices_;
 	};
 }
 
@@ -203,12 +203,12 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	if (de.corruption() && !repair)
 		throw runtime_error("corruption in device details tree");
 
-	map<uint64_t, device_details> const &devs = de.get_devices();
+	map<uint64_t, device_tree_detail::device_details> const &devs = de.get_devices();
 
-	map<uint64_t, device_details>::const_iterator it, end = devs.end();
+	map<uint64_t, device_tree_detail::device_details>::const_iterator it, end = devs.end();
 	for (it = devs.begin(); it != end; ++it) {
 		uint64_t dev_id = it->first;
-		device_details const &dd = it->second;
+		device_tree_detail::device_details const &dd = it->second;
 
 		e->begin_device(dev_id,
 				dd.mapped_blocks_,

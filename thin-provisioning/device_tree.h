@@ -4,14 +4,33 @@
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/range.h"
 
-#include "thin-provisioning/metadata_disk_structures.h"
-
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	typedef persistent_data::btree<1, device_details_traits> device_tree;
-
 	namespace device_tree_detail {
+		struct device_details_disk {
+			le64 mapped_blocks_;
+			le64 transaction_id_;  /* when created */
+			le32 creation_time_;
+			le32 snapshotted_time_;
+		} __attribute__ ((packed));
+
+		struct device_details {
+			uint64_t mapped_blocks_;
+			uint64_t transaction_id_;  /* when created */
+			uint32_t creation_time_;
+			uint32_t snapshotted_time_;
+		};
+
+		struct device_details_traits {
+			typedef device_details_disk disk_type;
+			typedef device_details value_type;
+			typedef persistent_data::no_op_ref_counter<device_details> ref_counter;
+
+			static void unpack(device_details_disk const &disk, device_details &value);
+			static void pack(device_details const &value, device_details_disk &disk);
+		};
+
 		class damage_visitor;
 
 		struct damage {
@@ -41,6 +60,8 @@ namespace thin_provisioning {
 		// FIXME: need to add some more damage types for bad leaf data
 
 	};
+
+	typedef persistent_data::btree<1, device_tree_detail::device_details_traits> device_tree;
 
 	void check_device_tree(device_tree const &tree,
 			       device_tree_detail::damage_visitor &visitor);

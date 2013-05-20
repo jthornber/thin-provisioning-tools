@@ -76,7 +76,7 @@ namespace {
 
 			// Add entry to the details tree
 			uint64_t key[1] = {dev};
-			device_details details = {mapped_blocks, trans_id, (uint32_t)creation_time, (uint32_t)snap_time};
+			device_tree_detail::device_details details = {mapped_blocks, trans_id, (uint32_t)creation_time, (uint32_t)snap_time};
 			md_->details_->insert(key, details);
 
 			current_mapping_ = empty_mapping_->clone();
