@@ -82,6 +82,29 @@ namespace persistent_data {
 			block_address damage_begin_;
 		};
 
+		// As we walk a btree we need to know if we've moved into a
+		// different sub tree (by looking at the btree_path).
+		class path_tracker {
+		public:
+			// returns the old path if the tree has changed.
+			boost::optional<btree_path> next_path(btree_path const &p) {
+				if (p != path_) {
+					btree_path tmp(path_);
+					path_ = p;
+					return boost::optional<btree_path>(tmp);
+				}
+
+				return boost::optional<btree_path>();
+			}
+
+			btree_path const &current_path() const {
+				return path_;
+			}
+
+		private:
+			btree_path path_;
+		};
+
 		//----------------------------------------------------------------
 
 		// This class implements consistency checking for the btrees.  It
@@ -125,16 +148,23 @@ namespace persistent_data {
 
 			bool visit_internal(node_location const &loc,
 					    btree_detail::node_ref<uint64_traits> const &n) {
+				update_path(loc.path);
+
 				return check_internal(loc, n);
 			}
 
 			bool visit_internal_leaf(node_location const &loc,
 						 btree_detail::node_ref<uint64_traits> const &n) {
+				update_path(loc.path);
+
 				return check_leaf(loc, n);
 			}
 
 			bool visit_leaf(node_location const &loc,
 					btree_detail::node_ref<ValueTraits> const &n) {
+				update_path(loc.path);
+
+
 				bool r = check_leaf(loc, n);
 
 				// If anything goes wrong with the checks, we skip
@@ -359,28 +389,27 @@ namespace persistent_data {
 			void good_internal(block_address b) {
 				maybe_range64 mr = dt_.good_internal(b);
 				if (mr)
-					issue_damage(*mr);
+					issue_damage(path_tracker_.current_path(), *mr);
 			}
 
 			void good_leaf(block_address b, block_address e) {
 				maybe_range64 mr = dt_.good_leaf(b, e);
 
 				if (mr)
-					issue_damage(*mr);
+					issue_damage(path_tracker_.current_path(), *mr);
 			}
 
+			// FIXME: duplicate code
 			void end_walk() {
 				maybe_range64 mr = dt_.end();
 				if (mr)
-					issue_damage(*mr);
+					issue_damage(path_tracker_.current_path(), *mr);
 			}
 
-			void issue_damage(range64 const &r) {
-				// FIXME: we don't really know what level
-				// the damage is coming from
+			void issue_damage(btree_path const &path, range64 const &r) {
 				damage d(r, build_damage_desc());
 				clear_damage_desc();
-				damage_visitor_.visit(btree_path(), d);
+				damage_visitor_.visit(path, d);
 			}
 
 			std::string build_damage_desc() const {
@@ -399,6 +428,22 @@ namespace persistent_data {
 
 			//--------------------------------
 
+			void update_path(btree_path const &path) {
+				boost::optional<btree_path> old_path = path_tracker_.next_path(path);
+				if (old_path) {
+					// we need to emit any errors that
+					// were accrued against the old
+					// path.
+
+					// FIXME: duplicate code with end_walk()
+					maybe_range64 mr = dt_.end();
+					if (mr)
+						issue_damage(*old_path, *mr);
+				}
+			}
+
+			//--------------------------------
+
 			block_counter &counter_;
 			bool avoid_repeated_visits_;
 
@@ -408,6 +453,7 @@ namespace persistent_data {
 			std::set<block_address> seen_;
 			boost::optional<uint64_t> last_leaf_key_[Levels];
 
+			path_tracker path_tracker_;
 			damage_tracker dt_;
 			std::list<std::string> damage_reasons_;
 		};

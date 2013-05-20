@@ -420,6 +420,26 @@ namespace {
 			}
 		}
 
+		void expect_values_except(unsigned nr_sub_trees, unsigned nr_values,
+					  btree_path const &path, range<uint64_t> keys) {
+			for (unsigned i = 0; i < nr_sub_trees; i++)
+				expect_sub_tree_values_except(i, nr_values, path, keys);
+		}
+
+		void expect_sub_tree_values_except(unsigned sub_tree, unsigned nr_values,
+						   btree_path const &path, range<uint64_t> keys) {
+			for (unsigned i = 0; i < nr_values; i++) {
+				uint64_t key[2] = {sub_tree, i};
+
+				if (sub_tree == path[0] && keys.contains(i))
+					continue;
+
+				btree_path p2;
+				p2.push_back(sub_tree);
+				EXPECT_CALL(value_visitor_, visit(Eq(p2), Eq(key_to_value(key))));
+ 			}
+ 		}
+
 		void expect_damage(btree_path path, range<uint64_t> keys) {
 			EXPECT_CALL(damage_visitor_, visit(Eq(path), DamagedKeys(keys))).Times(1);
 		}
@@ -595,6 +615,25 @@ TEST_F(BTreeDamageVisitor2Tests, populated_tree_with_no_damage)
 
 	expect_values(10, 10);
 	expect_no_damage();
+
+	run();
+}
+
+TEST_F(BTreeDamageVisitor2Tests, damaged_leaf)
+{
+	insert_values(10, 1000);
+	tree_complete();
+
+	auto leaf1 = [] (node_info const &n) {
+		return (n.leaf && n.path.size() == 1 && n.path[0] == 1);
+	};
+
+	node_info n = layout_->random_node(leaf1);
+	cerr << "node: " << n << endl;
+	trash_block(n.b);
+
+	expect_damage(n.path, n.keys);
+	expect_values_except(10, 1000, n.path, n.keys);
 
 	run();
 }
