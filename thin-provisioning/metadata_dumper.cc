@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "metadata_dumper.h"
+#include "thin-provisioning/mapping_tree.h"
 
 using namespace persistent_data;
 using namespace thin_provisioning;
@@ -24,11 +25,11 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	class mappings_extractor : public btree<2, block_traits>::visitor {
+	class mappings_extractor : public mapping_tree::visitor {
 	public:
 		typedef boost::shared_ptr<mappings_extractor> ptr;
 		typedef btree_detail::node_location node_location;
-		typedef btree_checker<2, block_traits> checker;
+		typedef btree_checker<2, mapping_tree_detail::block_traits> checker;
 
 		mappings_extractor(uint64_t dev_id, emitter::ptr e,
 				   space_map::ptr md_sm, space_map::ptr data_sm)
@@ -64,14 +65,14 @@ namespace {
 		}
 
 		bool visit_leaf(node_location const &loc,
-				btree_detail::node_ref<block_traits> const &n) {
+				btree_detail::node_ref<mapping_tree_detail::block_traits> const &n) {
 			if (!checker_.visit_leaf(loc, n)) {
 				found_errors_ = true;
 				return false;
 			}
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				block_time bt = n.value_at(i);
+				mapping_tree_detail::block_time bt = n.value_at(i);
 				add_mapping(n.key_at(i), bt.block_, bt.time_);
 			}
 

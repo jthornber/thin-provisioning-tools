@@ -114,7 +114,7 @@ namespace {
 				throw runtime_error("not in device");
 
 			uint64_t key[1] = {origin_block};
-			block_time bt;
+			mapping_tree_detail::block_time bt;
 			bt.block_ = data_block;
 			bt.time_ = time;
 			current_mapping_->insert(key, bt);
@@ -125,7 +125,7 @@ namespace {
 		single_mapping_tree::ptr new_mapping_tree() {
 			return single_mapping_tree::ptr(
 				new single_mapping_tree(md_->tm_,
-							block_time_ref_counter(md_->data_sm_)));
+							mapping_tree_detail::block_time_ref_counter(md_->data_sm_)));
 		}
 
 		bool device_exists(thin_dev_t dev) const {

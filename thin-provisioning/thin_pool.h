@@ -35,7 +35,7 @@ namespace thin_provisioning {
 	class thin {
 	public:
 		typedef boost::shared_ptr<thin> ptr;
-		typedef boost::optional<block_time> maybe_address;
+		typedef boost::optional<mapping_tree_detail::block_time> maybe_address;
 
 		thin_dev_t get_dev_t() const;
 		maybe_address lookup(block_address thin_block);
