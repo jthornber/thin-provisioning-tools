@@ -34,7 +34,7 @@ using namespace base;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
-
+#if 0
 namespace {
 	using namespace superblock_detail;
 
@@ -227,3 +227,4 @@ metadata::commit()
 }
 
 //----------------------------------------------------------------
+#endif

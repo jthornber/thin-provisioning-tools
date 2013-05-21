@@ -135,6 +135,7 @@ THIN_CHECK_SOURCE=\
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
 	thin-provisioning/file_utils.cc \
+	thin-provisioning/device_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/superblock.cc

@@ -49,6 +49,7 @@ Feature: thin_check
     When I run thin_check with --super-block-only
     Then it should pass
 
+  @announce
   Scenario: --super-block-only check fails with corrupt superblock
     Given a corrupt superblock
     When I run thin_check with --super-block-only

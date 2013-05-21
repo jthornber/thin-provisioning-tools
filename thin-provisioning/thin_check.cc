@@ -22,6 +22,7 @@
 
 #include "version.h"
 
+#include "persistent-data/space-maps/core.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/mapping_tree.h"
@@ -103,7 +104,6 @@ namespace {
 
 	//--------------------------------
 
-
 	enum error_state {
 		NO_ERROR,
 		NON_FATAL,	// eg, lost blocks
@@ -124,11 +124,24 @@ namespace {
 		}
 	}
 
-	block_manager<>::ptr open_bm(string const &path) {
+	//--------------------------------
+
+	block_manager<>::ptr
+	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
 		typename block_io<>::mode m = block_io<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
+
+	transaction_manager::ptr
+	open_tm(block_manager<>::ptr bm) {
+		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
+		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
+		transaction_manager::ptr tm(new transaction_manager(bm, sm));
+		return tm;
+	}
+
+	//--------------------------------
 
 	class superblock_reporter : public superblock_detail::damage_visitor {
 	public:
@@ -139,6 +152,10 @@ namespace {
 
 		virtual void visit(superblock_detail::superblock_corruption const &d) {
 			out_ << "superblock is corrupt" << end_message();
+			{
+				auto _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
 			err_ = combine_errors(err_, FATAL);
 		}
 
@@ -151,18 +168,64 @@ namespace {
 		error_state err_;
 	};
 
+	//--------------------------------
+
+	class devices_reporter : public device_tree_detail::damage_visitor {
+	public:
+		devices_reporter(nested_output &out)
+		: out_(out),
+		  err_(NO_ERROR) {
+		}
+
+		virtual void visit(device_tree_detail::missing_devices const &d) {
+			out_ << "missing devices: " << d.keys_ << end_message();
+			{
+				auto _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+
+			err_ = combine_errors(err_, FATAL);
+		}
+
+		error_state get_error() const {
+			return err_;
+		}
+
+	private:
+		nested_output &out_;
+		error_state err_;
+	};
+
+	//--------------------------------
+
 	error_state metadata_check(string const &path) {
 		block_manager<>::ptr bm = open_bm(path);
 
 		nested_output out(cerr, 2);
+		superblock_reporter sb_rep(out);
+		devices_reporter dev_rep(out);
+
 		out << "examining superblock" << end_message();
 		{
 			auto _ = out.push();
-			superblock_reporter sb_rep(out);
 			check_superblock(bm, sb_rep);
-
-			return sb_rep.get_error();
 		}
+
+		if (sb_rep.get_error() == FATAL)
+			return FATAL;
+
+		out << "examining devices tree" << end_message();
+		{
+			auto _ = out.push();
+			superblock_detail::superblock sb = read_superblock(bm);
+			transaction_manager::ptr tm = open_tm(bm);
+			device_tree dtree(tm, sb.device_details_root_,
+					  device_tree_detail::device_details_traits::ref_counter());
+			check_device_tree(dtree, dev_rep);
+		}
+
+		return combine_errors(sb_rep.get_error(),
+				      dev_rep.get_error());
 	}
 
 	int check(string const &path, bool quiet) {

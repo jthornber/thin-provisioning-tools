@@ -126,6 +126,17 @@ namespace thin_provisioning {
 		}
 	}
 
+	superblock_detail::superblock read_superblock(block_manager<>::ptr bm)
+	{
+		using namespace superblock_detail;
+
+		superblock sb;
+		auto r = bm->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+		superblock_traits::unpack(*sbd, sb);
+		return sb;
+	}
+
 	void
 	check_superblock(block_manager<>::ptr bm,
 			 superblock_detail::damage_visitor &visitor) {
