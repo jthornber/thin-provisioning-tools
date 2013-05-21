@@ -92,15 +92,10 @@ namespace thin_provisioning {
 		};
 
 		block_address const SUPERBLOCK_LOCATION = 0;
+		uint32_t const SUPERBLOCK_MAGIC = 27022010;
 	}
 
-#if 0
-	class superblock_checker : public checker {
-	public:
-		superblock_checker(block_manager::ptr bm);
-		damage_list_ptr check();
-	};
-#endif
+	block_manager<>::validator::ptr superblock_validator();
 }
 
 //----------------------------------------------------------------

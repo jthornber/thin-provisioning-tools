@@ -1,3 +1,5 @@
+#include "persistent-data/checksum.h"
+#include "persistent-data/errors.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/superblock_validator.h"
 
@@ -74,39 +76,36 @@ superblock_traits::pack(superblock const &value, superblock_disk &disk)
 
 //----------------------------------------------------------------
 
+namespace {
+	using namespace persistent_data;
+	using namespace superblock_detail;
 
-#if 0
-superblock_checker::superblock_checker(block_manager::ptr bm)
-	: checker(bm)
-{
+        uint32_t const VERSION = 1;
+        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
+	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
+
+	struct sb_validator : public block_manager<>::validator {
+		virtual void check(buffer<> const &b, block_address location) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
+				throw checksum_error("bad checksum in superblock");
+		}
+
+		virtual void prepare(buffer<> &b, block_address location) const {
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			sbd->csum_ = to_disk<base::le32>(sum.get_sum());
+		}
+	};
 }
 
-// FIXME: Other things to check:
-// - magic
-// - version
-// - 3 * flags (should be zero)
-// - in bounds: metadata_snap, data_mapping_root
-// - metadata_nr_blocks_ matches what we've been given.
-damage_list_ptr
-superblock_checker::check()
+block_manager<>::validator::ptr
+thin_provisioning::superblock_validator()
 {
-	superblock sb;
-
-	damage_list_ptr damage(new damage_list);
-
-	try {
-		block_manager::read_ref r = bm_->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
-		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-		superblock_traits::unpack(*sbd, sb);
-
-	} catch (checksum_error const &e) {
-		metadata_damage::ptr err(new super_block_corruption);
-		err->set_message("checksum error");
-		damage->push_back(err);
-	}
-
-	return damage;
+	return block_manager<>::validator::ptr(new sb_validator);
 }
 
 //----------------------------------------------------------------
-#endif

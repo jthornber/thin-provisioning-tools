@@ -57,7 +57,6 @@ SOURCE=\
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/superblock.cc \
-	thin-provisioning/superblock_validator.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/xml_format.cc
 
@@ -138,8 +137,7 @@ THIN_CHECK_SOURCE=\
 	thin-provisioning/file_utils.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
-	thin-provisioning/superblock.cc \
-	thin-provisioning/superblock_validator.cc
+	thin-provisioning/superblock.cc
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
