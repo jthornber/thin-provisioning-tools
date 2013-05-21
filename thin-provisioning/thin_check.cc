@@ -34,6 +34,76 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+
+	class end_message {};
+
+	class nested_output {
+	public:
+		nested_output(ostream &out, unsigned step)
+			: out_(out),
+			  step_(step),
+			  beginning_of_line_(true),
+			  indent_(0) {
+		}
+
+		template <typename T>
+		nested_output &operator <<(T const &t) {
+			if (beginning_of_line_) {
+				beginning_of_line_ = false;
+				indent();
+			}
+
+			out_ << t;
+			return *this;
+		}
+
+		nested_output &operator <<(end_message const &m) {
+			beginning_of_line_ = true;
+			out_ << endl;
+			return *this;
+		}
+
+		void inc_indent() {
+			indent_ += step_;
+		}
+
+		void dec_indent() {
+			indent_ -= step_;
+		}
+
+		struct nest {
+			nest(nested_output &out)
+			: out_(out) {
+				out_.inc_indent();
+			}
+
+			~nest() {
+				out_.dec_indent();
+			}
+
+			nested_output &out_;
+		};
+
+		nest push() {
+			return nest(*this);
+		}
+
+	private:
+		void indent() {
+			for (unsigned i = 0; i < indent_; i++)
+				out_ << ' ';
+		}
+
+		ostream &out_;
+		unsigned step_;
+
+		bool beginning_of_line_;
+		unsigned indent_;
+	};
+
+	//--------------------------------
+
+
 	enum error_state {
 		NO_ERROR,
 		NON_FATAL,	// eg, lost blocks
@@ -62,13 +132,13 @@ namespace {
 
 	class superblock_reporter : public superblock_detail::damage_visitor {
 	public:
-		superblock_reporter(ostream &out)
+		superblock_reporter(nested_output &out)
 		: out_(out),
 		  err_(NO_ERROR) {
 		}
 
 		virtual void visit(superblock_detail::superblock_corruption const &d) {
-			out_ << "superblock is corrupt";
+			out_ << "superblock is corrupt" << end_message();
 			err_ = combine_errors(err_, FATAL);
 		}
 
@@ -77,16 +147,22 @@ namespace {
 		}
 
 	private:
-		ostream &out_;
+		nested_output &out_;
 		error_state err_;
 	};
 
 	error_state metadata_check(string const &path) {
 		block_manager<>::ptr bm = open_bm(path);
 
-		superblock_reporter sb_rep(cerr);
-		check_superblock(bm, sb_rep);
-		return sb_rep.get_error();
+		nested_output out(cerr, 2);
+		out << "examining superblock" << end_message();
+		{
+			auto _ = out.push();
+			superblock_reporter sb_rep(out);
+			check_superblock(bm, sb_rep);
+
+			return sb_rep.get_error();
+		}
 	}
 
 	int check(string const &path, bool quiet) {
