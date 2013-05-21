@@ -20,36 +20,90 @@
 #include <getopt.h>
 #include <libgen.h>
 
-#include "thin-provisioning/metadata.h"
-#include "thin-provisioning/metadata_checker.h"
 #include "version.h"
+
+#include "thin-provisioning/device_tree.h"
+#include "thin-provisioning/file_utils.h"
+#include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/superblock.h"
 
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
+//----------------------------------------------------------------
+
 namespace {
 	enum error_state {
-		NO_ERRORS,
+		NO_ERROR,
 		NON_FATAL,	// eg, lost blocks
 		FATAL		// needs fixing before pool can be activated
 	};
 
+	error_state
+	combine_errors(error_state lhs, error_state rhs) {
+		switch (lhs) {
+		case NO_ERROR:
+			return rhs;
+
+		case NON_FATAL:
+			return (rhs == FATAL) ? FATAL : lhs;
+
+		default:
+			return lhs;
+		}
+	}
+
+	block_manager<>::ptr open_bm(string const &path) {
+		block_address nr_blocks = get_nr_blocks(path);
+		typename block_io<>::mode m = block_io<>::READ_ONLY;
+		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
+	}
+
+	class superblock_reporter : public superblock_detail::damage_visitor {
+	public:
+		superblock_reporter(ostream &out)
+		: out_(out),
+		  err_(NO_ERROR) {
+		}
+
+		virtual void visit(superblock_detail::superblock_corruption const &d) {
+			out_ << "superblock is corrupt";
+			err_ = combine_errors(err_, FATAL);
+		}
+
+		error_state get_error() const {
+			return err_;
+		}
+
+	private:
+		ostream &out_;
+		error_state err_;
+	};
+
+	error_state metadata_check(string const &path) {
+		block_manager<>::ptr bm = open_bm(path);
+
+		superblock_reporter sb_rep(cerr);
+		check_superblock(bm, sb_rep);
+		return sb_rep.get_error();
+	}
+
 	int check(string const &path, bool quiet) {
+		error_state err;
+
 		try {
-			optional<error_set::ptr> maybe_errors = metadata_check(path);
-			if (maybe_errors) {
-				if (!quiet)
-					cerr << error_selector(*maybe_errors, 3);
-				return 1;
-			}
+			// FIXME: use quiet flag (pass different reporter)
+			err = metadata_check(path);
+
 		} catch (std::exception &e) {
+
 			if (!quiet)
 				cerr << e.what() << endl;
 			return 1;
 		}
 
-		return 0;
+		return (err == NO_ERROR) ? 0 : 1;
 	}
 
 	void usage(ostream &out, string const &cmd) {
