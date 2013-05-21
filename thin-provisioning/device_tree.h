@@ -54,7 +54,7 @@ namespace thin_provisioning {
 				d.visit(*this);
 			}
 
-			virtual void visit(btree_path const &path, missing_devices const &d) = 0;
+			virtual void visit(missing_devices const &d) = 0;
 		};
 
 		// FIXME: need to add some more damage types for bad leaf data

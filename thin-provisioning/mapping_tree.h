@@ -10,17 +10,10 @@ namespace thin_provisioning {
 	namespace mapping_tree_detail {
 		class space_map_ref_counter {
 		public:
-			space_map_ref_counter(space_map::ptr sm)
-				: sm_(sm) {
-			}
+			space_map_ref_counter(space_map::ptr sm);
 
-			void inc(block_address b) {
-				sm_->inc(b);
-			}
-
-			void dec(block_address b) {
-				sm_->dec(b);
-			}
+			void inc(block_address b);
+			void dec(block_address b);
 
 		private:
 			space_map::ptr sm_;
@@ -33,17 +26,9 @@ namespace thin_provisioning {
 
 		class block_time_ref_counter {
 		public:
-			block_time_ref_counter(space_map::ptr sm)
-				: sm_(sm) {
-			}
-
-			void inc(block_time bt) {
-				sm_->inc(bt.block_);
-			}
-
-			void dec(block_time bt) {
-				sm_->dec(bt.block_);
-			}
+			block_time_ref_counter(space_map::ptr sm);
+			void inc(block_time bt);
+			void dec(block_time bt);
 
 		private:
 			space_map::ptr sm_;
@@ -54,29 +39,16 @@ namespace thin_provisioning {
 			typedef block_time value_type;
 			typedef block_time_ref_counter ref_counter;
 
-			static void unpack(disk_type const &disk, value_type &value) {
-				uint64_t v = to_cpu<uint64_t>(disk);
-				value.block_ = v >> 24;
-				value.time_ = v & ((1 << 24) - 1);
-			}
-
-			static void pack(value_type const &value, disk_type &disk) {
-				uint64_t v = (value.block_ << 24) | value.time_;
-				disk = base::to_disk<base::le64>(v);
-			}
+			static void unpack(disk_type const &disk, value_type &value);
+			static void pack(value_type const &value, disk_type &disk);
 		};
 
 		class mtree_ref_counter {
 		public:
-			mtree_ref_counter(transaction_manager::ptr tm)
-				: tm_(tm) {
-			}
+			mtree_ref_counter(transaction_manager::ptr tm);
 
-			void inc(block_address b) {
-			}
-
-			void dec(block_address b) {
-			}
+			void inc(block_address b);
+			void dec(block_address b);
 
 		private:
 			transaction_manager::ptr tm_;
@@ -87,20 +59,58 @@ namespace thin_provisioning {
 			typedef uint64_t value_type;
 			typedef mtree_ref_counter ref_counter;
 
-			static void unpack(disk_type const &disk, value_type &value) {
-				value = base::to_cpu<uint64_t>(disk);
+			static void unpack(disk_type const &disk, value_type &value);
+			static void pack(value_type const &value, disk_type &disk);
+		};
+
+		//--------------------------------
+
+		class damage_visitor;
+
+		struct damage {
+			virtual ~damage() {}
+			virtual void visit(damage_visitor &v) const = 0;
+		};
+
+		struct missing_devices : public damage {
+			missing_devices(std::string const &desc, range<uint64_t> const &keys);
+			virtual void visit(damage_visitor &v) const;
+
+			std::string desc_;
+			range<uint64_t> keys_;
+		};
+
+		struct missing_mappings : public damage {
+			missing_mappings(std::string const &desc, uint64_t thin_dev,
+					 range<uint64_t> const &keys);
+			virtual void visit(damage_visitor &v) const;
+
+			std::string desc_;
+			uint64_t thin_dev_;
+			range<uint64_t> keys_;
+		};
+
+		class damage_visitor {
+		public:
+			virtual ~damage_visitor() {}
+
+			void visit(damage const &d) {
+				d.visit(*this);
 			}
 
-			static void pack(value_type const &value, disk_type &disk) {
-				disk = base::to_disk<base::le64>(value);
-			}
+			virtual void visit(missing_devices const &d) = 0;
+			virtual void visit(missing_mappings const &d) = 0;
 		};
+
 	}
 
 	typedef persistent_data::btree<2, mapping_tree_detail::block_traits> mapping_tree;
 	typedef persistent_data::btree<1, mapping_tree_detail::mtree_traits> dev_tree;
 	typedef persistent_data::btree<1, mapping_tree_detail::block_traits> single_mapping_tree;
-};
+
+	void check_mapping_tree(mapping_tree const &tree,
+				mapping_tree_detail::damage_visitor &visitor);
+}
 
 //----------------------------------------------------------------
 

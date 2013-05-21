@@ -51,6 +51,7 @@ SOURCE=\
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
+	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/metadata_disk_structures.cc \

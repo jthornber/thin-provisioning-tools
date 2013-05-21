@@ -1,10 +1,6 @@
 #include "thin-provisioning/device_tree.h"
 
 #include "persistent-data/data-structures/btree_damage_visitor.h"
-#include "persistent-data/transaction_manager.h"
-#include "persistent-data/space-maps/core.h"
-#include "thin-provisioning/metadata.h"
-#include "thin-provisioning/metadata_disk_structures.h"
 
 using namespace persistent_data;
 using namespace thin_provisioning;
@@ -22,12 +18,13 @@ namespace {
 
 	class ll_damage_visitor {
 	public:
+		// FIXME: is the namespace needed on here?
 		ll_damage_visitor(device_tree_detail::damage_visitor &v)
 		: v_(v) {
 		}
 
 		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
-			v_.visit(path, missing_devices(d.desc_, d.lost_keys_));
+			v_.visit(missing_devices(d.desc_, d.lost_keys_));
 		}
 
 	private:
