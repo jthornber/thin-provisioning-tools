@@ -37,6 +37,8 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	using namespace superblock_detail;
+
 	unsigned const METADATA_CACHE_SIZE = 1024;
 
 	block_manager<>::ptr open_bm(string const &dev_path, bool writeable) {

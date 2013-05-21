@@ -1,12 +1,17 @@
-#include "thin-provisioning/superblock_validator.h"
+#include "persistent-data/checksum.h"
+#include "persistent-data/errors.h"
 
-#include "thin-provisioning/metadata_disk_structures.h"
+#include "thin-provisioning/superblock_validator.h"
+#include "thin-provisioning/superblock.h"
 
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
+	using namespace persistent_data;
+	using namespace superblock_detail;
+
         uint32_t const VERSION = 1;
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;

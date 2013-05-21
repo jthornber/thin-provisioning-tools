@@ -25,7 +25,7 @@ using namespace persistent_data;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
-
+#if 0
 void
 metadata_damage::set_message(std::string const &message)
 {
@@ -435,4 +435,5 @@ thin_provisioning::metadata_check(std::string const &dev_path)
 }
 
 //----------------------------------------------------------------
+#endif
 #endif

@@ -25,9 +25,9 @@
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/transaction_manager.h"
 
-#include "thin-provisioning/metadata_disk_structures.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/superblock.h"
 
 //----------------------------------------------------------------
 
@@ -77,7 +77,7 @@ namespace thin_provisioning {
 
 
 		tm_ptr tm_;
-		superblock sb_;
+		superblock_detail::superblock sb_;
 
 		checked_space_map::ptr metadata_sm_;
 		checked_space_map::ptr data_sm_;

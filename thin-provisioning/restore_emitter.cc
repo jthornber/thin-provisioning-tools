@@ -16,7 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "restore_emitter.h"
+#include "thin-provisioning/restore_emitter.h"
+#include "thin-provisioning/superblock.h"
 
 using namespace boost;
 using namespace std;
@@ -25,6 +26,8 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	using namespace superblock_detail;
+
 	class restorer : public emitter {
 	public:
 		restorer(metadata::ptr md)

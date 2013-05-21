@@ -19,6 +19,8 @@
 #ifndef REF_COUNTER_H
 #define REF_COUNTER_H
 
+#include <boost/shared_ptr.hpp>
+
 //----------------------------------------------------------------
 
 namespace persistent_data {

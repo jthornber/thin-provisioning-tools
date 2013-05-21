@@ -29,7 +29,18 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	class metadata_damage_visitor;
+	// FIXME: should take a block manager or transaction manager
+	void check_metadata(std::string const &path);
+
+
+
+
+
+
+
+
+
+#if 0
 
 	// Base class for all types of metadata damage.  Used in reporting.
 	class metadata_damage {
@@ -143,22 +154,7 @@ namespace thin_provisioning {
 
 	typedef std::deque<metadata_damage::ptr> damage_list;
 	typedef boost::shared_ptr<damage_list> damage_list_ptr;
-
-	//--------------------------------
-
-	class checker {
-	public:
-		typedef persistent_data::block_manager<> block_manager;
-		typedef boost::shared_ptr<checker> ptr;
-
-		checker(block_manager::ptr bm);
-
-		virtual ~checker() {};
-		virtual damage_list_ptr check() = 0;
-
-	protected:
-		block_manager::ptr bm_;
-	};
+#endif
 }
 
 //----------------------------------------------------------------

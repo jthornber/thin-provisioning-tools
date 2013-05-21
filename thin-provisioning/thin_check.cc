@@ -29,6 +29,12 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
+	enum error_state {
+		NO_ERRORS,
+		NON_FATAL,	// eg, lost blocks
+		FATAL		// needs fixing before pool can be activated
+	};
+
 	int check(string const &path, bool quiet) {
 		try {
 			optional<error_set::ptr> maybe_errors = metadata_check(path);
