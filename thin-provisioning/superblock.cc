@@ -1,7 +1,6 @@
 #include "persistent-data/checksum.h"
 #include "persistent-data/errors.h"
 #include "thin-provisioning/superblock.h"
-#include "thin-provisioning/superblock_validator.h"
 
 using namespace thin_provisioning;
 using namespace superblock_detail;
@@ -106,6 +105,39 @@ block_manager<>::validator::ptr
 thin_provisioning::superblock_validator()
 {
 	return block_manager<>::validator::ptr(new sb_validator);
+}
+
+//----------------------------------------------------------------
+
+namespace thin_provisioning {
+	namespace superblock_detail {
+		superblock_corruption::superblock_corruption(std::string const &desc)
+			: desc_(desc) {
+		}
+
+		void
+		superblock_corruption::visit(damage_visitor &v) const {
+			v.visit(*this);
+		}
+
+		void
+		damage_visitor::visit(damage const &d) {
+			d.visit(*this);
+		}
+	}
+
+	void
+	check_superblock(block_manager<>::ptr bm,
+			 superblock_detail::damage_visitor &visitor) {
+		using namespace superblock_detail;
+
+		try {
+			bm->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+
+		} catch (std::exception const &e) {
+			visitor.visit(superblock_corruption(e.what()));
+		}
+	}
 }
 
 //----------------------------------------------------------------

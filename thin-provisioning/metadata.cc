@@ -19,7 +19,6 @@
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/metadata.h"
-#include "thin-provisioning/superblock_validator.h"
 
 #include "persistent-data/math_utils.h"
 #include "persistent-data/space-maps/core.h"

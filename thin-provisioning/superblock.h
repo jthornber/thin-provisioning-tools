@@ -93,9 +93,37 @@ namespace thin_provisioning {
 
 		block_address const SUPERBLOCK_LOCATION = 0;
 		uint32_t const SUPERBLOCK_MAGIC = 27022010;
+
+		//--------------------------------
+
+		class damage_visitor;
+
+		struct damage {
+			virtual ~damage() {}
+			virtual void visit(damage_visitor &v) const = 0;
+		};
+
+		struct superblock_corruption : public damage {
+			superblock_corruption(std::string const &desc);
+			void visit(damage_visitor &v) const;
+
+			std::string desc_;
+		};
+
+		class damage_visitor {
+		public:
+			virtual ~damage_visitor() {}
+
+			void visit(damage const &d);
+
+			virtual void visit(superblock_corruption const &d) = 0;
+		};
 	}
 
 	block_manager<>::validator::ptr superblock_validator();
+
+	void check_superblock(block_manager<>::ptr bm,
+			      superblock_detail::damage_visitor &visitor);
 }
 
 //----------------------------------------------------------------

@@ -19,7 +19,6 @@
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
-#include "thin-provisioning/superblock_validator.h"
 
 using namespace persistent_data;
 using namespace thin_provisioning;
