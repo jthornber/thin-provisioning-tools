@@ -198,12 +198,44 @@ namespace {
 
 	//--------------------------------
 
+	class mapping_reporter : public mapping_tree_detail::damage_visitor {
+	public:
+		mapping_reporter(nested_output &out)
+		: out_(out) {
+		}
+
+		virtual void visit(mapping_tree_detail::missing_devices const &d) {
+			out_ << "missing all mappings for devices: " << d.keys_ << end_message();
+			{
+				auto _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+			err_ = combine_errors(err_, FATAL);
+		}
+
+		virtual void visit(mapping_tree_detail::missing_mappings const &d) {
+			out_ << "thin device " << d.thin_dev_ << " is missing mappings " << d.keys_ << end_message();
+			{
+				auto _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+			err_ = combine_errors(err_, FATAL);
+		}
+
+	private:
+		nested_output &out_;
+		error_state err_;
+	};
+
+	//--------------------------------
+
 	error_state metadata_check(string const &path) {
 		block_manager<>::ptr bm = open_bm(path);
 
 		nested_output out(cerr, 2);
 		superblock_reporter sb_rep(out);
 		devices_reporter dev_rep(out);
+		mapping_reporter mapping_rep(out);
 
 		out << "examining superblock" << end_message();
 		{
@@ -214,14 +246,23 @@ namespace {
 		if (sb_rep.get_error() == FATAL)
 			return FATAL;
 
+		superblock_detail::superblock sb = read_superblock(bm);
+		transaction_manager::ptr tm = open_tm(bm);
+
 		out << "examining devices tree" << end_message();
 		{
 			auto _ = out.push();
-			superblock_detail::superblock sb = read_superblock(bm);
-			transaction_manager::ptr tm = open_tm(bm);
 			device_tree dtree(tm, sb.device_details_root_,
 					  device_tree_detail::device_details_traits::ref_counter());
 			check_device_tree(dtree, dev_rep);
+		}
+
+		out << "examining mapping tree" << end_message();
+		{
+			auto _ = out.push();
+			mapping_tree mtree(tm, sb.data_mapping_root_,
+					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			check_mapping_tree(mtree, mapping_rep);
 		}
 
 		return combine_errors(sb_rep.get_error(),
