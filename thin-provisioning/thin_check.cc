@@ -28,7 +28,6 @@
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
 
-using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
