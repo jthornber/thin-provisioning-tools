@@ -32,6 +32,14 @@ Only check the superblock is present.
 Skip checking of the block mappings which make up the bulk of the
 metadata.
 
+.IP "\fB\-\-ignore\-non\-fatal\-errors\fP"
+.B thin_check
+will only return a non-zero exit code if it finds a fatal
+error.  An example of a on fatal error is an incorrect data block
+reference count causing a block to be considered allocated when it in
+fact isn't.  Ignoring errors for a long time is not advised, you
+really should be using thin_repair to fix them.
+
 .SH EXAMPLE
 Analyses and repairs thin provisioning metadata on logical volume
 /dev/vg/metadata:

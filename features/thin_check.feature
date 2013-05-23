@@ -39,6 +39,7 @@ Feature: thin_check
       {-V|--version}
       {--super-block-only}
       {--skip-mappings}
+      {--ignore-non-fatal-errors}
     """
 
   Scenario: Unrecognised option should cause failure
@@ -63,4 +64,9 @@ Feature: thin_check
   Scenario: --skip-mappings check passes on valid metadata
     Given valid metadata
     When I run thin_check with --skip-mappings
+    Then it should pass
+
+  Scenario: --ignore-non-fatal-errors check passes on valid metadata
+    Given valid metadata
+    When I run thin_check with --ignore-non-fatal-errors
     Then it should pass

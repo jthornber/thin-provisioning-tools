@@ -233,6 +233,8 @@ namespace {
 		bool check_device_tree;
 		bool check_mapping_tree_level1;
 		bool check_mapping_tree_level2;
+
+		bool ignore_non_fatal_errors;
 	};
 
 	error_state metadata_check(string const &path, flags fs) {
@@ -299,7 +301,10 @@ namespace {
 			return 1;
 		}
 
-		return (err == NO_ERROR) ? 0 : 1;
+		if (fs.ignore_non_fatal_errors)
+			return (err == FATAL) ? 1 : 0;
+		else
+			return (err == NO_ERROR) ? 0 : 1;
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -309,7 +314,8 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-V|--version}" << endl
 		    << "  {--super-block-only}" << endl
-		    << "  {--skip-mappings}" << endl;
+		    << "  {--skip-mappings}" << endl
+		    << "  {--ignore-non-fatal-errors}" << endl;
 	}
 }
 
@@ -325,12 +331,14 @@ int main(int argc, char **argv)
 		{ "version", no_argument, NULL, 'V'},
 		{ "super-block-only", no_argument, NULL, 1},
 		{ "skip-mappings", no_argument, NULL, 2},
+		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	fs.check_device_tree = true;
 	fs.check_mapping_tree_level1 = true;
 	fs.check_mapping_tree_level2 = true;
+	fs.ignore_non_fatal_errors = false;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
@@ -356,6 +364,11 @@ int main(int argc, char **argv)
 		case 2:
 			// skip-mappings
 			fs.check_mapping_tree_level2 = false;
+			break;
+
+		case 3:
+			// ignore-non-fatal-errors
+			fs.ignore_non_fatal_errors = true;
 			break;
 
 		default:
