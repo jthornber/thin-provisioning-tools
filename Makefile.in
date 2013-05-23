@@ -25,7 +25,8 @@ PROGRAMS=\
 	thin_debug \
 	thin_check \
 	thin_dump \
-	thin_restore
+	thin_restore \
+	thin_rmap
 
 all: $(PROGRAMS)
 
@@ -67,7 +68,8 @@ PROGRAM_SOURCE=\
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
-	thin-provisioning/thin_restore.cc
+	thin-provisioning/thin_restore.cc \
+	thin-provisioning/thin_rmap.cc
 
 CXX:=@CXX@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
@@ -141,10 +143,29 @@ THIN_CHECK_SOURCE=\
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/superblock.cc
 
+THIN_RMAP_SOURCE=\
+	persistent-data/checksum.cc \
+	persistent-data/endian_utils.cc \
+	persistent-data/error_set.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+	thin-provisioning/file_utils.cc \
+	thin-provisioning/device_tree.cc \
+	thin-provisioning/mapping_tree.cc \
+	thin-provisioning/metadata.cc \
+	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/superblock.cc
+
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
+THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
 	@echo "    [LD]  $@"
@@ -158,7 +179,7 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
-thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
+thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
