@@ -25,6 +25,13 @@ Print help and exit.
 .IP "\fB\-V, \-\-version\fP"
 Output version information and exit.
 
+.IP "\fB\-\-super\-block\-only\fP"
+Only check the superblock is present.
+
+.IP "\fB\-\-skip-mappings\fP"
+Skip checking of the block mappings which make up the bulk of the
+metadata.
+
 .SH EXAMPLE
 Analyses and repairs thin provisioning metadata on logical volume
 /dev/vg/metadata:
@@ -32,7 +39,7 @@ Analyses and repairs thin provisioning metadata on logical volume
 .B thin_check /dev/vg/metadata
 
 The device may not be actively used by the target
-when repairing!
+when running.
 
 .SH DIAGNOSTICS
 .B thin_check
