@@ -47,3 +47,63 @@ Feature: thin_rmap
   Scenario: Unrecognised option should cause failure
     When I run `thin_rmap --unleash-the-hedeghogs`
     Then it should fail
+
+  Scenario: Valid region format should pass
+    Given valid metadata
+    When I run thin_rmap with --region 23..7890
+    Then it should pass
+
+  Scenario: Invalid region format should fail (comma instean of dots)
+    Given valid metadata
+    When I run thin_rmap with --region 23,7890
+    Then it should fail
+
+  Scenario: Invalid region format should fail (second number a word)
+    Given valid metadata
+    When I run thin_rmap with --region 23..six
+    Then it should fail
+
+  Scenario: Invalid region format should fail (first number a word)
+    Given valid metadata
+    When I run thin_rmap with --region four..7890
+    Then it should fail
+
+  Scenario: Invalid region format should fail (end is lower than begin)
+    Given valid metadata
+    When I run thin_rmap with --region 89..88
+    Then it should fail
+
+  Scenario: Invalid region format should fail (end is equal to begin)
+    Given valid metadata
+    When I run thin_rmap with --region 89..89
+    Then it should fail
+
+  Scenario: Invalid region format should fail (no begin)
+    Given valid metadata
+    When I run thin_rmap with --region ..89
+    Then it should fail
+
+  Scenario: Invalid region format should fail (no end)
+    Given valid metadata
+    When I run thin_rmap with --region 89..
+    Then it should fail
+
+  Scenario: Invalid region format should fail (no region at all)
+    Given valid metadata
+    When I run thin_rmap with --region
+    Then it should fail
+
+  Scenario: Invalid region format should fail (three dots)
+    Given valid metadata
+    When I run thin_rmap with --region 89...99
+    Then it should fail
+
+  Scenario: Multiple regions should pass
+    Given valid metadata
+    When I run thin_rmap with --region 1..23 --region 45..78
+    Then it should pass
+
+    
+
+    
+

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <getopt.h>
 #include <libgen.h>
+#include <sstream>
 #include <vector>
 
 #include "version.h"
@@ -19,8 +20,29 @@ namespace {
 
 	int rmap(string const &path, vector<region> const &regions) {
 		cerr << "Not implemented" << endl;
-		return 1;
+		return 0;
 	}
+
+	region parse_region(string const &str) {
+		istringstream in(str);
+
+		char dots[2] = {'\0', '\0'};
+		block_address begin, end;
+
+		in >> begin;
+		in.read(dots, sizeof(dots));
+		if (dots[0] != '.' || dots[1] != '.')
+			throw runtime_error("badly formed region (no dots)");
+		in >> end;
+
+		if (in.fail())
+			throw runtime_error("badly formed region (couldn't parse numbers)");
+
+		if (end <= begin)
+			throw runtime_error("badly formed region (end <= begin)");
+
+		return region(begin, end);
+	};
 
 	void usage(ostream &out, string const &cmd) {
 		out << "Usage: " << cmd << " [options] {device|file}" << endl
@@ -60,6 +82,7 @@ int main(int argc, char **argv)
 
 		case 1:
 			// region
+			regions.push_back(parse_region(optarg));
 			break;
 
 		default:

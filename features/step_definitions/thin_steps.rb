@@ -24,3 +24,7 @@ When(/^I run thin_check with (.*?)$/) do |opts|
   run_simple("thin_check #{opts} #{dev_file}", false)
 end
 
+When(/^I run thin_rmap with (.*?)$/) do |opts|
+  run_simple("thin_rmap #{opts} #{dev_file}", false)
+end
+
