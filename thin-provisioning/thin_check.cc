@@ -323,8 +323,8 @@ int main(int argc, char **argv)
 	int c;
 	flags fs;
 	bool quiet = false;
-	const char shortopts[] = "qhV";
-	const struct option longopts[] = {
+	char const shortopts[] = "qhV";
+	option const longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},

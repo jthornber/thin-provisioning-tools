@@ -25,6 +25,9 @@ Feature: thin_check
       {-q|--quiet}
       {-h|--help}
       {-V|--version}
+      {--super-block-only}
+      {--skip-mappings}
+      {--ignore-non-fatal-errors}
     """
 
   Scenario: print help
