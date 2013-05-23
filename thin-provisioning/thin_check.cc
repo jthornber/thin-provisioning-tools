@@ -308,7 +308,8 @@ namespace {
 		    << "  {-q|--quiet}" << endl
 		    << "  {-h|--help}" << endl
 		    << "  {-V|--version}" << endl
-		    << "  {--super-block-only}" << endl;
+		    << "  {--super-block-only}" << endl
+		    << "  {--skip-mappings}" << endl;
 	}
 }
 
@@ -326,6 +327,10 @@ int main(int argc, char **argv)
 		{ "skip-mappings", no_argument, NULL, 2},
 		{ NULL, no_argument, NULL, 0 }
 	};
+
+	fs.check_device_tree = true;
+	fs.check_mapping_tree_level1 = true;
+	fs.check_mapping_tree_level2 = true;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
@@ -350,8 +355,6 @@ int main(int argc, char **argv)
 
 		case 2:
 			// skip-mappings
-			fs.check_device_tree = true;
-			fs.check_mapping_tree_level1 = true;
 			fs.check_mapping_tree_level2 = false;
 			break;
 

@@ -38,6 +38,7 @@ Feature: thin_check
       {-h|--help}
       {-V|--version}
       {--super-block-only}
+      {--skip-mappings}
     """
 
   Scenario: Unrecognised option should cause failure
@@ -58,3 +59,8 @@ Feature: thin_check
       superblock is corrupt
         bad checksum in superblock
     """
+
+  Scenario: --skip-mappings check passes on valid metadata
+    Given valid metadata
+    When I run thin_check with --skip-mappings
+    Then it should pass
