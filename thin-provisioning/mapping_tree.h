@@ -108,6 +108,8 @@ namespace thin_provisioning {
 	typedef persistent_data::btree<1, mapping_tree_detail::mtree_traits> dev_tree;
 	typedef persistent_data::btree<1, mapping_tree_detail::block_traits> single_mapping_tree;
 
+	void check_mapping_tree(dev_tree const &tree,
+				mapping_tree_detail::damage_visitor &visitor);
 	void check_mapping_tree(mapping_tree const &tree,
 				mapping_tree_detail::damage_visitor &visitor);
 }

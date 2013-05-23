@@ -229,7 +229,13 @@ namespace {
 
 	//--------------------------------
 
-	error_state metadata_check(string const &path) {
+	struct flags {
+		bool check_device_tree;
+		bool check_mapping_tree_level1;
+		bool check_mapping_tree_level2;
+	};
+
+	error_state metadata_check(string const &path, flags fs) {
 		block_manager<>::ptr bm = open_bm(path);
 
 		nested_output out(cerr, 2);
@@ -249,37 +255,47 @@ namespace {
 		superblock_detail::superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
 
-		out << "examining devices tree" << end_message();
-		{
-			auto _ = out.push();
-			device_tree dtree(tm, sb.device_details_root_,
-					  device_tree_detail::device_details_traits::ref_counter());
-			check_device_tree(dtree, dev_rep);
+		if (fs.check_device_tree) {
+			out << "examining devices tree" << end_message();
+			{
+				auto _ = out.push();
+				device_tree dtree(tm, sb.device_details_root_,
+						  device_tree_detail::device_details_traits::ref_counter());
+				check_device_tree(dtree, dev_rep);
+			}
 		}
 
-		out << "examining mapping tree" << end_message();
-		{
-			auto _ = out.push();
-			mapping_tree mtree(tm, sb.data_mapping_root_,
-					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
-			check_mapping_tree(mtree, mapping_rep);
+		if (fs.check_mapping_tree_level1 && !fs.check_mapping_tree_level2) {
+			out << "examining top level of mapping tree" << end_message();
+			{
+				auto _ = out.push();
+				dev_tree dtree(tm, sb.data_mapping_root_,
+					       mapping_tree_detail::mtree_traits::ref_counter(tm));
+				check_mapping_tree(dtree, mapping_rep);
+			}
+
+		} else if (fs.check_mapping_tree_level2) {
+			out << "examining mapping tree" << end_message();
+			{
+				auto _ = out.push();
+				mapping_tree mtree(tm, sb.data_mapping_root_,
+						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+				check_mapping_tree(mtree, mapping_rep);
+			}
 		}
 
 		return combine_errors(sb_rep.get_error(),
 				      dev_rep.get_error());
 	}
 
-	int check(string const &path, bool quiet) {
+	int check(string const &path, flags fs) {
 		error_state err;
 
 		try {
-			// FIXME: use quiet flag (pass different reporter)
-			err = metadata_check(path);
+			err = metadata_check(path, fs);
 
 		} catch (std::exception &e) {
-
-			if (!quiet)
-				cerr << e.what() << endl;
+			cerr << e.what() << endl;
 			return 1;
 		}
 
@@ -299,13 +315,15 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	bool quiet = false, superblock_only = false;
+	flags fs;
+	bool quiet = false;
 	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ "super-block-only", no_argument, NULL, 1},
+		{ "skip-mappings", no_argument, NULL, 2},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -324,7 +342,17 @@ int main(int argc, char **argv)
 			return 0;
 
 		case 1:
-			superblock_only = true;
+			// super-block-only
+			fs.check_device_tree = false;
+			fs.check_mapping_tree_level1 = false;
+			fs.check_mapping_tree_level2 = false;
+			break;
+
+		case 2:
+			// skip-mappings
+			fs.check_device_tree = true;
+			fs.check_mapping_tree_level1 = true;
+			fs.check_mapping_tree_level2 = false;
 			break;
 
 		default:
@@ -340,5 +368,5 @@ int main(int argc, char **argv)
 	}
 
 
-	return check(argv[optind], quiet);
+	return check(argv[optind], fs);
 }

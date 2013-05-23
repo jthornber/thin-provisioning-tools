@@ -131,8 +131,13 @@ namespace {
 	using namespace thin_provisioning;
 	using namespace mapping_tree_detail;
 
-	struct leaf_visitor {
+	struct block_time_visitor {
 		virtual void visit(btree_path const &, block_time const &) {
+		}
+	};
+
+	struct block_visitor {
+		virtual void visit(btree_path const &, uint64_t) {
 		}
 	};
 
@@ -163,12 +168,24 @@ namespace {
 	};
 }
 
+
+void
+thin_provisioning::check_mapping_tree(dev_tree const &tree,
+				      mapping_tree_detail::damage_visitor &visitor)
+{
+	block_counter counter; // FIXME: get rid of this counter arg
+	block_visitor vv;
+	ll_damage_visitor dv(visitor);
+
+	btree_visit_values(tree, counter, vv, dv);
+}
+
 void
 thin_provisioning::check_mapping_tree(mapping_tree const &tree,
 				      mapping_tree_detail::damage_visitor &visitor)
 {
 	block_counter counter; //FIXME: get rid of this counter arg
-	leaf_visitor vv;
+	block_time_visitor vv;
 	ll_damage_visitor dv(visitor);
 
 	btree_visit_values(tree, counter, vv, dv);
