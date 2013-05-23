@@ -351,7 +351,9 @@ namespace {
 
 		void expect_value_range(uint64_t begin, uint64_t end) {
 			while (begin < end) {
-				EXPECT_CALL(value_visitor_, visit(EmptyPath(), Eq(thing(begin, begin + 1234)))).Times(1);
+				btree_path path;
+				path.push_back(begin);
+				EXPECT_CALL(value_visitor_, visit(Eq(path), Eq(thing(begin, begin + 1234)))).Times(1);
 				begin++;
 			}
 		}
@@ -360,8 +362,10 @@ namespace {
 			expect_value_range(0, nr);
 		}
 
-		void expect_value(unsigned n) {
-			EXPECT_CALL(value_visitor_, visit(EmptyPath(), Eq(thing(n, n + 1234)))).Times(1);
+		void expect_value(uint64_t n) {
+			btree_path path;
+			path.push_back(n);
+			EXPECT_CALL(value_visitor_, visit(Eq(path), Eq(thing(n, n + 1234)))).Times(1);
 		}
 
 		void expect_damage(range<uint64_t> keys) {
@@ -415,6 +419,7 @@ namespace {
 				uint64_t key[2] = {sub_tree, i};
 				btree_path path;
 				path.push_back(sub_tree);
+				path.push_back(i);
 				EXPECT_CALL(value_visitor_, visit(Eq(path),
 								  Eq(key_to_value(key))));
 			}
@@ -436,6 +441,7 @@ namespace {
 
 				btree_path p2;
 				p2.push_back(sub_tree);
+				p2.push_back(i);
 				EXPECT_CALL(value_visitor_, visit(Eq(p2), Eq(key_to_value(key))));
  			}
  		}

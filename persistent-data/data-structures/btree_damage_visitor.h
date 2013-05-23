@@ -55,7 +55,7 @@ namespace persistent_data {
 				return r;
 			}
 
-			// remembe 'end' is the one-past-the-end value, so
+			// remember 'end' is the one-past-the-end value, so
 			// take the last key in the leaf and add one.
 			maybe_range64 good_leaf(block_address begin, block_address end) {
 				maybe_range64 r;
@@ -192,8 +192,11 @@ namespace persistent_data {
 			void visit_values(btree_path const &path,
 					  node_ref<ValueTraits> const &n) {
 				unsigned nr = n.get_nr_entries();
-				for (unsigned i = 0; i < nr; i++)
-					value_visitor_.visit(path, n.value_at(i));
+				for (unsigned i = 0; i < nr; i++) {
+					btree_path p2(path);
+					p2.push_back(n.key_at(i));
+					value_visitor_.visit(p2, n.value_at(i));
+				}
 			}
 
 			bool check_internal(node_location const &loc,
