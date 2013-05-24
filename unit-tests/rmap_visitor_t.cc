@@ -38,6 +38,14 @@ namespace {
 					visit(thin_dev, b, thin_dev * blocks_per_thin + b);
 		}
 
+		void reverse_linear_thins(unsigned nr_thins, unsigned blocks_per_thin) {
+			for (uint32_t thin_dev = 0; thin_dev < nr_thins; thin_dev++)
+				for (block_address b = 0; b < blocks_per_thin; b++) {
+					block_address base = (nr_thins - thin_dev - 1) * blocks_per_thin;
+					visit(thin_dev, b, base + b);
+				}
+		}
+
 		void check_rmap_size(unsigned expected) {
 			ASSERT_THAT(rmap_v_.get_rmap().size(), Eq(expected));
 		}
@@ -151,6 +159,21 @@ TEST_F(RMapVisitorTests, overlapping_regions)
 	check_rmap_size(2);
 	check_rmap_at(0, 25, 100, 0, 25);
 	check_rmap_at(1, 100, 125, 1, 0);
+}
+
+TEST_F(RMapVisitorTests, rmap_is_sorted)
+{
+	add_data_region(75, 125);
+	add_data_region(350, 450);
+	reverse_linear_thins(10, 100);
+
+	run();
+
+	check_rmap_size(4);
+	check_rmap_at(0, 75, 100, 9, 75);
+	check_rmap_at(1, 100, 125, 8, 0);
+	check_rmap_at(2, 350, 400, 6, 50);
+	check_rmap_at(3, 400, 450, 5, 0);
 }
 
 //----------------------------------------------------------------

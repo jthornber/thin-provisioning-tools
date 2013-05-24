@@ -1,5 +1,6 @@
 #include "thin-provisioning/rmap_visitor.h"
 
+#include <algorithm>
 #include <iostream>
 
 using namespace thin_provisioning;
@@ -33,6 +34,12 @@ rmap_visitor::complete()
 {
 	if (current_rmap_)
 		push_current();
+
+	auto cmp_data_begin = [] (rmap_region const &lhs, rmap_region const &rhs) {
+		return lhs.data_begin < rhs.data_begin;
+	};
+
+	std::sort(rmap_.begin(), rmap_.end(), cmp_data_begin);
 }
 
 vector<rmap_visitor::rmap_region> const &
