@@ -115,7 +115,7 @@ endif
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 
 #----------------------------------------------------------------
-# libpdata
+
 lib/libpdata.a: $(PDATA_OBJECTS)
 	@echo "    [AR]  $<"
 	$(V)ar -rv $@ $(PDATA_OBJECTS) > /dev/null 2>&1
@@ -160,6 +160,7 @@ THIN_RMAP_SOURCE=\
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))

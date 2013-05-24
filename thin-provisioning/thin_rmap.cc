@@ -12,6 +12,7 @@
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/rmap_visitor.h"
 
 using namespace std;
 using namespace thin_provisioning;
@@ -36,40 +37,10 @@ namespace {
 
 	//--------------------------------
 
-	typedef range<block_address> region;
-
 	using namespace mapping_tree_detail;
 
-	class region_visitor {
-	public:
-		region_visitor(vector<region> const &regions)
-			: regions_(regions) {
-		}
-
-		virtual void visit(btree_path const &path, block_time const &bt) {
-			if (in_regions(bt.block_)) {
-				uint32_t thin_dev = path[0];
-				block_address thin_block = path[1];
-
-				cout << "[" << thin_dev
-				     << ", " << thin_block
-				     << "] -> " << bt.block_
-				     << endl;
-			}
-		}
-
-	private:
-		// Slow, but I suspect we wont run with many regions.
-		bool in_regions(block_address b) const {
-			for (region const &r : regions_)
-				if (r.contains(b))
-					return true;
-
-			return false;
-		}
-
-		vector<region> const &regions_;
-	};
+	typedef rmap_visitor::region region;
+	typedef rmap_visitor::rmap_region rmap_region;
 
 	class damage_visitor {
 	public:
@@ -78,12 +49,26 @@ namespace {
 		}
 	};
 
+	void display_rmap(ostream &out, vector<rmap_region> const &rmap) {
+		for (rmap_region const &r : rmap) {
+			out << "data " << r.data_begin
+			    << ".." << r.data_end
+			    << " -> thin(" << r.thin_dev
+			    << ") " << r.thin_begin
+			    << ".." << (r.thin_begin + (r.data_end - r.data_begin))
+			    << endl;
+		}
+	}
+
 	int rmap(string const &path, vector<region> const &regions) {
 		block_counter counter; // FIXME: get rid of this counter arg
-		region_visitor rv(regions);
 		damage_visitor dv;
+		rmap_visitor rv;
 
 		try {
+			for (region const &r : regions)
+				rv.add_data_region(r);
+
 			block_manager<>::ptr bm = open_bm(path);
 			transaction_manager::ptr tm = open_tm(bm);
 
@@ -92,6 +77,8 @@ namespace {
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 
 			btree_visit_values(mtree, counter, rv, dv);
+			rv.complete();
+			display_rmap(cout, rv.get_rmap());
 
 		} catch (std::exception const &e) {
 			cerr << e.what();
