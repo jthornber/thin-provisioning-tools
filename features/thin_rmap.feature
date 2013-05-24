@@ -102,8 +102,3 @@ Feature: thin_rmap
     Given valid metadata
     When I run thin_rmap with --region 1..23 --region 45..78
     Then it should pass
-
-    
-
-    
-
