@@ -448,7 +448,7 @@ namespace {
  			}
  		}
 
-		void expect_damage(btree_path path, base::run<uint64_t> keys) {
+		void expect_damage(btree_path const &path, base::run<uint64_t> const &keys) {
 			EXPECT_CALL(damage_visitor_, visit(Eq(path), DamagedKeys(keys))).Times(1);
 		}
 
