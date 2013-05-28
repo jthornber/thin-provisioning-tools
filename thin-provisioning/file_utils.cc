@@ -11,9 +11,11 @@ using namespace base;
 
 //----------------------------------------------------------------
 
-block_address
+persistent_data::block_address
 thin_provisioning::get_nr_blocks(string const &path)
 {
+	using namespace persistent_data;
+
 	struct stat info;
 	block_address nr_blocks;
 

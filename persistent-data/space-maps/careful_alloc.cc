@@ -22,6 +22,8 @@
 //----------------------------------------------------------------
 
 namespace {
+	using namespace persistent_data;
+
 	class sm_careful_alloc : public checked_space_map {
 	public:
 		typedef std::shared_ptr<sm_careful_alloc> ptr;

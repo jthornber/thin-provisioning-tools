@@ -120,10 +120,10 @@ namespace thin_provisioning {
 		};
 	}
 
-	block_manager<>::validator::ptr superblock_validator();
+	persistent_data::block_manager<>::validator::ptr superblock_validator();
 
-	superblock_detail::superblock read_superblock(block_manager<>::ptr bm);
-	void check_superblock(block_manager<>::ptr bm,
+	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm);
+	void check_superblock(persistent_data::block_manager<>::ptr bm,
 			      superblock_detail::damage_visitor &visitor);
 }
 

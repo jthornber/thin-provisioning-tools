@@ -22,6 +22,8 @@
 //----------------------------------------------------------------
 
 namespace test {
+	using namespace persistent_data;
+
 	unsigned const MAX_HELD_LOCKS = 16;
 
 	template <uint32_t BlockSize>

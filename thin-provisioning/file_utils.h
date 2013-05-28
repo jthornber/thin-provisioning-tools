@@ -6,7 +6,7 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	block_address get_nr_blocks(string const &path);
+	persistent_data::block_address get_nr_blocks(string const &path);
 }
 
 //----------------------------------------------------------------

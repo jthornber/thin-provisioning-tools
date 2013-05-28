@@ -24,9 +24,10 @@
 
 #include <iostream>
 
+// FIXME: remove
 using namespace base;
-using namespace btree_detail;
 using namespace persistent_data;
+using namespace btree_detail;
 using namespace std;
 
 //----------------------------------------------------------------

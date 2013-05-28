@@ -380,7 +380,7 @@ namespace persistent_data {
 
 	private:
 		template <typename ValueTraits2, typename Search>
-		optional<typename ValueTraits2::value_type>
+		boost::optional<typename ValueTraits2::value_type>
 		lookup_raw(btree_detail::ro_spine &spine, block_address block, uint64_t key) const;
 
 		template <typename ValueTraits2>
