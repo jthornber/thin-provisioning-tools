@@ -36,7 +36,7 @@ namespace persistent_data {
 				  damage_begin_(0) {
 			}
 
-			typedef run<block_address> run64;
+			typedef run<uint64_t> run64;
 			typedef boost::optional<run64> maybe_run64;
 
 			void bad_node() {
