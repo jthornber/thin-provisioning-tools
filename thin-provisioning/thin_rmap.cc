@@ -7,7 +7,7 @@
 #include "version.h"
 
 #include "persistent-data/data-structures/btree_damage_visitor.h"
-#include "persistent-data/range.h"
+#include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
 #include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/superblock.h"

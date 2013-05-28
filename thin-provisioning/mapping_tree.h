@@ -73,21 +73,21 @@ namespace thin_provisioning {
 		};
 
 		struct missing_devices : public damage {
-			missing_devices(std::string const &desc, range<uint64_t> const &keys);
+			missing_devices(std::string const &desc, run<uint64_t> const &keys);
 			virtual void visit(damage_visitor &v) const;
 
 			std::string desc_;
-			range<uint64_t> keys_;
+			run<uint64_t> keys_;
 		};
 
 		struct missing_mappings : public damage {
 			missing_mappings(std::string const &desc, uint64_t thin_dev,
-					 range<uint64_t> const &keys);
+					 run<uint64_t> const &keys);
 			virtual void visit(damage_visitor &v) const;
 
 			std::string desc_;
 			uint64_t thin_dev_;
-			range<uint64_t> keys_;
+			run<uint64_t> keys_;
 		};
 
 		class damage_visitor {

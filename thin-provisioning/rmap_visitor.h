@@ -16,7 +16,7 @@ namespace thin_provisioning {
 	// iv) get the rmaps with get_rmap();
 	class rmap_visitor {
 	public:
-		typedef range<block_address> region;
+		typedef run<block_address> region;
 
 		rmap_visitor();
 

@@ -95,7 +95,7 @@ namespace thin_provisioning {
 
 		//--------------------------------
 
-		missing_devices::missing_devices(std::string const &desc, range<uint64_t> const &keys)
+		missing_devices::missing_devices(std::string const &desc, run<uint64_t> const &keys)
 		: desc_(desc),
 		  keys_(keys)
 		{
@@ -110,7 +110,7 @@ namespace thin_provisioning {
 		//--------------------------------
 
 		missing_mappings::missing_mappings(std::string const &desc, uint64_t thin_dev,
-						   range<uint64_t> const &keys)
+						   run<uint64_t> const &keys)
 			: desc_(desc),
 			thin_dev_(thin_dev),
 			keys_(keys)

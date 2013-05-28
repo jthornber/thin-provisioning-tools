@@ -6,7 +6,9 @@
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/transaction_manager.h"
+#include "persistent-data/run.h"
 
+using namespace base;
 using namespace std;
 using namespace persistent_data;
 using namespace test;
@@ -71,7 +73,7 @@ namespace {
 		bool leaf;
 		unsigned depth;
 		block_address b;
-		range<uint64_t> keys;
+		run<uint64_t> keys;
 	};
 
 	ostream &operator <<(ostream &out, node_info const &ni) {
@@ -227,12 +229,12 @@ namespace {
 			ni->b = n.get_location();
 
 			if (n.get_nr_entries())
-				ni->keys = range<uint64_t>(n.key_at(0));
+				ni->keys = run<uint64_t>(n.key_at(0));
 			else {
 				if (loc.key)
-					ni->keys = range<uint64_t>(*loc.key);
+					ni->keys = run<uint64_t>(*loc.key);
 				else
-					ni->keys = range<uint64_t>();
+					ni->keys = run<uint64_t>();
 			}
 
 			if (last_node_at_depth_.size() > loc.depth) {
@@ -349,7 +351,7 @@ namespace {
 			}
 		}
 
-		void expect_value_range(uint64_t begin, uint64_t end) {
+		void expect_value_run(uint64_t begin, uint64_t end) {
 			while (begin < end) {
 				btree_path path;
 				path.push_back(begin);
@@ -359,7 +361,7 @@ namespace {
 		}
 
 		void expect_nr_values(unsigned nr) {
-			expect_value_range(0, nr);
+			expect_value_run(0, nr);
 		}
 
 		void expect_value(uint64_t n) {
@@ -368,7 +370,7 @@ namespace {
 			EXPECT_CALL(value_visitor_, visit(Eq(path), Eq(thing(n, n + 1234)))).Times(1);
 		}
 
-		void expect_damage(range<uint64_t> keys) {
+		void expect_damage(base::run<uint64_t> const &keys) {
 			EXPECT_CALL(damage_visitor_, visit(EmptyPath(), DamagedKeys(keys))).Times(1);
 		}
 
@@ -426,13 +428,13 @@ namespace {
 		}
 
 		void expect_values_except(unsigned nr_sub_trees, unsigned nr_values,
-					  btree_path const &path, range<uint64_t> keys) {
+					  btree_path const &path, base::run<uint64_t> keys) {
 			for (unsigned i = 0; i < nr_sub_trees; i++)
 				expect_sub_tree_values_except(i, nr_values, path, keys);
 		}
 
 		void expect_sub_tree_values_except(unsigned sub_tree, unsigned nr_values,
-						   btree_path const &path, range<uint64_t> keys) {
+						   btree_path const &path, base::run<uint64_t> keys) {
 			for (unsigned i = 0; i < nr_values; i++) {
 				uint64_t key[2] = {sub_tree, i};
 
@@ -446,7 +448,7 @@ namespace {
  			}
  		}
 
-		void expect_damage(btree_path path, range<uint64_t> keys) {
+		void expect_damage(btree_path path, base::run<uint64_t> keys) {
 			EXPECT_CALL(damage_visitor_, visit(Eq(path), DamagedKeys(keys))).Times(1);
 		}
 
@@ -485,7 +487,7 @@ TEST_F(BTreeDamageVisitorTests, tree_with_a_trashed_root)
 	trash_block(tree_->get_root());
 
 	expect_no_values();
-	expect_damage(range<uint64_t>(0ull));
+	expect_damage(base::run<uint64_t>(0ull));
 
 	run();
 }
@@ -508,8 +510,8 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_damaged_leaf_node)
 	node_info n = layout_->random_node(is_leaf);
 
 	trash_block(n.b);
-	expect_value_range(0, *n.keys.begin_);
-	expect_value_range(*n.keys.end_, 10000);
+	expect_value_run(0, *n.keys.begin_);
+	expect_value_run(*n.keys.end_, 10000);
 	expect_damage(n.keys);
 
 	run();
@@ -529,9 +531,9 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	block_address begin = *nodes[0].keys.begin_;
 	block_address end = *nodes[COUNT - 1].keys.end_;
 
-	expect_value_range(0, *nodes[0].keys.begin_);
-	expect_value_range(*nodes[COUNT - 1].keys.end_, 10000);
-	expect_damage(range<block_address>(begin, end));
+	expect_value_run(0, *nodes[0].keys.begin_);
+	expect_value_run(*nodes[COUNT - 1].keys.end_, 10000);
+	expect_damage(base::run<block_address>(begin, end));
 
 	run();
 }
@@ -546,8 +548,8 @@ TEST_F(BTreeDamageVisitorTests, damaged_first_leaf)
 	block_address end = *n.keys.end_;
 	trash_block(n.b);
 
-	expect_damage(range<block_address>(0ull, end));
-	expect_value_range(end, 10000);
+	expect_damage(base::run<block_address>(0ull, end));
+	expect_value_run(end, 10000);
 
 	run();
 }
@@ -563,8 +565,8 @@ TEST_F(BTreeDamageVisitorTests, damaged_last_leaf)
 	block_address begin = *n.keys.begin_;
 	trash_block(n.b);
 
-	expect_value_range(0, begin);
-	expect_damage(range<block_address>(begin));
+	expect_value_run(0, begin);
+	expect_damage(base::run<block_address>(begin));
 
 	run();
 }
@@ -581,11 +583,11 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 
 	trash_block(n.b);
 
-	expect_value_range(0, *begin);
-	expect_damage(range<block_address>(begin, end));
+	expect_value_run(0, *begin);
+	expect_damage(base::run<block_address>(begin, end));
 
 	if (end)
-		expect_value_range(*end, 10000);
+		expect_value_run(*end, 10000);
 
 	run();
 }
@@ -609,7 +611,7 @@ TEST_F(BTreeDamageVisitor2Tests, tree_with_a_trashed_root)
 	expect_no_values();
 
 	btree_path path;
-	expect_damage(path, range<uint64_t>(0ull));
+	expect_damage(path, base::run<uint64_t>(0ull));
 
 	run();
 }

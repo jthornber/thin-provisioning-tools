@@ -8,16 +8,16 @@
 
 namespace base {
 	template <typename T>
-	class range {
+	class run {
 	public:
 		typedef boost::optional<T> maybe;
 
-		explicit range(maybe begin = maybe(), maybe end = maybe())
+		explicit run(maybe begin = maybe(), maybe end = maybe())
 			: begin_(begin),
 			  end_(end) {
 		}
 
-		bool operator ==(range<T> const &r) const {
+		bool operator ==(run<T> const &r) const {
 			return (begin_ == r.begin_ && end_ == r.end_);
 		}
 
@@ -37,7 +37,7 @@ namespace base {
 
 	template <typename T>
 	std::ostream &
-	operator <<(std::ostream &out, range<T> const &r) {
+	operator <<(std::ostream &out, run<T> const &r) {
 		if (r.begin_)
 			out << "[" << *r.begin_;
 		else

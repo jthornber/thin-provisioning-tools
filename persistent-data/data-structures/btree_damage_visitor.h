@@ -11,13 +11,13 @@ namespace persistent_data {
 		struct damage {
 			typedef boost::shared_ptr<damage> ptr;
 
-			damage(range<uint64_t> lost_keys,
+			damage(run<uint64_t> lost_keys,
 			       std::string const &desc)
 				: lost_keys_(lost_keys),
 				  desc_(desc) {
 			}
 
-			range<uint64_t> lost_keys_;
+			run<uint64_t> lost_keys_;
 			std::string desc_;
 		};
 
@@ -36,18 +36,18 @@ namespace persistent_data {
 				  damage_begin_(0) {
 			}
 
-			typedef range<block_address> range64;
-			typedef boost::optional<range64> maybe_range64;
+			typedef run<block_address> run64;
+			typedef boost::optional<run64> maybe_run64;
 
 			void bad_node() {
 				damaged_ = true;
 			}
 
-			maybe_range64 good_internal(block_address begin) {
-				maybe_range64 r;
+			maybe_run64 good_internal(block_address begin) {
+				maybe_run64 r;
 
 				if (damaged_) {
-					r = maybe_range64(range64(damage_begin_, begin));
+					r = maybe_run64(run64(damage_begin_, begin));
 					damaged_ = false;
 				}
 
@@ -57,11 +57,11 @@ namespace persistent_data {
 
 			// remember 'end' is the one-past-the-end value, so
 			// take the last key in the leaf and add one.
-			maybe_range64 good_leaf(block_address begin, block_address end) {
-				maybe_range64 r;
+			maybe_run64 good_leaf(block_address begin, block_address end) {
+				maybe_run64 r;
 
 				if (damaged_) {
-					r = maybe_range64(range64(damage_begin_, begin));
+					r = maybe_run64(run64(damage_begin_, begin));
 					damaged_ = false;
 				}
 
@@ -69,11 +69,11 @@ namespace persistent_data {
 				return r;
 			}
 
-			maybe_range64 end() {
+			maybe_run64 end() {
 				if (damaged_)
-					return maybe_range64(damage_begin_);
+					return maybe_run64(damage_begin_);
 				else
-					return maybe_range64();
+					return maybe_run64();
 			}
 
 		private:
@@ -133,8 +133,8 @@ namespace persistent_data {
 		class btree_damage_visitor : public btree<Levels, ValueTraits>::visitor {
 		public:
 			typedef btree_detail::node_location node_location;
-			typedef range<block_address> range64;
-			typedef boost::optional<range64> maybe_range64;
+			typedef run<block_address> run64;
+			typedef boost::optional<run64> maybe_run64;
 
 			btree_damage_visitor(block_counter &counter,
 					     ValueVisitor &value_visitor,
@@ -389,13 +389,13 @@ namespace persistent_data {
 			}
 
 			void good_internal(block_address b) {
-				maybe_range64 mr = dt_.good_internal(b);
+				maybe_run64 mr = dt_.good_internal(b);
 				if (mr)
 					issue_damage(path_tracker_.current_path(), *mr);
 			}
 
 			void good_leaf(block_address b, block_address e) {
-				maybe_range64 mr = dt_.good_leaf(b, e);
+				maybe_run64 mr = dt_.good_leaf(b, e);
 
 				if (mr)
 					issue_damage(path_tracker_.current_path(), *mr);
@@ -405,7 +405,7 @@ namespace persistent_data {
 				maybe_issue_damage(path_tracker_.current_path());
 			}
 
-			void issue_damage(btree_path const &path, range64 const &r) {
+			void issue_damage(btree_path const &path, run64 const &r) {
 				damage d(r, build_damage_desc());
 				clear_damage_desc();
 				damage_visitor_.visit(path, d);
@@ -426,7 +426,7 @@ namespace persistent_data {
 			}
 
 			void maybe_issue_damage(btree_path const &path) {
-				maybe_range64 mr = dt_.end();
+				maybe_run64 mr = dt_.end();
 				if (mr)
 					issue_damage(path, *mr);
 			}
