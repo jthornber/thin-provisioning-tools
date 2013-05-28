@@ -12,7 +12,7 @@ namespace base {
 	public:
 		typedef boost::optional<T> maybe;
 
-		range(maybe begin = maybe(), maybe end = maybe())
+		explicit range(maybe begin = maybe(), maybe end = maybe())
 			: begin_(begin),
 			  end_(end) {
 		}
