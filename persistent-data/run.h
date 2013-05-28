@@ -12,7 +12,19 @@ namespace base {
 	public:
 		typedef boost::optional<T> maybe;
 
-		explicit run(maybe begin = maybe(), maybe end = maybe())
+		run() {
+		}
+
+		explicit run(T const &b)
+			: begin_(b) {
+		}
+
+		run(T const &b, T const &e)
+			: begin_(b),
+			  end_(e) {
+		}
+
+		explicit run(maybe begin, maybe end)
 			: begin_(begin),
 			  end_(end) {
 		}
