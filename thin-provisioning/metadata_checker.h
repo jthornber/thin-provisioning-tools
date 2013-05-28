@@ -21,7 +21,7 @@
 
 #include "persistent-data/block.h"
 #include "persistent-data/error_set.h"
-#include "persistent-data/range.h"
+#include "persistent-data/run.h"
 #include "persistent-data/space_map.h"
 
 #include <deque>

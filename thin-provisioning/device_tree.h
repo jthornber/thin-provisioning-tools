@@ -2,7 +2,7 @@
 #define THIN_DEVICE_CHECKER_H
 
 #include "persistent-data/data-structures/btree.h"
-#include "persistent-data/range.h"
+#include "persistent-data/run.h"
 
 //----------------------------------------------------------------
 

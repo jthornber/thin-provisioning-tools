@@ -2,7 +2,7 @@
 #define PERSISTENT_DATA_DATA_STRUCTURES_DAMAGE_VISITOR_H
 
 #include "persistent-data/data-structures/btree.h"
-#include "persistent-data/range.h"
+#include "persistent-data/run.h"
 
 //----------------------------------------------------------------
 
