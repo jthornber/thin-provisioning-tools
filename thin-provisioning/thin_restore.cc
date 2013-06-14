@@ -79,25 +79,25 @@ int main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
-			case 'h':
-				usage(cout, basename(argv[0]));
-				return 0;
+		case 'h':
+			usage(cout, basename(argv[0]));
+			return 0;
 
-			case 'i':
-				input = optarg;
-				break;
+		case 'i':
+			input = optarg;
+			break;
 
-			case 'o':
-				output = optarg;
-				break;
+		case 'o':
+			output = optarg;
+			break;
 
-			case 'V':
-				cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
-				return 0;
+		case 'V':
+			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
+			return 0;
 
-			default:
-				usage(cerr, basename(argv[0]));
-				return 1;
+		default:
+			usage(cerr, basename(argv[0]));
+			return 1;
 		}
 	}
 
