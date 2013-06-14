@@ -443,13 +443,26 @@ namespace {
 		}
 
 	private:
+		void check_block(block_address b) const {
+			if (b >= nr_blocks_) {
+				std::ostringstream out;
+				out << "space map disk: block out of bounds ("
+				    << b << " >= " << nr_blocks_ << ")";
+				throw std::runtime_error(out.str());
+			}
+		}
+
 		ref_t lookup_bitmap(block_address b) const {
+			check_block(b);
+
 			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
 			bitmap bm(tm_, ie, bitmap_validator_);
 			return bm.lookup(b % ENTRIES_PER_BLOCK);
 		}
 
 		void insert_bitmap(block_address b, unsigned n) {
+			check_block(b);
+
 			if (n > 3)
 				throw runtime_error("bitmap can only hold 2 bit values");
 
