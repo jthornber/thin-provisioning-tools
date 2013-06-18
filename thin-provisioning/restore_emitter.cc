@@ -48,7 +48,7 @@ namespace {
 					      uint64_t nr_data_blocks,
 					      optional<uint64_t> metadata_snap) {
 			in_superblock_ = true;
-
+			nr_data_blocks_ = nr_data_blocks;
 			superblock &sb = md_->sb_;
 			memcpy(&sb.uuid_, &uuid, sizeof(&sb.uuid_));
 			sb.time_ = time;
@@ -116,6 +116,13 @@ namespace {
 			if (!current_device_)
 				throw runtime_error("not in device");
 
+			if (data_block >= nr_data_blocks_) {
+				std::ostringstream out;
+				out << "mapping beyond end of data device (" << data_block
+				    << " >= " << nr_data_blocks_ << ")";
+				throw std::runtime_error(out.str());
+			}
+
 			uint64_t key[1] = {origin_block};
 			mapping_tree_detail::block_time bt;
 			bt.block_ = data_block;
@@ -139,6 +146,7 @@ namespace {
 
 		metadata::ptr md_;
 		bool in_superblock_;
+		block_address nr_data_blocks_;
 		optional<uint32_t> current_device_;
 		single_mapping_tree::ptr current_mapping_;
 		single_mapping_tree::ptr empty_mapping_;
