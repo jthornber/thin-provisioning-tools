@@ -25,6 +25,7 @@ PROGRAMS=\
 	thin_check \
 	thin_dump \
 	thin_restore \
+	thin_repair \
 	thin_rmap
 
 all: $(PROGRAMS)
@@ -69,6 +70,7 @@ PROGRAM_SOURCE=\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_restore.cc \
+	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_rmap.cc
 
 CXX:=@CXX@
@@ -124,6 +126,7 @@ lib/libpdata.a: $(PDATA_OBJECTS)
 
 THIN_DEBUG_SOURCE=$(SOURCE)
 THIN_DUMP_SOURCE=$(SOURCE)
+THIN_REPAIR_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
 THIN_CHECK_SOURCE=\
 	persistent-data/checksum.cc \
@@ -164,11 +167,16 @@ THIN_RMAP_SOURCE=\
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
+THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+thin_repair: $(THIN_REPAIR_OBJECTS) thin-provisioning/thin_repair.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
