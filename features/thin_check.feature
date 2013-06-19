@@ -73,3 +73,10 @@ Feature: thin_check
     Given valid metadata
     When I run thin_check with --ignore-non-fatal-errors
     Then it should pass
+
+  Scenario: -q should give no output
+    Given a corrupt superblock
+    When I run thin_check with --quiet
+    Then it should fail with:
+    """
+    """
