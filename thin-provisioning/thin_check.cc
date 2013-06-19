@@ -51,8 +51,7 @@ namespace {
 		nested_output &operator <<(T const &t) {
 			if (beginning_of_line_) {
 				beginning_of_line_ = false;
-				if (enabled)
-					indent();
+				indent();
 			}
 
 			if (enabled)
