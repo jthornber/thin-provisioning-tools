@@ -155,4 +155,68 @@ TEST(BtreeTests, insert_does_not_insert_imaginary_values)
 	check_constraints(tree);
 }
 
+TEST(BtreeTests, clone)
+{
+	typedef btree<1, uint64_traits> tree64;
+
+	unsigned const COUNT = 1000;
+
+	tree64::maybe_value l;
+	tree64::ptr tree = create_btree();
+	for (uint64_t i = 0; i < COUNT; i++) {
+		uint64_t key[1] = {i};
+		uint64_t value = i * 7;
+
+		tree->insert(key, value);
+	}
+
+	for (uint64_t i = 0; i < COUNT; i++) {
+		uint64_t key[1] = {i};
+		uint64_t value = i * 7;
+
+		l = tree->lookup(key);
+		ASSERT_TRUE(l);
+		ASSERT_THAT(*l, Eq(value));
+	}
+
+	cerr << "tree root: " << tree->get_root() << endl;
+	tree64::ptr copy = tree->clone();
+	cerr << "copy root: " << copy->get_root() << endl;
+	for (uint64_t i = 0; i < COUNT; i++) {
+		uint64_t key[1] = {i + COUNT};
+		uint64_t value = (i + COUNT) * 7;
+
+		copy->insert(key, value);
+	}
+	cerr << "copy root (after inserts): " << copy->get_root() << endl;
+	cerr << "tree root (after inserts): " << tree->get_root() << endl;
+
+	for (uint64_t i = 0; i < COUNT; i++) {
+		uint64_t key[1] = {i};
+		uint64_t value = i * 7;
+
+		l = tree->lookup(key);
+		ASSERT_TRUE(l);
+		ASSERT_THAT(*l, Eq(value));
+
+		l = copy->lookup(key);
+		ASSERT_TRUE(l);
+		ASSERT_THAT(*l, Eq(value));
+	}
+
+	for (uint64_t i = 0; i < COUNT; i++) {
+		uint64_t key[1] = {i + COUNT};
+		uint64_t value = (i + COUNT) * 7;
+
+		l = tree->lookup(key);
+		ASSERT_FALSE(l);
+
+		l = copy->lookup(key);
+		ASSERT_TRUE(l);
+		ASSERT_THAT(*l, Eq(value));
+	}
+
+	check_constraints(tree);
+}
+
 //----------------------------------------------------------------
