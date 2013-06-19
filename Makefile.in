@@ -181,6 +181,10 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
+thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+
 thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
