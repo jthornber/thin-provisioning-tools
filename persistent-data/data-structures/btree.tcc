@@ -486,6 +486,8 @@ namespace persistent_data {
 		else
 			// FIXME: check if we're overwriting with the same value.
 			n.set_value(index, value);
+
+		root_ = spine.get_root();
 	}
 
 	template <unsigned Levels, typename ValueTraits>
