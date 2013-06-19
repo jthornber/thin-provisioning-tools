@@ -34,7 +34,7 @@ using namespace base;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
-#if 0
+
 namespace {
 	using namespace superblock_detail;
 
@@ -108,11 +108,18 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		tm_->set_sm(metadata_sm_);
 
 		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-		details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));
-		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_,
-								 mapping_tree_detail::mtree_ref_counter(tm_)));
-		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_,
-							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
+
+		details_ = device_tree::ptr(
+			new device_tree(tm_, sb_.device_details_root_,
+					device_tree_detail::device_details_traits::ref_counter()));
+
+		mappings_top_level_ = dev_tree::ptr(
+			new dev_tree(tm_, sb_.data_mapping_root_,
+				     mapping_tree_detail::mtree_ref_counter(tm_)));
+
+		mappings_ = mapping_tree::ptr(
+			new mapping_tree(tm_, sb_.data_mapping_root_,
+					 mapping_tree_detail::block_time_ref_counter(data_sm_)));
 		break;
 
 	case CREATE:
@@ -142,10 +149,11 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 	}
 }
 
-metadata::metadata(std::string const &dev_path, block_address metadata_snap)
+metadata::metadata(std::string const &dev_path)
 {
 	tm_ = open_tm(open_bm(dev_path, false));
-	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
+	sb_ = read_superblock(tm_->get_bm());
+
 	// We don't open the metadata sm for a held root
 	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
 	tm_->set_sm(metadata_sm_);
@@ -227,4 +235,3 @@ metadata::commit()
 }
 
 //----------------------------------------------------------------
-#endif

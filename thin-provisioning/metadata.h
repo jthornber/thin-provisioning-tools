@@ -65,7 +65,7 @@ namespace thin_provisioning {
 			 sector_t data_block_size = 128,
 			 block_address nr_data_blocks = 0); // Only used if CREATE
 
-		metadata(std::string const &dev_path, block_address metadata_snap);
+		metadata(std::string const &dev_path);
 
 		// ... use these instead ...
 		metadata(block_manager<>::ptr bm, open_type ot,

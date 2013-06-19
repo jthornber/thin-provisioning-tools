@@ -48,6 +48,7 @@ Feature: thin_rmap
     When I run `thin_rmap --unleash-the-hedeghogs`
     Then it should fail
 
+  @announce
   Scenario: Valid region format should pass
     Given valid metadata
     When I run thin_rmap with --region 23..7890
