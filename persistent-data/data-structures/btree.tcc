@@ -467,7 +467,7 @@ namespace persistent_data {
 		shadow_spine spine(tm_, validator_);
 
 		for (unsigned level = 0; level < Levels - 1; ++level) {
-			bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index);
+			bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index, internal_rc_);
 
 			internal_node n = spine.template get_node<uint64_traits>();
 			if (need_insert) {
@@ -478,7 +478,7 @@ namespace persistent_data {
 			block = n.value_at(index);
 		}
 
-		bool need_insert = insert_location<ValueTraits>(spine, block, key[Levels - 1], &index);
+		bool need_insert = insert_location<ValueTraits>(spine, block, key[Levels - 1], &index, rc_);
 
 		leaf_node n = spine.template get_node<ValueTraits>();
 		if (need_insert)
@@ -678,13 +678,14 @@ namespace persistent_data {
 
 	// Returns true if we need a new insertion, rather than overwrite.
 	template <unsigned Levels, typename _>
-	template <typename ValueTraits>
+	template <typename ValueTraits, typename RC>
 	bool
 	btree<Levels, _>::
 	insert_location(btree_detail::shadow_spine &spine,
 			block_address block,
 			uint64_t key,
-			int *index)
+			int *index,
+			RC &leaf_rc)
 	{
 		using namespace btree_detail;
 
@@ -694,10 +695,17 @@ namespace persistent_data {
 
 		for (;;) {
 			inc = spine.step(block);
-#if 0
-			if (inc)
-				inc_children<ValueTraits>();
-#endif
+
+			// FIXME: factor out
+			{
+				node_ref<uint64_traits> nr = spine.template get_node<uint64_traits>();
+				if (nr.get_type() == INTERNAL)
+					nr.inc_children(internal_rc_);
+				else {
+					node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
+					leaf.inc_children(leaf_rc);
+				}
+			}
 
 			// patch up the parent to point to the new shadow
 			if (spine.has_parent()) {

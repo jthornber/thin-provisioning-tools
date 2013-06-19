@@ -397,12 +397,13 @@ namespace persistent_data {
 				   block_address parent_index,
 				   uint64_t key);
 
-		template <typename ValueTraits2>
+		template <typename ValueTraits2, typename RC>
 		bool
 		insert_location(btree_detail::shadow_spine &spine,
 				block_address block,
 				uint64_t key,
-				int *index);
+				int *index,
+				RC &leaf_rc);
 
 		void walk_tree(visitor &visitor,
 			       btree_detail::node_location const &loc,
