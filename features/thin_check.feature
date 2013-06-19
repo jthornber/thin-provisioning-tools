@@ -77,6 +77,11 @@ Feature: thin_check
   Scenario: -q should give no output
     Given a corrupt superblock
     When I run thin_check with --quiet
-    Then it should fail with:
-    """
-    """
+    Then it should fail
+    And it should give no output
+
+  Scenario: --quiet should give no output
+    Given a corrupt superblock
+    When I run thin_check with --quiet
+    Then it should fail
+    And it should give no output

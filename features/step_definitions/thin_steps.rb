@@ -28,3 +28,8 @@ When(/^I run thin_rmap with (.*?)$/) do |opts|
   run_simple("thin_rmap #{opts} #{dev_file}", false)
 end
 
+Then /^it should give no output$/ do
+  ps = only_processes.last
+  output = ps.stdout + ps.stderr
+  output.should == ""
+end
