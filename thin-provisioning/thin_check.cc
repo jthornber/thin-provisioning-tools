@@ -43,6 +43,7 @@ namespace {
 			: out_(out),
 			  step_(step),
 			  beginning_of_line_(true),
+			  enabled(true),
 			  indent_(0) {
 		}
 
@@ -50,16 +51,22 @@ namespace {
 		nested_output &operator <<(T const &t) {
 			if (beginning_of_line_) {
 				beginning_of_line_ = false;
-				indent();
+				if (enabled)
+					indent();
 			}
 
-			out_ << t;
+			if (enabled)
+				out_ << t;
+
 			return *this;
 		}
 
 		nested_output &operator <<(end_message const &m) {
 			beginning_of_line_ = true;
-			out_ << endl;
+
+			if (enabled)
+				out_ << endl;
+
 			return *this;
 		}
 
@@ -88,16 +95,26 @@ namespace {
 			return nest(*this);
 		}
 
+		void enable() {
+			enabled = true;
+		}
+
+		void disable() {
+			enabled = false;
+		}
+
 	private:
 		void indent() {
-			for (unsigned i = 0; i < indent_; i++)
-				out_ << ' ';
+			if (enabled)
+				for (unsigned i = 0; i < indent_; i++)
+					out_ << ' ';
 		}
 
 		ostream &out_;
 		unsigned step_;
 
 		bool beginning_of_line_;
+		bool enabled;
 		unsigned indent_;
 	};
 
@@ -242,6 +259,9 @@ namespace {
 		block_manager<>::ptr bm = open_bm(path);
 
 		nested_output out(cerr, 2);
+		if (fs.quiet)
+			out.disable();
+
 		superblock_reporter sb_rep(out);
 		devices_reporter dev_rep(out);
 		mapping_reporter mapping_rep(out);
