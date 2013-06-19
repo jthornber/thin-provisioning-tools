@@ -226,7 +226,7 @@ DEPEND_FILES=\
 .PHONY: clean distclean
 
 clean:
-	$(RM) *.o unit-tests/*.o $(DEPEND_FILES) unit-tests/*.gmo $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS) $(GMOCK_OBJECTS) lib/*.a
+	$(RM) */*.o unit-tests/*.o $(DEPEND_FILES) unit-tests/*.gmo $(TEST_PROGRAMS) $(PROGRAMS) $(OBJECTS) $(GMOCK_OBJECTS) lib/*.a
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
