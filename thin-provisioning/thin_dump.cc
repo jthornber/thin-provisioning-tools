@@ -34,9 +34,7 @@ namespace {
 	int dump(string const &path, string const &format, bool repair,
 		 block_address metadata_snap = 0) {
 		try {
-			metadata::ptr md(metadata_snap ?
-					 new metadata(path, metadata_snap) :
-					 new metadata(path, metadata::OPEN));
+			metadata::ptr md(new metadata(path, metadata::OPEN));
 			emitter::ptr e;
 
 			if (format == "xml")
