@@ -234,6 +234,8 @@ namespace {
 		bool check_mapping_tree_level2;
 
 		bool ignore_non_fatal_errors;
+
+		bool quiet;
 	};
 
 	error_state metadata_check(string const &path, flags fs) {
@@ -296,7 +298,9 @@ namespace {
 			err = metadata_check(path, fs);
 
 		} catch (std::exception &e) {
-			cerr << e.what() << endl;
+			if (!fs.quiet)
+				cerr << e.what() << endl;
+
 			return 1;
 		}
 
@@ -322,7 +326,6 @@ int main(int argc, char **argv)
 {
 	int c;
 	flags fs;
-	bool quiet = false;
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
@@ -338,6 +341,7 @@ int main(int argc, char **argv)
 	fs.check_mapping_tree_level1 = true;
 	fs.check_mapping_tree_level2 = true;
 	fs.ignore_non_fatal_errors = false;
+	fs.quiet = false;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
@@ -346,7 +350,7 @@ int main(int argc, char **argv)
 			return 0;
 
 		case 'q':
-			quiet = true;
+			fs.quiet = true;
 			break;
 
 		case 'V':
@@ -377,8 +381,11 @@ int main(int argc, char **argv)
 	}
 
 	if (argc == optind) {
-		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		if (!fs.quiet) {
+			cerr << "No input file provided." << endl;
+			usage(cerr, basename(argv[0]));
+		}
+
 		exit(1);
 	}
 
