@@ -16,10 +16,10 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "disk.h"
-#include "disk_structures.h"
-#include "recursive.h"
-#include "careful_alloc.h"
+#include "persistent-data/space-maps/disk.h"
+#include "persistent-data/space-maps/disk_structures.h"
+#include "persistent-data/space-maps/recursive.h"
+#include "persistent-data/space-maps/careful_alloc.h"
 
 #include "persistent-data/checksum.h"
 #include "persistent-data/endian_utils.h"
