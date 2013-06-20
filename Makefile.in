@@ -38,6 +38,8 @@ PDATA_SOURCE=\
 	persistent-data/lock_tracker.cc \
 	persistent-data/transaction_manager.cc \
 	\
+	persistent-data/data-structures/btree.cc \
+	\
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \

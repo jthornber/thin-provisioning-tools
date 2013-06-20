@@ -60,6 +60,7 @@ namespace {
 //----------------------------------------------------------------
 
 namespace persistent_data {
+
 	inline void
 	ro_spine::step(block_address b)
 	{
@@ -356,7 +357,7 @@ namespace persistent_data {
 		}
 	}
 
-//----------------------------------------------------------------
+	//--------------------------------
 
 	template <unsigned Levels, typename ValueTraits>
 	btree<Levels, ValueTraits>::
@@ -364,6 +365,7 @@ namespace persistent_data {
 	      typename ValueTraits::ref_counter rc)
 		: tm_(tm),
 		  destroy_(false),
+		  internal_rc_(tm->get_sm()),
 		  rc_(rc),
 		  validator_(new btree_node_validator)
 	{
@@ -388,6 +390,7 @@ namespace persistent_data {
 		: tm_(tm),
 		  destroy_(false),
 		  root_(root),
+		  internal_rc_(tm->get_sm()),
 		  rc_(rc),
 		  validator_(new btree_node_validator)
 	{
@@ -426,7 +429,7 @@ namespace persistent_data {
 
 		for (unsigned level = 0; level < Levels - 1; ++level) {
 			optional<block_address> mroot =
-				lookup_raw<uint64_traits, lower_bound_search<uint64_traits> >(spine, root, key[level]);
+				lookup_raw<block_traits, lower_bound_search<block_traits> >(spine, root, key[level]);
 			if (!mroot)
 				return maybe_value();
 
@@ -467,9 +470,9 @@ namespace persistent_data {
 		shadow_spine spine(tm_, validator_);
 
 		for (unsigned level = 0; level < Levels - 1; ++level) {
-			bool need_insert = insert_location<uint64_traits>(spine, block, key[level], &index, internal_rc_);
+			bool need_insert = insert_location<block_traits>(spine, block, key[level], &index, internal_rc_);
 
-			internal_node n = spine.template get_node<uint64_traits>();
+			internal_node n = spine.template get_node<block_traits>();
 			if (need_insert) {
 				btree<Levels - 1, ValueTraits> new_tree(tm_, rc_);
 				n.insert_at(index, key[level], new_tree.get_root());
@@ -556,7 +559,7 @@ namespace persistent_data {
 			if (!mi || *mi < 0)
 				return optional<leaf_type>();
 
-			node_ref<uint64_traits> internal = spine.template get_node<uint64_traits>();
+			node_ref<block_traits> internal = spine.template get_node<block_traits>();
 			block = internal.value_at(*mi);
 		}
 	}
@@ -623,11 +626,11 @@ namespace persistent_data {
 
 		{
 			// The parent may have changed value type, so we re-get it.
-			internal_node p = spine.template get_node<uint64_traits>();
+			internal_node p = spine.template get_node<block_traits>();
 			p.set_type(btree_detail::INTERNAL);
 			p.set_max_entries();
 			p.set_nr_entries(2);
-			p.set_value_size(sizeof(typename uint64_traits::disk_type));
+			p.set_value_size(sizeof(typename block_traits::disk_type));
 
 			p.overwrite_at(0, l.key_at(0), left.get_location());
 			p.overwrite_at(1, r.key_at(0), right.get_location());
@@ -703,15 +706,15 @@ namespace persistent_data {
 				p.set_value(i, spine.get_block());
 			}
 
-			internal_node internal = spine.template get_node<uint64_traits>();
+			internal_node internal = spine.template get_node<block_traits>();
 
 			// Split the node if we're full
 			if (internal.get_type() == INTERNAL)
-				split_node<uint64_traits>(spine, i, key, top);
+				split_node<block_traits>(spine, i, key, top);
 			else
 				split_node<ValueTraits>(spine, i, key, top);
 
-			internal = spine.template get_node<uint64_traits>();
+			internal = spine.template get_node<block_traits>();
 			i = internal.lower_bound(key);
 			if (internal.get_type() == btree_detail::LEAF)
 				break;
@@ -780,7 +783,7 @@ namespace persistent_data {
 		using namespace btree_detail;
 
 		read_ref blk = tm_->read_lock(b, validator_);
-		internal_node o = to_node<uint64_traits>(blk);
+		internal_node o = to_node<block_traits>(blk);
 
 		// FIXME: use a switch statement
 		if (o.get_type() == INTERNAL) {
@@ -817,7 +820,7 @@ namespace persistent_data {
 	void
 	btree<Levels, _>::inc_children(btree_detail::shadow_spine &spine, RefCounter &leaf_rc)
 	{
-		node_ref<uint64_traits> nr = spine.template get_node<uint64_traits>();
+		node_ref<block_traits> nr = spine.template get_node<block_traits>();
 		if (nr.get_type() == INTERNAL)
 			nr.inc_children(internal_rc_);
 		else {

@@ -146,14 +146,14 @@ namespace persistent_data {
 			}
 
 			bool visit_internal(node_location const &loc,
-					    btree_detail::node_ref<uint64_traits> const &n) {
+					    btree_detail::node_ref<block_traits> const &n) {
 				update_path(loc.path);
 
 				return check_internal(loc, n);
 			}
 
 			bool visit_internal_leaf(node_location const &loc,
-						 btree_detail::node_ref<uint64_traits> const &n) {
+						 btree_detail::node_ref<block_traits> const &n) {
 				update_path(loc.path);
 
 				return check_leaf(loc, n);
@@ -200,7 +200,7 @@ namespace persistent_data {
 			}
 
 			bool check_internal(node_location const &loc,
-					    btree_detail::node_ref<uint64_traits> const &n) {
+					    btree_detail::node_ref<block_traits> const &n) {
 				if (!already_visited(n) &&
 				    check_block_nr(n) &&
 				    check_max_entries(n) &&

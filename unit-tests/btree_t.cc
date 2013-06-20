@@ -53,7 +53,7 @@ namespace {
 	class constraint_visitor : public btree<1, uint64_traits>::visitor {
 	public:
 		typedef btree_detail::node_location node_location;
-		typedef btree_detail::node_ref<uint64_traits> internal_node;
+		typedef btree_detail::node_ref<block_traits> internal_node;
 		typedef btree_detail::node_ref<uint64_traits> leaf_node;
 
 		bool visit_internal(node_location const &loc,

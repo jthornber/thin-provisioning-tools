@@ -31,10 +31,38 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
+	class block_ref_counter : public ref_counter<block_address> {
+	public:
+		block_ref_counter(space_map::ptr sm);
+
+		virtual void set(block_address const &v, uint32_t rc);
+		virtual void inc(block_address const &v);
+		virtual void dec(block_address const &v);
+
+	private:
+		space_map::ptr sm_;
+	};
+
+	// FIXME: move to sep file.  I don't think it's directly used by
+	// the btree code.
 	struct uint64_traits {
 		typedef base::le64 disk_type;
 		typedef uint64_t value_type;
 		typedef no_op_ref_counter<uint64_t> ref_counter;
+
+		static void unpack(disk_type const &disk, value_type &value) {
+			value = base::to_cpu<uint64_t>(disk);
+		}
+
+		static void pack(value_type const &value, disk_type &disk) {
+			disk = base::to_disk<base::le64>(value);
+		}
+	};
+
+	struct block_traits {
+		typedef base::le64 disk_type;
+		typedef block_address value_type;
+		typedef block_ref_counter ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
 			value = base::to_cpu<uint64_t>(disk);
@@ -243,11 +271,11 @@ namespace persistent_data {
 				return spine_.size() > 1;
 			}
 
-			node_ref<uint64_traits> get_parent() {
+			node_ref<block_traits> get_parent() {
 				if (spine_.size() < 2)
 					throw std::runtime_error("no parent");
 
-				return to_node<uint64_traits>(spine_.front());
+				return to_node<block_traits>(spine_.front());
 			}
 
 			block_address get_parent_location() const {
@@ -316,7 +344,7 @@ namespace persistent_data {
 		typedef typename block_manager<>::read_ref read_ref;
 		typedef typename block_manager<>::write_ref write_ref;
 		typedef typename btree_detail::node_ref<ValueTraits> leaf_node;
-		typedef typename btree_detail::node_ref<uint64_traits> internal_node;
+		typedef typename btree_detail::node_ref<block_traits> internal_node;
 
 		btree(typename persistent_data::transaction_manager::ptr tm,
 		      typename ValueTraits::ref_counter rc);
@@ -420,7 +448,7 @@ namespace persistent_data {
 		typename persistent_data::transaction_manager::ptr tm_;
 		bool destroy_;
 		block_address root_;
-		no_op_ref_counter<uint64_t> internal_rc_;
+		block_ref_counter internal_rc_;
 		typename ValueTraits::ref_counter rc_;
 		typename block_manager<>::validator::ptr validator_;
 	};

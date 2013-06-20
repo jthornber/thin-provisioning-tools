@@ -44,7 +44,7 @@ namespace {
 		}
 
 		bool visit_internal(node_location const &loc,
-				    btree_detail::node_ref<uint64_traits> const &n) {
+				    btree_detail::node_ref<block_traits> const &n) {
 
 			if (!checker_.visit_internal(loc, n)) {
 				found_errors_ = true;
@@ -55,7 +55,7 @@ namespace {
 		}
 
 		bool visit_internal_leaf(node_location const &loc,
-					 btree_detail::node_ref<uint64_traits> const &n) {
+					 btree_detail::node_ref<block_traits> const &n) {
 			if (!checker_.visit_internal_leaf(loc, n)) {
 				found_errors_ = true;
 				return false;
@@ -148,12 +148,12 @@ namespace {
 		}
 
 		bool visit_internal(node_location const &loc,
-				    btree_detail::node_ref<uint64_traits> const &n) {
+				    btree_detail::node_ref<block_traits> const &n) {
 			return checker_.visit_internal(loc, n);
 		}
 
 		bool visit_internal_leaf(node_location const &loc,
-					 btree_detail::node_ref<uint64_traits> const &n) {
+					 btree_detail::node_ref<block_traits> const &n) {
 			return checker_.visit_internal_leaf(loc, n);
 		}
 
