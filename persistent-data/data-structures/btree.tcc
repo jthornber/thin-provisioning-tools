@@ -695,17 +695,7 @@ namespace persistent_data {
 
 		for (;;) {
 			inc = spine.step(block);
-
-			// FIXME: factor out
-			{
-				node_ref<uint64_traits> nr = spine.template get_node<uint64_traits>();
-				if (nr.get_type() == INTERNAL)
-					nr.inc_children(internal_rc_);
-				else {
-					node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
-					leaf.inc_children(leaf_rc);
-				}
-			}
+			inc_children<ValueTraits>(spine, leaf_rc);
 
 			// patch up the parent to point to the new shadow
 			if (spine.has_parent()) {
@@ -818,6 +808,21 @@ namespace persistent_data {
 		} else {
 			leaf_node ov = to_node<ValueTraits>(blk);
 			v.visit_leaf(loc, ov);
+		}
+	}
+
+
+	template <unsigned Levels, typename _>
+	template <typename ValueTraits, typename RefCounter>
+	void
+	btree<Levels, _>::inc_children(btree_detail::shadow_spine &spine, RefCounter &leaf_rc)
+	{
+		node_ref<uint64_traits> nr = spine.template get_node<uint64_traits>();
+		if (nr.get_type() == INTERNAL)
+			nr.inc_children(internal_rc_);
+		else {
+			node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
+			leaf.inc_children(leaf_rc);
 		}
 	}
 }

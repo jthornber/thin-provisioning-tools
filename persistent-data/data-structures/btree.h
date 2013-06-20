@@ -413,6 +413,10 @@ namespace persistent_data {
 					btree_detail::node_location const &loc,
 					block_address b) const;
 
+		template <typename ValueTraits2, typename RefCounter>
+		void inc_children(btree_detail::shadow_spine &spine,
+				  RefCounter &leaf_rc);
+
 		typename persistent_data::transaction_manager::ptr tm_;
 		bool destroy_;
 		block_address root_;
