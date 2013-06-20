@@ -694,7 +694,8 @@ namespace persistent_data {
 
 		for (;;) {
 			inc = spine.step(block);
-			inc_children<ValueTraits>(spine, leaf_rc);
+			if (inc)
+				inc_children<ValueTraits>(spine, leaf_rc);
 
 			// patch up the parent to point to the new shadow
 			if (spine.has_parent()) {
