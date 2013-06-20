@@ -136,6 +136,7 @@ THIN_CHECK_SOURCE=\
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
@@ -154,6 +155,7 @@ THIN_RMAP_SOURCE=\
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
@@ -207,6 +209,7 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/error_set.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
