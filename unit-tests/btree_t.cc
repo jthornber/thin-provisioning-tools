@@ -179,17 +179,13 @@ TEST(BtreeTests, clone)
 		ASSERT_THAT(*l, Eq(value));
 	}
 
-	cerr << "tree root: " << tree->get_root() << endl;
 	tree64::ptr copy = tree->clone();
-	cerr << "copy root: " << copy->get_root() << endl;
 	for (uint64_t i = 0; i < COUNT; i++) {
 		uint64_t key[1] = {i + COUNT};
 		uint64_t value = (i + COUNT) * 7;
 
 		copy->insert(key, value);
 	}
-	cerr << "copy root (after inserts): " << copy->get_root() << endl;
-	cerr << "tree root (after inserts): " << tree->get_root() << endl;
 
 	for (uint64_t i = 0; i < COUNT; i++) {
 		uint64_t key[1] = {i};
