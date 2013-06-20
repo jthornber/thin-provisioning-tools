@@ -669,11 +669,10 @@ namespace persistent_data {
 		p.overwrite_at(parent_index, l.key_at(0), left);
 		p.insert_at(parent_index + 1, r.key_at(0), right.get_location());
 
-		spine.pop();
-		if (key < r.key_at(0))
-			spine.step(left);
-		else
+		if (key >= r.key_at(0)) {
+			spine.pop();
 			spine.step(right);
+		}
 	}
 
 	// Returns true if we need a new insertion, rather than overwrite.
