@@ -26,7 +26,8 @@ PROGRAMS=\
 	thin_dump \
 	thin_restore \
 	thin_repair \
-	thin_rmap
+	thin_rmap \
+	thin_metadata_size
 
 all: $(PROGRAMS)
 
