@@ -7,7 +7,7 @@
 #
 # Script to calculate device-mapper thin privisioning
 # metadata device size based on pool, block size and
-# maximum expected thin provisioned devices.
+# maximum expected thin provisioned devices and snapshots.
 #
 
 require 'optparse'
@@ -16,8 +16,6 @@ require 'pathname'
 #----------------------------------------------------------------
 
 $prg = Pathname.new($0).basename
-$btree_entrysize = 16
-$btree_nodesize = 4096
 
 def init_units
   units = Hash.new
@@ -39,7 +37,7 @@ end
 
 def check_opts(opts)
   abort "#{$prg} - 3 arguments required!" if opts.length < 3
-  abort "#{$prg} - poolsize must be much larger than blocksize" if opts[:poolsize] < opts[:blocksize] * 16
+  abort "#{$prg} - poolsize must be much larger than blocksize" if opts[:poolsize] < opts[:blocksize]
   abort "#{$prg} - maximum number of thin provisioned devices must be > 0" if opts[:maxthins].nil? || opts[:maxthins] == 0
 end
 
@@ -51,7 +49,7 @@ def to_sectors(size, units)
   abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
   abort "#{$prg} - invalid unit specifier!" if s != a[0]
   idx = unit_chars.index(size[a[0].length])
-  r = size.to_i * units[:factors][idx] / 512
+  r = size.to_i * units[:factors][idx] / units[:factors][0]
   r
 end
 
@@ -61,34 +59,31 @@ def parse_command_line(argv, units)
 
   os = OptionParser.new do |o|
     o.banner = "Thin Provisioning Metadata Size Calculator.\nUsage: #{$prg} [opts]"
-    o.on('-b', '--blocksize BLOCKSIZE', String,
-         "Block size, ie. allocation unit size for thin provisioned devices.") do |bs|
+    o.on("-b", "--block-size BLOCKSIZE[#{units[:chars]}]", String,
+         "Block size of thin provisioned devices.") do |bs|
       opts[:blocksize] = to_sectors(bs, units)
     end
-    o.on('-s', '--poolsize SIZE', String, "Size of the pool device.") do |ps|
+    o.on("-s", "--pool-size SIZE[#{units[:chars]}]", String, "Size of the pool device.") do |ps|
       opts[:poolsize] = to_sectors(ps, units)
     end
-    o.on('-m', '--maxthins MAXTHINS', Integer, "Size of the pool device.") do |mt|
+    o.on("-m", "--max-thins #MAXTHINS", Integer, "Maximum sum of all thin devices and snapshots.") do |mt|
       opts[:maxthins] = mt
     end
-    o.on('-u', '--units [skKmMgGtTpP]', String, "Output unit specifier.") do |u|
-      if u =~ /[#{unit_chars}]/
-        opts[:units] = u
-      else
-        abort "#{$prg} - output unit specifier invalid."
-      end
+    o.on("-u", "--unit [#{units[:chars]}]", String, "Output unit specifier.") do |u|
+      abort "#{$prg} - output unit specifier invalid." if u.length > 1 || !(u =~ /[#{unit_chars}]/)
+      opts[:units] = u
     end
-    o.on('-n', '--numeric-only', "Output numeric value only.") do
-      opts[:numeric] = true || nil
+    o.on("-n", "--numeric-only", "Output numeric value only.") do
+      opts[:numeric] = true
     end
-    o.on('-h', '--help', "Outout this help.") do
+    o.on("-h", "--help", "Outout this help.") do
       puts o
       exit
     end
   end
 
   begin
-    os.parse(argv)
+    os.parse!(argv)
   rescue OptionParser::ParseError => e
     abort "#{$prg} #{e}\n#{$prg} #{os}"
   end
@@ -97,18 +92,22 @@ def parse_command_line(argv, units)
   opts
 end
 
-def entries_per_node
-  btree_node_headersize = 64
-  ($btree_nodesize - btree_node_headersize) / $btree_entrysize
+def mappings_per_block
+  btree_nodesize, btree_node_headersize, btree_entrysize = 4096, 64, 16
+  (btree_nodesize - btree_node_headersize) / btree_entrysize
 end
 
 def estimated_result(opts, units)
   idx = opts[:units] ? units[:chars].index(opts[:units]) : 0
-  r = 1.0 + ((opts[:poolsize] / opts[:blocksize] / entries_per_node) + opts[:maxthins]) * 512 / 8
+  # double-fold # of nodes, because they aren't fully populated in average
+  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:factors][0] # in bytes!
   r /= units[:factors][idx]
   tmp = "%.2f" % r
-  # FIXME: avoid zero decimal places
-  r = tmp.to_f > 0.0 ? tmp : "%.4e" % r
+  if tmp.to_f > 0.0
+    r = tmp.to_i.to_f == tmp.to_f ? tmp.to_i : tmp
+  else
+    r = "%.2e" % r
+  end
   r = "#{$prg} estimated metadata area size is #{r} #{units[:strings][idx]}." if !opts[:numeric]
   r
 end
