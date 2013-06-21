@@ -25,12 +25,13 @@ def init_units
                       'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
-  units[:factors] =  Array.new
+  units[:factors] = Array.new
 
   units[:factors][0] = 512
   1.step(8) do |e|
-    units[:factors][(e - 1) * 2 + 1] = 1024**e
-    units[:factors][(e - 1) * 2 + 2] = 1000**e
+    i = (e - 1) * 2 + 1
+    units[:factors][i] = 1024**e
+    units[:factors][i + 1] = 1000**e
   end
   units
 end
@@ -73,7 +74,7 @@ def parse_command_line(argv, units)
     o.on("-n", "--numeric-only", "Output numeric value only.") do
       opts[:numeric] = true
     end
-    o.on("-h", "--help", "Outout this help.") do
+    o.on("-h", "--help", "Output this help.") do
       puts o
       exit
     end
