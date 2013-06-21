@@ -42,20 +42,17 @@ def check_opts(opts)
 end
 
 def to_sectors(size, units)
-  unit_chars = units[:chars]
-
-  a = size.split(/[#{unit_chars}]/)
+  a = size.split(/[#{units[:chars]}]/)
   s = size.to_i.to_s
   abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
   abort "#{$prg} - invalid unit specifier!" if s != a[0]
-  idx = unit_chars.index(size[a[0].length])
+  idx = units[:chars].index(size[a[0].length])
   r = size.to_i * units[:factors][idx] / units[:factors][0]
   r
 end
 
 def parse_command_line(argv, units)
   opts = {}
-  unit_chars = units[:chars]
 
   os = OptionParser.new do |o|
     o.banner = "Thin Provisioning Metadata Size Calculator.\nUsage: #{$prg} [opts]"
@@ -70,7 +67,7 @@ def parse_command_line(argv, units)
       opts[:maxthins] = mt
     end
     o.on("-u", "--unit [#{units[:chars]}]", String, "Output unit specifier.") do |u|
-      abort "#{$prg} - output unit specifier invalid." if u.length > 1 || !(u =~ /[#{unit_chars}]/)
+      abort "#{$prg} - output unit specifier invalid." if u.length > 1 || !(u =~ /[#{units[:chars]}]/)
       opts[:units] = u
     end
     o.on("-n", "--numeric-only", "Output numeric value only.") do
@@ -108,7 +105,7 @@ def estimated_result(opts, units)
   else
     r = "%.2e" % r
   end
-  r = "#{$prg} estimated metadata area size is #{r} #{units[:strings][idx]}." if !opts[:numeric]
+  r = "#{$prg} - estimated metadata area size is #{r} #{units[:strings][idx]}." if !opts[:numeric]
   r
 end
 
