@@ -104,6 +104,7 @@ def estimated_result(opts, units)
     r = "%.2e" % r
   end
   r = "#{$prg} - estimated metadata area size is #{r} #{units[:strings][idx]}." if !opts[:numeric]
+  r
 end
 
 
