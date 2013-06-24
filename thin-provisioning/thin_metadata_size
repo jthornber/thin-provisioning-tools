@@ -18,21 +18,15 @@ require 'pathname'
 $prg = Pathname.new($0).basename
 
 def init_units
-  units = Hash.new
-  units[:chars] = "sKkMmGgTtPpEeZzYy"
-  units[:strings] = [ 'sectors',
+  units = {}
+  units[:chars] = "bsKkMmGgTtPpEeZzYy"
+  units[:strings] = [ 'bytes', 'sectors',
                       'kilobytes', 'kibibytes', 'megabytes',  'mebibytes',
                       'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
-  units[:factors] = Array.new
-
-  units[:factors][0] = 512
-  1.step(8) do |e|
-    i = (e - 1) * 2 + 1
-    units[:factors][i] = 1024**e
-    units[:factors][i + 1] = 1000**e
-  end
+  units[:factors] = [ 1, 512 ]
+  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
   units
 end
 
@@ -48,7 +42,7 @@ def to_sectors(size, units)
   abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
   abort "#{$prg} - invalid unit specifier!" if s != a[0]
   idx = units[:chars].index(size[a[0].length])
-  r = size.to_i * units[:factors][idx] / units[:factors][0]
+  r = size.to_i * units[:factors][idx] / units[:factors][1]
   r
 end
 
@@ -96,9 +90,9 @@ def mappings_per_block
 end
 
 def estimated_result(opts, units)
-  idx = opts[:units] ? units[:chars].index(opts[:units]) : 0
+  idx = opts[:units] ? units[:chars].index(opts[:units]) : 1
   # double-fold # of nodes, because they aren't fully populated in average
-  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:factors][0] # in bytes!
+  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:factors][1] # in bytes!
   r /= units[:factors][idx]
   tmp = "%.2f" % r
   if tmp.to_f > 0.0
