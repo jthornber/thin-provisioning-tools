@@ -19,15 +19,20 @@ $prg = Pathname.new($0).basename
 
 def init_units
   units = {}
+  units[:bytes_per_sector] = 512
   units[:chars] = "bsKkMmGgTtPpEeZzYy"
   units[:strings] = [ 'bytes', 'sectors',
                       'kilobytes', 'kibibytes', 'megabytes',  'mebibytes',
                       'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
-  units[:factors] = [ 1, 512 ]
+  units[:factors] = [ 1, units[:bytes_per_sector] ]
   1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
   units
+end
+
+def get_index(unit_char, units)
+  unit_char ? units[:chars].index(unit_char) : 1
 end
 
 def check_opts(opts)
@@ -41,9 +46,7 @@ def to_sectors(size, units)
   s = size.to_i.to_s
   abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
   abort "#{$prg} - invalid unit specifier!" if s != a[0]
-  idx = units[:chars].index(size[a[0].length])
-  r = size.to_i * units[:factors][idx] / units[:factors][1]
-  r
+  size.to_i * units[:factors][get_index(size[a[0].length], units)] / units[:bytes_per_sector]
 end
 
 def parse_command_line(argv, units)
@@ -55,7 +58,7 @@ def parse_command_line(argv, units)
          "Block size of thin provisioned devices.") do |bs|
       opts[:blocksize] = to_sectors(bs, units)
     end
-    o.on("-s", "--pool-size SIZE[#{units[:chars]}]", String, "Size of the pool device.") do |ps|
+    o.on("-s", "--pool-size SIZE[#{units[:chars]}]", String, "Size of pool device.") do |ps|
       opts[:poolsize] = to_sectors(ps, units)
     end
     o.on("-m", "--max-thins #MAXTHINS", Integer, "Maximum sum of all thin devices and snapshots.") do |mt|
@@ -90,9 +93,9 @@ def mappings_per_block
 end
 
 def estimated_result(opts, units)
-  idx = opts[:units] ? units[:chars].index(opts[:units]) : 1
+  idx = get_index(opts[:units], units)
   # double-fold # of nodes, because they aren't fully populated in average
-  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:factors][1] # in bytes!
+  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:bytes_per_sector] # in bytes!
   r /= units[:factors][idx]
   tmp = "%.2f" % r
   if tmp.to_f > 0.0
@@ -101,12 +104,10 @@ def estimated_result(opts, units)
     r = "%.2e" % r
   end
   r = "#{$prg} - estimated metadata area size is #{r} #{units[:strings][idx]}." if !opts[:numeric]
-  r
 end
 
 
 #----------------------------------------------------------------
 # Main
-
-units = init_units
-puts estimated_result(parse_command_line(ARGV, units), units)
+#
+puts estimated_result(parse_command_line(ARGV, (units = init_units)), units)
