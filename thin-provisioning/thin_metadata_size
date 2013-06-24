@@ -41,25 +41,25 @@ def check_opts(opts)
   abort "#{$prg} - maximum number of thin provisioned devices must be > 0" if opts[:maxthins].nil? || opts[:maxthins] == 0
 end
 
-def to_sectors(size, units)
+def to_bytes(size, units)
   a = size.split(/[#{units[:chars]}]/)
   s = size.to_i.to_s
   abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
   abort "#{$prg} - invalid unit specifier!" if s != a[0]
-  size.to_i * units[:factors][get_index(size[a[0].length], units)] / units[:bytes_per_sector]
+  size.to_i * units[:factors][get_index(size[a[0].length], units)]
 end
 
 def parse_command_line(argv, units)
   opts = {}
 
   os = OptionParser.new do |o|
-    o.banner = "Thin Provisioning Metadata Size Calculator.\nUsage: #{$prg} [opts]"
+    o.banner = "Thin Provisioning Metadata Device Size Calculator.\nUsage: #{$prg} [opts]"
     o.on("-b", "--block-size BLOCKSIZE[#{units[:chars]}]", String,
          "Block size of thin provisioned devices.") do |bs|
-      opts[:blocksize] = to_sectors(bs, units)
+      opts[:blocksize] = to_bytes(bs, units)
     end
     o.on("-s", "--pool-size SIZE[#{units[:chars]}]", String, "Size of pool device.") do |ps|
-      opts[:poolsize] = to_sectors(ps, units)
+      opts[:poolsize] = to_bytes(ps, units)
     end
     o.on("-m", "--max-thins #MAXTHINS", Integer, "Maximum sum of all thin devices and snapshots.") do |mt|
       opts[:maxthins] = mt
@@ -95,8 +95,8 @@ end
 def estimated_result(opts, units)
   idx = get_index(opts[:units], units)
   # double-fold # of nodes, because they aren't fully populated in average
-  r = (1.0 + ((opts[:poolsize] / opts[:blocksize] / mappings_per_block) * 2 + opts[:maxthins])) * 8 * units[:bytes_per_sector] # in bytes!
-  r /= units[:factors][idx]
+  r = (1.0 + (2 * (opts[:poolsize] / opts[:blocksize] / mappings_per_block) + opts[:maxthins])) * 8 * units[:bytes_per_sector] # in bytes!
+  r /= units[:factors][idx] # in requested unit
   tmp = "%.2f" % r
   if tmp.to_f > 0.0
     r = tmp.to_i.to_f == tmp.to_f ? tmp.to_i : tmp
