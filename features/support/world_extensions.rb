@@ -4,7 +4,14 @@ end
 
 module ThinpWorld
   def tools_version
-    "0.1.5+"
+    version = ''
+
+    File.open('VERSION', 'r') do |f|
+      version = f.readline
+      version.chomp!
+    end
+
+    version
   end
 
   def xml_file
