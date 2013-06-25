@@ -637,7 +637,6 @@ TEST_F(BTreeDamageVisitor2Tests, damaged_leaf)
 	};
 
 	node_info n = layout_->random_node(leaf1);
-	cerr << "node: " << n << endl;
 	trash_block(n.b);
 
 	expect_damage(n.path, n.keys);
