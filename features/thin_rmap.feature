@@ -1,19 +1,11 @@
 Feature: thin_rmap
   Scenario: print version (-V flag)
     When I run `thin_rmap -V`
-    Then it should pass with:
-
-    """
-    0.1.5
-    """
+    Then it should pass with version
 
   Scenario: print version (--version flag)
     When I run `thin_rmap --version`
-    Then it should pass with:
-
-    """
-    0.1.5
-    """
+    Then it should pass with version
 
   Scenario: print help
     When I run `thin_rmap --help`

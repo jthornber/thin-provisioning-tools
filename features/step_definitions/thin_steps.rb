@@ -33,3 +33,7 @@ Then /^it should give no output$/ do
   output = ps.stdout + ps.stderr
   output.should == ""
 end
+
+Then(/^it should pass with version$/) do
+  only_processes.last.stdout.chomp.should == tools_version
+end
