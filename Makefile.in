@@ -20,8 +20,6 @@
 
 V=@
 PROGRAMS=\
-	cache_check \
-	\
 	thin_check \
 	thin_dump \
 	thin_restore \
