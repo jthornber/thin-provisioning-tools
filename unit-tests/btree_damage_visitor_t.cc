@@ -314,7 +314,7 @@ namespace {
 		transaction_manager::ptr tm_;
 		thing_traits::ref_counter rc_;
 
-		optional<btree_layout> layout_;
+		boost::optional<btree_layout> layout_;
 
 		value_visitor_mock value_visitor_;
 		damage_visitor_mock damage_visitor_;
@@ -578,8 +578,8 @@ TEST_F(BTreeDamageVisitorTests, damaged_internal)
 
 	node_info n = layout_->random_node(is_internal);
 
-	optional<block_address> begin = n.keys.begin_;
-	optional<block_address> end = n.keys.end_;
+	boost::optional<block_address> begin = n.keys.begin_;
+	boost::optional<block_address> end = n.keys.end_;
 
 	trash_block(n.b);
 

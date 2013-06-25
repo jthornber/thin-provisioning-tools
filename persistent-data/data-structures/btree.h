@@ -76,7 +76,6 @@ namespace persistent_data {
 	namespace btree_detail {
 		using namespace base;
 		using namespace std;
-		using namespace boost;
 
 		uint32_t const BTREE_CSUM_XOR = 121107;
 
@@ -164,7 +163,7 @@ namespace persistent_data {
 
 			// Various searches
 			int bsearch(uint64_t key, int want_hi) const;
-			optional<unsigned> exact_search(uint64_t key) const;
+			boost::optional<unsigned> exact_search(uint64_t key) const;
 			int lower_bound(uint64_t key) const;
 
 			template <typename RefCounter>
@@ -211,7 +210,7 @@ namespace persistent_data {
 					const_cast<unsigned char *>(b.data().raw())));
 		}
 
-		class ro_spine : private noncopyable {
+		class ro_spine : private boost::noncopyable {
 		public:
 			ro_spine(transaction_manager::ptr tm,
 				 typename block_manager<>::validator::ptr v)
@@ -232,7 +231,7 @@ namespace persistent_data {
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
-		class shadow_spine : private noncopyable {
+		class shadow_spine : private boost::noncopyable {
 		public:
 			typedef transaction_manager::read_ref read_ref;
 			typedef transaction_manager::write_ref write_ref;

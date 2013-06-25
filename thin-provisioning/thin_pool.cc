@@ -73,7 +73,7 @@ void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -85,7 +85,7 @@ block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -96,7 +96,7 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -138,7 +138,7 @@ thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
 
-	optional<uint64_t> mtree_root = md_->mappings_top_level_->lookup(origin_key);
+	boost::optional<uint64_t> mtree_root = md_->mappings_top_level_->lookup(origin_key);
 	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
 
@@ -186,7 +186,7 @@ thin_pool::get_metadata_snap() const
 block_address
 thin_pool::alloc_data_block()
 {
-	optional<block_address> mb = md_->data_sm_->new_block();
+	boost::optional<block_address> mb = md_->data_sm_->new_block();
 	if (!mb)
 		throw runtime_error("couldn't allocate new block");
 
@@ -221,7 +221,7 @@ thin::ptr
 thin_pool::open_thin(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
-	optional<device_tree_detail::device_details> mdetails = md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetails = md_->details_->lookup(key);
 	if (!mdetails)
 		throw runtime_error("no such device");
 

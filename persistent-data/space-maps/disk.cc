@@ -26,11 +26,9 @@
 #include "persistent-data/math_utils.h"
 #include "persistent-data/transaction_manager.h"
 
-using namespace boost;
 using namespace persistent_data;
 using namespace std;
 using namespace sm_disk_detail;
-
 
 //----------------------------------------------------------------
 
@@ -322,7 +320,7 @@ namespace {
 					unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
 					unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
 
-					optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
+					boost::optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 					if (maybe_b) {
 						block_address b = (index * ENTRIES_PER_BLOCK) + *maybe_b;
 						return b;
@@ -474,7 +472,7 @@ namespace {
 
 		ref_t lookup_ref_count(block_address b) const {
 			uint64_t key[1] = {b};
-			optional<ref_t> mvalue = ref_counts_.lookup(key);
+			boost::optional<ref_t> mvalue = ref_counts_.lookup(key);
 			if (!mvalue)
 				throw runtime_error("ref count not in tree");
 			return *mvalue;
@@ -572,7 +570,7 @@ namespace {
 
 		virtual index_entry find_ie(block_address ie_index) const {
 			uint64_t key[1] = {ie_index};
-			optional<index_entry> mindex = bitmaps_.lookup(key);
+			boost::optional<index_entry> mindex = bitmaps_.lookup(key);
 			if (!mindex)
 				throw runtime_error("Couldn't lookup bitmap");
 

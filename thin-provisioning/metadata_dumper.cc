@@ -189,9 +189,9 @@ namespace {
 void
 thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 {
-	optional<uint64_t> md_snap = md->sb_.metadata_snap_ ?
-		optional<uint64_t>(md->sb_.metadata_snap_) :
-		optional<uint64_t>();
+	boost::optional<uint64_t> md_snap = md->sb_.metadata_snap_ ?
+		boost::optional<uint64_t>(md->sb_.metadata_snap_) :
+		boost::optional<uint64_t>();
 
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,

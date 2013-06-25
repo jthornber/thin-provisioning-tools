@@ -19,7 +19,6 @@
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock.h"
 
-using namespace boost;
 using namespace std;
 using namespace thin_provisioning;
 
@@ -46,11 +45,11 @@ namespace {
 					      uint64_t trans_id,
 					      uint32_t data_block_size,
 					      uint64_t nr_data_blocks,
-					      optional<uint64_t> metadata_snap) {
+					      boost::optional<uint64_t> metadata_snap) {
 			in_superblock_ = true;
 			nr_data_blocks_ = nr_data_blocks;
 			superblock &sb = md_->sb_;
-			memcpy(&sb.uuid_, &uuid, sizeof(&sb.uuid_));
+			memcpy(&sb.uuid_, &uuid, sizeof(sb.uuid_));
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
 			sb.data_block_size_ = data_block_size;
@@ -83,7 +82,7 @@ namespace {
 			md_->details_->insert(key, details);
 
 			current_mapping_ = empty_mapping_->clone();
-			current_device_ = optional<uint32_t>(dev);
+			current_device_ = boost::optional<uint32_t>(dev);
 		}
 
 		virtual void end_device() {
@@ -92,7 +91,7 @@ namespace {
 			md_->mappings_top_level_->insert(key, current_mapping_->get_root());
 			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
-			current_device_ = optional<uint32_t>();
+			current_device_ = boost::optional<uint32_t>();
 		}
 
 		virtual void begin_named_mapping(std::string const &name) {
@@ -147,7 +146,7 @@ namespace {
 		metadata::ptr md_;
 		bool in_superblock_;
 		block_address nr_data_blocks_;
-		optional<uint32_t> current_device_;
+		boost::optional<uint32_t> current_device_;
 		single_mapping_tree::ptr current_mapping_;
 		single_mapping_tree::ptr empty_mapping_;
 	};

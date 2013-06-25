@@ -97,7 +97,7 @@ namespace persistent_data {
 			    check_max_entries(n) &&
 			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+			    check_parent_key(loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key, n)) {
 				if (loc.is_sub_root())
 					new_root(loc.level());
 
@@ -115,7 +115,7 @@ namespace persistent_data {
 			    check_max_entries(n) &&
 			    check_nr_entries(n, loc.is_sub_root()) &&
 			    check_ordered_keys(n) &&
-			    check_parent_key(loc.is_sub_root() ? optional<uint64_t>() : loc.key, n)) {
+			    check_parent_key(loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key, n)) {
 				if (loc.is_sub_root())
 					new_root(loc.level());
 

@@ -27,7 +27,6 @@
 #include <stdexcept>
 #include <string.h>
 
-using namespace boost;
 using namespace std;
 using namespace thin_provisioning;
 
@@ -51,7 +50,7 @@ namespace {
 				      uint64_t trans_id,
 				      uint32_t data_block_size,
 				      uint64_t nr_data_blocks,
-				      optional<uint64_t> metadata_snap) {
+				      boost::optional<uint64_t> metadata_snap) {
 			indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " time=\"" << time << "\""
@@ -178,17 +177,17 @@ namespace {
 			throw runtime_error(out.str());
 		}
 
-		return lexical_cast<T>(it->second);
+		return boost::lexical_cast<T>(it->second);
 	}
 
 	template <typename T>
-	optional<T> get_opt_attr(attributes const &attr, string const &key) {
-		typedef optional<T> rtype;
+	boost::optional<T> get_opt_attr(attributes const &attr, string const &key) {
+		typedef boost::optional<T> rtype;
 		attributes::const_iterator it = attr.find(key);
 		if (it == attr.end())
 			return rtype();
 
-		return rtype(lexical_cast<T>(it->second));
+		return rtype(boost::lexical_cast<T>(it->second));
 	}
 
 	void parse_superblock(emitter *e, attributes const &attr) {

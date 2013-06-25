@@ -294,17 +294,17 @@ namespace persistent_data {
 	}
 
 	template <typename ValueTraits>
-	optional<unsigned>
+	boost::optional<unsigned>
 	node_ref<ValueTraits>::exact_search(uint64_t key) const
 	{
 		int i = bsearch(key, 0);
 		if (i < 0 || static_cast<unsigned>(i) >= get_nr_entries())
-			return optional<unsigned>();
+			return boost::optional<unsigned>();
 
 		if (key != key_at(i))
-			return optional<unsigned>();
+			return boost::optional<unsigned>();
 
-		return optional<unsigned>(i);
+		return boost::optional<unsigned>(i);
 	}
 
 	template <typename ValueTraits>
@@ -405,14 +405,14 @@ namespace persistent_data {
 	namespace {
 		template <typename ValueTraits>
 		struct lower_bound_search {
-			static optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
+			static boost::optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
 				return n.lower_bound(key);
 			}
 		};
 
 		template <typename ValueTraits>
 		struct exact_search {
-			static optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
+			static boost::optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
 				return n.exact_search(key);
 			}
 		};
@@ -428,7 +428,7 @@ namespace persistent_data {
 		block_address root = root_;
 
 		for (unsigned level = 0; level < Levels - 1; ++level) {
-			optional<block_address> mroot =
+			boost::optional<block_address> mroot =
 				lookup_raw<block_traits, lower_bound_search<block_traits> >(spine, root, key[level]);
 			if (!mroot)
 				return maybe_value();
@@ -535,7 +535,7 @@ namespace persistent_data {
 
 	template <unsigned Levels, typename _>
 	template <typename ValueTraits, typename Search>
-	optional<typename ValueTraits::value_type>
+	boost::optional<typename ValueTraits::value_type>
 	btree<Levels, _>::
 	lookup_raw(ro_spine &spine, block_address block, uint64_t key) const
 	{
@@ -546,18 +546,18 @@ namespace persistent_data {
 			spine.step(block);
 			node_ref<ValueTraits> leaf = spine.template get_node<ValueTraits>();
 
-			optional<unsigned> mi;
+			boost::optional<unsigned> mi;
 			if (leaf.get_type() == btree_detail::LEAF) {
 				mi = Search::search(leaf, key);
 				if (!mi)
-					return optional<leaf_type>();
-				return optional<leaf_type>(leaf.value_at(*mi));
+					return boost::optional<leaf_type>();
+				return boost::optional<leaf_type>(leaf.value_at(*mi));
 
 			}
 
 			mi = leaf.lower_bound(key);
 			if (!mi || *mi < 0)
-				return optional<leaf_type>();
+				return boost::optional<leaf_type>();
 
 			node_ref<block_traits> internal = spine.template get_node<block_traits>();
 			block = internal.value_at(*mi);
@@ -803,7 +803,7 @@ namespace persistent_data {
 					node_location loc2(loc);
 
 					loc2.push_key(o.key_at(i));
-					loc2.key = optional<uint64_t>();
+					loc2.key = boost::optional<uint64_t>();
 
 					walk_tree(v, loc2, o.value_at(i));
 				}

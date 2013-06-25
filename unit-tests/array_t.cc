@@ -24,7 +24,6 @@
 #include <vector>
 
 using namespace std;
-using namespace boost;
 using namespace persistent_data;
 using namespace testing;
 
