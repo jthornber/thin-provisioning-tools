@@ -51,6 +51,10 @@ namespace persistent_data {
 		typedef boost::shared_ptr<buffer> ptr;
 		typedef boost::shared_ptr<buffer const> const_ptr;
 
+		size_t size() const {
+			return Size;
+		}
+
 		unsigned char &operator[](unsigned index) {
 			check_index(index);
 

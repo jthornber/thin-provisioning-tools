@@ -108,7 +108,7 @@ namespace {
 		ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS));
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++) {
-			optional<block_address> mb = sm->new_block();
+			boost::optional<block_address> mb = sm->new_block();
 			ASSERT_TRUE(mb);
 			ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS - i - 1));
 		}
@@ -121,7 +121,7 @@ namespace {
 
 	void test_runs_out_of_space(space_map::ptr sm)
 	{
-		optional<block_address> mb;
+		boost::optional<block_address> mb;
 
 		for (unsigned i = 0; i < NR_BLOCKS; i++)
 			mb = sm->new_block();
@@ -147,7 +147,7 @@ namespace {
 
 	void test_not_allocated_twice(space_map::ptr sm)
 	{
-		optional<block_address> mb = sm->new_block();
+		boost::optional<block_address> mb = sm->new_block();
 		ASSERT_TRUE(mb);
 
 		for (;;) {

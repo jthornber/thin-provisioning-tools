@@ -93,7 +93,7 @@ TEST(BufferTest, buffer_128_a_2_succeeds)
 	uint32_t const sz = 128, align = 2;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
 
-	ASSERT_TRUE(b);
+	ASSERT_TRUE(static_cast<bool>(b));
 }
 
 TEST(BufferTest, buffer_128_a_4_succeeds)
@@ -101,7 +101,7 @@ TEST(BufferTest, buffer_128_a_4_succeeds)
 	uint32_t const sz = 128, align = 4;
 	buffer<sz, align>::ptr b = create_buffer<sz, align>();
 
-	ASSERT_TRUE(b);
+	ASSERT_TRUE(static_cast<bool>(b));
 }
 
 // Varying buffer size, alignment 8

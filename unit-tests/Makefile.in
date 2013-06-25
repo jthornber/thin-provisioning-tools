@@ -21,6 +21,9 @@ GMOCK_INCLUDES=\
 	-Igmock-1.6.0/include \
 	-Igmock-1.6.0/gtest/include
 
+GMOCK_FLAGS=\
+	-Wno-unused-local-typedefs
+
 GMOCK_LIBS=\
 	-Llib -lpdata -lgmock -lpthread
 
@@ -67,7 +70,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 %.gmo: %.cc
 	@echo "    [CXX] $<"
-	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) -o $@ $<
+	$(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
 
 unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"

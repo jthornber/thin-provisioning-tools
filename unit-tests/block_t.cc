@@ -141,7 +141,7 @@ TEST(BlockTests, write_validator_works)
 
 	{
 		bm4096::write_ref wr = bm->write_lock(0, v);
-		::memset(wr.data().raw(), 23, sizeof(wr.data().raw()));
+		::memset(wr.data().raw(), 23, sizeof(wr.data().size()));
 	}
 
 	bm->flush();		// force the prepare method to be called
