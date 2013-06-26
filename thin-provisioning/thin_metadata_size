@@ -20,14 +20,14 @@ $prg = Pathname.new($0).basename
 def init_units
   units = {}
   units[:bytes_per_sector] = 512
-  units[:chars] = "bsKkMmGgTtPpEeZzYy"
+  units[:chars] = "bskKmMgGtTpPeEzZyY"
   units[:strings] = [ 'bytes', 'sectors',
                       'kilobytes', 'kibibytes', 'megabytes',  'mebibytes',
                       'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
   units[:factors] = [ 1, units[:bytes_per_sector] ]
-  1.step(8) { |e| units[:factors] += [ 1000**e, 1024**e ] }
+  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
   units
 end
 
