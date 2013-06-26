@@ -27,7 +27,7 @@ def init_units
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
   units[:factors] = [ 1, units[:bytes_per_sector] ]
-  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
+  1.step(8) { |e| units[:factors] += [ 1000**e, 1024**e ] }
   units
 end
 
@@ -95,7 +95,7 @@ end
 def estimated_result(opts, units)
   idx = get_index(opts[:units], units)
   # double-fold # of nodes, because they aren't fully populated in average
-  r = (1.0 + (2 * (opts[:poolsize] / opts[:blocksize] / mappings_per_block) + opts[:maxthins])) * 8 * units[:bytes_per_sector] # in bytes!
+  r = (1.0 + (2 * opts[:poolsize] / opts[:blocksize] / mappings_per_block + opts[:maxthins])) * 8 * units[:bytes_per_sector] # in bytes!
   r /= units[:factors][idx] # in requested unit
   tmp = "%.2f" % r
   if tmp.to_f > 0.0
