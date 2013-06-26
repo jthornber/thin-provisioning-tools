@@ -105,7 +105,7 @@ end
 def xml_metadata(opts, units)
   blocks, to = opts[:thinsize] / opts[:blocksize], 0
 
-  puts begin_superblock(opts[:blocksize], blocks)
+  puts begin_superblock(opts[:blocksize], opts[:thins] * blocks)
   0.step(opts[:thins] - 1) do |devid|
     puts begin_device(devid, opts[:thinsize])
     if opts[:range]
