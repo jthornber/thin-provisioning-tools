@@ -94,7 +94,7 @@ def end_device
   "  </device>\n"
 end
 
-def single_mapping(from, to = 4711)
+def single_mapping(from, to)
   "    <single_mapping time=\"0\" origin_block=\"#{from}\" data_block=\"#{to}\"/>\n"
 end
 
