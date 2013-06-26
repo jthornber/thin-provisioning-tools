@@ -22,7 +22,7 @@ def init_units
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
   units[:factors] = [ 1, units[:bytes_per_sector] ]
-  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
+  1.step(8) { |e| units[:factors] += [ 1000**e, 1024**e ] }
   units
 end
 
@@ -99,7 +99,7 @@ def single_mapping(from, to = 4711)
 end
 
 def range_mapping(from, to, length)
-  "    <range_mapping time=\"0\" origin_begin=\"#{from}\" data_begin=.\"#{to]\" length=\"#{length}\"/>\n"
+  "    <range_mapping time=\"0\" origin_begin=\"#{from}\" data_begin=.\"#{to}\" length=\"#{length}\"/>\n"
 end
 
 def xml_metadata(opts, units)
@@ -109,7 +109,7 @@ def xml_metadata(opts, units)
   0.step(opts[:thins] - 1) do |devid|
     puts begin_device(devid, opts[:thinsize])
     if opts[:range]
-        puts range_mapping(from, to, blocks)
+        puts range_mapping(0, to, blocks)
         to += blocks
     else
       0.step(blocks - 1) do |from|
