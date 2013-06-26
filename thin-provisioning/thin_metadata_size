@@ -27,7 +27,7 @@ def init_units
                       'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
                       'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
   units[:factors] = [ 1, units[:bytes_per_sector] ]
-  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
+  1.step(8) { |e| units[:factors] += [ 1000**e, 1024**e ] }
   units
 end
 
