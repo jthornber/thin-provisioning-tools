@@ -169,6 +169,11 @@ TEST(BlockTests, superblocks_can_change_address)
 	{ bm4096::write_ref superblock = bm->superblock(1); }
 }
 
+// This test terminates with g++ 4.8.1.  This is because it erroneously
+// assumes a noexcept(true) specification is present on every declared
+// destructor.  Not a bad idea, but not what the standard says.  Obviously
+// we really shouldn't be throwing in a destructor, but not sure what the
+// correct thing to do is (log the error? put the tm into a 'bad' state?).
 TEST(BlockTests, superblock_must_be_last)
 {
 	bm4096::ptr bm = create_bm<4096>();
