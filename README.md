@@ -114,12 +114,12 @@ the tools (eg, command line switches are accepted and effective).
 
 I've provided a Gemfile, so installing this should be easy:
 
-i) Install Ruby 1.9.x.  I recommend doing this via RVM.
-ii) Make sure _bundler_ is installed:
+- Install Ruby 1.9.x.  I recommend doing this via RVM.
+- Make sure _bundler_ is installed:
 
     gem install bundler
 
-iii) Install dependencies (including _cucumber_ and _thinp\_xml_)
+- Install dependencies (including _cucumber_ and _thinp\_xml_)
 
     bundle
 
