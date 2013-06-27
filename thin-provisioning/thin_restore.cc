@@ -58,8 +58,8 @@ namespace {
 		out << "Usage: " << cmd << " [options]" << endl
 		    << "Options:" << endl
 		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} input_file" << endl
-		    << "  {-o|--output} {device|file}" << endl
+		    << "  {-i|--input} <input xml file>" << endl
+		    << "  {-o|--output} <output device or file>" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -67,6 +67,7 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
+	char const *prog_name = basename(argv[0]);
 	const char *shortopts = "hi:o:V";
 	string input, output;
 	const struct option longopts[] = {
@@ -80,7 +81,7 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout, prog_name);
 			return 0;
 
 		case 'i':
@@ -96,25 +97,25 @@ int main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr, prog_name);
 			return 1;
 		}
 	}
 
 	if (argc != optind) {
-		usage(cerr, basename(argv[0]));
+		usage(cerr, prog_name);
 		return 1;
 	}
 
         if (input.empty()) {
-		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		cerr << "No input file provided." << endl << endl;
+		usage(cerr, prog_name);
 		return 1;
 	}
 
 	if (output.empty()) {
-		cerr << "No output file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		cerr << "No output file provided." << endl << endl;
+		usage(cerr, prog_name);
 		return 1;
 	}
 
