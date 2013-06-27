@@ -60,7 +60,7 @@ namespace persistent_data {
 			counts_[b] = c;
 		}
 
-		void commit() {
+		void commit_() {
 		}
 
 		void inc(block_address b) {

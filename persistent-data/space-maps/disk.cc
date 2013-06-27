@@ -288,7 +288,7 @@ namespace {
 				nr_allocated_--;
 		}
 
-		void commit() {
+		void commit_() {
 			indexes_->commit_ies();
 		}
 
@@ -686,7 +686,7 @@ persistent_data::create_disk_sm(transaction_manager::ptr tm,
 	index_store::ptr store(new btree_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
-	sm->commit();
+	sm->commit_();
 	return sm;
 }
 
@@ -708,7 +708,7 @@ persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address n
 	index_store::ptr store(new metadata_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
 	sm->extend(nr_blocks);
-	sm->commit();
+	sm->commit_();
 	return create_careful_alloc_sm(
 		create_recursive_sm(sm));
 }

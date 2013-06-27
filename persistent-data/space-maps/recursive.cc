@@ -102,9 +102,9 @@ namespace {
 			}
 		}
 
-		virtual void commit() {
+		virtual void commit_() {
 			cant_recurse("commit");
-			sm_->commit();
+			sm_->commit_();
 		}
 
 		virtual void inc(block_address b) {

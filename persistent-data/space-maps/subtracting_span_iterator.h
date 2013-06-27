@@ -63,7 +63,8 @@ namespace persistent_data {
 		span get_span() {
 			block_address b = current_begin_;
 
-			while (!span_consumed() && !forbidden_block(current_begin_))
+			unsigned loop_count = 0;
+			while (!span_consumed() && !forbidden_block(current_begin_) && (loop_count++ < 100))
 				current_begin_++;
 
 			return span(b, current_begin_);

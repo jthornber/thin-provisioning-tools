@@ -37,13 +37,17 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<space_map> ptr;
 
+		space_map()
+			: begin_alloc_(0) {
+		}
+
 		virtual ~space_map() {};
 
 		virtual block_address get_nr_blocks() const = 0;
 		virtual block_address get_nr_free() const = 0;
 		virtual ref_t get_count(block_address b) const = 0;
 		virtual void set_count(block_address b, ref_t c) = 0;
-		virtual void commit() = 0;
+		virtual void commit_() = 0;
 
 		virtual void inc(block_address b) = 0;
 		virtual void dec(block_address b) = 0;
@@ -80,10 +84,19 @@ namespace persistent_data {
 			span s_;
 		};
 
+		void commit() {
+			commit_();
+			begin_alloc_ = 0;
+		}
+
 		// deliberately not virtual
 		maybe_block new_block() {
-			single_span_iterator it(span(0, get_nr_blocks()));
-			return new_block(it);
+			single_span_iterator it(span(begin_alloc_, get_nr_blocks()));
+			maybe_block mb = new_block(it);
+			if (mb)
+				begin_alloc_ = *mb + 1;
+
+			return mb;
 		}
 
 		virtual maybe_block find_free(span_iterator &it) = 0;
@@ -112,6 +125,9 @@ namespace persistent_data {
 
 			return mb;
 		}
+
+	private:
+		block_address begin_alloc_;
 	};
 
 	class persistent_space_map : public space_map {

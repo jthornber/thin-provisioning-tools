@@ -51,8 +51,9 @@ namespace {
 			sm_->set_count(b, c);
 		}
 
-		virtual void commit() {
-			sm_->commit();
+		virtual void commit_() {
+			cerr << "careful alloc commit" << endl;
+			sm_->commit_();
 			clear_freed();
 		}
 
