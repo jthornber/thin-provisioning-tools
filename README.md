@@ -117,11 +117,11 @@ I've provided a Gemfile, so installing this should be easy:
 - Install Ruby 1.9.x.  I recommend doing this via RVM.
 - Make sure _bundler_ is installed:
 
-    gem install bundler
+      gem install bundler
 
 - Install dependencies (including _cucumber_ and _thinp\_xml_)
 
-    bundle
+      bundle
 
 Once you've done this you can run the tests with a simple:
 
