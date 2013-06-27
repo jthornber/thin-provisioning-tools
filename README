@@ -125,7 +125,7 @@ iii) Install dependencies (including _cucumber_ and _thinp\_xml_)
 
 Once you've done this you can run the tests with a simple:
 
-  `rake features`
+  `cucumber`
 
 Or specific tests with:
 
