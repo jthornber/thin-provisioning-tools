@@ -100,11 +100,11 @@ def end_device
 end
 
 def single_mapping(from, to)
-  "    <single_mapping time=\"0\" origin_block=\"#{from}\" data_block=\"#{to}\"/>\n"
+  "    <single_mapping origin_block=\"#{from}\" data_block=\"#{to}\" time=\"0\"/>\n"
 end
 
 def range_mapping(from, to, length)
-  "    <range_mapping time=\"0\" origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\"/>\n"
+  "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"0\"/>\n"
 end
 
 def blocks(opts)
@@ -116,11 +116,17 @@ def this_blocks(opts)
 end
 
 def xml_metadata(opts, units)
-  to = 0
+  nr_data_blocks, to = 0, 0
+  blks = []
 
-  puts begin_superblock(opts[:blocksize], 2 * opts[:thins] * blocks(opts))
+  0.step(opts[:thins] - 1) do
+    blks << this_blocks(opts)
+    nr_data_blocks += blks[-1]
+  end
+
+  puts begin_superblock(opts[:blocksize], nr_data_blocks)
   0.step(opts[:thins] - 1) do |dev_id|
-    b = this_blocks(opts)
+    b = blks.shift
     puts begin_device(dev_id, b)
     if opts[:range]
       puts range_mapping(0, to, b)
