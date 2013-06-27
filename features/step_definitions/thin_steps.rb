@@ -28,6 +28,10 @@ When(/^I run thin_rmap with (.*?)$/) do |opts|
   run_simple("thin_rmap #{opts} #{dev_file}", false)
 end
 
+When(/^I run thin_restore with (.*?)$/) do |opts|
+  run_simple("thin_restore #{opts}", false)
+end
+
 Then /^it should give no output$/ do
   ps = only_processes.last
   output = ps.stdout + ps.stderr
