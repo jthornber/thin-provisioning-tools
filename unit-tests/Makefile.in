@@ -73,7 +73,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
 	@echo "    [DEP] $<"
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) $< > $*.$$$$; \
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
 unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a

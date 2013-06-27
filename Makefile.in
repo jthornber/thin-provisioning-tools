@@ -110,7 +110,7 @@ endif
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
 #----------------------------------------------------------------
