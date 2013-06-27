@@ -92,7 +92,7 @@ def end_superblock
 end
 
 def begin_device(devid, size)
-  "  <device dev_id =\"#{devid}\" mapped_blocks=\"#{size}\" transaction=\"0\" creation_time=\"0\" snap_time=\"0\">\n"
+  "  <device dev_id=\"#{devid}\" mapped_blocks=\"#{size}\" transaction=\"0\" creation_time=\"0\" snap_time=\"0\">\n"
 end
 
 def end_device
