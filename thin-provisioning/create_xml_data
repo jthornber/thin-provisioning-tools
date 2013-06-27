@@ -84,7 +84,7 @@ def parse_command_line(argv, units)
 end
 
 def begin_superblock(blocksize, nr_data_blocks)
-  "<superblock uuid=\"\" time=\"0\" transaction=\"0\" data_block_size=\"#{blocksize}\" nr_data_blocks=\"#{nr_data_blocks}\">\n"
+  "<superblock uuid=\"\" time=\"0\" transaction=\"1\" data_block_size=\"#{blocksize}\" nr_data_blocks=\"#{nr_data_blocks}\">\n"
 end
 
 def end_superblock
@@ -100,11 +100,11 @@ def end_device
 end
 
 def single_mapping(from, to)
-  "    <single_mapping origin_block=\"#{from}\" data_block=\"#{to}\" time=\"0\"/>\n"
+  "    <single_mapping origin_block=\"#{from}\" data_block=\"#{to}\" time=\"1\"/>\n"
 end
 
 def range_mapping(from, to, length)
-  "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"0\"/>\n"
+  "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"1\"/>\n"
 end
 
 def blocks(opts)
