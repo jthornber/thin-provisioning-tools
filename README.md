@@ -17,7 +17,6 @@ There are more requirements for testing, detailed below.
 Building
 ========
 
-
     ./configure
     make
     sudo make install
