@@ -17,10 +17,10 @@ There are more requirements for testing, detailed below.
 Building
 ========
 
-./configure
-make
-sudo make install
 
+    ./configure
+    make
+    sudo make install
 
 Quick examples
 ==============
@@ -33,22 +33,22 @@ manipulate metadata.  A Ruby library for this available;
 To convert the binary metadata format that the kernel uses to this xml
 format use _thin\_dump_.
 
-  `thin_dump --format xml /dev/mapper/my_thinp_metadata`
+    thin_dump --format xml /dev/mapper/my_thinp_metadata
 
 To convert xml back to the binary form use _thin\_restore_.
 
-  `thin_restore -i my_xml -o /dev/mapper/my_thinp_metadata`
+    thin_restore -i my_xml -o /dev/mapper/my_thinp_metadata
 
 You should periodically check the health of your metadata, much as you
 fsck a filesystem.  Your volume manager (eg, LVM2) should be doing
 this for you behind the scenes.
 
-  `thin_check /dev/mapper/my_thinp_metadata`
+    thin_check /dev/mapper/my_thinp_metadata
 
 Checking all the mappings can take some time, you can omit this part
 of the check if you wish.
 
-  `thin_check --skip-mappings /dev/mapper/my_thinp_metadata`
+    thin_check --skip-mappings /dev/mapper/my_thinp_metadata
 
 If your metadata has become corrupt for some reason (device failure,
 user error, kernel bug), thin_check will tell you what the effects of
@@ -58,7 +58,7 @@ mappings).
 There are two ways to repair metadata.  The simplest is via the
 _thin\_repair_ tool.
 
-  `thin_repair -i /dev/mapper/broken_metadata_dev -o /dev/mapper/new_metadata_dev`
+    thin_repair -i /dev/mapper/broken_metadata_dev -o /dev/mapper/new_metadata_dev
 
 This is a non-destructive operation that writes corrected metadata to
 a new metadata device.
@@ -66,8 +66,8 @@ a new metadata device.
 Alternatively you can go via the xml format (perhaps you want to
 inspect the repaired metadata before restoring).
 
-  `thin_dump --repair /dev/mapper/my_metadata > repaired.xml`
-  `thinp_restore -i repaired.xml -o /dev/mapper/my_metadata`
+    thin_dump --repair /dev/mapper/my_metadata > repaired.xml
+    thinp_restore -i repaired.xml -o /dev/mapper/my_metadata
 
 Development
 ===========
@@ -76,16 +76,16 @@ Autoconf
 --------
 
 If you've got the source from github you'll need to create the
-./configure script with autoconf.  I do this by running:
+configure script with autoconf.  I do this by running:
 
-  `autoreconf`
+    autoreconf
 
 Enable tests
 ------------
 
 You will need to enable tests when you configure.
 
-  `./configure --enable-testing`
+    ./configure --enable-testing
 
 Unit tests
 ----------
@@ -94,16 +94,16 @@ Unit tests are implemented using the google mock framework.  This is a
 source library that you will have to download.  A script is provided
 to do this for you.
 
-  `./get-gmock.sh`
+    ./get-gmock.sh
 
 All tests can be run via:
 
-  `make unit-test`
+    make unit-test
 
 Alternatively you may want to run a subset of the tests:
 
-  `make unit-tests/unit_tests`
-  `unit-tests/unit_tests --gtest_filter=BtreeTests.*`
+    make unit-tests/unit_tests
+    unit-tests/unit_tests --gtest_filter=BtreeTests.*
 
 Functional tests
 ----------------
@@ -117,16 +117,16 @@ I've provided a Gemfile, so installing this should be easy:
 i) Install Ruby 1.9.x.  I recommend doing this via RVM.
 ii) Make sure _bundler_ is installed:
 
-  `gem install bundler`
+    gem install bundler
 
 iii) Install dependencies (including _cucumber_ and _thinp\_xml_)
 
-  `bundle`
+    bundle
 
 Once you've done this you can run the tests with a simple:
 
-  `cucumber`
+    cucumber
 
 Or specific tests with:
 
-  `cucumber features/thin_restore -n 'print help'`
+    cucumber features/thin_restore -n 'print help'
