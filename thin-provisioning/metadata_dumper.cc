@@ -51,7 +51,7 @@ namespace {
 				return false;
 			}
 
-			return loc.is_sub_root() ? (loc.path[0] == dev_id_) : true;
+			return (loc.is_sub_root() && loc.path.size()) ? (loc.path[0] == dev_id_) : true;
 		}
 
 		bool visit_internal_leaf(node_location const &loc,
