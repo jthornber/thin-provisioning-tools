@@ -1,5 +1,5 @@
 Before do
-  @aruba_timeout_seconds = 10
+  @aruba_timeout_seconds = 120
 end
 
 module ThinpWorld
@@ -22,6 +22,16 @@ module ThinpWorld
     'metadata.bin'
   end
 
+  def dump_files
+    @dump_files ||= []
+  end
+
+  def new_dump_file
+    fn = "dump_#{dump_files.size}.xml"
+    @dump_files << fn
+    fn
+  end
+
   def corrupt_block(n)
     write_block(n, change_random_byte(read_block(n)))
   end
@@ -29,15 +39,7 @@ module ThinpWorld
   # FIXME: we should really break out the xml stuff from
   # thinp-test-suite and put in a gem in this repo.
   def write_valid_xml(path)
-    File.open(path, "w+") do |f|
-      f.write <<EOF
-<superblock uuid="" time="0" transaction="0" data_block_size="128" nr_data_blocks="1000">
-  <device dev_id="0" mapped_blocks="100" transaction="0" creation_time="0" snap_time="0">
-    <range_mapping origin_begin="25" data_begin="0" length="100" time="0"/>
-  </device>
-</superblock>
-EOF
-    end
+    `thinp_xml create --nr-thins uniform[4..9] --nr-mappings uniform[1000.5000] > #{path}`
   end
 
   private
