@@ -41,7 +41,7 @@ end
 def check_opts(opts)
   abort "#{$prg} - 3 arguments required!" if opts.length < 3
   abort "#{$prg} - block size must be > 0" if opts[:blocksize] <= 0
-  abort "#{$prg} - size must be much greater/equal blocksize" if opts[:thinsize] < opts[:blocksize]
+  abort "#{$prg} - thin size must be much greater/equal blocksize" if opts[:thinsize] < opts[:blocksize]
   abort "#{$prg} - number of thin provisioned devices or snapshots must be > 0" if opts[:thins].nil? || opts[:thins] == 0
   abort "#{$prg} - size variation too large!" if !opts[:variation].nil? && (opts[:variation] > 2 * (opts[:thinsize] - opts[:blocksize]))
 end
@@ -84,27 +84,27 @@ def parse_command_line(argv, units)
 end
 
 def begin_superblock(blocksize, nr_data_blocks)
-  "<superblock uuid=\"\" time=\"0\" transaction=\"1\" data_block_size=\"#{blocksize}\" nr_data_blocks=\"#{nr_data_blocks}\">\n"
+  "<superblock uuid=\"\" time=\"0\" transaction=\"1\" data_block_size=\"#{blocksize}\" nr_data_blocks=\"#{nr_data_blocks}\">"
 end
 
 def end_superblock
-  "</superblock>\n"
+  "</superblock>"
 end
 
 def begin_device(devid, size)
-  "  <device dev_id=\"#{devid}\" mapped_blocks=\"#{size}\" transaction=\"0\" creation_time=\"0\" snap_time=\"0\">\n"
+  "  <device dev_id=\"#{devid}\" mapped_blocks=\"#{size}\" transaction=\"0\" creation_time=\"0\" snap_time=\"0\">"
 end
 
 def end_device
-  "  </device>\n"
+  "  </device>"
 end
 
 def single_mapping(from, to)
-  "    <single_mapping origin_block=\"#{from}\" data_block=\"#{to}\" time=\"1\"/>\n"
+  "    <single_mapping origin_block=\"#{from}\" data_block=\"#{to}\" time=\"1\"/>"
 end
 
 def range_mapping(from, to, length)
-  "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"1\"/>\n"
+  "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"1\"/>"
 end
 
 def blocks(opts)
@@ -116,28 +116,24 @@ def this_blocks(opts)
 end
 
 def xml_metadata(opts, units)
-  nr_data_blocks, to = 0, 0
-  blks = []
+  blks, dev_id, nr_data_blocks, to = [], 0, 0, 0
 
   0.step(opts[:thins] - 1) do
-    blks << this_blocks(opts)
-    nr_data_blocks += blks[-1]
+    blks << (b = this_blocks(opts))
+    nr_data_blocks += b
   end
 
   puts begin_superblock(opts[:blocksize], nr_data_blocks)
-  0.step(opts[:thins] - 1) do |dev_id|
-    b = blks.shift
-    puts begin_device(dev_id, b)
+  blks.each do |b|
     if opts[:range]
-      puts range_mapping(0, to, b)
-      to += b
+      puts begin_device(dev_id, b), range_mapping(0, to, b), end_device
     else
-      0.step(b - 1) do |from|
-        puts single_mapping(from, to)
-        to += 1
-      end
+      puts begin_device(dev_id, b)
+      0.step(b - 1) { |from| puts single_mapping(from, to + from) }
+      puts end_device
     end
-    puts end_device
+    dev_id += 1
+    to += b
   end
   puts end_superblock
 end
