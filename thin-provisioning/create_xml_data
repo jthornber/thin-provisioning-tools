@@ -2,7 +2,7 @@
 #
 # Copyright (C) 2013 Red Hat, GmbH
 # 
-# Simple XML metadata creation tool
+# Simple thinp provisioning XML metadata creation tool
 #
 
 require 'optparse'
@@ -12,65 +12,25 @@ require 'pathname'
 
 $prg = Pathname.new($0).basename
 
-def init_units
-  units = {}
-  units[:bytes_per_sector] = 512
-  units[:chars] = "bskKmMgGtTpPeEzZyY"
-  units[:strings] = [ 'bytes', 'sectors',
-                      'kilobytes', 'kibibytes', 'megabytes',  'mebibytes',
-                      'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
-                      'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
-                      'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
-  units[:factors] = [ 1, units[:bytes_per_sector] ]
-  1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
-  units
-end
-
-def get_index(unit_char, units)
-  unit_char ? units[:chars].index(unit_char) : 1
-end
-
-def to_sectors(size, units)
-  a = size.split(/[#{units[:chars]}]/)
-  s = size.to_i.to_s
-  abort "#{$prg} - only one unit character allowed!" if a.length > 1 || size.length - s.length > 1
-  abort "#{$prg} - invalid unit specifier!" if s != a[0]
-  size.to_i * units[:factors][get_index(size[a[0].length], units)] / units[:bytes_per_sector]
-end
-
 def check_opts(opts)
   abort "#{$prg} - 3 arguments required!" if opts.length < 3
-  abort "#{$prg} - block size must be > 0" if opts[:blocksize] <= 0
-  abort "#{$prg} - thin size must be much greater/equal blocksize" if opts[:thinsize] < opts[:blocksize]
-  abort "#{$prg} - number of thin provisioned devices or snapshots must be > 0" if opts[:thins].nil? || opts[:thins] == 0
-  abort "#{$prg} - size variation too large!" if !opts[:variation].nil? && (opts[:variation] > 2 * (opts[:thinsize] - opts[:blocksize]))
+  abort "#{$prg} - block size must be 2^^N with N > 1" if opts[:blocksize] < 2 || (opts[:blocksize] & opts[:blocksize] - 1)
+  abort "#{$prg} - mappings must be > 0" if opts[:mappings] < 1
+  abort "#{$prg} - number of thin provisioned devices or snapshots must be > 0" if opts[:thins].nil? || opts[:thins] < 1
+  abort "#{$prg} - size variation too large!" if !opts[:variation].nil? && (opts[:mappings] < 2 || (opts[:variation] >= 2 * (opts[:mapings] - 1)))
 end
 
-def parse_command_line(argv, units)
+def parse_command_line(argv)
   opts = {}
 
   os = OptionParser.new do |o|
     o.banner = "Thin Provisioning XML Test Metadata Generator.\nUsage: #{$prg} [opts]"
-    o.on("-b", "--block-size BLOCKSIZE[#{units[:chars]}]", String,
-         "Block size of thin provisioned devices.") do |bs|
-      opts[:blocksize] = to_sectors(bs, units)
-    end
-    o.on("-s", "--thin-size SIZE[#{units[:chars]}]", String, "Average size of thin devices and snapshots.") do |sz|
-      opts[:thinsize] = to_sectors(sz, units)
-    end
-    o.on("-r", "--range-mappings", "Create range mappings") do
-      opts[:range] = true
-    end
-    o.on("-t", "--thins #THINS", Integer, "Sum of thin devices and snapshots.") do |mt|
-      opts[:thins] = mt
-    end
-    o.on("-v", "--size-variation SIZE[#{units[:chars]}]", String, "Size variation of thin devices and snapshots.") do |sv|
-      opts[:variation] = to_sectors(sv, units)
-    end
-    o.on("-h", "--help", "Output this help.") do
-      puts o
-      exit
-    end
+    o.on("-b", "--block-size #SECTORS", Integer, "Block size of thin provisioned devices in sectors.") { |bs| opts[:blocksize] = bs }
+    o.on("-m", "--mappings #MAPPINGS", Integer, "Number of mappings per thin device or snapshot.") { |m| opts[:mappings] = m }
+    o.on("-r", "--range-mappings", "Create range mappings") { opts[:range] = true }
+    o.on("-t", "--thin-devices #THINS", Integer, "Sum of thin devices and snapshots.") { |mt| opts[:thins] = mt }
+    o.on("-v", "--variations SIZE]", Integer, "Mapping variation of thin devices and snapshots.") { |mv| opts[:variation] = mv }
+    o.on("-h", "--help", "Output this help.") { puts o; exit }
   end
 
   begin
@@ -107,24 +67,20 @@ def range_mapping(from, to, length)
   "    <range_mapping origin_begin=\"#{from}\" data_begin=\"#{to}\" length=\"#{length}\" time=\"1\"/>"
 end
 
-def blocks(opts)
-  opts[:thinsize] / opts[:blocksize]
+def this_mappings(opts)
+  opts[:variation].nil? ? opts[:mappings] : ((2 * opts[:mappings] - rand(opts[:variation])) / 2)
 end
 
-def this_blocks(opts)
-  opts[:variation].nil? ? blocks(opts) : (2 * opts[:thinsize] - rand(opts[:variation])) / 2 / opts[:blocksize]
-end
-
-def xml_metadata(opts, units)
-  blks, dev_id, nr_data_blocks, to = [], 0, 0, 0
+def xml_metadata(opts)
+  mappings, dev_id, nr_data_blocks, to = [], 0, 0, 0
 
   0.step(opts[:thins] - 1) do
-    blks << (b = this_blocks(opts))
-    nr_data_blocks += b
+    mappings << (m = this_mappings(opts))
+    nr_data_blocks += m
   end
 
   puts begin_superblock(opts[:blocksize], nr_data_blocks)
-  blks.each do |b|
+  mappings.each do |b|
     if opts[:range]
       puts begin_device(dev_id, b), range_mapping(0, to, b), end_device
     else
@@ -142,4 +98,4 @@ end
 #----------------------------------------------------------------
 # Main
 #
-xml_metadata(parse_command_line(ARGV, (units = init_units)), units)
+xml_metadata(parse_command_line(ARGV))
