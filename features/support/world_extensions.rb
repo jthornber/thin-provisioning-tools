@@ -23,7 +23,7 @@ module ThinpWorld
   end
 
   def dump_files
-    @dump_files ||= []
+    @dump_files ||= [xml_file]
   end
 
   def new_dump_file

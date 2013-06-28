@@ -45,4 +45,9 @@ Feature: thin_restore
     When I dump
     And I restore
     And I dump
+    Then dumps 1 and 2 should be identical
+
+  Scenario: dump matches original metadata
+    Given valid metadata
+    When I dump
     Then dumps 0 and 1 should be identical
