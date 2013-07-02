@@ -14,10 +14,10 @@ $prg = Pathname.new($0).basename
 
 def check_opts(opts)
   abort "#{$prg} - 3 arguments required!" if opts.length < 3
-  abort "#{$prg} - block size must be 2^^N with N > 1" if opts[:blocksize] < 2 || (opts[:blocksize] & opts[:blocksize] - 1)
+  abort "#{$prg} - block size must be 2^^N with N > 1" if opts[:blocksize] < 2 || (opts[:blocksize] & opts[:blocksize] - 1) != 0
   abort "#{$prg} - mappings must be > 0" if opts[:mappings] < 1
   abort "#{$prg} - number of thin provisioned devices or snapshots must be > 0" if opts[:thins].nil? || opts[:thins] < 1
-  abort "#{$prg} - size variation too large!" if !opts[:variation].nil? && (opts[:mappings] < 2 || (opts[:variation] >= 2 * (opts[:mapings] - 1)))
+  abort "#{$prg} - size variation too large!" if !opts[:variation].nil? && (opts[:mappings] < 2 || (opts[:variation] >= 2 * (opts[:mappings] - 1)))
 end
 
 def parse_command_line(argv)
@@ -29,7 +29,7 @@ def parse_command_line(argv)
     o.on("-m", "--mappings #MAPPINGS", Integer, "Number of mappings per thin device or snapshot.") { |m| opts[:mappings] = m }
     o.on("-r", "--range-mappings", "Create range mappings") { opts[:range] = true }
     o.on("-t", "--thin-devices #THINS", Integer, "Sum of thin devices and snapshots.") { |mt| opts[:thins] = mt }
-    o.on("-v", "--variations SIZE]", Integer, "Mapping variation of thin devices and snapshots.") { |mv| opts[:variation] = mv }
+    o.on("-v", "--variations #MAPPINGS]", Integer, "Mapping variation of thin devices and snapshots.") { |mv| opts[:variation] = mv }
     o.on("-h", "--help", "Output this help.") { puts o; exit }
   end
 
