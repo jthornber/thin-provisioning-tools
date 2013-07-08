@@ -87,6 +87,33 @@ namespace base {
 			return runs_.end();
 		}
 
+		void negate() {
+			rset replacement;
+
+			if (runs_.begin() == runs_.end())
+				replacement.insert(run<T>());
+			else {
+				auto b = runs_.begin();
+				maybe last = b->end_;
+
+				if (b->begin_)
+					replacement.insert(run<T>(maybe(), *(b->begin_)));
+
+				++b;
+				while (b != runs_.end()) {
+					replacement.insert(run<T>(last, b->begin_));
+					last = b->end_;
+					++b;
+				}
+
+				if (last)
+					replacement.insert(run<T>(last, maybe()));
+
+			}
+
+			runs_ = replacement;
+		}
+
 	private:
 		typedef typename run<T>::maybe maybe;
 
@@ -104,7 +131,7 @@ namespace base {
 			return maybe(std::max<T>(*m1, *m2));
 		}
 
-		std::set<run<T>, compare_begin> runs_;
+		rset runs_;
 	};
 }
 

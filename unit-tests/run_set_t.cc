@@ -16,6 +16,18 @@ namespace {
 			(arg.end_ == static_cast<unsigned>(e));
 	}
 
+	MATCHER(EqAll, "") {
+		return !arg.begin_ && !arg.end_;
+	}
+
+	MATCHER_P(EqOpenBegin, e, "") {
+		return !arg.begin_ && (arg.end_ == static_cast<unsigned>(e));
+	}
+
+	MATCHER_P(EqOpenEnd, b, "") {
+		return (arg.begin_ == static_cast<unsigned>(b)) && !arg.end_;
+	}
+
 	class RunSetTests : public Test {
 	};
 }
@@ -174,6 +186,48 @@ TEST_F(RunSetTests, merge_discrete_sets)
 	ASSERT_THAT(*rs1.begin(), EqRun(5, 10));
 	ASSERT_THAT(*(++rs1.begin()), EqRun(15, 20));
 	ASSERT_THAT(++(++(rs1.begin())), Eq(rs1.end()));
+}
+
+TEST_F(RunSetTests, negate_empty)
+{
+	run_set<unsigned> rs;
+	rs.negate();
+	ASSERT_THAT(*rs.begin(), EqAll());
+	ASSERT_THAT(++rs.begin(), Eq(rs.end()));
+}
+
+TEST_F(RunSetTests, negate_single)
+{
+	run_set<unsigned> rs;
+	rs.add(5, 10);
+	rs.negate();
+	ASSERT_THAT(*rs.begin(), EqOpenBegin(5));
+	ASSERT_THAT(*(++rs.begin()), EqOpenEnd(10));
+	ASSERT_THAT(++(++rs.begin()), Eq(rs.end()));
+}
+
+TEST_F(RunSetTests, negate_double)
+{
+	run_set<unsigned> rs;
+	rs.add(5, 10);
+	rs.add(15, 20);
+	rs.negate();
+	ASSERT_THAT(*rs.begin(), EqOpenBegin(5));
+	ASSERT_THAT(*(++rs.begin()), EqRun(10, 15));
+	ASSERT_THAT(*(++(++rs.begin())), EqOpenEnd(20));
+	ASSERT_THAT(++(++(++rs.begin())), Eq(rs.end()));
+}
+
+TEST_F(RunSetTests, negate_negate)
+{
+	run_set<unsigned> rs;
+	rs.add(5, 10);
+	rs.add(15, 20);
+	rs.negate();
+	rs.negate();
+	ASSERT_THAT(*rs.begin(), EqRun(5, 10));
+	ASSERT_THAT(*(++rs.begin()), EqRun(15, 20));
+	ASSERT_THAT(++(++rs.begin()), Eq(rs.end()));
 }
 
 //----------------------------------------------------------------
