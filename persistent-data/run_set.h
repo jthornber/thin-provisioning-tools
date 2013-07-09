@@ -12,6 +12,10 @@ namespace base {
 	template <typename T>
 	class run_set {
 	public:
+		void clear() {
+			runs_.clear();
+		}
+
 		void add(T const &b) {
 			add(run<T>(b, b + 1));
 		}
@@ -28,14 +32,14 @@ namespace base {
 				const_iterator it = runs_.cbegin();
 
 				// Skip all blocks that end before r
-				while (it != runs_.end() && it->end_ <= r.begin_)
+				while (it != runs_.end() && it->end_ < r.begin_)
 					++it;
 
 				// work out which runs overlap
 				if (it != runs_.end()) {
 					r.begin_ = min_maybe(it->begin_, r.begin_);
 					const_iterator first = it;
-					while (it != runs_.end() && it->begin_ < r.end_) {
+					while (it != runs_.end() && it->begin_ <= r.end_) {
 						r.end_ = max_maybe(it->end_, r.end_);
 						++it;
 					}

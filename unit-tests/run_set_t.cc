@@ -48,6 +48,39 @@ TEST_F(RunSetTests, add_single_blocks)
 	rs.add(9u);
 }
 
+TEST_F(RunSetTests, add_adjacent_single)
+{
+	run_set<unsigned> rs;
+
+	rs.add(3);
+	rs.add(4);
+
+	ASSERT_THAT(*rs.begin(), EqRun(3, 5));
+	ASSERT_THAT(++rs.begin(), Eq(rs.end()));
+}
+
+TEST_F(RunSetTests, add_adjacent_single_other_way_round)
+{
+	run_set<unsigned> rs;
+
+	rs.add(4);
+	rs.add(3);
+
+	ASSERT_THAT(*rs.begin(), EqRun(3, 5));
+	ASSERT_THAT(++rs.begin(), Eq(rs.end()));
+}
+
+TEST_F(RunSetTests, many_single_blocks)
+{
+	run_set<unsigned> rs;
+
+	for (unsigned i = 1; i < 100000; i++)
+		rs.add(i);
+
+	ASSERT_THAT(*rs.begin(), EqRun(1, 100000));
+	ASSERT_THAT(++rs.begin(), Eq(rs.end()));
+}
+
 TEST_F(RunSetTests, add_runs)
 {
 	run_set<unsigned> rs;
