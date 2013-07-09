@@ -37,7 +37,9 @@ namespace {
 	using namespace std;
 
 	int const DEFAULT_MODE = 0666;
-	int const OPEN_FLAGS = O_DIRECT | O_SYNC;
+
+	 // FIXME: these will slow it down until we start doing asyn io.  O_DIRECT | O_SYNC;
+	int const OPEN_FLAGS = 0;
 
 	// FIXME: introduce a new exception for this, or at least lift this
 	// to exception.h
@@ -341,7 +343,7 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						typename block_io<BlockSize>::mode mode)
 		: io_(new block_io<BlockSize>(path, nr_blocks, mode)),
-		  cache_(max(1024u, max_concurrent_blocks)),
+		  cache_(max(64u, max_concurrent_blocks)),
 		  tracker_(0, nr_blocks)
 	{
 	}
