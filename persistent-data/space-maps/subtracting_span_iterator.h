@@ -41,7 +41,6 @@ namespace persistent_data {
 
 	private:
 		maybe_span get_current() {
-			// FIXME: unsafe deref of begin and end
 			return (current_ == runs_.end()) ?
 				maybe_span() :
 				maybe_span(std::make_pair(maybe_default(current_->begin_, 0ULL),
