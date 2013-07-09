@@ -28,10 +28,11 @@ namespace base {
 			run<T> r(r_);
 
 			if (runs_.size()) {
-				// Correct but slow
-				const_iterator it = runs_.cbegin();
-
 				// Skip all blocks that end before r
+				const_iterator it = runs_.lower_bound(r);
+				if (it != runs_.begin())
+					--it;
+
 				while (it != runs_.end() && it->end_ < r.begin_)
 					++it;
 
