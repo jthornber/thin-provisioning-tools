@@ -51,7 +51,7 @@ namespace {
 				return false;
 			}
 
-			return (loc.is_sub_root() && loc.key) ? (*loc.key == dev_id_) : true;
+			return (loc.is_sub_root() && loc.path.size()) ? (loc.path[0] == dev_id_) : true;
 		}
 
 		bool visit_internal_leaf(node_location const &loc,
@@ -71,10 +71,11 @@ namespace {
 				return false;
 			}
 
-			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				mapping_tree_detail::block_time bt = n.value_at(i);
-				add_mapping(n.key_at(i), bt.block_, bt.time_);
-			}
+			if (loc.path[0] == dev_id_)
+				for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+					mapping_tree_detail::block_time bt = n.value_at(i);
+					add_mapping(n.key_at(i), bt.block_, bt.time_);
+				}
 
 			return true;
 		}

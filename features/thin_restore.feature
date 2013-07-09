@@ -33,10 +33,26 @@ Feature: thin_restore
       {-V|--version}
     """
 
-  @announce
   Scenario: missing input file
     When I run thin_restore with -o metadata.bin
     Then it should fail with:
     """
     No input file provided.
     """
+
+  Scenario: dump/restore is a noop
+    Given valid metadata
+    When I dump
+    And I restore
+    And I dump
+    Then dumps 1 and 2 should be identical
+
+  Scenario: dump matches original metadata
+    Given valid metadata
+    When I dump
+    Then dumps 0 and 1 should be identical
+
+  Scenario: dump matches original metadata (small)
+    Given small metadata
+    When I dump
+    Then dumps 0 and 1 should be identical

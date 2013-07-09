@@ -129,7 +129,7 @@ namespace {
 		find_free(span_iterator &it) {
 			recursing_lock lock(*this);
 
-			subtracting_span_iterator filtered_it(it, allocated_blocks_);
+			subtracting_span_iterator filtered_it(get_nr_blocks(), it, allocated_blocks_);
 			return sm_->find_free(filtered_it);
 		}
 
@@ -240,7 +240,7 @@ namespace {
 			ops_[op.b_].push_back(op);
 
 			if (op.op_ == block_op::INC || (op.op_ == block_op::SET && op.rc_ > 0))
-				allocated_blocks_.insert(op.b_);
+				allocated_blocks_.add(op.b_, op.b_ + 1);
 		}
 
 		void cant_recurse(string const &method) const {

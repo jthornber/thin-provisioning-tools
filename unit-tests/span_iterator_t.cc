@@ -1,6 +1,7 @@
 #include "gmock/gmock.h"
 
 #include "persistent-data/space-maps/subtracting_span_iterator.h"
+#include "persistent-data/run_set.h"
 
 using namespace std;
 using namespace persistent_data;
@@ -53,27 +54,42 @@ namespace {
 
 	class span_iterator_mock : public space_map::span_iterator {
 	public:
+		span_iterator_mock() {
+			Sequence dummy;
+
+			EXPECT_CALL(*this, first()).
+				InSequence(dummy).
+				WillOnce(Return(maybe_span(span(23, 47))));
+			EXPECT_CALL(*this, next()).
+				InSequence(dummy).
+				WillOnce(Return(maybe_span(span(59, 103))));
+			EXPECT_CALL(*this, next()).
+				InSequence(dummy).
+				WillOnce(Return(maybe_span()));
+		}
+
 		MOCK_METHOD0(first, maybe_span());
 		MOCK_METHOD0(next, maybe_span());
 	};
 
 	class SpanItTests : public Test {
 	public:
-		SpanItTests()
-			: it(mock_it, forbidden) {
-
-			EXPECT_CALL(mock_it, first()).
-				Times(1).
-				WillOnce(Return(maybe_span(span(23, 47))));
-			EXPECT_CALL(mock_it, next()).
-				Times(1).
-				WillOnce(Return(maybe_span(span(59, 103))));
+		subtracting_span_iterator run() {
+			span_iterator_mock mock_it;
+			return subtracting_span_iterator(1000, mock_it, forbidden);
 		}
 
-		span_iterator_mock mock_it;
-		set<block_address> forbidden;
-		subtracting_span_iterator it;
+		base::run_set<block_address> forbidden;
 	};
+
+	ostream &operator <<(ostream &out, maybe_span const &m) {
+		out << "maybe_span[";
+		if (m)
+			out << m->first << ", " << m->second;
+		out << "]";
+
+		return out;
+	}
 }
 
 //----------------------------------------------------------------
@@ -103,14 +119,16 @@ TEST(RegularSpanItTests, regular_span_iterator)
 
 TEST_F(SpanItTests, sub_it_with_no_removed_blocks)
 {
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
 
 TEST_F(SpanItTests, sub_it_with_removed_first_block)
 {
-	forbidden.insert(23);
+	forbidden.add(23);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(24, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -118,16 +136,18 @@ TEST_F(SpanItTests, sub_it_with_removed_first_block)
 TEST_F(SpanItTests, sub_it_with_removed_run_overlapping_front_of_first_block)
 {
 	for (block_address i = 19; i < 26; i++)
-		forbidden.insert(i);
+		forbidden.add(i);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(26, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
 
 TEST_F(SpanItTests, sub_it_with_removed_mid_block)
 {
-	forbidden.insert(40);
+	forbidden.add(40);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 40))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(41, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
@@ -136,8 +156,9 @@ TEST_F(SpanItTests, sub_it_with_removed_mid_block)
 TEST_F(SpanItTests, sub_it_with_removed_run_mid_block)
 {
 	for (block_address i = 26; i < 36; i++)
-		forbidden.insert(i);
+		forbidden.add(i);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(36, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
@@ -145,8 +166,9 @@ TEST_F(SpanItTests, sub_it_with_removed_run_mid_block)
 
 TEST_F(SpanItTests, sub_it_with_removed_end_block)
 {
-	forbidden.insert(46);
+	forbidden.add(46);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 46))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -154,8 +176,9 @@ TEST_F(SpanItTests, sub_it_with_removed_end_block)
 TEST_F(SpanItTests, sub_it_with_removed_run_end_block)
 {
 	for (block_address i = 26; i < 50; i++)
-		forbidden.insert(i);
+		forbidden.add(i);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -163,19 +186,21 @@ TEST_F(SpanItTests, sub_it_with_removed_run_end_block)
 TEST_F(SpanItTests, sub_it_with_removed_run_overlapping_2_blocks)
 {
 	for (block_address i = 26; i < 70; i++)
-		forbidden.insert(i);
+		forbidden.add(i);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(70, 103))));
 }
 
 TEST_F(SpanItTests, sub_it_with_removed_intermediate_blocks)
 {
-	forbidden.insert(53);
-	forbidden.insert(54);
-	forbidden.insert(57);
-	forbidden.insert(58);
+	forbidden.add(53);
+	forbidden.add(54);
+	forbidden.add(57);
+	forbidden.add(58);
 
+	auto it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }

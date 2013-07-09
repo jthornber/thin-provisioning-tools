@@ -56,6 +56,7 @@ TEST_SOURCE=\
 	unit-tests/damage_tracker_t.cc \
 	unit-tests/endian_t.cc \
 	unit-tests/rmap_visitor_t.cc \
+	unit-tests/run_set_t.cc \
 	unit-tests/space_map_t.cc \
 	unit-tests/span_iterator_t.cc \
 	unit-tests/transaction_manager_t.cc
@@ -70,7 +71,11 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 %.gmo: %.cc
 	@echo "    [CXX] $<"
-	$(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
+	$(V) $(CXX) -c $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
+	@echo "    [DEP] $<"
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) $< > $*.$$$$; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
+	$(RM) $*.$$$$
 
 unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"

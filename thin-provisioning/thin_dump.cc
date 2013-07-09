@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include <fstream>
 #include <iostream>
 #include <getopt.h>
 #include <libgen.h>
@@ -31,16 +32,16 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int dump(string const &path, string const &format, bool repair,
+	int dump(string const &path, ostream &out, string const &format, bool repair,
 		 block_address metadata_snap = 0) {
 		try {
 			metadata::ptr md(new metadata(path, metadata::OPEN));
 			emitter::ptr e;
 
 			if (format == "xml")
-				e = create_xml_emitter(cout);
+				e = create_xml_emitter(out);
 			else if (format == "human_readable")
-				e = create_human_readable_emitter(cout);
+				e = create_human_readable_emitter(out);
 			else {
 				cerr << "unknown format '" << format << "'" << endl;
 				exit(1);
@@ -63,6 +64,7 @@ namespace {
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
 		    << "  {-m|--metadata-snap}" << endl
+		    << "  {-o <xml file>}" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -71,7 +73,8 @@ int main(int argc, char **argv)
 {
 	int c;
 	bool repair = false;
-	const char shortopts[] = "hm:f:rV";
+	char const *output = NULL;
+	const char shortopts[] = "hm:o:f:rV";
 	string format = "xml";
 	block_address metadata_snap = 0;
 	char *end_ptr;
@@ -79,6 +82,7 @@ int main(int argc, char **argv)
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "metadata-snap", required_argument, NULL, 'm' },
+		{ "output", required_argument, NULL, 'o'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
@@ -108,6 +112,10 @@ int main(int argc, char **argv)
 			}
 			break;
 
+		case 'o':
+			output = optarg;
+			break;
+
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
@@ -124,5 +132,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], format, repair, metadata_snap);
+	if (output) {
+		ofstream out(output);
+		return dump(argv[optind], out, format, repair, metadata_snap);
+	} else
+		return dump(argv[optind], cout, format, repair, metadata_snap);
 }

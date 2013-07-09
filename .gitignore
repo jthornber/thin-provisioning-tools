@@ -23,3 +23,15 @@ unit-tests/Makefile
 unit-tests/unit_tests
 
 gmock-1.6.0/
+
+autom4te.cache/
+
+*.xml
+*.bin
+*.patch
+
+version.h
+config.cache
+config.log
+config.status
+configure

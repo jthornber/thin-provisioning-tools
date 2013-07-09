@@ -72,7 +72,7 @@ namespace {
 		}
 
 		virtual maybe_block find_free(span_iterator &it) {
-			subtracting_span_iterator filtered_it(it, freed_blocks_);
+			subtracting_span_iterator filtered_it(get_nr_blocks(), it, freed_blocks_);
 			return sm_->find_free(filtered_it);
 		}
 
@@ -110,11 +110,11 @@ namespace {
 		}
 
 		void mark_freed(block_address b) {
-			freed_blocks_.insert(b);
+			freed_blocks_.add(b, b + 1);
 		}
 
 		bool was_freed(block_address b) const {
-			return freed_blocks_.count(b) > 0;
+			return freed_blocks_.member(b) > 0;
 		}
 
 		checked_space_map::ptr sm_;

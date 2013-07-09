@@ -105,15 +105,13 @@ endif
 
 .SUFFIXES: .d
 
-%.d: %.cc
-	@echo "    [DEP] $<"
-	$(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $@.$$$$;\
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $@ : Makefile ,g' < $@.$$$$ > $@; \
-	$(RM) $@.$$$$
-
 %.o: %.cc
 	@echo "    [CXX] $<"
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
+	@echo "    [DEP] $<"
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
+	$(RM) $*.$$$$
 
 #----------------------------------------------------------------
 
