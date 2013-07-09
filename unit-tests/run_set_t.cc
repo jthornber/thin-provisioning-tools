@@ -239,6 +239,16 @@ TEST_F(RunSetTests, negate_single)
 	ASSERT_THAT(++(++rs.begin()), Eq(rs.end()));
 }
 
+TEST_F(RunSetTests, negate_single2)
+{
+	run_set<unsigned> rs;
+	rs.add(23);
+	rs.negate();
+	ASSERT_THAT(*rs.begin(), EqOpenBegin(23));
+	ASSERT_THAT(*(++rs.begin()), EqOpenEnd(24));
+	ASSERT_THAT(++(++rs.begin()), Eq(rs.end()));
+}
+
 TEST_F(RunSetTests, negate_double)
 {
 	run_set<unsigned> rs;
