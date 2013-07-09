@@ -53,3 +53,12 @@ end
 Then(/^dumps ([0-9]+) and ([0-9]+) should be identical$/) do |d1, d2|
   run_simple("diff -ub #{dump_files[d1.to_i]} #{dump_files[d2.to_i]}", true)
 end
+
+Given(/^small metadata$/) do
+  in_current_dir do
+    system("thinp_xml create --nr-thins 2 --nr-mappings 1 > #{xml_file}")
+  end
+
+  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
+  run_simple("thin_restore -i #{xml_file} -o #{dev_file}")
+end

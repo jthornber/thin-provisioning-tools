@@ -51,3 +51,8 @@ Feature: thin_restore
     Given valid metadata
     When I dump
     Then dumps 0 and 1 should be identical
+
+  Scenario: dump matches original metadata (small)
+    Given small metadata
+    When I dump
+    Then dumps 0 and 1 should be identical
