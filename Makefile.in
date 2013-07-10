@@ -240,7 +240,6 @@ install: $(PROGRAMS)
 	$(INSTALL_PROGRAM) -s thin_repair $(BINDIR)
 	$(INSTALL_PROGRAM) -s thin_restore $(BINDIR)
 	$(INSTALL_PROGRAM) -s thin_rmap $(BINDIR)
-	$(INSTALL_PROGRAM) thin-provisioning/thin_metadata_size $(BINDIR)
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
