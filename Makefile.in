@@ -84,7 +84,6 @@ INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-lstdc++
 LIBEXPAT:=-lexpat
 INSTALL:=@INSTALL@
-STRIP=strip
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
 MANPATH:=$(DESTDIR)$(MANDIR)
@@ -92,7 +91,7 @@ MANPATH:=$(DESTDIR)$(MANDIR)
 vpath %.cc $(TOP_DIR)
 
 INSTALL_DIR = $(INSTALL) -m 755 -d
-INSTALL_PROGRAM = $(INSTALL) -m 755 $(STRIP)
+INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
@@ -236,15 +235,16 @@ distclean: clean
 
 install: $(PROGRAMS)
 	$(INSTALL_DIR) $(BINDIR)
-	$(INSTALL_PROGRAM) thin_check $(BINDIR)/thin_check
-	$(INSTALL_PROGRAM) thin_dump $(BINDIR)/thin_dump
-	$(INSTALL_PROGRAM) thin_restore $(BINDIR)/thin_restore
-	$(INSTALL_PROGRAM) thin_rmap $(BINDIR)/thin_rmap
-	$(INSTALL_PROGRAM) thin-provisioning/thin_metadata_size $(BINDIR)/thin_metadata_size
+	$(INSTALL_PROGRAM) -s thin_check $(BINDIR)
+	$(INSTALL_PROGRAM) -s thin_dump $(BINDIR)
+	$(INSTALL_PROGRAM) -s thin_repair $(BINDIR)
+	$(INSTALL_PROGRAM) -s thin_restore $(BINDIR)
+	$(INSTALL_PROGRAM) -s thin_rmap $(BINDIR)
+	$(INSTALL_PROGRAM) thin-provisioning/thin_metadata_size $(BINDIR)
 	$(INSTALL_DIR) $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8/thin_check.8
-	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8/thin_dump.8
-	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8/thin_restore.8
+	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 .PHONY: install
 
 ifeq ("@TESTING@", "yes")
