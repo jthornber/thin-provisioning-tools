@@ -157,9 +157,9 @@ static struct global *parse_command_line(struct global *g, int argc, char **argv
 		if (c == 'b')
       			g->options.n[BLOCKSIZE] = to_bytes(g, optarg, RETURN_SECTORS);
 		else if (c == 's')
-      			g->options.n[POOLSIZE] = to_bytes(g, optarg, RETURN_SECTORS);
+      			g->options.n[POOLSIZE]  = to_bytes(g, optarg, RETURN_SECTORS);
 		else if (c == 'm')
-      			g->options.n[MAXTHINS] = to_bytes(g, optarg, RETURN_BYTES);
+      			g->options.n[MAXTHINS]  = to_bytes(g, optarg, RETURN_BYTES);
 		else if (c == 'u')
 			check_unit(g, optarg);
 		else if (c == 'n')
