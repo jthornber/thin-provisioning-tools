@@ -19,9 +19,10 @@
 
 /*----------------------------------------------------------------*/
 
-static char *prg;
+static char *prg; /* program name */
 
-enum numeric_options { blocksize, poolsize, maxthins, numeric, opt_end};
+enum numeric_options { BLOCKSIZE, POOLSIZE, MAXTHINS, NUMERIC, OPT_END};
+enum return_units { RETURN_BYTES, RETURN_SECTORS };
 struct global {
 	#define UNIT_ARRAY_SZ	18
 	struct {
@@ -31,7 +32,7 @@ struct global {
 	} unit;
 
 	struct options {
-		unsigned long long n[opt_end];
+		unsigned long long n[OPT_END];
 		char unit;
 	} options;
 };
@@ -48,16 +49,19 @@ static struct global *init(void)
 					"zetabytes", "zebibytes", "yottabytes", "yobibytes" };
 
 	memset(&r, 0, sizeof(r));
+
 	r.unit.chars = "bskKmMgGtTpPeEzZyY";
 	u = 0;
-	r.unit.factors[u++] = 1, r.unit.factors[u++] = 512, r.unit.factors[u++] = 1024, r.unit.factors[u++] = 1000;
+	r.unit.factors[u++] = 1;
+	r.unit.factors[u++] = 512;
+	r.unit.factors[u++] = 1024;
+	r.unit.factors[u++] = 1000;
 	for ( ; u < UNIT_ARRAY_SZ; u += 2) {
 		r.unit.factors[u] = r.unit.factors[2] * r.unit.factors[u - 2];
 		r.unit.factors[u+1] = r.unit.factors[3] * r.unit.factors[u - 1];
 	}
 
-	u = UNIT_ARRAY_SZ;
-	while (u--)
+	for  (u = UNIT_ARRAY_SZ; u--; )
 		r.unit.strings[u] = unit_strings[u];
 
 	r.options.unit = 's';
@@ -80,25 +84,27 @@ static void abort_prg(const char *msg)
 
 static void check_opts(struct options *options)
 {
-	if (!options->n[blocksize] || !options->n[poolsize] || !options->n[maxthins])
+	if (!options->n[BLOCKSIZE] || !options->n[POOLSIZE] || !options->n[MAXTHINS])
 		abort_prg("3 arguments required!");
-	else if (options->n[blocksize] & (options->n[blocksize] - 1))
+	else if (options->n[BLOCKSIZE] & (options->n[BLOCKSIZE] - 1))
   		abort_prg("block size must be 2^^N");
-	else if (options->n[poolsize] < options->n[blocksize])
-  		abort_prg("poolsize must be much larger than blocksize");
-	else if (!options->n[maxthins])
+	else if (options->n[POOLSIZE] < options->n[BLOCKSIZE])
+  		abort_prg("POOLSIZE must be much larger than BLOCKSIZE");
+	else if (!options->n[MAXTHINS])
 		abort_prg("maximum number of thin provisioned devices must be > 0");
 }
 
-static unsigned long long to_bytes(struct global *g, char *sz, int div)
+static unsigned long long to_bytes(struct global *g, char *sz, enum return_units unit)
 {
 	unsigned len = strlen(sz);
+	unsigned long long r;
 	char uc = 's', *us = strchr(g->unit.chars, sz[len-1]);
 
 	if (us)
-		uc = sz[len-1], sz[len-1] = 0;
+		uc = *us, sz[len-1] = 0;
 
-	return g->unit.factors[get_index(g, uc)] * atoll(sz) / (div ? bytes_per_sector : 1);
+	r = atoll(sz) * g->unit.factors[get_index(g, uc)];
+	return (!us || unit == RETURN_SECTORS) ? r / bytes_per_sector : r;
 }
 
 static void printf_aligned(struct global *g, char *a, char *b, char *c, int units)
@@ -117,11 +123,21 @@ static void help(struct global *g)
 	printf ("Thin Provisioning Metadata Device Size Calculator.\nUsage: %s [opts]\n", prg);
 	printf_aligned(g, "-b", "--block-size BLOCKSIZE", "Block size of thin provisioned devices.", 1);
 	printf_aligned(g, "-s", "--pool-size SIZE", "Size of pool device.", 1);
-	printf_aligned(g, "-m", "--max-thins #MAXTHINS", "Maximum sum of all thin devices and snapshots.", 0);
+	printf_aligned(g, "-m", "--max-thins #MAXTHINS", "Maximum sum of all thin devices and snapshots.", 1);
 	printf_aligned(g, "-u", "--unit ", "Output unit specifier.", 1);
 	printf_aligned(g, "-n", "--numeric-only", "Output numeric value only.", 0);
 	printf_aligned(g, "-h", "--help", "This help.", 0);
 	exit(0);
+}
+
+static void check_unit(struct global *g, char *arg)
+{
+	if (*(arg + 1))
+		abort_prg("only one unit specifier allowed!");
+	else if (!strchr(g->unit.chars, *arg))
+		abort_prg("output unit specifier invalid!");
+
+      	g->options.unit = *arg;
 }
 
 static struct global *parse_command_line(struct global *g, int argc, char **argv)
@@ -139,20 +155,15 @@ static struct global *parse_command_line(struct global *g, int argc, char **argv
 
 	while ((c = getopt_long(argc, argv, "b:s:m:u:nh", long_options, NULL)) != -1) {
 		if (c == 'b')
-      			g->options.n[blocksize] = to_bytes(g, optarg, 1);
+      			g->options.n[BLOCKSIZE] = to_bytes(g, optarg, RETURN_SECTORS);
 		else if (c == 's')
-      			g->options.n[poolsize] = to_bytes(g, optarg, 1);
+      			g->options.n[POOLSIZE] = to_bytes(g, optarg, RETURN_SECTORS);
 		else if (c == 'm')
-      			g->options.n[maxthins] = to_bytes(g, optarg, 0);
-		else if (c == 'u') {
-			if (*(optarg + 1))
-				abort_prg("only one unit specifier allowed!");
-			else if (!strchr(g->unit.chars, *optarg))
-				abort_prg("output unit specifier invalid!");
-
-      			g->options.unit = *optarg;
-		} else if (c == 'n')
-			g->options.n[numeric] = 1;
+      			g->options.n[MAXTHINS] = to_bytes(g, optarg, RETURN_BYTES);
+		else if (c == 'u')
+			check_unit(g, optarg);
+		else if (c == 'n')
+			g->options.n[NUMERIC] = 1;
 		else if (c == 'h')
 			help(g);
 		else
@@ -186,7 +197,7 @@ static void printf_precision(double r, int full, char *unit_str)
 	if (r == rtrunc)
 		printf("%llu", (unsigned long long) r);
 	else
-		printf(r - truncl(r) < 1E-3 ? "%0.3e" : "%0.3f", r);
+		printf(r - truncl(r) < 1E-2 ? "%0.2e" : "%0.2f", r);
 
 	if (full)
 		printf(" %s", unit_str);
@@ -200,10 +211,10 @@ static void estimated_result(struct global *g)
 	double r;
 
 	/* double-fold # of nodes, because they aren't fully populated in average */
-	r = (1.0 + (2 * g->options.n[poolsize] / g->options.n[blocksize] / mappings_per_block() + g->options.n[maxthins])) * 8 * bytes_per_sector; /* in bytes! */
+	r = (1.0 + (2 * g->options.n[POOLSIZE] / g->options.n[BLOCKSIZE] / mappings_per_block() + g->options.n[MAXTHINS])) * 8 * bytes_per_sector; /* in bytes! */
 	r /= g->unit.factors[idx]; /* in requested unit */
 
-	printf_precision(r, !g->options.n[numeric], g->unit.strings[idx]);
+	printf_precision(r, !g->options.n[NUMERIC], g->unit.strings[idx]);
 }
 
 int main(int argc, char **argv)
