@@ -50,10 +50,7 @@ static struct global *init(void)
 	memset(&r, 0, sizeof(r));
 	r.unit.chars = "bskKmMgGtTpPeEzZyY";
 	u = 0;
-	r.unit.factors[u++] = 1;
-	r.unit.factors[u++] = 512;
-	r.unit.factors[u++] = 1024;
-	r.unit.factors[u++] = 1000;
+	r.unit.factors[u++] = 1, r.unit.factors[u++] = 512, r.unit.factors[u++] = 1024, r.unit.factors[u++] = 1000;
 	for ( ; u < UNIT_ARRAY_SZ; u += 2) {
 		r.unit.factors[u] = r.unit.factors[2] * r.unit.factors[u - 2];
 		r.unit.factors[u+1] = r.unit.factors[3] * r.unit.factors[u - 1];
@@ -178,9 +175,23 @@ static const unsigned mappings_per_block(void)
 	return (btree_size.node - btree_size.node_header) / btree_size.entry;
 }
 
-static unsigned precision(double r)
+static void printf_precision(double r, int full, char *unit_str)
 {
-	return r == truncl(r) ? 0 : 3;
+	double rtrunc = truncl(r);
+
+	/* FIXME: correct output */
+	if (full)
+		printf("%s - estimated metadata area size is ", prg);
+
+	if (r == rtrunc)
+		printf("%llu", (unsigned long long) r);
+	else
+		printf(r - truncl(r) < 1E-3 ? "%0.3e" : "%0.3f", r);
+
+	if (full)
+		printf(" %s", unit_str);
+
+	putchar('\n');
 }
 
 static void estimated_result(struct global *g)
@@ -192,13 +203,7 @@ static void estimated_result(struct global *g)
 	r = (1.0 + (2 * g->options.n[poolsize] / g->options.n[blocksize] / mappings_per_block() + g->options.n[maxthins])) * 8 * bytes_per_sector; /* in bytes! */
 	r /= g->unit.factors[idx]; /* in requested unit */
 
-// printf("%c idx=%u factor=%llu r=%f\n", g->options.unit, idx, g->unit.factors[idx], r);
-
-	/* FIXME: correct output */
-	if (g->options.n[numeric])
-		printf("%.*f\n", precision(r), r);
-	else
-		printf("%s - estimated metadata area size is %.*f %s\n", prg, precision(r), r, g->unit.strings[idx]);
+	printf_precision(r, !g->options.n[numeric], g->unit.strings[idx]);
 }
 
 int main(int argc, char **argv)
