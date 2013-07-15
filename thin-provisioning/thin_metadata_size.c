@@ -190,7 +190,6 @@ static void printf_precision(double r, int full, char *unit_str)
 {
 	double rtrunc = truncl(r);
 
-	/* FIXME: correct output */
 	if (full)
 		printf("%s - estimated metadata area size is ", prg);
 

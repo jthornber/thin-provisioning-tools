@@ -30,6 +30,7 @@ dnl -- Setup the directory where autoconf has auxilary files
 AC_CONFIG_AUX_DIR(autoconf)
 AC_CANONICAL_TARGET([])
 AC_PROG_CXX([g++])
+AC_PROG_CC([gcc])
 AC_LANG(C++)
 
 ################################################################

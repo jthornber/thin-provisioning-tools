@@ -24,7 +24,8 @@ PROGRAMS=\
 	thin_dump \
 	thin_restore \
 	thin_repair \
-	thin_rmap
+	thin_rmap \
+	thin_metadata_size
 
 all: $(PROGRAMS)
 
@@ -73,10 +74,15 @@ PROGRAM_SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_rmap.cc
 
+C_PROGRAM_SOURCE=\
+	thin-provisioning/thin_metadata_size.c
+
+CC:=@CC@
 CXX:=@CXX@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
+CFLAGS+=-g -Wall -O3
 CXXFLAGS+=-std=c++11 -g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
@@ -103,6 +109,14 @@ TEST_INCLUDES=
 endif
 
 .SUFFIXES: .d
+
+%.o: %.c
+	@echo "    [CC] $<"
+	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
+	@echo "    [DEP] $<"
+	$(V) $(CC) -MM -MT $(subst .c,.o,$<) $(INCLUDES) $(CFLAGS) $< > $*.$$$$; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
+	$(RM) $*.$$$$
 
 %.o: %.cc
 	@echo "    [CXX] $<"
@@ -195,6 +209,10 @@ thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
 
+thin_metadata_size: thin-provisioning/thin_metadata_size.o
+	@echo "    [LD]  $@"
+	$(V) $(CC) $(CFLAGS) -o $@ $+ -lm
+
 #----------------------------------------------------------------
 # Cache tools
 
@@ -221,14 +239,16 @@ cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
 	$(subst .cc,.d,$(TEST_SOURCE)) \
-	$(subst .cc,.d,$(PROGRAM_SOURCE))
+	$(subst .cc,.d,$(PROGRAM_SOURCE)) \
+	$(subst .c,.d,$(C_PROGRAM_SOURCE))
 
 .PHONY: clean distclean
 
 clean:
 	find . -name \*.o -delete
 	find . -name \*.gmo -delete
-	$(RM) $(DEPEND_FILES) $(TEST_PROGRAMS) $(PROGRAMS) $(GMOCK_OBJECTS) lib/*.a
+	find . -name \*.d -delete
+	$(RM) $(TEST_PROGRAMS) $(PROGRAMS) $(GMOCK_OBJECTS) lib/*.a
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
@@ -240,6 +260,7 @@ install: $(PROGRAMS)
 	$(INSTALL_PROGRAM) -s thin_repair $(BINDIR)
 	$(INSTALL_PROGRAM) -s thin_restore $(BINDIR)
 	$(INSTALL_PROGRAM) -s thin_rmap $(BINDIR)
+	$(INSTALL_PROGRAM) -s thin_metadata_size $(BINDIR)
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
