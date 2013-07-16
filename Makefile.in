@@ -65,7 +65,7 @@ SOURCE=\
 
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
-PROGRAM_SOURCE=\
+CXX_PROGRAM_SOURCE=\
 	cache/check.cc \
 	\
 	thin-provisioning/thin_check.cc \
@@ -239,7 +239,7 @@ cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
 	$(subst .cc,.d,$(TEST_SOURCE)) \
-	$(subst .cc,.d,$(PROGRAM_SOURCE)) \
+	$(subst .cc,.d,$(CXX_PROGRAM_SOURCE)) \
 	$(subst .c,.d,$(C_PROGRAM_SOURCE))
 
 .PHONY: clean distclean
