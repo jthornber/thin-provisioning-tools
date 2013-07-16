@@ -57,15 +57,6 @@ namespace {
 		return tm;
 	}
 
-	superblock
-	read_superblock(block_manager<>::ptr bm, block_address location = SUPERBLOCK_LOCATION) {
-		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
-		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-		superblock_traits::unpack(*sbd, sb);
-		return sb;
-	}
-
 	void
 	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
 		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
@@ -149,10 +140,10 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 	}
 }
 
-metadata::metadata(std::string const &dev_path)
+metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 {
 	tm_ = open_tm(open_bm(dev_path, false));
-	sb_ = read_superblock(tm_->get_bm());
+	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
 
 	// We don't open the metadata sm for a held root
 	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);

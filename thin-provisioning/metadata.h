@@ -62,10 +62,11 @@ namespace thin_provisioning {
 		// Deprecated: it would be better if we passed in an already
 		// constructed block_manager.
 		metadata(std::string const &dev_path, open_type ot,
-			 sector_t data_block_size = 128,
+			 sector_t data_block_size = 128, // Only used if CREATE
 			 block_address nr_data_blocks = 0); // Only used if CREATE
 
-		metadata(std::string const &dev_path);
+		metadata(std::string const &dev_path,
+			 block_address metadata_snap = 0);
 
 		// ... use these instead ...
 		metadata(block_manager<>::ptr bm, open_type ot,

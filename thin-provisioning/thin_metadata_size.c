@@ -3,7 +3,6 @@
  * 
  * This file is released under the GPL
  *
- *
  * Calculates device-mapper thin privisioning
  * metadata device size based on pool, block size and
  * maximum expected thin provisioned devices and snapshots.
