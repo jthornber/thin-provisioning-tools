@@ -35,7 +35,7 @@ namespace {
 	int dump(string const &path, ostream &out, string const &format, bool repair,
 		 block_address metadata_snap = 0) {
 		try {
-			metadata::ptr md(new metadata(path, metadata::OPEN));
+			metadata::ptr md(metadata_snap ? new metadata(path, metadata_snap) : new metadata(path, metadata::OPEN, 0, 0));
 			emitter::ptr e;
 
 			if (format == "xml")
@@ -63,7 +63,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
-		    << "  {-m|--metadata-snap}" << endl
+		    << "  {-m|--metadata-snap} block#" << endl
 		    << "  {-o <xml file>}" << endl
 		    << "  {-V|--version}" << endl;
 	}
