@@ -1,9 +1,9 @@
-.TH THIN_RESTORE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.TH THIN_REPAIR 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
 .SH NAME
-thin_restore \- restore thin provisioning metadata file to device or file
+thin_repair \- repair thin provisioning binary metadata from device/file to device/file
 
 .SH SYNOPSIS
-.B thin_restore
+.B thin_repair
 .RB [ options ]
 .RB -i
 .I {device|file}
@@ -11,19 +11,17 @@ thin_restore \- restore thin provisioning metadata file to device or file
 .I {device|file}
 
 .SH DESCRIPTION
-.B thin_restore
-restores thin provisioning metadata created by the
-respective device-mapper target dumped into an XML formatted (see
-.BR thin_dump(8) )
-file, which optionally can be preprocessed to another device or file.
-If restored to a metadata device, the metadata can be processed
+.B thin_repair
+repairs binary thin provisioning metadata created by the
+respective device-mapper target processing to another device or file.
+If repaired to a metadata device, the metadata can be processed
 by the device-mapper target.
 
 .IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
-Input file or device with metadata.
+Input file or device with binary metadata.
 
 .IP "\fB\-o, \-\-output\fP \fI{device|file}\fP"
-Output file or device.
+Output file or device for repaired binary metadata.
 
 .IP "\fB\-h, \-\-help\fP"
 Print help and exit.
@@ -32,21 +30,21 @@ Print help and exit.
 Output version information and exit.
 
 .SH EXAMPLE
-Restores the XML formatted thin provisioning metadata on file
+Repairs the binary thin provisioning metadata on file
 .B metadata
 to logical volume /dev/vg/metadata for further processing by the
 respective device-mapper target:
 .sp
-.B thin_restore -i metadata -o /dev/vg/metadata
+.B thin_repair -i metadata -o /dev/vg/metadata
 
 .SH DIAGNOSTICS
-.B thin_restore
+.B thin_repair
 returns an exit code of 0 for success or 1 for error.
 
 .SH SEE ALSO
 .B thin_dump(8)
 .B thin_check(8)
-.B thin_repair(8)
+.B thin_restore(8)
 .B thin_rmap(8)
 .B thin_metadata_size(8)
 

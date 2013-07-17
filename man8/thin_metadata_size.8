@@ -1,0 +1,71 @@
+.TH THIN_METADATA_SIZE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+thin_metadata_size \- thin provisioning metadata file/device size calculator.
+
+.SH SYNOPSIS
+.B thin_metadata_size
+.RB [ options ]
+
+.SH DESCRIPTION
+.B thin_metadata_size
+calculates the size of the thin provisioning metadata based on the block size
+of the thin provisioned devices, the size of the thin provisioning pool and
+the maximum number of all thin prisioned devices and snapshots.
+
+.IP "\fB\-b, \-\-block-size\fP \fIBLOCKSIZE[bskKmMgGtTpPeEzZyY]\fP"
+Block size of thin provisioned devices in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Default is in sectors without a block size unit specifier.
+
+.IP "\fB\-s, \-\-pool-size\fP \fIPOOLSIZE[bskKmMgGtTpPeEzZyY]\fP"
+Thin provisioning pool size in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Default is in sectors without a pool size unit specifier.
+
+.IP "\fB\-m, \-\-max-thins\fP \fI#[bskKmMgGtTpPeEzZyY]\fP"
+Maximum sum of all thin provisioned devices and snapshots.
+Unit identifier supported to allow for convenient entry of large quantities, eg. 1000000 = 1M.
+Default is absolut quantity without a number unit specifier.
+
+.IP "\fB\-u, \-\-unit\fP \fI[bskKmMgGtTpPeEzZyY]\fP"
+Output unit specifier in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Default is in sectors without an output unit specifier.
+
+.IP "\fB\-n[u], \-\-numeric-only[=unit]\fP"
+Limit output to just the size number with the optional unit specifier character.
+
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
+
+.SH EXAMPLES
+Calculates the thin privisioning metadata device size for block size 64 kilobytes,
+pool size 1 terabytes and maximum number of thin provisioned devices and snapshots of 1000
+in units of sectors with long output.
+.sp
+.B thin_metadata_size -b64k -s1t -m1000
+
+Or (using the long options inmstead) for block size 1 gigabyte, pool size 1 petabytes and maximum number of thin provisioned devices
+and snapshots of 1 million in units of gigabytes with numeric only output.
+.sp
+.B thin_metadata_size --block-size=1g --pool-size=1p --max-thins=1M --unit=g --numeric-only
+
+Same as before (1g,1p,1M,numeric-only) but with unit specifier character appended.
+.sp
+.B thin_metadata_size --block-size=1g --pool-size=1p --max-thins=1M --unit=g --numeric-only=unit
+
+.SH DIAGNOSTICS
+.B thin_metadata_size
+returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B thin_dump(8)
+.B thin_check(8)
+.B thin_repair(8)
+.B thin_restore(8)
+.B thin_rmap(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>
+.br
+Heinz Mauelshagen <HeinzM@RedHat.com>

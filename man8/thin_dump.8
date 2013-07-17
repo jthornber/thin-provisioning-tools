@@ -9,7 +9,7 @@ thin_dump \- dump thin provisioning metadata from device or file to standard out
 
 .SH DESCRIPTION
 .B thin_dump
-dumps thin provisioning metadata created by the device-mapper
+dumps binary thin provisioning metadata created by the device-mapper
 thin provisioning target on a device or file to standard output for
 analysis or postprocessing in either XML or human readable format.
 XML formated metadata can be fed into thin_restore (see
@@ -48,8 +48,10 @@ returns an exit code of 0 for success or 1 for error.
 
 .SH SEE ALSO
 .B thin_check(8)
+.B thin_repair(8)
 .B thin_restore(8)
-
+.B thin_rmap(8)
+.B thin_metadata_size(8)
 .SH AUTHOR
 Joe Thornber <ejt@redhat.com>
 .br
