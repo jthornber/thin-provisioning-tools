@@ -1,0 +1,44 @@
+.TH THIN_DUMP 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+thin_rmap \- output reverse map of a thin provisioned region of blocks
+
+.SH SYNOPSIS
+.B thin_rmap
+.RB [options]
+.I {metadata device|file}
+
+.SH DESCRIPTION
+.B thin_rmap
+outputs the reverse mapping for a region of thin provisioned pool blocks
+to the respective thin provisioned devices.
+
+.IP "\fB\\-\-region\fP \fI<block range>\fP".
+output reverse map
+
+.IP "\fB\-h, \-\-help\fP".
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP".
+Output version information and exit.
+
+.SH EXAMPLES
+output reverse map for pool blocks 5..45 (denotes blocks 5 to 44 inclusive, but not block 45)
+
+.sp
+.B thin_rmap -r 5..45 /dev/vg/pool
+
+.SH DIAGNOSTICS
+.B thin_rmap
+returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B thin_check(8)
+.B thin_dump(8)
+.B thin_repair(8)
+.B thin_restore(8)
+.B thin_metadata_size(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>
+.br
+Heinz Mauelshagen <HeinzM@RedHat.com>
