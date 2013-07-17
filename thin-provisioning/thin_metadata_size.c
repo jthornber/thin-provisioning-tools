@@ -33,11 +33,11 @@
 
 /*----------------------------------------------------------------*/
 
-static char *prg; /* program name */
-
 enum numeric_options { BLOCKSIZE, POOLSIZE, MAXTHINS, NUMERIC, OPT_END};
 enum return_units { RETURN_BYTES, RETURN_SECTORS };
 struct global {
+	char *prg; /* program name */
+
 	#define UNIT_ARRAY_SZ	18
 	struct {
 		char *chars;
@@ -46,88 +46,132 @@ struct global {
 	} unit;
 
 	struct options {
-		unsigned long long n[OPT_END];
+		char *unit;
 		char *s[OPT_END];
-		char unit;
+		unsigned long long n[OPT_END];
 	} options;
 };
-#define bytes_per_sector g->unit.factors[1]
 
-static struct global *init_prg(void)
+static void exit_prg(struct global *g, int ret)
+{
+	if (g) {
+		unsigned u;
+
+		if (g->options.unit)
+			free(g->options.unit);
+
+		for (u = OPT_END; u--; ) {
+			if (g->options.s[u])
+				free(g->options.s[u]);
+		}
+
+		free(g);
+	}
+
+	exit(ret);
+}
+
+static void abort_prg(struct global *g, const char *msg)
+{
+	fprintf(stderr, "%s - %s\n", g->prg, msg);
+	exit_prg(g, 1);
+}
+
+static struct global *init_prg(char *prg_path)
 {
 	unsigned u = 0;
-	static struct global r;
 	static char *unit_strings[] = { "bytes", "sectors",
 					"kilobytes", "kibibytes", "megabytes",  "mebibytes",
 					"gigabytes", "gibibytes", "terabytes",  "tebibytes",
 					"petabytes", "pebibytes", "exabytes",   "ebibytes",
 					"zetabytes", "zebibytes", "yottabytes", "yobibytes" };
+	struct global *r = malloc(sizeof(*r));
 
-	memset(&r, 0, sizeof(r));
-	r.unit.chars = "bskKmMgGtTpPeEzZyY";
-	r.unit.factors[u++] = 1;
-	r.unit.factors[u++] = 512;
-	r.unit.factors[u++] = 1024;
-	r.unit.factors[u++] = 1000;
+	if (!r)
+		abort_prg(r, "failed to allocate global context!");
+
+	memset(r, 0, sizeof(*r));
+	r->prg = basename(prg_path);
+	r->unit.chars = "bskKmMgGtTpPeEzZyY";
+	r->unit.factors[u++] = 1;
+	r->unit.factors[u++] = 512;
+	r->unit.factors[u++] = 1024;
+	r->unit.factors[u++] = 1000;
 	for ( ; u < UNIT_ARRAY_SZ; u += 2) {
-		r.unit.factors[u] = r.unit.factors[2] * r.unit.factors[u - 2];
-		r.unit.factors[u+1] = r.unit.factors[3] * r.unit.factors[u - 1];
+		r->unit.factors[u] = r->unit.factors[2] * r->unit.factors[u - 2];
+		r->unit.factors[u+1] = r->unit.factors[3] * r->unit.factors[u - 1];
 	}
 
 	for  (u = UNIT_ARRAY_SZ; u--; )
-		r.unit.strings[u] = unit_strings[u];
+		r->unit.strings[u] = unit_strings[u];
 
-	r.options.unit = 's';
-
-	return &r;
+	return r;
 }
+#define bytes_per_sector(g) (g)->unit.factors[1]
 
-static void exit_prg(struct global *g)
+static int get_index(struct global *g, char *unit_string)
 {
-	unsigned u;
+	unsigned len, u;
 
-	for (u = OPT_END; u--; ) {
-		if (g->options.s[u])
-			free(g->options.s[u]);
+	if (!unit_string)
+		return get_index(g, "sectors");
+
+	len = strlen(unit_string);
+	if (len == 1) {
+		char *o = strchr(g->unit.chars, *unit_string);
+
+		if (o)
+			return o - g->unit.chars;
+
+	} else {
+		for (u = UNIT_ARRAY_SZ; u--; )
+			if (!strncmp(g->unit.strings[u], unit_string, len))
+				return u;
 	}
+
+	return -1;
 }
 
-static unsigned get_index(struct global *g, char unit_char)
+static void check_opts(struct global *g)
 {
-	char *o = strchr(g->unit.chars, unit_char);
+	struct options *o = &g->options;
 
-	return o ? o - g->unit.chars : 1;
+	if (!o->n[BLOCKSIZE] || !o->n[POOLSIZE] || !o->n[MAXTHINS])
+		abort_prg(g, "3 arguments required!");
+	else if (o->n[BLOCKSIZE] & (o->n[BLOCKSIZE] - 1))
+  		abort_prg(g, "block size must be 2^^N");
+	else if (o->n[POOLSIZE] <= o->n[BLOCKSIZE])
+  		abort_prg(g, "POOLSIZE must be larger than BLOCKSIZE");
+	else if (!o->n[MAXTHINS])
+		abort_prg(g, "maximum number of thin provisioned devices must be > 0");
 }
 
-static void abort_prg(const char *msg)
+static unsigned long long to_bytes(struct global *g, char *sz, enum return_units unit, int *index)
 {
-	fprintf(stderr, "%s - %s\n", prg, msg);
-	exit(1);
-}
-
-static void check_opts(struct options *options)
-{
-	if (!options->n[BLOCKSIZE] || !options->n[POOLSIZE] || !options->n[MAXTHINS])
-		abort_prg("3 arguments required!");
-	else if (options->n[BLOCKSIZE] & (options->n[BLOCKSIZE] - 1))
-  		abort_prg("block size must be 2^^N");
-	else if (options->n[POOLSIZE] < options->n[BLOCKSIZE])
-  		abort_prg("POOLSIZE must be much larger than BLOCKSIZE");
-	else if (!options->n[MAXTHINS])
-		abort_prg("maximum number of thin provisioned devices must be > 0");
-}
-
-static unsigned long long to_bytes(struct global *g, char *sz, enum return_units unit)
-{
-	unsigned len = strlen(sz);
+	int idx;
 	unsigned long long r;
-	char uc = 's', *us = strchr(g->unit.chars, sz[len-1]);
+	char *us;
 
-	if (us)
-		uc = *us, sz[len-1] = 0;
+	for (us = sz; *us; us++) {
+		if (!isdigit(*us))
+			break;
+	}
 
-	r = atoll(sz) * g->unit.factors[get_index(g, uc)];
-	return (!us || unit == RETURN_SECTORS) ? r / bytes_per_sector : r;
+	if (*us) {
+		idx = get_index(g, us);
+		if (idx < 0)
+			abort_prg(g, "Invalid unit specifier!");
+
+		*us = 0;
+		*index = idx;
+	} else {
+		idx = get_index(g, NULL);
+		us = NULL;
+		*index = -1;
+	}
+
+	r = atoll(sz) * g->unit.factors[idx];
+	return (!us || unit == RETURN_SECTORS) ? r / bytes_per_sector(g) : r;
 }
 
 static void printf_aligned(struct global *g, char *a, char *b, char *c, int units)
@@ -143,7 +187,7 @@ static void printf_aligned(struct global *g, char *a, char *b, char *c, int unit
 
 static void help(struct global *g)
 {
-	printf ("Thin Provisioning Metadata Device Size Calculator.\nUsage: %s [options]\n", prg);
+	printf ("Thin Provisioning Metadata Device Size Calculator.\nUsage: %s [options]\n", g->prg);
 	printf_aligned(g, "-b", "--block-size BLOCKSIZE", "Block size of thin provisioned devices.", 1);
 	printf_aligned(g, "-s", "--pool-size SIZE", "Size of pool device.", 1);
 	printf_aligned(g, "-m", "--max-thins #MAXTHINS", "Maximum sum of all thin devices and snapshots.", 1);
@@ -151,44 +195,54 @@ static void help(struct global *g)
 	printf_aligned(g, "-n", "--numeric-only[=unit]", "Output numeric value only (optionally with unit identifier).", 0);
 	printf_aligned(g, "-h", "--help", "This help.", 0);
 	printf_aligned(g, "-V", "--version", "Print thin provisioning tools version.", 0);
-	exit(0);
+	exit_prg(g, 0);
+}
+
+static void version(struct global *g)
+{
+	printf("%s\n", THIN_PROVISIONING_TOOLS_VERSION);
+	exit_prg(g, 1);
 }
 
 static void check_unit(struct global *g, char *arg)
 {
-	if (*(arg + 1))
-		abort_prg("only one unit specifier character allowed!");
-	else if (!strchr(g->unit.chars, *arg))
-		abort_prg("output unit specifier character invalid!");
+	if (get_index(g, arg) < 0)
+		abort_prg(g, "output unit specifier invalid!");
 
-      	g->options.unit = *arg;
+      	g->options.unit = strdup(arg);
 }
 
 static void check_numeric_option(struct global *g, char *arg)
 {
 	if (g->options.n[NUMERIC])
-		abort_prg("-n already given!");
+		abort_prg(g, "-n already given!");
 
 	g->options.n[NUMERIC] = 1;
 
 	if (arg) {
 		if (!*arg || strncmp("unit", arg, strlen(arg)))
-			abort_prg("-n invalid option argument");
+			abort_prg(g, "-n invalid option argument");
 
 		g->options.n[NUMERIC]++;
 	}
 }
 
-static void check_size(struct global *g, enum numeric_options o, enum return_units unit, char *arg)
+static void check_size(struct global *g, enum numeric_options o, char *arg)
 {
+	int idx;
+
 	if (g->options.n[o])
-		abort_prg("option already given!");
+		abort_prg(g, "option already given!");
 
-	g->options.s[o] = strdup(arg);
+	g->options.n[o] = to_bytes(g, arg, o == MAXTHINS ? RETURN_BYTES : RETURN_SECTORS, &idx);
+	g->options.s[o] = malloc(strlen(arg) + (idx > -1) ? strlen(g->unit.strings[idx]) : 0 + 1);
 	if (!g->options.s[o])
-		abort_prg("failed to allocate string!");
+		abort_prg(g, "failed to allocate string!");
 
-	g->options.n[o] = to_bytes(g, arg, unit);
+	strcpy(g->options.s[o], arg);
+	if (idx > -1)
+		strcat(g->options.s[o], g->unit.strings[idx]);
+
 }
 
 static void parse_command_line(struct global *g, int argc, char **argv)
@@ -206,26 +260,32 @@ static void parse_command_line(struct global *g, int argc, char **argv)
 	};
 
 	while ((c = getopt_long(argc, argv, "b:s:m:u:n::hV", long_options, NULL)) != -1) {
-		if (c == 'b')
-			check_size(g, BLOCKSIZE, RETURN_SECTORS, optarg);
-		else if (c == 's')
-			check_size(g, POOLSIZE, RETURN_SECTORS, optarg);
-		else if (c == 'm')
-			check_size(g, MAXTHINS, RETURN_BYTES, optarg);
-		else if (c == 'u')
+		switch (c) {
+		case 'b':
+			check_size(g, BLOCKSIZE, optarg);
+			break;
+		case 's':
+			check_size(g, POOLSIZE, optarg);
+			break;
+		case 'm':
+			check_size(g, MAXTHINS, optarg);
+			break;
+		case 'u':
 			check_unit(g, optarg);
-		else if (c == 'n')
+			break;
+		case 'n':
 			check_numeric_option(g, optarg);
-		else if (c == 'h')
-			help(g);
-		else if (c == 'V') {
-			printf("%s\n", THIN_PROVISIONING_TOOLS_VERSION);
-			exit(0);
-		} else
-			abort_prg("Invalid option!");
+			break;
+		case 'h':
+			help(g); /* exits */
+		case 'V':
+			version(g); /* exits */
+		default:
+			abort_prg(g, "Invalid option!");
+		}
 	}
 
-	check_opts(&g->options);
+	check_opts(g);
 }
 
 static const unsigned mappings_per_block(void)
@@ -246,7 +306,7 @@ static void printf_precision(struct global *g, double r, unsigned idx)
 
 	if (full)
 		printf("%s - estimated metadata area size [blocksize=%s,poolsize=%s,maxthins=%s] is ",
-		       prg, g->options.s[BLOCKSIZE],  g->options.s[POOLSIZE],  g->options.s[MAXTHINS]);
+		       g->prg, g->options.s[BLOCKSIZE], g->options.s[POOLSIZE], g->options.s[MAXTHINS]);
 
 	if (r == rtrunc)
 		printf("%llu", (unsigned long long) r);
@@ -267,7 +327,7 @@ static void print_estimated_result(struct global *g)
 	double r;
 
 	/* double-fold # of nodes, because they aren't fully populated in average */
-	r = (1.0 + (2 * g->options.n[POOLSIZE] / g->options.n[BLOCKSIZE] / mappings_per_block() + g->options.n[MAXTHINS])) * 8 * bytes_per_sector; /* in bytes! */
+	r = (1.0 + (2 * g->options.n[POOLSIZE] / g->options.n[BLOCKSIZE] / mappings_per_block() + g->options.n[MAXTHINS])) * 8 * bytes_per_sector(g); /* in bytes! */
 	r /= g->unit.factors[idx]; /* in requested unit */
 
 	printf_precision(g, r, idx);
@@ -275,11 +335,10 @@ static void print_estimated_result(struct global *g)
 
 int main(int argc, char **argv)
 {
-	struct global *g = init_prg();
+	struct global *g = init_prg(*argv);
 
-	prg = basename(argv[0]);
 	parse_command_line(g, argc, argv);
 	print_estimated_result(g);
-	exit_prg(g);
-	return 0;
+	exit_prg(g, 0);
+	return 0; /* Doesn't get here... */
 }

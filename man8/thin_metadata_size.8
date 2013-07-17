@@ -10,7 +10,9 @@ thin_metadata_size \- thin provisioning metadata file/device size calculator.
 .B thin_metadata_size
 calculates the size of the thin provisioning metadata based on the block size
 of the thin provisioned devices, the size of the thin provisioning pool and
-the maximum number of all thin prisioned devices and snapshots.
+the maximum number of all thin prisioned devices and snapshots. Size/number
+option arguments can be followed by unit specifiers in short one character
+and long form (eg. -b1m or -b1megabytes).
 
 .IP "\fB\-b, \-\-block-size\fP \fIBLOCKSIZE[bskKmMgGtTpPeEzZyY]\fP"
 Block size of thin provisioned devices in units of bytes,sectors,kilobytes,kibibytes,... respectively.
