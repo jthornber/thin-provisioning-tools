@@ -38,15 +38,14 @@ enum return_units { RETURN_BYTES, RETURN_SECTORS };
 struct global {
 	char *prg; /* program name */
 
-	#define UNIT_ARRAY_SZ	18
 	struct {
 		char *chars;
-		char *strings[UNIT_ARRAY_SZ];
-		unsigned long long factors[UNIT_ARRAY_SZ];
+		char **strings;
+		unsigned long long *factors;
 	} unit;
 
 	struct options {
-		char *unit;
+		unsigned unit_idx;
 		char *s[OPT_END];
 		unsigned long long n[OPT_END];
 	} options;
@@ -54,19 +53,8 @@ struct global {
 
 static void exit_prg(struct global *g, int ret)
 {
-	if (g) {
-		unsigned u;
-
-		if (g->options.unit)
-			free(g->options.unit);
-
-		for (u = OPT_END; u--; ) {
-			if (g->options.s[u])
-				free(g->options.s[u]);
-		}
-
+	if (g)
 		free(g);
-	}
 
 	exit(ret);
 }
@@ -79,39 +67,38 @@ static void abort_prg(struct global *g, const char *msg)
 
 static struct global *init_prg(char *prg_path)
 {
-	unsigned u = 0;
+	unsigned u;
+	static char *unit_chars = "bskKmMgGtTpPeEzZyY";
 	static char *unit_strings[] = { "bytes", "sectors",
 					"kilobytes", "kibibytes", "megabytes",  "mebibytes",
 					"gigabytes", "gibibytes", "terabytes",  "tebibytes",
 					"petabytes", "pebibytes", "exabytes",   "ebibytes",
-					"zetabytes", "zebibytes", "yottabytes", "yobibytes" };
+					"zetabytes", "zebibytes", "yottabytes", "yobibytes", NULL };
+	static unsigned long long unit_factors[18] = { 1, 512, 1024, 1000 };
 	struct global *r = malloc(sizeof(*r));
 
 	if (!r)
 		abort_prg(r, "failed to allocate global context!");
 
 	memset(r, 0, sizeof(*r));
-	r->prg = basename(prg_path);
-	r->unit.chars = "bskKmMgGtTpPeEzZyY";
-	r->unit.factors[u++] = 1;
-	r->unit.factors[u++] = 512;
-	r->unit.factors[u++] = 1024;
-	r->unit.factors[u++] = 1000;
-	for ( ; u < UNIT_ARRAY_SZ; u += 2) {
-		r->unit.factors[u] = r->unit.factors[2] * r->unit.factors[u - 2];
-		r->unit.factors[u+1] = r->unit.factors[3] * r->unit.factors[u - 1];
+
+	for (u = 4; unit_strings[u]; u += 2) {
+		unit_factors[u] = unit_factors[u-2] * unit_factors[2];
+		unit_factors[u+1] = unit_factors[u-1] * unit_factors[3];
 	}
 
-	for  (u = UNIT_ARRAY_SZ; u--; )
-		r->unit.strings[u] = unit_strings[u];
+	r->prg = basename(prg_path);
+	r->unit.chars = unit_chars;
+	r->unit.strings = unit_strings;
+	r->unit.factors = unit_factors;
 
 	return r;
 }
-#define bytes_per_sector(g) (g)->unit.factors[1]
+#define bytes_per_sector(g) (g)->unit.factors[get_index(g, "sectors")]
 
 static int get_index(struct global *g, char *unit_string)
 {
-	unsigned len, u;
+	unsigned len;
 
 	if (!unit_string)
 		return get_index(g, "sectors");
@@ -124,9 +111,11 @@ static int get_index(struct global *g, char *unit_string)
 			return o - g->unit.chars;
 
 	} else {
-		for (u = UNIT_ARRAY_SZ; u--; )
-			if (!strncmp(g->unit.strings[u], unit_string, len))
-				return u;
+		char **s;
+
+		for (s = g->unit.strings; *s; s++)
+			if (!strncmp(*s, unit_string, len))
+				return s - g->unit.strings;
 	}
 
 	return -1;
@@ -206,10 +195,12 @@ static void version(struct global *g)
 
 static void check_unit(struct global *g, char *arg)
 {
-	if (get_index(g, arg) < 0)
+	int idx = get_index(g, arg);
+
+	if (idx < 0)
 		abort_prg(g, "output unit specifier invalid!");
 
-      	g->options.unit = strdup(arg);
+      	g->options.unit_idx = idx;
 }
 
 static void check_numeric_option(struct global *g, char *arg)
@@ -235,7 +226,7 @@ static void check_size(struct global *g, enum numeric_options o, char *arg)
 		abort_prg(g, "option already given!");
 
 	g->options.n[o] = to_bytes(g, arg, o == MAXTHINS ? RETURN_BYTES : RETURN_SECTORS, &idx);
-	g->options.s[o] = malloc(strlen(arg) + (idx > -1) ? strlen(g->unit.strings[idx]) : 0 + 1);
+	g->options.s[o] = malloc(strlen(arg) + ((idx > -1) ? strlen(g->unit.strings[idx]) : 0) + 1);
 	if (!g->options.s[o])
 		abort_prg(g, "failed to allocate string!");
 
@@ -323,7 +314,7 @@ static void printf_precision(struct global *g, double r, unsigned idx)
 
 static void print_estimated_result(struct global *g)
 {
-	unsigned idx = get_index(g, g->options.unit);
+	unsigned idx = g->options.unit_idx;
 	double r;
 
 	/* double-fold # of nodes, because they aren't fully populated in average */
