@@ -27,12 +27,12 @@ Maximum sum of all thin provisioned devices and snapshots.
 Unit identifier supported to allow for convenient entry of large quantities, eg. 1000000 = 1M.
 Default is absolut quantity without a number unit specifier.
 
-.IP "\fB\-u, \-\-unit\fP \fI[bskKmMgGtTpPeEzZyY]\fP"
+.IP "\fB\-u, \-\-unit\fP \fI{bskKmMgGtTpPeEzZyY}\fP"
 Output unit specifier in units of bytes,sectors,kilobytes,kibibytes,... respectively.
 Default is in sectors without an output unit specifier.
 
-.IP "\fB\-n[u], \-\-numeric-only[=unit]\fP"
-Limit output to just the size number with the optional unit specifier character.
+.IP "\fB\-n, \-\-numeric-only [short|long]\fP"
+Limit output to just the size number with the optional unit specifier character/string.
 
 .IP "\fB\-h, \-\-help\fP"
 Print help and exit.
@@ -43,18 +43,22 @@ Output version information and exit.
 .SH EXAMPLES
 Calculates the thin privisioning metadata device size for block size 64 kilobytes,
 pool size 1 terabytes and maximum number of thin provisioned devices and snapshots of 1000
-in units of sectors with long output.
+in units of sectors with long output:
 .sp
 .B thin_metadata_size -b64k -s1t -m1000
 
-Or (using the long options inmstead) for block size 1 gigabyte, pool size 1 petabytes and maximum number of thin provisioned devices
-and snapshots of 1 million in units of gigabytes with numeric only output.
+Or (using the long options instead) for block size 1 gigabyte, pool size 1 petabytes and maximum number of thin provisioned devices
+and snapshots of 1 million with numeric only output in units of gigabytes:
 .sp
 .B thin_metadata_size --block-size=1g --pool-size=1p --max-thins=1M --unit=g --numeric-only
 
-Same as before (1g,1p,1M,numeric-only) but with unit specifier character appended.
+Same as before (1g,1p,1M,numeric-only) but with unit specifier character appended:
 .sp
-.B thin_metadata_size --block-size=1g --pool-size=1p --max-thins=1M --unit=g --numeric-only=unit
+.B thin_metadata_size --block-size=1giga --pool-size=1petabytes --max-thins=1mebi --unit=g --numeric-only=short
+
+Or with unit specifier string appended:
+.sp
+.B thin_metadata_size --block-size=1giga --pool-size=1petabytes --max-thins=1mebi --unit=g -nlong
 
 .SH DIAGNOSTICS
 .B thin_metadata_size

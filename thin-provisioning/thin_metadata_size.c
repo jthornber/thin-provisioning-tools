@@ -31,19 +31,26 @@
 #include <string.h>
 #include "version.h"
 
+#include <search.h>
+
 /*----------------------------------------------------------------*/
 
 enum numeric_options { BLOCKSIZE, POOLSIZE, MAXTHINS, NUMERIC, OPT_END};
 enum return_units { RETURN_BYTES, RETURN_SECTORS };
+enum numeric_type { NO_NUMBER, NUMBER, NUMBER_SHORT, NUMBER_LONG };
+typedef	unsigned bool;
+enum bool_value { false = 0, true = 1};
 struct global {
 	char *prg; /* program name */
 
+	/* Unit representations in characters, strings and numeric factors. */
 	struct {
 		char *chars;
 		char **strings;
 		unsigned long long *factors;
 	} unit;
 
+	/* Command line option properties. */
 	struct options {
 		unsigned unit_idx;
 		char *s[OPT_END];
@@ -53,55 +60,32 @@ struct global {
 
 static void exit_prg(struct global *g, int ret)
 {
-	if (g)
+	if (g) {
+		unsigned u = OPT_END;
+
+		while (u--) {
+			if (g->options.s[u])
+				free (g->options.s[u]);
+		}
+
 		free(g);
+	}
 
 	exit(ret);
 }
 
 static void abort_prg(struct global *g, const char *msg)
 {
-	fprintf(stderr, "%s - %s\n", g->prg, msg);
+	fprintf(stderr, "%s - %s\n", g ? g->prg : "fatal", msg);
 	exit_prg(g, 1);
 }
 
-static struct global *init_prg(char *prg_path)
-{
-	unsigned u;
-	static char *unit_chars = "bskKmMgGtTpPeEzZyY";
-	static char *unit_strings[] = { "bytes", "sectors",
-					"kilobytes", "kibibytes", "megabytes",  "mebibytes",
-					"gigabytes", "gibibytes", "terabytes",  "tebibytes",
-					"petabytes", "pebibytes", "exabytes",   "ebibytes",
-					"zetabytes", "zebibytes", "yottabytes", "yobibytes", NULL };
-	static unsigned long long unit_factors[18] = { 1, 512, 1024, 1000 };
-	struct global *r = malloc(sizeof(*r));
-
-	if (!r)
-		abort_prg(r, "failed to allocate global context!");
-
-	memset(r, 0, sizeof(*r));
-
-	for (u = 4; unit_strings[u]; u += 2) {
-		unit_factors[u] = unit_factors[u-2] * unit_factors[2];
-		unit_factors[u+1] = unit_factors[u-1] * unit_factors[3];
-	}
-
-	r->prg = basename(prg_path);
-	r->unit.chars = unit_chars;
-	r->unit.strings = unit_strings;
-	r->unit.factors = unit_factors;
-
-	return r;
-}
-#define bytes_per_sector(g) (g)->unit.factors[get_index(g, "sectors")]
-
-static int get_index(struct global *g, char *unit_string)
+static int unit_index(struct global *g, char *unit_string)
 {
 	unsigned len;
 
 	if (!unit_string)
-		return get_index(g, "sectors");
+		return unit_index(g, "sectors");
 
 	len = strlen(unit_string);
 	if (len == 1) {
@@ -121,40 +105,76 @@ static int get_index(struct global *g, char *unit_string)
 	return -1;
 }
 
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof(a[0]))
+static struct global *init_prg(char *prg_path)
+{
+	unsigned u;
+	static char *unit_chars = "bskKmMgGtTpPeEzZyY";
+	static char *unit_strings[] = { "bytes", "sectors",
+					"kilobytes", "kibibytes", "megabytes",  "mebibytes",
+					"gigabytes", "gibibytes", "terabytes",  "tebibytes",
+					"petabytes", "pebibytes", "exabytes",   "ebibytes",
+					"zetabytes", "zebibytes", "yottabytes", "yobibytes", NULL };
+	static unsigned long long unit_factors[ARRAY_SIZE(unit_strings) - 1] = { 1, 512, 1024, 1000 };
+	struct global *r = malloc(sizeof(*r));
+
+	if (!r)
+		abort_prg(r, "failed to allocate global context!");
+
+	memset(r, 0, sizeof(*r));
+
+	for (u = 4; unit_strings[u]; u += 2) {
+		unit_factors[u]   = unit_factors[u-2] * unit_factors[2];
+		unit_factors[u+1] = unit_factors[u-1] * unit_factors[3];
+	}
+
+	r->prg = basename(prg_path);
+	r->unit.chars = unit_chars;
+	r->unit.strings = unit_strings;
+	r->unit.factors = unit_factors;
+	r->options.unit_idx = unit_index(r, NULL);
+
+	return r;
+}
+
+static unsigned long long bytes_per_sector(struct global *g)
+{
+	return g->unit.factors[unit_index(g, "sectors")];
+}
+
 static void check_opts(struct global *g)
 {
 	struct options *o = &g->options;
 
-	if (!o->n[BLOCKSIZE] || !o->n[POOLSIZE] || !o->n[MAXTHINS])
-		abort_prg(g, "3 arguments required!");
+	if (!o->n[BLOCKSIZE])
+		abort_prg(g, "block size required!");
+	else if (!o->n[POOLSIZE])
+		abort_prg(g, "pool size required!");
+	else if (!o->n[MAXTHINS])
+		abort_prg(g, "max thins required!");
 	else if (o->n[BLOCKSIZE] & (o->n[BLOCKSIZE] - 1))
   		abort_prg(g, "block size must be 2^^N");
 	else if (o->n[POOLSIZE] <= o->n[BLOCKSIZE])
-  		abort_prg(g, "POOLSIZE must be larger than BLOCKSIZE");
-	else if (!o->n[MAXTHINS])
-		abort_prg(g, "maximum number of thin provisioned devices must be > 0");
+  		abort_prg(g, "pool size must be larger than block size");
 }
 
 static unsigned long long to_bytes(struct global *g, char *sz, enum return_units unit, int *index)
 {
 	int idx;
 	unsigned long long r;
-	char *us;
+	char *us = sz;
 
-	for (us = sz; *us; us++) {
-		if (!isdigit(*us))
-			break;
-	}
-
+	/* Get pointer to unit identifier. */
+	us += strspn(sz, "0123456789");
 	if (*us) {
-		idx = get_index(g, us);
+		idx = unit_index(g, us);
 		if (idx < 0)
 			abort_prg(g, "Invalid unit specifier!");
 
 		*us = 0;
 		*index = idx;
 	} else {
-		idx = get_index(g, NULL);
+		idx = unit_index(g, NULL);
 		us = NULL;
 		*index = -1;
 	}
@@ -163,13 +183,13 @@ static unsigned long long to_bytes(struct global *g, char *sz, enum return_units
 	return (!us || unit == RETURN_SECTORS) ? r / bytes_per_sector(g) : r;
 }
 
-static void printf_aligned(struct global *g, char *a, char *b, char *c, int units)
+static void printf_aligned(struct global *g, char *a, char *b, char *c, bool units, bool mandatory)
 {
 	char buf[80];
 
 	strcpy(buf, b);
 	if (units)
-		strcat(buf, "["), strcat(buf, g->unit.chars), strcat(buf, "]");
+		strcat(buf, mandatory ? "{" :"["), strcat(buf, g->unit.chars), strcat(buf, mandatory ? "}" : "]");
 
 	printf("\t%-4s%-44s%s\n", a, buf, c);
 }
@@ -177,13 +197,13 @@ static void printf_aligned(struct global *g, char *a, char *b, char *c, int unit
 static void help(struct global *g)
 {
 	printf ("Thin Provisioning Metadata Device Size Calculator.\nUsage: %s [options]\n", g->prg);
-	printf_aligned(g, "-b", "--block-size BLOCKSIZE", "Block size of thin provisioned devices.", 1);
-	printf_aligned(g, "-s", "--pool-size SIZE", "Size of pool device.", 1);
-	printf_aligned(g, "-m", "--max-thins #MAXTHINS", "Maximum sum of all thin devices and snapshots.", 1);
-	printf_aligned(g, "-u", "--unit ", "Output unit specifier.", 1);
-	printf_aligned(g, "-n", "--numeric-only[=unit]", "Output numeric value only (optionally with unit identifier).", 0);
-	printf_aligned(g, "-h", "--help", "This help.", 0);
-	printf_aligned(g, "-V", "--version", "Print thin provisioning tools version.", 0);
+	printf_aligned(g, "-b", "--block-size BLOCKSIZE", "Block size of thin provisioned devices.", true, false);
+	printf_aligned(g, "-s", "--pool-size SIZE", "Size of pool device.", true, false);
+	printf_aligned(g, "-m", "--max-thins #MAXTHINS", "Maximum sum of all thin devices and snapshots.", true, false);
+	printf_aligned(g, "-u", "--unit ", "Output unit specifier.", true, true);
+	printf_aligned(g, "-n", "--numeric-only [short|long]", "Output numeric value only (optionally with short/long unit identifier).", false, false);
+	printf_aligned(g, "-h", "--help", "This help.", false, false);
+	printf_aligned(g, "-V", "--version", "Print thin provisioning tools version.", false, false);
 	exit_prg(g, 0);
 }
 
@@ -195,7 +215,7 @@ static void version(struct global *g)
 
 static void check_unit(struct global *g, char *arg)
 {
-	int idx = get_index(g, arg);
+	int idx = unit_index(g, arg);
 
 	if (idx < 0)
 		abort_prg(g, "output unit specifier invalid!");
@@ -205,33 +225,41 @@ static void check_unit(struct global *g, char *arg)
 
 static void check_numeric_option(struct global *g, char *arg)
 {
-	if (g->options.n[NUMERIC])
+	if (g->options.n[NUMERIC] != NO_NUMBER)
 		abort_prg(g, "-n already given!");
 
-	g->options.n[NUMERIC] = 1;
+	g->options.n[NUMERIC] = NUMBER;
 
 	if (arg) {
-		if (!*arg || strncmp("unit", arg, strlen(arg)))
+		bool unit_long = !strncmp("long", arg, strlen(arg));
+
+		if (!*arg || (strncmp("short", arg, strlen(arg)) && !unit_long))
 			abort_prg(g, "-n invalid option argument");
 
-		g->options.n[NUMERIC]++;
+		g->options.n[NUMERIC] = unit_long ? NUMBER_LONG : NUMBER_SHORT;
 	}
 }
 
 static void check_size(struct global *g, enum numeric_options o, char *arg)
 {
 	int idx;
+	bool valid_index = true;
 
 	if (g->options.n[o])
 		abort_prg(g, "option already given!");
 
 	g->options.n[o] = to_bytes(g, arg, o == MAXTHINS ? RETURN_BYTES : RETURN_SECTORS, &idx);
-	g->options.s[o] = malloc(strlen(arg) + ((idx > -1) ? strlen(g->unit.strings[idx]) : 0) + 1);
+	if (idx < 0) {
+		valid_index = false;
+		idx = g->options.unit_idx;
+	}
+
+	g->options.s[o] = malloc(strlen(arg) + strlen(g->unit.strings[idx]) + 1);
 	if (!g->options.s[o])
 		abort_prg(g, "failed to allocate string!");
 
 	strcpy(g->options.s[o], arg);
-	if (idx > -1)
+	if (o != MAXTHINS || valid_index)
 		strcat(g->options.s[o], g->unit.strings[idx]);
 
 }
@@ -247,7 +275,7 @@ static void parse_command_line(struct global *g, int argc, char **argv)
 		{"numeric-only",optional_argument, NULL, 'n' },
 		{"help",	no_argument,       NULL, 'h' },
 		{"version",	no_argument,       NULL, 'V' },
-		{NULL,		0,		   NULL, 0 }
+		{NULL,		0,		   NULL, 0   }
 	};
 
 	while ((c = getopt_long(argc, argv, "b:s:m:u:n::hV", long_options, NULL)) != -1) {
@@ -272,7 +300,7 @@ static void parse_command_line(struct global *g, int argc, char **argv)
 		case 'V':
 			version(g); /* exits */
 		default:
-			abort_prg(g, "Invalid option!");
+			exit_prg(g, 1);
 		}
 	}
 
@@ -290,38 +318,45 @@ static const unsigned mappings_per_block(void)
 	return (btree_size.node - btree_size.node_header) / btree_size.entry;
 }
 
-static void printf_precision(struct global *g, double r, unsigned idx)
+static void print_precision(struct global *g, double r, unsigned idx)
 {
-	int full = !g->options.n[NUMERIC];
+	bool full = !g->options.n[NUMERIC];
 	double rtrunc = truncl(r);
 
 	if (full)
-		printf("%s - estimated metadata area size [blocksize=%s,poolsize=%s,maxthins=%s] is ",
-		       g->prg, g->options.s[BLOCKSIZE], g->options.s[POOLSIZE], g->options.s[MAXTHINS]);
+		printf("%s - ", g->prg);
 
 	if (r == rtrunc)
 		printf("%llu", (unsigned long long) r);
 	else
-		printf(r - truncl(r) < 1E-2 ? "%0.2e" : "%0.2f", r);
+		printf(r - rtrunc < 1E-2 ? "%0.2e" : "%0.2f", r);
 
 	if (full)
 		printf(" %s", g->unit.strings[idx]);
-	else if (g->options.n[NUMERIC] > 1)
-		printf("%c", g->unit.chars[idx]);
+	else if (g->options.n[NUMERIC] > NUMBER) {
+		if (g->options.n[NUMERIC] == NUMBER_SHORT)
+			printf("%c", g->unit.chars[idx]);
+		else
+			printf("%s", g->unit.strings[idx]);
+	}
+
+	if (full)
+		printf(" estimated metadata area size for \"--block-size=%s --pool-size=%s --max-thins=%s\"",
+		       g->options.s[BLOCKSIZE], g->options.s[POOLSIZE], g->options.s[MAXTHINS]);
 
 	putchar('\n');
 }
 
 static void print_estimated_result(struct global *g)
 {
-	unsigned idx = g->options.unit_idx;
 	double r;
 
 	/* double-fold # of nodes, because they aren't fully populated in average */
-	r = (1.0 + (2 * g->options.n[POOLSIZE] / g->options.n[BLOCKSIZE] / mappings_per_block() + g->options.n[MAXTHINS])) * 8 * bytes_per_sector(g); /* in bytes! */
-	r /= g->unit.factors[idx]; /* in requested unit */
+	r = (1.0 + (2 * g->options.n[POOLSIZE] / g->options.n[BLOCKSIZE] / mappings_per_block() + g->options.n[MAXTHINS])); /* in 4k blocks */
+	r *=  8 * bytes_per_sector(g); /* in bytes! */
+	r /= g->unit.factors[g->options.unit_idx]; /* in requested unit */
 
-	printf_precision(g, r, idx);
+	print_precision(g, r, g->options.unit_idx);
 }
 
 int main(int argc, char **argv)
