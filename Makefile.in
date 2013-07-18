@@ -264,10 +264,7 @@ install: $(PROGRAMS)
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
 
 .PHONY: install
 
