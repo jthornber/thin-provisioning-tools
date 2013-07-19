@@ -31,23 +31,37 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
+struct flags {
+	bool find_metadata_snap;
+	bool repair;
+};
+
 namespace {
-	int dump(string const &path, ostream &out, string const &format, bool repair,
+	int dump(string const &path, ostream *out, string const &format, struct flags &flags,
 		 block_address metadata_snap = 0) {
 		try {
-			metadata::ptr md(metadata_snap ? new metadata(path, metadata_snap) : new metadata(path, metadata::OPEN, 0, 0));
+			metadata::ptr md(new metadata(path, metadata_snap));
 			emitter::ptr e;
+			uint64_t metadata_snap_root = md->sb_.metadata_snap_;
+
+			if (metadata_snap_root) {
+				md.reset();
+				md = metadata::ptr(new metadata(path, metadata_snap_root));
+			} else if (flags.find_metadata_snap) {
+				cerr << "no metadata snapshot found!" << endl;
+				exit(1);
+			}
 
 			if (format == "xml")
-				e = create_xml_emitter(out);
+				e = create_xml_emitter(*out);
 			else if (format == "human_readable")
-				e = create_human_readable_emitter(out);
+				e = create_human_readable_emitter(*out);
 			else {
 				cerr << "unknown format '" << format << "'" << endl;
 				exit(1);
 			}
 
-			metadata_dump(md, e, repair);
+			metadata_dump(md, e, flags.repair);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -63,7 +77,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
-		    << "  {-m|--metadata-snap} block#" << endl
+		    << "  {-m|--metadata-snap} [block#]" << endl
 		    << "  {-o <xml file>}" << endl
 		    << "  {-V|--version}" << endl;
 	}
@@ -72,16 +86,16 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	bool repair = false;
 	char const *output = NULL;
-	const char shortopts[] = "hm:o:f:rV";
+	const char shortopts[] = "hm::o:f:rV";
+	char *end_ptr;
 	string format = "xml";
 	block_address metadata_snap = 0;
-	char *end_ptr;
+	struct flags flags = { .find_metadata_snap = false, .repair = false };
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
-		{ "metadata-snap", required_argument, NULL, 'm' },
+		{ "metadata-snap", optional_argument, NULL, 'm' },
 		{ "output", required_argument, NULL, 'o'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
@@ -100,16 +114,24 @@ int main(int argc, char **argv)
 			break;
 
 		case 'r':
-			repair = true;
+			flags.repair = true;
+			break;
+
+		case 's':
+			flags.find_metadata_snap = true;
 			break;
 
 		case 'm':
-			metadata_snap = strtoull(optarg, &end_ptr, 10);
-			if (end_ptr == optarg) {
-				cerr << "couldn't parse <metadata_snap>" << endl;
-				usage(cerr, basename(argv[0]));
-				return 1;
-			}
+			if (optarg) {
+				metadata_snap = strtoull(optarg, &end_ptr, 10);
+				if (end_ptr == optarg) {
+					cerr << "couldn't parse <metadata_snap>" << endl;
+					usage(cerr, basename(argv[0]));
+					return 1;
+				}
+			} else
+				flags.find_metadata_snap = true;
+
 			break;
 
 		case 'o':
@@ -132,9 +154,5 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (output) {
-		ofstream out(output);
-		return dump(argv[optind], out, format, repair, metadata_snap);
-	} else
-		return dump(argv[optind], cout, format, repair, metadata_snap);
+	return dump(argv[optind], output ? new ofstream(output) : &cout, format, flags, metadata_snap);
 }

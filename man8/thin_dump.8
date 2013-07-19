@@ -23,9 +23,12 @@ Print output in XML or human readable format.
 
 .IP "\fB\-r, \-\-repair\fP".
 
-.IP "\fB\-m, \-\-metadata_snap\fP block#".
-Dump metadata snapshot created by device-mapper thin provisioning target at block#
-
+.IP "\fB\-m, \-\-metadata_snap\fP [block#]".
+Dump metadata snapshot created by device-mapper thin provisioning target.
+If block is not provided, access the default metadata snapshot created by
+the thin provisioning device-mapper target, else try the one at block#.
+See the thin provisioning target documentation on how to create or release
+a metadata snapshot.
 
 .IP "\fB\-h, \-\-help\fP".
 Print help and exit.
@@ -43,6 +46,13 @@ Dumps the thin provisioning metadata on logical volume /dev/vg/metadata
 to standard output in XML format:
 .sp
 .B thin_dump /dev/vg/metadata
+
+Dumps the thin provisioning metadata snapshot on logical volume /dev/vg/metadata
+to standard output in human readable format (not processable by
+.B thin_restore(8)
+):
+.sp
+.B thin_dump --format human_readable --metadata-snap /dev/vg/metadata
 
 .SH DIAGNOSTICS
 .B thin_dump

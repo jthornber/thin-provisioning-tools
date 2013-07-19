@@ -78,6 +78,7 @@ namespace {
 		     << "data block size " << sb.data_block_size_ << endl
 		     << "metadata block size " << sb.metadata_block_size_ << endl
 		     << "metadata nr blocks " << sb.metadata_nr_blocks_ << endl
+		     << "metadata snapshot block " << sb.metadata_snap_ << endl
 			;
 	}
 }
