@@ -40,7 +40,11 @@ namespace {
 	int dump(string const &path, ostream *out, string const &format, struct flags &flags,
 		 block_address metadata_snap = 0) {
 		try {
+<<<<<<< HEAD
 			metadata::ptr md(new metadata(path, metadata_snap));
+=======
+			metadata::ptr md(metadata_snap ? new metadata(path, metadata_snap) : new metadata(path, metadata::OPEN, 0, 0));
+>>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 			emitter::ptr e;
 			uint64_t metadata_snap_root = md->sb_.metadata_snap_;
 
@@ -77,7 +81,11 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-f|--format} {xml|human_readable}" << endl
 		    << "  {-r|--repair}" << endl
+<<<<<<< HEAD
 		    << "  {-m|--metadata-snap} [block#]" << endl
+=======
+		    << "  {-m|--metadata-snap} block#" << endl
+>>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 		    << "  {-o <xml file>}" << endl
 		    << "  {-V|--version}" << endl;
 	}

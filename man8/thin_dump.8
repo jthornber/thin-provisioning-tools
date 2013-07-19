@@ -9,8 +9,12 @@ thin_dump \- dump thin provisioning metadata from device or file to standard out
 
 .SH DESCRIPTION
 .B thin_dump
+<<<<<<< HEAD
 dumps binary thin provisioning metadata (optionally from alternate block;
 see option \-\-metadata-snap) created by the device-mapper
+=======
+dumps binary thin provisioning metadata created by the device-mapper
+>>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 thin provisioning target on a device or file to standard output for
 analysis or postprocessing in either XML or human readable format.
 XML formated metadata can be fed into thin_restore (see
@@ -23,12 +27,17 @@ Print output in XML or human readable format.
 
 .IP "\fB\-r, \-\-repair\fP".
 
+<<<<<<< HEAD
 .IP "\fB\-m, \-\-metadata_snap\fP [block#]".
 Dump metadata snapshot created by device-mapper thin provisioning target.
 If block is not provided, access the default metadata snapshot created by
 the thin provisioning device-mapper target, else try the one at block#.
 See the thin provisioning target documentation on how to create or release
 a metadata snapshot.
+=======
+.IP "\fB\-m, \-\-metadata_snap\fP block#".
+Dump metadata snapshot at block#
+>>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 
 .IP "\fB\-h, \-\-help\fP".
 Print help and exit.
