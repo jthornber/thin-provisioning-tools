@@ -1,10 +1,6 @@
 .TH THIN_METADATA_SIZE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
 .SH NAME
-<<<<<<< HEAD
 thin_metadata_size \- thin provisioning metadata device/file size calculator.
-=======
-thin_metadata_size \- thin provisioning metadata file/device size calculator.
->>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 
 .SH SYNOPSIS
 .B thin_metadata_size
@@ -14,24 +10,15 @@ thin_metadata_size \- thin provisioning metadata file/device size calculator.
 .B thin_metadata_size
 calculates the size of the thin provisioning metadata based on the block size
 of the thin provisioned devices, the size of the thin provisioning pool and
-<<<<<<< HEAD
 the maximum number of all thin prisioned devices and snapshots.
 Because thin provisioning pools are holding widely variable contents, 
 this tool is needed to provide sensible initial default size.
-=======
-the maximum number of all thin prisioned devices and snapshots. Size/number
-option arguments can be followed by unit specifiers in short one character
-and long form (eg. -b1m or -b1megabytes).
->>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 
 .IP "\fB\-b, \-\-block-size\fP \fIBLOCKSIZE[bskKmMgGtTpPeEzZyY]\fP"
 Block size of thin provisioned devices in units of bytes,sectors,kilobytes,kibibytes,... respectively.
 Default is in sectors without a block size unit specifier.
-<<<<<<< HEAD
 Size/number option arguments can be followed by unit specifiers in short one character
 and long form (eg. -b1m or -b1megabytes).
-=======
->>>>>>> 9fac224f250ee2d6642d673d7d65afe346d68af5
 
 .IP "\fB\-s, \-\-pool-size\fP \fIPOOLSIZE[bskKmMgGtTpPeEzZyY]\fP"
 Thin provisioning pool size in units of bytes,sectors,kilobytes,kibibytes,... respectively.
