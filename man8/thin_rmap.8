@@ -9,8 +9,12 @@ thin_rmap \- output reverse map of a thin provisioned region of blocks from meta
 
 .SH DESCRIPTION
 .B thin_rmap
-outputs the reverse mapping for a region of thin provisioned pool blocks
-to the respective thin provisioned devices.
+outputs the reverse mapping stored in the metadata on a
+.I device
+or
+.I file
+between a region of thin provisioned pool blocks
+and the associated thin provisioned devices.
 
 .IP "\fB\\-\-region\fP \fI<block range>\fP".
 output reverse map

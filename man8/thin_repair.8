@@ -13,9 +13,17 @@ thin_repair \- repair thin provisioning binary metadata from device/file to devi
 .SH DESCRIPTION
 .B thin_repair
 reads binary thin provisioning metadata created by the
-respective device-mapper target from one device or file,
-repairs it and writes it to another device or file.
-If written to a metadata device, the metadata can be processed
+respective device-mapper target from one
+.I device
+or
+.I file
+, repairs it and writes it to another
+.I device
+or
+.I file.
+If written to a metadata
+.I device
+, the metadata can be processed
 by the device-mapper target.
 
 .IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"

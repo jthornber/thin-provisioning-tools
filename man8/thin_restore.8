@@ -15,9 +15,14 @@ thin_restore \- restore thin provisioning metadata file to device or file
 restores thin provisioning metadata created by the
 respective device-mapper target dumped into an XML formatted (see
 .BR thin_dump(8) )
-file, which optionally can be preprocessed to another device or file.
-If restored to a metadata device, the metadata can be processed
-by the device-mapper target.
+.I file
+, which optionally can be preprocessed before the restore to another
+.I device
+or
+.I file.
+If restored to a metadata
+.I device
+, the metadata can be processed by the device-mapper target.
 
 .IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
 Input file or device with metadata.

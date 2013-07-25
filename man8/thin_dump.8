@@ -11,12 +11,18 @@ thin_dump \- dump thin provisioning metadata from device or file to standard out
 .B thin_dump
 dumps binary thin provisioning metadata (optionally from alternate block;
 see option \-\-metadata-snap) created by the device-mapper
-thin provisioning target on a device or file to standard output for
+thin provisioning target on a
+.I device
+or
+.I file
+to standard output for
 analysis or postprocessing in either XML or human readable format.
 XML formated metadata can be fed into thin_restore (see
 .BR thin_restore(8) )
-in order to put it back onto a metadata device (to process by
-the device-mapper target) or file.
+in order to put it back onto a metadata
+.I device
+(to process by the device-mapper target) or
+.I file.
 
 .IP "\fB\-f, \-\-format\fP \fI{xml|human_readable}\fP".
 Print output in XML or human readable format.
