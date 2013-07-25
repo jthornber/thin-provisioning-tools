@@ -12,9 +12,10 @@ thin_repair \- repair thin provisioning binary metadata from device/file to devi
 
 .SH DESCRIPTION
 .B thin_repair
-repairs binary thin provisioning metadata created by the
-respective device-mapper target processing to another device or file.
-If repaired to a metadata device, the metadata can be processed
+reads binary thin provisioning metadata created by the
+respective device-mapper target from one device or file,
+repairs it and writes it to another device or file.
+If written to a metadata device, the metadata can be processed
 by the device-mapper target.
 
 .IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
@@ -30,10 +31,10 @@ Print help and exit.
 Output version information and exit.
 
 .SH EXAMPLE
-Repairs the binary thin provisioning metadata on file
+Reads the binary thin provisioning metadata from file
 .B metadata
-to logical volume /dev/vg/metadata for further processing by the
-respective device-mapper target:
+, repairs it and writes it to logical volume /dev/vg/metadata
+for further processing by the respective device-mapper target:
 .sp
 .B thin_repair -i metadata -o /dev/vg/metadata
 
