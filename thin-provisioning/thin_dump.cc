@@ -42,7 +42,7 @@ namespace {
 		try {
 			metadata::ptr md(new metadata(path, metadata_snap));
 			emitter::ptr e;
-			uint64_t metadata_snap_root = md->sb_.metadata_snap_;
+			uint64_t metadata_snap_root = md->sb_.metadata_snap_; /* FIXME: use thin_pool method? */
 
 			if (metadata_snap_root) {
 				md.reset();

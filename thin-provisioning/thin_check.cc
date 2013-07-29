@@ -43,7 +43,7 @@ namespace {
 			: out_(out),
 			  step_(step),
 			  beginning_of_line_(true),
-			  enabled(true),
+			  enabled_(true),
 			  indent_(0) {
 		}
 
@@ -54,7 +54,7 @@ namespace {
 				indent();
 			}
 
-			if (enabled)
+			if (enabled_)
 				out_ << t;
 
 			return *this;
@@ -63,7 +63,7 @@ namespace {
 		nested_output &operator <<(end_message const &m) {
 			beginning_of_line_ = true;
 
-			if (enabled)
+			if (enabled_)
 				out_ << endl;
 
 			return *this;
@@ -95,16 +95,16 @@ namespace {
 		}
 
 		void enable() {
-			enabled = true;
+			enabled_ = true;
 		}
 
 		void disable() {
-			enabled = false;
+			enabled_ = false;
 		}
 
 	private:
 		void indent() {
-			if (enabled)
+			if (enabled_)
 				for (unsigned i = 0; i < indent_; i++)
 					out_ << ' ';
 		}
@@ -113,7 +113,7 @@ namespace {
 		unsigned step_;
 
 		bool beginning_of_line_;
-		bool enabled;
+		bool enabled_;
 		unsigned indent_;
 	};
 
@@ -344,7 +344,14 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	flags fs;
+	flags fs = {
+		.check_device_tree = true,
+		.check_mapping_tree_level1 = true,
+		.check_mapping_tree_level2 = true,
+		.ignore_non_fatal_errors = false,
+		.quiet = false
+	};
+
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
@@ -355,12 +362,6 @@ int main(int argc, char **argv)
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
 		{ NULL, no_argument, NULL, 0 }
 	};
-
-	fs.check_device_tree = true;
-	fs.check_mapping_tree_level1 = true;
-	fs.check_mapping_tree_level2 = true;
-	fs.ignore_non_fatal_errors = false;
-	fs.quiet = false;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
