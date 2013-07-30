@@ -44,12 +44,14 @@ namespace {
 			emitter::ptr e;
 			uint64_t metadata_snap_root = md->sb_.metadata_snap_; /* FIXME: use thin_pool method? */
 
-			if (metadata_snap_root) {
-				md.reset();
-				md = metadata::ptr(new metadata(path, metadata_snap_root));
-			} else if (flags.find_metadata_snap) {
-				cerr << "no metadata snapshot found!" << endl;
-				exit(1);
+			if (flags.find_metadata_snap) {
+				if (metadata_snap_root) {
+					md.reset();
+					md = metadata::ptr(new metadata(path, metadata_snap_root));
+				} else {
+					cerr << "no metadata snapshot found!" << endl;
+					exit(1);
+				}
 			}
 
 			if (format == "xml")
