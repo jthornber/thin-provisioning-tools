@@ -187,27 +187,27 @@ THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_repair: $(THIN_REPAIR_OBJECTS) thin-provisioning/thin_repair.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_dump: $(THIN_DUMP_OBJECTS) thin-provisioning/thin_dump.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 thin_metadata_size: thin-provisioning/thin_metadata_size.o
 	@echo "    [LD]  $@"
@@ -234,7 +234,7 @@ CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
 cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
