@@ -148,7 +148,7 @@ metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 
 	// We don't open the metadata sm for a held root
 	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
-	tm_->set_sm(metadata_sm_);
+	//tm_->set_sm(metadata_sm_);
 
 	data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
 	details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));

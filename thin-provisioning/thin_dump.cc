@@ -42,9 +42,10 @@ namespace {
 		try {
 			metadata::ptr md(new metadata(path, metadata_snap));
 			emitter::ptr e;
-			uint64_t metadata_snap_root = md->sb_.metadata_snap_; /* FIXME: use thin_pool method? */
 
 			if (flags.find_metadata_snap) {
+				uint64_t metadata_snap_root = md->sb_.metadata_snap_; /* FIXME: use thin_pool method? */
+
 				if (metadata_snap_root) {
 					md.reset();
 					md = metadata::ptr(new metadata(path, metadata_snap_root));
@@ -117,10 +118,6 @@ int main(int argc, char **argv)
 
 		case 'r':
 			flags.repair = true;
-			break;
-
-		case 's':
-			flags.find_metadata_snap = true;
 			break;
 
 		case 'm':
