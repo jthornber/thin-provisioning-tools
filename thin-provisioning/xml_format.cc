@@ -59,7 +59,7 @@ namespace {
 			     << " nr_data_blocks=\"" << nr_data_blocks;
 
 			if (metadata_snap)
-				out_ << " metadata_snap=\"" << *metadata_snap;
+				out_ << "\" metadata_snap=\"" << *metadata_snap;
 
 			out_ << "\">"
 			     << endl;
