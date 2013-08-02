@@ -19,7 +19,7 @@ namespace {
 			metadata::ptr new_md(new metadata(new_path, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);
 
-			metadata::ptr old_md(new metadata(old_path, metadata::OPEN));
+			metadata::ptr old_md(new metadata(old_path));
 			metadata_dump(old_md, e, true);
 
 		} catch (std::exception &e) {
