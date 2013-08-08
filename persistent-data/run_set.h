@@ -62,7 +62,7 @@ namespace base {
 			if (!runs_.size())
 				return false;
 
-			auto it = runs_.lower_bound(run<T>(v));
+			typename rset::const_iterator it = runs_.lower_bound(run<T>(v));
 
 			if (it->begin_ == v)
 				return true;
@@ -98,7 +98,7 @@ namespace base {
 			if (runs_.begin() == runs_.end())
 				replacement.insert(run<T>());
 			else {
-				auto b = runs_.begin();
+				typename rset::const_iterator b = runs_.begin();
 				maybe last = b->end_;
 
 				if (b->begin_)

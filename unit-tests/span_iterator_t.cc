@@ -119,7 +119,7 @@ TEST(RegularSpanItTests, regular_span_iterator)
 
 TEST_F(SpanItTests, sub_it_with_no_removed_blocks)
 {
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -128,7 +128,7 @@ TEST_F(SpanItTests, sub_it_with_removed_first_block)
 {
 	forbidden.add(23);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(24, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -138,7 +138,7 @@ TEST_F(SpanItTests, sub_it_with_removed_run_overlapping_front_of_first_block)
 	for (block_address i = 19; i < 26; i++)
 		forbidden.add(i);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(26, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -147,7 +147,7 @@ TEST_F(SpanItTests, sub_it_with_removed_mid_block)
 {
 	forbidden.add(40);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 40))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(41, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
@@ -158,7 +158,7 @@ TEST_F(SpanItTests, sub_it_with_removed_run_mid_block)
 	for (block_address i = 26; i < 36; i++)
 		forbidden.add(i);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(36, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
@@ -168,7 +168,7 @@ TEST_F(SpanItTests, sub_it_with_removed_end_block)
 {
 	forbidden.add(46);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 46))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -178,7 +178,7 @@ TEST_F(SpanItTests, sub_it_with_removed_run_end_block)
 	for (block_address i = 26; i < 50; i++)
 		forbidden.add(i);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }
@@ -188,7 +188,7 @@ TEST_F(SpanItTests, sub_it_with_removed_run_overlapping_2_blocks)
 	for (block_address i = 26; i < 70; i++)
 		forbidden.add(i);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 26))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(70, 103))));
 }
@@ -200,7 +200,7 @@ TEST_F(SpanItTests, sub_it_with_removed_intermediate_blocks)
 	forbidden.add(57);
 	forbidden.add(58);
 
-	auto it = run();
+	subtracting_span_iterator it = run();
 	ASSERT_THAT(it.first(), Eq(maybe_span(span(23, 47))));
 	ASSERT_THAT(it.next(), Eq(maybe_span(span(59, 103))));
 }

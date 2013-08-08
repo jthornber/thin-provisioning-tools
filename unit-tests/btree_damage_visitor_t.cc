@@ -82,13 +82,14 @@ namespace {
 		    << ", path [";
 
 		bool first = true;
-		for (auto k : ni.path) {
+		btree_detail::btree_path::const_iterator it;
+		for (it = ni.path.begin(); it != ni.path.end(); ++it) {
 			if (first)
 				first = false;
 			else
 				out << ", ";
 
-			out << k;
+			out << *it;
 		}
 
 		out << "], b " << ni.b
@@ -121,8 +122,9 @@ namespace {
 		unsigned get_nr_nodes(Predicate const &pred) const {
 			unsigned nr = 0;
 
-			for (auto n : nodes_)
-				if (pred(n))
+			node_array::const_iterator it;
+			for (it = nodes_.begin(); it != nodes_.end(); ++it)
+				if (pred(*it))
 					nr++;
 
 			return nr;
@@ -132,8 +134,9 @@ namespace {
 		node_info get_node(unsigned target, Predicate const &pred) const {
 			unsigned i = 0;
 
-			for (auto n : nodes_) {
-				if (pred(n)) {
+			node_array::const_iterator it;
+			for (it = nodes_.begin(); it != nodes_.end(); ++it) {
+				if (pred(*it)) {
 					if (!target)
 						break;
 					else
@@ -163,13 +166,14 @@ namespace {
 
 			node_array v;
 
-			for (auto n : nodes_) {
+			node_array::const_iterator it;
+			for (it = nodes_.begin(); it != nodes_.end(); ++it) {
 				if (!target)
 					break;
 
-				if (pred(n)) {
+				if (pred(*it)) {
 					if (target <= count)
-						v.push_back(n);
+						v.push_back(*it);
 
 					target--;
 				}
@@ -525,8 +529,9 @@ TEST_F(BTreeDamageVisitorTests, populated_tree_with_a_sequence_of_damaged_leaf_n
 	unsigned const COUNT = 5;
 	node_array nodes = layout_->get_random_nodes(COUNT, is_leaf);
 
-	for (auto n : nodes)
-		trash_block(n.b);
+	node_array::const_iterator it;
+	for (it = nodes.begin(); it != nodes.end(); ++it)
+		trash_block(it->b);
 
 	block_address begin = *nodes[0].keys.begin_;
 	block_address end = *nodes[COUNT - 1].keys.end_;
@@ -627,14 +632,16 @@ TEST_F(BTreeDamageVisitor2Tests, populated_tree_with_no_damage)
 	run();
 }
 
+namespace {
+	bool leaf1(node_info const &n) {
+		return (n.leaf && n.path.size() == 1 && n.path[0] == 1);
+	}
+}
+
 TEST_F(BTreeDamageVisitor2Tests, damaged_leaf)
 {
 	insert_values(10, 1000);
 	tree_complete();
-
-	auto leaf1 = [] (node_info const &n) {
-		return (n.leaf && n.path.size() == 1 && n.path[0] == 1);
-	};
 
 	node_info n = layout_->random_node(leaf1);
 	trash_block(n.b);

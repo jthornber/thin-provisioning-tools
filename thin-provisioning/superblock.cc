@@ -131,7 +131,7 @@ namespace thin_provisioning {
 		using namespace superblock_detail;
 
 		superblock sb;
-		auto r = bm->read_lock(location, superblock_validator());
+		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
