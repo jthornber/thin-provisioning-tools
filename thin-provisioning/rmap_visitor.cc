@@ -29,15 +29,18 @@ rmap_visitor::visit(btree_path const &path,
 	}
 }
 
+namespace {
+	bool cmp_data_begin(rmap_visitor::rmap_region const &lhs,
+			    rmap_visitor::rmap_region const &rhs) {
+		return lhs.data_begin < rhs.data_begin;
+	};
+}
+
 void
 rmap_visitor::complete()
 {
 	if (current_rmap_)
 		push_current();
-
-	auto cmp_data_begin = [] (rmap_region const &lhs, rmap_region const &rhs) {
-		return lhs.data_begin < rhs.data_begin;
-	};
 
 	std::sort(rmap_.begin(), rmap_.end(), cmp_data_begin);
 }
@@ -52,8 +55,9 @@ rmap_visitor::get_rmap() const
 bool
 rmap_visitor::in_regions(block_address b) const
 {
-	for (region const &r : regions_)
-		if (r.contains(b))
+	vector<region>::const_iterator it;
+	for (it = regions_.begin(); it != regions_.end(); ++it)
+		if (it->contains(b))
 			return true;
 
 	return false;

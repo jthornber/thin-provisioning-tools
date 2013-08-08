@@ -50,7 +50,9 @@ namespace {
 	};
 
 	void display_rmap(ostream &out, vector<rmap_region> const &rmap) {
-		for (rmap_region const &r : rmap) {
+		vector<rmap_region>::const_iterator it;
+		for (it = rmap.begin(); it != rmap.end(); ++it) {
+			rmap_region const &r = *it;
 			out << "data " << r.data_begin
 			    << ".." << r.data_end
 			    << " -> thin(" << r.thin_dev
@@ -66,8 +68,9 @@ namespace {
 		rmap_visitor rv;
 
 		try {
-			for (region const &r : regions)
-				rv.add_data_region(r);
+			vector<region>::const_iterator it;
+			for (it = regions.begin(); it != regions.end(); ++it)
+				rv.add_data_region(*it);
 
 			block_manager<>::ptr bm = open_bm(path);
 			transaction_manager::ptr tm = open_tm(bm);

@@ -168,7 +168,7 @@ namespace {
 		virtual void visit(superblock_detail::superblock_corruption const &d) {
 			out_ << "superblock is corrupt" << end_message();
 			{
-				auto _ = out_.push();
+				nested_output::nest _ = out_.push();
 				out_ << d.desc_ << end_message();
 			}
 			err_ = combine_errors(err_, FATAL);
@@ -195,7 +195,7 @@ namespace {
 		virtual void visit(device_tree_detail::missing_devices const &d) {
 			out_ << "missing devices: " << d.keys_ << end_message();
 			{
-				auto _ = out_.push();
+				nested_output::nest _ = out_.push();
 				out_ << d.desc_ << end_message();
 			}
 
@@ -222,7 +222,7 @@ namespace {
 		virtual void visit(mapping_tree_detail::missing_devices const &d) {
 			out_ << "missing all mappings for devices: " << d.keys_ << end_message();
 			{
-				auto _ = out_.push();
+				nested_output::nest _ = out_.push();
 				out_ << d.desc_ << end_message();
 			}
 			err_ = combine_errors(err_, FATAL);
@@ -231,7 +231,7 @@ namespace {
 		virtual void visit(mapping_tree_detail::missing_mappings const &d) {
 			out_ << "thin device " << d.thin_dev_ << " is missing mappings " << d.keys_ << end_message();
 			{
-				auto _ = out_.push();
+				nested_output::nest _ = out_.push();
 				out_ << d.desc_ << end_message();
 			}
 			err_ = combine_errors(err_, FATAL);
@@ -267,7 +267,7 @@ namespace {
 
 		out << "examining superblock" << end_message();
 		{
-			auto _ = out.push();
+			nested_output::nest _ = out.push();
 			check_superblock(bm, sb_rep);
 		}
 
@@ -280,7 +280,7 @@ namespace {
 		if (fs.check_device_tree) {
 			out << "examining devices tree" << end_message();
 			{
-				auto _ = out.push();
+				nested_output::nest _ = out.push();
 				device_tree dtree(tm, sb.device_details_root_,
 						  device_tree_detail::device_details_traits::ref_counter());
 				check_device_tree(dtree, dev_rep);
@@ -290,7 +290,7 @@ namespace {
 		if (fs.check_mapping_tree_level1 && !fs.check_mapping_tree_level2) {
 			out << "examining top level of mapping tree" << end_message();
 			{
-				auto _ = out.push();
+				nested_output::nest _ = out.push();
 				dev_tree dtree(tm, sb.data_mapping_root_,
 					       mapping_tree_detail::mtree_traits::ref_counter(tm));
 				check_mapping_tree(dtree, mapping_rep);
@@ -299,7 +299,7 @@ namespace {
 		} else if (fs.check_mapping_tree_level2) {
 			out << "examining mapping tree" << end_message();
 			{
-				auto _ = out.push();
+				nested_output::nest _ = out.push();
 				mapping_tree mtree(tm, sb.data_mapping_root_,
 						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 				check_mapping_tree(mtree, mapping_rep);

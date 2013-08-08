@@ -83,7 +83,7 @@ OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall -O3
-CXXFLAGS+=-std=c++11 -g -Wall -fno-strict-aliasing
+CXXFLAGS+=-g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
