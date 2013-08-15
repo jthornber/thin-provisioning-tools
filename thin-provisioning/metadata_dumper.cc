@@ -139,7 +139,7 @@ namespace {
 
 	class details_extractor : public btree<1, device_tree_detail::device_details_traits>::visitor {
 	public:
-		typedef typename btree<1, device_tree_detail::device_details_traits>::visitor::node_location node_location;
+		typedef btree<1, device_tree_detail::device_details_traits>::visitor::node_location node_location;
 		typedef boost::shared_ptr<details_extractor> ptr;
 		typedef btree_checker<1, device_tree_detail::device_details_traits> checker;
 

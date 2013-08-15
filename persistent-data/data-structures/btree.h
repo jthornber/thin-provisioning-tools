@@ -213,7 +213,7 @@ namespace persistent_data {
 		class ro_spine : private boost::noncopyable {
 		public:
 			ro_spine(transaction_manager::ptr tm,
-				 typename block_manager<>::validator::ptr v)
+				 block_manager<>::validator::ptr v)
 				: tm_(tm),
 				  validator_(v) {
 			}
@@ -227,7 +227,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
-			typename block_manager<>::validator::ptr validator_;
+			block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
@@ -237,7 +237,7 @@ namespace persistent_data {
 			typedef transaction_manager::write_ref write_ref;
 
 			shadow_spine(transaction_manager::ptr tm,
-				     typename block_manager<>::validator::ptr v)
+				     block_manager<>::validator::ptr v)
 
 				: tm_(tm),
 				  validator_(v) {
@@ -287,7 +287,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
-			typename block_manager<>::validator::ptr validator_;
+			block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
 			block_address root_;
 		};

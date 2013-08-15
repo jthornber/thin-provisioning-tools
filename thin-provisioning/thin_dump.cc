@@ -94,7 +94,8 @@ int main(int argc, char **argv)
 	char *end_ptr;
 	string format = "xml";
 	block_address metadata_snap = 0;
-	struct flags flags = { .find_metadata_snap = false, .repair = false };
+	struct flags flags;
+	flags.find_metadata_snap = flags.repair = false;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},

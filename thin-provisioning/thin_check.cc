@@ -144,7 +144,7 @@ namespace {
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		typename block_io<>::mode m = block_io<>::READ_ONLY;
+		block_io<>::mode m = block_io<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -344,13 +344,12 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	flags fs = {
-		.check_device_tree = true,
-		.check_mapping_tree_level1 = true,
-		.check_mapping_tree_level2 = true,
-		.ignore_non_fatal_errors = false,
-		.quiet = false
-	};
+	flags fs;
+	fs.check_device_tree = true;
+	fs.check_mapping_tree_level1 = true,
+	fs.check_mapping_tree_level2 = true,
+	fs.ignore_non_fatal_errors = false,
+	fs.quiet = false;
 
 	char const shortopts[] = "qhV";
 	option const longopts[] = {

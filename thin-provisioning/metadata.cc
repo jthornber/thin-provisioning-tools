@@ -42,7 +42,7 @@ namespace {
 
 	block_manager<>::ptr open_bm(string const &dev_path, bool writeable) {
 		block_address nr_blocks = get_nr_blocks(dev_path);
-		typename block_io<>::mode m = writeable ?
+		block_io<>::mode m = writeable ?
 			block_io<>::READ_WRITE :
 			block_io<>::READ_ONLY;
 

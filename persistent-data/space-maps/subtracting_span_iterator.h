@@ -11,7 +11,7 @@
 namespace persistent_data {
 	class subtracting_span_iterator : public space_map::span_iterator {
 	public:
-		typedef typename base::run_set<block_address> block_set;
+		typedef base::run_set<block_address> block_set;
 		typedef space_map::span span;
 
 		subtracting_span_iterator(block_address max,

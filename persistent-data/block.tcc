@@ -61,7 +61,7 @@ namespace {
 	}
 
 	bool file_exists(string const &path) {
-		typename ::stat info;
+		struct ::stat info;
 
 		int r = ::stat(path.c_str(), &info);
 		if (r) {
