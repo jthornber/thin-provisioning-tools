@@ -40,6 +40,7 @@ namespace {
 			  md_sm_(md_sm),
 			  data_sm_(data_sm),
 			  in_range_(false),
+			  time_(),
 			  found_errors_(false) {
 		}
 

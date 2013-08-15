@@ -29,6 +29,8 @@ void base::hex_dump(ostream &out, void const *data_, size_t len)
 {
 	unsigned char const *data = reinterpret_cast<unsigned char const *>(data_),
 		*end = data + len;
+
+	ios_base::fmtflags old_flags = out.flags();
 	out << hex;
 
 	while (data < end) {
@@ -36,7 +38,8 @@ void base::hex_dump(ostream &out, void const *data_, size_t len)
 			out << setw(2) << setfill('0') << (unsigned) *data << " ";
 		out << endl;
 	}
-	out << dec;
+
+	out.setf(old_flags);
 }
 
 //----------------------------------------------------------------

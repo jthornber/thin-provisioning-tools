@@ -216,7 +216,8 @@ namespace {
 	class mapping_reporter : public mapping_tree_detail::damage_visitor {
 	public:
 		mapping_reporter(nested_output &out)
-		: out_(out) {
+		: out_(out),
+		  err_(NO_ERROR) {
 		}
 
 		virtual void visit(mapping_tree_detail::missing_devices const &d) {

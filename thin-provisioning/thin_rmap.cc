@@ -150,7 +150,14 @@ int main(int argc, char **argv)
 
 		case 1:
 			// region
-			regions.push_back(parse_region(optarg));
+			try {
+				regions.push_back(parse_region(optarg));
+
+			} catch (std::exception const &e) {
+				cerr << e.what();
+				return 1;
+			}
+
 			break;
 
 		default:

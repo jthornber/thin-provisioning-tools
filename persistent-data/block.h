@@ -65,7 +65,6 @@ namespace persistent_data {
 		int fd_;
 		block_address nr_blocks_;
 		mode mode_;
-		bool writeable_;
 	};
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>

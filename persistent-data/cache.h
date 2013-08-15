@@ -68,15 +68,29 @@ namespace base {
 				  v_(v) {
 			}
 
-			struct {
-				value_entry *next_, *prev_;
-			} lru_;
+			struct lru {
+				lru()
+					: next_(0),
+					  prev_(0) {
+				}
 
-			struct {
+				value_entry *next_, *prev_;
+			};
+
+			struct lookup {
+				lookup()
+					: parent_(0),
+					  left_(0),
+					  right_(0),
+					  color_() {
+				}
+
 				value_entry *parent_, *left_, *right_;
 				int color_;
-			} lookup_;
+			};
 
+			lru lru_;
+			lookup lookup_;
 			unsigned ref_count_;
 			value_type v_;
 		};

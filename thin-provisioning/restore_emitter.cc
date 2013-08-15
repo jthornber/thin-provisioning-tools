@@ -32,6 +32,7 @@ namespace {
 		restorer(metadata::ptr md)
 			: md_(md),
 			  in_superblock_(false),
+			  nr_data_blocks_(),
 			  empty_mapping_(new_mapping_tree()) {
 		}
 
