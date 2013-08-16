@@ -22,6 +22,7 @@
 
 #include "version.h"
 
+#include "base/nested_output.h"
 #include "persistent-data/space-maps/core.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/file_utils.h"
@@ -34,90 +35,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-
-	class end_message {};
-
-	class nested_output {
-	public:
-		nested_output(ostream &out, unsigned step)
-			: out_(out),
-			  step_(step),
-			  beginning_of_line_(true),
-			  enabled_(true),
-			  indent_(0) {
-		}
-
-		template <typename T>
-		nested_output &operator <<(T const &t) {
-			if (beginning_of_line_) {
-				beginning_of_line_ = false;
-				indent();
-			}
-
-			if (enabled_)
-				out_ << t;
-
-			return *this;
-		}
-
-		nested_output &operator <<(end_message const &m) {
-			beginning_of_line_ = true;
-
-			if (enabled_)
-				out_ << endl;
-
-			return *this;
-		}
-
-		void inc_indent() {
-			indent_ += step_;
-		}
-
-		void dec_indent() {
-			indent_ -= step_;
-		}
-
-		struct nest {
-			nest(nested_output &out)
-			: out_(out) {
-				out_.inc_indent();
-			}
-
-			~nest() {
-				out_.dec_indent();
-			}
-
-			nested_output &out_;
-		};
-
-		nest push() {
-			return nest(*this);
-		}
-
-		void enable() {
-			enabled_ = true;
-		}
-
-		void disable() {
-			enabled_ = false;
-		}
-
-	private:
-		void indent() {
-			if (enabled_)
-				for (unsigned i = 0; i < indent_; i++)
-					out_ << ' ';
-		}
-
-		ostream &out_;
-		unsigned step_;
-
-		bool beginning_of_line_;
-		bool enabled_;
-		unsigned indent_;
-	};
-
-	//--------------------------------
 
 	enum error_state {
 		NO_ERROR,
