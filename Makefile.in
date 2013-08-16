@@ -48,7 +48,7 @@ PDATA_SOURCE=\
 SOURCE=\
 	$(PDATA_SOURCE) \
 	\
-	cache/metadata_disk_structures.cc \
+	caching/superblock.cc \
 	\
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/file_utils.cc \
@@ -66,7 +66,7 @@ SOURCE=\
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 CXX_PROGRAM_SOURCE=\
-	cache/check.cc \
+	caching/check.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
@@ -228,11 +228,11 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	cache/metadata_disk_structures.cc
+	caching/superblock.cc
 
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
-cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
+cache_check: $(CACHE_CHECK_OBJECTS) caching/check.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 

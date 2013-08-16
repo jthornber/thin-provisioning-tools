@@ -1,26 +1,7 @@
-// Copyright (C) 2012 Red Hat, Inc. All rights reserved.
-//
-// This file is part of the thin-provisioning-tools source.
-//
-// thin-provisioning-tools is free software: you can redistribute it
-// and/or modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation, either version 3 of
-// the License, or (at your option) any later version.
-//
-// thin-provisioning-tools is distributed in the hope that it will be
-// useful, but WITHOUT ANY WARRANTY; without even the implied warranty
-// of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with thin-provisioning-tools.  If not, see
-// <http://www.gnu.org/licenses/>.
+#include "caching/superblock.h"
 
-#include "metadata_disk_structures.h"
-
-#include <string.h>
-
-using namespace cache_tools;
+using namespace caching;
+using namespace superblock_detail;
 
 //----------------------------------------------------------------
 
@@ -108,6 +89,89 @@ superblock_traits::pack(superblock const &core, superblock_disk &disk)
 	disk.read_misses = to_disk<le32>(core.read_misses);
 	disk.write_hits = to_disk<le32>(core.write_hits);
 	disk.write_misses = to_disk<le32>(core.write_misses);
+}
+
+//--------------------------------
+
+superblock_corruption::superblock_corruption(std::string const &desc)
+	: desc_(desc)
+{
+}
+
+void
+superblock_corruption::visit(damage_visitor &v) const
+{
+	v.visit(*this);
+}
+
+//--------------------------------
+
+namespace {
+	using namespace persistent_data;
+	using namespace superblock_detail;
+
+        uint32_t const VERSION = 1;
+        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
+	uint32_t const SUPERBLOCK_CSUM_SEED = 9031977;
+
+	struct sb_validator : public block_manager<>::validator {
+		virtual void check(buffer<> const &b, block_address location) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
+				throw checksum_error("bad checksum in superblock");
+		}
+
+		virtual void prepare(buffer<> &b, block_address location) const {
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			sbd->csum = to_disk<base::le32>(sum.get_sum());
+		}
+	};
+}
+
+persistent_data::block_manager<>::validator::ptr
+caching::superblock_validator()
+{
+	return block_manager<>::validator::ptr(new sb_validator);
+}
+
+//--------------------------------
+
+superblock_detail::superblock
+caching::read_superblock(persistent_data::block_manager<>::ptr bm,
+			 persistent_data::block_address location)
+{
+	using namespace superblock_detail;
+
+	superblock sb;
+	block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
+	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+	superblock_traits::unpack(*sbd, sb);
+
+	return sb;
+}
+
+superblock_detail::superblock
+caching::read_superblock(persistent_data::block_manager<>::ptr bm)
+{
+	return read_superblock(bm, SUPERBLOCK_LOCATION);
+}
+
+void
+caching::check_superblock(persistent_data::block_manager<>::ptr bm,
+			  superblock_detail::damage_visitor &visitor)
+{
+	using namespace superblock_detail;
+
+	try {
+		bm->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+
+	} catch (std::exception const &e) {
+		visitor.visit(superblock_corruption(e.what()));
+	}
 }
 
 //----------------------------------------------------------------
