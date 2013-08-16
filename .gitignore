@@ -14,6 +14,7 @@ thin_repair
 thin_rmap
 
 cache_check
+cache_restore
 
 *.metadata
 bad-metadata
