@@ -40,6 +40,13 @@ Feature: thin_restore
     No input file provided.
     """
 
+  Scenario: missing output file
+    When I run thin_restore with -i metadata.xml
+    Then it should fail with:
+    """
+    No output file provided.
+    """
+
   Scenario: dump/restore is a noop
     Given valid metadata
     When I dump
