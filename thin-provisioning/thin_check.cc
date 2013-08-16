@@ -22,6 +22,7 @@
 
 #include "version.h"
 
+#include "base/error_state.h"
 #include "base/nested_output.h"
 #include "persistent-data/space-maps/core.h"
 #include "thin-provisioning/device_tree.h"
@@ -29,33 +30,13 @@
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
 
+using namespace base;
 using namespace std;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
-
-	enum error_state {
-		NO_ERROR,
-		NON_FATAL,	// eg, lost blocks
-		FATAL		// needs fixing before pool can be activated
-	};
-
-	error_state
-	combine_errors(error_state lhs, error_state rhs) {
-		switch (lhs) {
-		case NO_ERROR:
-			return rhs;
-
-		case NON_FATAL:
-			return (rhs == FATAL) ? FATAL : lhs;
-
-		default:
-			return lhs;
-		}
-	}
-
 	//--------------------------------
 
 	block_manager<>::ptr
@@ -91,7 +72,7 @@ namespace {
 			err_ = combine_errors(err_, FATAL);
 		}
 
-		error_state get_error() const {
+		base::error_state get_error() const {
 			return err_;
 		}
 

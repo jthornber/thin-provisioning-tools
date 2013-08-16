@@ -29,7 +29,11 @@ PROGRAMS=\
 
 all: $(PROGRAMS)
 
-PDATA_SOURCE=\
+SOURCE=\
+	base/error_state.cc \
+	\
+	caching/superblock.cc \
+	\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
@@ -42,13 +46,7 @@ PDATA_SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc
-#PDATA_OBJECTS=$(subst .cc,.o,$(PDATA_SOURCE))
-
-SOURCE=\
-	$(PDATA_SOURCE) \
-	\
-	caching/superblock.cc \
+	persistent-data/space-maps/careful_alloc.cc \
 	\
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/file_utils.cc \
@@ -66,7 +64,7 @@ SOURCE=\
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 CXX_PROGRAM_SOURCE=\
-	caching/check.cc \
+	caching/cache_check.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
@@ -140,6 +138,7 @@ THIN_DUMP_SOURCE=$(SOURCE)
 THIN_REPAIR_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
 THIN_CHECK_SOURCE=\
+	base/error_state.cc \
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
