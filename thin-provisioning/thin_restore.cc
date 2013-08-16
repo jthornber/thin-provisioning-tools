@@ -37,6 +37,8 @@ using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
+//----------------------------------------------------------------
+
 namespace {
 	int restore(string const &backup_file, string const &dev) {
 		try {
@@ -121,3 +123,5 @@ int main(int argc, char **argv)
 
 	return restore(input, output);
 }
+
+//----------------------------------------------------------------
