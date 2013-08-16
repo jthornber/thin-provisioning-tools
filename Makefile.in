@@ -20,6 +20,9 @@
 
 V=@
 PROGRAMS=\
+	cache_check \
+	cache_restore \
+	\
 	thin_check \
 	thin_dump \
 	thin_restore \
@@ -65,6 +68,7 @@ PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 CXX_PROGRAM_SOURCE=\
 	caching/cache_check.cc \
+	caching/cache_restore.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
@@ -228,12 +232,18 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
 	caching/superblock.cc
-
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
-cache_check: $(CACHE_CHECK_OBJECTS) caching/check.o
+CACHE_RESTORE_SOURCE=$(SOURCE)
+CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
+
+cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+
+cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
@@ -275,7 +285,7 @@ include unit-tests/Makefile
 
 .PHONEY: features
 
-features: thin_check cache_check
+features: $(PROGRAMS)
 	cucumber --no-color --format progress
 
 test: features unit-test

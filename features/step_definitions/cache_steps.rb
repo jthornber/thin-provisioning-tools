@@ -55,3 +55,12 @@ end
 Then /^usage to stderr$/ do
   assert_partial_output(USAGE, all_stderr)
 end
+
+When(/^I run cache_check with (.*?)$/) do |opts|
+  run_simple("cache_check #{opts} #{dev_file}", false)
+end
+
+When(/^I run cache_restore with (.*?)$/) do |opts|
+  run_simple("cache_restore #{opts}", false)
+end
+
