@@ -16,11 +16,11 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "emitter.h"
-#include "human_readable_format.h"
-#include "metadata.h"
-#include "restore_emitter.h"
-#include "xml_format.h"
+#include "thin-provisioning/emitter.h"
+#include "thin-provisioning/human_readable_format.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/restore_emitter.h"
+#include "thin-provisioning/xml_format.h"
 #include "version.h"
 
 #include <fstream>
