@@ -46,3 +46,10 @@ Feature: thin_restore
     """
     No output file provided.
     """
+
+  Scenario: dump/restore is a noop
+    Given valid cache metadata
+    When I dump cache
+    And I restore cache
+    And I dump cache
+    Then cache dumps 1 and 2 should be identical

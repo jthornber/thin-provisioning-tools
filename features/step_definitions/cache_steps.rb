@@ -64,3 +64,22 @@ When(/^I run cache_restore with (.*?)$/) do |opts|
   run_simple("cache_restore #{opts}", false)
 end
 
+When(/^I run cache_dump with (.*?)$/) do |opts|
+  run_simple("cache_dump #{opts}", false)
+end
+
+Given(/^valid cache metadata$/) do
+  pending # express the regexp above with the code you wish you had
+end
+
+When(/^I dump cache$/) do
+  pending # express the regexp above with the code you wish you had
+end
+
+When(/^I restore cache$/) do
+  pending # express the regexp above with the code you wish you had
+end
+
+Then(/^cache dumps (\d+) and (\d+) should be identical$/) do |arg1, arg2|
+  pending # express the regexp above with the code you wish you had
+end

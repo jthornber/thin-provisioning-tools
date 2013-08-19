@@ -21,6 +21,7 @@
 V=@
 PROGRAMS=\
 	cache_check \
+	cache_dump \
 	cache_restore \
 	\
 	thin_check \
@@ -234,12 +235,19 @@ CACHE_CHECK_SOURCE=\
 	caching/superblock.cc
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
+CACHE_DUMP_SOURCE=$(SOURCE)
+CACHE_DUMP_OBJECTS=$(subst .cc,.o,$(CACHE_DUMP_SOURCE))
+
 CACHE_RESTORE_SOURCE=$(SOURCE)
 CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
 
 cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+
+cache_dump: $(CACHE_DUMP_OBJECTS) caching/cache_dump.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
 	@echo "    [LD]  $@"
