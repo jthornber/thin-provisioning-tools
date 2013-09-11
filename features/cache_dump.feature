@@ -28,3 +28,22 @@ Feature: cache_dump
       {-h|--help}
       {-V|--version}
     """
+
+  Scenario: accepts an output file
+    Given valid cache metadata
+    When I run cache_dump with -o metadata.xml metadata.bin
+    Then it should pass
+
+  Scenario: missing input file
+    When I run cache_dump
+    Then it should fail with:
+    """
+    No input file provided.
+    """  
+
+  Scenario: dump/restore is a noop
+    Given valid cache metadata
+    When I cache_dump
+    And I cache_restore
+    And I cache_dump
+    Then cache dumps 1 and 2 should be identical

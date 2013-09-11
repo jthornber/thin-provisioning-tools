@@ -17,9 +17,9 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "thin-provisioning/device_tree.h"
-#include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/metadata.h"
 
+#include "persistent-data/file_utils.h"
 #include "persistent-data/math_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
@@ -39,15 +39,6 @@ namespace {
 	using namespace superblock_detail;
 
 	unsigned const METADATA_CACHE_SIZE = 1024;
-
-	block_manager<>::ptr open_bm(string const &dev_path, bool writeable) {
-		block_address nr_blocks = get_nr_blocks(dev_path);
-		block_io<>::mode m = writeable ?
-			block_io<>::READ_WRITE :
-			block_io<>::READ_ONLY;
-
-		return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m));
-	}
 
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {
@@ -90,7 +81,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 {
 	switch (ot) {
 	case OPEN:
-		tm_ = open_tm(open_bm(dev_path, false));
+		tm_ = open_tm(open_bm(dev_path, block_io<>::READ_ONLY));
 		sb_ = read_superblock(tm_->get_bm());
 
 		if (sb_.version_ != 1)
@@ -115,7 +106,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		break;
 
 	case CREATE:
-		tm_ = open_tm(open_bm(dev_path, true));
+		tm_ = open_tm(open_bm(dev_path, block_io<>::READ_WRITE));
 		space_map::ptr core = tm_->get_sm();
 		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
 		copy_space_maps(metadata_sm_, core);
@@ -143,7 +134,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 
 metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 {
-	tm_ = open_tm(open_bm(dev_path, false));
+	tm_ = open_tm(open_bm(dev_path, block_io<>::READ_ONLY));
 	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
 
 	// We don't open the metadata sm for a held root

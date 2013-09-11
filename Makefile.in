@@ -37,10 +37,13 @@ SOURCE=\
 	base/error_state.cc \
 	\
 	caching/superblock.cc \
+	caching/metadata.cc \
+	caching/xml_format.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/transaction_manager.cc \
@@ -53,7 +56,6 @@ SOURCE=\
 	persistent-data/space-maps/careful_alloc.cc \
 	\
 	thin-provisioning/device_tree.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -147,6 +149,7 @@ THIN_CHECK_SOURCE=\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
@@ -155,7 +158,6 @@ THIN_CHECK_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -166,6 +168,7 @@ THIN_RMAP_SOURCE=\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
@@ -174,7 +177,6 @@ THIN_RMAP_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -232,7 +234,10 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	caching/superblock.cc
+	caching/superblock.cc \
+	caching/metadata.cc \
+	caching/xml_format.cc
+
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
 CACHE_DUMP_SOURCE=$(SOURCE)

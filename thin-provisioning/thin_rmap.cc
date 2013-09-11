@@ -9,7 +9,7 @@
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
-#include "thin-provisioning/file_utils.h"
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"

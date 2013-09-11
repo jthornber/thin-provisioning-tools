@@ -64,22 +64,41 @@ When(/^I run cache_restore with (.*?)$/) do |opts|
   run_simple("cache_restore #{opts}", false)
 end
 
+When(/^I run cache_dump$/) do
+  run_simple("cache_dump", false)
+end
+
 When(/^I run cache_dump with (.*?)$/) do |opts|
   run_simple("cache_dump #{opts}", false)
 end
 
 Given(/^valid cache metadata$/) do
-  pending # express the regexp above with the code you wish you had
-end
+  in_current_dir do
+    system("cache_xml create --nr-cache-blocks uniform[1000-5000] --nr-mappings uniform[500-1000] > #{xml_file}")
+  end
 
-When(/^I dump cache$/) do
-  pending # express the regexp above with the code you wish you had
-end
-
-When(/^I restore cache$/) do
-  pending # express the regexp above with the code you wish you had
+  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
+  run_simple("cache_restore -i #{xml_file} -o #{dev_file}")
 end
 
 Then(/^cache dumps (\d+) and (\d+) should be identical$/) do |arg1, arg2|
-  pending # express the regexp above with the code you wish you had
+  run_simple("diff -ub #{dump_files[d1.to_i]} #{dump_files[d2.to_i]}", true)
+end
+
+Given(/^a small xml file$/) do
+  in_current_dir do
+    system("cache_xml create --nr-cache-blocks 3 --nr-mappings 3 --layout linear --dirty-percent 100 > #{xml_file}")
+  end
+end
+
+Given(/^an empty dev file$/) do
+  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
+end
+
+When(/^I cache_dump$/) do
+  run_simple("cache_dump #{dev_file} -o #{new_dump_file}", true)
+end
+
+When(/^I cache_restore$/) do
+  run_simple("cache_restore -i #{dump_files[-1]} -o #{dev_file}", true)
 end

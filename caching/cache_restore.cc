@@ -1,15 +1,50 @@
 #include "version.h"
 
+#include "caching/metadata.h"
+#include "caching/xml_format.h"
+#include "persistent-data/file_utils.h"
+
+#include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <libgen.h>
 #include <string>
 
+using namespace caching;
+using namespace persistent_data;
 using namespace std;
 
 //----------------------------------------------------------------
 
 namespace {
+	void check_file_exists(string const &file) {
+		struct stat info;
+		int r = ::stat(file.c_str(), &info);
+		if (r)
+			throw runtime_error("Couldn't stat file");
+
+		if (!S_ISREG(info.st_mode))
+			throw runtime_error("Not a regular file");
+	}
+
+	int restore(string const &xml_file, string const &dev) {
+		try {
+			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
+			metadata::ptr md(new metadata(bm, metadata::CREATE));
+			emitter::ptr restorer = create_restore_emitter(md);
+
+			check_file_exists(xml_file);
+			ifstream in(xml_file.c_str(), ifstream::in);
+			parse_xml(in, restorer);
+
+		} catch (std::exception &e) {
+			cerr << e.what() << endl;
+			return 1;
+		}
+
+		return 0;
+	}
+
 	void usage(ostream &out, string const &cmd) {
 		out << "Usage: " << cmd << " [options]" << endl
 		    << "Options:" << endl
@@ -75,7 +110,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return 0;
+	return restore(input, output);
 }
 
 //----------------------------------------------------------------

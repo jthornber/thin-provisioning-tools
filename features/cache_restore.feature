@@ -40,6 +40,10 @@ Feature: thin_restore
     No input file provided.
     """
 
+  Scenario: input file not found
+    When I run cache_restore with -i foo.xml -o metadata.bin
+    Then it should fail
+
   Scenario: missing output file
     When I run cache_restore with -i metadata.xml
     Then it should fail with:
@@ -47,9 +51,8 @@ Feature: thin_restore
     No output file provided.
     """
 
-  Scenario: dump/restore is a noop
-    Given valid cache metadata
-    When I dump cache
-    And I restore cache
-    And I dump cache
-    Then cache dumps 1 and 2 should be identical
+  Scenario: successfully restores a valid xml file
+    Given a small xml file
+    And an empty dev file
+    When I run cache_restore with -i metadata.xml -o metadata.bin
+    Then it should pass
