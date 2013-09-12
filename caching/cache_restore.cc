@@ -1,6 +1,7 @@
 #include "version.h"
 
 #include "caching/metadata.h"
+#include "caching/restore_emitter.h"
 #include "caching/xml_format.h"
 #include "persistent-data/file_utils.h"
 

@@ -38,6 +38,7 @@ SOURCE=\
 	\
 	caching/superblock.cc \
 	caching/metadata.cc \
+	caching/restore_emitter.cc \
 	caching/xml_format.cc \
 	\
 	persistent-data/checksum.cc \
@@ -236,6 +237,7 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/transaction_manager.cc \
 	caching/superblock.cc \
 	caching/metadata.cc \
+	caching/restore_emitter.cc \
 	caching/xml_format.cc
 
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
@@ -248,7 +250,7 @@ CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
 
 cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 cache_dump: $(CACHE_DUMP_OBJECTS) caching/cache_dump.o
 	@echo "    [LD]  $@"

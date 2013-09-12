@@ -8,6 +8,8 @@
 #include "persistent-data/transaction_manager.h"
 
 #include "caching/superblock.h"
+#include "caching/hint_array.h"
+#include "caching/mapping_array.h"
 
 //----------------------------------------------------------------
 
@@ -25,6 +27,13 @@ namespace caching {
 
 		metadata(block_manager<>::ptr bm, open_type ot);
 		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+
+		typedef persistent_data::transaction_manager tm;
+		tm::ptr tm_;
+		superblock_detail::superblock sb_;
+		checked_space_map::ptr metadata_sm_;
+		mapping_array::ptr mappings_;
+		//hint_array::ptr hints_;
 	};
 };
 
