@@ -13,11 +13,16 @@ namespace caching {
 		struct hint_traits {
 			typedef unsigned char byte;
 			typedef byte disk_type[WIDTH];
-			typedef std::string value_type;
+			typedef byte value_type[WIDTH];
 			typedef no_op_ref_counter<value_type> ref_counter;
 
-			static void unpack(disk_type const &disk, value_type &value);
-			static void pack(value_type const &value, disk_type &disk);
+			static void unpack(disk_type const &disk, value_type &value) {
+				::memcpy(value, disk, sizeof(value));
+			}
+
+			static void pack(value_type const &value, disk_type &disk) {
+				::memcpy(disk, value, sizeof(disk));
+			}
 		};
 
 		// FIXME: data visitor stuff
