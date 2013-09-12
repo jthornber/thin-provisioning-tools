@@ -37,6 +37,7 @@ SOURCE=\
 	base/error_state.cc \
 	\
 	caching/superblock.cc \
+	caching/mapping_array.cc \
 	caching/metadata.cc \
 	caching/restore_emitter.cc \
 	caching/xml_format.cc \
@@ -236,6 +237,7 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
 	caching/superblock.cc \
+	caching/mapping_array.cc \
 	caching/metadata.cc \
 	caching/restore_emitter.cc \
 	caching/xml_format.cc
