@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/emitter.h"
 #include "thin-provisioning/human_readable_format.h"
 #include "thin-provisioning/metadata.h"
@@ -45,6 +46,8 @@ namespace {
 			// The block size gets updated by the restorer.
 			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
 			emitter::ptr restorer = create_restore_emitter(md);
+
+			check_file_exists(backup_file);
 			ifstream in(backup_file.c_str(), ifstream::in);
 			parse_xml(in, restorer);
 
