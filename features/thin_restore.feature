@@ -34,6 +34,7 @@ Feature: thin_restore
     """
 
   Scenario: missing input file
+    Given the dev file metadata.bin
     When I run thin_restore with -o metadata.bin
     Then it should fail with:
     """
@@ -41,6 +42,7 @@ Feature: thin_restore
     """
 
   Scenario: input file not found
+    Given the dev file metadata.bin
     When I run thin_restore with -i foo.xml -o metadata.bin
     Then it should fail
 
