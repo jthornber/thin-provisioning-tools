@@ -18,16 +18,6 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
-	void check_file_exists(string const &file) {
-		struct stat info;
-		int r = ::stat(file.c_str(), &info);
-		if (r)
-			throw runtime_error("Couldn't stat file");
-
-		if (!S_ISREG(info.st_mode))
-			throw runtime_error("Not a regular file");
-	}
-
 	int restore(string const &xml_file, string const &dev) {
 		try {
 			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
