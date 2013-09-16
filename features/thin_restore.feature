@@ -40,6 +40,10 @@ Feature: thin_restore
     No input file provided.
     """
 
+  Scenario: input file not found
+    When I run thin_restore with -i foo.xml -o metadata.bin
+    Then it should fail
+
   Scenario: missing output file
     When I run thin_restore with -i metadata.xml
     Then it should fail with:
