@@ -26,7 +26,8 @@ namespace caching {
 		typedef boost::shared_ptr<metadata> ptr;
 
 		metadata(block_manager<>::ptr bm, open_type ot);
-		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+
+		void commit();
 
 		typedef persistent_data::transaction_manager tm;
 		tm::ptr tm_;

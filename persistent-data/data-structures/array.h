@@ -128,9 +128,9 @@ namespace persistent_data {
 
 		typedef boost::shared_ptr<array<ValueTraits> > ptr;
 		typedef typename ValueTraits::value_type value_type;
+		typedef typename ValueTraits::ref_counter ref_counter;
 
-		array(tm_ptr tm,
-		      typename ValueTraits::ref_counter rc)
+		array(tm_ptr tm, ref_counter rc)
 			: tm_(tm),
 			  entries_per_block_(rblock::calc_max_entries()),
 			  nr_entries_(0),
@@ -140,8 +140,7 @@ namespace persistent_data {
 			  validator_(new block_manager<>::noop_validator()) {
 		}
 
-		array(tm_ptr tm,
-		      typename ValueTraits::ref_counter rc,
+		array(tm_ptr tm, ref_counter rc,
 		      block_address root,
 		      unsigned nr_entries)
 			: tm_(tm),
