@@ -1,17 +1,20 @@
 *~
 *.o
+*.a
 *.gmo
 *_t
 *.d
 *.d.[0-9]*
 test.data
 cachegrind.*
+\#*\#
 
 thin_check
 thin_dump
 thin_restore
 thin_repair
 thin_rmap
+thin_metadata_size
 
 cache_check
 cache_dump
