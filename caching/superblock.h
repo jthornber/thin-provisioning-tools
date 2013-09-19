@@ -130,6 +130,13 @@ namespace caching {
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm);
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm,
 						      persistent_data::block_address location);
+
+	void write_superblock(persistent_data::block_manager<>::ptr bm,
+			      superblock_detail::superblock const &sb);
+	void write_superblock(persistent_data::block_manager<>::ptr bm,
+			      persistent_data::block_address location,
+			      superblock_detail::superblock const &sb);
+
 	void check_superblock(persistent_data::block_manager<>::ptr bm,
 			      superblock_detail::damage_visitor &visitor);
 }

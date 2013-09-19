@@ -41,6 +41,7 @@ Feature: cache_dump
     No input file provided.
     """  
 
+  @announce
   Scenario: dump/restore is a noop
     Given valid cache metadata
     When I cache_dump

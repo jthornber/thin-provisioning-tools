@@ -4,14 +4,24 @@
 #include <iostream>
 
 #include "version.h"
+#include "caching/metadata.h"
 #include "caching/xml_format.h"
+#include "persistent-data/file_utils.h"
 
 using namespace std;
 using namespace caching;
+using namespace caching::superblock_detail;
 
 //----------------------------------------------------------------
 
 namespace {
+	string to_string(unsigned char const *data) {
+		// FIXME: we're assuming the data is zero terminated here
+		return std::string(reinterpret_cast<char const *>(data));
+	}
+
+	//--------------------------------
+
 	string const STDOUT_PATH("-");
 
 	bool want_stdout(string const &output) {
@@ -19,16 +29,30 @@ namespace {
 	}
 
 	int dump_(string const &dev, ostream &out) {
+		block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
+		metadata::ptr md(new metadata(bm, metadata::OPEN));
 		emitter::ptr e = create_xml_emitter(out);
+
+		superblock const &sb = md->sb_;
+		e->begin_superblock(to_string(sb.uuid), sb.data_block_size, sb.cache_blocks, to_string(sb.policy_name));
+		e->end_superblock();
+
 		return 0;
 	}
 
 	int dump(string const &dev, string const &output) {
-		if (want_stdout(output)) {
-			ofstream out(output.c_str());
-			return dump_(dev, out);
-		} else
-			return dump_(dev, cout);
+		try {
+			if (want_stdout(output))
+				return dump_(dev, cout);
+			else {
+				ofstream out(output.c_str());
+				return dump_(dev, out);
+			}
+
+		} catch (std::exception &e) {
+			cerr << e.what() << endl;
+			return 1;
+		}
 	}
 
 	void usage(ostream &out, string const &cmd) {

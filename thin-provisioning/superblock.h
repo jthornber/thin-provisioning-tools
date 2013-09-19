@@ -122,6 +122,8 @@ namespace thin_provisioning {
 
 	persistent_data::block_manager<>::validator::ptr superblock_validator();
 
+	// FIXME: should we put init_superblock in here too?
+
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm);
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm, persistent_data::block_address location);
 	void check_superblock(persistent_data::block_manager<>::ptr bm,

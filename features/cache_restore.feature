@@ -53,6 +53,7 @@ Feature: thin_restore
     No output file provided.
     """
 
+  @announce
   Scenario: successfully restores a valid xml file
     Given a small xml file
     And an empty dev file

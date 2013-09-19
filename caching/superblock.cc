@@ -141,8 +141,7 @@ caching::superblock_validator()
 //--------------------------------
 
 superblock_detail::superblock
-caching::read_superblock(persistent_data::block_manager<>::ptr bm,
-			 persistent_data::block_address location)
+caching::read_superblock(block_manager<>::ptr bm, block_address location)
 {
 	using namespace superblock_detail;
 
@@ -158,6 +157,24 @@ superblock_detail::superblock
 caching::read_superblock(persistent_data::block_manager<>::ptr bm)
 {
 	return read_superblock(bm, SUPERBLOCK_LOCATION);
+}
+
+void
+caching::write_superblock(block_manager<>::ptr bm,
+			  block_address location,
+			  superblock_detail::superblock const &sb)
+{
+	using namespace superblock_detail;
+
+	block_manager<>::write_ref w = bm->write_lock(location, superblock_validator());
+	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(&w.data()));
+}
+
+void
+caching::write_superblock(block_manager<>::ptr bm,
+			  superblock_detail::superblock const &sb)
+{
+	write_superblock(bm, SUPERBLOCK_LOCATION, sb);
 }
 
 void

@@ -1,4 +1,5 @@
 #include "caching/metadata.h"
+#include "caching/superblock.h"
 #include "persistent-data/space-maps/core.h"
 
 using namespace caching;
@@ -27,18 +28,6 @@ namespace {
 				lhs->set_count(b, rhs->get_count(b));
 		}
 	}
-
-	void init_superblock(superblock &sb) {
-#if 0
-		sb.magic_ = SUPERBLOCK_MAGIC;
-		sb.version_ = 1;
-		sb.data_mapping_root_ = mappings_->get_root();
-		sb.device_details_root_ = details_->get_root();
-		sb.data_block_size_ = data_block_size;
-		sb.metadata_block_size_ = MD_BLOCK_SIZE;
-		sb.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
-#endif
-	}
 }
 
 //----------------------------------------------------------------
@@ -46,22 +35,16 @@ namespace {
 metadata::metadata(block_manager<>::ptr bm, open_type ot)
 {
 	switch (ot) {
-	case OPEN:
-		throw runtime_error("not implemented");
+	case CREATE:
+		create_metadata(bm);
 		break;
 
-	case CREATE:
-		tm_ = open_tm(bm);
-		space_map::ptr core = tm_->get_sm();
-		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
-		copy_space_maps(metadata_sm_, core);
-		tm_->set_sm(metadata_sm_);
+	case OPEN:
+		open_metadata(bm);
+		break;
 
-		mappings_ = mapping_array::ptr(new mapping_array(tm_, mapping_array::ref_counter()));
-//		hints_ = hint_array::ptr(new hint_array(tm_));
-
-		::memset(&sb_, 0, sizeof(sb_));
-		init_superblock(sb_);
+	default:
+		throw runtime_error("unhandled open_type");
 	}
 }
 
@@ -75,6 +58,44 @@ metadata::commit()
 	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
 	superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
 	superblock_traits::pack(sb_, *disk);
+}
+
+void
+metadata::init_superblock()
+{
+#if 0
+	sb_.magic_ = SUPERBLOCK_MAGIC;
+	sb_.version_ = 1;
+	sb_.data_mapping_root_ = mappings_->get_root();
+	sb_.device_details_root_ = details_->get_root();
+	sb_.data_block_size_ = data_block_size;
+	sb_.metadata_block_size_ = MD_BLOCK_SIZE;
+	sb_.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
+#endif
+}
+
+void
+metadata::create_metadata(block_manager<>::ptr bm)
+{
+	tm_ = open_tm(bm);
+
+	::memset(&sb_, 0, sizeof(sb_));
+	init_superblock();
+
+	space_map::ptr core = tm_->get_sm();
+	metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+	copy_space_maps(metadata_sm_, core);
+	tm_->set_sm(metadata_sm_);
+
+	mappings_ = mapping_array::ptr(new mapping_array(tm_, mapping_array::ref_counter()));
+//      hints_ = hint_array::ptr(new hint_array(tm_));
+}
+
+void
+metadata::open_metadata(block_manager<>::ptr bm)
+{
+	tm_ = open_tm(bm);
+	sb_ = read_superblock(tm_->get_bm());
 }
 
 //----------------------------------------------------------------

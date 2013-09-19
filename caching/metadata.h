@@ -35,6 +35,12 @@ namespace caching {
 		checked_space_map::ptr metadata_sm_;
 		mapping_array::ptr mappings_;
 		//hint_array::ptr hints_;
+
+	private:
+		void init_superblock();
+
+		void create_metadata(block_manager<>::ptr bm);
+		void open_metadata(block_manager<>::ptr bm);
 	};
 };
 

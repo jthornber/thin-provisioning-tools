@@ -1,14 +1,15 @@
 #include "caching/restore_emitter.h"
 #include "caching/superblock.h"
+#include "caching/mapping_array.h"
 
-using namespace std;
 using namespace caching;
+using namespace mapping_array_detail;
+using namespace std;
+using namespace superblock_detail;
 
 //----------------------------------------------------------------
 
 namespace {
-	using namespace superblock_detail;
-
 	class restorer : public emitter {
 	public:
 		restorer(metadata::ptr md)
@@ -54,6 +55,11 @@ namespace {
 			sb.read_misses = 0;
 			sb.write_hits = 0;
 			sb.write_misses = 0;
+
+			struct mapping unmapped_value;
+			unmapped_value.oblock_ = 0;
+			unmapped_value.flags_ = 0;
+			md_->mappings_->grow(nr_cache_blocks, unmapped_value);
 		}
 
 		virtual void end_superblock() {

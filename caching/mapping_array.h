@@ -7,6 +7,11 @@
 
 namespace caching {
 	namespace mapping_array_detail {
+		enum mapping_flags {
+			M_VALID = 1,
+			M_DIRTY = 2
+		};
+
 		struct mapping {
 			uint64_t oblock_;
 			uint32_t flags_;

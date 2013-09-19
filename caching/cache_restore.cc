@@ -20,7 +20,7 @@ using namespace std;
 namespace {
 	int restore(string const &xml_file, string const &dev) {
 		try {
-			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
+			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md);
 

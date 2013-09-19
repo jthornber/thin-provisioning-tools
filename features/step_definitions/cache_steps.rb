@@ -74,14 +74,14 @@ end
 
 Given(/^valid cache metadata$/) do
   in_current_dir do
-    system("cache_xml create --nr-cache-blocks uniform[1000-5000] --nr-mappings uniform[500-1000] > #{xml_file}")
+    system("cache_xml create --nr-cache-blocks uniform[1000..5000] --nr-mappings uniform[500..1000] > #{xml_file}")
   end
 
   run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
   run_simple("cache_restore -i #{xml_file} -o #{dev_file}")
 end
 
-Then(/^cache dumps (\d+) and (\d+) should be identical$/) do |arg1, arg2|
+Then(/^cache dumps (\d+) and (\d+) should be identical$/) do |d1, d2|
   run_simple("diff -ub #{dump_files[d1.to_i]} #{dump_files[d2.to_i]}", true)
 end
 
