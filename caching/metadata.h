@@ -41,6 +41,10 @@ namespace caching {
 
 		void create_metadata(block_manager<>::ptr bm);
 		void open_metadata(block_manager<>::ptr bm);
+
+		void commit_space_map();
+		void commit_mappings();
+		void commit_superblock();
 	};
 };
 

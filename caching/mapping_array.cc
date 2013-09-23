@@ -21,7 +21,7 @@ void
 mapping_traits::pack(value_type const &value, disk_type &disk)
 {
 	uint64_t packed = value.oblock_ << 16;
-	packed = packed || (value.flags_ & FLAGS_MASK);
+	packed = packed | (value.flags_ & FLAGS_MASK);
 	disk = base::to_disk<le64>(packed);
 }
 

@@ -4,12 +4,14 @@
 #include <iostream>
 
 #include "version.h"
+#include "caching/mapping_array.h"
 #include "caching/metadata.h"
 #include "caching/xml_format.h"
 #include "persistent-data/file_utils.h"
 
 using namespace std;
 using namespace caching;
+using namespace caching::mapping_array_detail;
 using namespace caching::superblock_detail;
 
 //----------------------------------------------------------------
@@ -35,6 +37,18 @@ namespace {
 
 		superblock const &sb = md->sb_;
 		e->begin_superblock(to_string(sb.uuid), sb.data_block_size, sb.cache_blocks, to_string(sb.policy_name));
+
+		e->begin_mappings();
+
+		for (unsigned cblock = 0; cblock < sb.cache_blocks; cblock++) {
+			mapping m = md->mappings_->get(cblock);
+
+			if (m.flags_ & M_VALID)
+				e->mapping(cblock, m.oblock_, m.flags_ & M_DIRTY);
+		}
+
+		e->end_mappings();
+
 		e->end_superblock();
 
 		return 0;

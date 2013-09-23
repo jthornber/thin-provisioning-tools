@@ -51,13 +51,9 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 void
 metadata::commit()
 {
-	metadata_sm_->commit();
-	metadata_sm_->copy_root(&sb_.metadata_space_map_root, sizeof(sb_.metadata_space_map_root));
-	sb_.mapping_root = mappings_->get_root();
-
-	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
-	superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
-	superblock_traits::pack(sb_, *disk);
+	commit_space_map();
+	commit_mappings();
+	commit_superblock();
 }
 
 void
@@ -96,6 +92,33 @@ metadata::open_metadata(block_manager<>::ptr bm)
 {
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm());
+
+	mappings_ = mapping_array::ptr(
+		new mapping_array(tm_,
+				  mapping_array::ref_counter(),
+				  sb_.mapping_root,
+				  sb_.cache_blocks));
+}
+
+void
+metadata::commit_space_map()
+{
+	metadata_sm_->commit();
+	metadata_sm_->copy_root(&sb_.metadata_space_map_root, sizeof(sb_.metadata_space_map_root));
+}
+
+void
+metadata::commit_mappings()
+{
+	sb_.mapping_root = mappings_->get_root();
+}
+
+void
+metadata::commit_superblock()
+{
+	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
+	superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
+	superblock_traits::pack(sb_, *disk);
 }
 
 //----------------------------------------------------------------

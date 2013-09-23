@@ -79,7 +79,10 @@ namespace {
 				     bool dirty) {
 			mapping_array_detail::mapping m;
 			m.oblock_ = oblock;
-			m.flags_ = 0;
+			m.flags_ = M_VALID;
+
+			if (dirty)
+				m.flags_ = m.flags_ | M_DIRTY;
 
 			md_->mappings_->set(cblock, m);
 		}
