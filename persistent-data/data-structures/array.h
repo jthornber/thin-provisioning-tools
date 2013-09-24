@@ -67,8 +67,15 @@ namespace persistent_data {
 		};
 	}
 
+	class array_base {
+	public:
+		virtual ~array_base() {}
+		virtual void set_root(block_address root) = 0;
+		virtual block_address get_root() const = 0;
+	};
+
 	template <typename ValueTraits>
-	class array {
+	class array : public array_base {
 	public:
 		class block_ref_counter : public ref_counter<uint64_t> {
 		public:

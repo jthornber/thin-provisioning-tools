@@ -34,7 +34,7 @@ namespace caching {
 		superblock_detail::superblock sb_;
 		checked_space_map::ptr metadata_sm_;
 		mapping_array::ptr mappings_;
-		//hint_array::ptr hints_;
+		hint_array::ptr hints_;
 
 	private:
 		void init_superblock();
@@ -44,6 +44,7 @@ namespace caching {
 
 		void commit_space_map();
 		void commit_mappings();
+		void commit_hints();
 		void commit_superblock();
 	};
 };

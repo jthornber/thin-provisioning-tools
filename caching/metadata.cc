@@ -53,6 +53,7 @@ metadata::commit()
 {
 	commit_space_map();
 	commit_mappings();
+	commit_hints();
 	commit_superblock();
 }
 
@@ -111,6 +112,12 @@ void
 metadata::commit_mappings()
 {
 	sb_.mapping_root = mappings_->get_root();
+}
+
+void
+metadata::commit_hints()
+{
+	sb_.hint_root = hints_->get_root();
 }
 
 void
