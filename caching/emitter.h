@@ -1,10 +1,10 @@
 #ifndef CACHE_EMITTER_H
 #define CACHE_EMITTER_H
 
-#include <boost/shared_ptr.hpp>
-#include <string>
-
 #include "persistent-data/block.h"
+
+#include <boost/shared_ptr.hpp>
+#include <vector>
 
 //----------------------------------------------------------------
 
@@ -35,7 +35,7 @@ namespace caching {
 		virtual void end_hints() = 0;
 
 		virtual void hint(pd::block_address cblock,
-				  std::string const &data) = 0;
+				  std::vector<unsigned char> const &data) = 0;
 	};
 }
 

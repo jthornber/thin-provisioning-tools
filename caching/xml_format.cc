@@ -12,12 +12,12 @@ using namespace std;
 
 namespace {
 	// base64 encoding?
-	string encode(string const &data) {
-		return data;
+	string encode(vector<unsigned char> const &data) {
+		return "";
 	}
 
-	string decode(string const &data) {
-		return data;
+	vector<unsigned char> decode(string const &data) {
+		return vector<unsigned char>();
 	}
 
 	//--------------------------------
@@ -84,7 +84,7 @@ namespace {
 		}
 
 		virtual void hint(block_address cblock,
-				  std::string const &data) {
+				  vector<unsigned char> const &data) {
 			out_ << "<hint"
 			     << " cache_block=\"" << cblock << "\""
 			     << " data=\"" << encode(data) << "\""

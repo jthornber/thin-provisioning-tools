@@ -88,13 +88,16 @@ namespace {
 		}
 
 		virtual void begin_hints() {
+			// noop
 		}
 
 		virtual void end_hints() {
+			// noop
 		}
 
 		virtual void hint(pd::block_address cblock,
-				  std::string const &data) {
+				  vector<unsigned char> const &data) {
+
 		}
 
 	private:
