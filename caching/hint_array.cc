@@ -109,6 +109,29 @@ namespace {
 #undef xx
 		}
 	}
+
+	//--------------------------------
+
+	template <uint32_t WIDTH>
+	void grow(shared_ptr<array_base> base, unsigned new_nr_entries, vector<unsigned char> const &value) {
+		typedef hint_traits<WIDTH> traits;
+		typedef array<traits> ha;
+
+		shared_ptr<ha> a = dynamic_pointer_cast<ha>(base);
+		if (!a)
+			throw runtime_error("internal error: couldn't cast hint array");
+		a->grow(new_nr_entries, value);
+	}
+
+	void grow_(uint32_t width, shared_ptr<array_base> base,
+		   unsigned new_nr_entries, vector<unsigned char> const &value)
+	{
+		switch (width) {
+#define xx(n) case n: return grow<n>(base, new_nr_entries, value)
+		all_widths
+#undef xx
+		}
+	}
 }
 
 //----------------------------------------------------------------
@@ -142,6 +165,12 @@ void
 hint_array::set_hint(unsigned index, vector<unsigned char> const &data)
 {
 	set_hint_(width_, impl_, index, data);
+}
+
+void
+hint_array::grow(unsigned new_nr_entries, vector<unsigned char> const &value)
+{
+	grow_(width_, impl_, new_nr_entries, value);
 }
 
 //----------------------------------------------------------------

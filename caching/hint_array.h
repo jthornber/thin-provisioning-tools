@@ -47,6 +47,8 @@ namespace caching {
 		void get_hint(unsigned index, vector<unsigned char> &data) const;
 		void set_hint(unsigned index, vector<unsigned char> const &data);
 
+		void grow(unsigned new_nr_entries, vector<unsigned char> const &value);
+
 	private:
 		unsigned width_;
 		boost::shared_ptr<persistent_data::array_base> impl_;
