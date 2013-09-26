@@ -7,25 +7,26 @@ Feature: cache_dump
     When I run cache_dump with --version
     Then it should pass with version
 
+  @announce
   Scenario: print help (-h)
     When I run cache_dump with -h
     Then it should pass with:
-
     """
     Usage: cache_dump [options] {device|file}
     Options:
       {-h|--help}
+      {-o <xml file>}
       {-V|--version}
     """
 
   Scenario: print help (--help)
     When I run cache_dump with -h
     Then it should pass with:
-
     """
     Usage: cache_dump [options] {device|file}
     Options:
       {-h|--help}
+      {-o <xml file>}
       {-V|--version}
     """
 
@@ -41,7 +42,6 @@ Feature: cache_dump
     No input file provided.
     """  
 
-  @announce
   Scenario: dump/restore is a noop
     Given valid cache metadata
     When I cache_dump
