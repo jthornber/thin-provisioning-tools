@@ -58,6 +58,14 @@ metadata::commit()
 }
 
 void
+metadata::setup_hint_array(size_t width)
+{
+	if (width > 0)
+		hints_ = hint_array::ptr(
+			new hint_array(tm_, width));
+}
+
+void
 metadata::init_superblock()
 {
 #if 0
@@ -85,7 +93,9 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	tm_->set_sm(metadata_sm_);
 
 	mappings_ = mapping_array::ptr(new mapping_array(tm_, mapping_array::ref_counter()));
-//      hints_ = hint_array::ptr(new hint_array(tm_));
+
+	// We can't instantiate the hint array yet, since we don't know the
+	// hint width.
 }
 
 void

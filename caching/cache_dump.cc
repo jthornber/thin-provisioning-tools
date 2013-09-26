@@ -36,7 +36,9 @@ namespace {
 		emitter::ptr e = create_xml_emitter(out);
 
 		superblock const &sb = md->sb_;
-		e->begin_superblock(to_string(sb.uuid), sb.data_block_size, sb.cache_blocks, to_string(sb.policy_name));
+		e->begin_superblock(to_string(sb.uuid), sb.data_block_size,
+				    sb.cache_blocks, to_string(sb.policy_name),
+				    sb.policy_hint_size);
 
 		e->begin_mappings();
 

@@ -28,6 +28,8 @@ namespace caching {
 		metadata(block_manager<>::ptr bm, open_type ot);
 
 		void commit();
+		void setup_hint_array(size_t width);
+
 
 		typedef persistent_data::transaction_manager tm;
 		tm::ptr tm_;

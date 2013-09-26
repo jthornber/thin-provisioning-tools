@@ -36,6 +36,8 @@ namespace {
 
 			all_widths
 #undef xx
+		default:
+			throw runtime_error("invalid hint width");
 		}
 
 		// never get here
@@ -59,6 +61,8 @@ namespace {
 #define xx(n)	case n:	return mk_array<n>(tm, root, nr_entries)
 			all_widths
 #undef xx
+		default:
+			throw runtime_error("invalid hint width");
 		}
 
 		// never get here

@@ -23,7 +23,8 @@ namespace {
 		virtual void begin_superblock(std::string const &uuid,
 					      pd::block_address block_size,
 					      pd::block_address nr_cache_blocks,
-					      std::string const &policy) {
+					      std::string const &policy,
+					      size_t hint_width) {
 
 			superblock &sb = md_->sb_;
 
@@ -31,11 +32,13 @@ namespace {
 			memset(sb.uuid, 0, sizeof(sb.uuid));
 			sb.magic = caching::superblock_detail::SUPERBLOCK_MAGIC;
 			sb.version = 0; // FIXME: fix
-			// strncpy(sb.policy_name, policy.c_str(), sizeof(sb.policy_name));
+			strncpy((char *) sb.policy_name, policy.c_str(), sizeof(sb.policy_name));
 			memset(sb.policy_version, 0, sizeof(sb.policy_version));
-			sb.policy_hint_size = 0; // FIXME: fix
+			sb.policy_hint_size = hint_width;
+			md_->setup_hint_array(hint_width);
 
-			memset(sb.metadata_space_map_root, 0, sizeof(sb.metadata_space_map_root));
+			memset(sb.metadata_space_map_root, 0,
+			       sizeof(sb.metadata_space_map_root));
 			sb.mapping_root = 0;
 			sb.hint_root = 0;
 
@@ -60,6 +63,9 @@ namespace {
 			unmapped_value.oblock_ = 0;
 			unmapped_value.flags_ = 0;
 			md_->mappings_->grow(nr_cache_blocks, unmapped_value);
+
+			vector<unsigned char> hint_value(hint_width, '\0');
+			md_->hints_->grow(nr_cache_blocks, hint_value);
 		}
 
 		virtual void end_superblock() {

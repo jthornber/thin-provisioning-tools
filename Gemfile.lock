@@ -21,9 +21,9 @@ GEM
       multi_json (~> 1.3)
     multi_json (1.8.0)
     multi_test (0.0.2)
-    rspec-expectations (2.14.2)
+    rspec-expectations (2.14.3)
       diff-lcs (>= 1.1.3, < 2.0)
-    thinp_xml (0.0.10)
+    thinp_xml (0.0.12)
       ejt_command_line (= 0.0.2)
 
 PLATFORMS

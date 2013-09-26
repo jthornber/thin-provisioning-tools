@@ -20,7 +20,8 @@ namespace caching {
 		virtual void begin_superblock(std::string const &uuid,
 					      pd::block_address block_size,
 					      pd::block_address nr_cache_blocks,
-					      std::string const &policy) = 0;
+					      std::string const &policy,
+					      size_t hint_width) = 0;
 
 		virtual void end_superblock() = 0;
 

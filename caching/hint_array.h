@@ -19,12 +19,12 @@ namespace caching {
 			// FIXME: slow copying for now
 			static void unpack(disk_type const &disk, value_type &value) {
 				for (unsigned byte = 0; byte < WIDTH; byte++)
-					value[byte] = disk[byte];
+					value.at(byte) = disk[byte];
 			}
 
 			static void pack(value_type const &value, disk_type &disk) {
 				for (unsigned byte = 0; byte < WIDTH; byte++)
-					disk[byte] = value[byte];
+					disk[byte] = value.at(byte);
 			}
 		};
 

@@ -33,12 +33,14 @@ namespace {
 		void begin_superblock(std::string const &uuid,
 				      block_address block_size,
 				      block_address nr_cache_blocks,
-				      std::string const &policy) {
+				      std::string const &policy,
+				      size_t hint_width) {
 			indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " block_size=\"" << block_size << "\""
 			     << " nr_cache_blocks=\"" << nr_cache_blocks << "\""
-			     << " policy=\"" << policy << "\">" << endl;
+			     << " policy=\"" << policy << "\""
+			     << " hint_width=\"" << hint_width << "\">" << endl;
 			inc();
 		}
 
@@ -164,7 +166,8 @@ namespace {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "block_size"),
 				    get_attr<uint64_t>(attr, "nr_cache_blocks"),
-				    get_attr<string>(attr, "policy"));
+				    get_attr<string>(attr, "policy"),
+				    get_attr<size_t>(attr, "hint_width"));
 	}
 
 	bool to_bool(string const &str) {
