@@ -26,10 +26,37 @@ namespace caching {
 			static void pack(value_type const &value, disk_type &disk);
 		};
 
-		// FIXME: damage visitor stuff
+		class damage_visitor;
+
+		struct damage {
+			virtual ~damage() {}
+			virtual void visit(damage_visitor &v) const = 0;
+		};
+
+		struct missing_mappings : public damage {
+			missing_mappings(run<uint32_t> const &keys, std::string const &desc);
+			virtual void visit(damage_visitor &v) const;
+
+			run<uint32_t> keys_;
+			std::string desc_;
+		};
+
+		class damage_visitor {
+		public:
+			virtual ~damage_visitor() {}
+
+			virtual void visit(mapping_array_detail::damage const &d) {
+				d.visit(*this);
+			}
+
+			virtual void visit(missing_mappings const &d) = 0;
+		};
 	}
 
 	typedef persistent_data::array<mapping_array_detail::mapping_traits> mapping_array;
+
+	void check_mapping_array(mapping_array const &array,
+				 mapping_array_detail::damage_visitor &visitor);
 }
 
 //----------------------------------------------------------------
