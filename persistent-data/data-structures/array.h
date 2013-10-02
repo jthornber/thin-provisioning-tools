@@ -30,7 +30,6 @@ namespace persistent_data {
 	namespace array_detail {
 		uint32_t const ARRAY_CSUM_XOR = 595846735;
 
-		// FIXME: this isn't used!
 		struct array_block_validator : public block_manager<>::validator {
 			virtual void check(buffer<> const &b, block_address location) const {
 				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(&b);
