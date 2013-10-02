@@ -216,7 +216,7 @@ namespace persistent_data {
 			  block_rc_(tm->get_sm(), *this),
 			  block_tree_(tm, block_rc_),
 			  rc_(rc),
-			  validator_(new block_manager<>::noop_validator()) {
+			  validator_(new array_detail::array_block_validator) {
 		}
 
 		array(tm_ptr tm, ref_counter rc,
@@ -228,7 +228,7 @@ namespace persistent_data {
 			  block_rc_(tm->get_sm(), *this),
 			  block_tree_(tm, root, block_rc_),
 			  rc_(rc),
-			  validator_(new block_manager<>::noop_validator()) {
+			  validator_(new array_detail::array_block_validator) {
 		}
 
 		unsigned get_nr_entries() const {
