@@ -226,9 +226,11 @@ thin_metadata_size: thin-provisioning/thin_metadata_size.o
 # Cache tools
 
 CACHE_CHECK_SOURCE=\
+	base/error_state.cc \
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
