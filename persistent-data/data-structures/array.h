@@ -21,11 +21,10 @@
 
 #include "persistent-data/math_utils.h"
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/data-structures/array_block.h"
 
 //----------------------------------------------------------------
-
-// FIXME: we need an array checker
 
 namespace persistent_data {
 	namespace array_detail {
@@ -65,6 +64,25 @@ namespace persistent_data {
 			unsigned nr_entries_in_last_block;
 			unsigned nr_total_blocks;
 		};
+
+		struct damage {
+			typedef boost::shared_ptr<damage> ptr;
+
+			damage(run<uint32_t> lost_keys,
+			       std::string const &desc)
+				: lost_keys_(lost_keys),
+				  desc_(desc) {
+			}
+
+			run<uint32_t> lost_keys_;
+			std::string desc_;
+		};
+
+		inline std::ostream &operator <<(std::ostream &out, damage const &d) {
+			out << "array damage[lost_keys = " << d.lost_keys_
+			    << ", \"" << d.desc_ << "\"]";
+			return out;
+		}
 	}
 
 	class array_base {
@@ -123,6 +141,60 @@ namespace persistent_data {
 			static void pack(value_type const &value, disk_type &disk) {
 				disk = base::to_disk<base::le64>(value);
 			}
+		};
+
+		template <typename ValueVisitor>
+		struct block_value_visitor {
+			block_value_visitor(array<ValueTraits> const &a, ValueVisitor &vv)
+				: a_(a),
+				  vv_(vv) {
+			}
+
+			void visit(btree_path const &p,
+				   typename block_traits::value_type const &v) {
+				a_.visit_value(vv_, p, v);
+			}
+
+		private:
+			array<ValueTraits> const &a_;
+			ValueVisitor &vv_;
+		};
+
+		template <typename ValueVisitor>
+		void visit_value(ValueVisitor &vv,
+				 btree_path const &p,
+				 typename block_traits::value_type const &v) const {
+			rblock rb(tm_->read_lock(v, validator_), rc_);
+
+			for (uint32_t i = 0; i < rb.nr_entries(); i++)
+				vv.visit(p[0] * rb.max_entries() + i, rb.get(i));
+		}
+
+		template <typename DamageVisitor>
+		struct block_damage_visitor {
+			block_damage_visitor(DamageVisitor &dv, unsigned entries_per_block)
+				: dv_(dv),
+				  entries_per_block_(entries_per_block) {
+			}
+
+			void visit(btree_path const &path, btree_detail::damage const &d) {
+				dv_.visit(array_detail::damage(convert_run(d.lost_keys_), d.desc_));
+			}
+
+		private:
+			run<uint32_t>::maybe convert_maybe(run<uint64_t>::maybe const &v) const {
+				if (v)
+					return run<uint32_t>::maybe(*v * entries_per_block_);
+
+				return run<uint32_t>::maybe();
+			}
+
+			run<uint32_t> convert_run(run<uint64_t> const &v) const {
+				return run<uint32_t>(convert_maybe(v.begin_), convert_maybe(v.end_));
+			}
+
+			DamageVisitor &dv_;
+			unsigned entries_per_block_;
 		};
 
 		typedef typename persistent_data::transaction_manager::ptr tm_ptr;
@@ -189,6 +261,15 @@ namespace persistent_data {
 		void set(unsigned index, value_type const &value) {
 			wblock b = shadow_ablock(index / entries_per_block_);
 			b.set(index % entries_per_block_, value);
+		}
+
+		template <typename ValueVisitor, typename DamageVisitor>
+		void visit_values(ValueVisitor &value_visitor,
+				  DamageVisitor &damage_visitor) const {
+			block_counter counter;
+			block_value_visitor<ValueVisitor> bvisitor(*this, value_visitor);
+			block_damage_visitor<DamageVisitor> dvisitor(damage_visitor, entries_per_block_);
+			btree_visit_values(block_tree_, counter, bvisitor, dvisitor);
 		}
 
 	private:
