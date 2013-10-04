@@ -175,6 +175,7 @@ namespace {
 	}
 
 	int check(string const &path, flags const &fs) {
+		error_state err;
 		struct stat info = guarded_stat(path);
 
 		if (!S_ISREG(info.st_mode) && !S_ISBLK(info.st_mode)) {
@@ -185,9 +186,7 @@ namespace {
 
 		try {
 			block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
-			//metadata::ptr md(new metadata(bm, metadata::OPEN));
-
-			error_state err = metadata_check(bm, fs);
+			err = metadata_check(bm, fs);
 #if 0
 			if (maybe_errors) {
 				if (!fs.quiet_)
@@ -202,7 +201,7 @@ namespace {
 			return 1;
 		}
 
-		return 0;
+		return err == NO_ERROR ? 0 : 1;
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -256,15 +255,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	try {
-		check(argv[optind], fs);
-
-	} catch (std::exception const &e) {
-		cerr << e.what() << endl;
-		return 1;
-	}
-
-	return 0;
+	return check(argv[optind], fs);
 }
 
 //----------------------------------------------------------------

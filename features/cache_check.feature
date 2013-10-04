@@ -56,25 +56,18 @@ Feature: cache_check
 
   Scenario: Metadata file exists, but can't be opened
     Given input without read permissions
-
     When I run `cache_check input`
-
     Then it should fail
     And the stderr should contain:
     """
-    input: Permission denied
+    Permission denied
     """
 
   Scenario: Metadata file full of zeroes
     Given input file
     And block 1 is zeroed
-
     When I run `cache_check input`
-
-    And the stderr should contain:
-    """
-    input: No superblock found
-    """
+    Then it should fail
 
   Scenario: A valid metadata area passes
     Given metadata containing:
@@ -82,5 +75,5 @@ Feature: cache_check
     """
 
     When I run cache_check
-
     Then it should pass
+
