@@ -38,8 +38,8 @@ namespace {
 
 	int const DEFAULT_MODE = 0666;
 
-	 // FIXME: these will slow it down until we start doing asyn io.  O_DIRECT | O_SYNC;
-	int const OPEN_FLAGS = 0;
+	 // FIXME: these will slow it down until we start doing async io.
+	int const OPEN_FLAGS = O_DIRECT | O_SYNC;
 
 	// FIXME: introduce a new exception for this, or at least lift this
 	// to exception.h
