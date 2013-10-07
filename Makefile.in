@@ -220,7 +220,7 @@ thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 
 thin_metadata_size: thin-provisioning/thin_metadata_size.o
 	@echo "    [LD]  $@"
-	$(V) $(CC) $(CFLAGS) -o $@ $+ -lm
+	$(V) $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $+ -lm
 
 #----------------------------------------------------------------
 # Cache tools
