@@ -58,17 +58,27 @@ namespace {
 		error_state err_;
 	};
 
-	class superblock_reporter : public superblock_detail::damage_visitor, reporter_base {
+	class superblock_reporter : public superblock_damage::damage_visitor, reporter_base {
 	public:
 		superblock_reporter(nested_output &o)
 		: reporter_base(o) {
 		}
 
-		virtual void visit(superblock_detail::superblock_corruption const &d) {
+		virtual void visit(superblock_damage::superblock_corrupt const &d) {
 			out() << "superblock is corrupt" << end_message();
 			{
 				nested_output::nest _ = push();
-				out() << d.desc_ << end_message();
+				out() << d.get_desc() << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		virtual void visit(superblock_damage::superblock_invalid const &d) {
+			out() << "superblock is invalid" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
 			}
 
 			mplus_error(FATAL);
@@ -95,7 +105,7 @@ namespace {
 
 	transaction_manager::ptr open_tm(block_manager<>::ptr bm) {
 		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
+		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
@@ -146,13 +156,13 @@ namespace {
 		out << "examining superblock" << end_message();
 		{
 			nested_output::nest _ = out.push();
-			check_superblock(bm, sb_rep);
+			check_superblock(bm, bm->get_nr_blocks(), sb_rep);
 		}
 
 		if (sb_rep.get_error() == FATAL)
 			return FATAL;
 
-		superblock_detail::superblock sb = read_superblock(bm);
+		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
 
 		if (fs.check_mappings_) {

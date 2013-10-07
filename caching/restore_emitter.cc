@@ -5,7 +5,7 @@
 using namespace caching;
 using namespace mapping_array_detail;
 using namespace std;
-using namespace superblock_detail;
+using namespace superblock_damage;
 
 //----------------------------------------------------------------
 
@@ -27,37 +27,13 @@ namespace {
 					      size_t hint_width) {
 
 			superblock &sb = md_->sb_;
-
-			sb.flags = 0;
-			memset(sb.uuid, 0, sizeof(sb.uuid));
-			sb.magic = caching::superblock_detail::SUPERBLOCK_MAGIC;
-			sb.version = 0; // FIXME: fix
 			strncpy((char *) sb.policy_name, policy.c_str(), sizeof(sb.policy_name));
-			memset(sb.policy_version, 0, sizeof(sb.policy_version));
+			memset(sb.policy_version, 0, sizeof(sb.policy_version)); // FIXME: should come from xml
 			sb.policy_hint_size = hint_width;
 			md_->setup_hint_array(hint_width);
 
-			memset(sb.metadata_space_map_root, 0,
-			       sizeof(sb.metadata_space_map_root));
-			sb.mapping_root = 0;
-			sb.hint_root = 0;
-
-			sb.discard_root = 0;
-			sb.discard_block_size = 0;
-			sb.discard_nr_blocks = 0;
-
 			sb.data_block_size = block_size;
-			sb.metadata_block_size = 0;
 			sb.cache_blocks = nr_cache_blocks;
-
-			sb.compat_flags = 0;
-			sb.compat_ro_flags = 0;
-			sb.incompat_flags = 0;
-
-			sb.read_hits = 0;
-			sb.read_misses = 0;
-			sb.write_hits = 0;
-			sb.write_misses = 0;
 
 			struct mapping unmapped_value;
 			unmapped_value.oblock_ = 0;

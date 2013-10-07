@@ -7,8 +7,6 @@ using namespace caching;
 //----------------------------------------------------------------
 
 namespace {
-	using namespace superblock_detail;
-
 	unsigned const METADATA_CACHE_SIZE = 1024;
 
 	// FIXME: duplication
@@ -133,9 +131,7 @@ metadata::commit_hints()
 void
 metadata::commit_superblock()
 {
-	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
-	superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data().raw());
-	superblock_traits::pack(sb_, *disk);
+	write_superblock(tm_->get_bm(), sb_);
 }
 
 //----------------------------------------------------------------

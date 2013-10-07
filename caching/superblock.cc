@@ -1,7 +1,92 @@
 #include "caching/superblock.h"
 
 using namespace caching;
-using namespace superblock_detail;
+using namespace superblock_damage;
+
+//----------------------------------------------------------------
+
+namespace {
+	using namespace base;
+
+	struct superblock_disk {
+		le32 csum;
+		le32 flags;
+		le64 blocknr;
+
+		__u8 uuid[16];
+		le64 magic;
+		le32 version;
+
+		__u8 policy_name[CACHE_POLICY_NAME_SIZE];
+		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
+		le32 policy_hint_size;
+
+		__u8 metadata_space_map_root[SPACE_MAP_ROOT_SIZE];
+
+		le64 mapping_root;
+		le64 hint_root;
+
+		le64 discard_root;
+		le64 discard_block_size;
+		le64 discard_nr_blocks;
+
+		le32 data_block_size; /* in 512-byte sectors */
+		le32 metadata_block_size; /* in 512-byte sectors */
+		le32 cache_blocks;
+
+		le32 compat_flags;
+		le32 compat_ro_flags;
+		le32 incompat_flags;
+
+		le32 read_hits;
+		le32 read_misses;
+		le32 write_hits;
+		le32 write_misses;
+	} __attribute__ ((packed));
+
+	struct superblock_traits {
+		typedef superblock_disk disk_type;
+		typedef superblock value_type;
+
+		static void unpack(superblock_disk const &disk, superblock &value);
+		static void pack(superblock const &value, superblock_disk &disk);
+	};
+
+	uint32_t const SUPERBLOCK_MAGIC = 06142003;
+	uint32_t const VERSION_BEGIN = 1;
+	uint32_t const VERSION_END = 2;
+}
+
+//----------------------------------------------------------------
+
+superblock::superblock()
+	: csum(0),
+	  flags(0),
+	  blocknr(SUPERBLOCK_LOCATION),
+	  magic(SUPERBLOCK_MAGIC),
+	  version(VERSION_BEGIN),
+	  policy_hint_size(0),
+	  mapping_root(0),
+	  hint_root(0),
+	  discard_root(0),
+	  discard_block_size(0),
+	  discard_nr_blocks(0),
+	  data_block_size(0),
+	  metadata_block_size(8),
+	  cache_blocks(0),
+	  compat_flags(0),
+	  compat_ro_flags(0),
+	  incompat_flags(0),
+	  read_hits(0),
+	  read_misses(0),
+	  write_hits(0),
+	  write_misses(0)
+{
+	::memset(uuid, 0, sizeof(uuid));
+	::memset(policy_name, 0, sizeof(policy_name));
+	::memset(policy_version, 0, sizeof(policy_version));
+	::memset(metadata_space_map_root, 0, sizeof(metadata_space_map_root));
+}
 
 //----------------------------------------------------------------
 
@@ -94,22 +179,33 @@ superblock_traits::pack(superblock const &core, superblock_disk &disk)
 
 //--------------------------------
 
-superblock_corruption::superblock_corruption(std::string const &desc)
-	: desc_(desc)
+superblock_corrupt::superblock_corrupt(std::string const &desc)
+	: damage(desc)
 {
 }
 
 void
-superblock_corruption::visit(damage_visitor &v) const
+superblock_corrupt::visit(damage_visitor &v) const
+{
+	v.visit(*this);
+}
+
+superblock_invalid::superblock_invalid(std::string const &desc)
+	: damage(desc)
+{
+}
+
+void
+superblock_invalid::visit(damage_visitor &v) const
 {
 	v.visit(*this);
 }
 
 //--------------------------------
 
-namespace {
+// anonymous namespace doesn't work for some reason
+namespace validator {
 	using namespace persistent_data;
-	using namespace superblock_detail;
 
         uint32_t const VERSION = 1;
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
@@ -131,65 +227,122 @@ namespace {
 			sbd->csum = to_disk<base::le32>(sum.get_sum());
 		}
 	};
-}
 
-persistent_data::block_manager<>::validator::ptr
-caching::superblock_validator()
-{
-	return block_manager<>::validator::ptr(new sb_validator);
+	block_manager<>::validator::ptr  mk_v() {
+		return block_manager<>::validator::ptr(new sb_validator);
+	}
 }
 
 //--------------------------------
 
-superblock_detail::superblock
+superblock
 caching::read_superblock(block_manager<>::ptr bm, block_address location)
 {
-	using namespace superblock_detail;
-
 	superblock sb;
-	block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
+	block_manager<>::read_ref r = bm->read_lock(location, validator::mk_v());
 	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 	superblock_traits::unpack(*sbd, sb);
 
 	return sb;
 }
 
-superblock_detail::superblock
-caching::read_superblock(persistent_data::block_manager<>::ptr bm)
+void
+caching::write_superblock(block_manager<>::ptr bm, superblock const &sb, block_address location)
 {
-	return read_superblock(bm, SUPERBLOCK_LOCATION);
+	block_manager<>::write_ref w = bm->superblock_zero(location, validator::mk_v());
+	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data().raw()));
 }
 
 void
-caching::write_superblock(block_manager<>::ptr bm,
-			  block_address location,
-			  superblock_detail::superblock const &sb)
+caching::check_superblock(superblock const &sb,
+			  block_address nr_metadata_blocks,
+			  damage_visitor &visitor)
 {
-	using namespace superblock_detail;
+	if (sb.flags != 0) {
+		ostringstream msg;
+		msg << "invalid flags: " << hex << sb.flags;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
 
-	block_manager<>::write_ref w = bm->write_lock(location, superblock_validator());
-	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(&w.data()));
-}
+	if (sb.blocknr >= nr_metadata_blocks) {
+		ostringstream msg;
+		msg << "blocknr out of bounds: " << sb.blocknr << " >= " << nr_metadata_blocks;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
 
-void
-caching::write_superblock(block_manager<>::ptr bm,
-			  superblock_detail::superblock const &sb)
-{
-	write_superblock(bm, SUPERBLOCK_LOCATION, sb);
+	if (sb.magic != SUPERBLOCK_MAGIC) {
+		ostringstream msg;
+		msg << "magic in incorrect: " << sb.magic;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.version >= VERSION_END) {
+		ostringstream msg;
+		msg << "version incorrect: " << sb.version;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.version < VERSION_BEGIN) {
+		ostringstream msg;
+		msg << "version incorrect: " << sb.version;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (::strnlen((char const *) sb.policy_name, CACHE_POLICY_NAME_SIZE) == CACHE_POLICY_NAME_SIZE) {
+		visitor.visit(superblock_invalid("policy name is not null terminated"));
+	}
+
+	if (sb.policy_hint_size % 4 || sb.policy_hint_size > 128) {
+		ostringstream msg;
+		msg << "policy hint size invalid: " << sb.policy_hint_size;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.metadata_block_size != 8) {
+		ostringstream msg;
+		msg << "metadata block size incorrect: " << sb.metadata_block_size;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.compat_flags != 0) {
+		ostringstream msg;
+		msg << "compat_flags invalid (can only be 0): " << sb.compat_flags;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.compat_ro_flags != 0) {
+		ostringstream msg;
+		msg << "compat_ro_flags invalid (can only be 0): " << sb.compat_ro_flags;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.incompat_flags != 0) {
+		ostringstream msg;
+		msg << "incompat_flags invalid (can only be 0): " << sb.incompat_flags;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
 }
 
 void
 caching::check_superblock(persistent_data::block_manager<>::ptr bm,
-			  superblock_detail::damage_visitor &visitor)
+			  block_address nr_metadata_blocks,
+			  damage_visitor &visitor)
 {
-	using namespace superblock_detail;
+	superblock sb;
 
 	try {
-		bm->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+		sb = read_superblock(bm, SUPERBLOCK_LOCATION);
 
 	} catch (std::exception const &e) {
-		visitor.visit(superblock_corruption(e.what()));
+
+		// FIXME: what if it fails due to a zero length file?  Not
+		// really a corruption, so much as an io error.  Should we
+		// separate these?
+
+		visitor.visit(superblock_corrupt(e.what()));
 	}
+
+	check_superblock(sb, nr_metadata_blocks, visitor);
 }
 
 //----------------------------------------------------------------

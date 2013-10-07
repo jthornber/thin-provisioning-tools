@@ -33,7 +33,7 @@ namespace caching {
 
 		typedef persistent_data::transaction_manager tm;
 		tm::ptr tm_;
-		superblock_detail::superblock sb_;
+		superblock sb_;
 		checked_space_map::ptr metadata_sm_;
 		mapping_array::ptr mappings_;
 		hint_array::ptr hints_;
