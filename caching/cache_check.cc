@@ -237,13 +237,6 @@ namespace {
 		try {
 			block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
 			err = metadata_check(bm, fs);
-#if 0
-			if (maybe_errors) {
-				if (!fs.quiet_)
-					cerr << error_selector(*maybe_errors, 3);
-				return 1;
-			}
-#endif
 
 		} catch (std::exception &e) {
 			if (!fs.quiet_)
