@@ -32,6 +32,48 @@ namespace {
 
 	//--------------------------------
 
+	class mapping_emitter : public mapping_visitor {
+	public:
+		mapping_emitter(emitter::ptr e)
+			: e_(e) {
+		}
+
+		void visit(block_address cblock, mapping const &m) {
+			if (m.flags_ & M_VALID)
+				e_->mapping(cblock, m.oblock_, m.flags_ & M_DIRTY);
+		}
+
+	private:
+		emitter::ptr e_;
+	};
+
+	struct ignore_mapping_damage : public mapping_array_damage::damage_visitor {
+		virtual void visit(missing_mappings const &d) {
+		}
+
+		virtual void visit(invalid_mapping const &d) {
+		}
+	};
+
+	class fatal_mapping_damage : public mapping_array_damage::damage_visitor {
+	public:
+		virtual void visit(missing_mappings const &d) {
+			raise();
+		}
+
+		virtual void visit(invalid_mapping const &d) {
+			raise();
+		}
+
+	private:
+		static void raise() {
+			throw std::runtime_error("metadata contains errors (run cache_check for details).\n"
+						 "perhaps you wanted to run with --repair");
+		}
+	};
+
+	//--------------------------------
+
 	string const STDOUT_PATH("-");
 
 	bool want_stdout(string const &output) {
@@ -49,15 +91,21 @@ namespace {
 				    sb.policy_hint_size);
 
 		e->begin_mappings();
-
-		for (unsigned cblock = 0; cblock < sb.cache_blocks; cblock++) {
-			mapping m = md->mappings_->get(cblock);
-
-			if (m.flags_ & M_VALID)
-				e->mapping(cblock, m.oblock_, m.flags_ & M_DIRTY);
+		{
+			mapping_emitter me(e);
+			ignore_mapping_damage ignore;
+			fatal_mapping_damage fatal;
+			mapping_array_damage::damage_visitor &dv = fs.repair_ ?
+				static_cast<mapping_array_damage::damage_visitor &>(ignore) :
+				static_cast<mapping_array_damage::damage_visitor &>(fatal);
+			walk_mapping_array(*md->mappings_, me, dv);
 		}
-
 		e->end_mappings();
+
+		// walk hints
+
+
+		// walk discards
 
 		e->end_superblock();
 
