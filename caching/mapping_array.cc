@@ -1,7 +1,8 @@
 #include "caching/mapping_array.h"
 #include "persistent-data/endian_utils.h"
 
-using namespace caching::mapping_array_detail;
+using namespace caching;
+using namespace caching::mapping_array_damage;
 
 //----------------------------------------------------------------
 

@@ -3,7 +3,6 @@
 #include "caching/mapping_array.h"
 
 using namespace caching;
-using namespace mapping_array_detail;
 using namespace std;
 using namespace superblock_damage;
 
@@ -59,7 +58,7 @@ namespace {
 		virtual void mapping(pd::block_address cblock,
 				     pd::block_address oblock,
 				     bool dirty) {
-			mapping_array_detail::mapping m;
+			typename caching::mapping m;
 			m.oblock_ = oblock;
 			m.flags_ = M_VALID;
 

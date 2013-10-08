@@ -11,8 +11,8 @@
 
 using namespace std;
 using namespace caching;
-using namespace caching::mapping_array_detail;
-using namespace caching::superblock_detail;
+using namespace caching::mapping_array_damage;
+using namespace caching::superblock_damage;
 
 //----------------------------------------------------------------
 

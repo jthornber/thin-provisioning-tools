@@ -6,26 +6,26 @@
 //----------------------------------------------------------------
 
 namespace caching {
-	namespace mapping_array_detail {
-		enum mapping_flags {
-			M_VALID = 1,
-			M_DIRTY = 2
-		};
+	enum mapping_flags {
+		M_VALID = 1,
+		M_DIRTY = 2
+	};
 
-		struct mapping {
-			uint64_t oblock_;
-			uint32_t flags_;
-		};
+	struct mapping {
+		uint64_t oblock_;
+		uint32_t flags_;
+	};
 
-		struct mapping_traits {
-			typedef base::le64 disk_type;
-			typedef mapping value_type;
-			typedef no_op_ref_counter<value_type> ref_counter;
+	struct mapping_traits {
+		typedef base::le64 disk_type;
+		typedef mapping value_type;
+		typedef no_op_ref_counter<value_type> ref_counter;
 
-			static void unpack(disk_type const &disk, value_type &value);
-			static void pack(value_type const &value, disk_type &disk);
-		};
+		static void unpack(disk_type const &disk, value_type &value);
+		static void pack(value_type const &value, disk_type &disk);
+	};
 
+	namespace mapping_array_damage {
 		class damage_visitor;
 
 		struct damage {
@@ -45,7 +45,7 @@ namespace caching {
 		public:
 			virtual ~damage_visitor() {}
 
-			virtual void visit(mapping_array_detail::damage const &d) {
+			virtual void visit(mapping_array_damage::damage const &d) {
 				d.visit(*this);
 			}
 
@@ -53,10 +53,10 @@ namespace caching {
 		};
 	}
 
-	typedef persistent_data::array<mapping_array_detail::mapping_traits> mapping_array;
+	typedef persistent_data::array<mapping_traits> mapping_array;
 
 	void check_mapping_array(mapping_array const &array,
-				 mapping_array_detail::damage_visitor &visitor);
+				 mapping_array_damage::damage_visitor &visitor);
 }
 
 //----------------------------------------------------------------
