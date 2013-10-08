@@ -2,6 +2,7 @@
 
 using namespace boost;
 using namespace caching;
+using namespace caching::hint_array_damage;
 using namespace persistent_data;
 
 //----------------------------------------------------------------
@@ -64,6 +65,18 @@ namespace {
 
 	//--------------------------------
 
+	template <typename HA>
+	shared_ptr<HA>
+	downcast_array(shared_ptr<array_base> base) {
+		shared_ptr<HA> a = dynamic_pointer_cast<HA>(base);
+		if (!a)
+			throw runtime_error("internal error: couldn't cast hint array");
+
+		return a;
+	}
+
+	//--------------------------------
+
 	template <uint32_t WIDTH>
 	shared_ptr<array_base> mk_array(transaction_manager::ptr tm, block_address root, unsigned nr_entries) {
 		typedef hint_traits<WIDTH> traits;
@@ -94,10 +107,7 @@ namespace {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = dynamic_pointer_cast<ha>(base);
-		if (!a)
-			throw runtime_error("internal error: couldn't cast hint array");
-
+		shared_ptr<ha> a = downcast_array<ha>(base);
 		data = a->get(index);
 	}
 
@@ -116,10 +126,7 @@ namespace {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = dynamic_pointer_cast<ha>(base);
-		if (!a)
-			throw runtime_error("internal error: couldn't cast hint array");
-
+		shared_ptr<ha> a = downcast_array<ha>(base);
 		a->set(index, data);
 	}
 
@@ -139,9 +146,7 @@ namespace {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = dynamic_pointer_cast<ha>(base);
-		if (!a)
-			throw runtime_error("internal error: couldn't cast hint array");
+		shared_ptr<ha> a = downcast_array<ha>(base);
 		a->grow(new_nr_entries, value);
 	}
 
@@ -154,6 +159,62 @@ namespace {
 #undef xx
 		}
 	}
+
+	//--------------------------------
+
+	template <typename ValueType>
+	struct no_op_visitor {
+		virtual void visit(uint32_t index, ValueType const &v) {
+		}
+	};
+
+	class ll_damage_visitor {
+	public:
+		ll_damage_visitor(damage_visitor &v)
+		: v_(v) {
+		}
+
+		virtual void visit(array_detail::damage const &d) {
+			v_.visit(missing_hints(d.desc_, d.lost_keys_));
+		}
+
+	private:
+		damage_visitor &v_;
+	};
+
+	template <uint32_t WIDTH>
+	void check_hints(shared_ptr<array_base> base, damage_visitor &visitor) {
+		typedef hint_traits<WIDTH> traits;
+		typedef array<traits> ha;
+
+		shared_ptr<ha> a = downcast_array<ha>(base);
+		no_op_visitor<typename traits::value_type> nv;
+		ll_damage_visitor ll(visitor);
+		a->visit_values(nv, ll);
+	}
+
+	void check_hints_(uint32_t width, shared_ptr<array_base> base,
+			  damage_visitor &visitor) {
+		switch (width) {
+#define xx(n) case n: check_hints<n>(base, visitor); break
+			all_widths
+#undef xx
+		}
+	}
+}
+
+//----------------------------------------------------------------
+
+missing_hints::missing_hints(std::string const desc, run<uint32_t> const &keys)
+	: damage(desc),
+	  keys_(keys)
+{
+}
+
+void
+missing_hints::visit(damage_visitor &v) const
+{
+	v.visit(*this);
 }
 
 //----------------------------------------------------------------
@@ -193,6 +254,12 @@ void
 hint_array::grow(unsigned new_nr_entries, vector<unsigned char> const &value)
 {
 	grow_(width_, impl_, new_nr_entries, value);
+}
+
+void
+hint_array::check_hint_array(hint_array_damage::damage_visitor &visitor)
+{
+	check_hints_(width_, impl_, visitor);
 }
 
 //----------------------------------------------------------------
