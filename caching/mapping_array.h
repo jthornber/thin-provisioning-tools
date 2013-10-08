@@ -75,6 +75,21 @@ namespace caching {
 
 	typedef persistent_data::array<mapping_traits> mapping_array;
 
+	class mapping_visitor {
+	public:
+		virtual ~mapping_visitor() {}
+
+		void visit(uint32_t index, mapping const &m) {
+			visit(static_cast<block_address>(index), m);
+		}
+
+		virtual void visit(block_address cblock, mapping const &m) = 0;
+	};
+
+	void walk_mapping_array(mapping_array const &array,
+				mapping_visitor &mv,
+				mapping_array_damage::damage_visitor &dv);
+
 	void check_mapping_array(mapping_array const &array,
 				 mapping_array_damage::damage_visitor &visitor);
 }

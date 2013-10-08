@@ -58,15 +58,13 @@ invalid_mapping::visit(damage_visitor &v) const
 }
 
 namespace {
-	class mapping_visitor {
+	class check_mapping_visitor : public mapping_visitor {
 	public:
-		mapping_visitor(damage_visitor &visitor)
+		check_mapping_visitor(damage_visitor &visitor)
 		: visitor_(visitor) {
 		}
 
-		virtual void visit(uint32_t index, mapping const &m) {
-			block_address cblock = index;
-
+		virtual void visit(block_address cblock, mapping const &m) {
 			if (!valid_mapping(m))
 				return;
 
@@ -116,11 +114,19 @@ namespace {
 }
 
 void
+caching::walk_mapping_array(mapping_array const &array,
+			    mapping_visitor &mv,
+			    damage_visitor &dv)
+{
+	ll_damage_visitor ll(dv);
+	array.visit_values(mv, ll);
+}
+
+void
 caching::check_mapping_array(mapping_array const &array, damage_visitor &visitor)
 {
-	mapping_visitor mv(visitor);
-	ll_damage_visitor ll(visitor);
-	array.visit_values(mv, ll);
+	check_mapping_visitor mv(visitor);
+	walk_mapping_array(array, mv, visitor);
 }
 
 //----------------------------------------------------------------
