@@ -7,7 +7,25 @@ using namespace persistent_data;
 //----------------------------------------------------------------
 
 namespace {
-	using namespace caching::hint_array_detail;
+	template <uint32_t WIDTH>
+	struct hint_traits {
+		typedef unsigned char byte;
+		typedef byte disk_type[WIDTH];
+		typedef vector<byte> value_type;
+		typedef no_op_ref_counter<value_type> ref_counter;
+
+		// FIXME: slow copying for now
+		static void unpack(disk_type const &disk, value_type &value) {
+			for (unsigned byte = 0; byte < WIDTH; byte++)
+				value.at(byte) = disk[byte];
+		}
+
+		static void pack(value_type const &value, disk_type &disk) {
+			for (unsigned byte = 0; byte < WIDTH; byte++)
+				disk[byte] = value.at(byte);
+		}
+	};
+
 
 	// We've got into a bit of a mess here.  Templates are compile
 	// time, and we don't know the hint width until run time.  We're
