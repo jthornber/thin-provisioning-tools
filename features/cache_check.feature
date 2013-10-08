@@ -69,6 +69,13 @@ Feature: cache_check
     When I run `cache_check input`
     Then it should fail
 
+  Scenario: --quiet is observed
+    Given input file
+    And block 1 is zeroed
+    When I run `cache_check --quiet input`
+    Then it should fail
+    And it should give no output
+
   Scenario: A valid metadata area passes
     Given metadata containing:
     """
