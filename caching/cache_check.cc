@@ -94,7 +94,7 @@ namespace {
 		}
 
 		virtual void visit(mapping_array_damage::missing_mappings const &d) {
-			out() << "missing mappings:" << end_message();
+			out() << "missing mappings " << d.keys_ << ":" << end_message();
 			{
 				nested_output::nest _ = push();
 				out() << d.get_desc() << end_message();
@@ -116,13 +116,27 @@ namespace {
 
 			mplus_error(FATAL);
 		}
+
+		using reporter_base::get_error;
 	};
 
-	class hint_reporter : public reporter_base {
+	class hint_reporter : public hint_array_damage::damage_visitor, reporter_base {
 	public:
 		hint_reporter(nested_output &o)
 		: reporter_base(o) {
 		}
+
+		virtual void visit(hint_array_damage::missing_hints const &d) {
+			out() << "missing mappings " << d.keys_ << ":" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		using reporter_base::get_error;
 	};
 
 	//--------------------------------
@@ -167,8 +181,6 @@ namespace {
 	}
 
 	error_state metadata_check(block_manager<>::ptr bm, flags const &fs) {
-		error_state err = NO_ERROR;
-
 		nested_output out(cerr, 2);
 		if (fs.quiet_)
 			out.disable();
@@ -194,7 +206,7 @@ namespace {
 			{
 				nested_output::nest _ = out.push();
 				mapping_array ma(tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
-				// check_mapping_array(ma, mapping_rep);
+				check_mapping_array(ma, mapping_rep);
 			}
 		}
 
@@ -202,10 +214,14 @@ namespace {
 			out << "examining hint array" << end_message();
 			{
 				nested_output::nest _ = out.push();
+				hint_array ha(tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
+				ha.check(hint_rep);
 			}
 		}
 
-		return err;
+		return combine_errors(sb_rep.get_error(),
+				      combine_errors(mapping_rep.get_error(),
+						     hint_rep.get_error()));
 	}
 
 	int check(string const &path, flags const &fs) {

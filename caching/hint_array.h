@@ -65,7 +65,7 @@ namespace caching {
 		void set_hint(unsigned index, vector<unsigned char> const &data);
 
 		void grow(unsigned new_nr_entries, vector<unsigned char> const &value);
-		void check_hint_array(hint_array_damage::damage_visitor &visitor);
+		void check(hint_array_damage::damage_visitor &visitor);
 
 	private:
 		unsigned width_;

@@ -257,7 +257,7 @@ hint_array::grow(unsigned new_nr_entries, vector<unsigned char> const &value)
 }
 
 void
-hint_array::check_hint_array(hint_array_damage::damage_visitor &visitor)
+hint_array::check(hint_array_damage::damage_visitor &visitor)
 {
 	check_hints_(width_, impl_, visitor);
 }
