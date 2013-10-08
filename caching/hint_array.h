@@ -39,7 +39,7 @@ namespace caching {
 		public:
 			virtual ~damage_visitor() {}
 
-			virtual void visit(damage const &d) {
+			void visit(damage const &d) {
 				d.visit(*this);
 			}
 

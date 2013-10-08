@@ -64,7 +64,7 @@ namespace caching {
 		public:
 			virtual ~damage_visitor() {}
 
-			virtual void visit(mapping_array_damage::damage const &d) {
+			void visit(mapping_array_damage::damage const &d) {
 				d.visit(*this);
 			}
 
