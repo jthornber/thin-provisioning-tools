@@ -17,6 +17,14 @@ using namespace caching::superblock_damage;
 //----------------------------------------------------------------
 
 namespace {
+	struct flags {
+		flags()
+			: repair_(false) {
+		}
+
+		bool repair_;
+	};
+
 	string to_string(unsigned char const *data) {
 		// FIXME: we're assuming the data is zero terminated here
 		return std::string(reinterpret_cast<char const *>(data));
@@ -30,7 +38,7 @@ namespace {
 		return output == STDOUT_PATH;
 	}
 
-	int dump_(string const &dev, ostream &out) {
+	int dump_(string const &dev, ostream &out, flags const &fs) {
 		block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
 		metadata::ptr md(new metadata(bm, metadata::OPEN));
 		emitter::ptr e = create_xml_emitter(out);
@@ -56,13 +64,13 @@ namespace {
 		return 0;
 	}
 
-	int dump(string const &dev, string const &output) {
+	int dump(string const &dev, string const &output, flags const &fs) {
 		try {
 			if (want_stdout(output))
-				return dump_(dev, cout);
+				return dump_(dev, cout, fs);
 			else {
 				ofstream out(output.c_str());
-				return dump_(dev, out);
+				return dump_(dev, out, fs);
 			}
 
 		} catch (std::exception &e) {
@@ -76,7 +84,8 @@ namespace {
 		    << "Options:" << endl
 		    << "  {-h|--help}" << endl
 		    << "  {-o <xml file>}" << endl
-		    << "  {-V|--version}" << endl;
+		    << "  {-V|--version}" << endl
+		    << "  {--repair}" << endl;
 	}
 }
 
@@ -85,18 +94,24 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
+	flags fs;
 	string output("-");
 	char const shortopts[] = "ho:V";
 
 	option const longopts[] = {
-		{ "help", no_argument, NULL, 'h'},
-		{ "output", required_argument, NULL, 'o'},
-		{ "version", no_argument, NULL, 'V'},
+		{ "help", no_argument, NULL, 'h' },
+		{ "output", required_argument, NULL, 'o' },
+		{ "version", no_argument, NULL, 'V' },
+		{ "repair", no_argument, NULL, 1 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
+		case 1:
+			fs.repair_ = true;
+			break;
+
 		case 'h':
 			usage(cout, basename(argv[0]));
 			return 0;
@@ -121,7 +136,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output);
+	return dump(argv[optind], output, fs);
 }
 
 //----------------------------------------------------------------
