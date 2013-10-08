@@ -1,8 +1,11 @@
 #include "caching/mapping_array.h"
 #include "persistent-data/endian_utils.h"
 
+#include <set>
+
 using namespace caching;
 using namespace caching::mapping_array_damage;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -55,10 +58,46 @@ invalid_mapping::visit(damage_visitor &v) const
 }
 
 namespace {
-	struct no_op_visitor {
-		virtual void visit(uint32_t index,
-				   mapping_traits::value_type const &v) {
+	class mapping_visitor {
+	public:
+		mapping_visitor(damage_visitor &visitor)
+		: visitor_(visitor) {
 		}
+
+		virtual void visit(uint32_t index, mapping const &m) {
+			block_address cblock = index;
+
+			if (!valid_mapping(m))
+				return;
+
+			if (seen_oblock(m))
+				visitor_.visit(invalid_mapping("origin block already mapped", cblock, m));
+			else
+				record_oblock(m);
+
+			if (unknown_flags(m))
+				visitor_.visit(invalid_mapping("unknown flags in mapping", cblock, m));
+		}
+
+	private:
+		static bool valid_mapping(mapping const &m) {
+			return !!(m.flags_ & M_VALID);
+		}
+
+		bool seen_oblock(mapping const &m) const {
+			return seen_oblocks_.find(m.oblock_) != seen_oblocks_.end();
+		}
+
+		void record_oblock(mapping const &m) {
+			seen_oblocks_.insert(m.oblock_);
+		}
+
+		static bool unknown_flags(mapping const &m) {
+			return (m.flags_ & ~(M_VALID | M_DIRTY));
+		}
+
+		damage_visitor &visitor_;
+		set<block_address> seen_oblocks_;
 	};
 
 	class ll_damage_visitor {
@@ -79,9 +118,9 @@ namespace {
 void
 caching::check_mapping_array(mapping_array const &array, damage_visitor &visitor)
 {
-	no_op_visitor vv;
+	mapping_visitor mv(visitor);
 	ll_damage_visitor ll(visitor);
-	array.visit_values(vv, ll);
+	array.visit_values(mv, ll);
 }
 
 //----------------------------------------------------------------
