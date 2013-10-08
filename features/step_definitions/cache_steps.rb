@@ -46,6 +46,9 @@ Options:
   {-q|--quiet}
   {-h|--help}
   {-V|--version}
+  {--super-block-only}
+  {--skip-mappings}
+  {--skip-hints}
 EOF
 
 Then /^usage to stdout$/ do

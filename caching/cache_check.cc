@@ -252,7 +252,11 @@ namespace {
 		    << "Options:" << endl
 		    << "  {-q|--quiet}" << endl
 		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl;
+		    << "  {-V|--version}" << endl
+		    << "  {--super-block-only}" << endl
+		    << "  {--skip-mappings}" << endl
+		    << "  {--skip-hints}" << endl;
+
 	}
 
 	char const *TOOLS_VERSION = "0.1.6";
@@ -266,14 +270,30 @@ int main(int argc, char **argv)
 	flags fs;
 	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
-		{ "quiet", no_argument, NULL, 'q'},
-		{ "help", no_argument, NULL, 'h'},
-		{ "version", no_argument, NULL, 'V'},
+		{ "quiet", no_argument, NULL, 'q' },
+		{ "superblock-only", no_argument, NULL, 1 },
+		{ "skip-mappings", no_argument, NULL, 2 },
+		{ "skip-hints", no_argument, NULL, 3 },
+		{ "help", no_argument, NULL, 'h' },
+		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
+		case 1:
+			fs.check_mappings_ = false;
+			fs.check_hints_ = false;
+			break;
+
+		case 2:
+			fs.check_mappings_ = false;
+			break;
+
+		case 3:
+			fs.check_hints_ = false;
+			break;
+
 		case 'h':
 			usage(cout, basename(argv[0]));
 			return 0;

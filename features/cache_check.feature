@@ -76,6 +76,13 @@ Feature: cache_check
     Then it should fail
     And it should give no output
 
+  Scenario: -q is observed
+    Given input file
+    And block 1 is zeroed
+    When I run `cache_check -q input`
+    Then it should fail
+    And it should give no output
+
   Scenario: A valid metadata area passes
     Given metadata containing:
     """
