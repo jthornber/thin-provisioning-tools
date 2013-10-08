@@ -87,10 +87,34 @@ namespace {
 		using reporter_base::get_error;
 	};
 
-	class mapping_reporter : public reporter_base {
+	class mapping_reporter : public mapping_array_damage::damage_visitor, reporter_base {
 	public:
 		mapping_reporter(nested_output &o)
 		: reporter_base(o) {
+		}
+
+		virtual void visit(mapping_array_damage::missing_mappings const &d) {
+			out() << "missing mappings:" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		virtual void visit(mapping_array_damage::invalid_mapping const &d) {
+			out() << "invalid mapping:" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc()
+				      << " [cblock = " << d.cblock_
+				      << ", oblock = " << d.m_.oblock_
+				      << ", flags = " << d.m_.flags_
+				      << "]" << end_message();
+			}
+
+			mplus_error(FATAL);
 		}
 	};
 

@@ -28,17 +28,36 @@ namespace caching {
 	namespace mapping_array_damage {
 		class damage_visitor;
 
-		struct damage {
+		class damage {
+		public:
+			damage(std::string const &desc)
+				: desc_(desc) {
+			}
+
 			virtual ~damage() {}
 			virtual void visit(damage_visitor &v) const = 0;
+
+			std::string get_desc() const {
+				return desc_;
+			}
+
+		private:
+			std::string desc_;
 		};
 
 		struct missing_mappings : public damage {
-			missing_mappings(run<uint32_t> const &keys, std::string const &desc);
+			missing_mappings(std::string const &desc, run<uint32_t> const &keys);
 			virtual void visit(damage_visitor &v) const;
 
 			run<uint32_t> keys_;
-			std::string desc_;
+		};
+
+		struct invalid_mapping : public damage {
+			invalid_mapping(std::string const &desc, block_address cblock, mapping const &m);
+			virtual void visit(damage_visitor &v) const;
+
+			block_address cblock_;
+			mapping m_;
 		};
 
 		class damage_visitor {
@@ -50,6 +69,7 @@ namespace caching {
 			}
 
 			virtual void visit(missing_mappings const &d) = 0;
+			virtual void visit(invalid_mapping const &d) = 0;
 		};
 	}
 

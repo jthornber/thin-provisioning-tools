@@ -28,16 +28,28 @@ mapping_traits::pack(value_type const &value, disk_type &disk)
 
 //----------------------------------------------------------------
 
-missing_mappings::missing_mappings(run<uint32_t> const &keys,
-				   std::string const &desc)
-	: keys_(keys),
-	  desc_(desc)
+missing_mappings::missing_mappings(std::string const &desc, run<uint32_t> const &keys)
+	: damage(desc),
+	  keys_(keys)
 {
-
 }
 
 void
 missing_mappings::visit(damage_visitor &v) const
+{
+	v.visit(*this);
+}
+
+invalid_mapping::invalid_mapping(std::string const &desc,
+				 block_address cblock, mapping const &m)
+	: damage(desc),
+	  cblock_(cblock),
+	  m_(m)
+{
+}
+
+void
+invalid_mapping::visit(damage_visitor &v) const
 {
 	v.visit(*this);
 }
@@ -56,7 +68,7 @@ namespace {
 		}
 
 		virtual void visit(array_detail::damage const &d) {
-			v_.visit(missing_mappings(d.lost_keys_, d.desc_));
+			v_.visit(missing_mappings(d.desc_, d.lost_keys_));
 		}
 
 	private:
