@@ -23,6 +23,7 @@ PROGRAMS=\
 	cache_check \
 	cache_dump \
 	cache_restore \
+	cache_repair \
 	\
 	thin_check \
 	thin_dump \
@@ -253,6 +254,9 @@ CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 CACHE_DUMP_SOURCE=$(SOURCE)
 CACHE_DUMP_OBJECTS=$(subst .cc,.o,$(CACHE_DUMP_SOURCE))
 
+CACHE_REPAIR_SOURCE=$(SOURCE)
+CACHE_REPAIR_OBJECTS=$(subst .cc,.o,$(CACHE_REPAIR_SOURCE))
+
 CACHE_RESTORE_SOURCE=$(SOURCE)
 CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
 
@@ -261,6 +265,10 @@ cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 cache_dump: $(CACHE_DUMP_OBJECTS) caching/cache_dump.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+cache_repair: $(CACHE_REPAIR_OBJECTS) caching/cache_repair.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
