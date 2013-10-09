@@ -47,6 +47,12 @@ namespace caching {
 		};
 	}
 
+	class hint_visitor {
+	public:
+		virtual ~hint_visitor() {}
+		virtual void visit(block_address cblock, std::vector<unsigned char> const &data) = 0;
+	};
+
 	class hint_array {
 	public:
 		typedef boost::shared_ptr<hint_array> ptr;
@@ -65,6 +71,7 @@ namespace caching {
 		void set_hint(unsigned index, vector<unsigned char> const &data);
 
 		void grow(unsigned new_nr_entries, vector<unsigned char> const &value);
+		void walk(hint_visitor &hv, hint_array_damage::damage_visitor &dv);
 		void check(hint_array_damage::damage_visitor &visitor);
 
 	private:

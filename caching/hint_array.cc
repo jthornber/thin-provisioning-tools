@@ -162,9 +162,22 @@ namespace {
 
 	//--------------------------------
 
-	template <typename ValueType>
-	struct no_op_visitor {
-		virtual void visit(uint32_t index, ValueType const &v) {
+	class value_adapter {
+	public:
+		value_adapter(hint_visitor &v)
+		: v_(v) {
+		}
+
+		virtual void visit(uint32_t index, std::vector<unsigned char> const &v) {
+			v_.visit(static_cast<block_address>(index), v);
+		}
+
+	private:
+		hint_visitor &v_;
+	};
+
+	struct no_op_visitor : public hint_visitor {
+		virtual void visit(block_address cblock, std::vector<unsigned char> const &v) {
 		}
 	};
 
@@ -183,20 +196,20 @@ namespace {
 	};
 
 	template <uint32_t WIDTH>
-	void check_hints(shared_ptr<array_base> base, damage_visitor &visitor) {
+	void walk_hints(shared_ptr<array_base> base, hint_visitor &hv, damage_visitor &dv) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
 		shared_ptr<ha> a = downcast_array<ha>(base);
-		no_op_visitor<typename traits::value_type> nv;
-		ll_damage_visitor ll(visitor);
-		a->visit_values(nv, ll);
+		value_adapter vv(hv);
+		ll_damage_visitor ll(dv);
+		a->visit_values(vv, ll);
 	}
 
-	void check_hints_(uint32_t width, shared_ptr<array_base> base,
-			  damage_visitor &visitor) {
+	void walk_hints_(uint32_t width, shared_ptr<array_base> base,
+			 hint_visitor &hv, damage_visitor &dv) {
 		switch (width) {
-#define xx(n) case n: check_hints<n>(base, visitor); break
+#define xx(n) case n: walk_hints<n>(base, hv, dv); break
 			all_widths
 #undef xx
 		}
@@ -257,9 +270,16 @@ hint_array::grow(unsigned new_nr_entries, vector<unsigned char> const &value)
 }
 
 void
+hint_array::walk(hint_visitor &hv, hint_array_damage::damage_visitor &dv)
+{
+	walk_hints_(width_, impl_, hv, dv);
+}
+
+void
 hint_array::check(hint_array_damage::damage_visitor &visitor)
 {
-	check_hints_(width_, impl_, visitor);
+	no_op_visitor vv;
+	walk(vv, visitor);
 }
 
 //----------------------------------------------------------------
