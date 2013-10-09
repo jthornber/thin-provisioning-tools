@@ -1,5 +1,7 @@
 #include "caching/metadata_dump.h"
 
+#include <set>
+
 using namespace std;
 using namespace caching;
 
@@ -20,17 +22,26 @@ namespace {
 
 	class mapping_emitter : public mapping_visitor {
 	public:
-		mapping_emitter(emitter::ptr e)
-			: e_(e) {
+		mapping_emitter(emitter::ptr e, set<block_address> &valid_blocks)
+			: e_(e),
+			  valid_blocks_(valid_blocks) {
 		}
 
 		void visit(block_address cblock, mapping const &m) {
-			if (m.flags_ & M_VALID)
+			if (m.flags_ & M_VALID) {
 				e_->mapping(cblock, m.oblock_, m.flags_ & M_DIRTY);
+				mark_valid(cblock);
+			}
 		}
 
 	private:
+		void mark_valid(block_address cblock) {
+			valid_blocks_.insert(cblock);
+		}
+
+
 		emitter::ptr e_;
+		set<block_address> &valid_blocks_;
 	};
 
 	struct ignore_mapping_damage : public mapping_array_damage::damage_visitor {
@@ -53,16 +64,23 @@ namespace {
 
 	class hint_emitter : public hint_visitor {
 	public:
-		hint_emitter(emitter::ptr e)
-			: e_(e) {
+		hint_emitter(emitter::ptr e, set<block_address> valid_blocks)
+			: e_(e),
+			  valid_blocks_(valid_blocks) {
 		}
 
 		virtual void visit(block_address cblock, std::vector<unsigned char> const &data) {
-			e_->hint(cblock, data);
+			if (valid(cblock))
+				e_->hint(cblock, data);
 		}
 
 	private:
+		bool valid(block_address cblock) const {
+			return valid_blocks_.find(cblock) != valid_blocks_.end();
+		}
+
 		emitter::ptr e_;
+		set<block_address> &valid_blocks_;
 	};
 
 	struct ignore_hint_damage : public hint_array_damage::damage_visitor {
@@ -81,6 +99,8 @@ namespace {
 void
 caching::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 {
+	set<block_address> valid_blocks;
+
 	superblock const &sb = md->sb_;
 	e->begin_superblock(to_string(sb.uuid), sb.data_block_size,
 			    sb.cache_blocks, to_string(sb.policy_name),
@@ -90,7 +110,7 @@ caching::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	{
 		namespace mad = mapping_array_damage;
 
-		mapping_emitter me(e);
+		mapping_emitter me(e, valid_blocks);
 		ignore_mapping_damage ignore;
 		fatal_mapping_damage fatal;
 		mad::damage_visitor &dv = repair ?
@@ -105,7 +125,7 @@ caching::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	{
 		using namespace hint_array_damage;
 
-		hint_emitter he(e);
+		hint_emitter he(e, valid_blocks);
 		ignore_hint_damage ignore;
 		fatal_hint_damage fatal;
 		damage_visitor &dv = repair ?
