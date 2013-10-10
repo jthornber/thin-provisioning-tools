@@ -107,6 +107,11 @@ metadata::open_metadata(block_manager<>::ptr bm)
 				  mapping_array::ref_counter(),
 				  sb_.mapping_root,
 				  sb_.cache_blocks));
+
+	if (sb_.hint_root)
+		hints_ = hint_array::ptr(
+			new hint_array(tm_, sb_.policy_hint_size,
+				       sb_.hint_root, sb_.cache_blocks));
 }
 
 void
