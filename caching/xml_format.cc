@@ -85,7 +85,7 @@ namespace {
 			out_ << "<hint"
 			     << " cache_block=\"" << cblock << "\""
 			     << " data=\"" << base64_encode(data) << "\""
-			     << ">" << endl;
+			     << "/>" << endl;
 		}
 
 	private:
