@@ -17,6 +17,7 @@ namespace {
 
 		// FIXME: slow copying for now
 		static void unpack(disk_type const &disk, value_type &value) {
+			value.resize(WIDTH);
 			for (unsigned byte = 0; byte < WIDTH; byte++)
 				value.at(byte) = disk[byte];
 		}
