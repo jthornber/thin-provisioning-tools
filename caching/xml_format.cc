@@ -81,6 +81,7 @@ namespace {
 				  vector<unsigned char> const &data) {
 			using namespace base;
 
+			indent();
 			out_ << "<hint"
 			     << " cache_block=\"" << cblock << "\""
 			     << " data=\"" << base64_encode(data) << "\""
