@@ -19,11 +19,31 @@
 #ifndef BITSET_H
 #define BITSET_H
 
+#include "persistent-data/run.h"
+
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	namespace bitset_detail {
 		class bitset_impl;
+
+		class missing_bits {
+		public:
+			missing_bits(base::run<uint32_t> const &keys)
+				: keys_(keys) {
+			}
+
+			base::run<uint32_t> keys_;
+		};
+
+		class bitset_visitor {
+		public:
+			typedef boost::shared_ptr<bitset_visitor> ptr;
+
+			virtual ~bitset_visitor();
+			virtual void visit(uint32_t index, bool value);
+			virtual void visit(missing_bits const &d);
+		};
 	}
 
 	class bitset {
@@ -41,6 +61,8 @@ namespace persistent_data {
 		bool get(unsigned n);
 		void set(unsigned n, bool value);
 		void flush();
+
+		void walk_bitset(bitset_detail::bitset_visitor &v) const;
 
 	private:
 		boost::shared_ptr<bitset_detail::bitset_impl> impl_;

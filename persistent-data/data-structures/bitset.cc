@@ -2,6 +2,7 @@
 #include "persistent-data/data-structures/bitset.h"
 #include "persistent-data/math_utils.h"
 
+using namespace boost;
 using namespace persistent_data;
 using namespace persistent_data::bitset_detail;
 using namespace std;
@@ -75,7 +76,52 @@ namespace persistent_data {
 			void flush() {
 			}
 
+			void walk_bitset(bitset_visitor &v) const {
+				bit_visitor vv(v);
+				damage_visitor dv(v);
+				array_.visit_values(vv, dv);
+			}
+
 		private:
+			class bit_visitor {
+			public:
+				bit_visitor(bitset_visitor &v)
+				: v_(v) {
+				}
+
+				void visit(uint32_t word_index, uint64_t word) {
+					uint32_t bit_index = word_index * 64;
+					for (unsigned bit = 0; bit < 64; bit++, bit_index++)
+						v_.visit(bit_index, !!(word & (1 << bit)));
+				}
+
+			private:
+				bitset_visitor &v_;
+			};
+
+			class damage_visitor {
+			public:
+				damage_visitor(bitset_visitor &v)
+					: v_(v) {
+				}
+
+				void visit(array_detail::damage const &d) {
+					run<uint32_t> bits(lifted_mult64(d.lost_keys_.begin_),
+							   lifted_mult64(d.lost_keys_.end_));
+					v_.visit(bits);
+				}
+
+			private:
+				optional<uint32_t> lifted_mult64(optional<uint32_t> const &m) {
+					if (!m)
+						return m;
+
+					return optional<uint32_t>(*m * 64);
+				}
+
+				bitset_visitor &v_;
+			};
+
 			void pad_last_block(bool default_value) {
 				// Set defaults in the final word
 				if (bit(nr_bits_)) {
@@ -196,6 +242,12 @@ void
 bitset::flush()
 {
 	impl_->flush();
+}
+
+void
+bitset::walk_bitset(bitset_visitor &v) const
+{
+	impl_->walk_bitset(v);
 }
 
 //----------------------------------------------------------------
