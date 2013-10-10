@@ -54,6 +54,7 @@ SOURCE=\
 	persistent-data/lock_tracker.cc \
 	persistent-data/transaction_manager.cc \
 	\
+	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/btree.cc \
 	\
 	persistent-data/space_map.cc \
