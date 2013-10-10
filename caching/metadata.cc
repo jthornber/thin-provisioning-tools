@@ -52,6 +52,7 @@ metadata::commit()
 	commit_space_map();
 	commit_mappings();
 	commit_hints();
+	commit_discard_bits();
 	commit_superblock();
 }
 
@@ -94,6 +95,8 @@ metadata::create_metadata(block_manager<>::ptr bm)
 
 	// We can't instantiate the hint array yet, since we don't know the
 	// hint width.
+
+	discard_bits_ = bitset::ptr(new bitset(tm_));
 }
 
 void
@@ -112,6 +115,10 @@ metadata::open_metadata(block_manager<>::ptr bm)
 		hints_ = hint_array::ptr(
 			new hint_array(tm_, sb_.policy_hint_size,
 				       sb_.hint_root, sb_.cache_blocks));
+
+	if (sb_.discard_root)
+		discard_bits_ = bitset::ptr(
+			new bitset(tm_, sb_.discard_root, sb_.cache_blocks));
 }
 
 void
@@ -131,6 +138,12 @@ void
 metadata::commit_hints()
 {
 	sb_.hint_root = hints_->get_root();
+}
+
+void
+metadata::commit_discard_bits()
+{
+	// FIXME: finish
 }
 
 void

@@ -239,6 +239,7 @@ CACHE_CHECK_SOURCE=\
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/bitset.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \

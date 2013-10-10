@@ -3,6 +3,7 @@
 
 #include "persistent-data/block.h"
 #include "persistent-data/data-structures/array.h"
+#include "persistent-data/data-structures/bitset.h"
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/transaction_manager.h"
@@ -37,6 +38,7 @@ namespace caching {
 		checked_space_map::ptr metadata_sm_;
 		mapping_array::ptr mappings_;
 		hint_array::ptr hints_;
+		bitset::ptr discard_bits_;
 
 	private:
 		void init_superblock();
@@ -47,6 +49,7 @@ namespace caching {
 		void commit_space_map();
 		void commit_mappings();
 		void commit_hints();
+		void commit_discard_bits();
 		void commit_superblock();
 	};
 };
