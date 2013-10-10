@@ -35,6 +35,7 @@ PROGRAMS=\
 all: $(PROGRAMS)
 
 SOURCE=\
+	base/base64.cc \
 	base/error_state.cc \
 	\
 	caching/hint_array.cc \
@@ -228,6 +229,7 @@ thin_metadata_size: thin-provisioning/thin_metadata_size.o
 # Cache tools
 
 CACHE_CHECK_SOURCE=\
+	base/base64.cc \
 	base/error_state.cc \
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
