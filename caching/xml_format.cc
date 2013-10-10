@@ -1,3 +1,4 @@
+#include "base/base64.h"
 #include "caching/xml_format.h"
 
 #include <boost/lexical_cast.hpp>
@@ -11,15 +12,6 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
-	// base64 encoding?
-	string encode(vector<unsigned char> const &data) {
-		return "";
-	}
-
-	vector<unsigned char> decode(string const &data) {
-		return vector<unsigned char>();
-	}
-
 	//--------------------------------
 	// Emitter
 	//--------------------------------
@@ -87,9 +79,11 @@ namespace {
 
 		virtual void hint(block_address cblock,
 				  vector<unsigned char> const &data) {
+			using namespace base;
+
 			out_ << "<hint"
 			     << " cache_block=\"" << cblock << "\""
-			     << " data=\"" << encode(data) << "\""
+			     << " data=\"" << base64_encode(data) << "\""
 			     << ">" << endl;
 		}
 
@@ -187,8 +181,18 @@ namespace {
 	}
 
 	void parse_hint(emitter *e, attributes const &attr) {
-		e->hint(get_attr<uint64_t>(attr, "cache_block"),
-			decode(get_attr<string>(attr, "data")));
+		using namespace base;
+
+		block_address cblock = get_attr<uint64_t>(attr, "cache_block");
+		decoded_or_error doe = base64_decode(get_attr<string>(attr, "data"));
+		if (!get<vector<unsigned char> >(&doe)) {
+			ostringstream msg;
+			msg << "invalid base64 encoding of hint for cache block "
+			    << cblock << ": " << get<string>(doe);
+			throw runtime_error(msg.str());
+		}
+
+		e->hint(cblock, get<vector<unsigned char> >(doe));
 	}
 
 	void start_tag(void *data, char const *el, char const **attr) {
