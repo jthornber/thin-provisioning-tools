@@ -64,7 +64,7 @@ namespace {
 
 	class hint_emitter : public hint_visitor {
 	public:
-		hint_emitter(emitter::ptr e, set<block_address> valid_blocks)
+		hint_emitter(emitter::ptr e, set<block_address> &valid_blocks)
 			: e_(e),
 			  valid_blocks_(valid_blocks) {
 		}
