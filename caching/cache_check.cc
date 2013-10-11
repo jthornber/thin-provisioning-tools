@@ -276,17 +276,25 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
+		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
+		err = metadata_check(bm, fs);
+
+		return err == NO_ERROR ? 0 : 1;
+	}
+
+	int check_with_exception_handling(string const &path, flags const &fs) {
+		int r;
 		try {
-			block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
-			err = metadata_check(bm, fs);
+			r = check(path, fs);
 
 		} catch (std::exception &e) {
 			if (!fs.quiet_)
 				cerr << e.what() << endl;
-			return 1;
+			r = 1;
 		}
 
-		return err == NO_ERROR ? 0 : 1;
+		return r;
+
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -363,7 +371,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return check(argv[optind], fs);
+	return check_with_exception_handling(argv[optind], fs);
 }
 
 //----------------------------------------------------------------
