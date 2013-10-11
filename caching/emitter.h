@@ -37,6 +37,12 @@ namespace caching {
 
 		virtual void hint(pd::block_address cblock,
 				  std::vector<unsigned char> const &data) = 0;
+
+		virtual void begin_discards() = 0;
+		virtual void end_discards() = 0;
+
+		virtual void discard(pd::block_address dblock_begin,
+				     pd::block_address dblock_end) = 0;
 	};
 }
 

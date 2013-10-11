@@ -78,7 +78,22 @@ namespace {
 
 		virtual void hint(pd::block_address cblock,
 				  vector<unsigned char> const &data) {
+			md_->hints_->set_hint(cblock, data);
+		}
 
+		virtual void begin_discards() {
+			// noop
+		}
+
+		virtual void end_discards() {
+			// noop
+		}
+
+		virtual void discard(block_address dblock, block_address dblock_e) {
+			while (dblock != dblock_e) {
+				md_->discard_bits_->set(dblock, true);
+				dblock++;
+			}
 		}
 
 	private:

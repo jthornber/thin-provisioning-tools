@@ -88,6 +88,24 @@ namespace {
 			     << "/>" << endl;
 		}
 
+		virtual void begin_discards() {
+			indent();
+			out_ << "<discards>" << endl;
+			inc();
+		}
+
+		virtual void end_discards() {
+			dec();
+			indent();
+			out_ << "</discards>" << endl;
+		}
+
+		virtual void discard(block_address dblock_b, block_address dblock_e) {
+			indent();
+			out_ << "<discard dbegin=\"" << dblock_b << "\""
+			     << " dend=\"" << dblock_e << "\"/>" << endl;
+		}
+
 	private:
 		string as_truth(bool v) const {
 			return v ? "true" : "false";
@@ -196,6 +214,12 @@ namespace {
 		e->hint(cblock, get<vector<unsigned char> >(doe));
 	}
 
+	// FIXME: why passing e by ptr?
+	void parse_discard(emitter *e, attributes const &attr) {
+		e->discard(get_attr<uint64_t>(attr, "dbegin"),
+			   get_attr<uint64_t>(attr, "dend"));
+	}
+
 	void start_tag(void *data, char const *el, char const **attr) {
 		emitter *e = static_cast<emitter *>(data);
 		attributes a;
@@ -216,6 +240,12 @@ namespace {
 
 		else if (!strcmp(el, "hint"))
 			parse_hint(e, a);
+
+		else if (!strcmp(el, "discards"))
+			e->begin_discards();
+
+		else if (!strcmp(el, "discard"))
+			parse_discard(e, a);
 
 		else
 			throw runtime_error("unknown tag type");
@@ -238,6 +268,13 @@ namespace {
 			e->end_hints();
 
 		else if (!strcmp(el, "hint"))
+			// do nothing
+			;
+
+		else if (!strcmp(el, "discards"))
+			e->end_discards();
+
+		else if (!strcmp(el, "discard"))
 			// do nothing
 			;
 
