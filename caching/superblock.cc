@@ -18,7 +18,6 @@ namespace {
 		le32 version;
 
 		__u8 policy_name[CACHE_POLICY_NAME_SIZE];
-		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
 		le32 policy_hint_size;
 
 		__u8 metadata_space_map_root[SPACE_MAP_ROOT_SIZE];
@@ -42,6 +41,8 @@ namespace {
 		le32 read_misses;
 		le32 write_hits;
 		le32 write_misses;
+
+		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
 	} __attribute__ ((packed));
 
 	struct superblock_traits {
