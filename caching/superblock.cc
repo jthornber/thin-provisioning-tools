@@ -107,7 +107,6 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 		core.policy_version[i] = to_cpu<uint32_t>(disk.policy_version[i]);
 
 	core.policy_hint_size = to_cpu<uint32_t>(disk.policy_hint_size);
-	cerr << "unpacking: hint width = " << core.policy_hint_size << endl;
 
 	::memcpy(core.metadata_space_map_root,
 		 disk.metadata_space_map_root,
