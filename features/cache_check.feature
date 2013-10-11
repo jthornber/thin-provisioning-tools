@@ -81,7 +81,6 @@ Feature: cache_check
     Then it should fail
     And it should give no output
 
-  @announce
   Scenario: A valid metadata area passes
     Given valid cache metadata
     When I run `cache_check metadata.bin`
