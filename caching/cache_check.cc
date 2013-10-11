@@ -18,6 +18,7 @@
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
+#include "version.h"
 
 using namespace boost;
 using namespace caching;
@@ -299,8 +300,6 @@ namespace {
 		    << "  {--skip-hints}" << endl
 		    << "  {--skip-discards}" << endl;
 	}
-
-	char const *TOOLS_VERSION = "0.1.6";
 }
 
 //----------------------------------------------------------------
@@ -349,7 +348,7 @@ int main(int argc, char **argv)
 			break;
 
 		case 'V':
-			cout << TOOLS_VERSION << endl;
+			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
 		default:
