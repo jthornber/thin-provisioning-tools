@@ -65,26 +65,9 @@ metadata::setup_hint_array(size_t width)
 }
 
 void
-metadata::init_superblock()
-{
-#if 0
-	sb_.magic_ = SUPERBLOCK_MAGIC;
-	sb_.version_ = 1;
-	sb_.data_mapping_root_ = mappings_->get_root();
-	sb_.device_details_root_ = details_->get_root();
-	sb_.data_block_size_ = data_block_size;
-	sb_.metadata_block_size_ = MD_BLOCK_SIZE;
-	sb_.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
-#endif
-}
-
-void
 metadata::create_metadata(block_manager<>::ptr bm)
 {
 	tm_ = open_tm(bm);
-
-	::memset(&sb_, 0, sizeof(sb_));
-	init_superblock();
 
 	space_map::ptr core = tm_->get_sm();
 	metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
@@ -143,7 +126,7 @@ metadata::commit_hints()
 void
 metadata::commit_discard_bits()
 {
-	// FIXME: finish
+	sb_.discard_root = discard_bits_->get_root();
 }
 
 void
