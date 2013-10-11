@@ -2,14 +2,12 @@ Feature: cache_check
   Scenario: print version (-V flag)
     When I run `cache_check -V`
     
-    Then it should pass
-    And version to stdout
+    Then it should pass with version
 
   Scenario: print version (--version flag)
     When I run `cache_check --version`
 
-    Then it should pass
-    And version to stdout
+    Then it should pass with version
 
   Scenario: print help
     When I run `cache_check --help`
@@ -83,11 +81,9 @@ Feature: cache_check
     Then it should fail
     And it should give no output
 
+  @announce
   Scenario: A valid metadata area passes
-    Given metadata containing:
-    """
-    """
-
-    When I run cache_check
+    Given valid cache metadata
+    When I run `cache_check metadata.bin`
     Then it should pass
 

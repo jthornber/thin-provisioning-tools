@@ -34,12 +34,6 @@ Then /^it should fail$/ do
   assert_success(false)
 end
 
-VERSION="0.1.6\n"
-
-Then /^version to stdout$/ do
-  assert_exact_output(VERSION, all_stdout)
-end
-
 USAGE =<<EOF
 Usage: cache_check [options] {device|file}
 Options:
