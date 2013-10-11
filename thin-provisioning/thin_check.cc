@@ -22,129 +22,27 @@
 
 #include "version.h"
 
+#include "base/error_state.h"
+#include "base/nested_output.h"
 #include "persistent-data/space-maps/core.h"
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/device_tree.h"
-#include "thin-provisioning/file_utils.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
 
+using namespace base;
 using namespace std;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
-
-	class end_message {};
-
-	class nested_output {
-	public:
-		nested_output(ostream &out, unsigned step)
-			: out_(out),
-			  step_(step),
-			  beginning_of_line_(true),
-			  enabled_(true),
-			  indent_(0) {
-		}
-
-		template <typename T>
-		nested_output &operator <<(T const &t) {
-			if (beginning_of_line_) {
-				beginning_of_line_ = false;
-				indent();
-			}
-
-			if (enabled_)
-				out_ << t;
-
-			return *this;
-		}
-
-		nested_output &operator <<(end_message const &m) {
-			beginning_of_line_ = true;
-
-			if (enabled_)
-				out_ << endl;
-
-			return *this;
-		}
-
-		void inc_indent() {
-			indent_ += step_;
-		}
-
-		void dec_indent() {
-			indent_ -= step_;
-		}
-
-		struct nest {
-			nest(nested_output &out)
-			: out_(out) {
-				out_.inc_indent();
-			}
-
-			~nest() {
-				out_.dec_indent();
-			}
-
-			nested_output &out_;
-		};
-
-		nest push() {
-			return nest(*this);
-		}
-
-		void enable() {
-			enabled_ = true;
-		}
-
-		void disable() {
-			enabled_ = false;
-		}
-
-	private:
-		void indent() {
-			if (enabled_)
-				for (unsigned i = 0; i < indent_; i++)
-					out_ << ' ';
-		}
-
-		ostream &out_;
-		unsigned step_;
-
-		bool beginning_of_line_;
-		bool enabled_;
-		unsigned indent_;
-	};
-
-	//--------------------------------
-
-	enum error_state {
-		NO_ERROR,
-		NON_FATAL,	// eg, lost blocks
-		FATAL		// needs fixing before pool can be activated
-	};
-
-	error_state
-	combine_errors(error_state lhs, error_state rhs) {
-		switch (lhs) {
-		case NO_ERROR:
-			return rhs;
-
-		case NON_FATAL:
-			return (rhs == FATAL) ? FATAL : lhs;
-
-		default:
-			return lhs;
-		}
-	}
-
 	//--------------------------------
 
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		typename block_io<>::mode m = block_io<>::READ_ONLY;
+		block_io<>::mode m = block_io<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -174,7 +72,7 @@ namespace {
 			err_ = combine_errors(err_, FATAL);
 		}
 
-		error_state get_error() const {
+		base::error_state get_error() const {
 			return err_;
 		}
 
@@ -216,7 +114,8 @@ namespace {
 	class mapping_reporter : public mapping_tree_detail::damage_visitor {
 	public:
 		mapping_reporter(nested_output &out)
-		: out_(out) {
+		: out_(out),
+		  err_(NO_ERROR) {
 		}
 
 		virtual void visit(mapping_tree_detail::missing_devices const &d) {
@@ -344,13 +243,12 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	flags fs = {
-		.check_device_tree = true,
-		.check_mapping_tree_level1 = true,
-		.check_mapping_tree_level2 = true,
-		.ignore_non_fatal_errors = false,
-		.quiet = false
-	};
+	flags fs;
+	fs.check_device_tree = true;
+	fs.check_mapping_tree_level1 = true,
+	fs.check_mapping_tree_level2 = true,
+	fs.ignore_non_fatal_errors = false,
+	fs.quiet = false;
 
 	char const shortopts[] = "qhV";
 	option const longopts[] = {

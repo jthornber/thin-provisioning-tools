@@ -37,8 +37,8 @@ struct flags {
 };
 
 namespace {
-	int dump(string const &path, ostream *out, string const &format, struct flags &flags,
-		 block_address metadata_snap = 0) {
+	int dump_(string const &path, ostream &out, string const &format, struct flags &flags,
+		  block_address metadata_snap) {
 		try {
 			metadata::ptr md(new metadata(path, metadata_snap));
 			emitter::ptr e;
@@ -56,9 +56,9 @@ namespace {
 			}
 
 			if (format == "xml")
-				e = create_xml_emitter(*out);
+				e = create_xml_emitter(out);
 			else if (format == "human_readable")
-				e = create_human_readable_emitter(*out);
+				e = create_human_readable_emitter(out);
 			else {
 				cerr << "unknown format '" << format << "'" << endl;
 				exit(1);
@@ -72,6 +72,15 @@ namespace {
 		}
 
 		return 0;
+	}
+
+	int dump(string const &path, char const *output, string const &format, struct flags &flags,
+		 block_address metadata_snap = 0) {
+		if (output) {
+			ofstream out(output);
+			return dump_(path, out, format, flags, metadata_snap);
+		} else
+			return dump_(path, cout, format, flags, metadata_snap);
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -94,7 +103,8 @@ int main(int argc, char **argv)
 	char *end_ptr;
 	string format = "xml";
 	block_address metadata_snap = 0;
-	struct flags flags = { .find_metadata_snap = false, .repair = false };
+	struct flags flags;
+	flags.find_metadata_snap = flags.repair = false;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
@@ -153,5 +163,5 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output ? new ofstream(output) : &cout, format, flags, metadata_snap);
+	return dump(argv[optind], output, format, flags, metadata_snap);
 }

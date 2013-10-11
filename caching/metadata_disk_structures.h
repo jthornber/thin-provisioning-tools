@@ -1,4 +1,4 @@
-// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+// Copyright (C) 2012 Red Hat, Inc. All rights reserved.
 //
 // This file is part of the thin-provisioning-tools source.
 //
@@ -16,30 +16,20 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "hex_dump.h"
+#ifndef CACHE_METADATA_DISK_STRUCTURES_H
+#define CACHE_METADATA_DISK_STRUCTURES_H
 
-#include <iostream>
-#include <iomanip>
-
-using namespace std;
+#include "persistent-data/endian_utils.h"
+#include "persistent-data/data-structures/btree.h"
 
 //----------------------------------------------------------------
 
-void base::hex_dump(ostream &out, void const *data_, size_t len)
-{
-	unsigned char const *data = reinterpret_cast<unsigned char const *>(data_),
-		*end = data + len;
+// FIXME: rename to just METADATA_DISK_STRUCTURES
+namespace cache_tools {
+	using namespace base;	// FIXME: don't use namespaces in headers.
 
-	ios_base::fmtflags old_flags = out.flags();
-	out << hex;
-
-	while (data < end) {
-		for (unsigned i = 0; i < 16 && data < end; i++, data++)
-			out << setw(2) << setfill('0') << (unsigned) *data << " ";
-		out << endl;
-	}
-
-	out.setf(old_flags);
 }
 
 //----------------------------------------------------------------
+
+#endif

@@ -9,7 +9,7 @@
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
-#include "thin-provisioning/file_utils.h"
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"
@@ -23,7 +23,7 @@ namespace {
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		typename block_io<>::mode m = block_io<>::READ_ONLY;
+		block_io<>::mode m = block_io<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -150,7 +150,14 @@ int main(int argc, char **argv)
 
 		case 1:
 			// region
-			regions.push_back(parse_region(optarg));
+			try {
+				regions.push_back(parse_region(optarg));
+
+			} catch (std::exception const &e) {
+				cerr << e.what();
+				return 1;
+			}
+
 			break;
 
 		default:

@@ -37,6 +37,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &value)
 	value.metadata_nr_blocks_ = to_cpu<uint64_t>(disk.metadata_nr_blocks_);
 
 	value.compat_flags_ = to_cpu<uint32_t>(disk.compat_flags_);
+	value.compat_ro_flags_ = to_cpu<uint32_t>(disk.compat_ro_flags_);
 	value.incompat_flags_ = to_cpu<uint32_t>(disk.incompat_flags_);
 }
 
@@ -70,6 +71,7 @@ superblock_traits::pack(superblock const &value, superblock_disk &disk)
 	disk.metadata_nr_blocks_ = to_disk<le64>(value.metadata_nr_blocks_);
 
 	disk.compat_flags_ = to_disk<le32>(value.compat_flags_);
+	disk.compat_ro_flags_ = to_disk<le32>(value.compat_ro_flags_);
 	disk.incompat_flags_ = to_disk<le32>(value.incompat_flags_);
 }
 

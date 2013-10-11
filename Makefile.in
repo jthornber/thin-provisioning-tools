@@ -20,6 +20,11 @@
 
 V=@
 PROGRAMS=\
+	cache_check \
+	cache_dump \
+	cache_restore \
+	cache_repair \
+	\
 	thin_check \
 	thin_dump \
 	thin_restore \
@@ -29,29 +34,35 @@ PROGRAMS=\
 
 all: $(PROGRAMS)
 
-PDATA_SOURCE=\
+SOURCE=\
+	base/base64.cc \
+	base/error_state.cc \
+	\
+	caching/hint_array.cc \
+	caching/superblock.cc \
+	caching/mapping_array.cc \
+	caching/metadata.cc \
+	caching/metadata_dump.cc \
+	caching/restore_emitter.cc \
+	caching/xml_format.cc \
+	\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/transaction_manager.cc \
 	\
+	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/btree.cc \
 	\
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc
-#PDATA_OBJECTS=$(subst .cc,.o,$(PDATA_SOURCE))
-
-SOURCE=\
-	$(PDATA_SOURCE) \
-	\
-	cache/metadata_disk_structures.cc \
+	persistent-data/space-maps/careful_alloc.cc \
 	\
 	thin-provisioning/device_tree.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -66,7 +77,8 @@ SOURCE=\
 PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 CXX_PROGRAM_SOURCE=\
-	cache/check.cc \
+	caching/cache_check.cc \
+	caching/cache_restore.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_dump.cc \
@@ -140,9 +152,11 @@ THIN_DUMP_SOURCE=$(SOURCE)
 THIN_REPAIR_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
 THIN_CHECK_SOURCE=\
+	base/error_state.cc \
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
@@ -151,7 +165,6 @@ THIN_CHECK_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -162,6 +175,7 @@ THIN_RMAP_SOURCE=\
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
@@ -170,7 +184,6 @@ THIN_RMAP_SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	thin-provisioning/file_utils.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -211,30 +224,61 @@ thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 
 thin_metadata_size: thin-provisioning/thin_metadata_size.o
 	@echo "    [LD]  $@"
-	$(V) $(CC) $(CFLAGS) -o $@ $+ -lm
+	$(V) $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $+ -lm
 
 #----------------------------------------------------------------
 # Cache tools
 
 CACHE_CHECK_SOURCE=\
+	base/base64.cc \
+	base/error_state.cc \
 	persistent-data/checksum.cc \
 	persistent-data/endian_utils.cc \
 	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/lock_tracker.cc \
 	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/bitset.cc \
 	persistent-data/space_map.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/transaction_manager.cc \
-	cache/metadata_disk_structures.cc
+	caching/hint_array.cc \
+	caching/superblock.cc \
+	caching/mapping_array.cc \
+	caching/metadata.cc \
+	caching/metadata_dump.cc \
+	caching/restore_emitter.cc \
+	caching/xml_format.cc
 
 CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
 
-cache_check: $(CACHE_CHECK_OBJECTS) cache/check.o
+CACHE_DUMP_SOURCE=$(SOURCE)
+CACHE_DUMP_OBJECTS=$(subst .cc,.o,$(CACHE_DUMP_SOURCE))
+
+CACHE_REPAIR_SOURCE=$(SOURCE)
+CACHE_REPAIR_OBJECTS=$(subst .cc,.o,$(CACHE_REPAIR_SOURCE))
+
+CACHE_RESTORE_SOURCE=$(SOURCE)
+CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
+
+cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+cache_dump: $(CACHE_DUMP_OBJECTS) caching/cache_dump.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+cache_repair: $(CACHE_REPAIR_OBJECTS) caching/cache_repair.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
@@ -276,7 +320,7 @@ include unit-tests/Makefile
 
 .PHONEY: features
 
-features: thin_check cache_check
+features: $(PROGRAMS)
 	cucumber --no-color --format progress
 
 test: features unit-test

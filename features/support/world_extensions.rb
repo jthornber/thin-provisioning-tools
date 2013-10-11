@@ -39,7 +39,7 @@ module ThinpWorld
   # FIXME: we should really break out the xml stuff from
   # thinp-test-suite and put in a gem in this repo.
   def write_valid_xml(path)
-    `thinp_xml create --nr-thins uniform[4..9] --nr-mappings uniform[1000.5000] > #{path}`
+    `thinp_xml create --nr-thins uniform[4..9] --nr-mappings uniform[1000..5000] > #{path}`
   end
 
   private

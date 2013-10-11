@@ -213,7 +213,7 @@ namespace persistent_data {
 		class ro_spine : private boost::noncopyable {
 		public:
 			ro_spine(transaction_manager::ptr tm,
-				 typename block_manager<>::validator::ptr v)
+				 block_manager<>::validator::ptr v)
 				: tm_(tm),
 				  validator_(v) {
 			}
@@ -227,7 +227,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
-			typename block_manager<>::validator::ptr validator_;
+			block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
@@ -235,9 +235,10 @@ namespace persistent_data {
 		public:
 			typedef transaction_manager::read_ref read_ref;
 			typedef transaction_manager::write_ref write_ref;
+			typedef boost::optional<block_address> maybe_block;
 
 			shadow_spine(transaction_manager::ptr tm,
-				     typename block_manager<>::validator::ptr v)
+				     block_manager<>::validator::ptr v)
 
 				: tm_(tm),
 				  validator_(v) {
@@ -282,14 +283,17 @@ namespace persistent_data {
 			}
 
 			block_address get_root() const {
-				return root_;
+				if (root_)
+					return *root_;
+
+				throw std::runtime_error("shadow spine has no root");
 			}
 
 		private:
 			transaction_manager::ptr tm_;
-			typename block_manager<>::validator::ptr validator_;
+			block_manager<>::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
-			block_address root_;
+		        maybe_block root_;
 		};
 
 		// Used to keep a record of a nested btree's position.

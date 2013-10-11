@@ -1,5 +1,5 @@
 #include "persistent-data/math_utils.h"
-#include "thin-provisioning/file_utils.h"
+#include "persistent-data/file_utils.h"
 
 #include <linux/fs.h>
 #include <sys/ioctl.h>
@@ -12,7 +12,7 @@ using namespace base;
 //----------------------------------------------------------------
 
 persistent_data::block_address
-thin_provisioning::get_nr_blocks(string const &path)
+persistent_data::get_nr_blocks(string const &path)
 {
 	using namespace persistent_data;
 
@@ -45,6 +45,24 @@ thin_provisioning::get_nr_blocks(string const &path)
 		throw runtime_error("bad path");
 
 	return nr_blocks;
+}
+
+persistent_data::block_manager<>::ptr
+persistent_data::open_bm(std::string const &dev_path, block_io<>::mode m)
+{
+	block_address nr_blocks = get_nr_blocks(dev_path);
+	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m));
+}
+
+void
+persistent_data::check_file_exists(string const &file) {
+	struct stat info;
+	int r = ::stat(file.c_str(), &info);
+	if (r)
+		throw runtime_error("Couldn't stat file");
+
+	if (!S_ISREG(info.st_mode))
+		throw runtime_error("Not a regular file");
 }
 
 //----------------------------------------------------------------

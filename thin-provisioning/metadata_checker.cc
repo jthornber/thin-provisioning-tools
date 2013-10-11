@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "thin-provisioning/file_utils.h"
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
 

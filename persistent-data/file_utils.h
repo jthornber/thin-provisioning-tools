@@ -3,10 +3,16 @@
 
 #include "persistent-data/block.h"
 
+#include <string>
+
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+// FIXME: move to a different unit
+namespace persistent_data {
 	persistent_data::block_address get_nr_blocks(string const &path);
+	block_manager<>::ptr open_bm(std::string const &dev_path, block_io<>::mode m);
+
+	void check_file_exists(std::string const &file);
 }
 
 //----------------------------------------------------------------

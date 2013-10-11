@@ -2,14 +2,12 @@ Feature: cache_check
   Scenario: print version (-V flag)
     When I run `cache_check -V`
     
-    Then it should pass
-    And version to stdout
+    Then it should pass with version
 
   Scenario: print version (--version flag)
     When I run `cache_check --version`
 
-    Then it should pass
-    And version to stdout
+    Then it should pass with version
 
   Scenario: print help
     When I run `cache_check --help`
@@ -56,31 +54,35 @@ Feature: cache_check
 
   Scenario: Metadata file exists, but can't be opened
     Given input without read permissions
-
     When I run `cache_check input`
-
     Then it should fail
     And the stderr should contain:
     """
-    input: Permission denied
+    Permission denied
     """
 
   Scenario: Metadata file full of zeroes
     Given input file
     And block 1 is zeroed
-
     When I run `cache_check input`
+    Then it should fail
 
-    And the stderr should contain:
-    """
-    input: No superblock found
-    """
+  Scenario: --quiet is observed
+    Given input file
+    And block 1 is zeroed
+    When I run `cache_check --quiet input`
+    Then it should fail
+    And it should give no output
+
+  Scenario: -q is observed
+    Given input file
+    And block 1 is zeroed
+    When I run `cache_check -q input`
+    Then it should fail
+    And it should give no output
 
   Scenario: A valid metadata area passes
-    Given metadata containing:
-    """
-    """
-
-    When I run cache_check
-
+    Given valid cache metadata
+    When I run `cache_check metadata.bin`
     Then it should pass
+

@@ -7,6 +7,10 @@ Given(/^valid metadata$/) do
   run_simple("thin_restore -i #{xml_file} -o #{dev_file}")
 end
 
+Given(/^the dev file metadata\.bin$/) do
+  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
+end
+
 Given(/^a corrupt superblock$/) do
   in_current_dir do
     write_valid_xml(xml_file)

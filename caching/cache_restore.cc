@@ -1,54 +1,31 @@
-// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
-//
-// This file is part of the thin-provisioning-tools source.
-//
-// thin-provisioning-tools is free software: you can redistribute it
-// and/or modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation, either version 3 of
-// the License, or (at your option) any later version.
-//
-// thin-provisioning-tools is distributed in the hope that it will be
-// useful, but WITHOUT ANY WARRANTY; without even the implied warranty
-// of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with thin-provisioning-tools.  If not, see
-// <http://www.gnu.org/licenses/>.
-
-#include "persistent-data/file_utils.h"
-#include "thin-provisioning/emitter.h"
-#include "thin-provisioning/human_readable_format.h"
-#include "thin-provisioning/metadata.h"
-#include "thin-provisioning/restore_emitter.h"
-#include "thin-provisioning/xml_format.h"
 #include "version.h"
+
+#include "caching/metadata.h"
+#include "caching/restore_emitter.h"
+#include "caching/xml_format.h"
+#include "persistent-data/file_utils.h"
 
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <libgen.h>
-#include <linux/fs.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <string>
 
+using namespace caching;
 using namespace persistent_data;
 using namespace std;
-using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
-	int restore(string const &backup_file, string const &dev) {
+	int restore(string const &xml_file, string const &dev) {
 		try {
-			// The block size gets updated by the restorer.
-			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
+			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_WRITE);
+			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md);
 
-			check_file_exists(backup_file);
-			ifstream in(backup_file.c_str(), ifstream::in);
+			check_file_exists(xml_file);
+			ifstream in(xml_file.c_str(), ifstream::in);
 			parse_xml(in, restorer);
 
 		} catch (std::exception &e) {
@@ -72,10 +49,10 @@ namespace {
 int main(int argc, char **argv)
 {
 	int c;
-	char const *prog_name = basename(argv[0]);
-	const char *shortopts = "hi:o:V";
 	string input, output;
-	const struct option longopts[] = {
+	char const *prog_name = basename(argv[0]);
+	char const *short_opts = "hi:o:V";
+	option const long_opts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
@@ -83,7 +60,7 @@ int main(int argc, char **argv)
 		{ NULL, no_argument, NULL, 0 }
 	};
 
-	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
 			usage(cout, prog_name);
@@ -128,3 +105,4 @@ int main(int argc, char **argv)
 }
 
 //----------------------------------------------------------------
+
