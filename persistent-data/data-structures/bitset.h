@@ -40,9 +40,9 @@ namespace persistent_data {
 		public:
 			typedef boost::shared_ptr<bitset_visitor> ptr;
 
-			virtual ~bitset_visitor();
-			virtual void visit(uint32_t index, bool value);
-			virtual void visit(missing_bits const &d);
+			virtual ~bitset_visitor() {}
+			virtual void visit(uint32_t index, bool value) = 0;
+			virtual void visit(missing_bits const &d) = 0;
 		};
 	}
 

@@ -118,7 +118,7 @@ metadata::open_metadata(block_manager<>::ptr bm)
 
 	if (sb_.discard_root)
 		discard_bits_ = bitset::ptr(
-			new bitset(tm_, sb_.discard_root, sb_.cache_blocks));
+			new bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
 }
 
 void

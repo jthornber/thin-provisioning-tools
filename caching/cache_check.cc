@@ -139,6 +139,24 @@ namespace {
 		using reporter_base::get_error;
 	};
 
+	class discard_reporter : public bitset_detail::bitset_visitor, reporter_base {
+	public:
+		discard_reporter(nested_output &o)
+		: reporter_base(o) {
+		}
+
+		virtual void visit(uint32_t index, bool value) {
+			// no op
+		}
+
+		virtual void visit(bitset_detail::missing_bits const &d) {
+			out() << "missing discard bits "  << d.keys_ << end_message();
+			mplus_error(FATAL);
+		}
+
+		using reporter_base::get_error;
+	};
+
 	//--------------------------------
 
 	transaction_manager::ptr open_tm(block_manager<>::ptr bm) {
@@ -152,14 +170,16 @@ namespace {
 
 	struct flags {
 		flags()
-			: check_mappings_(false),
-			  check_hints_(false),
+			: check_mappings_(true),
+			  check_hints_(true),
+			  check_discards_(true),
 			  ignore_non_fatal_errors_(false),
 			  quiet_(false) {
 		}
 
 		bool check_mappings_;
 		bool check_hints_;
+		bool check_discards_;
 		bool ignore_non_fatal_errors_;
 		bool quiet_;
 	};
@@ -188,6 +208,7 @@ namespace {
 		superblock_reporter sb_rep(out);
 		mapping_reporter mapping_rep(out);
 		hint_reporter hint_rep(out);
+		discard_reporter discard_rep(out);
 
 		out << "examining superblock" << end_message();
 		{
@@ -211,17 +232,37 @@ namespace {
 		}
 
 		if (fs.check_hints_) {
-			out << "examining hint array" << end_message();
-			{
-				nested_output::nest _ = out.push();
-				hint_array ha(tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
-				ha.check(hint_rep);
+			if (!sb.hint_root)
+				out << "no hint array present" << end_message();
+
+			else {
+				out << "examining hint array" << end_message();
+				{
+					nested_output::nest _ = out.push();
+					hint_array ha(tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
+					ha.check(hint_rep);
+				}
 			}
 		}
 
+		if (fs.check_discards_) {
+			if (!sb.discard_root)
+				out << "no discard bitset present" << end_message();
+
+			else {
+				out << "examining discard bitset" << end_message();
+				{
+					nested_output::nest _ = out.push();
+					bitset discards(tm, sb.discard_root, sb.discard_nr_blocks);
+				}
+			}
+		}
+
+		// FIXME: make an error class that's an instance of mplus
 		return combine_errors(sb_rep.get_error(),
 				      combine_errors(mapping_rep.get_error(),
-						     hint_rep.get_error()));
+						     combine_errors(hint_rep.get_error(),
+								    discard_rep.get_error())));
 	}
 
 	int check(string const &path, flags const &fs) {
@@ -255,8 +296,8 @@ namespace {
 		    << "  {-V|--version}" << endl
 		    << "  {--super-block-only}" << endl
 		    << "  {--skip-mappings}" << endl
-		    << "  {--skip-hints}" << endl;
-
+		    << "  {--skip-hints}" << endl
+		    << "  {--skip-discards}" << endl;
 	}
 
 	char const *TOOLS_VERSION = "0.1.6";
@@ -274,6 +315,7 @@ int main(int argc, char **argv)
 		{ "superblock-only", no_argument, NULL, 1 },
 		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "skip-hints", no_argument, NULL, 3 },
+		{ "skip-discards", no_argument, NULL, 4 },
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
@@ -292,6 +334,10 @@ int main(int argc, char **argv)
 
 		case 3:
 			fs.check_hints_ = false;
+			break;
+
+		case 4:
+			fs.check_discards_ = false;
 			break;
 
 		case 'h':
