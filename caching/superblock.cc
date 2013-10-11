@@ -59,9 +59,53 @@ namespace {
 
 //----------------------------------------------------------------
 
+superblock_flags::superblock_flags()
+{
+}
+
+superblock_flags::superblock_flags(uint32_t bits)
+{
+	if (bits & (1 << CLEAN_SHUTDOWN_BIT)) {
+		flags_.insert(CLEAN_SHUTDOWN);
+		bits &= ~(1 << CLEAN_SHUTDOWN_BIT);
+	}
+
+	unhandled_flags_ = bits;
+}
+
+void
+superblock_flags::set_flag(superblock_flags::flag f)
+{
+	flags_.insert(f);
+}
+
+bool
+superblock_flags::get_flag(flag f) const
+{
+	return flags_.find(f) != flags_.end();
+}
+
+uint32_t
+superblock_flags::encode() const
+{
+	uint32_t r = 0;
+
+	if (get_flag(CLEAN_SHUTDOWN))
+		r = r | (1 << CLEAN_SHUTDOWN_BIT);
+
+	return r;
+}
+
+uint32_t
+superblock_flags::get_unhandled_flags() const
+{
+	return unhandled_flags_;
+}
+
+//----------------------------------------------------------------
+
 superblock::superblock()
 	: csum(0),
-	  flags(0),
 	  blocknr(SUPERBLOCK_LOCATION),
 	  magic(SUPERBLOCK_MAGIC),
 	  version(VERSION_BEGIN),
@@ -94,7 +138,8 @@ void
 superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 {
 	core.csum = to_cpu<uint32_t>(disk.csum);
-	core.flags = to_cpu<uint32_t>(disk.flags);
+
+	core.flags = superblock_flags(to_cpu<uint32_t>(disk.flags));
 	core.blocknr = to_cpu<uint64_t>(disk.blocknr);
 
 	::memcpy(core.uuid, disk.uuid, sizeof(core.uuid));
@@ -137,7 +182,7 @@ void
 superblock_traits::pack(superblock const &core, superblock_disk &disk)
 {
 	disk.csum = to_disk<le32>(core.csum);
-	disk.flags = to_disk<le32>(core.flags);
+	disk.flags = to_disk<le32>(core.flags.encode());
 	disk.blocknr = to_disk<le64>(core.blocknr);
 
 	::memcpy(disk.uuid, core.uuid, sizeof(disk.uuid));
@@ -257,9 +302,9 @@ caching::check_superblock(superblock const &sb,
 			  block_address nr_metadata_blocks,
 			  damage_visitor &visitor)
 {
-	if (sb.flags != 0) {
+	if (sb.flags.get_unhandled_flags()) {
 		ostringstream msg;
-		msg << "invalid flags: " << hex << sb.flags;
+		msg << "invalid flags: " << sb.flags.get_unhandled_flags();
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 

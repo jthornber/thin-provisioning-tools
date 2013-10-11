@@ -4,6 +4,8 @@
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/data-structures/btree.h"
 
+#include <set>
+
 //----------------------------------------------------------------
 
 namespace caching {
@@ -14,11 +16,34 @@ namespace caching {
 	unsigned const CACHE_POLICY_VERSION_SIZE = 3;
 	block_address const SUPERBLOCK_LOCATION = 0;
 
+	class superblock_flags {
+	public:
+		enum flag {
+			CLEAN_SHUTDOWN
+		};
+
+		enum flag_bits {
+			CLEAN_SHUTDOWN_BIT = 0
+		};
+
+		superblock_flags();
+		superblock_flags(uint32_t bits);
+
+		void set_flag(flag f);
+		bool get_flag(flag f) const;
+		uint32_t encode() const;
+		uint32_t get_unhandled_flags() const;
+
+	private:
+		uint32_t unhandled_flags_;
+		std::set<flag> flags_;
+	};
+
 	struct superblock {
 		superblock();
 
 		uint32_t csum;
-		uint32_t flags;
+		superblock_flags flags;
 		uint64_t blocknr;
 
 		__u8 uuid[16];
