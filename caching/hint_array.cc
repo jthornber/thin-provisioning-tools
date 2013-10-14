@@ -234,14 +234,14 @@ missing_hints::visit(damage_visitor &v) const
 //----------------------------------------------------------------
 
 hint_array::hint_array(tm_ptr tm, unsigned width)
-	: width_(width),
+	: width_(check_width(width)),
 	  impl_(mk_array(tm, width))
 {
 }
 
 hint_array::hint_array(typename hint_array::tm_ptr tm, unsigned width,
 		       block_address root, unsigned nr_entries)
-	: width_(width),
+	: width_(check_width(width)),
 	  impl_(mk_array(tm, width, root, nr_entries))
 {
 }
@@ -281,6 +281,18 @@ hint_array::check(hint_array_damage::damage_visitor &visitor)
 {
 	no_op_visitor vv;
 	walk(vv, visitor);
+}
+
+uint32_t
+hint_array::check_width(uint32_t width)
+{
+	if (width % 4 || width == 0 || width > 128) {
+		ostringstream msg;
+		msg << "invalid hint width: " << width;
+		throw runtime_error(msg.str());
+	}
+
+	return width;
 }
 
 //----------------------------------------------------------------

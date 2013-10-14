@@ -75,6 +75,8 @@ namespace caching {
 		void check(hint_array_damage::damage_visitor &visitor);
 
 	private:
+		static uint32_t check_width(uint32_t width);
+
 		unsigned width_;
 		boost::shared_ptr<persistent_data::array_base> impl_;
 	};

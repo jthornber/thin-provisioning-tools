@@ -55,7 +55,7 @@ namespace {
 
 	uint32_t const SUPERBLOCK_MAGIC = 06142003;
 	uint32_t const VERSION_BEGIN = 1;
-	uint32_t const VERSION_END = 2;
+	uint32_t const VERSION_END = 3;
 }
 
 //----------------------------------------------------------------
@@ -109,7 +109,7 @@ superblock::superblock()
 	: csum(0),
 	  blocknr(SUPERBLOCK_LOCATION),
 	  magic(SUPERBLOCK_MAGIC),
-	  version(VERSION_BEGIN),
+	  version(VERSION_END - 1u),
 	  policy_hint_size(0),
 	  mapping_root(0),
 	  hint_root(0),
@@ -152,7 +152,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		core.policy_version[i] = to_cpu<uint32_t>(disk.policy_version[i]);
 
-	core.policy_hint_size = to_cpu<uint32_t>(disk.policy_hint_size);
+	core.policy_hint_size = core.version == 1 ? 4 : to_cpu<uint32_t>(disk.policy_hint_size);
 
 	::memcpy(core.metadata_space_map_root,
 		 disk.metadata_space_map_root,
@@ -194,7 +194,6 @@ superblock_traits::pack(superblock const &core, superblock_disk &disk)
 
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		disk.policy_version[i] = to_disk<le32>(core.policy_version[i]);
-
 	disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
 
 	::memcpy(disk.metadata_space_map_root,
