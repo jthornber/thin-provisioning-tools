@@ -59,13 +59,20 @@ namespace {
 
 TEST_F(CacheSuperblockTests, default_constructed_superblock_is_valid)
 {
-	sb_.flags = 0;
 	check();
 }
 
-TEST_F(CacheSuperblockTests, non_zero_flags_are_invalid)
+TEST_F(CacheSuperblockTests, clean_shutdown_flag_is_valid)
 {
-	sb_.flags = 1;
+	sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
+	check();
+}
+
+TEST_F(CacheSuperblockTests, unhandled_flags_gets_set_correctly_and_is_invalid)
+{
+	uint32_t bad_flag = 1 << 12;
+	sb_.flags = superblock_flags(bad_flag | 1);
+	ASSERT_THAT(sb_.flags.get_unhandled_flags(), Eq(bad_flag));
 	check_invalid();
 }
 
