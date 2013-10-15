@@ -239,7 +239,6 @@ namespace persistent_data {
 				return false;
 			}
 
-
 			template <typename node>
 			bool already_visited(node const &n) {
 				block_address b = n.get_location();
