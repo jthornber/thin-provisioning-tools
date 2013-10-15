@@ -86,3 +86,9 @@ Feature: cache_check
     When I run `cache_check metadata.bin`
     Then it should pass
 
+  Scenario: Invalid metadata version causes a fail
+    Given a small xml file
+    And input file
+    And I run cache_restore with -i metadata.xml -o input --debug-override-metadata-version 12345
+    When I run `cache_check input`
+    Then it should fail

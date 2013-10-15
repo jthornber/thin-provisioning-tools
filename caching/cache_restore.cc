@@ -5,12 +5,14 @@
 #include "caching/xml_format.h"
 #include "persistent-data/file_utils.h"
 
+#include <boost/lexical_cast.hpp>
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <libgen.h>
 #include <string>
 
+using namespace boost;
 using namespace caching;
 using namespace persistent_data;
 using namespace std;
@@ -18,14 +20,31 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
-	int restore(string const &xml_file, string const &dev) {
+	struct flags {
+		flags()
+			: metadata_version(1),
+			  override_metadata_version(false) {
+		}
+
+		optional<string> input;
+		optional<string> output;
+		uint32_t metadata_version;
+		bool override_metadata_version;
+	};
+
+	int restore(flags const &fs) {
 		try {
-			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_WRITE);
+			block_manager<>::ptr bm = open_bm(*fs.output, block_io<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md);
 
-			check_file_exists(xml_file);
-			ifstream in(xml_file.c_str(), ifstream::in);
+			if (fs.override_metadata_version) {
+				cerr << "overriding" << endl;
+				md->sb_.version = fs.metadata_version;
+			}
+
+			check_file_exists(*fs.input);
+			ifstream in(fs.input->c_str(), ifstream::in);
 			parse_xml(in, restorer);
 
 		} catch (std::exception &e) {
@@ -42,17 +61,21 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-i|--input} <input xml file>" << endl
 		    << "  {-o|--output} <output device or file>" << endl
-		    << "  {-V|--version}" << endl;
+		    << "  {-V|--version}" << endl
+		    << endl
+		    << "  {--debug-override-metadata-version} <integer>" << endl;
+
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int c;
-	string input, output;
+	flags fs;
 	char const *prog_name = basename(argv[0]);
 	char const *short_opts = "hi:o:V";
 	option const long_opts[] = {
+		{ "debug-override-metadata-version", required_argument, NULL, 0 },
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
@@ -62,16 +85,21 @@ int main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
 		switch(c) {
+		case 0:
+			fs.metadata_version = lexical_cast<uint32_t>(optarg);
+			fs.override_metadata_version = true;
+			break;
+
 		case 'h':
 			usage(cout, prog_name);
 			return 0;
 
 		case 'i':
-			input = optarg;
+			fs.input = optional<string>(string(optarg));
 			break;
 
 		case 'o':
-			output = optarg;
+			fs.output = optional<string>(string(optarg));
 			break;
 
 		case 'V':
@@ -89,20 +117,19 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-        if (input.empty()) {
+        if (!fs.input) {
 		cerr << "No input file provided." << endl << endl;
 		usage(cerr, prog_name);
 		return 1;
 	}
 
-	if (output.empty()) {
+	if (!fs.output) {
 		cerr << "No output file provided." << endl << endl;
 		usage(cerr, prog_name);
 		return 1;
 	}
 
-	return restore(input, output);
+	return restore(fs);
 }
 
 //----------------------------------------------------------------
-

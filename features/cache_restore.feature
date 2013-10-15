@@ -9,7 +9,8 @@ Feature: thin_restore
 
   Scenario: print help (-h)
     When I run cache_restore with -h
-    Then it should pass with:
+    Then it should pass
+    And the output should contain exactly:
 
     """
     Usage: cache_restore [options]
@@ -18,11 +19,15 @@ Feature: thin_restore
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
       {-V|--version}
+
+      {--debug-override-metadata-version} <integer>
+
     """
 
   Scenario: print help (--help)
     When I run cache_restore with -h
-    Then it should pass with:
+    Then it should pass
+    And the output should contain exactly:
 
     """
     Usage: cache_restore [options]
@@ -31,6 +36,9 @@ Feature: thin_restore
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
       {-V|--version}
+
+      {--debug-override-metadata-version} <integer>
+
     """
 
   Scenario: missing input file
@@ -53,9 +61,14 @@ Feature: thin_restore
     No output file provided.
     """
 
-  @announce
   Scenario: successfully restores a valid xml file
     Given a small xml file
     And an empty dev file
     When I run cache_restore with -i metadata.xml -o metadata.bin
+    Then it should pass
+
+  Scenario: accepts --debug-override-metadata-version
+    Given a small xml file
+    And an empty dev file
+    When I run cache_restore with -i metadata.xml -o metadata.bin --debug-override-metadata-version 10298
     Then it should pass

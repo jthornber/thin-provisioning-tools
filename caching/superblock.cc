@@ -55,7 +55,7 @@ namespace {
 
 	uint32_t const SUPERBLOCK_MAGIC = 06142003;
 	uint32_t const VERSION_BEGIN = 1;
-	uint32_t const VERSION_END = 3;
+	uint32_t const VERSION_END = 2;
 }
 
 //----------------------------------------------------------------
