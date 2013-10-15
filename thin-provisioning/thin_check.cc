@@ -136,6 +136,10 @@ namespace {
 			err_ = combine_errors(err_, FATAL);
 		}
 
+		error_state get_error() const {
+			return err_;
+		}
+
 	private:
 		nested_output &out_;
 		error_state err_;
@@ -206,7 +210,8 @@ namespace {
 		}
 
 		return combine_errors(sb_rep.get_error(),
-				      dev_rep.get_error());
+				      combine_errors(mapping_rep.get_error(),
+						     dev_rep.get_error()));
 	}
 
 	int check(string const &path, flags fs) {
