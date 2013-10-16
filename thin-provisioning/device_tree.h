@@ -4,6 +4,8 @@
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/run.h"
 
+using namespace boost;
+
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
@@ -48,6 +50,8 @@ namespace thin_provisioning {
 
 		class damage_visitor {
 		public:
+			typedef shared_ptr<damage_visitor> ptr;
+
 			virtual ~damage_visitor() {}
 
 			void visit(damage const &d) {
@@ -59,10 +63,18 @@ namespace thin_provisioning {
 
 		// FIXME: need to add some more damage types for bad leaf data
 
+		class device_visitor {
+		public:
+			virtual ~device_visitor() {}
+			virtual void visit(block_address dev_id, device_details const &v) = 0;
+		};
 	};
 
 	typedef persistent_data::btree<1, device_tree_detail::device_details_traits> device_tree;
 
+	void walk_device_tree(device_tree const &tree,
+			      device_tree_detail::device_visitor &dev_v,
+			      device_tree_detail::damage_visitor &dv);
 	void check_device_tree(device_tree const &tree,
 			       device_tree_detail::damage_visitor &visitor);
 }

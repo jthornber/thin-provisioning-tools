@@ -10,9 +10,22 @@ using namespace thin_provisioning;
 namespace {
 	using namespace device_tree_detail;
 
+	struct visitor_adapter {
+		visitor_adapter(device_visitor &dv)
+		: dv_(dv) {
+		}
+
+		void visit(btree_path const &path, device_details const &dd) {
+			dv_.visit(path[0], dd);
+		}
+
+	private:
+		device_visitor &dv_;
+	};
+
 	// No op for now, should add sanity checks in here however.
-	struct leaf_visitor {
-		virtual void visit(btree_path const &path, device_details const &dd) {
+	struct noop_visitor : public device_visitor {
+		virtual void visit(block_address dev_id, device_details const &dd) {
 		}
 	};
 
@@ -62,15 +75,26 @@ namespace thin_provisioning {
 			v.visit(*this);
 		}
 	}
+}
 
-	void check_device_tree(device_tree const &tree, damage_visitor &visitor)
-	{
-		block_counter counter;	// FIXME: get rid of this counter arg
-		leaf_visitor vv;
-		ll_damage_visitor dv(visitor);
+//----------------------------------------------------------------
 
-		btree_visit_values(tree, counter, vv, dv);
-	}
+void
+thin_provisioning::walk_device_tree(device_tree const &tree,
+				    device_tree_detail::device_visitor &vv,
+				    device_tree_detail::damage_visitor &dv)
+{
+	block_counter counter;
+	visitor_adapter av(vv);
+	ll_damage_visitor ll_dv(dv);
+	btree_visit_values(tree, counter, av, ll_dv);
+}
+
+void
+thin_provisioning::check_device_tree(device_tree const &tree, damage_visitor &visitor)
+{
+	noop_visitor vv;
+	walk_device_tree(tree, vv, visitor);
 }
 
 //----------------------------------------------------------------
