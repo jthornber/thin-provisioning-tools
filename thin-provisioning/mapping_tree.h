@@ -92,6 +92,8 @@ namespace thin_provisioning {
 
 		class damage_visitor {
 		public:
+			typedef boost::shared_ptr<damage_visitor> ptr;
+
 			virtual ~damage_visitor() {}
 
 			void visit(damage const &d) {
@@ -102,15 +104,41 @@ namespace thin_provisioning {
 			virtual void visit(missing_mappings const &d) = 0;
 		};
 
+		class mapping_visitor {
+		public:
+			virtual ~mapping_visitor() {}
+
+			// path contains 2 elements, the dev key, then the oblock
+			virtual void visit(btree_path const &path, block_time const &m) = 0;
+		};
+
+		class device_visitor {
+		public:
+			virtual ~device_visitor() {}
+			virtual void visit(btree_path const &path, block_address dtree_root) = 0;
+		};
 	}
 
 	typedef persistent_data::btree<2, mapping_tree_detail::block_traits> mapping_tree;
 	typedef persistent_data::btree<1, mapping_tree_detail::mtree_traits> dev_tree;
 	typedef persistent_data::btree<1, mapping_tree_detail::block_traits> single_mapping_tree;
 
+	void walk_mapping_tree(dev_tree const &tree,
+			       mapping_tree_detail::device_visitor &dev_v,
+			       mapping_tree_detail::damage_visitor &dv);
 	void check_mapping_tree(dev_tree const &tree,
 				mapping_tree_detail::damage_visitor &visitor);
+
+	void walk_mapping_tree(mapping_tree const &tree,
+			       mapping_tree_detail::mapping_visitor &mv,
+			       mapping_tree_detail::damage_visitor &dv);
 	void check_mapping_tree(mapping_tree const &tree,
+				mapping_tree_detail::damage_visitor &visitor);
+
+	void walk_mapping_tree(single_mapping_tree const &tree,
+			       mapping_tree_detail::mapping_visitor &mv,
+			       mapping_tree_detail::damage_visitor &dv);
+	void check_mapping_tree(single_mapping_tree const &tree,
 				mapping_tree_detail::damage_visitor &visitor);
 }
 

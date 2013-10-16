@@ -131,12 +131,12 @@ namespace {
 	using namespace thin_provisioning;
 	using namespace mapping_tree_detail;
 
-	struct block_time_visitor {
+	struct noop_block_time_visitor : public mapping_tree_detail::mapping_visitor {
 		virtual void visit(btree_path const &, block_time const &) {
 		}
 	};
 
-	struct block_visitor {
+	struct noop_block_visitor : public mapping_tree_detail::device_visitor {
 		virtual void visit(btree_path const &, uint64_t) {
 		}
 	};
@@ -168,27 +168,58 @@ namespace {
 	};
 }
 
+void
+thin_provisioning::walk_mapping_tree(dev_tree const &tree,
+				     mapping_tree_detail::device_visitor &dev_v,
+				     mapping_tree_detail::damage_visitor &dv)
+{
+	block_counter counter;
+	ll_damage_visitor ll_dv(dv);
+	btree_visit_values(tree, counter, dev_v, ll_dv);
+}
 
 void
 thin_provisioning::check_mapping_tree(dev_tree const &tree,
 				      mapping_tree_detail::damage_visitor &visitor)
 {
-	block_counter counter; // FIXME: get rid of this counter arg
-	block_visitor vv;
-	ll_damage_visitor dv(visitor);
+	noop_block_visitor dev_v;
+	walk_mapping_tree(tree, dev_v, visitor);
+}
 
-	btree_visit_values(tree, counter, vv, dv);
+void
+thin_provisioning::walk_mapping_tree(mapping_tree const &tree,
+				     mapping_tree_detail::mapping_visitor &mv,
+				     mapping_tree_detail::damage_visitor &dv)
+{
+	block_counter counter;
+	ll_damage_visitor ll_dv(dv);
+	btree_visit_values(tree, counter, mv, ll_dv);
 }
 
 void
 thin_provisioning::check_mapping_tree(mapping_tree const &tree,
 				      mapping_tree_detail::damage_visitor &visitor)
 {
-	block_counter counter; //FIXME: get rid of this counter arg
-	block_time_visitor vv;
-	ll_damage_visitor dv(visitor);
+	noop_block_time_visitor mv;
+	walk_mapping_tree(tree, mv, visitor);
+}
 
-	btree_visit_values(tree, counter, vv, dv);
+void
+thin_provisioning::walk_mapping_tree(single_mapping_tree const &tree,
+				     mapping_tree_detail::mapping_visitor &mv,
+				     mapping_tree_detail::damage_visitor &dv)
+{
+	block_counter counter;
+	ll_damage_visitor ll_dv(dv);
+	btree_visit_values(tree, counter, mv, ll_dv);
+}
+
+void
+thin_provisioning::check_mapping_tree(single_mapping_tree const &tree,
+				      mapping_tree_detail::damage_visitor &visitor)
+{
+	noop_block_time_visitor mv;
+	walk_mapping_tree(tree, mv, visitor);
 }
 
 //----------------------------------------------------------------
