@@ -16,7 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "metadata_dumper.h"
+#include "thin-provisioning/emitter.h"
+#include "thin-provisioning/metadata_dumper.h"
 #include "thin-provisioning/mapping_tree.h"
 
 using namespace persistent_data;
@@ -25,75 +26,101 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	class mappings_extractor : public mapping_tree::visitor {
+	void raise_metadata_damage() {
+		throw std::runtime_error("metadata contains errors (run thin_check for details).\n"
+					 "perhaps you wanted to run with --repair");
+	}
+
+	//--------------------------------
+
+	struct ignore_details_damage : public device_tree_detail::damage_visitor {
+		void visit(device_tree_detail::missing_devices const &d) {
+		}
+	};
+
+	struct fatal_details_damage : public device_tree_detail::damage_visitor {
+		void visit(device_tree_detail::missing_devices const &d) {
+			raise_metadata_damage();
+		}
+	};
+
+	device_tree_detail::damage_visitor::ptr details_damage_policy(bool repair) {
+		typedef device_tree_detail::damage_visitor::ptr dvp;
+
+		if (repair)
+			return dvp(new ignore_details_damage());
+		else
+			return dvp(new fatal_details_damage());
+	}
+
+	//--------------------------------
+
+	struct ignore_mapping_damage : public mapping_tree_detail::damage_visitor {
+		void visit(mapping_tree_detail::missing_devices const &d) {
+		}
+
+		void visit(mapping_tree_detail::missing_mappings const &d) {
+		}
+	};
+
+	struct fatal_mapping_damage : public mapping_tree_detail::damage_visitor {
+		void visit(mapping_tree_detail::missing_devices const &d) {
+			raise_metadata_damage();
+		}
+
+		void visit(mapping_tree_detail::missing_mappings const &d) {
+			raise_metadata_damage();
+		}
+	};
+
+	mapping_tree_detail::damage_visitor::ptr mapping_damage_policy(bool repair) {
+		typedef mapping_tree_detail::damage_visitor::ptr mvp;
+
+		if (repair)
+			return mvp(new ignore_mapping_damage());
+		else
+			return mvp(new fatal_mapping_damage());
+	}
+
+	//--------------------------------
+
+	typedef map<block_address, device_tree_detail::device_details> dd_map;
+
+	class details_extractor : public device_tree_detail::device_visitor {
 	public:
-		typedef boost::shared_ptr<mappings_extractor> ptr;
-		typedef btree_detail::node_location node_location;
-		typedef btree_checker<2, mapping_tree_detail::block_traits> checker;
-
-		mappings_extractor(uint64_t dev_id, emitter::ptr e,
-				   space_map::ptr md_sm, space_map::ptr data_sm)
-			: counter_(),
-			  checker_(counter_, false),
-			  dev_id_(dev_id),
-			  e_(e),
-			  md_sm_(md_sm),
-			  data_sm_(data_sm),
-			  in_range_(false),
-			  time_(),
-			  found_errors_(false) {
+		void visit(block_address dev_id, device_tree_detail::device_details const &dd) {
+			dd_.insert(make_pair(dev_id, dd));
 		}
 
-		bool visit_internal(node_location const &loc,
-				    btree_detail::node_ref<block_traits> const &n) {
-
-			if (!checker_.visit_internal(loc, n)) {
-				found_errors_ = true;
-				return false;
-			}
-
-			return (loc.is_sub_root() && loc.path.size()) ? (loc.path[0] == dev_id_) : true;
-		}
-
-		bool visit_internal_leaf(node_location const &loc,
-					 btree_detail::node_ref<block_traits> const &n) {
-			if (!checker_.visit_internal_leaf(loc, n)) {
-				found_errors_ = true;
-				return false;
-			}
-
-			return true;
-		}
-
-		bool visit_leaf(node_location const &loc,
-				btree_detail::node_ref<mapping_tree_detail::block_traits> const &n) {
-			if (!checker_.visit_leaf(loc, n)) {
-				found_errors_ = true;
-				return false;
-			}
-
-			if (loc.path[0] == dev_id_)
-				for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-					mapping_tree_detail::block_time bt = n.value_at(i);
-					add_mapping(n.key_at(i), bt.block_, bt.time_);
-				}
-
-			return true;
-		}
-
-		void visit_complete() {
-			end_mapping();
-		}
-
-		bool corruption() const {
-			return !checker_.get_errors()->empty();
+		dd_map const &get_details() const {
+			return dd_;
 		}
 
 	private:
-		void start_mapping(uint64_t origin_block, uint64_t dest_block, uint32_t time) {
+		dd_map dd_;
+	};
+
+	class mapping_emitter : public mapping_tree_detail::mapping_visitor {
+	public:
+		mapping_emitter(emitter::ptr e)
+			: e_(e),
+			  in_range_(false) {
+		}
+
+		~mapping_emitter() {
+			end_mapping();
+		}
+
+		typedef mapping_tree_detail::block_time block_time;
+		void visit(btree_path const &path, block_time const &bt) {
+			add_mapping(path[0], bt);
+		}
+
+	private:
+		void start_mapping(uint64_t origin_block, block_time const &bt) {
 			origin_start_ = origin_block;
-			dest_start_ = dest_block;
-			time_ = time;
+			dest_start_ = bt.block_;
+			time_ = bt.time_;
 			len_ = 1;
 			in_range_ = true;
 		}
@@ -109,80 +136,80 @@ namespace {
 			}
 		}
 
-		void add_mapping(uint64_t origin_block, uint64_t dest_block, uint32_t time) {
+		void add_mapping(uint64_t origin_block, block_time const &bt) {
 			if (!in_range_)
-				start_mapping(origin_block, dest_block, time);
+				start_mapping(origin_block, bt);
 
 			else if (origin_block == origin_start_ + len_ &&
-				 dest_block == dest_start_ + len_ &&
-				 time == time_)
+				 bt.block_ == dest_start_ + len_ &&
+				 time_ == bt.time_)
 				len_++;
 
 			else {
 				end_mapping();
-				start_mapping(origin_block, dest_block, time);
+				start_mapping(origin_block, bt);
 			}
 		}
 
-		// Declaration order of counter_ and checker_ is important.
-		block_counter counter_;
-		checker checker_;
-		uint64_t dev_id_;
 		emitter::ptr e_;
-		space_map::ptr md_sm_;
-		space_map::ptr data_sm_;
-
-		bool in_range_;
-		uint64_t origin_start_, dest_start_, len_;
+		block_address origin_start_;
+		block_address dest_start_;
 		uint32_t time_;
-		bool found_errors_;
+		block_address len_;
+		bool in_range_;
 	};
 
-	class details_extractor : public btree<1, device_tree_detail::device_details_traits>::visitor {
+	class mapping_tree_emitter : public mapping_tree_detail::device_visitor {
 	public:
-		typedef btree<1, device_tree_detail::device_details_traits>::visitor::node_location node_location;
-		typedef boost::shared_ptr<details_extractor> ptr;
-		typedef btree_checker<1, device_tree_detail::device_details_traits> checker;
-
-		details_extractor()
-			: counter_(),
-			  checker_(counter_, false) {
+		mapping_tree_emitter(metadata::ptr md,
+				     emitter::ptr e,
+				     dd_map const &dd,
+				     bool repair,
+				     mapping_tree_detail::damage_visitor::ptr damage_policy)
+			: md_(md),
+			  e_(e),
+			  dd_(dd),
+			  repair_(repair),
+			  damage_policy_(damage_policy) {
 		}
 
-		bool visit_internal(node_location const &loc,
-				    btree_detail::node_ref<block_traits> const &n) {
-			return checker_.visit_internal(loc, n);
-		}
+		void visit(btree_path const &path, block_address tree_root) {
+			block_address dev_id = path[0];
 
-		bool visit_internal_leaf(node_location const &loc,
-					 btree_detail::node_ref<block_traits> const &n) {
-			return checker_.visit_internal_leaf(loc, n);
-		}
+			dd_map::const_iterator it = dd_.find(path[0]);
+			if (it != dd_.end()) {
+				device_tree_detail::device_details const &d = it->second;
+				e_->begin_device(dev_id,
+						 d.mapped_blocks_,
+						 d.transaction_id_,
+						 d.creation_time_,
+						 d.snapshotted_time_);
 
-		bool visit_leaf(node_location const &loc,
-				btree_detail::node_ref<device_tree_detail::device_details_traits> const &n) {
-			if (!checker_.visit_leaf(loc, n))
-				return false;
+				emit_mappings(tree_root);
 
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				devices_.insert(make_pair(n.key_at(i), n.value_at(i)));
+				e_->end_device();
 
-			return true;
-		}
-
-		map<uint64_t, device_tree_detail::device_details> const &get_devices() const {
-			return devices_;
-		}
-
-		bool corruption() const {
-			return !checker_.get_errors()->empty();
+			} else if (!repair_) {
+				ostringstream msg;
+				msg << "mappings present for device " << dev_id
+				    << ", but it isn't present in device tree";
+				throw runtime_error(msg.str());
+			}
 		}
 
 	private:
-		// Declaration order of counter_ and checker_ is important.
-		block_counter counter_;
-		checker checker_;
-		map<uint64_t, device_tree_detail::device_details> devices_;
+		void emit_mappings(block_address subtree_root) {
+			mapping_emitter me(e_);
+			single_mapping_tree tree(md_->tm_, subtree_root,
+						 mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
+			walk_mapping_tree(tree, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
+		}
+
+		metadata::ptr md_;
+		emitter::ptr e_;
+		dd_map const &dd_;
+		bool repair_;
+		mapping_tree_detail::damage_visitor::ptr damage_policy_;
 	};
 }
 
@@ -191,44 +218,20 @@ namespace {
 void
 thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 {
-	boost::optional<uint64_t> md_snap = md->sb_.metadata_snap_ ?
-		boost::optional<uint64_t>(md->sb_.metadata_snap_) :
-		boost::optional<uint64_t>();
+	details_extractor de;
+	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(repair));
+	walk_device_tree(*md->details_, de, *dd_policy);
 
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
 			    md->sb_.data_block_size_,
 			    md->data_sm_->get_nr_blocks(),
-			    md_snap);
+			    optional<block_address>());
 
-	details_extractor de;
-	md->details_->visit_depth_first(de);
-	if (de.corruption() && !repair)
-		throw runtime_error("corruption in device details tree");
-
-	map<uint64_t, device_tree_detail::device_details> const &devs = de.get_devices();
-
-	map<uint64_t, device_tree_detail::device_details>::const_iterator it, end = devs.end();
-	for (it = devs.begin(); it != end; ++it) {
-		uint64_t dev_id = it->first;
-		device_tree_detail::device_details const &dd = it->second;
-
-		e->begin_device(dev_id,
-				dd.mapped_blocks_,
-				dd.transaction_id_,
-				dd.creation_time_,
-				dd.snapshotted_time_);
-
-		mappings_extractor me(dev_id, e, md->metadata_sm_, md->data_sm_);
-		md->mappings_->visit_depth_first(me);
-
-		if (me.corruption() && !repair) {
-			ostringstream out;
-			out << "corruption in mappings for device " << dev_id;
-			throw runtime_error(out.str());
-		}
-
-		e->end_device();
+	{
+		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(repair));
+		mapping_tree_emitter mte(md, e, de.get_details(), repair, mapping_damage_policy(repair));
+		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
 	e->end_superblock();
