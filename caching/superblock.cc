@@ -61,6 +61,7 @@ namespace {
 //----------------------------------------------------------------
 
 superblock_flags::superblock_flags()
+	: unhandled_flags_(0)
 {
 }
 
