@@ -1,6 +1,8 @@
 #include "gmock/gmock.h"
+#include "base/bits.h"
 #include "caching/superblock.h"
 
+using namespace base;
 using namespace caching;
 using namespace superblock_damage;
 using namespace testing;
@@ -138,9 +140,15 @@ TEST_F(CacheSuperblockTests, compat_ro_flags_checked)
 	check_invalid();
 }
 
-TEST_F(CacheSuperblockTests, incompat_flags_checked)
+TEST_F(CacheSuperblockTests, valid_incompat_flags_are_checked)
 {
-	sb_.incompat_flags = 1;
+	set_bit(sb_.incompat_flags, VARIABLE_HINT_SIZE_BIT);
+	check();
+}
+
+TEST_F(CacheSuperblockTests, invalid_incompat_flags_checked)
+{
+	set_bit(sb_.incompat_flags, 15);
 	check_invalid();
 }
 

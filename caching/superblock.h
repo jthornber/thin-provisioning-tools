@@ -77,6 +77,10 @@ namespace caching {
 		uint32_t write_misses;
 	};
 
+	enum incompat_bits {
+		VARIABLE_HINT_SIZE_BIT = 0
+	};
+
 	//--------------------------------
 
 	namespace superblock_damage {
