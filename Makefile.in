@@ -299,6 +299,10 @@ distclean: clean
 
 install: $(PROGRAMS)
 	$(INSTALL_DIR) $(BINDIR)
+	$(INSTALL_PROGRAM) cache_check $(BINDIR)
+	$(INSTALL_PROGRAM) cache_dump $(BINDIR)
+	$(INSTALL_PROGRAM) cache_repair $(BINDIR)
+	$(INSTALL_PROGRAM) cache_restore $(BINDIR)
 	$(INSTALL_PROGRAM) thin_check $(BINDIR)
 	$(INSTALL_PROGRAM) thin_dump $(BINDIR)
 	$(INSTALL_PROGRAM) thin_repair $(BINDIR)
@@ -306,6 +310,10 @@ install: $(PROGRAMS)
 	$(INSTALL_PROGRAM) thin_rmap $(BINDIR)
 	$(INSTALL_PROGRAM) thin_metadata_size $(BINDIR)
 	$(INSTALL_DIR) $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_check.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
