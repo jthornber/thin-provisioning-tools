@@ -17,10 +17,9 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "gmock/gmock.h"
-#include "persistent-data/space-maps/disk.h"
+#include "persistent-data/endian_utils.h"
 
 using namespace base;
-using namespace persistent_data;
 using namespace std;
 using namespace testing;
 
