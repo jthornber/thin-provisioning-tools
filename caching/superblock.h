@@ -30,6 +30,7 @@ namespace caching {
 		superblock_flags(uint32_t bits);
 
 		void set_flag(flag f);
+		void clear_flag(flag f);
 		bool get_flag(flag f) const;
 		uint32_t encode() const;
 		uint32_t get_unhandled_flags() const;

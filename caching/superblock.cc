@@ -83,6 +83,12 @@ superblock_flags::set_flag(superblock_flags::flag f)
 	flags_.insert(f);
 }
 
+void
+superblock_flags::clear_flag(superblock_flags::flag f)
+{
+	flags_.erase(f);
+}
+
 bool
 superblock_flags::get_flag(flag f) const
 {
