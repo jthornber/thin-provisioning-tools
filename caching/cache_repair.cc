@@ -23,7 +23,7 @@ namespace {
 	emitter::ptr output_emitter(string const &path) {
 		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_WRITE);
 		metadata::ptr md(new metadata(bm, metadata::CREATE));
-		return create_restore_emitter(md);
+		return create_restore_emitter(md, true);
 	}
 
 	int repair(string const &old_path, string const &new_path) {

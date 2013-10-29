@@ -21,6 +21,7 @@ Feature: thin_restore
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
+      {--omit-clean-shutdown}
 
     """
 
@@ -38,6 +39,7 @@ Feature: thin_restore
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
+      {--omit-clean-shutdown}
 
     """
 
@@ -71,4 +73,10 @@ Feature: thin_restore
     Given a small xml file
     And an empty dev file
     When I run cache_restore with -i metadata.xml -o metadata.bin --debug-override-metadata-version 10298
+    Then it should pass
+
+  Scenario: accepts --omit-clean-shutdown
+    Given a small xml file
+    And an empty dev file
+    When I run cache_restore with -i metadata.xml -o metadata.bin --omit-clean-shutdown
     Then it should pass

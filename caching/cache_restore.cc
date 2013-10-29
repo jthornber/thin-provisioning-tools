@@ -23,20 +23,23 @@ namespace {
 	struct flags {
 		flags()
 			: metadata_version(1),
-			  override_metadata_version(false) {
+			  override_metadata_version(false),
+			  clean_shutdown(true) {
 		}
 
 		optional<string> input;
 		optional<string> output;
+
 		uint32_t metadata_version;
 		bool override_metadata_version;
+		bool clean_shutdown;
 	};
 
 	int restore(flags const &fs) {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_io<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
-			emitter::ptr restorer = create_restore_emitter(md);
+			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown);
 
 			if (fs.override_metadata_version) {
 				cerr << "overriding" << endl;
@@ -63,7 +66,8 @@ namespace {
 		    << "  {-o|--output} <output device or file>" << endl
 		    << "  {-V|--version}" << endl
 		    << endl
-		    << "  {--debug-override-metadata-version} <integer>" << endl;
+		    << "  {--debug-override-metadata-version} <integer>" << endl
+		    << "  {--omit-clean-shutdown}" << endl;
 
 	}
 }
@@ -76,6 +80,7 @@ int main(int argc, char **argv)
 	char const *short_opts = "hi:o:V";
 	option const long_opts[] = {
 		{ "debug-override-metadata-version", required_argument, NULL, 0 },
+		{ "omit-clean-shutdown", no_argument, NULL, 1 },
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
@@ -88,6 +93,10 @@ int main(int argc, char **argv)
 		case 0:
 			fs.metadata_version = lexical_cast<uint32_t>(optarg);
 			fs.override_metadata_version = true;
+			break;
+
+		case 1:
+			fs.clean_shutdown = false;
 			break;
 
 		case 'h':

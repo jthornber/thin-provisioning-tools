@@ -47,13 +47,13 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 }
 
 void
-metadata::commit()
+metadata::commit(bool clean_shutdown)
 {
 	commit_space_map();
 	commit_mappings();
 	commit_hints();
 	commit_discard_bits();
-	commit_superblock();
+	commit_superblock(clean_shutdown);
 }
 
 void
@@ -130,10 +130,13 @@ metadata::commit_discard_bits()
 }
 
 void
-metadata::commit_superblock()
+metadata::commit_superblock(bool clean_shutdown)
 {
-	sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
+	if (clean_shutdown)
+		sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
+
 	write_superblock(tm_->get_bm(), sb_);
+
 	sb_.flags.clear_flag(superblock_flags::CLEAN_SHUTDOWN);
 }
 

@@ -7,7 +7,7 @@
 //----------------------------------------------------------------
 
 namespace caching {
-	emitter::ptr create_restore_emitter(metadata::ptr md);
+	emitter::ptr create_restore_emitter(metadata::ptr md, bool clean_shutdown = true);
 }
 
 //----------------------------------------------------------------

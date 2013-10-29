@@ -28,7 +28,7 @@ namespace caching {
 
 		metadata(block_manager<>::ptr bm, open_type ot);
 
-		void commit();
+		void commit(bool clean_shutdown = true);
 		void setup_hint_array(size_t width);
 
 
@@ -50,7 +50,7 @@ namespace caching {
 		void commit_mappings();
 		void commit_hints();
 		void commit_discard_bits();
-		void commit_superblock();
+		void commit_superblock(bool clean_shutdown);
 	};
 };
 
