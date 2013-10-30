@@ -132,7 +132,9 @@ metadata::commit_discard_bits()
 void
 metadata::commit_superblock()
 {
+	sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
 	write_superblock(tm_->get_bm(), sb_);
+	sb_.flags.clear_flag(superblock_flags::CLEAN_SHUTDOWN);
 }
 
 //----------------------------------------------------------------

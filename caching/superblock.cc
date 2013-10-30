@@ -1,5 +1,7 @@
+#include "base/bits.h"
 #include "caching/superblock.h"
 
+using namespace base;
 using namespace caching;
 using namespace superblock_damage;
 
@@ -81,6 +83,12 @@ superblock_flags::set_flag(superblock_flags::flag f)
 	flags_.insert(f);
 }
 
+void
+superblock_flags::clear_flag(superblock_flags::flag f)
+{
+	flags_.erase(f);
+}
+
 bool
 superblock_flags::get_flag(flag f) const
 {
@@ -111,7 +119,7 @@ superblock::superblock()
 	  blocknr(SUPERBLOCK_LOCATION),
 	  magic(SUPERBLOCK_MAGIC),
 	  version(VERSION_END - 1u),
-	  policy_hint_size(0),
+	  policy_hint_size(4),
 	  mapping_root(0),
 	  hint_root(0),
 	  discard_root(0),
@@ -139,6 +147,10 @@ superblock::superblock()
 void
 superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 {
+	core.compat_flags = to_cpu<uint32_t>(disk.compat_flags);
+	core.compat_ro_flags = to_cpu<uint32_t>(disk.compat_ro_flags);
+	core.incompat_flags = to_cpu<uint32_t>(disk.incompat_flags);
+
 	core.csum = to_cpu<uint32_t>(disk.csum);
 
 	core.flags = superblock_flags(to_cpu<uint32_t>(disk.flags));
@@ -153,7 +165,8 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		core.policy_version[i] = to_cpu<uint32_t>(disk.policy_version[i]);
 
-	core.policy_hint_size = core.version == 1 ? 4 : to_cpu<uint32_t>(disk.policy_hint_size);
+	core.policy_hint_size = test_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT) ?
+		to_cpu<uint32_t>(disk.policy_hint_size) : 4;
 
 	::memcpy(core.metadata_space_map_root,
 		 disk.metadata_space_map_root,
@@ -170,10 +183,6 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	core.metadata_block_size = to_cpu<uint32_t>(disk.metadata_block_size);
 	core.cache_blocks = to_cpu<uint32_t>(disk.cache_blocks);
 
-	core.compat_flags = to_cpu<uint32_t>(disk.compat_flags);
-	core.compat_ro_flags = to_cpu<uint32_t>(disk.compat_ro_flags);
-	core.incompat_flags = to_cpu<uint32_t>(disk.incompat_flags);
-
 	core.read_hits = to_cpu<uint32_t>(disk.read_hits);
 	core.read_misses = to_cpu<uint32_t>(disk.read_misses);
 	core.write_hits = to_cpu<uint32_t>(disk.write_hits);
@@ -181,8 +190,11 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 }
 
 void
-superblock_traits::pack(superblock const &core, superblock_disk &disk)
+superblock_traits::pack(superblock const &sb, superblock_disk &disk)
 {
+	// We adjust some of the flags in the superblock, so make a copy
+	superblock core(sb);
+
 	disk.csum = to_disk<le32>(core.csum);
 	disk.flags = to_disk<le32>(core.flags.encode());
 	disk.blocknr = to_disk<le64>(core.blocknr);
@@ -195,7 +207,14 @@ superblock_traits::pack(superblock const &core, superblock_disk &disk)
 
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		disk.policy_version[i] = to_disk<le32>(core.policy_version[i]);
-	disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
+
+	if (core.policy_hint_size != 4) {
+		set_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT);
+		disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
+	} else {
+		clear_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT);
+		disk.policy_hint_size = to_disk<le32>(0u);
+	}
 
 	::memcpy(disk.metadata_space_map_root,
 		 core.metadata_space_map_root,
@@ -361,7 +380,7 @@ caching::check_superblock(superblock const &sb,
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 
-	if (sb.incompat_flags != 0) {
+	if (sb.incompat_flags & ~(1 << VARIABLE_HINT_SIZE_BIT)) {
 		ostringstream msg;
 		msg << "incompat_flags invalid (can only be 0): " << sb.incompat_flags;
 		visitor.visit(superblock_invalid(msg.str()));
