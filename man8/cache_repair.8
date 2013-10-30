@@ -1,0 +1,61 @@
+.TH CACHE_REPAIR 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+cache_repair \- repair cache binary metadata from device/file to device/file
+
+.SH SYNOPSIS
+.B cache_repair
+.RB [ options ]
+.RB -i
+.I {device|file}
+.RB -o
+.I {device|file}
+
+.SH DESCRIPTION
+.B cache_repair
+reads binary cache metadata created by the
+respective device-mapper target from one
+.I device
+or
+.I file
+, repairs it and writes it to another
+.I device
+or
+.I file.
+If written to a metadata
+.I device
+, the metadata can be processed
+by the device-mapper target.
+
+.IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
+Input file or device with binary metadata.
+
+.IP "\fB\-o, \-\-output\fP \fI{device|file}\fP"
+Output file or device for repaired binary metadata.
+
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
+
+.SH EXAMPLE
+Reads the binary cache metadata from file
+.B metadata
+, repairs it and writes it to logical volume /dev/vg/metadata
+for further processing by the respective device-mapper target:
+.sp
+.B cache_repair -i metadata -o /dev/vg/metadata
+
+.SH DIAGNOSTICS
+.B cache_repair
+returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B cache_dump(8)
+.B cache_check(8)
+.B cache_restore(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>
+.br
+Heinz Mauelshagen <HeinzM@RedHat.com>

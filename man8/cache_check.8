@@ -1,0 +1,62 @@
+.TH CACHE_CHECK 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+cache_check \- repair cache metadata on device or file
+
+.SH SYNOPSIS
+.B cache_check
+.RB [ options ]
+.I {device|file}
+
+.SH DESCRIPTION
+.B cache_check
+checks cache  metadata created by
+the device-mapper cache target on a
+.I device
+or
+.I file.
+
+.SH OPTIONS
+.IP "\fB\-q, \-\-quiet\fP"
+Suppress output messages, return only exit code.
+
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
+
+.IP "\fB\-\-super\-block\-only\fP"
+Only check the superblock is present.
+
+.IP "\fB\-\-skip-mappings\fP"
+Skip checking of the block mappings which make up the bulk of the
+metadata.
+
+.IP "\fB\-\-skip-hints\fP"
+Skip checking of the policy hint values metadata.
+
+.IP "\fB\-\-skip-discards\fP"
+Skip checking of the discard bits in the metadata.
+
+.SH EXAMPLE
+Analyses and repairs cache metadata on logical volume
+/dev/vg/metadata:
+.sp
+.B cache_check /dev/vg/metadata
+
+The device may not be actively used by the target
+when running.
+
+.SH DIAGNOSTICS
+.B cache_check
+returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B cache_dump(8)
+.B cache_repair(8)
+.B cache_restore(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>
+.br
+Heinz Mauelshagen <HeinzM@RedHat.com>
