@@ -21,6 +21,7 @@
 #include "persistent-data/space-maps/recursive.h"
 #include "persistent-data/space-maps/careful_alloc.h"
 
+#include "persistent-data/data-structures/btree_checker.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/math_utils.h"

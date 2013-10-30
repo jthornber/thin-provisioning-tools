@@ -19,8 +19,7 @@
 #ifndef SPACE_MAP_DISK_H
 #define SPACE_MAP_DISK_H
 
-// FIXME: why is btree_checker needed?
-#include "persistent-data/data-structures/btree_checker.h"
+#include "persistent-data/transaction_manager.h"
 #include "persistent-data/space_map.h"
 
 //----------------------------------------------------------------
