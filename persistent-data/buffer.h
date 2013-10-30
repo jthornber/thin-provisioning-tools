@@ -41,7 +41,7 @@ namespace persistent_data {
 	// guarantees.
 	//
 	// Alignment must be a power of two.
-	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 512>
+	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 4096>
 	class buffer : private boost::noncopyable {
 	public:
 		BOOST_STATIC_ASSERT((Alignment > 1) & !(Alignment & (Alignment - 1)));
