@@ -38,7 +38,7 @@ namespace caching {
 		checked_space_map::ptr metadata_sm_;
 		mapping_array::ptr mappings_;
 		hint_array::ptr hints_;
-		bitset::ptr discard_bits_;
+		persistent_data::bitset::ptr discard_bits_;
 
 	private:
 		void init_superblock();
