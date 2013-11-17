@@ -254,7 +254,7 @@ namespace {
 				out << "examining discard bitset" << end_message();
 				{
 					nested_output::nest _ = out.push();
-					bitset discards(tm, sb.discard_root, sb.discard_nr_blocks);
+					persistent_data::bitset discards(tm, sb.discard_root, sb.discard_nr_blocks);
 				}
 			}
 		}
