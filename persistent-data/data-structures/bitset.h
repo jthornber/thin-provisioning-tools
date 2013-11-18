@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef BITSET_H
-#define BITSET_H
+#ifndef PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
+#define PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
 
 #include "persistent-data/run.h"
 
