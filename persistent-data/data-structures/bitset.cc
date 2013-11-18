@@ -188,7 +188,7 @@ namespace persistent_data {
 				if (n >= nr_bits_) {
 					std::ostringstream str;
 					str << "bitset index out of bounds ("
-					    << n << " >= " << nr_bits_ << endl;
+					    << n << " >= " << nr_bits_ << ")";
 					throw runtime_error(str.str());
 				}
 			}
