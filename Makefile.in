@@ -55,6 +55,7 @@ SOURCE=\
 	persistent-data/transaction_manager.cc \
 	\
 	persistent-data/data-structures/bitset.cc \
+	persistent-data/data-structures/bloom_filter.cc \
 	persistent-data/data-structures/btree.cc \
 	\
 	persistent-data/space_map.cc \
