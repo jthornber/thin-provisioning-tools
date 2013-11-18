@@ -46,6 +46,10 @@ namespace persistent_data {
 				return array_.get_root();
 			}
 
+			unsigned get_nr_bits() const {
+				return nr_bits_;
+			}
+
 			void grow(unsigned new_nr_bits, bool default_value) {
 				pad_last_block(default_value);
 				resize_array(new_nr_bits, default_value);
@@ -212,6 +216,12 @@ block_address
 bitset::get_root() const
 {
 	return impl_->get_root();
+}
+
+unsigned
+bitset::get_nr_bits() const
+{
+	return impl_->get_nr_bits();
 }
 
 void
