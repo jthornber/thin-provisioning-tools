@@ -10,7 +10,7 @@ namespace era {
 		base::le32 nr_bits;
 		base::le32 hash_fns_and_probes;
 		base::le64 bloom_root;
-	};
+	} __attribute__ ((packed));
 
 	struct era_detail {
 		uint32_t nr_bits;
