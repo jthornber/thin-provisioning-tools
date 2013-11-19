@@ -1,7 +1,7 @@
 #ifndef CACHE_SUPERBLOCK_H
 #define CACHE_SUPERBLOCK_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 #include "persistent-data/data-structures/btree.h"
 
 #include <set>

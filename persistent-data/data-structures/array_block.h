@@ -19,7 +19,7 @@
 #ifndef ARRAY_BLOCK_H
 #define ARRAY_BLOCK_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 
 //----------------------------------------------------------------
 

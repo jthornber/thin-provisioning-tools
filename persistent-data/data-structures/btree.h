@@ -19,7 +19,7 @@
 #ifndef BTREE_H
 #define BTREE_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/data-structures/ref_counter.h"
 
