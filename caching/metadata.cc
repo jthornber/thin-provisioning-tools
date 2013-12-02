@@ -79,7 +79,7 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	// We can't instantiate the hint array yet, since we don't know the
 	// hint width.
 
-	discard_bits_ = bitset::ptr(new bitset(tm_));
+	discard_bits_ = persistent_data::bitset::ptr(new persistent_data::bitset(tm_));
 }
 
 void
@@ -100,8 +100,8 @@ metadata::open_metadata(block_manager<>::ptr bm)
 				       sb_.hint_root, sb_.cache_blocks));
 
 	if (sb_.discard_root)
-		discard_bits_ = bitset::ptr(
-			new bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
+		discard_bits_ = persistent_data::bitset::ptr(
+			new persistent_data::bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
 }
 
 void
