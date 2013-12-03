@@ -33,66 +33,109 @@ namespace {
 	block_address const NR_BLOCKS = 102400;
 	typedef persistent_data::array<uint64_traits> array64;
 
-	transaction_manager::ptr
-	create_tm() {
-		block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS, 4, block_io<>::READ_WRITE));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
+	class ArrayTests : public Test {
+	public:
+		ArrayTests()
+			: tm_(create_tm()) {
+		}
 
-	typename array64::ptr
-	create_array(unsigned nr_entries, uint64_t default_value) {
-		uint64_traits::ref_counter rc;
+		void
+		create_array(unsigned nr_entries, uint64_t default_value) {
+			uint64_traits::ref_counter rc;
 
-		typename array64::ptr a(new array64(create_tm(), rc));
+			a_.reset(new array64(tm_, rc));
 
-		if (nr_entries)
-			a->grow(nr_entries, default_value);
+			if (nr_entries)
+				a_->grow(nr_entries, default_value);
+		}
 
-		return a;
-	}
+		void
+		reopen_array() {
+			uint64_traits::ref_counter rc;
+			unsigned nr_entries = a_->get_nr_entries();
+			block_address root = a_->get_root();
+			a_.reset(new array64(tm_, rc, root, nr_entries));
+		}
 
-	typename array64::ptr
-	open_array(block_address root, unsigned nr_entries) {
-		uint64_traits::ref_counter rc;
+		void
+		reopen_array(unsigned nr_entries) {
+			uint64_traits::ref_counter rc;
+			block_address root = a_->get_root();
+			a_.reset(new array64(tm_, rc, root, nr_entries));
+		}
 
-		typename array64::ptr a(new array64(create_tm(), rc, root, nr_entries));
-		return a;
-	}
+		uint64_t get(unsigned index) const {
+			return a_->get(index);
+		}
+
+		void set(unsigned index, uint64_t const &value) {
+			a_->set(index, value);
+		}
+
+		array64::ptr a_;
+
+	private:
+		static transaction_manager::ptr
+		create_tm() {
+			block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS, 4, block_io<>::READ_WRITE));
+			space_map::ptr sm(new core_map(NR_BLOCKS));
+			transaction_manager::ptr tm(new transaction_manager(bm, sm));
+			return tm;
+		}
+
+		transaction_manager::ptr tm_;
+	};
+
+	class value_visitor {
+	public:
+		void visit(unsigned index, uint64_t value) {
+			m.insert(make_pair(index, value));
+		}
+
+		std::map<unsigned, uint64_t> m;
+	};
+
+	class damage_visitor {
+	public:
+		void visit(array_detail::damage const &d) {
+			ds.push_back(d);
+		}
+
+		std::list<array_detail::damage> ds;
+	};
 }
 
 //----------------------------------------------------------------
 
-TEST(ArrayTests, can_create_an_empty_array)
+TEST_F(ArrayTests, can_create_an_empty_array)
 {
-	persistent_data::array<uint64_traits>::ptr tree = create_array(0, 0);
-	ASSERT_THROW(tree->get(0), runtime_error);
+	create_array(0, 0);
+	ASSERT_THROW(get(0), runtime_error);
 }
 
-TEST(ArrayTests, get_elements)
+TEST_F(ArrayTests, get_elements)
 {
 	unsigned const COUNT = 10000;
-	persistent_data::array<uint64_traits>::ptr tree = create_array(COUNT, 123);
+	create_array(COUNT, 123);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		ASSERT_THAT(tree->get(i), Eq(123u));
+		ASSERT_THAT(get(i), Eq(123u));
 
-	ASSERT_THROW(tree->get(COUNT), runtime_error);
+	ASSERT_THROW(get(COUNT), runtime_error);
 }
 
-TEST(ArrayTests, set_elements)
+TEST_F(ArrayTests, set_elements)
 {
 	unsigned const COUNT = 10000;
-	persistent_data::array<uint64_traits>::ptr tree = create_array(COUNT, 123);
+	create_array(COUNT, 123);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		tree->set(i, 124);
+		set(i, 124);
 
 	for (unsigned i = 0; i < COUNT; i++)
-		ASSERT_THAT(tree->get(i), Eq(124u));
+		ASSERT_THAT(get(i), Eq(124u));
 
-	ASSERT_THROW(tree->get(COUNT), runtime_error);
+	ASSERT_THROW(get(COUNT), runtime_error);
 }
 
 template <typename T, unsigned size>
@@ -100,7 +143,7 @@ unsigned array_size(T (&)[size]) {
 	return size;
 }
 
-TEST(ArrayTests, grow)
+TEST_F(ArrayTests, grow)
 {
 	unsigned const COUNT = 10000;
 	unsigned const STEPS[] = {
@@ -116,50 +159,77 @@ TEST(ArrayTests, grow)
 			chunks.push_back(c);
 		chunks.push_back(COUNT);
 
-		persistent_data::array<uint64_traits>::ptr a = create_array(0, 123);
+		create_array(0, 123);
 
 		for (unsigned i = 1; i < chunks.size(); i++) {
 			if (i > 1)
-				ASSERT_THAT(a->get(chunks[i - 1] - 1), Eq(i - 1));
+				ASSERT_THAT(get(chunks[i - 1] - 1), Eq(i - 1));
 
-			a->grow(chunks[i], i);
+			a_->grow(chunks[i], i);
 
 			if (i > 1)
-				ASSERT_THAT(a->get(chunks[i - 1] - 1), Eq(i - 1));
+				ASSERT_THAT(get(chunks[i - 1] - 1), Eq(i - 1));
 
 			for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
-				ASSERT_THAT(a->get(j), Eq(i));
+				ASSERT_THAT(get(j), Eq(i));
 
-			ASSERT_THROW(a->get(chunks[i] + 1), runtime_error);
+			ASSERT_THROW(get(chunks[i] + 1), runtime_error);
 		}
 	}
 }
 
-TEST(ArrayTests, reopen_array)
+TEST_F(ArrayTests, reopen_array)
 {
 	unsigned const COUNT = 10000;
-	block_address root;
 
-	{
-		typename array64::ptr a = create_array(COUNT, 123);
+	create_array(COUNT, 123);
+	for (unsigned i = 0; i < COUNT; i += 7)
+		set(i, 234);
 
-		for (unsigned i = 0; i < COUNT; i += 7)
-			a->set(i, 234);
+	reopen_array();
+	for (unsigned i = 0; i < COUNT; i++)
+		ASSERT_THAT(get(i), Eq(i % 7 ? 123u : 234u));
+}
 
-		root = a->get_root();
-	}
+TEST_F(ArrayTests, visit_values)
+{
+	unsigned const COUNT = 10000;
 
-	{
-		typename array64::ptr a = open_array(root, COUNT);
+	create_array(COUNT, 123);
 
-		for (unsigned i = 0; i < COUNT; i++)
-			ASSERT_THAT(a->get(i), Eq(i % 7 ? 123u : 234u));
+	value_visitor vv;
+	damage_visitor dv;
+	a_->visit_values(vv, dv);
+
+	for (unsigned i = 0; i < COUNT; i++) {
+		unsigned c = vv.m.count(i);
+		uint64_t v = vv.m[i];
+		ASSERT_THAT(c, Eq(1u));
+		ASSERT_THAT(v, Eq(123ull));
 	}
 }
 
-TEST(Array_Tests, destroy)
+TEST_F(ArrayTests, visit_values_with_too_few_entries)
 {
-	// FIXME: pending
+	unsigned const COUNT = 10000;
+	unsigned const EXTRA = 2 * COUNT;
+
+	create_array(COUNT, 123);
+	reopen_array(EXTRA);
+
+	value_visitor vv;
+	damage_visitor dv;
+	a_->visit_values(vv, dv);
+
+	for (unsigned i = 0; i < COUNT; i++) {
+		unsigned c = vv.m.count(i);
+		uint64_t v = vv.m[i];
+		ASSERT_THAT(c, Eq(1u));
+		ASSERT_THAT(v, Eq(123ull));
+	}
+
+	ASSERT_THAT(dv.ds.size(), Eq(1ul));
+	ASSERT_THAT(dv.ds.front().lost_keys_, Eq(run<uint32_t>(COUNT, EXTRA)));
 }
 
 //----------------------------------------------------------------
