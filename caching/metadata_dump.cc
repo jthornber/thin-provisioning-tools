@@ -122,7 +122,7 @@ caching::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 
 	// walk hints
 	e->begin_hints();
-	{
+	if (md->hints_) {
 		using namespace hint_array_damage;
 
 		hint_emitter he(e, valid_blocks);
