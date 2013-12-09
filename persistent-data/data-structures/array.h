@@ -146,27 +146,37 @@ namespace persistent_data {
 		struct block_value_visitor {
 			block_value_visitor(array<ValueTraits> const &a, ValueVisitor &vv)
 				: a_(a),
-				  vv_(vv) {
+				  vv_(vv),
+				  highest_index_() {
 			}
 
 			void visit(btree_path const &p,
-				   typename block_traits::value_type const &v) {
-				a_.visit_value(vv_, p, v);
+				   typename block_traits::value_type const &block) {
+				highest_index_ = max<unsigned>(highest_index_,
+							       a_.visit_array_block(vv_, p, block));
+			}
+
+			unsigned get_highest_seen() const {
+				return highest_index_;
 			}
 
 		private:
 			array<ValueTraits> const &a_;
 			ValueVisitor &vv_;
+			unsigned highest_index_;
 		};
 
+		// Returns the highest index visited
 		template <typename ValueVisitor>
-		void visit_value(ValueVisitor &vv,
-				 btree_path const &p,
-				 typename block_traits::value_type const &v) const {
+		unsigned visit_array_block(ValueVisitor &vv,
+					   btree_path const &p,
+					   typename block_traits::value_type const &v) const {
 			rblock rb(tm_->read_lock(v, validator_), rc_);
 
 			for (uint32_t i = 0; i < rb.nr_entries(); i++)
 				vv.visit(p[0] * rb.max_entries() + i, rb.get(i));
+
+			return p[0] * rb.max_entries() + (rb.nr_entries() - 1);
 		}
 
 		template <typename DamageVisitor>
@@ -269,6 +279,13 @@ namespace persistent_data {
 			block_value_visitor<ValueVisitor> bvisitor(*this, value_visitor);
 			block_damage_visitor<DamageVisitor> dvisitor(damage_visitor, entries_per_block_);
 			btree_visit_values(block_tree_, counter, bvisitor, dvisitor);
+
+			// check that all blocks were seen
+			unsigned h = bvisitor.get_highest_seen();
+			if (h != nr_entries_ - 1) {
+				array_detail::damage d(run<unsigned>(h + 1, nr_entries_), "missing blocks");
+				damage_visitor.visit(d);
+			}
 		}
 
 	private:
