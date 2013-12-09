@@ -11,9 +11,10 @@ using namespace superblock_damage;
 namespace {
 	class restorer : public emitter {
 	public:
-		restorer(metadata::ptr md)
+		restorer(metadata::ptr md, bool clean_shutdown)
 			: in_superblock_(false),
-			  md_(md) {
+			  md_(md),
+			  clean_shutdown_(clean_shutdown) {
 		}
 
 		virtual ~restorer() {
@@ -44,7 +45,7 @@ namespace {
 		}
 
 		virtual void end_superblock() {
-			md_->commit();
+			md_->commit(clean_shutdown_);
 		}
 
 		virtual void begin_mappings() {
@@ -99,15 +100,16 @@ namespace {
 	private:
 		bool in_superblock_;
 		metadata::ptr md_;
+		bool clean_shutdown_;
 	};
 }
 
 //----------------------------------------------------------------
 
 emitter::ptr
-caching::create_restore_emitter(metadata::ptr md)
+caching::create_restore_emitter(metadata::ptr md, bool clean_shutdown)
 {
-	return emitter::ptr(new restorer(md));
+	return emitter::ptr(new restorer(md, clean_shutdown));
 }
 
 //----------------------------------------------------------------

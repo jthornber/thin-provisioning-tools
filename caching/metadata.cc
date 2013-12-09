@@ -47,13 +47,13 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 }
 
 void
-metadata::commit()
+metadata::commit(bool clean_shutdown)
 {
 	commit_space_map();
 	commit_mappings();
 	commit_hints();
 	commit_discard_bits();
-	commit_superblock();
+	commit_superblock(clean_shutdown);
 }
 
 void
@@ -79,7 +79,7 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	// We can't instantiate the hint array yet, since we don't know the
 	// hint width.
 
-	discard_bits_ = bitset::ptr(new bitset(tm_));
+	discard_bits_ = persistent_data::bitset::ptr(new persistent_data::bitset(tm_));
 }
 
 void
@@ -100,8 +100,8 @@ metadata::open_metadata(block_manager<>::ptr bm)
 				       sb_.hint_root, sb_.cache_blocks));
 
 	if (sb_.discard_root)
-		discard_bits_ = bitset::ptr(
-			new bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
+		discard_bits_ = persistent_data::bitset::ptr(
+			new persistent_data::bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
 }
 
 void
@@ -130,10 +130,13 @@ metadata::commit_discard_bits()
 }
 
 void
-metadata::commit_superblock()
+metadata::commit_superblock(bool clean_shutdown)
 {
-	sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
+	if (clean_shutdown)
+		sb_.flags.set_flag(superblock_flags::CLEAN_SHUTDOWN);
+
 	write_superblock(tm_->get_bm(), sb_);
+
 	sb_.flags.clear_flag(superblock_flags::CLEAN_SHUTDOWN);
 }
 
