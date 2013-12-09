@@ -239,7 +239,7 @@ hint_array::hint_array(tm_ptr tm, unsigned width)
 {
 }
 
-hint_array::hint_array(typename hint_array::tm_ptr tm, unsigned width,
+hint_array::hint_array(hint_array::tm_ptr tm, unsigned width,
 		       block_address root, unsigned nr_entries)
 	: width_(check_width(width)),
 	  impl_(mk_array(tm, width, root, nr_entries))

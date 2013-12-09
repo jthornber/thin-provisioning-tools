@@ -59,7 +59,7 @@ namespace {
 		virtual void mapping(pd::block_address cblock,
 				     pd::block_address oblock,
 				     bool dirty) {
-			typename caching::mapping m;
+			caching::mapping m;
 			m.oblock_ = oblock;
 			m.flags_ = M_VALID;
 

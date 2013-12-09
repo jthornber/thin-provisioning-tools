@@ -49,7 +49,7 @@ namespace persistent_data {
 	class bitset {
 	public:
 		typedef boost::shared_ptr<bitset> ptr;
-		typedef typename persistent_data::transaction_manager::ptr tm_ptr;
+		typedef persistent_data::transaction_manager::ptr tm_ptr;
 
 		bitset(tm_ptr tm);
 		bitset(tm_ptr tm, block_address root, unsigned nr_bits);
