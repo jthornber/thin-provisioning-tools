@@ -18,8 +18,6 @@
 
 #include "thin-provisioning/thin_pool.h"
 
-#include "persistent-data/data-structures/btree_checker.h"
-
 #include <stdexcept>
 #include <sstream>
 #include <iostream>

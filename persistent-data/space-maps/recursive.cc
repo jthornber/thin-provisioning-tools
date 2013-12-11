@@ -188,10 +188,10 @@ namespace {
 			return sm_->copy_root(dest, len);
 		}
 
-		virtual void check(persistent_data::block_counter &counter) const {
+		virtual void visit(space_map_detail::visitor &v) const {
 			cant_recurse("check");
 			recursing_const_lock lock(*this);
-			return sm_->check(counter);
+			return sm_->visit(v);
 		}
 
 		virtual checked_space_map::ptr clone() const {

@@ -21,6 +21,7 @@
 
 #include "persistent-data/math_utils.h"
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/data-structures/array_block.h"
 
@@ -275,10 +276,9 @@ namespace persistent_data {
 		template <typename ValueVisitor, typename DamageVisitor>
 		void visit_values(ValueVisitor &value_visitor,
 				  DamageVisitor &damage_visitor) const {
-			block_counter counter;
 			block_value_visitor<ValueVisitor> bvisitor(*this, value_visitor);
 			block_damage_visitor<DamageVisitor> dvisitor(damage_visitor, entries_per_block_);
-			btree_visit_values(block_tree_, counter, bvisitor, dvisitor);
+			btree_visit_values(block_tree_, bvisitor, dvisitor);
 
 			// check that all blocks were seen
 			unsigned h = bvisitor.get_highest_seen();
@@ -286,6 +286,26 @@ namespace persistent_data {
 				array_detail::damage d(run<unsigned>(h + 1, nr_entries_), "missing blocks");
 				damage_visitor.visit(d);
 			}
+		}
+
+		//--------------------------------
+
+		struct ablock_counter {
+			ablock_counter(block_counter &bc)
+			: bc_(bc) {
+			}
+
+			void visit(btree_detail::node_location const &loc, block_address b) {
+				bc_.inc(b);
+			}
+
+		private:
+			block_counter &bc_;
+		};
+
+		void count_metadata_blocks(block_counter &bc) const {
+			ablock_counter vc(bc);
+			count_btree_blocks(block_tree_, bc, vc);
 		}
 
 	private:

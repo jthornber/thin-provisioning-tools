@@ -63,7 +63,6 @@ namespace {
 	}
 
 	int rmap(string const &path, vector<region> const &regions) {
-		block_counter counter; // FIXME: get rid of this counter arg
 		damage_visitor dv;
 		rmap_visitor rv;
 
@@ -79,7 +78,7 @@ namespace {
 			mapping_tree mtree(tm, sb.data_mapping_root_,
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 
-			btree_visit_values(mtree, counter, rv, dv);
+			btree_visit_values(mtree, rv, dv);
 			rv.complete();
 			display_rmap(cout, rv.get_rmap());
 

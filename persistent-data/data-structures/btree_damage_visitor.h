@@ -136,11 +136,9 @@ namespace persistent_data {
 			typedef run<block_address> run64;
 			typedef boost::optional<run64> maybe_run64;
 
-			btree_damage_visitor(block_counter &counter,
-					     ValueVisitor &value_visitor,
+			btree_damage_visitor(ValueVisitor &value_visitor,
 					     DamageVisitor &damage_visitor)
-				: counter_(counter),
-				  avoid_repeated_visits_(true),
+				: avoid_repeated_visits_(true),
 				  value_visitor_(value_visitor),
 				  damage_visitor_(damage_visitor) {
 			}
@@ -242,8 +240,6 @@ namespace persistent_data {
 			template <typename node>
 			bool already_visited(node const &n) {
 				block_address b = n.get_location();
-
-				counter_.inc(b);
 
 				if (avoid_repeated_visits_) {
 					if (seen_.count(b) > 0)
@@ -441,7 +437,6 @@ namespace persistent_data {
 
 			//--------------------------------
 
-			block_counter &counter_;
 			bool avoid_repeated_visits_;
 
 			ValueVisitor &value_visitor_;
@@ -458,11 +453,10 @@ namespace persistent_data {
 
 	template <unsigned Levels, typename ValueTraits, typename ValueVisitor, typename DamageVisitor>
 	void btree_visit_values(btree<Levels, ValueTraits> const &tree,
-				block_counter &counter,
 				ValueVisitor &value_visitor,
 				DamageVisitor &damage_visitor) {
 		btree_detail::btree_damage_visitor<ValueVisitor, DamageVisitor, Levels, ValueTraits>
-			v(counter, value_visitor, damage_visitor);
+			v(value_visitor, damage_visitor);
 		tree.visit_depth_first(v);
 	}
 }

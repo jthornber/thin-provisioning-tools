@@ -97,8 +97,8 @@ namespace {
 			return sm_->copy_root(dest, len);
 		}
 
-		virtual void check(block_counter &counter) const {
-			return sm_->check(counter);
+		virtual void visit(space_map_detail::visitor &v) const {
+			return sm_->visit(v);
 		}
 
 		virtual checked_space_map::ptr clone() const {

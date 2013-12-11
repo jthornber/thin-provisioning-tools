@@ -173,9 +173,8 @@ thin_provisioning::walk_mapping_tree(dev_tree const &tree,
 				     mapping_tree_detail::device_visitor &dev_v,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	block_counter counter;
 	ll_damage_visitor ll_dv(dv);
-	btree_visit_values(tree, counter, dev_v, ll_dv);
+	btree_visit_values(tree, dev_v, ll_dv);
 }
 
 void
@@ -191,9 +190,8 @@ thin_provisioning::walk_mapping_tree(mapping_tree const &tree,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	block_counter counter;
 	ll_damage_visitor ll_dv(dv);
-	btree_visit_values(tree, counter, mv, ll_dv);
+	btree_visit_values(tree, mv, ll_dv);
 }
 
 void
@@ -209,9 +207,8 @@ thin_provisioning::walk_mapping_tree(single_mapping_tree const &tree,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	block_counter counter;
 	ll_damage_visitor ll_dv(dv);
-	btree_visit_values(tree, counter, mv, ll_dv);
+	btree_visit_values(tree, mv, ll_dv);
 }
 
 void
