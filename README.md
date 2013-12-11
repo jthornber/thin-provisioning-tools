@@ -1,9 +1,3 @@
-DEPRECATED
-==========
-
-Use the [device-mapper-test-suite](https://github.com/jthornber/device-mapper-test-suite) instead.
-
-
 Introduction
 ============
 
