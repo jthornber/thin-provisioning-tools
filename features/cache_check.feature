@@ -13,19 +13,19 @@ Feature: cache_check
     When I run `cache_check --help`
 
     Then it should pass
-    And usage to stdout
+    And cache_usage to stdout
 
   Scenario: print help
     When I run `cache_check -h`
 
     Then it should pass
-    And usage to stdout
+    And cache_usage to stdout
 
   Scenario: Metadata file must be specified
     When I run `cache_check`
 
     Then it should fail
-    And usage to stderr
+    And cache_usage to stderr
     And the stderr should contain:
 
     """
@@ -52,6 +52,7 @@ Feature: cache_check
     foo: Not a block device or regular file
     """
 
+  # This test will fail if you're running as root
   Scenario: Metadata file exists, but can't be opened
     Given input without read permissions
     When I run `cache_check input`

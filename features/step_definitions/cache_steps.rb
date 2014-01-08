@@ -34,7 +34,7 @@ Then /^it should fail$/ do
   assert_success(false)
 end
 
-USAGE =<<EOF
+CACHE_USAGE =<<EOF
 Usage: cache_check [options] {device|file}
 Options:
   {-q|--quiet}
@@ -45,12 +45,12 @@ Options:
   {--skip-hints}
 EOF
 
-Then /^usage to stdout$/ do
-  assert_partial_output(USAGE, all_stdout)
+Then /^cache_usage to stdout$/ do
+  assert_partial_output(CACHE_USAGE, all_stdout)
 end
 
-Then /^usage to stderr$/ do
-  assert_partial_output(USAGE, all_stderr)
+Then /^cache_usage to stderr$/ do
+  assert_partial_output(CACHE_USAGE, all_stderr)
 end
 
 When(/^I run cache_check with (.*?)$/) do |opts|
