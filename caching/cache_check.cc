@@ -329,7 +329,7 @@ int main(int argc, char **argv)
 	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
 		{ "quiet", no_argument, NULL, 'q' },
-		{ "superblock-only", no_argument, NULL, 1 },
+		{ "super-block-only", no_argument, NULL, 1 },
 		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "skip-hints", no_argument, NULL, 3 },
 		{ "skip-discards", no_argument, NULL, 4 },
