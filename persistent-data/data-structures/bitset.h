@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef BITSET_H
-#define BITSET_H
+#ifndef PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
+#define PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
 
 #include "persistent-data/run.h"
 
@@ -54,6 +54,7 @@ namespace persistent_data {
 		bitset(tm_ptr tm);
 		bitset(tm_ptr tm, block_address root, unsigned nr_bits);
 		block_address get_root() const;
+		unsigned get_nr_bits() const;
 		void grow(unsigned new_nr_bits, bool default_value);
 		void destroy();
 

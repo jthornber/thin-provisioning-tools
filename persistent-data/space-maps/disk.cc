@@ -16,6 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/endian_utils.h"
+
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/space-maps/disk_structures.h"
 #include "persistent-data/space-maps/recursive.h"
@@ -23,7 +25,6 @@
 
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/checksum.h"
-#include "persistent-data/endian_utils.h"
 #include "persistent-data/math_utils.h"
 #include "persistent-data/transaction_manager.h"
 

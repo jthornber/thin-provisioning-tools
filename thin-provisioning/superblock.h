@@ -1,8 +1,9 @@
 #ifndef THIN_SUPERBLOCK_H
 #define THIN_SUPERBLOCK_H
 
+#include "base/endian_utils.h"
+
 #include "persistent-data/block.h"
-#include "persistent-data/endian_utils.h"
 #include "persistent-data/data-structures/ref_counter.h"
 
 //----------------------------------------------------------------

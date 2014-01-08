@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef ENDIAN_H
-#define ENDIAN_H
+#ifndef BASE_ENDIAN_H
+#define BASE_ENDIAN_H
 
 #include <endian.h>
 #include <stdint.h>
@@ -25,7 +25,6 @@
 
 //----------------------------------------------------------------
 
-// FIXME: rename to endian
 namespace base {
 
 	// These are just little wrapper types to make the compiler

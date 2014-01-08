@@ -19,7 +19,7 @@
 #ifndef SPACE_MAP_DISK_STRUCTURES_H
 #define SPACE_MAP_DISK_STRUCTURES_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 
 // FIXME: what's this included for?
 #include "persistent-data/data-structures/btree.h"
