@@ -56,7 +56,7 @@ namespace caching {
 	class hint_array {
 	public:
 		typedef boost::shared_ptr<hint_array> ptr;
-		typedef typename persistent_data::transaction_manager::ptr tm_ptr;
+		typedef persistent_data::transaction_manager::ptr tm_ptr;
 
 		hint_array(tm_ptr tm, unsigned width);
 		hint_array(tm_ptr tm, unsigned width, block_address root, unsigned nr_entries);
