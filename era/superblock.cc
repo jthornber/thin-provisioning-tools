@@ -1,6 +1,7 @@
 #include "era/superblock.h"
 
 #include "persistent-data/checksum.h"
+#include "persistent-data/errors.h"
 
 using namespace base;
 using namespace era;
@@ -11,14 +12,19 @@ using namespace persistent_data;
 namespace  {
 	using namespace base;
 
+	size_t const SPACE_MAP_ROOT_SIZE = 128;
+	size_t const UUID_LEN = 16;
+
 	struct superblock_disk {
 		le32 csum;
 		le32 flags;
 		le64 blocknr;
 
-		__u8 uuid[16];
+		__u8 uuid[UUID_LEN];
 		le64 magic;
 		le32 version;
+
+ 		__u8 metadata_space_map_root[SPACE_MAP_ROOT_SIZE];
 
 		le32 data_block_size;
 		le32 metadata_block_size;
@@ -27,8 +33,9 @@ namespace  {
 		le32 current_era;
 		era_detail_disk current_detail;
 
-		le64 bloom_filters_root;
+		le64 bloom_tree_root;
 		le64 era_array_root;
+
 	} __attribute__ ((packed));
 
 	struct superblock_traits {
@@ -56,11 +63,53 @@ superblock::superblock()
 	  metadata_block_size(8),
 	  nr_blocks(0),
 	  current_era(0),
-	  era_root(0),
+	  bloom_tree_root(0),
 	  era_array_root(0)
 {
 	memset(uuid, 0, sizeof(uuid));
 	memset(metadata_space_map_root, 0, sizeof(metadata_space_map_root));
+}
+
+//----------------------------------------------------------------
+
+void
+superblock_traits::unpack(disk_type const &disk, value_type &value)
+{
+	//value.flags = to_cpu<uint32_t>(disk.flags);
+	value.blocknr = to_cpu<uint64_t>(disk.blocknr);
+	value.magic = to_cpu<uint64_t>(disk.magic);
+	value.version = to_cpu<uint32_t>(disk.version);
+
+	memcpy(value.metadata_space_map_root, disk.metadata_space_map_root,
+	       sizeof(value.metadata_space_map_root));
+
+	value.data_block_size = to_cpu<uint32_t>(disk.data_block_size);
+	value.metadata_block_size = to_cpu<uint32_t>(disk.metadata_block_size);
+	value.nr_blocks = to_cpu<uint32_t>(disk.nr_blocks);
+	value.current_era = to_cpu<uint32_t>(disk.current_era);
+	era_detail_traits::unpack(disk.current_detail, value.current_detail);
+	value.bloom_tree_root = to_cpu<uint64_t>(disk.bloom_tree_root);
+	value.era_array_root = to_cpu<uint64_t>(disk.era_array_root);
+}
+
+void
+superblock_traits::pack(value_type const &value, disk_type &disk)
+{
+	//disk.flags = to_disk<uint32_t>(value.flags);
+	disk.blocknr = to_disk<le64>(value.blocknr);
+	disk.magic = to_disk<le64>(value.magic);
+	disk.version = to_disk<le32>(value.version);
+
+	memcpy(disk.metadata_space_map_root, value.metadata_space_map_root,
+	       sizeof(disk.metadata_space_map_root));
+
+	disk.data_block_size = to_disk<le32>(value.data_block_size);
+	disk.metadata_block_size = to_disk<le32>(value.metadata_block_size);
+	disk.nr_blocks = to_disk<le32>(value.nr_blocks);
+	disk.current_era = to_disk<le32>(value.current_era);
+	era_detail_traits::pack(value.current_detail, disk.current_detail);
+	disk.bloom_tree_root = to_disk<le64>(value.bloom_tree_root);
+	disk.era_array_root = to_disk<le64>(value.era_array_root);
 }
 
 //----------------------------------------------------------------

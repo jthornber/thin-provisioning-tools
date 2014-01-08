@@ -59,7 +59,7 @@ namespace era {
 		era_detail current_detail;
 
 		// A btree of undigested era_details
-		uint64_t era_root;
+		uint64_t bloom_tree_root;
 
 		// Big array holding the digested era/block info.
 		uint64_t era_array_root;

@@ -48,6 +48,7 @@ SOURCE=\
 	caching/xml_format.cc \
 	\
 	era/era_detail.cc \
+	era/superblock.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
