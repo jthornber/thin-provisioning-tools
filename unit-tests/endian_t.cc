@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "gmock/gmock.h"
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 
 using namespace base;
 using namespace std;
