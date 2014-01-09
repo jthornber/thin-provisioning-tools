@@ -25,6 +25,8 @@ PROGRAMS=\
 	cache_restore \
 	cache_repair \
 	\
+	era_check \
+	\
 	thin_check \
 	thin_dump \
 	thin_restore \
@@ -288,6 +290,38 @@ cache_repair: $(CACHE_REPAIR_OBJECTS) caching/cache_repair.o
 cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+#----------------------------------------------------------------
+# Era tools
+
+ERA_CHECK_SOURCE=\
+	base/base64.cc \
+	base/error_state.cc \
+	base/endian_utils.cc \
+	\
+	era/superblock.cc \
+	era/era_detail.cc \
+	\
+	persistent-data/checksum.cc \
+	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/bitset.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+
+ERA_CHECK_OBJECTS=$(subst .cc,.o,$(ERA_CHECK_SOURCE))
+
+era_check: $(ERA_CHECK_OBJECTS) era/era_check.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+#----------------------------------------------------------------
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \

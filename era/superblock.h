@@ -67,16 +67,64 @@ namespace era {
 
 	//--------------------------------
 
+	namespace superblock_damage {
+
+		class damage_visitor;
+
+		class damage {
+		public:
+			damage(std::string const &desc)
+				: desc_(desc) {
+			}
+
+			virtual ~damage() {}
+			virtual void visit(damage_visitor &v) const = 0;
+
+			std::string const &get_desc() const {
+				return desc_;
+			}
+
+		private:
+			std::string desc_;
+		};
+
+		struct superblock_corrupt : public damage {
+			superblock_corrupt(std::string const &desc);
+			void visit(damage_visitor &v) const;
+		};
+
+		struct superblock_invalid : public damage {
+			superblock_invalid(std::string const &desc);
+			void visit(damage_visitor &v) const;
+		};
+
+		class damage_visitor {
+		public:
+			virtual ~damage_visitor() {}
+
+			void visit(damage const &d);
+
+			virtual void visit(superblock_corrupt const &d) = 0;
+			virtual void visit(superblock_invalid const &d) = 0;
+		};
+	}
+
+	//--------------------------------
+
 	superblock read_superblock(persistent_data::block_manager<>::ptr bm,
 				   persistent_data::block_address location = SUPERBLOCK_LOCATION);
 
 	void write_superblock(persistent_data::block_manager<>::ptr bm,
 			      superblock const &sb,
 			      persistent_data::block_address location = SUPERBLOCK_LOCATION);
-#if 0
+
 	void check_superblock(superblock const &sb,
+			      persistent_data::block_address nr_metadata_blocks,
 			      superblock_damage::damage_visitor &visitor);
-#endif
+
+	void check_superblock(persistent_data::block_manager<>::ptr bm,
+			      persistent_data::block_address nr_metadata_blocks,
+			      superblock_damage::damage_visitor &visitor);
 }
 
 //----------------------------------------------------------------

@@ -21,6 +21,8 @@ cache_dump
 cache_restore
 cache_repair
 
+era_check
+
 *.metadata
 bad-metadata
 Makefile

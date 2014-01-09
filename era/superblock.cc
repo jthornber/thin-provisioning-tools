@@ -5,6 +5,7 @@
 
 using namespace base;
 using namespace era;
+using namespace superblock_damage;
 using namespace persistent_data;
 
 //----------------------------------------------------------------
@@ -49,6 +50,58 @@ namespace  {
 	uint32_t const SUPERBLOCK_MAGIC = 2126579579;
 	uint32_t const VERSION_BEGIN = 1;
 	uint32_t const VERSION_END = 2;
+}
+
+//----------------------------------------------------------------
+
+superblock_flags::superblock_flags()
+	: unhandled_flags_(0)
+{
+}
+
+superblock_flags::superblock_flags(uint32_t bits)
+{
+	if (bits & (1 << CLEAN_SHUTDOWN_BIT)) {
+		flags_.insert(CLEAN_SHUTDOWN);
+		bits &= ~(1 << CLEAN_SHUTDOWN_BIT);
+	}
+
+	unhandled_flags_ = bits;
+}
+
+void
+superblock_flags::set_flag(flag f)
+{
+	flags_.insert(f);
+}
+
+void
+superblock_flags::clear_flag(flag f)
+{
+	flags_.erase(f);
+}
+
+bool
+superblock_flags::get_flag(flag f) const
+{
+	return flags_.find(f) != flags_.end();
+}
+
+uint32_t
+superblock_flags::encode() const
+{
+	uint32_t r = 0;
+
+	if (get_flag(CLEAN_SHUTDOWN))
+		r = r | (1 << CLEAN_SHUTDOWN_BIT);
+
+	return r;
+}
+
+uint32_t
+superblock_flags::get_unhandled_flags() const
+{
+	return unhandled_flags_;
 }
 
 //----------------------------------------------------------------
@@ -112,9 +165,33 @@ superblock_traits::pack(value_type const &value, disk_type &disk)
 	disk.era_array_root = to_disk<le64>(value.era_array_root);
 }
 
+//--------------------------------
+
+superblock_corrupt::superblock_corrupt(std::string const &desc)
+	: damage(desc)
+{
+}
+
+void
+superblock_corrupt::visit(damage_visitor &v) const
+{
+	v.visit(*this);
+}
+
+superblock_invalid::superblock_invalid(std::string const &desc)
+	: damage(desc)
+{
+}
+
+void
+superblock_invalid::visit(damage_visitor &v) const
+{
+	v.visit(*this);
+}
+
 //----------------------------------------------------------------
 
-namespace validator {
+namespace era_validator {
 	using namespace persistent_data;
 
         uint32_t const VERSION = 1;
@@ -150,7 +227,7 @@ superblock
 era::read_superblock(block_manager<>::ptr bm, block_address location)
 {
 	superblock sb;
-	block_manager<>::read_ref r = bm->read_lock(location, validator::mk_v());
+	block_manager<>::read_ref r = bm->read_lock(location, era_validator::mk_v());
 	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
 	superblock_traits::unpack(*sbd, sb);
 
@@ -160,8 +237,90 @@ era::read_superblock(block_manager<>::ptr bm, block_address location)
 void
 era::write_superblock(block_manager<>::ptr bm, superblock const &sb, block_address location)
 {
-	block_manager<>::write_ref w = bm->superblock_zero(location, validator::mk_v());
+	block_manager<>::write_ref w = bm->superblock_zero(location, era_validator::mk_v());
 	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data().raw()));
 }
+
+void
+era::check_superblock(superblock const &sb,
+		      block_address nr_metadata_blocks,
+		      damage_visitor &visitor)
+{
+	if (sb.flags.get_unhandled_flags()) {
+		ostringstream msg;
+		msg << "invalid flags: " << sb.flags.get_unhandled_flags();
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.blocknr >= nr_metadata_blocks) {
+		ostringstream msg;
+		msg << "blocknr out of bounds: " << sb.blocknr << " >= " << nr_metadata_blocks;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.magic != SUPERBLOCK_MAGIC) {
+		ostringstream msg;
+		msg << "magic in incorrect: " << sb.magic;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.version >= VERSION_END) {
+		ostringstream msg;
+		msg << "version incorrect: " << sb.version;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.version < VERSION_BEGIN) {
+		ostringstream msg;
+		msg << "version incorrect: " << sb.version;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.metadata_block_size != 8) {
+		ostringstream msg;
+		msg << "metadata block size incorrect: " << sb.metadata_block_size;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+
+	if (sb.bloom_tree_root == SUPERBLOCK_LOCATION) {
+		string msg("bloom tree root points back to the superblock");
+		visitor.visit(superblock_invalid(msg));
+	}
+
+	if (sb.era_array_root == SUPERBLOCK_LOCATION) {
+		string msg("era array root points back to the superblock");
+		visitor.visit(superblock_invalid(msg));
+	}
+
+	if (sb.bloom_tree_root == sb.era_array_root) {
+		ostringstream msg;
+		msg << "bloom tree root and era array both point to the same block: "
+		    << sb.era_array_root;
+		visitor.visit(superblock_invalid(msg.str()));
+	}
+}
+
+void
+era::check_superblock(persistent_data::block_manager<>::ptr bm,
+		      block_address nr_metadata_blocks,
+		      damage_visitor &visitor)
+{
+	superblock sb;
+
+	try {
+		sb = read_superblock(bm, SUPERBLOCK_LOCATION);
+
+	} catch (std::exception const &e) {
+
+		// FIXME: what if it fails due to a zero length file?  Not
+		// really a corruption, so much as an io error.  Should we
+		// separate these?
+
+		visitor.visit(superblock_corrupt(e.what()));
+	}
+
+	check_superblock(sb, nr_metadata_blocks, visitor);
+}
+
 
 //----------------------------------------------------------------
