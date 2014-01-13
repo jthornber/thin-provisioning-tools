@@ -143,6 +143,8 @@ namespace {
 		if (sb_rep.get_error() == FATAL)
 			return FATAL;
 
+		return sb_rep.get_error();
+
 #if 0
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
@@ -153,8 +155,6 @@ namespace {
 						     combine_errors(hint_rep.get_error(),
 								    discard_rep.get_error())));
 #endif
-
-		return FATAL;
 	}
 
 	int check(string const &path, flags const &fs) {
