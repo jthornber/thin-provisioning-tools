@@ -2,6 +2,7 @@
 #define ERA_DETAIL_H
 
 #include "base/endian_utils.h"
+#include "persistent-data/transaction_manager.h"
 
 //----------------------------------------------------------------
 
@@ -25,9 +26,17 @@ namespace era {
 		uint64_t bloom_root;
 	};
 
+	struct era_detail_ref_counter {
+		era_detail_ref_counter(persistent_data::transaction_manager::ptr tm);
+
+		void inc(persistent_data::block_address b);
+		void dec(persistent_data::block_address b);
+	};
+
 	struct era_detail_traits {
 		typedef era_detail_disk disk_type;
 		typedef era_detail value_type;
+		typedef era_detail_ref_counter ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value);
 		static void pack(value_type const &value, disk_type &disk);

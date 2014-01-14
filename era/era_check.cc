@@ -14,6 +14,7 @@
 
 #include "base/error_state.h"
 #include "base/nested_output.h"
+#include "era/bloom_tree.h"
 #include "era/superblock.h"
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
@@ -90,6 +91,40 @@ namespace {
 		using reporter_base::get_error;
 	};
 
+	class bloom_tree_reporter : public bloom_tree_detail::damage_visitor, reporter_base {
+	public:
+		bloom_tree_reporter(nested_output &o)
+		: reporter_base(o) {
+		}
+
+		void visit(bloom_tree_detail::missing_eras const &d) {
+			out() << "missing eras" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+				out() << "Effected eras: [" << d.eras_.begin_.get()
+				      << ", " << d.eras_.end_.get() << ")" << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		void visit(bloom_tree_detail::damaged_bloom_filter const &d) {
+			out() << "damaged bloom filter" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+				out() << "Era: " << d.era_ << end_message();
+				out() << "Missing bits: [" << d.missing_bits_.begin_.get()
+				      << ", " << d.missing_bits_.end_.get() << ")" << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		using reporter_base::get_error;
+	};
+
 	//--------------------------------
 
 	transaction_manager::ptr open_tm(block_manager<>::ptr bm) {
@@ -145,16 +180,16 @@ namespace {
 
 		return sb_rep.get_error();
 
-#if 0
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
 
-		// FIXME: make an error class that's an instance of mplus
+		bloom_tree_reporter bt_rep(out);
+		era_detail_traits::ref_counter rc(tm);
+		bloom_tree bt(tm, rc);
+		check_bloom_tree(tm, bt, bt_rep);
+
 		return combine_errors(sb_rep.get_error(),
-				      combine_errors(mapping_rep.get_error(),
-						     combine_errors(hint_rep.get_error(),
-								    discard_rep.get_error())));
-#endif
+				      bt_rep.get_error());
 	}
 
 	int check(string const &path, flags const &fs) {

@@ -1,112 +1,84 @@
 #ifndef ERA_BLOOM_TREE_H
 #define ERA_BLOOM_TREE_H
 
+#include "era/era_detail.h"
+#include "persistent-data/data-structures/btree.h"
+
 //----------------------------------------------------------------
 
 namespace era {
+	namespace bloom_tree_detail {
+		class damage_visitor;
+
+		class damage {
+		public:
+			damage(std::string const &desc)
+				: desc_(desc) {
+			}
+
+			virtual ~damage() {}
+			virtual void visit(damage_visitor &v) const = 0;
+
+			std::string const &get_desc() const {
+				return desc_;
+			}
+
+		private:
+			std::string desc_;
+		};
+
+		struct missing_eras : public damage {
+			missing_eras(std::string const &desc, run<uint32_t> const &eras);
+			virtual void visit(damage_visitor &v) const;
+
+			run<uint32_t> eras_;
+		};
+
+		struct damaged_bloom_filter : public damage {
+			damaged_bloom_filter(std::string const &desc,
+					     uint32_t era,
+					     run<uint32_t> missing_bits);
+			virtual void visit(damage_visitor &v) const;
+
+			uint32_t era_;
+			run<uint32_t> missing_bits_;
+		};
+
+		class damage_visitor {
+		public:
+			typedef boost::shared_ptr<damage_visitor> ptr;
+
+			virtual ~damage_visitor() {}
+
+			void visit(damage const &d) {
+				d.visit(*this);
+			}
+
+			virtual void visit(missing_eras const &d) = 0;
+			virtual void visit(damaged_bloom_filter const &d) = 0;
+		};
+
+		class bloom_visitor {
+		public:
+			typedef boost::shared_ptr<bloom_visitor> ptr;
+
+			virtual ~bloom_visitor() {}
+			virtual void visit(uint32_t index, bool value) = 0;
+		};
+	}
+
+	typedef persistent_data::btree<1, era_detail_traits> bloom_tree;
+
+	void walk_bloom_tree(persistent_data::transaction_manager::ptr tm,
+			     bloom_tree const &tree,
+			     bloom_tree_detail::bloom_visitor &bloom_v,
+			     bloom_tree_detail::damage_visitor &dv);
+
+	void check_bloom_tree(persistent_data::transaction_manager::ptr tm,
+			      bloom_tree const &tree,
+			      bloom_tree_detail::damage_visitor &dv);
 }
 
 //----------------------------------------------------------------
 
-#endif
-
-
-#if 0
-	class dm_era {
-	public:
-		dm_era(block_address nr_blocks)
-		: nr_blocks_(nr_blocks),
-		  era_base_(0),
-		  base_(nr_blocks, false) {
-		}
-
-		set<block_address> blocks_written_since(unsigned era) const {
-
-		}
-
-		unsigned get_era() const {
-			return era_base_ + eras_.size() - 1;
-		}
-
-		void record_write(block_address b) {
-			current_era.record_write(b);
-		}
-
-		void resize(block_address new_size) {
-			nr_blocks_ = new_size;
-			push_era();
-			base_.resize(new_size, false);
-		}
-
-	private:
-		era_details &current_era() {
-			return eras_.back();
-		}
-
-		void need_new_era() {
-			// ???
-		}
-
-		void push_era() {
-			eras_.push_back(era(nr_blocks_));
-			if (eras_.size() > 100)
-				pop_era();
-		}
-
-		void pop_era() {
-			era_base_++;
-
-
-
-			eras_.pop_front();
-		}
-
-		static const unsigned NR_PROBES = 6;
-
-		class era_details {
-		public:
-			era_details(block_address nr_blocks)
-			: nr_blocks_(nr_blocks),
-			  f(power_bits(nr_blocks, NR_PROBES)) {
-			}
-
-			void record_write(block_address b) {
-				f.add(b);
-			}
-
-			void add_blocks_written(set<block_address &result) const {
-				for (block_address b = 0; b < nr_blocks; b++)
-					if (f.test(b))
-						result.insert(b);
-			}
-
-		private:
-			static unsigned power_bits(block_address nr_blocks) {
-				// We're expecting 1% of the cache to change per era
-				block_address expected_writes = nr_blocks / 100;
-
-				unsigned r = 1;
-				while ((1ull << r) < (16 * expected_writes))
-					r++;
-
-				return r;
-			}
-
-			typedef bloom_filter<block_address_bloom_traits> filter;
-
-			block_address nr_blocks;
-			filter f;
-		};
-
-		space_map::ptr setup_core_map() {
-			space_map::ptr sm(new core_map(NR_BLOCKS));
-			sm->inc(SUPERBLOCK);
-			return sm;
-		}
-
-		block_address nr_blocks_;
-		unsigned era_base_;
-		vector<bool> base_;
-		deque<era_details> eras_;
-	};
 #endif

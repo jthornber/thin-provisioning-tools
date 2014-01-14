@@ -51,6 +51,7 @@ SOURCE=\
 	\
 	era/era_detail.cc \
 	era/superblock.cc \
+	era/bloom_tree.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -299,6 +300,7 @@ ERA_CHECK_SOURCE=\
 	base/error_state.cc \
 	base/endian_utils.cc \
 	\
+	era/bloom_tree.cc \
 	era/superblock.cc \
 	era/era_detail.cc \
 	\
