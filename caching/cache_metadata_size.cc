@@ -71,6 +71,7 @@ namespace {
 
 			case 3:
 				fs.max_hint_width = lexical_cast<uint32_t>(optarg);
+				break;
 
 			case 'h':
 				usage(cout, prog_name);
