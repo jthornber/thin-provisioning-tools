@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2013 Red Hat, GmbH
- * 
+ *
  * Calculates device-mapper thin privisioning
  * metadata device size based on pool, block size and
  * maximum expected thin provisioned devices and snapshots.
