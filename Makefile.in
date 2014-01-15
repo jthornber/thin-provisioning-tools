@@ -24,6 +24,7 @@ PROGRAMS=\
 	cache_dump \
 	cache_restore \
 	cache_repair \
+	cache_metadata_size \
 	\
 	thin_check \
 	thin_dump \
@@ -279,6 +280,10 @@ cache_repair: $(CACHE_REPAIR_OBJECTS) caching/cache_repair.o
 cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+cache_metadata_size: caching/cache_metadata_size.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \

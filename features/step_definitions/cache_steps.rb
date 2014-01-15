@@ -69,6 +69,14 @@ When(/^I run cache_dump with (.*?)$/) do |opts|
   run_simple("cache_dump #{opts}", false)
 end
 
+When(/^I run cache_metadata_size with (.*?)$/) do |opts|
+  run_simple("cache_metadata_size #{opts}", false)
+end
+
+When(/^I run cache_metadata_size$/) do
+  run_simple("cache_metadata_size", false)
+end
+
 Given(/^valid cache metadata$/) do
   in_current_dir do
     system("cache_xml create --nr-cache-blocks uniform[1000..5000] --nr-mappings uniform[500..1000] > #{xml_file}")

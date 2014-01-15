@@ -20,6 +20,7 @@ cache_check
 cache_dump
 cache_restore
 cache_repair
+cache_metadata_size
 
 *.metadata
 bad-metadata
