@@ -19,8 +19,9 @@
 #ifndef SPACE_MAP_H
 #define SPACE_MAP_H
 
-#include "block.h"
-#include "block_counter.h"
+#include "persistent-data/block.h"
+#include "persistent-data/block_counter.h"
+#include "persistent-data/run.h"
 
 #include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
@@ -114,6 +115,28 @@ namespace persistent_data {
 		}
 	};
 
+	//--------------------------------
+
+	namespace space_map_detail {
+		class damage {
+			virtual ~damage() {}
+		};
+
+		class missing_counts : public damage {
+		public:
+			missing_counts(base::run<block_address> &lost);
+		};
+
+		class visitor {
+		public:
+			virtual ~visitor() {}
+			virtual void visit(missing_counts const &mc) = 0;
+			virtual void visit(block_address b, uint32_t count) = 0;
+		};
+	}
+
+	//--------------------------------
+
 	class persistent_space_map : public space_map {
 	public:
 		typedef boost::shared_ptr<persistent_space_map> ptr;
@@ -126,8 +149,8 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<checked_space_map> ptr;
 
-		virtual void check(block_counter &counter) const {
-			throw std::runtime_error("'check' not implemented");
+		virtual void visit(space_map_detail::visitor &v) const {
+			throw std::runtime_error("space_map.visit not implemented");
 		}
 
 		// FIXME: should this be in the base space_map class?

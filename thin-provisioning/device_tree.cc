@@ -84,10 +84,9 @@ thin_provisioning::walk_device_tree(device_tree const &tree,
 				    device_tree_detail::device_visitor &vv,
 				    device_tree_detail::damage_visitor &dv)
 {
-	block_counter counter;
 	visitor_adapter av(vv);
 	ll_damage_visitor ll_dv(dv);
-	btree_visit_values(tree, counter, av, ll_dv);
+	btree_visit_values(tree, av, ll_dv);
 }
 
 void

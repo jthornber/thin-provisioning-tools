@@ -388,8 +388,7 @@ namespace {
 		}
 
 		virtual void run_() {
-			block_counter counter;
-			btree_visit_values(*tree_, counter, value_visitor_, damage_visitor_);
+			btree_visit_values(*tree_, value_visitor_, damage_visitor_);
 		}
 	};
 
@@ -470,8 +469,7 @@ namespace {
 		}
 
 		virtual void run_() {
-			block_counter counter;
-			btree_visit_values(*tree_, counter, value_visitor_, damage_visitor_);
+			btree_visit_values(*tree_, value_visitor_, damage_visitor_);
 		}
 	};
 }

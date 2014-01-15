@@ -17,6 +17,7 @@
 #include "caching/metadata.h"
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
+#include "persistent-data/space_map.h"
 #include "persistent-data/space-maps/core.h"
 #include "version.h"
 
@@ -153,6 +154,15 @@ namespace {
 		virtual void visit(bitset_detail::missing_bits const &d) {
 			out() << "missing discard bits "  << d.keys_ << end_message();
 			mplus_error(FATAL);
+		}
+
+		using reporter_base::get_error;
+	};
+
+	class space_map_reporter : public space_map_detail::visitor, reporter_base {
+	public:
+		space_map_reporter(nested_output &o)
+		: reporter_base(o) {
 		}
 
 		using reporter_base::get_error;

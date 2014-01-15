@@ -21,7 +21,7 @@
 #include "persistent-data/space-maps/recursive.h"
 #include "persistent-data/space-maps/careful_alloc.h"
 
-#include "persistent-data/data-structures/btree_checker.h"
+#include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/endian_utils.h"
 #include "persistent-data/math_utils.h"
@@ -200,6 +200,7 @@ namespace {
 		}
 	};
 
+#if 0
 	class ref_count_checker : public btree_checker<1, ref_count_traits> {
 	public:
 		typedef boost::shared_ptr<ref_count_checker> ptr;
@@ -207,6 +208,14 @@ namespace {
 		ref_count_checker(block_counter &counter)
 			: btree_checker<1, ref_count_traits>(counter) {
 		}
+	};
+#endif
+
+	class index_entry_visitor {
+	public:
+		virtual ~index_entry_visitor() {}
+		virtual void visit(index_entry const &ie) = 0;
+		virtual void visit(run<block_address> const &missing) = 0;
 	};
 
 	class index_store {
@@ -219,7 +228,7 @@ namespace {
 		virtual void commit_ies() = 0;
 		virtual ptr clone() const = 0;
 		virtual block_address get_root() const = 0;
-		virtual void check(block_counter &counter, block_address nr_index_entries) const = 0;
+		virtual void visit(index_entry_visitor &v, block_address nr_index_entries) const = 0;
 	};
 
 	unsigned const ENTRIES_PER_BLOCK = (MD_BLOCK_SIZE - sizeof(bitmap_header)) * 4;
@@ -358,12 +367,14 @@ namespace {
 			nr_blocks_ = nr_blocks;
 		}
 
-		virtual void check(block_counter &counter) const {
-			ref_count_checker v(counter);
-			ref_counts_.visit_depth_first(v);
+		virtual void visit(space_map_detail::visitor &v) const {
+#if 0
+			ref_count_checker rcv(v);
+			ref_counts_.visit_depth_first(rcv);
 
 			block_address nr_entries = div_up<block_address>(get_nr_blocks(), ENTRIES_PER_BLOCK);
-			indexes_->check(counter, nr_entries);
+			indexes_->visit(v, nr_entries);
+#endif
 		}
 
 		struct look_aside_iterator : public iterator {
@@ -498,56 +509,34 @@ namespace {
 		btree<1, ref_count_traits> ref_counts_;
 	};
 
-	class bitmap_tree_validator : public btree_checker<1, index_entry_traits> {
+	//--------------------------------
+
+	class ie_value_visitor {
 	public:
-		typedef btree_detail::node_location node_location;
-		typedef boost::shared_ptr<bitmap_tree_validator> ptr;
-
-		bitmap_tree_validator(block_counter &counter)
-			: btree_checker<1, index_entry_traits>(counter) {
+		ie_value_visitor(index_entry_visitor &v)
+			: v_(v) {
 		}
 
-		bool visit_leaf(node_location const &loc,
-				btree_detail::node_ref<index_entry_traits> const &n) {
-			bool r = btree_checker<1, index_entry_traits>::visit_leaf(loc, n);
-			if (!r)
-				return r;
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				if (seen_indexes_.count(n.key_at(i)) > 0) {
-					ostringstream out;
-					out << "index entry " << i << " is present twice";
-					throw runtime_error(out.str());
-				}
-
-				seen_indexes_.insert(n.key_at(i));
-				btree_checker<1, index_entry_traits>::get_counter().inc(n.value_at(i).blocknr_);
-			}
-
-			return true;
-		}
-
-		void check_all_index_entries_present(block_address nr_entries) {
-			for (block_address i = 0; i < nr_entries; i++) {
-				if (seen_indexes_.count(i) == 0) {
-					ostringstream out;
-					out << "missing index entry " << i;
-					throw runtime_error(out.str());
-				}
-			}
-
-			set<block_address>::const_iterator it;
-			for (it = seen_indexes_.begin(); it != seen_indexes_.end(); ++it) {
-				if (*it >= nr_entries) {
-					ostringstream out;
-					out << "unexpected index entry " << *it;
-					throw runtime_error(out.str());
-				}
-			}
+		virtual void visit(btree_path const &path, sm_disk_detail::index_entry const &ie) {
+			// FIXME: finish
 		}
 
 	private:
-		set<block_address> seen_indexes_;
+		index_entry_visitor &v_;
+	};
+
+	class ie_damage_visitor {
+	public:
+		ie_damage_visitor(index_entry_visitor &v)
+			: v_(v) {
+		}
+
+		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
+			// FIXME: finish
+		}
+
+	private:
+		index_entry_visitor &v_;
 	};
 
 	class btree_index_store : public index_store {
@@ -595,10 +584,10 @@ namespace {
 			return bitmaps_.get_root();
 		}
 
-		virtual void check(block_counter &counter, block_address nr_index_entries) const {
-			bitmap_tree_validator v(counter);
-			bitmaps_.visit_depth_first(v);
-			v.check_all_index_entries_present(nr_index_entries);
+		virtual void visit(index_entry_visitor &v, block_address nr_index_entries) const {
+			ie_value_visitor vv(v);
+			ie_damage_visitor dv(v);
+			btree_visit_values(bitmaps_, vv, dv);
 		}
 
 	private:
@@ -654,12 +643,18 @@ namespace {
 			return bitmap_root_;
 		}
 
-		virtual void check(block_counter &counter, block_address nr_index_entries) const {
+		virtual void visit(index_entry_visitor &vv, block_address nr_index_entries) const {
+			for (unsigned i = 0; i < entries_.size(); i++)
+				if (entries_[i].blocknr_ != 0)
+					vv.visit(entries_[i]);
+
+#if 0
 			counter.inc(bitmap_root_);
 			for (unsigned i = 0; i < entries_.size(); i++)
 				// FIXME: this looks like a hack
 				if (entries_[i].blocknr_ != 0) // superblock
 					counter.inc(entries_[i].blocknr_);
+#endif
 		}
 
 	private:
