@@ -22,6 +22,8 @@ cache_restore
 cache_repair
 
 era_check
+era_dump
+era_invalidate
 
 *.metadata
 bad-metadata
