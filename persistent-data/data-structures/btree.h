@@ -43,22 +43,6 @@ namespace persistent_data {
 		space_map::ptr sm_;
 	};
 
-	// FIXME: move to sep file.  I don't think it's directly used by
-	// the btree code.
-	struct uint64_traits {
-		typedef base::le64 disk_type;
-		typedef uint64_t value_type;
-		typedef no_op_ref_counter<uint64_t> ref_counter;
-
-		static void unpack(disk_type const &disk, value_type &value) {
-			value = base::to_cpu<uint64_t>(disk);
-		}
-
-		static void pack(value_type const &value, disk_type &disk) {
-			disk = base::to_disk<base::le64>(value);
-		}
-	};
-
 	struct block_traits {
 		typedef base::le64 disk_type;
 		typedef block_address value_type;

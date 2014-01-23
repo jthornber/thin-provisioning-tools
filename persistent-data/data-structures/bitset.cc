@@ -27,6 +27,8 @@ namespace {
 
 namespace persistent_data {
 	namespace bitset_detail {
+		size_t BITS_PER_ULL = 64;
+
 		class bitset_impl {
 		public:
 			typedef boost::shared_ptr<bitset_impl> ptr;
@@ -39,7 +41,7 @@ namespace persistent_data {
 
 			bitset_impl(tm_ptr tm, block_address root, unsigned nr_bits)
 				: nr_bits_(nr_bits),
-				  array_(tm, rc_, root, nr_bits) {
+				  array_(tm, rc_, root, nr_bits / BITS_PER_ULL) {
 			}
 
 			block_address get_root() const {

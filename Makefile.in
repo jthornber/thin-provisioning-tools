@@ -26,6 +26,7 @@ PROGRAMS=\
 	cache_repair \
 	\
 	era_check \
+	era_dump \
 	\
 	thin_check \
 	thin_dump \
@@ -49,9 +50,13 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/xml_format.cc \
 	\
+	era/era_array.cc \
 	era/era_detail.cc \
 	era/superblock.cc \
 	era/bloom_tree.cc \
+	era/metadata.cc \
+	era/metadata_dump.cc \
+	era/xml_format.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -301,8 +306,10 @@ ERA_CHECK_SOURCE=\
 	base/endian_utils.cc \
 	\
 	era/bloom_tree.cc \
-	era/superblock.cc \
 	era/era_detail.cc \
+	era/era_array.cc \
+	era/metadata.cc \
+	era/superblock.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -322,6 +329,38 @@ ERA_CHECK_OBJECTS=$(subst .cc,.o,$(ERA_CHECK_SOURCE))
 era_check: $(ERA_CHECK_OBJECTS) era/era_check.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+ERA_DUMP_SOURCE=\
+	base/base64.cc \
+	base/error_state.cc \
+	base/endian_utils.cc \
+	\
+	era/bloom_tree.cc \
+	era/era_detail.cc \
+	era/era_array.cc \
+	era/metadata.cc \
+	era/metadata_dump.cc \
+	era/superblock.cc \
+	era/xml_format.cc \
+	\
+	persistent-data/checksum.cc \
+	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/bitset.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+
+ERA_DUMP_OBJECTS=$(subst .cc,.o,$(ERA_DUMP_SOURCE))
+
+era_dump: $(ERA_DUMP_OBJECTS)  era/era_dump.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 #----------------------------------------------------------------
 

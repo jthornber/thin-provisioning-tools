@@ -15,6 +15,7 @@
 #include "base/error_state.h"
 #include "base/nested_output.h"
 #include "era/bloom_tree.h"
+#include "era/era_array.h"
 #include "era/superblock.h"
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
@@ -98,7 +99,7 @@ namespace {
 		}
 
 		void visit(bloom_tree_detail::missing_eras const &d) {
-			out() << "missing eras" << end_message();
+			out() << "missing eras from bloom tree" << end_message();
 			{
 				nested_output::nest _ = push();
 				out() << d.get_desc() << end_message();
@@ -117,6 +118,38 @@ namespace {
 				out() << "Era: " << d.era_ << end_message();
 				out() << "Missing bits: [" << d.missing_bits_.begin_.get()
 				      << ", " << d.missing_bits_.end_.get() << ")" << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		using reporter_base::get_error;
+	};
+
+	class era_array_reporter : public era_array_detail::damage_visitor, reporter_base {
+	public:
+		era_array_reporter(nested_output &o)
+		: reporter_base(o) {
+		}
+
+		void visit(era_array_detail::missing_eras const &d) {
+			out() << "missing eras from era array" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+				out() << "Effected eras: [" << d.eras_.begin_.get()
+				      << ", " << d.eras_.end_.get() << ")" << end_message();
+			}
+
+			mplus_error(FATAL);
+		}
+
+		void visit(era_array_detail::invalid_era const &d) {
+			out() << "invalid era in era array" << end_message();
+			{
+				nested_output::nest _ = push();
+				out() << d.get_desc() << end_message();
+				out() << "block: " << d.block_ << ", era: " << d.era_ << end_message();
 			}
 
 			mplus_error(FATAL);
@@ -184,12 +217,22 @@ namespace {
 		transaction_manager::ptr tm = open_tm(bm);
 
 		bloom_tree_reporter bt_rep(out);
-		era_detail_traits::ref_counter rc(tm);
-		bloom_tree bt(tm, rc);
-		check_bloom_tree(tm, bt, bt_rep);
+		{
+			era_detail_traits::ref_counter rc(tm);
+			bloom_tree bt(tm, sb.bloom_tree_root, rc);
+			check_bloom_tree(tm, bt, bt_rep);
+		}
+
+		era_array_reporter ea_rep(out);
+		{
+			uint32_traits::ref_counter rc;
+			era_array ea(tm, rc, sb.era_array_root, sb.nr_blocks);
+			check_era_array(ea, ea_rep);
+		}
 
 		return combine_errors(sb_rep.get_error(),
-				      bt_rep.get_error());
+				      combine_errors(bt_rep.get_error(),
+						     ea_rep.get_error()));
 	}
 
 	int check(string const &path, flags const &fs) {

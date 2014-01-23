@@ -55,11 +55,13 @@ namespace {
 		void visit(btree_path const &path, era_detail const &era) {
 			era_ = path[0];
 			bitset bs(tm_, era.bloom_root, era.nr_bits);
+			bloom_v_.bloom_begin(era_, era.nr_blocks, era.nr_bits, era.nr_set);
 			bs.walk_bitset(*this);
+			bloom_v_.bloom_end();
 		}
 
 		void visit(uint32_t index, bool value) {
-			bloom_v_.visit(index, value);
+			bloom_v_.bit(index, value);
 		}
 
 		void visit(bitset_detail::missing_bits const &d) {
@@ -109,7 +111,14 @@ era::walk_bloom_tree(persistent_data::transaction_manager::ptr tm,
 namespace {
 	class noop_bloom_visitor : public bloom_tree_detail::bloom_visitor {
 	public:
-		void visit(uint32_t index, bool value) {
+		void bloom_begin(uint32_t era, uint32_t nr_blocks,
+				 uint32_t nr_bits, uint32_t nr_set) {
+		}
+
+		void bit(uint32_t index, bool value) {
+		}
+
+		void bloom_end() {
 		}
 	};
 };

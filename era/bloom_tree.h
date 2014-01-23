@@ -63,7 +63,11 @@ namespace era {
 			typedef boost::shared_ptr<bloom_visitor> ptr;
 
 			virtual ~bloom_visitor() {}
-			virtual void visit(uint32_t index, bool value) = 0;
+
+			virtual void bloom_begin(uint32_t era, uint32_t nr_blocks,
+						 uint32_t nr_bits, uint32_t nr_set) = 0;
+			virtual void bit(uint32_t index, bool value) = 0;
+			virtual void bloom_end() = 0;
 		};
 	}
 

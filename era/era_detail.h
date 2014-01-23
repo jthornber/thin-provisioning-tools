@@ -26,11 +26,16 @@ namespace era {
 		uint64_t bloom_root;
 	};
 
+	// FIXME: implement
 	struct era_detail_ref_counter {
-		era_detail_ref_counter(persistent_data::transaction_manager::ptr tm);
+		era_detail_ref_counter(persistent_data::transaction_manager::ptr tm) {
+		}
 
-		void inc(persistent_data::block_address b);
-		void dec(persistent_data::block_address b);
+		void inc(persistent_data::block_address b) {
+		}
+
+		void dec(persistent_data::block_address b) {
+		}
 	};
 
 	struct era_detail_traits {
