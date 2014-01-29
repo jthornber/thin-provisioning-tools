@@ -10,7 +10,7 @@
 #include "persistent-data/transaction_manager.h"
 
 #include "era/superblock.h"
-#include "era/bloom_tree.h"
+#include "era/writeset_tree.h"
 #include "era/era_array.h"
 
 //----------------------------------------------------------------
@@ -34,7 +34,7 @@ namespace era {
 		tm::ptr tm_;
 		superblock sb_;
 		checked_space_map::ptr metadata_sm_;
-		bloom_tree::ptr bloom_tree_;
+		writeset_tree::ptr writeset_tree_;
 		era_array::ptr era_array_;
 
 	private:

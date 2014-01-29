@@ -14,7 +14,7 @@
 
 #include "base/error_state.h"
 #include "base/nested_output.h"
-#include "era/bloom_tree.h"
+#include "era/writeset_tree.h"
 #include "era/era_array.h"
 #include "era/superblock.h"
 #include "persistent-data/block.h"
@@ -92,14 +92,14 @@ namespace {
 		using reporter_base::get_error;
 	};
 
-	class bloom_tree_reporter : public bloom_tree_detail::damage_visitor, reporter_base {
+	class writeset_tree_reporter : public writeset_tree_detail::damage_visitor, reporter_base {
 	public:
-		bloom_tree_reporter(nested_output &o)
+		writeset_tree_reporter(nested_output &o)
 		: reporter_base(o) {
 		}
 
-		void visit(bloom_tree_detail::missing_eras const &d) {
-			out() << "missing eras from bloom tree" << end_message();
+		void visit(writeset_tree_detail::missing_eras const &d) {
+			out() << "missing eras from writeset tree" << end_message();
 			{
 				nested_output::nest _ = push();
 				out() << d.get_desc() << end_message();
@@ -110,8 +110,8 @@ namespace {
 			mplus_error(FATAL);
 		}
 
-		void visit(bloom_tree_detail::damaged_bloom_filter const &d) {
-			out() << "damaged bloom filter" << end_message();
+		void visit(writeset_tree_detail::damaged_writeset const &d) {
+			out() << "damaged writeset" << end_message();
 			{
 				nested_output::nest _ = push();
 				out() << d.get_desc() << end_message();
@@ -216,22 +216,22 @@ namespace {
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
 
-		bloom_tree_reporter bt_rep(out);
+		writeset_tree_reporter wt_rep(out);
 		{
 			era_detail_traits::ref_counter rc(tm);
-			bloom_tree bt(tm, sb.bloom_tree_root, rc);
-			check_bloom_tree(tm, bt, bt_rep);
+			writeset_tree wt(tm, sb.writeset_tree_root, rc);
+			check_writeset_tree(tm, wt, wt_rep);
 		}
 
 		era_array_reporter ea_rep(out);
 		{
 			uint32_traits::ref_counter rc;
 			era_array ea(tm, rc, sb.era_array_root, sb.nr_blocks);
-			check_era_array(ea, ea_rep);
+			check_era_array(ea, sb.current_era, ea_rep);
 		}
 
 		return combine_errors(sb_rep.get_error(),
-				      combine_errors(bt_rep.get_error(),
+				      combine_errors(wt_rep.get_error(),
 						     ea_rep.get_error()));
 	}
 

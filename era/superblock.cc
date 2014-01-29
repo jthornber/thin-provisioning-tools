@@ -34,7 +34,7 @@ namespace  {
 		le32 current_era;
 		era_detail_disk current_detail;
 
-		le64 bloom_tree_root;
+		le64 writeset_tree_root;
 		le64 era_array_root;
 
 	} __attribute__ ((packed));
@@ -116,7 +116,7 @@ superblock::superblock()
 	  metadata_block_size(8),
 	  nr_blocks(0),
 	  current_era(0),
-	  bloom_tree_root(0),
+	  writeset_tree_root(0),
 	  era_array_root(0)
 {
 	memset(uuid, 0, sizeof(uuid));
@@ -141,7 +141,7 @@ superblock_traits::unpack(disk_type const &disk, value_type &value)
 	value.nr_blocks = to_cpu<uint32_t>(disk.nr_blocks);
 	value.current_era = to_cpu<uint32_t>(disk.current_era);
 	era_detail_traits::unpack(disk.current_detail, value.current_detail);
-	value.bloom_tree_root = to_cpu<uint64_t>(disk.bloom_tree_root);
+	value.writeset_tree_root = to_cpu<uint64_t>(disk.writeset_tree_root);
 	value.era_array_root = to_cpu<uint64_t>(disk.era_array_root);
 }
 
@@ -161,7 +161,7 @@ superblock_traits::pack(value_type const &value, disk_type &disk)
 	disk.nr_blocks = to_disk<le32>(value.nr_blocks);
 	disk.current_era = to_disk<le32>(value.current_era);
 	era_detail_traits::pack(value.current_detail, disk.current_detail);
-	disk.bloom_tree_root = to_disk<le64>(value.bloom_tree_root);
+	disk.writeset_tree_root = to_disk<le64>(value.writeset_tree_root);
 	disk.era_array_root = to_disk<le64>(value.era_array_root);
 }
 
@@ -282,8 +282,8 @@ era::check_superblock(superblock const &sb,
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 
-	if (sb.bloom_tree_root == SUPERBLOCK_LOCATION) {
-		string msg("bloom tree root points back to the superblock");
+	if (sb.writeset_tree_root == SUPERBLOCK_LOCATION) {
+		string msg("writeset tree root points back to the superblock");
 		visitor.visit(superblock_invalid(msg));
 	}
 
@@ -292,9 +292,9 @@ era::check_superblock(superblock const &sb,
 		visitor.visit(superblock_invalid(msg));
 	}
 
-	if (sb.bloom_tree_root == sb.era_array_root) {
+	if (sb.writeset_tree_root == sb.era_array_root) {
 		ostringstream msg;
-		msg << "bloom tree root and era array both point to the same block: "
+		msg << "writeset tree root and era array both point to the same block: "
 		    << sb.era_array_root;
 		visitor.visit(superblock_invalid(msg.str()));
 	}

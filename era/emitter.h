@@ -20,9 +20,9 @@ namespace era {
 					      uint32_t current_era) = 0;
 		virtual void end_superblock() = 0;
 
-		virtual void begin_bloom(uint32_t era, uint32_t nr_bits, pd::block_address nr_blocks) = 0;
-		virtual void bloom_bit(uint32_t bit, bool value) = 0;
-		virtual void end_bloom() = 0;
+		virtual void begin_writeset(uint32_t era, uint32_t nr_bits) = 0;
+		virtual void writeset_bit(uint32_t bit, bool value) = 0;
+		virtual void end_writeset() = 0;
 
 		virtual void begin_era_array() = 0;
 		virtual void era(pd::block_address block, uint32_t era) = 0;

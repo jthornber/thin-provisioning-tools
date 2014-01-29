@@ -7,7 +7,6 @@
 #include "era/era_array.h"
 #include "era/writeset_tree.h"
 #include "era/metadata.h"
-#include "era/metadata_dump.h"
 #include "era/xml_format.h"
 #include "persistent-data/file_utils.h"
 
@@ -18,12 +17,15 @@ using namespace std;
 
 namespace {
 	struct flags {
-		flags()
-			: repair_(false) {
+		flags() {
 		}
-
-		bool repair_;
 	};
+
+	//--------------------------------
+
+	void emit_blocks() {
+		
+	}
 
 	//--------------------------------
 
@@ -33,18 +35,18 @@ namespace {
 		return output == STDOUT_PATH;
 	}
 
-	int dump(string const &dev, string const &output, flags const &fs) {
+	int invalidate(string const &dev, string const &output, flags const &fs) {
 		try {
 			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
 			metadata::ptr md(new metadata(bm, metadata::OPEN));
 
 			if (want_stdout(output)) {
 				emitter::ptr e = create_xml_emitter(cout);
-				metadata_dump(md, e, fs.repair_);
+				//emit_blocks(md, e, fs);
 			} else {
 				ofstream out(output.c_str());
 				emitter::ptr e = create_xml_emitter(out);
-				metadata_dump(md, e, fs.repair_);
+				//emit_blocks(md, e, fs);
 			}
 
 		} catch (std::exception &e) {
@@ -60,8 +62,7 @@ namespace {
 		    << "Options:" << endl
 		    << "  {-h|--help}" << endl
 		    << "  {-o <xml file>}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--repair}" << endl;
+		    << "  {-V|--version}" << endl;
 	}
 }
 
@@ -78,16 +79,11 @@ int main(int argc, char **argv)
 		{ "help", no_argument, NULL, 'h' },
 		{ "output", required_argument, NULL, 'o' },
 		{ "version", no_argument, NULL, 'V' },
-		{ "repair", no_argument, NULL, 1 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
-		case 1:
-			fs.repair_ = true;
-			break;
-
 		case 'h':
 			usage(cout, basename(argv[0]));
 			return 0;
@@ -112,7 +108,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output, fs);
+	return invalidate(argv[optind], output, fs);
 }
 
 //----------------------------------------------------------------

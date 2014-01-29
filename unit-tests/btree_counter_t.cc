@@ -5,6 +5,7 @@
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/space-maps/core.h"
+#include "persistent-data/data-structures/simple_traits.h"
 
 using namespace base;
 using namespace std;

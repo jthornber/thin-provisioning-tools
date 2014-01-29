@@ -20,6 +20,7 @@
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/simple_traits.h"
 
 using namespace std;
 using namespace persistent_data;

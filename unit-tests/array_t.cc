@@ -20,6 +20,7 @@
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/array.h"
+#include "persistent-data/data-structures/simple_traits.h"
 
 #include <vector>
 

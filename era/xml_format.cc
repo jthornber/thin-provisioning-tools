@@ -33,25 +33,23 @@ namespace {
 			out_ << "</superblock>" << endl;
 		}
 
-		void begin_bloom(uint32_t era, uint32_t nr_bits,
-				 pd::block_address nr_blocks) {
+		void begin_writeset(uint32_t era, uint32_t nr_bits) {
 			indent();
-			out_ << "<bloom era=\"" << era << "\""
-			     << " nr_bits=\"" << nr_bits << "\""
-			     << " nr_blocks=\"" << nr_blocks << "\">" << endl;
+			out_ << "<writeset era=\"" << era << "\""
+			     << " nr_bits=\"" << nr_bits << "\">" << endl;
 			inc();
 		}
 
-		void bloom_bit(uint32_t bit, bool value) {
+		void writeset_bit(uint32_t bit, bool value) {
 			indent();
 			// FIXME: collect all the bits, then uuencode
 			out_ << "<bit bit=\"" << bit << "\" value=\"" << value << "\">" << endl;
 		}
 
-		void end_bloom() {
+		void end_writeset() {
 			dec();
 			indent();
-			out_ << "</bloom>" << endl;
+			out_ << "</writeset>" << endl;
 		}
 
 		void begin_era_array() {

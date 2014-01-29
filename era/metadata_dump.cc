@@ -17,42 +17,42 @@ namespace {
 					 "perhaps you wanted to run with --repair ?");
 	}
 
-	class bloom_tree_emitter : public bloom_tree_detail::bloom_visitor {
+	class writeset_tree_emitter : public writeset_tree_detail::writeset_visitor {
 	public:
-		bloom_tree_emitter(emitter::ptr e)
+		writeset_tree_emitter(emitter::ptr e)
 			: e_(e) {
 		}
 
-		virtual void bloom_begin(uint32_t era, uint32_t nr_blocks, uint32_t nr_bits, uint32_t nr_set) {
-			e_->begin_bloom(era, nr_bits, nr_blocks);
+		virtual void writeset_begin(uint32_t era, uint32_t nr_bits) {
+			e_->begin_writeset(era, nr_bits);
 		}
 
 		virtual void bit(uint32_t bit, bool value) {
-			e_->bloom_bit(bit, value);
+			e_->writeset_bit(bit, value);
 		}
 
-		virtual void bloom_end() {
-			e_->end_bloom();
+		virtual void writeset_end() {
+			e_->end_writeset();
 		}
 
 	private:
 		emitter::ptr e_;
 	};
 
-	struct ignore_bloom_tree_damage : public bloom_tree_detail::damage_visitor {
-		void visit(bloom_tree_detail::missing_eras const &d) {
+	struct ignore_writeset_tree_damage : public writeset_tree_detail::damage_visitor {
+		void visit(writeset_tree_detail::missing_eras const &d) {
 		}
 
-		void visit(bloom_tree_detail::damaged_bloom_filter const &d) {
+		void visit(writeset_tree_detail::damaged_writeset const &d) {
 		}
 	};
 
-	struct fatal_bloom_tree_damage : public bloom_tree_detail::damage_visitor {
-		void visit(bloom_tree_detail::missing_eras const &d) {
+	struct fatal_writeset_tree_damage : public writeset_tree_detail::damage_visitor {
+		void visit(writeset_tree_detail::missing_eras const &d) {
 			raise_metadata_damage();
 		}
 
-		void visit(bloom_tree_detail::damaged_bloom_filter const &d) {
+		void visit(writeset_tree_detail::damaged_writeset const &d) {
 			raise_metadata_damage();
 		}
 	};
@@ -104,15 +104,15 @@ era::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 			    sb.current_era);
 	{
 		{
-			bloom_tree_emitter visitor(e);
+			writeset_tree_emitter visitor(e);
 
-			ignore_bloom_tree_damage ignore;
-			fatal_bloom_tree_damage fatal;
-			bloom_tree_detail::damage_visitor &dv = repair ?
-				static_cast<bloom_tree_detail::damage_visitor &>(ignore) :
-				static_cast<bloom_tree_detail::damage_visitor &>(fatal);
+			ignore_writeset_tree_damage ignore;
+			fatal_writeset_tree_damage fatal;
+			writeset_tree_detail::damage_visitor &dv = repair ?
+				static_cast<writeset_tree_detail::damage_visitor &>(ignore) :
+				static_cast<writeset_tree_detail::damage_visitor &>(fatal);
 
-			walk_bloom_tree(md->tm_, *md->bloom_tree_, visitor, dv);
+			walk_writeset_tree(md->tm_, *md->writeset_tree_, visitor, dv);
 		}
 
 		e->begin_era_array();

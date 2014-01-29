@@ -343,7 +343,7 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						typename block_io<BlockSize>::mode mode)
 		: io_(new block_io<BlockSize>(path, nr_blocks, mode)),
-		  cache_(max(64u, max_concurrent_blocks)),
+		  cache_(max(1024u, max_concurrent_blocks)),
 		  tracker_(0, nr_blocks)
 	{
 	}

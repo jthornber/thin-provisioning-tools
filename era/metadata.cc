@@ -47,9 +47,9 @@ metadata::open_metadata(block_manager<>::ptr bm)
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm());
 
-	bloom_tree_ = bloom_tree::ptr(new bloom_tree(tm_,
-						     sb_.bloom_tree_root,
-						     era_detail_traits::ref_counter(tm_)));
+	writeset_tree_ = writeset_tree::ptr(new writeset_tree(tm_,
+							      sb_.writeset_tree_root,
+							      era_detail_traits::ref_counter(tm_)));
 
 	era_array_ = era_array::ptr(new era_array(tm_,
 						  uint32_traits::ref_counter(),

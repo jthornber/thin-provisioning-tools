@@ -1,5 +1,5 @@
-#ifndef ERA_BLOOM_TREE_H
-#define ERA_BLOOM_TREE_H
+#ifndef ERA_WRITESET_TREE_H
+#define ERA_WRITESET_TREE_H
 
 #include "era/era_detail.h"
 #include "persistent-data/data-structures/btree.h"
@@ -7,7 +7,7 @@
 //----------------------------------------------------------------
 
 namespace era {
-	namespace bloom_tree_detail {
+	namespace writeset_tree_detail {
 		class damage_visitor;
 
 		class damage {
@@ -34,10 +34,10 @@ namespace era {
 			run<uint32_t> eras_;
 		};
 
-		struct damaged_bloom_filter : public damage {
-			damaged_bloom_filter(std::string const &desc,
-					     uint32_t era,
-					     run<uint32_t> missing_bits);
+		struct damaged_writeset : public damage {
+			damaged_writeset(std::string const &desc,
+					 uint32_t era,
+					 run<uint32_t> missing_bits);
 			virtual void visit(damage_visitor &v) const;
 
 			uint32_t era_;
@@ -55,32 +55,31 @@ namespace era {
 			}
 
 			virtual void visit(missing_eras const &d) = 0;
-			virtual void visit(damaged_bloom_filter const &d) = 0;
+			virtual void visit(damaged_writeset const &d) = 0;
 		};
 
-		class bloom_visitor {
+		class writeset_visitor {
 		public:
-			typedef boost::shared_ptr<bloom_visitor> ptr;
+			typedef boost::shared_ptr<writeset_visitor> ptr;
 
-			virtual ~bloom_visitor() {}
+			virtual ~writeset_visitor() {}
 
-			virtual void bloom_begin(uint32_t era, uint32_t nr_blocks,
-						 uint32_t nr_bits, uint32_t nr_set) = 0;
+			virtual void writeset_begin(uint32_t era, uint32_t nr_bits) = 0;
 			virtual void bit(uint32_t index, bool value) = 0;
-			virtual void bloom_end() = 0;
+			virtual void writeset_end() = 0;
 		};
 	}
 
-	typedef persistent_data::btree<1, era_detail_traits> bloom_tree;
+	typedef persistent_data::btree<1, era_detail_traits> writeset_tree;
 
-	void walk_bloom_tree(persistent_data::transaction_manager::ptr tm,
-			     bloom_tree const &tree,
-			     bloom_tree_detail::bloom_visitor &bloom_v,
-			     bloom_tree_detail::damage_visitor &dv);
+	void walk_writeset_tree(persistent_data::transaction_manager::ptr tm,
+				writeset_tree const &tree,
+				writeset_tree_detail::writeset_visitor &writeset_v,
+				writeset_tree_detail::damage_visitor &dv);
 
-	void check_bloom_tree(persistent_data::transaction_manager::ptr tm,
-			      bloom_tree const &tree,
-			      bloom_tree_detail::damage_visitor &dv);
+	void check_writeset_tree(persistent_data::transaction_manager::ptr tm,
+				 writeset_tree const &tree,
+				 writeset_tree_detail::damage_visitor &dv);
 }
 
 //----------------------------------------------------------------

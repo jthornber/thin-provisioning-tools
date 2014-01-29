@@ -8,22 +8,13 @@
 
 namespace era {
 	struct era_detail_disk {
-		base::le32 nr_blocks;
 		base::le32 nr_bits;
-		base::le32 nr_set;
-		base::le64 bloom_root;
+		base::le64 writeset_root;
 	} __attribute__ ((packed));
 
 	struct era_detail {
-		uint32_t nr_blocks;
 		uint32_t nr_bits;
-		uint32_t nr_set;
-
-		uint32_t hash1;
-		uint32_t hash2;
-		uint32_t nr_probes;
-
-		uint64_t bloom_root;
+		uint64_t writeset_root;
 	};
 
 	// FIXME: implement
