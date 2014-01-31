@@ -3,6 +3,7 @@
 
 #include "persistent-data/block.h"
 #include "era/era_detail.h"
+#include <boost/optional.hpp>
 
 #include <set>
 
@@ -63,6 +64,8 @@ namespace era {
 
 		// Big array holding the digested era/block info.
 		uint64_t era_array_root;
+
+		boost::optional<persistent_data::block_address> metadata_snap;
 	};
 
 	//--------------------------------

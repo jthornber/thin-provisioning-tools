@@ -41,11 +41,16 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 	}
 }
 
+metadata::metadata(block_manager<>::ptr bm, block_address metadata_snap)
+{
+	open_metadata(bm);
+}
+
 void
-metadata::open_metadata(block_manager<>::ptr bm)
+metadata::open_metadata(block_manager<>::ptr bm, block_address loc)
 {
 	tm_ = open_tm(bm);
-	sb_ = read_superblock(tm_->get_bm());
+	sb_ = read_superblock(tm_->get_bm(), loc);
 
 	writeset_tree_ = writeset_tree::ptr(new writeset_tree(tm_,
 							      sb_.writeset_tree_root,

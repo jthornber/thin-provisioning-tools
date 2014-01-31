@@ -4,6 +4,7 @@
 #include "persistent-data/errors.h"
 
 using namespace base;
+using namespace boost;
 using namespace era;
 using namespace superblock_damage;
 using namespace persistent_data;
@@ -36,6 +37,8 @@ namespace  {
 
 		le64 writeset_tree_root;
 		le64 era_array_root;
+
+		le64 metadata_snap;
 
 	} __attribute__ ((packed));
 
@@ -143,6 +146,11 @@ superblock_traits::unpack(disk_type const &disk, value_type &value)
 	era_detail_traits::unpack(disk.current_detail, value.current_detail);
 	value.writeset_tree_root = to_cpu<uint64_t>(disk.writeset_tree_root);
 	value.era_array_root = to_cpu<uint64_t>(disk.era_array_root);
+
+	block_address ms = to_cpu<uint64_t>(disk.metadata_snap);
+	value.metadata_snap = (ms == SUPERBLOCK_LOCATION) ?
+		optional<block_address>() :
+		optional<block_address>(ms);
 }
 
 void
@@ -163,6 +171,10 @@ superblock_traits::pack(value_type const &value, disk_type &disk)
 	era_detail_traits::pack(value.current_detail, disk.current_detail);
 	disk.writeset_tree_root = to_disk<le64>(value.writeset_tree_root);
 	disk.era_array_root = to_disk<le64>(value.era_array_root);
+
+	disk.metadata_snap = value.metadata_snap ?
+		to_disk<le64>(*value.metadata_snap) :
+		to_disk<le64>(SUPERBLOCK_LOCATION);
 }
 
 //--------------------------------
