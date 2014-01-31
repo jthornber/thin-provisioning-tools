@@ -1,4 +1,5 @@
 #include "base/base64.h"
+#include "base/indented_stream.h"
 #include "caching/xml_format.h"
 
 #include <boost/lexical_cast.hpp>
@@ -18,8 +19,7 @@ namespace {
 	class xml_emitter : public emitter {
 	public:
 		xml_emitter(ostream &out)
-		: out_(out),
-		  indent_(0) {
+		: out_(out) {
 		}
 
 		void begin_superblock(std::string const &uuid,
@@ -27,37 +27,37 @@ namespace {
 				      block_address nr_cache_blocks,
 				      std::string const &policy,
 				      size_t hint_width) {
-			indent();
+			out_.indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " block_size=\"" << block_size << "\""
 			     << " nr_cache_blocks=\"" << nr_cache_blocks << "\""
 			     << " policy=\"" << policy << "\""
 			     << " hint_width=\"" << hint_width << "\">" << endl;
-			inc();
+			out_.inc();
 		}
 
 		virtual void end_superblock() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</superblock>" << endl;
 		}
 
 		virtual void begin_mappings() {
-			indent();
+			out_.indent();
 			out_ << "<mappings>" << endl;
-			inc();
+			out_.inc();
 		}
 
 		virtual void end_mappings() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</mappings>" << endl;
 		}
 
 		virtual void mapping(block_address cblock,
 				     block_address oblock,
 				     bool dirty) {
-			indent();
+			out_.indent();
 			out_ << "<mapping"
 			     << " cache_block=\"" << cblock << "\""
 			     << " origin_block=\"" << oblock << "\""
@@ -66,14 +66,14 @@ namespace {
 		}
 
 		virtual void begin_hints() {
-			indent();
+			out_.indent();
 			out_ << "<hints>" << endl;
-			inc();
+			out_.inc();
 		}
 
 		virtual void end_hints() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</hints>" << endl;
 		}
 
@@ -81,7 +81,7 @@ namespace {
 				  vector<unsigned char> const &data) {
 			using namespace base;
 
-			indent();
+			out_.indent();
 			out_ << "<hint"
 			     << " cache_block=\"" << cblock << "\""
 			     << " data=\"" << base64_encode(data) << "\""
@@ -89,19 +89,19 @@ namespace {
 		}
 
 		virtual void begin_discards() {
-			indent();
+			out_.indent();
 			out_ << "<discards>" << endl;
-			inc();
+			out_.inc();
 		}
 
 		virtual void end_discards() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</discards>" << endl;
 		}
 
 		virtual void discard(block_address dblock_b, block_address dblock_e) {
-			indent();
+			out_.indent();
 			out_ << "<discard dbegin=\"" << dblock_b << "\""
 			     << " dend=\"" << dblock_e << "\"/>" << endl;
 		}
@@ -111,22 +111,7 @@ namespace {
 			return v ? "true" : "false";
 		}
 
-		// FIXME: factor out a common class with the thin_provisioning emitter
-		void indent() {
-			for (unsigned i = 0; i < indent_ * 2; i++)
-				out_ << ' ';
-		}
-
-		void inc() {
-			indent_++;
-		}
-
-		void dec() {
-			indent_--;
-		}
-
-		ostream &out_;
-		unsigned indent_;
+		indented_stream out_;
 	};
 
 	//--------------------------------
