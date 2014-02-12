@@ -94,6 +94,20 @@ namespace {
 
 	//--------------------------------
 
+	template <typename Iterator>
+	pair<uint32_t, uint32_t> next_run(Iterator &it, Iterator end) {
+		uint32_t b, e;
+
+		b = *it++;
+		e = b + 1;
+		while (it != end && *it == e) {
+			e++;
+			it++;
+		}
+
+		return make_pair(b, e);
+	}
+
 	void emit_blocks(ostream &out, set<uint32_t> const &blocks) {
 		indented_stream o(out);
 
@@ -102,10 +116,17 @@ namespace {
 
 		o.inc();
 		{
-			set<uint32_t>::const_iterator it;
-			for (it = blocks.begin(); it != blocks.end(); ++it) {
+			set<uint32_t>::const_iterator it = blocks.begin();
+			while (it != blocks.end()) {
 				o.indent();
-				o << "<block block=\"" << *it << "\"/>" << endl;
+
+				pair<uint32_t, uint32_t> range = next_run(it, blocks.end());
+				if (range.second - range.first == 1)
+					o << "<block block=\"" << range.first << "\"/>" << endl;
+
+				else
+					o << "<range begin=\"" << range.first
+					  << "\" end = \"" << range.second << "\"/>" << endl;
 			}
 		}
 		o.dec();
