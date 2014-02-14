@@ -7,7 +7,8 @@
 //----------------------------------------------------------------
 
 namespace era {
-	void metadata_dump(metadata::ptr md, emitter::ptr out, bool repair);
+	void metadata_dump(metadata::ptr md, emitter::ptr out,
+			   bool repair, bool logical);
 }
 
 //----------------------------------------------------------------

@@ -19,10 +19,12 @@ using namespace std;
 namespace {
 	struct flags {
 		flags()
-			: repair_(false) {
+			: repair_(false),
+			  logical_(false) {
 		}
 
 		bool repair_;
+		bool logical_;
 	};
 
 	//--------------------------------
@@ -40,11 +42,11 @@ namespace {
 
 			if (want_stdout(output)) {
 				emitter::ptr e = create_xml_emitter(cout);
-				metadata_dump(md, e, fs.repair_);
+				metadata_dump(md, e, fs.repair_, fs.logical_);
 			} else {
 				ofstream out(output.c_str());
 				emitter::ptr e = create_xml_emitter(out);
-				metadata_dump(md, e, fs.repair_);
+				metadata_dump(md, e, fs.repair_, fs.logical_);
 			}
 
 		} catch (std::exception &e) {
@@ -61,7 +63,8 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-o <xml file>}" << endl
 		    << "  {-V|--version}" << endl
-		    << "  {--repair}" << endl;
+		    << "  {--repair}" << endl
+		    << "  {--logical}" << endl;
 	}
 }
 
@@ -79,6 +82,7 @@ int main(int argc, char **argv)
 		{ "output", required_argument, NULL, 'o' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "repair", no_argument, NULL, 1 },
+		{ "logical", no_argument, NULL, 2 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -86,6 +90,10 @@ int main(int argc, char **argv)
 		switch(c) {
 		case 1:
 			fs.repair_ = true;
+			break;
+
+		case 2:
+			fs.logical_ = true;
 			break;
 
 		case 'h':
