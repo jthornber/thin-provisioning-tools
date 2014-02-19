@@ -176,6 +176,10 @@ namespace {
 			sm_->iterate(it);
 		}
 
+		virtual void count_metadata(block_counter &bc) const {
+			sm_->count_metadata(bc);
+		}
+
 		virtual size_t root_size() const {
 			cant_recurse("root_size");
 			recursing_const_lock lock(*this);

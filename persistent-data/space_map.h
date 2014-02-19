@@ -141,6 +141,7 @@ namespace persistent_data {
 	public:
 		typedef boost::shared_ptr<persistent_space_map> ptr;
 
+		virtual void count_metadata(block_counter &bc) const = 0;
 		virtual size_t root_size() const = 0;
 		virtual void copy_root(void *dest, size_t len) const = 0;
 	};
