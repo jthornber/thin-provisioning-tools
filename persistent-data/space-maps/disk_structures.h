@@ -110,6 +110,9 @@ namespace persistent_data {
 			le32 not_used;
 			le64 blocknr;
 		} __attribute__ ((packed));
+
+		uint64_t const BITMAP_CSUM_XOR = 240779;
+		uint64_t const INDEX_CSUM_XOR = 160478;
 	}
 }
 

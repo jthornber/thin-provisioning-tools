@@ -35,8 +35,6 @@ using namespace sm_disk_detail;
 //----------------------------------------------------------------
 
 namespace {
-	uint64_t const BITMAP_CSUM_XOR = 240779;
-
 	struct bitmap_block_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
 			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(&b);
@@ -60,8 +58,6 @@ namespace {
 	};
 
 	//--------------------------------
-
-	uint64_t const INDEX_CSUM_XOR = 160478;
 
 	// FIXME: factor out the common code in these validators
 	struct index_block_validator : public block_manager<>::validator {

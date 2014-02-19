@@ -35,7 +35,8 @@ PROGRAMS=\
 	thin_restore \
 	thin_repair \
 	thin_rmap \
-	thin_metadata_size
+	thin_metadata_size \
+	thin_show_blocks
 
 all: $(PROGRAMS)
 
@@ -162,6 +163,7 @@ lib/libpdata.a: $(PDATA_OBJECTS)
 # Thin provisioning tools
 
 THIN_DEBUG_SOURCE=$(SOURCE)
+THIN_SHOW_BLOCKS_SOURCE=$(SOURCE)
 THIN_DUMP_SOURCE=$(SOURCE)
 THIN_REPAIR_SOURCE=$(SOURCE)
 THIN_RESTORE_SOURCE=$(SOURCE)
@@ -209,6 +211,7 @@ THIN_RMAP_SOURCE=\
 	thin-provisioning/superblock.cc
 
 THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
+THIN_SHOW_BLOCKS_OBJECTS=$(subst .cc,.o,$(THIN_SHOW_BLOCKS_SOURCE))
 THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
@@ -216,6 +219,10 @@ THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
 THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+thin_show_blocks: $(THIN_SHOW_BLOCKS_OBJECTS) thin-provisioning/thin_show_blocks.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 

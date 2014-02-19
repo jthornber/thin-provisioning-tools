@@ -15,6 +15,7 @@ thin_restore
 thin_repair
 thin_rmap
 thin_metadata_size
+thin_show_blocks
 
 cache_check
 cache_dump
