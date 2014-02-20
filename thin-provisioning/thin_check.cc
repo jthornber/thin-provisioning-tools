@@ -223,6 +223,18 @@ namespace {
 				nested_output::nest _ = out.push();
 				block_counter bc;
 
+				// Count the superblock
+				bc.inc(superblock_detail::SUPERBLOCK_LOCATION);
+
+				// Count the metadata snap, if present
+				if (sb.metadata_snap_ != superblock_detail::SUPERBLOCK_LOCATION) {
+					bc.inc(sb.metadata_snap_);
+
+					superblock_detail::superblock snap = read_superblock(bm, sb.metadata_snap_);
+					bc.inc(snap.data_mapping_root_);
+					bc.inc(snap.device_details_root_);
+				}
+
 				// Count the device tree
 				{
 					noop_value_counter<device_tree_detail::device_details> vc;
