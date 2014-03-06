@@ -431,6 +431,9 @@ install: $(PROGRAMS)
 	$(INSTALL_PROGRAM) thin_restore $(BINDIR)
 	$(INSTALL_PROGRAM) thin_rmap $(BINDIR)
 	$(INSTALL_PROGRAM) thin_metadata_size $(BINDIR)
+	$(INSTALL_PROGRAM) era_check $(BINDIR)
+	$(INSTALL_PROGRAM) era_dump $(BINDIR)
+	$(INSTALL_PROGRAM) era_invalidate $(BINDIR)
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
