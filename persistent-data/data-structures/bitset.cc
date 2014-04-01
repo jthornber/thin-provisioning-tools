@@ -221,7 +221,7 @@ persistent_data::bitset::get_root() const
 }
 
 unsigned
-bitset::get_nr_bits() const
+persistent_data::bitset::get_nr_bits() const
 {
 	return impl_->get_nr_bits();
 }
