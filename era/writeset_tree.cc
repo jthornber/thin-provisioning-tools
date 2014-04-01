@@ -54,7 +54,7 @@ namespace {
 
 		void visit(btree_path const &path, era_detail const &era) {
 			era_ = path[0];
-			bitset bs(tm_, era.writeset_root, era.nr_bits);
+			persistent_data::bitset bs(tm_, era.writeset_root, era.nr_bits);
 			writeset_v_.writeset_begin(era_, era.nr_bits);
 			bs.walk_bitset(*this);
 			writeset_v_.writeset_end();
