@@ -232,7 +232,9 @@ namespace {
 		write_superblock(bm, sb);
 	}
 
-	bool check(string const &path, flags fs) {
+	// Returns 0 on success, 1 on failure (this gets returned directly
+	// by main).
+	int check(string const &path, flags fs) {
 		error_state err;
 		bool success = false;
 
@@ -244,7 +246,7 @@ namespace {
 			else
 				success =  (err == NO_ERROR) ? 0 : 1;
 
-			if (success && fs.clear_needs_check_flag_on_success)
+			if (!success && fs.clear_needs_check_flag_on_success)
 				clear_needs_check(path);
 
 		} catch (std::exception &e) {
