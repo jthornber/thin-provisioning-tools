@@ -12,7 +12,7 @@ namespace persistent_data {
 	class bloom_filter {
 	public:
 		typedef boost::shared_ptr<bloom_filter> ptr;
-		typedef typename persistent_data::transaction_manager::ptr tm_ptr;
+		typedef persistent_data::transaction_manager::ptr tm_ptr;
 
 		// nr_bits must be a power of two
 		bloom_filter(tm_ptr tm,
