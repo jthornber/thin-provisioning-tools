@@ -113,6 +113,23 @@ thin_provisioning::superblock_validator()
 
 namespace thin_provisioning {
 	namespace superblock_detail {
+		namespace {
+			unsigned const NEEDS_CHECK_BIT = 0;
+		}
+
+		bool
+		superblock::get_needs_check_flag() const {
+			return flags_ & (1 << NEEDS_CHECK_BIT);
+		}
+
+		void
+		superblock::set_needs_check_flag(bool val) {
+			if (val)
+				flags_ |= (1 << NEEDS_CHECK_BIT);
+			else
+				flags_ &= ~(1 << NEEDS_CHECK_BIT);
+		};
+
 		superblock_corruption::superblock_corruption(std::string const &desc)
 			: desc_(desc) {
 		}
@@ -142,6 +159,13 @@ namespace thin_provisioning {
 	superblock_detail::superblock read_superblock(block_manager<>::ptr bm)
 	{
 		return read_superblock(bm, SUPERBLOCK_LOCATION);
+	}
+
+	void write_superblock(block_manager<>::ptr bm, superblock_detail::superblock const &sb)
+	{
+		block_manager<>::write_ref w = bm->write_lock(SUPERBLOCK_LOCATION, superblock_validator());
+		superblock_disk *disk = reinterpret_cast<superblock_disk *>(w.data().raw());
+		superblock_traits::pack(sb, *disk);
 	}
 
 	void

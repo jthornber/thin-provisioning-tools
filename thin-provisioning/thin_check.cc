@@ -148,6 +148,15 @@ namespace {
 	//--------------------------------
 
 	struct flags {
+		flags()
+			: check_device_tree(true),
+			  check_mapping_tree_level1(true),
+			  check_mapping_tree_level2(true),
+			  ignore_non_fatal_errors(false),
+			  quiet(false),
+			  clear_needs_check_flag_on_success(false) {
+		}
+
 		bool check_device_tree;
 		bool check_mapping_tree_level1;
 		bool check_mapping_tree_level2;
@@ -155,6 +164,7 @@ namespace {
 		bool ignore_non_fatal_errors;
 
 		bool quiet;
+		bool clear_needs_check_flag_on_success;
 	};
 
 	error_state metadata_check(string const &path, flags fs) {
@@ -214,11 +224,30 @@ namespace {
 						     dev_rep.get_error()));
 	}
 
+	void clear_needs_check(string const &path) {
+		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_WRITE);
+
+		superblock_detail::superblock sb = read_superblock(bm);
+		sb.set_needs_check_flag(false);
+		write_superblock(bm, sb);
+	}
+
+	// Returns 0 on success, 1 on failure (this gets returned directly
+	// by main).
 	int check(string const &path, flags fs) {
 		error_state err;
+		bool success = false;
 
 		try {
 			err = metadata_check(path, fs);
+
+			if (fs.ignore_non_fatal_errors)
+				success = (err == FATAL) ? 1 : 0;
+			else
+				success =  (err == NO_ERROR) ? 0 : 1;
+
+			if (!success && fs.clear_needs_check_flag_on_success)
+				clear_needs_check(path);
 
 		} catch (std::exception &e) {
 			if (!fs.quiet)
@@ -227,10 +256,7 @@ namespace {
 			return 1;
 		}
 
-		if (fs.ignore_non_fatal_errors)
-			return (err == FATAL) ? 1 : 0;
-		else
-			return (err == NO_ERROR) ? 0 : 1;
+		return success;
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -239,9 +265,10 @@ namespace {
 		    << "  {-q|--quiet}" << endl
 		    << "  {-h|--help}" << endl
 		    << "  {-V|--version}" << endl
-		    << "  {--super-block-only}" << endl
+		    << "  {--clear-needs-check-flag}" << endl
+		    << "  {--ignore-non-fatal-errors}" << endl
 		    << "  {--skip-mappings}" << endl
-		    << "  {--ignore-non-fatal-errors}" << endl;
+		    << "  {--super-block-only}" << endl;
 	}
 }
 
@@ -249,11 +276,6 @@ int main(int argc, char **argv)
 {
 	int c;
 	flags fs;
-	fs.check_device_tree = true;
-	fs.check_mapping_tree_level1 = true,
-	fs.check_mapping_tree_level2 = true,
-	fs.ignore_non_fatal_errors = false,
-	fs.quiet = false;
 
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
@@ -263,6 +285,7 @@ int main(int argc, char **argv)
 		{ "super-block-only", no_argument, NULL, 1},
 		{ "skip-mappings", no_argument, NULL, 2},
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
+		{ "clear-needs-check-flag", no_argument, NULL, 4 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -295,6 +318,11 @@ int main(int argc, char **argv)
 		case 3:
 			// ignore-non-fatal-errors
 			fs.ignore_non_fatal_errors = true;
+			break;
+
+		case 4:
+			// clear needs-check flag
+			fs.clear_needs_check_flag_on_success = true;
 			break;
 
 		default:
