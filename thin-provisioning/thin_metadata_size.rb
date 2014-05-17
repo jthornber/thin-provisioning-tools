@@ -22,10 +22,10 @@ def init_units
   units[:bytes_per_sector] = 512
   units[:chars] = "bskKmMgGtTpPeEzZyY"
   units[:strings] = [ 'bytes', 'sectors',
-                      'kilobytes', 'kibibytes', 'megabytes',  'mebibytes',
-                      'gigabytes', 'gibibytes', 'terabytes',  'tebibytes',
-                      'petabytes', 'pebibytes', 'exabytes',   'ebibytes',
-                      'zetabytes', 'zebibytes', 'yottabytes', 'yobibytes' ]
+                      'kibibytes', 'kilobytes', 'mebibytes', 'megabytes',
+                      'gibibytes', 'gigabytes', 'tebibytes', 'terabytes',
+                      'pebibytes', 'petabytes', 'ebibytes',  'exabytes',
+                      'zebibytes', 'zetabytes', 'yobibytes', 'yottabytes' ]
   units[:factors] = [ 1, units[:bytes_per_sector] ]
   1.step(8) { |e| units[:factors] += [ 1024**e, 1000**e ] }
   units
