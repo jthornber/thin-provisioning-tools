@@ -87,7 +87,8 @@ namespace persistent_data {
 	template <typename ValueTraits>
 	node_ref<ValueTraits>::node_ref(block_address location, disk_node *raw)
 		: location_(location),
-		  raw_(raw)
+		  raw_(raw),
+		  checked_(false)
 	{
 	}
 
@@ -330,6 +331,8 @@ namespace persistent_data {
 	void *
 	node_ref<ValueTraits>::key_ptr(unsigned i) const
 	{
+		check_fits_within_block();
+
 		return raw_->keys + i;
 	}
 
@@ -337,6 +340,8 @@ namespace persistent_data {
 	void *
 	node_ref<ValueTraits>::value_ptr(unsigned i) const
 	{
+		check_fits_within_block();
+
 		void *value_base = &raw_->keys[to_cpu<uint32_t>(raw_->header.max_entries)];
 		return static_cast<unsigned char *>(value_base) +
 			sizeof(typename ValueTraits::disk_type) * i;
@@ -355,6 +360,32 @@ namespace persistent_data {
 			ValueTraits::unpack(d, v);
 			rc.inc(v);
 		}
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::check_fits_within_block() const {
+		if (checked_)
+			return;
+
+		if (sizeof(typename ValueTraits::disk_type) != get_value_size()) {
+			std::ostringstream out;
+			out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
+			    << ", but got " << get_value_size()
+			    << ".  This is not the btree you are looking for." << std::endl;
+			throw std::runtime_error(out.str());
+		}
+
+		unsigned max = calc_max_entries();
+
+		if (max < get_nr_entries()) {
+			std::ostringstream out;
+			out << "Bad nr of elements: max per block = "
+			    << max << ", actual = " << get_nr_entries() << std::endl;
+			throw std::runtime_error(out.str());
+		}
+
+		checked_ = true;
 	}
 
 	//--------------------------------

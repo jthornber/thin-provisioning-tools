@@ -163,12 +163,15 @@ namespace persistent_data {
 
 		private:
 			static unsigned calc_max_entries(void);
+			void check_fits_within_block() const;
 
 			void *key_ptr(unsigned i) const;
 			void *value_ptr(unsigned i) const;
 
 			block_address location_;
 			disk_node *raw_;
+
+			mutable bool checked_; // flag indicating we've checked the data fits in the block
 		};
 
 		//------------------------------------------------
