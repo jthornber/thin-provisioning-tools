@@ -37,6 +37,10 @@ int main(int argc, char **argv)
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		default:
+			usage(cerr, basename(argv[0]));
+			return 1;
 		}
 	}
 

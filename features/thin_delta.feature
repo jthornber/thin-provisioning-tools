@@ -27,3 +27,7 @@ Feature: thin_delta
       {-h|--help}
       {-V|--version}
     """
+
+  Scenario: Unrecognised option should cause failure
+    When I run `thin_delta --unleash-the-hedeghogs`
+    Then it should fail
