@@ -31,6 +31,7 @@ PROGRAMS=\
 	era_invalidate \
 	\
 	thin_check \
+	thin_delta \
 	thin_dump \
 	thin_restore \
 	thin_repair \
@@ -95,6 +96,7 @@ CXX_PROGRAM_SOURCE=\
 	caching/cache_restore.cc \
 	\
 	thin-provisioning/thin_check.cc \
+	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_repair.cc \
@@ -187,6 +189,28 @@ THIN_CHECK_SOURCE=\
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/superblock.cc
 
+THIN_DELTA_SOURCE=\
+	base/error_state.cc \
+	base/endian_utils.cc \
+	\
+	persistent-data/checksum.cc \
+	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/lock_tracker.cc \
+	persistent-data/data-structures/btree.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+	\
+	thin-provisioning/device_tree.cc \
+	thin-provisioning/mapping_tree.cc \
+	thin-provisioning/metadata.cc \
+	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/superblock.cc
+
 THIN_RMAP_SOURCE=\
 	base/endian_utils.cc \
 	\
@@ -213,6 +237,7 @@ THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
 THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
 THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
 THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
+THIN_DELTA_OBJECTS=$(subst .cc,.o,$(THIN_DELTA_SOURCE))
 THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
 
 thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
@@ -232,6 +257,10 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+
+thin_delta: $(THIN_DELTA_OBJECTS) thin-provisioning/thin_delta.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
