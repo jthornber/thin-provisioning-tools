@@ -6,3 +6,24 @@ Feature: thin_delta
   Scenario: print version (--version flag)
     When I run `thin_delta --version`
     Then it should pass with version
+
+  Scenario: print help
+    When I run `thin_delta --help`
+    Then it should pass with:
+
+    """
+    Usage: thin_delta [options]
+    Options:
+      {-h|--help}
+      {-V|--version}
+    """
+
+  Scenario: print help
+    When I run `thin_delta -h`
+    Then it should pass with:
+    """
+    Usage: thin_delta [options]
+    Options:
+      {-h|--help}
+      {-V|--version}
+    """
