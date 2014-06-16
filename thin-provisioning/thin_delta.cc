@@ -117,10 +117,10 @@ namespace {
 					if (oend_ - obegin_ > 1) {
 						cout << "<range_mapping origin_begin=\"" << obegin_ << "\""
 						     << " data_begin=\"" << dbegin_ << "\""
-						     << " length=\"" << oend_ - obegin_ << "\"/>" << endl;
+						     << " length=\"" << oend_ - obegin_ << "\"/>" << '\n';
 					} else {
 						cout << "<single_mapping origin_block=\"" << obegin_ << "\""
-						     << " data_block=\"" << dbegin_ << "\"/>" << endl;
+						     << " data_block=\"" << dbegin_ << "\"/>" << '\n';
 					}
 
 					obegin_ = oblock;
