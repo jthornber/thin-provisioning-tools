@@ -93,39 +93,42 @@ namespace {
 		return CONTINUE;
 	}
 
-	void expand_flags(flags &fs) {
-		if (!fs.device_size && !fs.nr_blocks)
-			throw runtime_error("Please specify either --device-size and --block-size, or --nr-blocks.");
+  	uint64_t get_nr_blocks(flags &fs) {
+		if (fs.device_size) {
+			if (!fs.block_size)
+				throw runtime_error("If you specify --device-size you must also give --block-size.");
 
-		if (fs.device_size && !fs.block_size)
-			throw runtime_error("If you specify --device-size you must also give --block-size.");
-
-		if (fs.block_size && !fs.device_size)
-			throw runtime_error("If you specify --block-size you must also give --device-size.");
-
-		if (fs.device_size && fs.block_size) {
 			uint64_t nr_blocks = *fs.device_size / *fs.block_size;
 			if (fs.nr_blocks) {
 				if (nr_blocks != *fs.nr_blocks)
 					throw runtime_error(
 						"Contradictory arguments given, --nr-blocks doesn't match the --device-size and --block-size.");
-			} else
-				fs.nr_blocks = nr_blocks;
+			}
+
+			return nr_blocks;
 		}
+
+		if (fs.block_size && !fs.device_size)
+			throw runtime_error("If you specify --block-size you must also give --device-size.");
+		
+		if (fs.nr_blocks)
+			return *fs.nr_blocks;
+
+		throw runtime_error("Please specify either --device-size and --block-size, or --nr-blocks.");
 	}
 
 	uint64_t meg(uint64_t n) {
 		return n * 2048;
 	}
 
-	uint64_t calc_size(flags const &fs) {
+  uint64_t calc_size(uint64_t nr_blocks, uint32_t max_hint_width) {
 		uint64_t const SECTOR_SIZE = 512;
 		uint64_t const TRANSACTION_OVERHEAD = meg(4);
 		uint64_t const BYTES_PER_BLOCK = 16;
 		uint64_t const HINT_OVERHEAD_PER_BLOCK = 8;
 
-		uint64_t mapping_size = (*fs.nr_blocks * BYTES_PER_BLOCK) / SECTOR_SIZE;
-		uint64_t hint_size = (*fs.nr_blocks * (fs.max_hint_width + HINT_OVERHEAD_PER_BLOCK)) / SECTOR_SIZE;
+		uint64_t mapping_size = (nr_blocks * BYTES_PER_BLOCK) / SECTOR_SIZE;
+		uint64_t hint_size = (nr_blocks * (max_hint_width + HINT_OVERHEAD_PER_BLOCK)) / SECTOR_SIZE;
 		return TRANSACTION_OVERHEAD + mapping_size + hint_size;
 	}
 }
@@ -143,8 +146,8 @@ int main(int argc, char **argv)
 			break;
 		}
 
-		expand_flags(fs);
-		cout << calc_size(fs) << " sectors" << endl;
+		uint64_t nr_blocks = get_nr_blocks(fs);
+		cout << calc_size(nr_blocks, fs.max_hint_width) << " sectors" << endl;
 
 	} catch (std::exception const &e) {
 		cerr << e.what();
