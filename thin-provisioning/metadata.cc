@@ -56,22 +56,6 @@ namespace {
 				lhs->set_count(b, rhs->get_count(b));
 		}
 	}
-
-	void print_superblock(superblock const &sb) {
-		using namespace std;
-
-		cerr << "superblock " << sb.csum_ << endl
-		     << "flags " << sb.flags_ << endl
-		     << "blocknr " << sb.blocknr_ << endl
-		     << "transaction id " << sb.trans_id_ << endl
-		     << "data mapping root " << sb.data_mapping_root_ << endl
-		     << "details root " << sb.device_details_root_ << endl
-		     << "data block size " << sb.data_block_size_ << endl
-		     << "metadata block size " << sb.metadata_block_size_ << endl
-		     << "metadata nr blocks " << sb.metadata_nr_blocks_ << endl
-		     << "metadata snapshot block " << sb.metadata_snap_ << endl
-			;
-	}
 }
 
 //----------------------------------------------------------------

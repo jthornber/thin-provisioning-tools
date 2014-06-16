@@ -16,15 +16,6 @@ namespace {
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
-
-	void
-	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
-		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
-			uint32_t count = rhs->get_count(b);
-			if (count > 0)
-				lhs->set_count(b, rhs->get_count(b));
-		}
-	}
 }
 
 metadata::metadata(block_manager<>::ptr bm, open_type ot)
