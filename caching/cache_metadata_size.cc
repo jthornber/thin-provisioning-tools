@@ -110,7 +110,7 @@ namespace {
 
 		if (fs.block_size && !fs.device_size)
 			throw runtime_error("If you specify --block-size you must also give --device-size.");
-		
+
 		if (fs.nr_blocks)
 			return *fs.nr_blocks;
 
