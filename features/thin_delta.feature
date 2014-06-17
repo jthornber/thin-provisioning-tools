@@ -14,6 +14,7 @@ Feature: thin_delta
     """
     Usage: thin_delta [options] --snap1 <snap> --snap2 <snap> <device or file>
     Options:
+      {--verbose}
       {-h|--help}
       {-V|--version}
     """
@@ -24,6 +25,7 @@ Feature: thin_delta
     """
     Usage: thin_delta [options] --snap1 <snap> --snap2 <snap> <device or file>
     Options:
+      {--verbose}
       {-h|--help}
       {-V|--version}
     """

@@ -26,9 +26,10 @@ namespace {
 		}
 
 		void usage(ostream &out) {
-			out << "Usage: " << cmd_ << " [options] --snap1 <snap> --snap2 <snap> <device or file>" << endl
-			    << "Options:" << endl
-			    << "  {-h|--help}" << endl
+			out << "Usage: " << cmd_ << " [options] --snap1 <snap> --snap2 <snap> <device or file>\n"
+			    << "Options:\n"
+			    << "  {--verbose}\n"
+			    << "  {-h|--help}\n"
 			    << "  {-V|--version}" << endl;
 		}
 
