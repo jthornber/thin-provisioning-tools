@@ -109,6 +109,13 @@ namespace {
 		uint64_t vbegin_, dbegin_, len_;
 	};
 
+	ostream &operator <<(ostream &out, mapping const &m) {
+		out << "mapping[vbegin = " << m.vbegin_
+		    << ", dbegin = " << m.dbegin_
+		    << ", len = " << m.len_ << "]";
+		return out;
+	}
+
 	typedef std::deque<mapping> mapping_deque;
 
 	// Builds up an in core rep of the mappings for a device.
@@ -409,7 +416,7 @@ namespace {
 					e.left_only(left_mapping.vbegin_, left_mapping.dbegin_, delta);
 					left_mapping.consume(delta);
 
-				} else if (left_mapping.vbegin_ > left_mapping.vbegin_) {
+				} else if (left_mapping.vbegin_ > right_mapping.vbegin_) {
 					uint64_t delta = min<uint64_t>(right_mapping.len_, left_mapping.vbegin_ - right_mapping.vbegin_);
 					e.right_only(right_mapping.vbegin_, right_mapping.dbegin_, delta);
 					right_mapping.consume(delta);
