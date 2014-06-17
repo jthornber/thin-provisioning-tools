@@ -56,9 +56,14 @@ namespace {
 	};
 
 	struct flags {
+		flags()
+			: verbose(false) {
+		}
+
 		boost::optional<string> dev;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
+		bool verbose;
 	};
 
 	//--------------------------------
@@ -171,39 +176,140 @@ namespace {
 		}
 	};
 
+	//--------------------------------
+
 	class diff_emitter {
 	public:
 		diff_emitter(ostream &out)
 		: out_(out) {
 		}
 
+		virtual void left_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) = 0;
+		virtual void right_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) = 0;
+		virtual void blocks_differ(uint64_t vbegin, uint64_t left_dbegin, uint64_t right_dbegin, uint64_t len) = 0;
+		virtual void blocks_same(uint64_t vbegin, uint64_t dbegin, uint64_t len) = 0;
+		virtual void complete() = 0;
+
+	protected:
+		ostream &out() {
+			return out_;
+		}
+
+	private:
+		ostream &out_;
+	};
+
+
+	class simple_emitter : public diff_emitter {
+	public:
+		simple_emitter(ostream &out)
+		: diff_emitter(out) {
+		}
+
+		void left_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
+			add_range(LEFT_ONLY, vbegin, len);
+		}
+
+		void right_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
+			add_range(RIGHT_ONLY, vbegin, len);
+		}
+
+		void blocks_differ(uint64_t vbegin, uint64_t left_dbegin, uint64_t right_dbegin, uint64_t len) {
+			add_range(DIFFER, vbegin, len);
+		}
+
+		void blocks_same(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
+			add_range(SAME, vbegin, len);
+		}
+
+		void complete() {
+			if (current_type_)
+				emit_range();
+		}
+
+	private:
+		enum block_type {
+			LEFT_ONLY,
+			RIGHT_ONLY,
+			DIFFER,
+			SAME
+		};
+
+		void add_range(block_type t, uint64_t vbegin, uint64_t len) {
+			if (current_type_ && *current_type_ == t && vbegin == vend_) {
+				vend_ += len;
+				return;
+			}
+
+			emit_range();
+			current_type_ = t;
+			vbegin_ = vbegin;
+			vend_ = vbegin_ + len;
+		}
+
+		void emit_range() {
+			if (!current_type_)
+				return;
+
+			switch (*current_type_) {
+			case LEFT_ONLY:
+				out() << "<left_only";
+				break;
+
+			case RIGHT_ONLY:
+				out() << "<right_only";
+				break;
+
+			case DIFFER:
+				out() << "<different";
+				break;
+
+			case SAME:
+				out() << "<same";
+				break;
+			}
+
+			out() << " begin=\"" << vbegin_ << "\""
+			      << " length=\"" << vend_ - vbegin_ << "\"/>\n";
+		}
+
+		boost::optional<block_type> current_type_;
+		uint64_t vbegin_, vend_;
+	};
+
+	class verbose_emitter : public diff_emitter {
+	public:
+		verbose_emitter(ostream &out)
+		: diff_emitter(out) {
+		}
+
 		void left_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(LEFT_ONLY);
-			out_ << "  <rang begin=\"" << vbegin << "\""
-			     << " data_begin=\"" << dbegin << "\""
-			     << " length=\"" << len << "\"/>\n";
+			out() << "  <range begin=\"" << vbegin << "\""
+			      << " data_begin=\"" << dbegin << "\""
+			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void right_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(RIGHT_ONLY);
-			out_ << "  <range begin=\"" << vbegin << "\""
-			     << " data_begin=\"" << dbegin << "\""
-			     << " length=\"" << len << "\"/>\n";
+			out() << "  <range begin=\"" << vbegin << "\""
+			      << " data_begin=\"" << dbegin << "\""
+			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void blocks_differ(uint64_t vbegin, uint64_t left_dbegin, uint64_t right_dbegin, uint64_t len) {
 			begin_block(DIFFER);
-			out_ << "  <range begin=\"" << vbegin << "\""
-			     << " left_data_begin=\"" << left_dbegin << "\""
-			     << " right_data_begin=\"" << right_dbegin << "\""
-			     << " length=\"" << len << "\"/>\n";
+			out() << "  <range begin=\"" << vbegin << "\""
+			      << " left_data_begin=\"" << left_dbegin << "\""
+			      << " right_data_begin=\"" << right_dbegin << "\""
+			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void blocks_same(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(SAME);
-			out_ << "  <range begin=\"" << vbegin << "\""
-			     << " data_begin=\"" << dbegin << "\""
-			     << " length=\"" << len << "\"/>\n";
+			out() << "  <range begin=\"" << vbegin << "\""
+			      << " data_begin=\"" << dbegin << "\""
+			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void complete() {
@@ -234,19 +340,19 @@ namespace {
 		void open(block_type t) {
 			switch (t) {
 			case LEFT_ONLY:
-				out_ << "<left_only>\n";
+				out() << "<left_only>\n";
 				break;
 
 			case RIGHT_ONLY:
-				out_ << "<right_only>\n";
+				out() << "<right_only>\n";
 				break;
 
 			case DIFFER:
-				out_ << "<different>\n";
+				out() << "<different>\n";
 				break;
 
 			case SAME:
-				out_ << "<same>\n";
+				out() << "<same>\n";
 				break;
 			}
 		}
@@ -254,34 +360,32 @@ namespace {
 		void close(block_type t) {
 			switch (t) {
 			case LEFT_ONLY:
-				out_ << "</left_only>\n\n";
+				out() << "</left_only>\n\n";
 				break;
 
 			case RIGHT_ONLY:
-				out_ << "</right_only>\n\n";
+				out() << "</right_only>\n\n";
 				break;
 
 			case DIFFER:
-				out_ << "</different>\n\n";
+				out() << "</different>\n\n";
 				break;
 
 			case SAME:
-				out_ << "</same>\n\n";
+				out() << "</same>\n\n";
 				break;
 			}
 
 		}
 
 		boost::optional<block_type> current_type_;
-		ostream &out_;
 	};
 
 	//----------------------------------------------------------------
 
 	void dump_diff(mapping_deque const &left,
-		       mapping_deque const &right) {
-
-		diff_emitter e(cout);
+		       mapping_deque const &right,
+		       diff_emitter &e) {
 
 		// We iterate through both sets of mappings in parallel
 		// noting any differences.
@@ -366,7 +470,13 @@ namespace {
 			btree_visit_values(snap2, mr2, damage_v);
 		}
 
-		dump_diff(mr1.get_mappings(), mr2.get_mappings());
+		if (fs.verbose) {
+			verbose_emitter e(cout);
+			dump_diff(mr1.get_mappings(), mr2.get_mappings(), e);
+		} else {
+			simple_emitter e(cout);
+			dump_diff(mr1.get_mappings(), mr2.get_mappings(), e);
+		}
 	}
 
 	int delta(application &app, flags const &fs) {
@@ -397,7 +507,8 @@ int main(int argc, char **argv)
 		{ "version", no_argument, NULL, 'V' },
 		{ "snap1", required_argument, NULL, 1 },
 		{ "snap2", required_argument, NULL, 2 },
-		{ "metadata-snap", optional_argument, NULL, 3 },
+		{ "metadata-snap", no_argument, NULL, 3 },
+		{ "verbose", no_argument, NULL, 4 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
@@ -416,6 +527,14 @@ int main(int argc, char **argv)
 
 		case 2:
 			fs.snap2 = app.parse_snap(optarg);
+			break;
+
+		case 3:
+			abort();
+			break;
+
+		case 4:
+			fs.verbose = true;
 			break;
 
 		default:
