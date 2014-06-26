@@ -13,6 +13,11 @@ namespace era {
 	} __attribute__ ((packed));
 
 	struct era_detail {
+		era_detail()
+			: nr_bits(0),
+			  writeset_root(0) {
+		}
+
 		uint32_t nr_bits;
 		uint64_t writeset_root;
 	};
