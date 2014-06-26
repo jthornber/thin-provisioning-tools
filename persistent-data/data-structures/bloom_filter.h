@@ -35,7 +35,6 @@ namespace persistent_data {
 		void fill_probes(block_address b, vector<unsigned> &probes) const;
 
 		tm_ptr tm_;
-		unsigned nr_bits_;
 		persistent_data::bitset bits_;
 		unsigned nr_probes_;
 		uint64_t mask_;
