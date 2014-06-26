@@ -48,6 +48,7 @@ namespace {
 				    writeset_tree_detail::writeset_visitor &writeset_v,
 				    writeset_tree_detail::damage_visitor &dv)
 			: tm_(tm),
+			  era_(0),
 			  writeset_v_(writeset_v),
 			  dv_(dv) {
 		}
