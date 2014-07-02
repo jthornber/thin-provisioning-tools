@@ -2,7 +2,6 @@
 #include "persistent-data/data-structures/bitset.h"
 #include "persistent-data/math_utils.h"
 
-using namespace boost;
 using namespace persistent_data;
 using namespace persistent_data::bitset_detail;
 using namespace std;
@@ -12,7 +11,7 @@ using namespace std;
 namespace {
 	struct bitset_traits {
 		typedef base::le64 disk_type;
-		typedef uint64_t value_type;
+		typedef ::uint64_t value_type;
 		typedef no_op_ref_counter<uint64_t> ref_counter;
 
 		static void unpack(disk_type const &disk, value_type &value) {
@@ -118,11 +117,11 @@ namespace persistent_data {
 				}
 
 			private:
-				optional<uint32_t> lifted_mult64(optional<uint32_t> const &m) {
+				boost::optional<uint32_t> lifted_mult64(boost::optional<uint32_t> const &m) {
 					if (!m)
 						return m;
 
-					return optional<uint32_t>(*m * 64);
+					return boost::optional<uint32_t>(*m * 64);
 				}
 
 				bitset_visitor &v_;

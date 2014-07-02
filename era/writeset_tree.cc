@@ -2,7 +2,6 @@
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/data-structures/bitset.h"
 
-using namespace boost;
 using namespace era;
 using namespace writeset_tree_detail;
 using namespace persistent_data;
@@ -90,8 +89,8 @@ namespace {
 	private:
 		template <typename T>
 		run<uint32_t> to_uint32(run<T> const &r) {
-			return run<uint32_t>(optional<uint32_t>(r.begin_),
-					     optional<uint32_t>(r.end_));
+			return run<uint32_t>(boost::optional<uint32_t>(r.begin_),
+					     boost::optional<uint32_t>(r.end_));
 		}
 
 		damage_visitor &v_;

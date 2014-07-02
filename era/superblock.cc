@@ -4,7 +4,6 @@
 #include "persistent-data/errors.h"
 
 using namespace base;
-using namespace boost;
 using namespace era;
 using namespace superblock_damage;
 using namespace persistent_data;
@@ -149,8 +148,8 @@ superblock_traits::unpack(disk_type const &disk, value_type &value)
 
 	block_address ms = to_cpu<uint64_t>(disk.metadata_snap);
 	value.metadata_snap = (ms == SUPERBLOCK_LOCATION) ?
-		optional<block_address>() :
-		optional<block_address>(ms);
+		boost::optional<block_address>() :
+		boost::optional<block_address>(ms);
 }
 
 void

@@ -226,7 +226,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 			    md->sb_.trans_id_,
 			    md->sb_.data_block_size_,
 			    md->data_sm_->get_nr_blocks(),
-			    optional<block_address>());
+			    boost::optional<block_address>());
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(repair));

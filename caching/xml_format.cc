@@ -5,7 +5,6 @@
 #include <boost/lexical_cast.hpp>
 #include <expat.h>
 
-using namespace boost;
 using namespace caching;
 using namespace persistent_data;
 using namespace std;
@@ -189,14 +188,14 @@ namespace {
 
 		block_address cblock = get_attr<uint64_t>(attr, "cache_block");
 		decoded_or_error doe = base64_decode(get_attr<string>(attr, "data"));
-		if (!get<vector<unsigned char> >(&doe)) {
+		if (!boost::get<vector<unsigned char> >(&doe)) {
 			ostringstream msg;
 			msg << "invalid base64 encoding of hint for cache block "
-			    << cblock << ": " << get<string>(doe);
+			    << cblock << ": " << boost::get<string>(doe);
 			throw runtime_error(msg.str());
 		}
 
-		e->hint(cblock, get<vector<unsigned char> >(doe));
+		e->hint(cblock, boost::get<vector<unsigned char> >(doe));
 	}
 
 	// FIXME: why passing e by ptr?

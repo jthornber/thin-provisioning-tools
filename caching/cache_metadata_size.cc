@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <stdexcept>
 
-using namespace boost;
 using namespace std;
 
 //----------------------------------------------------------------
@@ -18,9 +17,9 @@ namespace {
 			: max_hint_width(4) {
 		}
 
-		optional<uint64_t> device_size;
-		optional<uint32_t> block_size;
-		optional<uint64_t> nr_blocks;
+		boost::optional<uint64_t> device_size;
+		boost::optional<uint32_t> block_size;
+		boost::optional<uint64_t> nr_blocks;
 		uint32_t max_hint_width;
 	};
 
@@ -58,19 +57,19 @@ namespace {
 		while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
 			switch (c) {
 			case 0:
-				fs.block_size = lexical_cast<uint32_t>(optarg);
+				fs.block_size = boost::lexical_cast<uint32_t>(optarg);
 				break;
 
 			case 1:
-				fs.device_size = lexical_cast<uint64_t>(optarg);
+				fs.device_size = boost::lexical_cast<uint64_t>(optarg);
 				break;
 
 			case 2:
-				fs.nr_blocks = lexical_cast<uint64_t>(optarg);
+				fs.nr_blocks = boost::lexical_cast<uint64_t>(optarg);
 				break;
 
 			case 3:
-				fs.max_hint_width = lexical_cast<uint32_t>(optarg);
+				fs.max_hint_width = boost::lexical_cast<uint32_t>(optarg);
 				break;
 
 			case 'h':
