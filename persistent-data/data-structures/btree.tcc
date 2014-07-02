@@ -404,11 +404,20 @@ namespace persistent_data {
 
 		write_ref root = tm_->new_block(validator_);
 
-		leaf_node n = to_node<ValueTraits>(root);
-		n.set_type(btree_detail::LEAF);
-		n.set_nr_entries(0);
-		n.set_max_entries();
-		n.set_value_size(sizeof(typename ValueTraits::disk_type));
+		if (Levels > 1) {
+			internal_node n = to_node<block_traits>(root);
+			n.set_type(btree_detail::LEAF);
+			n.set_nr_entries(0);
+			n.set_max_entries();
+			n.set_value_size(sizeof(typename block_traits::disk_type));
+
+		} else {
+			leaf_node n = to_node<ValueTraits>(root);
+			n.set_type(btree_detail::LEAF);
+			n.set_nr_entries(0);
+			n.set_max_entries();
+			n.set_value_size(sizeof(typename ValueTraits::disk_type));
+		}
 
 		root_ = root.get_location();
 	}
