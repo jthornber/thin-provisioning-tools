@@ -63,7 +63,7 @@ Feature: cache_metadata_size
     When I run cache_metadata_size with --block-size 64
     Then it should fail with:
     """
-    Please specify either --device-size and --block-size, or --nr-blocks.
+    If you specify --block-size you must also give --device-size.
     """
 
   Scenario: Contradictory info causes fail
