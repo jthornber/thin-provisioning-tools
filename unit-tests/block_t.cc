@@ -64,7 +64,7 @@ namespace {
 
 TEST(BlockTests, bad_path)
 {
-	ASSERT_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_io<>::READ_WRITE),
+	ASSERT_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_manager<>::READ_WRITE),
 			  runtime_error);
 }
 

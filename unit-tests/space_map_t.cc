@@ -36,7 +36,7 @@ namespace {
 	transaction_manager::ptr
 	create_tm() {
 		block_manager<>::ptr bm(
-			new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_io<>::READ_WRITE));
+			new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager<>::READ_WRITE));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
 		transaction_manager::ptr tm(
 			new transaction_manager(bm, sm));
@@ -297,7 +297,7 @@ TEST(SpaceMapTests, test_sm_metadata)
 TEST(SpaceMapTests, test_metadata_and_disk)
 {
 	block_manager<>::ptr bm(
-		new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_io<>::READ_WRITE));
+		new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager<>::READ_WRITE));
 	space_map::ptr core_sm(new core_map(NR_BLOCKS));
 	transaction_manager::ptr tm(new transaction_manager(bm, core_sm));
 	persistent_space_map::ptr metadata_sm = persistent_data::create_metadata_sm(tm, NR_BLOCKS);

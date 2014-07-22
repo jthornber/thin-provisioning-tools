@@ -245,7 +245,7 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 		err = metadata_check(bm, fs);
 
 		return err == NO_ERROR ? 0 : 1;

@@ -16,12 +16,12 @@ using namespace caching;
 
 namespace {
 	metadata::ptr open_metadata_for_read(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 		return metadata::ptr(new metadata(bm, metadata::OPEN));
 	}
 
 	emitter::ptr output_emitter(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_WRITE);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
 		metadata::ptr md(new metadata(bm, metadata::CREATE));
 		return create_restore_emitter(md, true);
 	}

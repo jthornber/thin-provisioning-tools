@@ -378,7 +378,7 @@ namespace {
 		static block_manager<>::ptr
 		open_bm(string const &dev_path) {
 			block_address nr_blocks = thin_provisioning::get_nr_blocks(dev_path);
-			return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, block_io<>::READ_ONLY));
+			return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, block_manager<>::READ_ONLY));
 		}
 
 		// FIXME: common code with metadata.cc

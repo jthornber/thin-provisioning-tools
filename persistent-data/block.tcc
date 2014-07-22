@@ -37,6 +37,7 @@ namespace {
 	using namespace std;
 
 	int const DEFAULT_MODE = 0666;
+	unsigned const SECTOR_SHIFT = 9;
 
 	 // FIXME: these will slow it down until we start doing async io.
 	int const OPEN_FLAGS = O_DIRECT | O_SYNC;
@@ -105,134 +106,84 @@ namespace {
 
 namespace persistent_data {
 	template <uint32_t BlockSize>
-	block_io<BlockSize>::block_io(std::string const &path, block_address nr_blocks, mode m)
-		: nr_blocks_(nr_blocks),
-		  mode_(m)
-	{
-		off_t file_size = nr_blocks * BlockSize;
-
-		switch (m) {
-		case READ_ONLY:
-			fd_ = open_block_file(path, file_size, false);
-			break;
-
-		case READ_WRITE:
-			fd_ = open_block_file(path, file_size, true);
-			break;
-
-		case CREATE:
-			fd_ = create_block_file(path, file_size);
-			break;
-
-		default:
-			throw runtime_error("unsupported mode");
-		}
-	}
-
-	template <uint32_t BlockSize>
-	block_io<BlockSize>::~block_io()
-	{
-		if (::close(fd_) < 0)
-			syscall_failed("close");
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_io<BlockSize>::read_buffer(block_address location, buffer<BlockSize> &buffer) const
-	{
-		off_t r;
-		r = ::lseek(fd_, BlockSize * location, SEEK_SET);
-		if (r == (off_t) -1)
-			throw std::runtime_error("lseek failed");
-
-		ssize_t n;
-		size_t remaining = BlockSize;
-		unsigned char *buf = buffer.raw();
-		do {
-			n = ::read(fd_, buf, remaining);
-			if (n > 0) {
-				remaining -= n;
-				buf += n;
-			}
-		} while (remaining && ((n > 0) || (n == EINTR) || (n == EAGAIN)));
-
-		if (n < 0)
-			throw std::runtime_error("read failed");
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_io<BlockSize>::write_buffer(block_address location, buffer<BlockSize> const &buffer)
-	{
-		off_t r;
-		r = ::lseek(fd_, BlockSize * location, SEEK_SET);
-		if (r == (off_t) -1)
-			throw std::runtime_error("lseek failed");
-
-		ssize_t n;
-		size_t remaining = BlockSize;
-		unsigned char const *buf = buffer.raw();
-		do {
-			n = ::write(fd_, buf, remaining);
-			if (n > 0) {
-				remaining -= n;
-				buf += n;
-			}
-		} while (remaining && ((n > 0) || (n == EINTR) || (n == EAGAIN)));
-
-		if (n < 0) {
-			std::ostringstream out;
-			out << "write failed to block " << location
-			    << ", block size = " << BlockSize
-			    << ", remaining = " << remaining
-			    << ", n = " << n
-			    << ", errno = " << errno
-			    << ", fd_ = " << fd_
-			    << std::endl;
-			throw std::runtime_error(out.str());
-		}
-	}
-
-//----------------------------------------------------------------
-
-	template <uint32_t BlockSize>
-	block_manager<BlockSize>::block::block(typename block_io<BlockSize>::ptr io,
+	block_manager<BlockSize>::block::block(block_cache *bc,
 					       block_address location,
 					       block_type bt,
 					       typename validator::ptr v,
 					       bool zero)
-		: io_(io),
-		location_(location),
-		data_(new buffer<BlockSize>()),
-		validator_(v),
+		: validator_(v),
 		bt_(bt),
-		dirty_(false)
+		dirty_(false),
+		unlocked_(false),
+		buffer_(0, true) // FIXME: we don't know if it's writeable here :(
 	{
 		if (zero) {
-			// FIXME: duplicate memset
-			memset(data_->raw(), 0, BlockSize);
-			dirty_ = true;	// redundant?
+			internal_ = block_cache_get(bc, location, GF_ZERO | GF_CAN_BLOCK);
+			if (!internal_)
+				throw std::runtime_error("Couldn't get block");
+			dirty_ = true;
 		} else {
-			io_->read_buffer(location_, *data_);
-			validator_->check(*data_, location_);
+			internal_ = block_cache_get(bc, location, GF_CAN_BLOCK);
+			if (!internal_)
+				throw std::runtime_error("Couldn't get block");
+
+			validator_->check(buffer_, internal_->index);
 		}
+
+		buffer_.set_data(internal_->data);
 	}
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::block::~block()
 	{
-		flush();
+		if (!unlocked_)
+			unlock();
 	}
 
 	template <uint32_t BlockSize>
 	void
-	block_manager<BlockSize>::block::flush()
+	block_manager<BlockSize>::block::unlock()
 	{
-		if (dirty_) {
-			validator_->prepare(*data_, location_);
-			io_->write_buffer(location_, *data_);
-			dirty_ = false;
-		}
+		validator_->prepare(buffer_, internal_->index);
+		block_cache_put(internal_, dirty_ ? PF_DIRTY : 0);
+		unlocked_ = true;
+	}
+
+	template <uint32_t BlockSize>
+	typename block_manager<BlockSize>::block_type
+	block_manager<BlockSize>::block::get_type() const
+	{
+		return bt_;
+	}
+
+	template <uint32_t BlockSize>
+	uint64_t
+	block_manager<BlockSize>::block::get_location() const
+	{
+		check_not_unlocked();
+		return internal_->index;
+	}
+
+	template <uint32_t BlockSize>
+	buffer<BlockSize> const &
+	block_manager<BlockSize>::block::get_buffer() const
+	{
+		return buffer_;
+	}
+
+	template <uint32_t BlockSize>
+	buffer<BlockSize> &
+	block_manager<BlockSize>::block::get_buffer()
+	{
+		return buffer_;
+	}
+
+	template <uint32_t BlockSize>
+	void
+	block_manager<BlockSize>::block::mark_dirty()
+	{
+		check_not_unlocked();
+		dirty_ = true;
 	}
 
 	template <uint32_t BlockSize>
@@ -240,20 +191,29 @@ namespace persistent_data {
 	block_manager<BlockSize>::block::change_validator(typename block_manager<BlockSize>::validator::ptr v,
 							  bool check)
 	{
+		check_not_unlocked();
 		if (v.get() != validator_.get()) {
 			if (dirty_)
 				// It may have already happened, by calling
 				// this we ensure we're consistent.
-				validator_->prepare(*data_, location_);
+				validator_->prepare(*internal_->data, internal_->index);
 
 			validator_ = v;
 
 			if (check)
-				validator_->check(*data_, location_);
+				validator_->check(*internal_->data, internal_->index);
 		}
 	}
 
-//----------------------------------------------------------------
+	template <uint32_t BlockSize>
+	void
+	block_manager<BlockSize>::block::check_not_unlocked() const
+	{
+		if (unlocked_)
+			throw std::runtime_error("block prematurely unlocked");
+	}
+
+	//----------------------------------------------------------------
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::read_ref::read_ref(block_manager<BlockSize> const &bm,
@@ -278,14 +238,13 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_ref::~read_ref()
 	{
 		if (!--(*holders_)) {
-			if (block_->bt_ == BT_SUPERBLOCK) {
+			if (block_->get_type() == BT_SUPERBLOCK) {
 				bm_->flush();
-				bm_->cache_.put(block_);
+				block_->unlock();
 				bm_->flush();
 			} else
-				bm_->cache_.put(block_);
+				block_->unlock();
 
-			bm_->tracker_.unlock(block_->location_);
 			delete holders_;
 		}
 	}
@@ -308,44 +267,48 @@ namespace persistent_data {
 	block_address
 	block_manager<BlockSize>::read_ref::get_location() const
 	{
-		return block_->location_;
+		return block_->get_location();
 	}
 
 	template <uint32_t BlockSize>
 	buffer<BlockSize> const &
 	block_manager<BlockSize>::read_ref::data() const
 	{
-		return *block_->data_;
+		return block_->get_buffer();
 	}
 
-//--------------------------------
+	//--------------------------------
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::write_ref::write_ref(block_manager<BlockSize> const &bm,
 						       typename block::ptr b)
 		: read_ref(bm, b)
 	{
-		b->dirty_ = true;
+		b->mark_dirty();
 	}
 
 	template <uint32_t BlockSize>
 	buffer<BlockSize> &
 	block_manager<BlockSize>::write_ref::data()
 	{
-		return *read_ref::block_->data_;
+		return read_ref::block_->get_buffer();
 	}
 
-//----------------------------------------------------------------
+	//----------------------------------------------------------------
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::block_manager(std::string const &path,
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
-						typename block_io<BlockSize>::mode mode)
-		: io_(new block_io<BlockSize>(path, nr_blocks, mode)),
-		  cache_(max(1024u, max_concurrent_blocks)),
-		  tracker_(0, nr_blocks)
+						mode m)
 	{
+		// Open the file descriptor
+		fd_ = open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE);
+
+		// Create the cache
+		bc_ = block_cache_create(fd_, BlockSize << SECTOR_SHIFT, nr_blocks, 1024u * BlockSize * 1.2);
+		if (!bc_)
+			throw std::runtime_error("couldn't create block cache");
 	}
 
 	template <uint32_t BlockSize>
@@ -353,27 +316,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_lock(block_address location,
 					    typename block_manager<BlockSize>::validator::ptr v) const
 	{
-		tracker_.read_lock(location);
-		try {
-			check(location);
-			boost::optional<typename block::ptr> cached_block = cache_.get(location);
-
-			if (cached_block) {
-				typename block::ptr cb = *cached_block;
-				cb->check_read_lockable();
-				cb->change_validator(v);
-
-				return read_ref(*this, *cached_block);
-			}
-
-			typename block::ptr b(new block(io_, location, BT_NORMAL, v));
-			cache_.insert(b);
-			return read_ref(*this, b);
-
-		} catch (...) {
-			tracker_.unlock(location);
-			throw;
-		}
+		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
+		return read_ref(*this, b);
 	}
 
 	template <uint32_t BlockSize>
@@ -381,29 +325,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock(block_address location,
 					     typename block_manager<BlockSize>::validator::ptr v)
 	{
-		tracker_.write_lock(location);
-		try {
-			check(location);
-
-			boost::optional<typename block::ptr> cached_block = cache_.get(location);
-
-			if (cached_block) {
-				typename block::ptr cb = *cached_block;
-				cb->check_write_lockable();
-				cb->change_validator(v);
-
-				return write_ref(*this, *cached_block);
-			}
-
-			typename block::ptr b(new block(io_, location, BT_NORMAL, v));
-			cache_.insert(b);
-			return write_ref(*this, b);
-
-		} catch (...) {
-			tracker_.unlock(location);
-			throw;
-		}
-
+		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
+		return write_ref(*this, b);
 	}
 
 	template <uint32_t BlockSize>
@@ -411,28 +334,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock_zero(block_address location,
 						  typename block_manager<BlockSize>::validator::ptr v)
 	{
-		tracker_.write_lock(location);
-		try {
-			check(location);
-
-			boost::optional<typename block::ptr> cached_block = cache_.get(location);
-			if (cached_block) {
-				typename block::ptr cb = *cached_block;
-				cb->check_write_lockable();
-				cb->change_validator(v, false);
-				memset((*cached_block)->data_->raw(), 0, BlockSize);
-
-				return write_ref(*this, *cached_block);
-			}
-
-			typename block::ptr b(new block(io_, location, BT_NORMAL, v, true));
-			cache_.insert(b);
-			return write_ref(*this, b);
-
-		} catch (...) {
-			tracker_.unlock(location);
-			throw;
-		}
+		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, true));
+		return write_ref(*this, b);
 	}
 
 	template <uint32_t BlockSize>
@@ -440,29 +343,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock(block_address location,
 					     typename block_manager<BlockSize>::validator::ptr v)
 	{
-		tracker_.superblock_lock(location);
-		try {
-			check(location);
-
-			boost::optional<typename block::ptr> cached_block = cache_.get(location);
-
-			if (cached_block) {
-				typename block::ptr cb = *cached_block;
-				cb->check_write_lockable();
-				cb->bt_ = BT_SUPERBLOCK;
-				cb->change_validator(v);
-
-				return write_ref(*this, *cached_block);
-			}
-
-			typename block::ptr b(new block(io_, location, BT_SUPERBLOCK, v));
-			cache_.insert(b);
-			return write_ref(*this, b);
-
-		} catch (...) {
-			tracker_.unlock(location);
-			throw;
-		}
+		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, false));
+		return write_ref(*this, b);
 	}
 
 	template <uint32_t BlockSize>
@@ -470,45 +352,15 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock_zero(block_address location,
 						  typename block_manager<BlockSize>::validator::ptr v)
 	{
-		tracker_.superblock_lock(location);
-		try {
-			check(location);
-
-			boost::optional<typename block::ptr> cached_block = cache_.get(location);
-
-			if (cached_block) {
-				typename block::ptr cb = *cached_block;
-				cb->check_write_lockable();
-				cb->bt_ = BT_SUPERBLOCK;
-				cb->change_validator(v, false);
-				memset(cb->data_->raw(), 0, BlockSize); // FIXME: add a zero method to buffer
-
-				return write_ref(*this, *cached_block);
-			}
-
-			typename block::ptr b(new block(io_, location, BT_SUPERBLOCK, v, true));
-			cache_.insert(b);
-			return write_ref(*this, b);
-
-		} catch (...) {
-			tracker_.unlock(location);
-			throw;
-		}
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::check(block_address b) const
-	{
-		if (b >= io_->get_nr_blocks())
-			throw std::runtime_error("block address out of bounds");
+		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, true));
+		return write_ref(*this, b);
 	}
 
 	template <uint32_t BlockSize>
 	block_address
 	block_manager<BlockSize>::get_nr_blocks() const
 	{
-		return io_->get_nr_blocks();
+		return block_cache_get_nr_blocks(bc_);
 	}
 
 	template <uint32_t BlockSize>
@@ -522,15 +374,7 @@ namespace persistent_data {
 	void
 	block_manager<BlockSize>::flush() const
 	{
-		cache_.iterate_unheld(
-			boost::bind(&block_manager<BlockSize>::write_block, this, _1));
-	}
-
-	template <uint32_t BlockSize>
-	bool
-	block_manager<BlockSize>::is_locked(block_address b) const
-	{
-		return tracker_.is_locked(b);
+		block_cache_flush(bc_);
 	}
 }
 

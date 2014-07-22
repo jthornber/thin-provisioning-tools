@@ -37,7 +37,7 @@ namespace {
 
 	int restore(flags const &fs) {
 		try {
-			block_manager<>::ptr bm = open_bm(*fs.output, block_io<>::READ_WRITE);
+			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown);
 

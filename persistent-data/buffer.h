@@ -20,10 +20,8 @@
 #define BUFFER_H
 
 #include <stdint.h>
-// #include <stdlib.h>
 #include <malloc.h>
 
-#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/static_assert.hpp>
@@ -35,18 +33,14 @@
 namespace persistent_data {
 	uint32_t const DEFAULT_BUFFER_SIZE = 4096;
 
-	// Allocate buffer of Size with Alignment imposed.
-	//
-	// Allocation needs to be on the heap in order to provide alignment
-	// guarantees.
-	//
-	// Alignment must be a power of two.
-	template <uint32_t Size = DEFAULT_BUFFER_SIZE, uint32_t Alignment = 4096>
-	class buffer : private boost::noncopyable {
+	template <uint32_t Size = DEFAULT_BUFFER_SIZE>
+	class buffer {
 	public:
-		BOOST_STATIC_ASSERT((Alignment > 1) & !(Alignment & (Alignment - 1)));
+		buffer(void *data, bool writeable = true)
+			: data_(static_cast<unsigned char *>(data)),
+			  writeable_(writeable) {
+		}
 
-		static uint32_t const ALIGNMENT = Alignment;
 		typedef boost::shared_ptr<buffer> ptr;
 		typedef boost::shared_ptr<buffer const> const_ptr;
 
@@ -55,6 +49,7 @@ namespace persistent_data {
 		}
 
 		unsigned char &operator[](unsigned index) {
+			check_writeable();
 			check_index(index);
 
 			return data_[index];
@@ -74,31 +69,23 @@ namespace persistent_data {
 			return data_;
 		}
 
-		static void *operator new(size_t s) {
-			// void *r;
-			// return posix_memalign(&r, Alignment, s) ? NULL : r;
-
-			// Allocates size bytes and returns a pointer to the
-			// allocated memory. The memory address will be a
-			// multiple of 'Alignment', which must be a power of two
-			void *mem = memalign(Alignment, s);
-			if (!mem)
-				throw std::bad_alloc();
-
-			return mem;
-		}
-
-		static void operator delete(void *p) {
-			free(p);
+		void set_data(void *data) {
+			data_ = static_cast<unsigned char *>(data);
 		}
 
 	private:
-		unsigned char data_[Size];
-
 		static void check_index(unsigned index) {
 			if (index >= Size)
 				throw std::range_error("buffer index out of bounds");
 		}
+
+		void check_writeable() const {
+			if (!writeable_)
+				throw std::runtime_error("buffer isn't writeable");
+		}
+
+		unsigned char *data_;
+		bool writeable_;
 	};
 }
 

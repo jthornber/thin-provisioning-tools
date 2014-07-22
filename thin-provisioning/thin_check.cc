@@ -42,7 +42,7 @@ namespace {
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		block_io<>::mode m = block_io<>::READ_ONLY;
+		block_manager<>::mode m = block_manager<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -225,7 +225,7 @@ namespace {
 	}
 
 	void clear_needs_check(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_WRITE);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
 
 		superblock_detail::superblock sb = read_superblock(bm);
 		sb.set_needs_check_flag(false);

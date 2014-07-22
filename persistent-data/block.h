@@ -19,9 +19,8 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
+#include "block-cache/block_cache.h"
 #include "persistent-data/buffer.h"
-#include "persistent-data/cache.h"
-#include "persistent-data/lock_tracker.h"
 
 #include <stdint.h>
 #include <map>
@@ -42,40 +41,20 @@ namespace persistent_data {
 	typedef uint64_t block_address;
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>
-	class block_io : private boost::noncopyable {
+	class block_manager : private boost::noncopyable {
 	public:
-		typedef boost::shared_ptr<block_io> ptr;
+		typedef boost::shared_ptr<block_manager> ptr;
+
 		enum mode {
 			READ_ONLY,
 			READ_WRITE,
 			CREATE
 		};
 
-		block_io(std::string const &path, block_address nr_blocks, mode m);
-		~block_io();
-
-		block_address get_nr_blocks() const {
-			return nr_blocks_;
-		}
-
-		void read_buffer(block_address location, buffer<BlockSize> &buf) const;
-		void write_buffer(block_address location, buffer<BlockSize> const &buf);
-
-	private:
-		int fd_;
-		block_address nr_blocks_;
-		mode mode_;
-	};
-
-	template <uint32_t BlockSize = MD_BLOCK_SIZE>
-	class block_manager : private boost::noncopyable {
-	public:
-		typedef boost::shared_ptr<block_manager> ptr;
-
 		block_manager(std::string const &path,
 			      block_address nr_blocks,
 			      unsigned max_concurrent_locks,
-			      typename block_io<BlockSize>::mode m);
+			      mode m);
 
 		class validator {
 		public:
@@ -101,7 +80,7 @@ namespace persistent_data {
 		struct block : private boost::noncopyable {
 			typedef boost::shared_ptr<block> ptr;
 
-			block(typename block_io<BlockSize>::ptr io,
+			block(block_cache *bc,
 			      block_address location,
 			      block_type bt,
 			      typename validator::ptr v,
@@ -116,17 +95,27 @@ namespace persistent_data {
 				// FIXME: finish
 			}
 
-			void flush();
-
 			void change_validator(typename block_manager<BlockSize>::validator::ptr v,
 					      bool check = true);
 
-			typename block_io<BlockSize>::ptr io_;
-			block_address location_;
-			std::auto_ptr<buffer<BlockSize> > data_;
+			block_type get_type() const;
+			uint64_t get_location() const;
+
+			buffer<BlockSize> const &get_buffer() const;
+			buffer<BlockSize> &get_buffer();
+
+			void mark_dirty();
+			void unlock();
+
+		private:
+			void check_not_unlocked() const;
+
+			bc_block *internal_;
 			typename validator::ptr validator_;
 			block_type bt_;
 			bool dirty_;
+			bool unlocked_;
+			buffer<BlockSize> buffer_;
 		};
 
 		class read_ref {
@@ -206,25 +195,8 @@ namespace persistent_data {
 		void check(block_address b) const;
 		void write_block(typename block::ptr b) const;
 
-		enum lock_type {
-			READ_LOCK,
-			WRITE_LOCK
-		};
-
-		struct cache_traits {
-			typedef typename block::ptr value_type;
-			typedef block_address key_type;
-
-			static key_type get_key(value_type const &v) {
-				return v->location_;
-			}
-		};
-
-		typename block_io<BlockSize>::ptr io_;
-		mutable base::cache<cache_traits> cache_;
-
-		// FIXME: we need a dirty list as well as a cache
-		mutable lock_tracker tracker_;
+		int fd_;
+		block_cache *bc_;
 	};
 
 	// A little utility to help build validators

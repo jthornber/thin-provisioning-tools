@@ -65,7 +65,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 {
 	switch (ot) {
 	case OPEN:
-		tm_ = open_tm(open_bm(dev_path, block_io<>::READ_ONLY));
+		tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_ONLY));
 		sb_ = read_superblock(tm_->get_bm());
 
 		if (sb_.version_ != 1)
@@ -90,7 +90,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		break;
 
 	case CREATE:
-		tm_ = open_tm(open_bm(dev_path, block_io<>::READ_WRITE));
+		tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_WRITE));
 		space_map::ptr core = tm_->get_sm();
 		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
 		copy_space_maps(metadata_sm_, core);
@@ -118,7 +118,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 
 metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 {
-	tm_ = open_tm(open_bm(dev_path, block_io<>::READ_ONLY));
+	tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_ONLY));
 	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
 
 	// We don't open the metadata sm for a held root
