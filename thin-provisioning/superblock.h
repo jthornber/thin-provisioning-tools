@@ -124,7 +124,7 @@ namespace thin_provisioning {
 		};
 	}
 
-	persistent_data::block_manager<>::validator::ptr superblock_validator();
+	bcache::validator::ptr superblock_validator();
 
 	// FIXME: should we put init_superblock in here too?
 

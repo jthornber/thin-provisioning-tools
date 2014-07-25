@@ -16,23 +16,25 @@
 //----------------------------------------------------------------
 
 namespace bcache {
-#if 0
+	typedef uint64_t block_address;
+	typedef uint64_t sector_t;
+
 	class validator {
 	public:
 		typedef boost::shared_ptr<validator> ptr;
 
 		virtual ~validator() {}
 
-		virtual void check(buffer<BlockSize> const &b, block_address location) const = 0;
-		virtual void prepare(buffer<BlockSize> &b, block_address location) const = 0;
+		virtual void check(void const *data, block_address location) const = 0;
+		virtual void prepare(void *data, block_address location) const = 0;
 	};
 
 	class noop_validator : public validator {
 	public:
-		void check(buffer<BlockSize> const &b, block_address location) const {}
-		void prepare(buffer<BlockSize> &b, block_address location) const {}
+		void check(void const *data, block_address location) const {}
+		void prepare(void *data, block_address location) const {}
 	};
-#endif
+
 	//----------------------------------------------------------------
 
 	// FIXME: throw exceptions rather than returning errors
@@ -45,6 +47,10 @@ namespace bcache {
 
 		class block : private boost::noncopyable {
 		public:
+			block()
+				: v_() {
+			}
+
 			uint64_t get_index() const {
 				return index_;
 			}
@@ -69,10 +75,8 @@ namespace bcache {
 			unsigned flags_;
 
 			iocb control_block_;
+			validator::ptr v_;
 		};
-
-		typedef uint64_t block_index;
-		typedef uint64_t sector_t;
 
 		//--------------------------------
 
@@ -88,7 +92,7 @@ namespace bcache {
 		};
 
 		// FIXME: what if !GF_CAN_BLOCK?
-		block_cache::block &get(block_index index, unsigned flags);
+		block_cache::block &get(block_address index, unsigned flags, validator::ptr v);
 
 		enum put_flags {
 			PF_DIRTY = (1 << 0),
@@ -101,7 +105,7 @@ namespace bcache {
 		 * failed.  Make sure you build your recovery with this in mind.
 		 */
 		int flush();
-		void prefetch(block_index index);
+		void prefetch(block_address index);
 
 	private:
 		int init_free_list(unsigned count);
@@ -118,16 +122,16 @@ namespace bcache {
 		unsigned writeback(unsigned count);
 		void hash_init(unsigned nr_buckets);
 		unsigned hash(uint64_t index);
-		block *hash_lookup(block_index index);
+		block *hash_lookup(block_address index);
 		void hash_insert(block &b);
 		void hash_remove(block &b);
 		void setup_control_block(block &b);
-		block *new_block(block_index index);
+		block *new_block(block_address index);
 		void mark_dirty(block &b);
 		unsigned calc_nr_cache_blocks(size_t mem, sector_t block_size);
 		unsigned calc_nr_buckets(unsigned nr_blocks);
 		void zero_block(block &b);
-		block *lookup_or_read_block(block_index index, unsigned flags);
+		block *lookup_or_read_block(block_address index, unsigned flags, validator::ptr v);
 		unsigned test_flags(block &b, unsigned flags);
 		void clear_flags(block &b, unsigned flags);
 		void set_flags(block &b, unsigned flags);
@@ -154,10 +158,10 @@ namespace bcache {
 		list_head dirty_;
 		list_head clean_;
 
+		unsigned nr_dirty_;
+
 		unsigned nr_io_pending_;
 		struct list_head io_pending_;
-
-		unsigned nr_dirty_;
 
 		/*
 		 * Hash table fields.
@@ -166,6 +170,60 @@ namespace bcache {
 		unsigned mask_;
 		std::vector<list_head> buckets_;
 	};
+
+#if 0
+	class auto_lock {
+	public:
+		auto_lock(block_cache &bc, block_address index, bool zero, validator::ptr v, unsigned put_flags)
+			: bc_(bc),
+			  b_(bc.get(index, (zero ? block_cache::GF_ZERO : 0) | block_cache::GF_CAN_BLOCK, v)),
+			  put_flags_(put_flags),
+			  holders_(new unsigned) {
+			*holders_ = 1;
+		}
+
+		virtual ~auto_lock() {
+			bc_.put(b_, put_flags_);
+		}
+
+		auto_lock operator =(auto_lock const &rhs) {
+			if (this != &rhs) {
+				bc_ = rhs.bc_;
+				
+			
+
+		void const *data() const {
+			return b_.get_data();
+		}
+
+	private:
+		block_cache &bc_;
+		block_cache::block &b_;
+		unsigned put_flags_;
+		unsigned *holders_;
+	};
+
+	class auto_read_lock : public auto_lock {
+	public:
+		auto_read_lock(block_cache &bc, block_address index, bool zero, validator::ptr v)
+			: auto_lock(bc, index, zero, v, 0) {
+		}
+
+		using auto_lock::data();
+	};
+
+	class auto_write_lock : public auto_lock {
+	public:
+		auto_write_lock(block_cache &bc, block_address index, bool zero, validator::ptr v)
+			: auto_lock(bc, index, zero, v, block_cache::DIRTY) {
+		}
+
+		using auto_lock::data();
+		void *data() {
+			return b_.get_data();
+		}
+	};
+#endif
 }
 
 //----------------------------------------------------------------

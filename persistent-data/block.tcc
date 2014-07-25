@@ -112,20 +112,15 @@ namespace persistent_data {
 					       typename validator::ptr v,
 					       bool zero)
 		: bc_(bc),
-		  validator_(v),
 		  bt_(bt),
 		  dirty_(false),
-		  unlocked_(false),
-		  buffer_(0, true) // FIXME: we don't know if it's writeable here :(
+		  unlocked_(false)
 	{
 		if (zero) {
-			internal_ = &bc.get(location, block_cache::GF_ZERO | block_cache::GF_CAN_BLOCK);
+			internal_ = &bc.get(location, block_cache::GF_ZERO | block_cache::GF_CAN_BLOCK, v);
 			dirty_ = true;
-			buffer_.set_data(internal_->get_data());
 		} else {
-			internal_ = &bc.get(location, block_cache::GF_CAN_BLOCK);
-			buffer_.set_data(internal_->get_data());
-			validator_->check(buffer_, internal_->get_index());
+			internal_ = &bc.get(location, block_cache::GF_CAN_BLOCK, v);
 		}
 	}
 
@@ -140,8 +135,6 @@ namespace persistent_data {
 	void
 	block_manager<BlockSize>::block::unlock()
 	{
-		if (dirty_)
-			validator_->prepare(buffer_, internal_->get_index());
 		bc_.put(*internal_, dirty_ ? block_cache::PF_DIRTY : 0);
 		unlocked_ = true;
 	}
@@ -162,17 +155,17 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	buffer<BlockSize> const &
-	block_manager<BlockSize>::block::get_buffer() const
+	void const *
+	block_manager<BlockSize>::block::get_data() const
 	{
-		return buffer_;
+		return internal_->get_data();
 	}
 
 	template <uint32_t BlockSize>
-	buffer<BlockSize> &
-	block_manager<BlockSize>::block::get_buffer()
+	void *
+	block_manager<BlockSize>::block::get_data()
 	{
-		return buffer_;
+		return internal_->get_data();
 	}
 
 	template <uint32_t BlockSize>
@@ -181,25 +174,6 @@ namespace persistent_data {
 	{
 		check_not_unlocked();
 		dirty_ = true;
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::block::change_validator(typename block_manager<BlockSize>::validator::ptr v,
-							  bool check)
-	{
-		check_not_unlocked();
-		if (v.get() != validator_.get()) {
-			if (dirty_)
-				// It may have already happened, by calling
-				// this we ensure we're consistent.
-				validator_->prepare(*internal_->get_data(), internal_->get_index());
-
-			validator_ = v;
-
-			if (check)
-				validator_->check(*internal_->get_data(), internal_->get_index());
-		}
 	}
 
 	template <uint32_t BlockSize>
@@ -268,10 +242,10 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	buffer<BlockSize> const &
+	void const *
 	block_manager<BlockSize>::read_ref::data() const
 	{
-		return block_->get_buffer();
+		return block_->get_data();
 	}
 
 	//--------------------------------
@@ -285,10 +259,10 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	buffer<BlockSize> &
+	void *
 	block_manager<BlockSize>::write_ref::data()
 	{
-		return read_ref::block_->get_buffer();
+		return read_ref::block_->get_data();
 	}
 
 	//----------------------------------------------------------------
@@ -299,14 +273,14 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						mode m)
 		: fd_(open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE)),
-		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 4)
+		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 256)
 	{
 	}
 
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::read_ref
 	block_manager<BlockSize>::read_lock(block_address location,
-					    typename block_manager<BlockSize>::validator::ptr v) const
+					    typename bcache::validator::ptr v) const
 	{
 		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
 		return read_ref(*this, b);
@@ -315,7 +289,7 @@ namespace persistent_data {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::write_ref
 	block_manager<BlockSize>::write_lock(block_address location,
-					     typename block_manager<BlockSize>::validator::ptr v)
+					     typename bcache::validator::ptr v)
 	{
 		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
 		return write_ref(*this, b);
@@ -324,7 +298,7 @@ namespace persistent_data {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::write_ref
 	block_manager<BlockSize>::write_lock_zero(block_address location,
-						  typename block_manager<BlockSize>::validator::ptr v)
+						  typename bcache::validator::ptr v)
 	{
 		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, true));
 		return write_ref(*this, b);
@@ -333,7 +307,7 @@ namespace persistent_data {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::write_ref
 	block_manager<BlockSize>::superblock(block_address location,
-					     typename block_manager<BlockSize>::validator::ptr v)
+					     typename bcache::validator::ptr v)
 	{
 		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, false));
 		return write_ref(*this, b);
@@ -342,7 +316,7 @@ namespace persistent_data {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::write_ref
 	block_manager<BlockSize>::superblock_zero(block_address location,
-						  typename block_manager<BlockSize>::validator::ptr v)
+						  typename bcache::validator::ptr v)
 	{
 		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, true));
 		return write_ref(*this, b);

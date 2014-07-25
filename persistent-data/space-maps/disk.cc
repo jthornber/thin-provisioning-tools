@@ -37,9 +37,9 @@ using namespace sm_disk_detail;
 namespace {
 	uint64_t const BITMAP_CSUM_XOR = 240779;
 
-	struct bitmap_block_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(b.raw());
+	struct bitmap_block_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(raw);
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
@@ -49,8 +49,8 @@ namespace {
 				throw checksum_error("bad block nr in space map bitmap");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			bitmap_header *data = reinterpret_cast<bitmap_header *>(b.raw());
+		virtual void prepare(void *raw, block_address location) const {
+			bitmap_header *data = reinterpret_cast<bitmap_header *>(raw);
 			data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(BITMAP_CSUM_XOR);
@@ -64,9 +64,9 @@ namespace {
 	uint64_t const INDEX_CSUM_XOR = 160478;
 
 	// FIXME: factor out the common code in these validators
-	struct index_block_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			metadata_index const *mi = reinterpret_cast<metadata_index const *>(b.raw());
+	struct index_block_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
 			std::cerr << "check mi = " << mi << "\n";
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -77,8 +77,8 @@ namespace {
 				throw checksum_error("bad block nr in metadata index block");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			metadata_index *mi = reinterpret_cast<metadata_index *>(b.raw());
+		virtual void prepare(void *raw, block_address location) const {
+			metadata_index *mi = reinterpret_cast<metadata_index *>(raw);
 			std::cerr << "prepare mi = " << mi << "\n";
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
 
@@ -88,9 +88,9 @@ namespace {
 		}
 	};
 
-	block_manager<>::validator::ptr
+	bcache::validator::ptr
 	index_validator() {
-		return block_manager<>::validator::ptr(new index_block_validator());
+		return bcache::validator::ptr(new index_block_validator());
 	}
 
 	//--------------------------------
@@ -102,7 +102,7 @@ namespace {
 
 		bitmap(transaction_manager::ptr tm,
 		       index_entry const &ie,
-		       block_manager<>::validator::ptr v)
+		       bcache::validator::ptr v)
 			: tm_(tm),
 			  validator_(v),
 			  ie_(ie) {
@@ -174,17 +174,17 @@ namespace {
 
 	private:
 		void *bitmap_data(transaction_manager::write_ref &wr) {
-			bitmap_header *h = reinterpret_cast<bitmap_header *>(&wr.data()[0]);
+			bitmap_header *h = reinterpret_cast<bitmap_header *>(wr.data());
 			return h + 1;
 		}
 
 		void const *bitmap_data(transaction_manager::read_ref &rr) const {
-			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(&rr.data()[0]);
+			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(rr.data());
 			return h + 1;
 		}
 
 		transaction_manager::ptr tm_;
-		block_manager<>::validator::ptr validator_;
+		bcache::validator::ptr validator_;
 
 		index_entry ie_;
 	};
@@ -504,7 +504,7 @@ namespace {
 		}
 
 		transaction_manager::ptr tm_;
-		block_manager<>::validator::ptr bitmap_validator_;
+		bcache::validator::ptr bitmap_validator_;
 		index_store::ptr indexes_;
 		block_address nr_blocks_;
 		block_address nr_allocated_;
@@ -632,7 +632,7 @@ namespace {
 				tm_->shadow(bitmap_root_, index_validator());
 
 			bitmap_root_ = p.first.get_location();
-			metadata_index *mdi = reinterpret_cast<metadata_index *>(p.first.data().raw());
+			metadata_index *mdi = reinterpret_cast<metadata_index *>(p.first.data());
 
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::pack(entries_[i], mdi->index[i]);
@@ -665,7 +665,7 @@ namespace {
 			block_manager<>::read_ref rr =
 				tm_->read_lock(bitmap_root_, index_validator());
 
-			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
+			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(rr.data());
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::unpack(*(mdi->index + i), entries_[i]);
 		}

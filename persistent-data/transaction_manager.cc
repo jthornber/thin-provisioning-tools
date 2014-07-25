@@ -72,7 +72,7 @@ transaction_manager::shadow(block_address orig, validator v)
 		throw runtime_error("transaction_manager::shadow() couldn't allocate new block");
 
 	write_ref dest = bm_->write_lock_zero(*mb, v);
-	::memcpy(dest.data().raw(), src.data().raw(), MD_BLOCK_SIZE); // FIXME: use buffer copy method
+	::memcpy(dest.data(), src.data(), MD_BLOCK_SIZE);
 
 	sm_->dec(orig);
 	add_shadow(dest.get_location());

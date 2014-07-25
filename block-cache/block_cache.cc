@@ -150,6 +150,7 @@ namespace bcache {
 		int r;
 		iocb *control_blocks[1];
 
+		// FIXME: put this back in
 		assert(!test_flags(b, IO_PENDING));
 		set_flags(b, IO_PENDING);
 		nr_io_pending_++;
@@ -175,13 +176,16 @@ namespace bcache {
 	int
 	block_cache::issue_read(block &b)
 	{
+		std::cerr << "issuing read - that's a shame: " << b.index_ << "\n";
+		assert(!test_flags(b, IO_PENDING));
 		return issue_low_level(b, IO_CMD_PREAD, "read");
 	}
 
 	int
 	block_cache::issue_write(block &b)
 	{
-		std::cerr << "issuing write for block " << b.index_ << "\n";
+		assert(!test_flags(b, IO_PENDING));
+		b.v_->prepare(b.data_, b.index_);
 		return issue_low_level(b, IO_CMD_PWRITE, "write");
 	}
 
@@ -303,7 +307,7 @@ namespace bcache {
 	}
 
 	block_cache::block *
-	block_cache::hash_lookup(block_index index)
+	block_cache::hash_lookup(block_address index)
 	{
 		block *b;
 		unsigned bucket = hash(index);
@@ -347,7 +351,7 @@ namespace bcache {
 	}
 
 	block_cache::block *
-	block_cache::new_block(block_index index)
+	block_cache::new_block(block_address index)
 	{
 		block *b;
 
@@ -485,7 +489,8 @@ namespace bcache {
 	}
 
 	block_cache::block *
-	block_cache::lookup_or_read_block(block_index index, unsigned flags)
+	block_cache::lookup_or_read_block(block_address index, unsigned flags,
+					  validator::ptr v)
 	{
 		block *b = hash_lookup(index);
 
@@ -495,16 +500,26 @@ namespace bcache {
 
 			if (flags & GF_ZERO)
 				zero_block(*b);
+			else {
+				if (b->v_.get() &&
+				    b->v_.get() != v.get() &&
+				    test_flags(*b, DIRTY))
+					b->v_->prepare(b->data_, b->index_);
+			}
+			b->v_ = v;
 
 		} else {
 			if (flags & GF_CAN_BLOCK) {
 				b = new_block(index);
 				if (b) {
+					b->v_ = v;
+
 					if (flags & GF_ZERO)
 						zero_block(*b);
 					else {
 						issue_read(*b);
 						wait_specific(*b);
+						v->check(b->data_, b->index_);
 					}
 				}
 			}
@@ -514,9 +529,9 @@ namespace bcache {
 	}
 
 	block_cache::block &
-	block_cache::get(block_index index, unsigned flags)
+	block_cache::get(block_address index, unsigned flags, validator::ptr v)
 	{
-		block *b = lookup_or_read_block(index, flags);
+		block *b = lookup_or_read_block(index, flags, v);
 
 		if (b) {
 			hit(*b);
@@ -549,24 +564,26 @@ namespace bcache {
 	int
 	block_cache::flush()
 	{
-		block *b;
+		block *b, *tmp;
 
-		list_for_each_entry (b, &dirty_, list_) {
-			if (b->ref_count_) {
-				info("attempt to lock an already locked block\n");
-				return -EAGAIN;
-			}
+		std::cerr << "in flush\n";
+		list_for_each_entry_safe (b, tmp, &dirty_, list_) {
+			if (b->ref_count_ || test_flags(*b, IO_PENDING))
+				// The superblock may well be still locked.
+				continue;
 
 			issue_write(*b);
 		}
 
+		std::cerr << "issued all writes\n";
 		wait_all();
+		std::cerr << "wait all returned\n";
 
 		return list_empty(&errored_) ? 0 : -EIO;
 	}
 
 	void
-	block_cache::prefetch(block_index index)
+	block_cache::prefetch(block_address index)
 	{
 		block *b = hash_lookup(index);
 

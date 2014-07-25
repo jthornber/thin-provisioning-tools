@@ -275,25 +275,25 @@ namespace validator {
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 9031977;
 
-	struct sb_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(b.raw());
+	struct sb_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
 				throw checksum_error("bad checksum in superblock");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(b.raw());
+		virtual void prepare(void *raw, block_address location) const {
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			sbd->csum = to_disk<base::le32>(sum.get_sum());
 		}
 	};
 
-	block_manager<>::validator::ptr  mk_v() {
-		return block_manager<>::validator::ptr(new sb_validator);
+	bcache::validator::ptr  mk_v() {
+		return bcache::validator::ptr(new sb_validator);
 	}
 }
 
@@ -304,7 +304,7 @@ caching::read_superblock(block_manager<>::ptr bm, block_address location)
 {
 	superblock sb;
 	block_manager<>::read_ref r = bm->read_lock(location, validator::mk_v());
-	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 	superblock_traits::unpack(*sbd, sb);
 
 	return sb;
@@ -314,7 +314,7 @@ void
 caching::write_superblock(block_manager<>::ptr bm, superblock const &sb, block_address location)
 {
 	block_manager<>::write_ref w = bm->superblock_zero(location, validator::mk_v());
-	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data().raw()));
+	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data()));
 }
 
 void

@@ -31,9 +31,9 @@ namespace persistent_data {
 	namespace array_detail {
 		uint32_t const ARRAY_CSUM_XOR = 595846735;
 
-		struct array_block_validator : public block_manager<>::validator {
-			virtual void check(buffer<> const &b, block_address location) const {
-				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(b.raw());
+		struct array_block_validator : public bcache::validator {
+			virtual void check(void const *raw, block_address location) const {
+				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(raw);
 				crc32c sum(ARRAY_CSUM_XOR);
 				sum.append(&data->max_entries, MD_BLOCK_SIZE - sizeof(uint32_t));
 				if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
@@ -43,8 +43,8 @@ namespace persistent_data {
 					throw checksum_error("bad block nr in array block");
 			}
 
-			virtual void prepare(buffer<> &b, block_address location) const {
-				array_block_disk *data = reinterpret_cast<array_block_disk *>(b.raw());
+			virtual void prepare(void *raw, block_address location) const {
+				array_block_disk *data = reinterpret_cast<array_block_disk *>(raw);
 				data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 				crc32c sum(ARRAY_CSUM_XOR);
@@ -432,7 +432,7 @@ namespace persistent_data {
 		block_ref_counter block_rc_;
 		btree<1, block_traits> block_tree_;
 		typename ValueTraits::ref_counter rc_;
-		block_manager<>::validator::ptr validator_;
+		bcache::validator::ptr validator_;
 	};
 }
 

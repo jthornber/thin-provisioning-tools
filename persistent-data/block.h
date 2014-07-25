@@ -40,8 +40,6 @@ namespace persistent_data {
 
 	uint32_t const MD_BLOCK_SIZE = 4096;
 
-	typedef uint64_t block_address;
-
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_manager : private boost::noncopyable {
 	public:
@@ -58,22 +56,6 @@ namespace persistent_data {
 			      unsigned max_concurrent_locks,
 			      mode m);
 
-		class validator {
-		public:
-			typedef boost::shared_ptr<validator> ptr;
-
-			virtual ~validator() {}
-
-			virtual void check(buffer<BlockSize> const &b, block_address location) const = 0;
-			virtual void prepare(buffer<BlockSize> &b, block_address location) const = 0;
-		};
-
-		class noop_validator : public validator {
-		public:
-			void check(buffer<BlockSize> const &b, block_address location) const {}
-			void prepare(buffer<BlockSize> &b, block_address location) const {}
-		};
-
 		enum block_type {
 			BT_SUPERBLOCK,
 			BT_NORMAL
@@ -86,7 +68,7 @@ namespace persistent_data {
 			block(block_cache &bc,
 			      block_address location,
 			      block_type bt,
-			      typename validator::ptr v,
+			      typename bcache::validator::ptr v,
 			      bool zero = false);
 			~block();
 
@@ -98,14 +80,11 @@ namespace persistent_data {
 				// FIXME: finish
 			}
 
-			void change_validator(typename block_manager<BlockSize>::validator::ptr v,
-					      bool check = true);
-
 			block_type get_type() const;
 			uint64_t get_location() const;
 
-			buffer<BlockSize> const &get_buffer() const;
-			buffer<BlockSize> &get_buffer();
+			void const *get_data() const;
+			void *get_data();
 
 			void mark_dirty();
 			void unlock();
@@ -115,11 +94,9 @@ namespace persistent_data {
 
 			block_cache &bc_;
 			block_cache::block *internal_;
-			typename validator::ptr validator_;
 			block_type bt_;
 			bool dirty_;
 			bool unlocked_;
-			buffer<BlockSize> buffer_;
 		};
 
 		class read_ref {
@@ -134,7 +111,7 @@ namespace persistent_data {
 			read_ref const &operator =(read_ref const &rhs);
 
 			block_address get_location() const;
-			buffer<BlockSize> const &data() const;
+			void const * data() const;
 
 		protected:
 			block_manager<BlockSize> const *bm_;
@@ -150,24 +127,24 @@ namespace persistent_data {
 				  typename block::ptr b);
 
 			using read_ref::data;
-			buffer<BlockSize> &data();
+			void *data();
 		};
 
 		// Locking methods
 		read_ref
 		read_lock(block_address location,
 			  typename validator::ptr v =
-			  typename validator::ptr(new noop_validator())) const;
+			  typename validator::ptr(new bcache::noop_validator())) const;
 
 		write_ref
 		write_lock(block_address location,
 			   typename validator::ptr v =
-			   typename validator::ptr(new noop_validator()));
+			   typename validator::ptr(new bcache::noop_validator()));
 
 		write_ref
 		write_lock_zero(block_address location,
 				typename validator::ptr v =
-				typename validator::ptr(new noop_validator()));
+				typename validator::ptr(new bcache::noop_validator()));
 
 		// The super block is the one that should be written last.
 		// Unlocking this block triggers the following events:
@@ -181,10 +158,10 @@ namespace persistent_data {
 		// being unlocked then an exception will be thrown.
 		write_ref superblock(block_address b,
 				     typename validator::ptr v =
-				     typename validator::ptr(new noop_validator()));
+				     typename validator::ptr(new bcache::noop_validator()));
 		write_ref superblock_zero(block_address b,
 					  typename validator::ptr v =
-					  typename validator::ptr(new noop_validator()));
+					  typename validator::ptr(new bcache::noop_validator()));
 
 		block_address get_nr_blocks() const;
 
@@ -206,9 +183,9 @@ namespace persistent_data {
 	};
 
 	// A little utility to help build validators
-	inline block_manager<>::validator::ptr
-	mk_validator(block_manager<>::validator *v) {
-		return block_manager<>::validator::ptr(v);
+	inline bcache::validator::ptr
+	mk_validator(bcache::validator *v) {
+		return bcache::validator::ptr(v);
 	}
 }
 

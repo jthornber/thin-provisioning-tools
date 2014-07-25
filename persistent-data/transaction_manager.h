@@ -33,7 +33,7 @@ namespace persistent_data {
 		typedef boost::shared_ptr<transaction_manager> ptr;
 		typedef block_manager<>::read_ref read_ref;
 		typedef block_manager<>::write_ref write_ref;
-		typedef block_manager<>::validator::ptr validator;
+		typedef bcache::validator::ptr validator;
 
 		// If the space map is persistent, then the caller should
 		// hold onto a reference and remember to call sm_->commit()

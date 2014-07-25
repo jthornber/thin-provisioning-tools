@@ -30,7 +30,7 @@
 
 //----------------------------------------------------------------
 
-namespace persistent_data {
+namespace bcache {
 	uint32_t const DEFAULT_BUFFER_SIZE = 4096;
 
 	template <uint32_t Size = DEFAULT_BUFFER_SIZE>

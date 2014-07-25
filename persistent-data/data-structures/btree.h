@@ -184,7 +184,7 @@ namespace persistent_data {
 			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data().raw())));
+					const_cast<void *>(b.data())));
 		}
 
 		template <typename ValueTraits>
@@ -193,14 +193,13 @@ namespace persistent_data {
 		{
 			return node_ref<ValueTraits>(
 				b.get_location(),
-				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data().raw())));
+				reinterpret_cast<disk_node *>(b.data()));
 		}
 
 		class ro_spine : private boost::noncopyable {
 		public:
 			ro_spine(transaction_manager::ptr tm,
-				 block_manager<>::validator::ptr v)
+				 bcache::validator::ptr v)
 				: tm_(tm),
 				  validator_(v) {
 			}
@@ -214,7 +213,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
-			block_manager<>::validator::ptr validator_;
+			bcache::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
@@ -225,7 +224,7 @@ namespace persistent_data {
 			typedef boost::optional<block_address> maybe_block;
 
 			shadow_spine(transaction_manager::ptr tm,
-				     block_manager<>::validator::ptr v)
+				     bcache::validator::ptr v)
 
 				: tm_(tm),
 				  validator_(v) {
@@ -278,7 +277,7 @@ namespace persistent_data {
 
 		private:
 			transaction_manager::ptr tm_;
-			block_manager<>::validator::ptr validator_;
+			bcache::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
 		        maybe_block root_;
 		};
@@ -440,7 +439,7 @@ namespace persistent_data {
 		block_address root_;
 		block_ref_counter internal_rc_;
 		typename ValueTraits::ref_counter rc_;
-		typename block_manager<>::validator::ptr validator_;
+		typename bcache::validator::ptr validator_;
 	};
 };
 

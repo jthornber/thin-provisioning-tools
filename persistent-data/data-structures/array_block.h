@@ -163,11 +163,11 @@ namespace persistent_data {
 		}
 
 		array_block_disk *get_header() {
-			return reinterpret_cast<array_block_disk *>(ref_.data().raw());
+			return reinterpret_cast<array_block_disk *>(ref_.data());
 		}
 
 		array_block_disk const *get_header() const {
-			return reinterpret_cast<array_block_disk const *>(ref_.data().raw());
+			return reinterpret_cast<array_block_disk const *>(ref_.data());
 		}
 
 		disk_type &element_at(unsigned int index) {

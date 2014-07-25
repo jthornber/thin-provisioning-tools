@@ -85,17 +85,17 @@ namespace {
         unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 
-	struct sb_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(b.raw());
+	struct sb_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
 				throw checksum_error("bad checksum in superblock");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(b.raw());
+		virtual void prepare(void *raw, block_address location) const {
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			sbd->csum_ = to_disk<base::le32>(sum.get_sum());
@@ -103,10 +103,10 @@ namespace {
 	};
 }
 
-block_manager<>::validator::ptr
+bcache::validator::ptr
 thin_provisioning::superblock_validator()
 {
-	return block_manager<>::validator::ptr(new sb_validator);
+	return bcache::validator::ptr(new sb_validator);
 }
 
 //----------------------------------------------------------------
@@ -151,7 +151,7 @@ namespace thin_provisioning {
 
 		superblock sb;
 		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
-		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
+		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
 	}
@@ -164,7 +164,7 @@ namespace thin_provisioning {
 	void write_superblock(block_manager<>::ptr bm, superblock_detail::superblock const &sb)
 	{
 		block_manager<>::write_ref w = bm->write_lock(SUPERBLOCK_LOCATION, superblock_validator());
-		superblock_disk *disk = reinterpret_cast<superblock_disk *>(w.data().raw());
+		superblock_disk *disk = reinterpret_cast<superblock_disk *>(w.data());
 		superblock_traits::pack(sb, *disk);
 	}
 
