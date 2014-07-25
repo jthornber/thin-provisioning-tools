@@ -272,6 +272,13 @@ namespace persistent_data {
 
 	template <uint32_t BlockSize>
 	void
+	block_manager<BlockSize>::prefetch(block_address b) const
+	{
+		bc_.prefetch(b);
+	}
+
+	template <uint32_t BlockSize>
+	void
 	block_manager<BlockSize>::flush() const
 	{
 		bc_.flush();

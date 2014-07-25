@@ -827,7 +827,10 @@ namespace persistent_data {
 
 		// FIXME: use a switch statement
 		if (o.get_type() == INTERNAL) {
-			if (v.visit_internal(loc, o))
+			if (v.visit_internal(loc, o)) {
+				for (unsigned i = 0; i < o.get_nr_entries(); i++)
+					tm_->prefetch(o.value_at(i));
+
 				for (unsigned i = 0; i < o.get_nr_entries(); i++) {
 					node_location loc2(loc);
 
@@ -836,6 +839,7 @@ namespace persistent_data {
 
 					walk_tree(v, loc2, o.value_at(i));
 				}
+			}
 
 		} else if (loc.path.size() < Levels - 1) {
 			if (v.visit_internal_leaf(loc, o))

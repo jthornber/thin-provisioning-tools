@@ -66,6 +66,10 @@ namespace persistent_data {
 			return bm_;
 		}
 
+		void prefetch(block_address b) {
+			bm_->prefetch(b);
+		}
+
 	private:
 		void add_shadow(block_address b);
 		void remove_shadow(block_address b);

@@ -55,11 +55,6 @@ namespace persistent_data {
 			      unsigned max_concurrent_locks,
 			      mode m);
 
-		enum block_type {
-			BT_SUPERBLOCK,
-			BT_NORMAL
-		};
-
 		typedef void (*put_behaviour_fn)(block_cache &, block_cache::block &);
 
 		class read_ref {
@@ -142,6 +137,7 @@ namespace persistent_data {
 
 		block_address get_nr_blocks() const;
 
+		void prefetch(block_address b) const;
 		void flush() const;
 
 
