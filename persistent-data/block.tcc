@@ -39,7 +39,6 @@ namespace {
 	int const DEFAULT_MODE = 0666;
 	unsigned const SECTOR_SHIFT = 9;
 
-	 // FIXME: these will slow it down until we start doing async io.
 	int const OPEN_FLAGS = O_DIRECT;
 
 	// FIXME: introduce a new exception for this, or at least lift this

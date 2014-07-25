@@ -149,7 +149,6 @@ namespace persistent_data {
 		void check(block_address b) const;
 
 		int fd_;
-
 		mutable block_cache bc_;
 	};
 
