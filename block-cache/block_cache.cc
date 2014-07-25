@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <iostream>
+#include <stdexcept>
 
 //----------------------------------------------------------------
 
@@ -176,7 +177,6 @@ namespace bcache {
 	int
 	block_cache::issue_read(block &b)
 	{
-		std::cerr << "issuing read - that's a shame: " << b.index_ << "\n";
 		assert(!test_flags(b, IO_PENDING));
 		return issue_low_level(b, IO_CMD_PREAD, "read");
 	}
@@ -359,7 +359,7 @@ namespace bcache {
 		if (!b) {
 			if (list_empty(&clean_)) {
 				if (list_empty(&io_pending_))
-					writeback(9000);
+					writeback(16);
 				wait_io();
 			}
 
@@ -566,7 +566,6 @@ namespace bcache {
 	{
 		block *b, *tmp;
 
-		std::cerr << "in flush\n";
 		list_for_each_entry_safe (b, tmp, &dirty_, list_) {
 			if (b->ref_count_ || test_flags(*b, IO_PENDING))
 				// The superblock may well be still locked.
@@ -575,9 +574,7 @@ namespace bcache {
 			issue_write(*b);
 		}
 
-		std::cerr << "issued all writes\n";
 		wait_all();
-		std::cerr << "wait all returned\n";
 
 		return list_empty(&errored_) ? 0 : -EIO;
 	}

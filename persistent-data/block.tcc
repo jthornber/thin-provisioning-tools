@@ -105,102 +105,39 @@ namespace {
 };
 
 namespace persistent_data {
+
+	inline void read_put(block_cache &bc, block_cache::block &b) {
+		bc.put(b, 0);
+	}
+
+	inline void write_put(block_cache &bc, block_cache::block &b) {
+		bc.put(b, block_cache::PF_DIRTY);
+	}
+
+	inline void super_put(block_cache &bc, block_cache::block &b) {
+		bc.flush();
+		bc.put(b, block_cache::PF_DIRTY);
+		bc.flush();
+	}
+
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::block::block(block_cache &bc,
-					       block_address location,
-					       block_type bt,
-					       typename validator::ptr v,
-					       bool zero)
+	block_manager<BlockSize>::read_ref::read_ref(block_cache &bc,
+						     block_cache::block &b,
+						     put_behaviour_fn fn)
 		: bc_(bc),
-		  bt_(bt),
-		  dirty_(false),
-		  unlocked_(false)
-	{
-		if (zero) {
-			internal_ = &bc.get(location, block_cache::GF_ZERO | block_cache::GF_CAN_BLOCK, v);
-			dirty_ = true;
-		} else {
-			internal_ = &bc.get(location, block_cache::GF_CAN_BLOCK, v);
-		}
-	}
-
-	template <uint32_t BlockSize>
-	block_manager<BlockSize>::block::~block()
-	{
-		if (!unlocked_)
-			unlock();
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::block::unlock()
-	{
-		bc_.put(*internal_, dirty_ ? block_cache::PF_DIRTY : 0);
-		unlocked_ = true;
-	}
-
-	template <uint32_t BlockSize>
-	typename block_manager<BlockSize>::block_type
-	block_manager<BlockSize>::block::get_type() const
-	{
-		return bt_;
-	}
-
-	template <uint32_t BlockSize>
-	uint64_t
-	block_manager<BlockSize>::block::get_location() const
-	{
-		check_not_unlocked();
-		return internal_->get_index();
-	}
-
-	template <uint32_t BlockSize>
-	void const *
-	block_manager<BlockSize>::block::get_data() const
-	{
-		return internal_->get_data();
-	}
-
-	template <uint32_t BlockSize>
-	void *
-	block_manager<BlockSize>::block::get_data()
-	{
-		return internal_->get_data();
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::block::mark_dirty()
-	{
-		check_not_unlocked();
-		dirty_ = true;
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::block::check_not_unlocked() const
-	{
-		if (unlocked_)
-			throw std::runtime_error("block prematurely unlocked");
-	}
-
-	//----------------------------------------------------------------
-
-	template <uint32_t BlockSize>
-	block_manager<BlockSize>::read_ref::read_ref(block_manager<BlockSize> const &bm,
-						     typename block::ptr b)
-		: bm_(&bm),
-		block_(b),
-		holders_(new unsigned)
+		  b_(b),
+		  fn_(fn),
+		  holders_(new unsigned)
 	{
 		*holders_ = 1;
 	}
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::read_ref::read_ref(read_ref const &rhs)
-		: bm_(rhs.bm_),
-		block_(rhs.block_),
-		holders_(rhs.holders_)
+		: bc_(rhs.bc_),
+		  b_(rhs.b_),
+		  fn_(rhs.fn_),
+		  holders_(rhs.holders_)
 	{
 		(*holders_)++;
 	}
@@ -209,13 +146,7 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_ref::~read_ref()
 	{
 		if (!--(*holders_)) {
-			if (block_->get_type() == BT_SUPERBLOCK) {
-				bm_->flush();
-				block_->unlock();
-				bm_->flush();
-			} else
-				block_->unlock();
-
+			fn_(bc_, b_);
 			delete holders_;
 		}
 	}
@@ -225,8 +156,9 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_ref::operator =(read_ref const &rhs)
 	{
 		if (this != &rhs) {
-			block_ = rhs.block_;
-			bm_ = rhs.bm_;
+			bc_ = rhs.bc_;
+			b_ = rhs.b_;
+			fn_ = rhs.fn_;
 			holders_ = rhs.holders_;
 			(*holders_)++;
 		}
@@ -238,31 +170,40 @@ namespace persistent_data {
 	block_address
 	block_manager<BlockSize>::read_ref::get_location() const
 	{
-		return block_->get_location();
+		return b_.get_index();
 	}
 
 	template <uint32_t BlockSize>
 	void const *
 	block_manager<BlockSize>::read_ref::data() const
 	{
-		return block_->get_data();
+		return b_.get_data();
 	}
 
 	//--------------------------------
 
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::write_ref::write_ref(block_manager<BlockSize> const &bm,
-						       typename block::ptr b)
-		: read_ref(bm, b)
+	block_manager<BlockSize>::write_ref::write_ref(block_cache &bc,
+						       block_cache::block &b,
+						       put_behaviour_fn fn)
+		: read_ref(bc, b, fn)
 	{
-		b->mark_dirty();
 	}
 
 	template <uint32_t BlockSize>
 	void *
 	block_manager<BlockSize>::write_ref::data()
 	{
-		return read_ref::block_->get_data();
+		return read_ref::b_.get_data();
+	}
+
+	//--------------------------------
+
+	template <uint32_t BlockSize>
+	block_manager<BlockSize>::super_ref::super_ref(block_cache &bc,
+						       block_cache::block &b,
+						       put_behaviour_fn fn)
+		: write_ref(bc, b, fn) {
 	}
 
 	//----------------------------------------------------------------
@@ -282,8 +223,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_lock(block_address location,
 					    typename bcache::validator::ptr v) const
 	{
-		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
-		return read_ref(*this, b);
+		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
+		return read_ref(bc_, b, read_put);
 	}
 
 	template <uint32_t BlockSize>
@@ -291,8 +232,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock(block_address location,
 					     typename bcache::validator::ptr v)
 	{
-		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, false));
-		return write_ref(*this, b);
+		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
+		return write_ref(bc_, b, write_put);
 	}
 
 	template <uint32_t BlockSize>
@@ -300,8 +241,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock_zero(block_address location,
 						  typename bcache::validator::ptr v)
 	{
-		typename block::ptr b(new block(bc_, location, BT_NORMAL, v, true));
-		return write_ref(*this, b);
+		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK | block_cache::GF_ZERO, v);
+		return write_ref(bc_, b, write_put);
 	}
 
 	template <uint32_t BlockSize>
@@ -309,8 +250,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock(block_address location,
 					     typename bcache::validator::ptr v)
 	{
-		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, false));
-		return write_ref(*this, b);
+		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
+		return super_ref(bc_, b, super_put);
 	}
 
 	template <uint32_t BlockSize>
@@ -318,8 +259,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock_zero(block_address location,
 						  typename bcache::validator::ptr v)
 	{
-		typename block::ptr b(new block(bc_, location, BT_SUPERBLOCK, v, true));
-		return write_ref(*this, b);
+		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK | block_cache::GF_ZERO, v);
+		return super_ref(bc_, b, super_put);
 	}
 
 	template <uint32_t BlockSize>
@@ -327,13 +268,6 @@ namespace persistent_data {
 	block_manager<BlockSize>::get_nr_blocks() const
 	{
 		return bc_.get_nr_blocks();
-	}
-
-	template <uint32_t BlockSize>
-	void
-	block_manager<BlockSize>::write_block(typename block::ptr b) const
-	{
-		b->flush();
 	}
 
 	template <uint32_t BlockSize>

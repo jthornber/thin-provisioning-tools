@@ -1,7 +1,6 @@
 #ifndef BLOCK_CACHE_H
 #define BLOCK_CACHE_H
 
-#include "block-cache/buffer.h"
 #include "block-cache/list.h"
 
 #include <boost/shared_ptr.hpp>

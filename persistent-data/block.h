@@ -20,7 +20,6 @@
 #define BLOCK_H
 
 #include "block-cache/block_cache.h"
-#include "block-cache/buffer.h"
 
 #include <stdint.h>
 #include <map>
@@ -61,61 +60,28 @@ namespace persistent_data {
 			BT_NORMAL
 		};
 
-		// FIXME: eventually this will disappear to be replaced with block_cache::block
-		struct block : private boost::noncopyable {
-			typedef boost::shared_ptr<block> ptr;
-
-			block(block_cache &bc,
-			      block_address location,
-			      block_type bt,
-			      typename bcache::validator::ptr v,
-			      bool zero = false);
-			~block();
-
-			void check_read_lockable() const {
-				// FIXME: finish
-			}
-
-			void check_write_lockable() const {
-				// FIXME: finish
-			}
-
-			block_type get_type() const;
-			uint64_t get_location() const;
-
-			void const *get_data() const;
-			void *get_data();
-
-			void mark_dirty();
-			void unlock();
-
-		private:
-			void check_not_unlocked() const;
-
-			block_cache &bc_;
-			block_cache::block *internal_;
-			block_type bt_;
-			bool dirty_;
-			bool unlocked_;
-		};
+		typedef void (*put_behaviour_fn)(block_cache &, block_cache::block &);
 
 		class read_ref {
 		public:
 			static uint32_t const BLOCK_SIZE = BlockSize;
 
-			read_ref(block_manager<BlockSize> const &bm,
-				 typename block::ptr b);
+			read_ref(block_cache &bc,
+				 block_cache::block &b,
+				 put_behaviour_fn fn);
+
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
 
 			read_ref const &operator =(read_ref const &rhs);
 
 			block_address get_location() const;
-			void const * data() const;
+			void const *data() const;
 
 		protected:
-			block_manager<BlockSize> const *bm_;
-			typename block::ptr block_;
+			block_cache &bc_;
+			block_cache::block &b_;
+			put_behaviour_fn fn_;
 			unsigned *holders_;
 		};
 
@@ -123,11 +89,22 @@ namespace persistent_data {
 		// locked.
 		class write_ref : public read_ref {
 		public:
-			write_ref(block_manager<BlockSize> const &bm,
-				  typename block::ptr b);
+			write_ref(block_cache &bc,
+				  block_cache::block &b,
+				  put_behaviour_fn fn);
 
 			using read_ref::data;
 			void *data();
+		};
+
+		class super_ref : public write_ref {
+		public:
+			super_ref(block_cache &bc,
+				  block_cache::block &b,
+				  put_behaviour_fn fn);
+
+			using read_ref::data;
+			using write_ref::data;
 		};
 
 		// Locking methods
@@ -174,11 +151,9 @@ namespace persistent_data {
 
 	private:
 		void check(block_address b) const;
-		void write_block(typename block::ptr b) const;
 
 		int fd_;
 
-		// FIXME: the mutable is a fudge to allow flush() to be const, which I'm not sure is necc.
 		mutable block_cache bc_;
 	};
 
