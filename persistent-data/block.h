@@ -20,7 +20,7 @@
 #define BLOCK_H
 
 #include "block-cache/block_cache.h"
-#include "persistent-data/buffer.h"
+#include "block-cache/buffer.h"
 
 #include <stdint.h>
 #include <map>
@@ -35,6 +35,8 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
+	using namespace bcache;
+
 
 	uint32_t const MD_BLOCK_SIZE = 4096;
 
@@ -77,10 +79,11 @@ namespace persistent_data {
 			BT_NORMAL
 		};
 
+		// FIXME: eventually this will disappear to be replaced with block_cache::block
 		struct block : private boost::noncopyable {
 			typedef boost::shared_ptr<block> ptr;
 
-			block(block_cache *bc,
+			block(block_cache &bc,
 			      block_address location,
 			      block_type bt,
 			      typename validator::ptr v,
@@ -110,7 +113,8 @@ namespace persistent_data {
 		private:
 			void check_not_unlocked() const;
 
-			bc_block *internal_;
+			block_cache &bc_;
+			block_cache::block *internal_;
 			typename validator::ptr validator_;
 			block_type bt_;
 			bool dirty_;
@@ -196,7 +200,9 @@ namespace persistent_data {
 		void write_block(typename block::ptr b) const;
 
 		int fd_;
-		block_cache *bc_;
+
+		// FIXME: the mutable is a fudge to allow flush() to be const, which I'm not sure is necc.
+		mutable block_cache bc_;
 	};
 
 	// A little utility to help build validators

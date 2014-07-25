@@ -34,7 +34,7 @@ namespace {
 
 	struct btree_node_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
-			disk_node const *data = reinterpret_cast<disk_node const *>(&b);
+			disk_node const *data = reinterpret_cast<disk_node const *>(b.raw());
 			node_header const *n = &data->header;
 			crc32c sum(BTREE_CSUM_XOR);
 			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -46,7 +46,7 @@ namespace {
 		}
 
 		virtual void prepare(buffer<> &b, block_address location) const {
-			disk_node *data = reinterpret_cast<disk_node *>(&b);
+			disk_node *data = reinterpret_cast<disk_node *>(b.raw());
 			node_header *n = &data->header;
 			n->blocknr = to_disk<base::le64, uint64_t>(location);
 

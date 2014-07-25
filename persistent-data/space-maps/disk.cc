@@ -39,7 +39,7 @@ namespace {
 
 	struct bitmap_block_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
-			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(&b);
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(b.raw());
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
@@ -50,7 +50,7 @@ namespace {
 		}
 
 		virtual void prepare(buffer<> &b, block_address location) const {
-			bitmap_header *data = reinterpret_cast<bitmap_header *>(&b);
+			bitmap_header *data = reinterpret_cast<bitmap_header *>(b.raw());
 			data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(BITMAP_CSUM_XOR);
@@ -66,7 +66,8 @@ namespace {
 	// FIXME: factor out the common code in these validators
 	struct index_block_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
-			metadata_index const *mi = reinterpret_cast<metadata_index const *>(&b);
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(b.raw());
+			std::cerr << "check mi = " << mi << "\n";
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
@@ -77,7 +78,8 @@ namespace {
 		}
 
 		virtual void prepare(buffer<> &b, block_address location) const {
-			metadata_index *mi = reinterpret_cast<metadata_index *>(&b);
+			metadata_index *mi = reinterpret_cast<metadata_index *>(b.raw());
+			std::cerr << "prepare mi = " << mi << "\n";
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(INDEX_CSUM_XOR);
@@ -630,7 +632,7 @@ namespace {
 				tm_->shadow(bitmap_root_, index_validator());
 
 			bitmap_root_ = p.first.get_location();
-			metadata_index *mdi = reinterpret_cast<metadata_index *>(&p.first.data());
+			metadata_index *mdi = reinterpret_cast<metadata_index *>(p.first.data().raw());
 
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::pack(entries_[i], mdi->index[i]);

@@ -212,7 +212,7 @@ namespace era_validator {
 	// FIXME: turn into a template, we have 3 similar classes now
 	struct sb_validator : public block_manager<>::validator {
 		virtual void check(buffer<> const &b, block_address location) const {
-			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&b);
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(b.raw());
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
@@ -220,7 +220,7 @@ namespace era_validator {
 		}
 
 		virtual void prepare(buffer<> &b, block_address location) const {
-			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(&b);
+			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(b.raw());
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			sbd->csum = to_disk<base::le32>(sum.get_sum());

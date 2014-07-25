@@ -1,54 +1,173 @@
 #ifndef BLOCK_CACHE_H
 #define BLOCK_CACHE_H
 
+#include "block-cache/buffer.h"
+#include "block-cache/list.h"
+
+#include <boost/shared_ptr.hpp>
+#include <boost/noncopyable.hpp>
+
+#include <libaio.h>
+#include <memory>
 #include <stdint.h>
 #include <stdlib.h>
+#include <vector>
 
-/*----------------------------------------------------------------*/
+//----------------------------------------------------------------
 
-/* FIXME: add logging */
+namespace bcache {
+#if 0
+	class validator {
+	public:
+		typedef boost::shared_ptr<validator> ptr;
 
-/*----------------------------------------------------------------*/
+		virtual ~validator() {}
 
-/*
- * This library is not thread-safe.
- */
-typedef uint64_t block_index;
+		virtual void check(buffer<BlockSize> const &b, block_address location) const = 0;
+		virtual void prepare(buffer<BlockSize> &b, block_address location) const = 0;
+	};
 
-struct block_cache;
+	class noop_validator : public validator {
+	public:
+		void check(buffer<BlockSize> const &b, block_address location) const {}
+		void prepare(buffer<BlockSize> &b, block_address location) const {}
+	};
+#endif
+	//----------------------------------------------------------------
 
-struct bc_block {
-	block_index index;
-	void *data;
-};
+	// FIXME: throw exceptions rather than returning errors
+	class block_cache : private boost::noncopyable {
+	public:
+		enum block_flags {
+			IO_PENDING = (1 << 0),
+			DIRTY = (1 << 1)
+		};
 
-typedef uint64_t sector_t;
+		class block : private boost::noncopyable {
+		public:
+			uint64_t get_index() const {
+				return index_;
+			}
 
-struct block_cache *block_cache_create(int fd, sector_t block_size,
-				       uint64_t max_nr_blocks, size_t mem);
-void block_cache_destroy(struct block_cache *bc);
+			void *get_data() const {
+				return data_;
+			}
 
-uint64_t block_cache_get_nr_blocks(struct block_cache *bc);
+		private:
+			friend class block_cache;
 
-enum get_flags {
-	GF_ZERO = (1 << 0),
-	GF_CAN_BLOCK = (1 << 1)
-};
-struct bc_block *block_cache_get(struct block_cache *bc, block_index index, unsigned flags);
+			uint64_t index_;
+			void *data_;
 
-enum put_flags {
-	PF_DIRTY = (1 << 0),
-};
-void block_cache_put(struct bc_block *b, unsigned flags);
+			list_head list_;
+			list_head hash_list_;
 
-/*
- * Flush can fail if an earlier write failed.  You do not know which block
- * failed.  Make sure you build your recovery with this in mind.
- */
-int block_cache_flush(struct block_cache *bc);
+			block_cache *bc_;
+			unsigned ref_count_;
 
-void block_cache_prefetch(struct block_cache *bc, block_index index);
+			int error_;
+			unsigned flags_;
 
-/*----------------------------------------------------------------*/
+			iocb control_block_;
+		};
+
+		typedef uint64_t block_index;
+		typedef uint64_t sector_t;
+
+		//--------------------------------
+
+		block_cache(int fd, sector_t block_size,
+			    uint64_t max_nr_blocks, size_t mem);
+		~block_cache();
+
+		uint64_t get_nr_blocks() const;
+
+		enum get_flags {
+			GF_ZERO = (1 << 0),
+			GF_CAN_BLOCK = (1 << 1)
+		};
+
+		// FIXME: what if !GF_CAN_BLOCK?
+		block_cache::block &get(block_index index, unsigned flags);
+
+		enum put_flags {
+			PF_DIRTY = (1 << 0),
+		};
+
+		void put(block_cache::block &block, unsigned flags);
+
+		/*
+		 * Flush can fail if an earlier write failed.  You do not know which block
+		 * failed.  Make sure you build your recovery with this in mind.
+		 */
+		int flush();
+		void prefetch(block_index index);
+
+	private:
+		int init_free_list(unsigned count);
+		block *__alloc_block();
+		void complete_io(block &b, int result);
+		int issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc);
+		int issue_read(block &b);
+		int issue_write(block &b);
+		void wait_io();
+		list_head *__categorise(block &b);
+		void hit(block &b);
+		void wait_all();
+		void wait_specific(block &b);
+		unsigned writeback(unsigned count);
+		void hash_init(unsigned nr_buckets);
+		unsigned hash(uint64_t index);
+		block *hash_lookup(block_index index);
+		void hash_insert(block &b);
+		void hash_remove(block &b);
+		void setup_control_block(block &b);
+		block *new_block(block_index index);
+		void mark_dirty(block &b);
+		unsigned calc_nr_cache_blocks(size_t mem, sector_t block_size);
+		unsigned calc_nr_buckets(unsigned nr_blocks);
+		void zero_block(block &b);
+		block *lookup_or_read_block(block_index index, unsigned flags);
+		unsigned test_flags(block &b, unsigned flags);
+		void clear_flags(block &b, unsigned flags);
+		void set_flags(block &b, unsigned flags);
+
+		//--------------------------------
+
+		int fd_;
+		sector_t block_size_;
+		uint64_t nr_data_blocks_;
+		uint64_t nr_cache_blocks_;
+
+		std::auto_ptr<unsigned char> blocks_memory_; // FIXME: change to a vector
+		std::auto_ptr<unsigned char> blocks_data_;
+
+		io_context_t aio_context_;
+		std::vector<io_event> events_;
+
+		/*
+		 * Blocks on the free list are not initialised, apart from the
+		 * b.data field.
+		 */
+		list_head free_;
+		list_head errored_;
+		list_head dirty_;
+		list_head clean_;
+
+		unsigned nr_io_pending_;
+		struct list_head io_pending_;
+
+		unsigned nr_dirty_;
+
+		/*
+		 * Hash table fields.
+		 */
+		unsigned nr_buckets_;
+		unsigned mask_;
+		std::vector<list_head> buckets_;
+	};
+}
+
+//----------------------------------------------------------------
 
 #endif

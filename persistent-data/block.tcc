@@ -40,7 +40,7 @@ namespace {
 	unsigned const SECTOR_SHIFT = 9;
 
 	 // FIXME: these will slow it down until we start doing async io.
-	int const OPEN_FLAGS = O_DIRECT | O_SYNC;
+	int const OPEN_FLAGS = O_DIRECT;
 
 	// FIXME: introduce a new exception for this, or at least lift this
 	// to exception.h
@@ -106,31 +106,27 @@ namespace {
 
 namespace persistent_data {
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::block::block(block_cache *bc,
+	block_manager<BlockSize>::block::block(block_cache &bc,
 					       block_address location,
 					       block_type bt,
 					       typename validator::ptr v,
 					       bool zero)
-		: validator_(v),
-		bt_(bt),
-		dirty_(false),
-		unlocked_(false),
-		buffer_(0, true) // FIXME: we don't know if it's writeable here :(
+		: bc_(bc),
+		  validator_(v),
+		  bt_(bt),
+		  dirty_(false),
+		  unlocked_(false),
+		  buffer_(0, true) // FIXME: we don't know if it's writeable here :(
 	{
 		if (zero) {
-			internal_ = block_cache_get(bc, location, GF_ZERO | GF_CAN_BLOCK);
-			if (!internal_)
-				throw std::runtime_error("Couldn't get block");
+			internal_ = &bc.get(location, block_cache::GF_ZERO | block_cache::GF_CAN_BLOCK);
 			dirty_ = true;
+			buffer_.set_data(internal_->get_data());
 		} else {
-			internal_ = block_cache_get(bc, location, GF_CAN_BLOCK);
-			if (!internal_)
-				throw std::runtime_error("Couldn't get block");
-
-			validator_->check(buffer_, internal_->index);
+			internal_ = &bc.get(location, block_cache::GF_CAN_BLOCK);
+			buffer_.set_data(internal_->get_data());
+			validator_->check(buffer_, internal_->get_index());
 		}
-
-		buffer_.set_data(internal_->data);
 	}
 
 	template <uint32_t BlockSize>
@@ -144,8 +140,9 @@ namespace persistent_data {
 	void
 	block_manager<BlockSize>::block::unlock()
 	{
-		validator_->prepare(buffer_, internal_->index);
-		block_cache_put(internal_, dirty_ ? PF_DIRTY : 0);
+		if (dirty_)
+			validator_->prepare(buffer_, internal_->get_index());
+		bc_.put(*internal_, dirty_ ? block_cache::PF_DIRTY : 0);
 		unlocked_ = true;
 	}
 
@@ -161,7 +158,7 @@ namespace persistent_data {
 	block_manager<BlockSize>::block::get_location() const
 	{
 		check_not_unlocked();
-		return internal_->index;
+		return internal_->get_index();
 	}
 
 	template <uint32_t BlockSize>
@@ -196,12 +193,12 @@ namespace persistent_data {
 			if (dirty_)
 				// It may have already happened, by calling
 				// this we ensure we're consistent.
-				validator_->prepare(*internal_->data, internal_->index);
+				validator_->prepare(*internal_->get_data(), internal_->get_index());
 
 			validator_ = v;
 
 			if (check)
-				validator_->check(*internal_->data, internal_->index);
+				validator_->check(*internal_->get_data(), internal_->get_index());
 		}
 	}
 
@@ -301,14 +298,9 @@ namespace persistent_data {
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
 						mode m)
+		: fd_(open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE)),
+		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 4)
 	{
-		// Open the file descriptor
-		fd_ = open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE);
-
-		// Create the cache
-		bc_ = block_cache_create(fd_, BlockSize << SECTOR_SHIFT, nr_blocks, 1024u * BlockSize * 1.2);
-		if (!bc_)
-			throw std::runtime_error("couldn't create block cache");
 	}
 
 	template <uint32_t BlockSize>
@@ -360,7 +352,7 @@ namespace persistent_data {
 	block_address
 	block_manager<BlockSize>::get_nr_blocks() const
 	{
-		return block_cache_get_nr_blocks(bc_);
+		return bc_.get_nr_blocks();
 	}
 
 	template <uint32_t BlockSize>
@@ -374,7 +366,7 @@ namespace persistent_data {
 	void
 	block_manager<BlockSize>::flush() const
 	{
-		block_cache_flush(bc_);
+		bc_.flush();
 	}
 }
 
