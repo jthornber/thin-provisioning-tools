@@ -104,50 +104,23 @@ namespace {
 };
 
 namespace persistent_data {
-
-	inline void read_put(block_cache &bc, block_cache::block &b) {
-		bc.put(b, 0);
-	}
-
-	inline void write_put(block_cache &bc, block_cache::block &b) {
-		bc.put(b, block_cache::PF_DIRTY);
-	}
-
-	inline void super_put(block_cache &bc, block_cache::block &b) {
-		bc.flush();
-		bc.put(b, block_cache::PF_DIRTY);
-		bc.flush();
-	}
-
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::read_ref::read_ref(block_cache &bc,
-						     block_cache::block &b,
-						     put_behaviour_fn fn)
-		: bc_(bc),
-		  b_(b),
-		  fn_(fn),
-		  holders_(new unsigned)
+	block_manager<BlockSize>::read_ref::read_ref(block_cache::block &b)
+		: b_(b)
 	{
-		*holders_ = 1;
 	}
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::read_ref::read_ref(read_ref const &rhs)
-		: bc_(rhs.bc_),
-		  b_(rhs.b_),
-		  fn_(rhs.fn_),
-		  holders_(rhs.holders_)
+		: b_(rhs.b_)
 	{
-		(*holders_)++;
+		b_.get();
 	}
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::read_ref::~read_ref()
 	{
-		if (!--(*holders_)) {
-			fn_(bc_, b_);
-			delete holders_;
-		}
+		b_.put();
 	}
 
 	template <uint32_t BlockSize>
@@ -155,11 +128,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_ref::operator =(read_ref const &rhs)
 	{
 		if (this != &rhs) {
-			bc_ = rhs.bc_;
 			b_ = rhs.b_;
-			fn_ = rhs.fn_;
-			holders_ = rhs.holders_;
-			(*holders_)++;
+			b_.get();
 		}
 
 		return *this;
@@ -182,10 +152,8 @@ namespace persistent_data {
 	//--------------------------------
 
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::write_ref::write_ref(block_cache &bc,
-						       block_cache::block &b,
-						       put_behaviour_fn fn)
-		: read_ref(bc, b, fn)
+	block_manager<BlockSize>::write_ref::write_ref(block_cache::block &b)
+		: read_ref(b)
 	{
 	}
 
@@ -199,10 +167,9 @@ namespace persistent_data {
 	//--------------------------------
 
 	template <uint32_t BlockSize>
-	block_manager<BlockSize>::super_ref::super_ref(block_cache &bc,
-						       block_cache::block &b,
-						       put_behaviour_fn fn)
-		: write_ref(bc, b, fn) {
+	block_manager<BlockSize>::super_ref::super_ref(block_cache::block &b)
+		: write_ref(b)
+	{
 	}
 
 	//----------------------------------------------------------------
@@ -213,7 +180,7 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						mode m)
 		: fd_(open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE)),
-		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 256)
+		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16)
 	{
 	}
 
@@ -222,8 +189,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::read_lock(block_address location,
 					    typename bcache::validator::ptr v) const
 	{
-		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
-		return read_ref(bc_, b, read_put);
+		block_cache::block &b = bc_.get(location, 0, v);
+		return read_ref(b);
 	}
 
 	template <uint32_t BlockSize>
@@ -231,8 +198,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock(block_address location,
 					     typename bcache::validator::ptr v)
 	{
-		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
-		return write_ref(bc_, b, write_put);
+		block_cache::block &b = bc_.get(location, block_cache::GF_DIRTY, v);
+		return write_ref(b);
 	}
 
 	template <uint32_t BlockSize>
@@ -240,8 +207,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_lock_zero(block_address location,
 						  typename bcache::validator::ptr v)
 	{
-		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK | block_cache::GF_ZERO, v);
-		return write_ref(bc_, b, write_put);
+		block_cache::block &b = bc_.get(location, block_cache::GF_ZERO, v);
+		return write_ref(b);
 	}
 
 	template <uint32_t BlockSize>
@@ -249,8 +216,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock(block_address location,
 					     typename bcache::validator::ptr v)
 	{
-		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK, v);
-		return super_ref(bc_, b, super_put);
+		block_cache::block &b = bc_.get(location, block_cache::GF_BARRIER, v);
+		return super_ref(b);
 	}
 
 	template <uint32_t BlockSize>
@@ -258,8 +225,8 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock_zero(block_address location,
 						  typename bcache::validator::ptr v)
 	{
-		block_cache::block &b = bc_.get(location, block_cache::GF_CAN_BLOCK | block_cache::GF_ZERO, v);
-		return super_ref(bc_, b, super_put);
+		block_cache::block &b = bc_.get(location, block_cache::GF_ZERO | block_cache::GF_BARRIER, v);
+		return super_ref(b);
 	}
 
 	template <uint32_t BlockSize>

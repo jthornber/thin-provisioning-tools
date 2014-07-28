@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <sstream>
 
 //----------------------------------------------------------------
 
@@ -126,14 +127,14 @@ namespace bcache {
 	block_cache::complete_io(block &b, int result)
 	{
 		b.error_ = result;
-		clear_flags(b, IO_PENDING);
+		b.clear_flags(BF_IO_PENDING);
 		nr_io_pending_--;
 
 		if (b.error_)
 			list_move_tail(&b.list_, &errored_);
 		else {
-			if (test_flags(b, DIRTY)) {
-				clear_flags(b, DIRTY);
+			if (b.test_flags(BF_DIRTY)) {
+				b.clear_flags(BF_DIRTY | BF_PREVIOUSLY_DIRTY);
 				nr_dirty_--;
 			}
 
@@ -152,8 +153,8 @@ namespace bcache {
 		iocb *control_blocks[1];
 
 		// FIXME: put this back in
-		assert(!test_flags(b, IO_PENDING));
-		set_flags(b, IO_PENDING);
+		assert(!b.test_flags(BF_IO_PENDING));
+		b.set_flags(BF_IO_PENDING);
 		nr_io_pending_++;
 		list_move_tail(&b.list_, &io_pending_);
 
@@ -177,14 +178,14 @@ namespace bcache {
 	int
 	block_cache::issue_read(block &b)
 	{
-		assert(!test_flags(b, IO_PENDING));
+		assert(!b.test_flags(BF_IO_PENDING));
 		return issue_low_level(b, IO_CMD_PREAD, "read");
 	}
 
 	int
 	block_cache::issue_write(block &b)
 	{
-		assert(!test_flags(b, IO_PENDING));
+		assert(!b.test_flags(BF_IO_PENDING));
 		b.v_->prepare(b.data_, b.index_);
 		return issue_low_level(b, IO_CMD_PWRITE, "write");
 	}
@@ -213,7 +214,8 @@ namespace bcache {
 				complete_io(*b, e.res);
 
 			else
-				info("incomplete io, unexpected: %d\n", r);
+				info("incomplete io for block %llu, unexpected: %d\n",
+				     b->index_, e.res);
 		}
 	}
 
@@ -231,7 +233,7 @@ namespace bcache {
 		if (b.error_)
 			return &errored_;
 
-		return (b.flags_ & DIRTY) ? &dirty_ : &clean_;
+		return b.test_flags(BF_DIRTY) ? &dirty_ : &clean_;
 	}
 
 	void
@@ -253,7 +255,7 @@ namespace bcache {
 	void
 	block_cache::wait_specific(block &b)
 	{
-		while (test_flags(b, IO_PENDING))
+		while (b.test_flags(BF_IO_PENDING))
 			wait_io();
 	}
 
@@ -262,12 +264,16 @@ namespace bcache {
 	{
 		int r;
 		block *b, *tmp;
-		unsigned actual = 0;
+		unsigned actual = 0, dirty_length = 0;
 
 		list_for_each_entry_safe (b, tmp, &dirty_, list_) {
+			dirty_length++;
+
 			if (actual == count)
 				break;
 
+			// The block may be on the dirty list from a prior
+			// acquisition.
 			if (b->ref_count_)
 				continue;
 
@@ -276,7 +282,7 @@ namespace bcache {
 				actual++;
 		}
 
-		info("writeback: requested %u, actual %u\n", count, actual);
+		info("writeback: requested %u, actual %u, dirty length %u\n", count, actual, dirty_length);
 		return actual;
 	}
 
@@ -377,7 +383,7 @@ namespace bcache {
 			b->ref_count_ = 0;
 
 			b->error_ = 0;
-			clear_flags(*b, IO_PENDING | DIRTY);
+			b->flags_ = 0;
 
 			b->index_ = index;
 			setup_control_block(*b);
@@ -391,16 +397,6 @@ namespace bcache {
 	/*----------------------------------------------------------------
 	 * Block reference counting
 	 *--------------------------------------------------------------*/
-	void
-	block_cache::mark_dirty(block &b)
-	{
-		if (!test_flags(b, DIRTY)) {
-			set_flags(b, DIRTY);
-			list_move_tail(&b.list_, &dirty_);
-			nr_dirty_++;
-		}
-	}
-
 	unsigned
 	block_cache::calc_nr_cache_blocks(size_t mem, sector_t block_size)
 	{
@@ -451,8 +447,11 @@ namespace bcache {
 
 		aio_context_ = 0; /* needed or io_setup will fail */
 		r = io_setup(nr_cache_blocks, &aio_context_);
-		if (r < 0)
+		if (r < 0) {
+			std::cerr << "r = " << r << "\n";
+			perror("io_setup failed");
 			throw std::runtime_error("io_setup failed");
+		}
 
 		hash_init(nr_buckets);
 		INIT_LIST_HEAD(&free_);
@@ -485,7 +484,7 @@ namespace bcache {
 	block_cache::zero_block(block &b)
 	{
 		memset(b.data_, 0, block_size_ << SECTOR_SHIFT);
-		mark_dirty(b);
+		b.mark_dirty();
 	}
 
 	block_cache::block *
@@ -495,7 +494,7 @@ namespace bcache {
 		block *b = hash_lookup(index);
 
 		if (b) {
-			if (test_flags(*b, IO_PENDING))
+			if (b->test_flags(BF_IO_PENDING))
 				wait_specific(*b);
 
 			if (flags & GF_ZERO)
@@ -503,24 +502,22 @@ namespace bcache {
 			else {
 				if (b->v_.get() &&
 				    b->v_.get() != v.get() &&
-				    test_flags(*b, DIRTY))
+				    b->test_flags(BF_DIRTY))
 					b->v_->prepare(b->data_, b->index_);
 			}
 			b->v_ = v;
 
 		} else {
-			if (flags & GF_CAN_BLOCK) {
-				b = new_block(index);
-				if (b) {
-					b->v_ = v;
+			b = new_block(index);
+			if (b) {
+				b->v_ = v;
 
-					if (flags & GF_ZERO)
-						zero_block(*b);
-					else {
-						issue_read(*b);
-						wait_specific(*b);
-						v->check(b->data_, b->index_);
-					}
+				if (flags & GF_ZERO)
+					zero_block(*b);
+				else {
+					issue_read(*b);
+					wait_specific(*b);
+					v->check(b->data_, b->index_);
 				}
 			}
 		}
@@ -531,11 +528,22 @@ namespace bcache {
 	block_cache::block &
 	block_cache::get(block_address index, unsigned flags, validator::ptr v)
 	{
+		check_index(index);
+
 		block *b = lookup_or_read_block(index, flags, v);
 
 		if (b) {
+			if (b->ref_count_)
+				throw std::runtime_error("block already locked");
+
 			hit(*b);
 			b->ref_count_++;
+
+			if (flags & GF_BARRIER)
+				b->set_flags(BF_FLUSH);
+
+			if (flags & GF_DIRTY)
+				b->set_flags(BF_DIRTY);
 
 			return *b;
 		}
@@ -544,20 +552,39 @@ namespace bcache {
 	}
 
 	void
-	block_cache::put(block_cache::block &b, unsigned flags)
+	block_cache::preemptive_writeback()
 	{
-		if (b.ref_count_ == 0)
-			throw std::runtime_error("bad put");
+		unsigned nr_available = nr_cache_blocks_ - (nr_dirty_ - nr_io_pending_);
+		if (nr_available < (WRITEBACK_LOW_THRESHOLD_PERCENT * nr_cache_blocks_ / 100))
+			writeback((WRITEBACK_HIGH_THRESHOLD_PERCENT * nr_cache_blocks_ / 100) - nr_available);
 
-		b.ref_count_--;
+	}
 
-		if (flags & PF_DIRTY) {
-			mark_dirty(b);
+	void
+	block_cache::release(block_cache::block &b)
+	{
+		assert(!b.ref_count_);
 
-			// FIXME: factor out
-			unsigned nr_available = nr_cache_blocks_ - (nr_dirty_ - nr_io_pending_);
-			if (nr_available < (WRITEBACK_LOW_THRESHOLD_PERCENT * nr_cache_blocks_ / 100))
-				writeback((WRITEBACK_HIGH_THRESHOLD_PERCENT * nr_cache_blocks_ / 100) - nr_available);
+#if 0
+		if (b.test_flags(BF_FLUSH))
+			flush();
+#endif
+
+		if (b.test_flags(BF_DIRTY)) {
+			if (!b.test_flags(BF_PREVIOUSLY_DIRTY)) {
+				list_move_tail(&b.list_, &dirty_);
+				nr_dirty_++;
+				b.set_flags(BF_PREVIOUSLY_DIRTY);
+			}
+
+#if 0
+			if (b.test_flags(BF_FLUSH))
+				flush();
+			else
+#endif
+				preemptive_writeback();
+
+			b.clear_flags(BF_FLUSH);
 		}
 	}
 
@@ -567,7 +594,7 @@ namespace bcache {
 		block *b, *tmp;
 
 		list_for_each_entry_safe (b, tmp, &dirty_, list_) {
-			if (b->ref_count_ || test_flags(*b, IO_PENDING))
+			if (b->ref_count_ || b->test_flags(BF_IO_PENDING))
 				// The superblock may well be still locked.
 				continue;
 
@@ -582,6 +609,8 @@ namespace bcache {
 	void
 	block_cache::prefetch(block_address index)
 	{
+		check_index(index);
+
 		block *b = hash_lookup(index);
 
 		if (!b) {
@@ -591,24 +620,15 @@ namespace bcache {
 		}
 	}
 
-	//--------------------------------
-
-	unsigned
-	block_cache::test_flags(block &b, unsigned flags)
-	{
-		return b.flags_ & flags;
-	}
-
 	void
-	block_cache::clear_flags(block &b, unsigned flags)
+	block_cache::check_index(block_address index) const
 	{
-		b.flags_ &= ~flags;
-	}
-
-	void
-	block_cache::set_flags(block &b, unsigned flags)
-	{
-		b.flags_ |= flags;
+		if (index >= nr_data_blocks_) {
+			std::ostringstream out;
+			out << "block out of bounds ("
+			    << index << " >= " << nr_data_blocks_ << ")\n";
+			throw std::runtime_error(out.str());
+		}
 	}
 }
 

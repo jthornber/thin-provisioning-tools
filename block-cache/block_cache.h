@@ -6,6 +6,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/noncopyable.hpp>
 
+#include <stdexcept>
 #include <libaio.h>
 #include <memory>
 #include <stdint.h>
@@ -36,12 +37,13 @@ namespace bcache {
 
 	//----------------------------------------------------------------
 
-	// FIXME: throw exceptions rather than returning errors
 	class block_cache : private boost::noncopyable {
 	public:
 		enum block_flags {
-			IO_PENDING = (1 << 0),
-			DIRTY = (1 << 1)
+			BF_IO_PENDING = (1 << 0),
+			BF_DIRTY = (1 << 1),
+			BF_FLUSH = (1 << 2),
+			BF_PREVIOUSLY_DIRTY = (1 << 3)
 		};
 
 		class block : private boost::noncopyable {
@@ -58,8 +60,42 @@ namespace bcache {
 				return data_;
 			}
 
+			void mark_dirty() {
+				flags_ |= BF_DIRTY;
+			}
+
+			void mark_flush() {
+				flags_ |= BF_FLUSH;
+			}
+
+			void set_flags(unsigned flags) {
+				flags_ |= flags;
+			}
+
+			unsigned test_flags(unsigned flags) const {
+				return flags_ & flags;
+			}
+
+			void clear_flags(unsigned flags) {
+				flags_ &= ~flags;
+			}
+
+			void get() {
+				ref_count_++;
+			};
+
+			void put() {
+				if (!ref_count_)
+					throw std::runtime_error("bad put");
+
+				if (!--ref_count_)
+					bc_->release(*this);
+			}
+
 		private:
 			friend class block_cache;
+
+			block_cache *bc_;
 
 			uint64_t index_;
 			void *data_;
@@ -67,7 +103,6 @@ namespace bcache {
 			list_head list_;
 			list_head hash_list_;
 
-			block_cache *bc_;
 			unsigned ref_count_;
 
 			int error_;
@@ -87,17 +122,11 @@ namespace bcache {
 
 		enum get_flags {
 			GF_ZERO = (1 << 0),
-			GF_CAN_BLOCK = (1 << 1)
+			GF_DIRTY = (1 << 1),
+			GF_BARRIER = (1 << 1)
 		};
 
-		// FIXME: what if !GF_CAN_BLOCK?
 		block_cache::block &get(block_address index, unsigned flags, validator::ptr v);
-
-		enum put_flags {
-			PF_DIRTY = (1 << 0),
-		};
-
-		void put(block_cache::block &block, unsigned flags);
 
 		/*
 		 * Flush can fail if an earlier write failed.  You do not know which block
@@ -131,9 +160,10 @@ namespace bcache {
 		unsigned calc_nr_buckets(unsigned nr_blocks);
 		void zero_block(block &b);
 		block *lookup_or_read_block(block_address index, unsigned flags, validator::ptr v);
-		unsigned test_flags(block &b, unsigned flags);
-		void clear_flags(block &b, unsigned flags);
-		void set_flags(block &b, unsigned flags);
+
+		void preemptive_writeback();
+		void release(block_cache::block &block);
+		void check_index(block_address index) const;
 
 		//--------------------------------
 
@@ -169,60 +199,6 @@ namespace bcache {
 		unsigned mask_;
 		std::vector<list_head> buckets_;
 	};
-
-#if 0
-	class auto_lock {
-	public:
-		auto_lock(block_cache &bc, block_address index, bool zero, validator::ptr v, unsigned put_flags)
-			: bc_(bc),
-			  b_(bc.get(index, (zero ? block_cache::GF_ZERO : 0) | block_cache::GF_CAN_BLOCK, v)),
-			  put_flags_(put_flags),
-			  holders_(new unsigned) {
-			*holders_ = 1;
-		}
-
-		virtual ~auto_lock() {
-			bc_.put(b_, put_flags_);
-		}
-
-		auto_lock operator =(auto_lock const &rhs) {
-			if (this != &rhs) {
-				bc_ = rhs.bc_;
-				
-			
-
-		void const *data() const {
-			return b_.get_data();
-		}
-
-	private:
-		block_cache &bc_;
-		block_cache::block &b_;
-		unsigned put_flags_;
-		unsigned *holders_;
-	};
-
-	class auto_read_lock : public auto_lock {
-	public:
-		auto_read_lock(block_cache &bc, block_address index, bool zero, validator::ptr v)
-			: auto_lock(bc, index, zero, v, 0) {
-		}
-
-		using auto_lock::data();
-	};
-
-	class auto_write_lock : public auto_lock {
-	public:
-		auto_write_lock(block_cache &bc, block_address index, bool zero, validator::ptr v)
-			: auto_lock(bc, index, zero, v, block_cache::DIRTY) {
-		}
-
-		using auto_lock::data();
-		void *data() {
-			return b_.get_data();
-		}
-	};
-#endif
 }
 
 //----------------------------------------------------------------

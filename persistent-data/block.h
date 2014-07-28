@@ -55,15 +55,11 @@ namespace persistent_data {
 			      unsigned max_concurrent_locks,
 			      mode m);
 
-		typedef void (*put_behaviour_fn)(block_cache &, block_cache::block &);
-
 		class read_ref {
 		public:
 			static uint32_t const BLOCK_SIZE = BlockSize;
 
-			read_ref(block_cache &bc,
-				 block_cache::block &b,
-				 put_behaviour_fn fn);
+			read_ref(block_cache::block &b);
 
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
@@ -74,19 +70,14 @@ namespace persistent_data {
 			void const *data() const;
 
 		protected:
-			block_cache &bc_;
 			block_cache::block &b_;
-			put_behaviour_fn fn_;
-			unsigned *holders_;
 		};
 
 		// Inherited from read_ref, since you can read a block that's write
 		// locked.
 		class write_ref : public read_ref {
 		public:
-			write_ref(block_cache &bc,
-				  block_cache::block &b,
-				  put_behaviour_fn fn);
+			write_ref(block_cache::block &b);
 
 			using read_ref::data;
 			void *data();
@@ -94,9 +85,7 @@ namespace persistent_data {
 
 		class super_ref : public write_ref {
 		public:
-			super_ref(block_cache &bc,
-				  block_cache::block &b,
-				  put_behaviour_fn fn);
+			super_ref(block_cache::block &b);
 
 			using read_ref::data;
 			using write_ref::data;
