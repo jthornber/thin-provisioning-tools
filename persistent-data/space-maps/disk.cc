@@ -67,7 +67,6 @@ namespace {
 	struct index_block_validator : public bcache::validator {
 		virtual void check(void const *raw, block_address location) const {
 			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
-			std::cerr << "check mi = " << mi << "\n";
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
@@ -79,7 +78,6 @@ namespace {
 
 		virtual void prepare(void *raw, block_address location) const {
 			metadata_index *mi = reinterpret_cast<metadata_index *>(raw);
-			std::cerr << "prepare mi = " << mi << "\n";
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(INDEX_CSUM_XOR);
