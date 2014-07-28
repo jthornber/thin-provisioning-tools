@@ -50,7 +50,11 @@ namespace bcache {
 		public:
 			block()
 				: v_() {
+				INIT_LIST_HEAD(&list_);
 			}
+
+			// Do not give this class a destructor, it wont get
+			// called because we manage allocation ourselves.
 
 			uint64_t get_index() const {
 				return index_;
@@ -61,11 +65,11 @@ namespace bcache {
 			}
 
 			void mark_dirty() {
-				flags_ |= BF_DIRTY;
+				set_flags(BF_DIRTY);
 			}
 
 			void mark_flush() {
-				flags_ |= BF_FLUSH;
+				set_flags(BF_FLUSH);
 			}
 
 			void set_flags(unsigned flags) {
@@ -172,7 +176,7 @@ namespace bcache {
 		uint64_t nr_data_blocks_;
 		uint64_t nr_cache_blocks_;
 
-		std::auto_ptr<unsigned char> blocks_memory_; // FIXME: change to a vector
+		std::auto_ptr<unsigned char> blocks_memory_;
 		std::auto_ptr<unsigned char> blocks_data_;
 
 		io_context_t aio_context_;

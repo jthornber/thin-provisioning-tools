@@ -81,8 +81,7 @@ namespace bcache {
 		blocks_data_.reset(reinterpret_cast<unsigned char *>(data));
 
 		for (i = 0; i < count; i++) {
-			block *b = blocks + i;
-			INIT_LIST_HEAD(&b->list_);
+			block *b = new (blocks + i) block();
 			b->data_ = data + block_size * i;
 
 			list_add(&b->list_, &free_);
@@ -384,6 +383,7 @@ namespace bcache {
 
 			b->error_ = 0;
 			b->flags_ = 0;
+			b->v_ = validator::ptr(new noop_validator);
 
 			b->index_ = index;
 			setup_control_block(*b);
