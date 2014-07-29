@@ -69,7 +69,7 @@ namespace bcache {
 		if (!blocks)
 			return -ENOMEM;
 
-		blocks_memory_.reset(reinterpret_cast<unsigned char *>(blocks));
+		blocks_memory_ = blocks;
 
 		/* Allocate the data for each block.  We page align the data. */
 		data = alloc_aligned(count * block_size, PAGE_SIZE);
@@ -78,7 +78,7 @@ namespace bcache {
 			return -ENOMEM;
 		}
 
-		blocks_data_.reset(reinterpret_cast<unsigned char *>(data));
+		blocks_data_ = data;
 
 		for (i = 0; i < count; i++) {
 			block *b = new (blocks + i) block();
@@ -145,6 +145,7 @@ namespace bcache {
 	 * |b->list| should be valid (either pointing to itself, on one of the other
 	 * lists.
 	 */
+	// FIXME: add batch issue
 	int
 	block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc)
 	{
@@ -162,7 +163,6 @@ namespace bcache {
 		r = io_submit(aio_context_, 1, control_blocks);
 		if (r != 1) {
 			if (r < 0) {
-				perror("io_submit error");
 				info("io_submit failed with %s op: %d\n", desc, r);
 			} else
 				info("could not submit IOs, with %s op\n", desc);
@@ -212,9 +212,15 @@ namespace bcache {
 			else if (e.res < 0)
 				complete_io(*b, e.res);
 
-			else
-				info("incomplete io for block %llu, unexpected: %d\n",
-				     b->index_, e.res);
+			else {
+				std::cerr << "incomplete io for block " << b->index_
+					  << ", e.res = " << e.res
+					  << ", e.res2 = " << e.res2
+					  << ", offset = " << b->control_block_.u.c.offset
+					  << ", nbytes = " << b->control_block_.u.c.nbytes
+					  << "\n";
+				exit(1);
+			}
 		}
 	}
 
@@ -422,19 +428,13 @@ namespace bcache {
 	}
 
 	block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, size_t mem)
-		: nr_dirty_(0),
+		: nr_locked_(0),
+		  nr_dirty_(0),
 		  nr_io_pending_(0)
 	{
 		int r;
 		unsigned nr_cache_blocks = calc_nr_cache_blocks(mem, block_size);
 		unsigned nr_buckets = calc_nr_buckets(nr_cache_blocks);
-
-		info("block_size = %llu, on_disk_blocks = %llu, mem = %llu, nr_cache_blocks = %llu\n",
-		     (unsigned long long) block_size,
-		     (unsigned long long) on_disk_blocks,
-		     (unsigned long long) mem,
-		     (unsigned long long) nr_cache_blocks);
-
 
 		buckets_.resize(nr_buckets);
 
@@ -448,7 +448,6 @@ namespace bcache {
 		aio_context_ = 0; /* needed or io_setup will fail */
 		r = io_setup(nr_cache_blocks, &aio_context_);
 		if (r < 0) {
-			std::cerr << "r = " << r << "\n";
 			perror("io_setup failed");
 			throw std::runtime_error("io_setup failed");
 		}
@@ -467,11 +466,20 @@ namespace bcache {
 
 	block_cache::~block_cache()
 	{
+		assert(!nr_locked_);
+		flush();
 		wait_all();
 
-		// FIXME: use unique_ptrs
+		if (blocks_memory_)
+			free(blocks_memory_);
+
+		if (blocks_data_)
+			free(blocks_data_);
+
 		if (aio_context_)
 			io_destroy(aio_context_);
+
+		::close(fd_);
 	}
 
 	uint64_t
@@ -533,10 +541,14 @@ namespace bcache {
 		block *b = lookup_or_read_block(index, flags, v);
 
 		if (b) {
-			if (b->ref_count_)
-				throw std::runtime_error("block already locked");
+			if (b->ref_count_ && flags & (GF_DIRTY | GF_ZERO))
+				throw std::runtime_error("attempt to write lock block concurrently");
 
 			hit(*b);
+
+			if (!b->ref_count_)
+				nr_locked_++;
+
 			b->ref_count_++;
 
 			if (flags & GF_BARRIER)
@@ -565,10 +577,10 @@ namespace bcache {
 	{
 		assert(!b.ref_count_);
 
-#if 0
+		nr_locked_--;
+
 		if (b.test_flags(BF_FLUSH))
 			flush();
-#endif
 
 		if (b.test_flags(BF_DIRTY)) {
 			if (!b.test_flags(BF_PREVIOUSLY_DIRTY)) {
@@ -577,11 +589,9 @@ namespace bcache {
 				b.set_flags(BF_PREVIOUSLY_DIRTY);
 			}
 
-#if 0
 			if (b.test_flags(BF_FLUSH))
 				flush();
 			else
-#endif
 				preemptive_writeback();
 
 			b.clear_flags(BF_FLUSH);

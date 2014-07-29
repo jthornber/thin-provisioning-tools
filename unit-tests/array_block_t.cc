@@ -35,7 +35,7 @@ using namespace testing;
 namespace {
 	uint64_t MAX_VALUE = 1000ull;
 	block_address const NR_BLOCKS = 1024;
-	typedef typename block_manager<>::noop_validator noop_validator;
+	typedef typename bcache::noop_validator noop_validator;
 	typedef typename block_manager<>::read_ref read_ref;
 	typedef typename block_manager<>::write_ref write_ref;
 
@@ -79,9 +79,9 @@ namespace {
 	typedef array_block<uint64_traits, write_ref> ablock64;
 	typedef array_block<uint64_traits, read_ref> ablock64_r;
 
-	block_manager<>::validator::ptr
+	bcache::validator::ptr
 	validator() {
-		return block_manager<>::validator::ptr(new block_manager<>::noop_validator);
+		return bcache::validator::ptr(new bcache::noop_validator);
 	}
 
 	transaction_manager::ptr

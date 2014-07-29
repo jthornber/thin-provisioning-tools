@@ -35,10 +35,7 @@ namespace {
 	// use the appropriate one.
 
 #define all_widths \
-	xx(4); xx(8); xx(12); xx(16); xx(20); xx(24); xx(28); xx(32);\
-	xx(36); xx(40); xx(44); xx(48); xx(52); xx(56); xx(60); xx(64); \
-	xx(68); xx(72); xx(76); xx(80); xx(84); xx(88); xx(92); xx(96); \
-	xx(100); xx(104); xx(108); xx(112); xx(116); xx(120); xx(124); xx(128);
+	xx(4);
 
 	template <uint32_t WIDTH>
 	shared_ptr<array_base> mk_array(transaction_manager::ptr tm) {

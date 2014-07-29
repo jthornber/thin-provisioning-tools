@@ -19,6 +19,8 @@
 #include "persistent-data/block.h"
 #include "persistent-data/transaction_manager.h"
 
+#include <linux/limits.h>
+
 //----------------------------------------------------------------
 
 namespace test {
@@ -36,7 +38,7 @@ namespace test {
 
 		return typename block_manager<BlockSize>::ptr(
 			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
-						     block_io<BlockSize>::CREATE));
+						     block_manager<BlockSize>::CREATE));
 	}
 
 	// Don't use this to update the metadata.

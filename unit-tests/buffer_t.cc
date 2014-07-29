@@ -20,7 +20,6 @@
 #define	COMPILE_TIME_ERROR	0
 
 #include "gmock/gmock.h"
-#include "persistent-data/buffer.h"
 
 using namespace persistent_data;
 using namespace testing;

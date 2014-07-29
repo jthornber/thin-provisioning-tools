@@ -68,10 +68,6 @@ namespace bcache {
 				set_flags(BF_DIRTY);
 			}
 
-			void mark_flush() {
-				set_flags(BF_FLUSH);
-			}
-
 			void set_flags(unsigned flags) {
 				flags_ |= flags;
 			}
@@ -127,7 +123,7 @@ namespace bcache {
 		enum get_flags {
 			GF_ZERO = (1 << 0),
 			GF_DIRTY = (1 << 1),
-			GF_BARRIER = (1 << 1)
+			GF_BARRIER = (1 << 2)
 		};
 
 		block_cache::block &get(block_address index, unsigned flags, validator::ptr v);
@@ -176,8 +172,9 @@ namespace bcache {
 		uint64_t nr_data_blocks_;
 		uint64_t nr_cache_blocks_;
 
-		std::auto_ptr<unsigned char> blocks_memory_;
-		std::auto_ptr<unsigned char> blocks_data_;
+		// We can't use auto_ptr or unique_ptr because the memory is allocated with malloc
+		void *blocks_memory_;
+		void *blocks_data_;
 
 		io_context_t aio_context_;
 		std::vector<io_event> events_;
@@ -191,6 +188,7 @@ namespace bcache {
 		list_head dirty_;
 		list_head clean_;
 
+		unsigned nr_locked_;
 		unsigned nr_dirty_;
 
 		unsigned nr_io_pending_;

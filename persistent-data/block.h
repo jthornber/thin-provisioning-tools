@@ -135,6 +135,7 @@ namespace persistent_data {
 		bool is_locked(block_address b) const;
 
 	private:
+		int open_or_create_block_file(std::string const &path, off_t file_size, mode m);
 		void check(block_address b) const;
 
 		int fd_;

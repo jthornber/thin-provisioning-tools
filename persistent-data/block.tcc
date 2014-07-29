@@ -84,10 +84,9 @@ namespace {
 
 		int fd = open_file(path, O_CREAT | O_RDWR);
 
-		// fallocate didn't seem to work
-		int r = ::lseek(fd, file_size, SEEK_SET);
+		int r = ::ftruncate(fd, file_size);
 		if (r < 0)
-			syscall_failed("lseek");
+			syscall_failed("ftruncate");
 
 		return fd;
 	}
@@ -179,9 +178,28 @@ namespace persistent_data {
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
 						mode m)
-		: fd_(open_block_file(path, nr_blocks * BlockSize, m == READ_WRITE)),
+		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m)),
 		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16)
 	{
+	}
+
+	template <uint32_t BlockSize>
+	int
+	block_manager<BlockSize>::open_or_create_block_file(string const &path, off_t file_size, mode m)
+	{
+		switch (m) {
+		case READ_ONLY:
+			return open_block_file(path, file_size, false);
+
+		case READ_WRITE:
+			return open_block_file(path, file_size, true);
+
+		case CREATE:
+			return create_block_file(path, file_size);
+
+		default:
+			throw std::runtime_error("unsupported mode");
+		}
 	}
 
 	template <uint32_t BlockSize>

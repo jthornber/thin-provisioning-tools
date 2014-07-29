@@ -25,7 +25,7 @@ GMOCK_FLAGS=\
 	-Wno-unused-local-typedefs
 
 GMOCK_LIBS=\
-	-Llib -lpdata -lgmock -lpthread
+	-Llib -lpdata -lgmock -lpthread -laio
 
 GMOCK_DEPS=\
 	$(wildcard $(GMOCK_DIR)/include/*.h) \
@@ -48,14 +48,12 @@ TEST_SOURCE=\
 	unit-tests/array_block_t.cc \
 	unit-tests/array_t.cc \
 	unit-tests/base64_t.cc \
-	unit-tests/bitset_t.cc \
 	unit-tests/block_t.cc \
+	unit-tests/bitset_t.cc \
 	unit-tests/bloom_filter_t.cc \
 	unit-tests/btree_t.cc \
 	unit-tests/btree_counter_t.cc \
 	unit-tests/btree_damage_visitor_t.cc \
-	unit-tests/buffer_t.cc \
-	unit-tests/cache_t.cc \
 	unit-tests/cache_superblock_t.cc \
 	unit-tests/damage_tracker_t.cc \
 	unit-tests/endian_t.cc \

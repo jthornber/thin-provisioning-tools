@@ -40,11 +40,11 @@ namespace {
 		return tm;
 	}
 
-	typedef block_manager<>::validator::ptr validator_ptr;
+	typedef bcache::validator::ptr validator_ptr;
 
-	validator_ptr noop_validator() {
-		return block_manager<>::validator::ptr(
-			new block_manager<>::noop_validator);
+	validator_ptr mk_noop_validator() {
+		return bcache::validator::ptr(
+			new bcache::noop_validator);
 	}
 
 	typedef block_manager<>::write_ref write_ref;
@@ -55,20 +55,20 @@ namespace {
 TEST(TransactionManagerTests, commit_succeeds)
 {
 	transaction_manager::ptr tm = create_tm();
-	tm->begin(0, noop_validator());
+	tm->begin(0, mk_noop_validator());
 }
 
 TEST(TransactionManagerTests, shadowing)
 {
 	transaction_manager::ptr tm = create_tm();
-	block_manager<>::write_ref superblock = tm->begin(0, noop_validator());
+	block_manager<>::write_ref superblock = tm->begin(0, mk_noop_validator());
 
 	space_map::ptr sm = tm->get_sm();
 	sm->inc(1);
 	block_address b;
 
 	{
-		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, mk_noop_validator());
 		b = p.first.get_location();
 		ASSERT_THAT(b, Ne(1u));
 		ASSERT_FALSE(p.second);
@@ -76,7 +76,7 @@ TEST(TransactionManagerTests, shadowing)
 	}
 
 	{
-		pair<write_ref, bool> p = tm->shadow(b, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(b, mk_noop_validator());
 		ASSERT_THAT(p.first.get_location(), Eq(b));
 		ASSERT_FALSE(p.second);
 	}
@@ -84,7 +84,7 @@ TEST(TransactionManagerTests, shadowing)
 	sm->inc(b);
 
 	{
-		pair<write_ref, bool> p = tm->shadow(b, noop_validator());
+		pair<write_ref, bool> p = tm->shadow(b, mk_noop_validator());
 		ASSERT_THAT(p.first.get_location(), Ne(b));
 		ASSERT_TRUE(p.second);
 	}
@@ -98,8 +98,8 @@ TEST(TransactionManagerTests, multiple_shadowing)
 	block_address b, b2;
 
 	{
-		write_ref superblock = tm->begin(0, noop_validator());
-		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		write_ref superblock = tm->begin(0, mk_noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, mk_noop_validator());
 		b = p.first.get_location();
 		ASSERT_THAT(b, Ne(1u));
 		ASSERT_TRUE(p.second);
@@ -107,8 +107,8 @@ TEST(TransactionManagerTests, multiple_shadowing)
 	}
 
 	{
-		write_ref superblock = tm->begin(0, noop_validator());
-		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		write_ref superblock = tm->begin(0, mk_noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, mk_noop_validator());
 		b2 = p.first.get_location();
 		ASSERT_THAT(b2, Ne(1u));
 		ASSERT_THAT(b2, Ne(b));
@@ -117,8 +117,8 @@ TEST(TransactionManagerTests, multiple_shadowing)
 	}
 
 	{
-		write_ref superblock = tm->begin(0, noop_validator());
-		pair<write_ref, bool> p = tm->shadow(1, noop_validator());
+		write_ref superblock = tm->begin(0, mk_noop_validator());
+		pair<write_ref, bool> p = tm->shadow(1, mk_noop_validator());
 		block_address b3 = p.first.get_location();
 		ASSERT_THAT(b3, Ne(b2));
 		ASSERT_THAT(b3, Ne(b));
@@ -131,8 +131,8 @@ TEST(TransactionManagerTests, multiple_shadowing)
 TEST(TransactionManagerTests, shadow_free_block_fails)
 {
 	transaction_manager::ptr tm = create_tm();
-	write_ref superblock = tm->begin(0, noop_validator());
-	ASSERT_THROW(tm->shadow(1, noop_validator()), runtime_error);
+	write_ref superblock = tm->begin(0, mk_noop_validator());
+	ASSERT_THROW(tm->shadow(1, mk_noop_validator()), runtime_error);
 }
 
 //----------------------------------------------------------------
