@@ -139,9 +139,9 @@ namespace bcache {
 		int init_free_list(unsigned count);
 		block *__alloc_block();
 		void complete_io(block &b, int result);
-		int issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc);
-		int issue_read(block &b);
-		int issue_write(block &b);
+		void issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc);
+		void issue_read(block &b);
+		void issue_write(block &b);
 		void wait_io();
 		list_head *__categorise(block &b);
 		void hit(block &b);
@@ -154,6 +154,7 @@ namespace bcache {
 		void hash_insert(block &b);
 		void hash_remove(block &b);
 		void setup_control_block(block &b);
+		block *find_unused_clean_block();
 		block *new_block(block_address index);
 		void mark_dirty(block &b);
 		unsigned calc_nr_cache_blocks(size_t mem, sector_t block_size);

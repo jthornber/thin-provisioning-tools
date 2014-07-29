@@ -146,7 +146,7 @@ namespace bcache {
 	 * lists.
 	 */
 	// FIXME: add batch issue
-	int
+	void
 	block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc)
 	{
 		int r;
@@ -168,25 +168,26 @@ namespace bcache {
 				info("could not submit IOs, with %s op\n", desc);
 
 			complete_io(b, EIO);
-			return -EIO;
-		}
 
-		return 0;
+			std::ostringstream out;
+			out << "couldn't issue io (" << desc << ") for block " << b.index_;
+			throw std::runtime_error(out.str());
+		}
 	}
 
-	int
+	void
 	block_cache::issue_read(block &b)
 	{
 		assert(!b.test_flags(BF_IO_PENDING));
-		return issue_low_level(b, IO_CMD_PREAD, "read");
+		issue_low_level(b, IO_CMD_PREAD, "read");
 	}
 
-	int
+	void
 	block_cache::issue_write(block &b)
 	{
 		assert(!b.test_flags(BF_IO_PENDING));
 		b.v_->prepare(b.data_, b.index_);
-		return issue_low_level(b, IO_CMD_PWRITE, "write");
+		issue_low_level(b, IO_CMD_PWRITE, "write");
 	}
 
 	void
@@ -267,7 +268,6 @@ namespace bcache {
 	unsigned
 	block_cache::writeback(unsigned count)
 	{
-		int r;
 		block *b, *tmp;
 		unsigned actual = 0, dirty_length = 0;
 
@@ -282,9 +282,8 @@ namespace bcache {
 			if (b->ref_count_)
 				continue;
 
-			r = issue_write(*b);
-			if (!r)
-				actual++;
+			issue_write(*b);
+			actual++;
 		}
 
 		info("writeback: requested %u, actual %u, dirty length %u\n", count, actual, dirty_length);
@@ -362,6 +361,23 @@ namespace bcache {
 	}
 
 	block_cache::block *
+	block_cache::find_unused_clean_block()
+	{
+		struct block *b, *tmp;
+
+		list_for_each_entry_safe (b, tmp, &clean_, list_) {
+			if (b->ref_count_)
+				continue;
+
+			hash_remove(*b);
+			list_del(&b->list_);
+			return b;
+		}
+
+		return NULL;
+	}
+
+	block_cache::block *
 	block_cache::new_block(block_address index)
 	{
 		block *b;
@@ -374,11 +390,7 @@ namespace bcache {
 				wait_io();
 			}
 
-			if (!list_empty(&clean_)) {
-				b = list_first_entry(&clean_, block, list_);
-				hash_remove(*b);
-				list_del(&b->list_);
-			}
+			b = find_unused_clean_block();
 		}
 
 		if (b) {
@@ -510,8 +522,10 @@ namespace bcache {
 			else {
 				if (b->v_.get() &&
 				    b->v_.get() != v.get() &&
-				    b->test_flags(BF_DIRTY))
+				    b->test_flags(BF_DIRTY)) {
 					b->v_->prepare(b->data_, b->index_);
+					v->check(b->data_, b->index_);
+				}
 			}
 			b->v_ = v;
 
