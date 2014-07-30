@@ -86,22 +86,25 @@ namespace persistent_data {
 		class path_tracker {
 		public:
 			// returns the old path if the tree has changed.
-			boost::optional<btree_path> next_path(btree_path const &p) {
-				if (p != path_) {
-					btree_path tmp(path_);
-					path_ = p;
-					return boost::optional<btree_path>(tmp);
+			btree_path const *next_path(btree_path const &p) {
+				if (p != current_path()) {
+					if (paths_.size() == 2)
+						paths_.pop_front();
+
+					paths_.push_back(p);
+
+					return &paths_.front();
 				}
 
-				return boost::optional<btree_path>();
+				return NULL;
 			}
 
 			btree_path const &current_path() const {
-				return path_;
+				return paths_.back();
 			}
 
 		private:
-			btree_path path_;
+			std::list<btree_path> paths_;
 		};
 
 		//----------------------------------------------------------------
@@ -189,11 +192,12 @@ namespace persistent_data {
 		private:
 			void visit_values(btree_path const &path,
 					  node_ref<ValueTraits> const &n) {
+				btree_path p2(path);
 				unsigned nr = n.get_nr_entries();
 				for (unsigned i = 0; i < nr; i++) {
-					btree_path p2(path);
 					p2.push_back(n.key_at(i));
 					value_visitor_.visit(p2, n.value_at(i));
+					p2.pop_back();
 				}
 			}
 
@@ -427,7 +431,7 @@ namespace persistent_data {
 			}
 
 			void update_path(btree_path const &path) {
-				boost::optional<btree_path> old_path = path_tracker_.next_path(path);
+				btree_path const *old_path = path_tracker_.next_path(path);
 				if (old_path)
 					// we need to emit any errors that
 					// were accrued against the old
