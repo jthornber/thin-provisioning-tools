@@ -28,20 +28,6 @@ using namespace bcache;
 //----------------------------------------------------------------
 
 namespace {
-	// FIXME: remove
-
-	/*----------------------------------------------------------------
-	 * Logging
-	 *--------------------------------------------------------------*/
-	void info(const char *format, ...)
-	{
-		va_list ap;
-
-		va_start(ap, format);
-		vfprintf(stderr, format, ap);
-		va_end(ap);
-	}
-
 	void *alloc_aligned(size_t len, size_t alignment)
 	{
 		void *result = NULL;
@@ -83,7 +69,7 @@ block_cache::init_free_list(unsigned count)
 
 	for (i = 0; i < count; i++) {
 		block *b = new (blocks + i) block();
-		b->data_ = data + block_size * i;
+		b->data_ = static_cast<unsigned char *>(data) + block_size * i;
 
 		list_add(&b->list_, &free_);
 	}
@@ -162,15 +148,16 @@ block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc
 	control_blocks[0] = &b.control_block_;
 	r = io_submit(aio_context_, 1, control_blocks);
 	if (r != 1) {
-		if (r < 0) {
-			info("io_submit failed with %s op: %d\n", desc, r);
-		} else
-			info("could not submit IOs, with %s op\n", desc);
-
 		complete_io(b, EIO);
 
 		std::ostringstream out;
-		out << "couldn't issue io (" << desc << ") for block " << b.index_;
+		out << "couldn't issue " << desc << " io for block " << b.index_;
+
+		if (r < 0)
+			out << ": io_submit failed with " << r;
+		else
+			out << ": io_submit succeeded, but queued no io";
+
 		throw std::runtime_error(out.str());
 	}
 }
@@ -199,8 +186,9 @@ block_cache::wait_io()
 	// FIXME: use a timeout to prevent hanging
 	r = io_getevents(aio_context_, 1, nr_cache_blocks_, &events_[0], NULL);
 	if (r < 0) {
-		info("io_getevents failed %d\n", r);
-		exit(1);	/* FIXME: handle more gracefully */
+		std::ostringstream out;
+		out << "io_getevents failed: " << r;
+		throw std::runtime_error(out.str());
 	}
 
 	for (i = 0; i < static_cast<unsigned>(r); i++) {
@@ -214,13 +202,13 @@ block_cache::wait_io()
 			complete_io(*b, e.res);
 
 		else {
-			std::cerr << "incomplete io for block " << b->index_
-				  << ", e.res = " << e.res
-				  << ", e.res2 = " << e.res2
-				  << ", offset = " << b->control_block_.u.c.offset
-				  << ", nbytes = " << b->control_block_.u.c.nbytes
-				  << "\n";
-			exit(1);
+			std::ostringstream out;
+			out << "incomplete io for block " << b->index_
+			    << ", e.res = " << e.res
+			    << ", e.res2 = " << e.res2
+			    << ", offset = " << b->control_block_.u.c.offset
+			    << ", nbytes = " << b->control_block_.u.c.nbytes;
+			throw std::runtime_error(out.str());
 		}
 	}
 }
@@ -286,7 +274,6 @@ block_cache::writeback(unsigned count)
 		actual++;
 	}
 
-	info("writeback: requested %u, actual %u, dirty length %u\n", count, actual, dirty_length);
 	return actual;
 }
 
@@ -442,7 +429,13 @@ block_cache::calc_nr_buckets(unsigned nr_blocks)
 block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, size_t mem)
 	: nr_locked_(0),
 	  nr_dirty_(0),
-	  nr_io_pending_(0)
+	  nr_io_pending_(0),
+	  read_hits_(0),
+	  read_misses_(0),
+	  write_zeroes_(0),
+	  write_hits_(0),
+	  write_misses_(0),
+	  prefetches_(0)
 {
 	int r;
 	unsigned nr_cache_blocks = calc_nr_cache_blocks(mem, block_size);
@@ -492,6 +485,15 @@ block_cache::~block_cache()
 		io_destroy(aio_context_);
 
 	::close(fd_);
+
+	std::cerr << "\nblock cache stats\n"
+		  << "=================\n"
+		  << "prefetches:\t" << prefetches_ << "\n"
+		  << "read hits:\t" << read_hits_ << "\n"
+		  << "read misses:\t" << read_misses_ << "\n"
+		  << "write hits:\t" << write_hits_ << "\n"
+		  << "write misses:\t" << write_misses_ << "\n"
+		  << "write zeroes:\t" << write_zeroes_ << "\n";
 }
 
 uint64_t
@@ -503,8 +505,27 @@ block_cache::get_nr_blocks() const
 void
 block_cache::zero_block(block &b)
 {
+	write_zeroes_++;
 	memset(b.data_, 0, block_size_ << SECTOR_SHIFT);
 	b.mark_dirty();
+}
+
+void
+block_cache::inc_hit_counter(unsigned flags)
+{
+	if (flags & (GF_ZERO | GF_DIRTY))
+		write_hits_++;
+	else
+		read_hits_++;
+}
+
+void
+block_cache::inc_miss_counter(unsigned flags)
+{
+	if (flags & (GF_ZERO | GF_DIRTY))
+		write_misses_++;
+	else
+		read_misses_++;
 }
 
 block_cache::block *
@@ -514,8 +535,11 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 	block *b = hash_lookup(index);
 
 	if (b) {
-		if (b->test_flags(BF_IO_PENDING))
+		if (b->test_flags(BF_IO_PENDING)) {
+			inc_miss_counter(flags);
 			wait_specific(*b);
+		} else
+			inc_hit_counter(flags);
 
 		if (flags & GF_ZERO)
 			zero_block(*b);
@@ -530,6 +554,8 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 		b->v_ = v;
 
 	} else {
+		inc_miss_counter(flags);
+
 		b = new_block(index);
 		if (b) {
 			b->v_ = v;
@@ -558,6 +584,7 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 		if (b->ref_count_ && flags & (GF_DIRTY | GF_ZERO))
 			throw std::runtime_error("attempt to write lock block concurrently");
 
+		// FIXME: this gets called even for new blocks
 		hit(*b);
 
 		if (!b->ref_count_)
@@ -636,8 +663,9 @@ block_cache::prefetch(block_address index)
 	check_index(index);
 
 	block *b = hash_lookup(index);
-
 	if (!b) {
+		prefetches_++;
+
 		b = new_block(index);
 		if (b)
 			issue_read(*b);

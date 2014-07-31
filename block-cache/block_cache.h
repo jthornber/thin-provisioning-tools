@@ -166,6 +166,9 @@ namespace bcache {
 		void release(block_cache::block &block);
 		void check_index(block_address index) const;
 
+		void inc_hit_counter(unsigned flags);
+		void inc_miss_counter(unsigned flags);
+
 		//--------------------------------
 
 		int fd_;
@@ -201,6 +204,14 @@ namespace bcache {
 		unsigned nr_buckets_;
 		unsigned mask_;
 		std::vector<list_head> buckets_;
+
+		// Stats
+		unsigned read_hits_;
+		unsigned read_misses_;
+		unsigned write_zeroes_;
+		unsigned write_hits_;
+		unsigned write_misses_;
+		unsigned prefetches_;
 	};
 }
 
