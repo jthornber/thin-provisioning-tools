@@ -15,13 +15,13 @@ Because thin provisioning pools are holding widely variable contents,
 this tool is needed to provide sensible initial default size.
 
 .IP "\fB\-b, \-\-block-size\fP \fIBLOCKSIZE[bskKmMgGtTpPeEzZyY]\fP"
-Block size of thin provisioned devices in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Block size of thin provisioned devices in units of bytes, sectors, kibibytes, kilobytes, ... respectively.
 Default is in sectors without a block size unit specifier.
 Size/number option arguments can be followed by unit specifiers in short one character
-and long form (eg. -b1m or -b1megabytes).
+and long form (eg. -b1m or -b1mebibytes).
 
 .IP "\fB\-s, \-\-pool-size\fP \fIPOOLSIZE[bskKmMgGtTpPeEzZyY]\fP"
-Thin provisioning pool size in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Thin provisioning pool size in units of bytes, sectors, kibibytes, kilobytes, ... respectively.
 Default is in sectors without a pool size unit specifier.
 
 .IP "\fB\-m, \-\-max-thins\fP \fI#[bskKmMgGtTpPeEzZyY]\fP"
@@ -30,7 +30,7 @@ Unit identifier supported to allow for convenient entry of large quantities, eg.
 Default is absolute quantity without a number unit specifier.
 
 .IP "\fB\-u, \-\-unit\fP \fI{bskKmMgGtTpPeEzZyY}\fP"
-Output unit specifier in units of bytes,sectors,kilobytes,kibibytes,... respectively.
+Output unit specifier in units of bytes, sectors, kibibytes, kilobytes, ... respectively.
 Default is in sectors without an output unit specifier.
 
 .IP "\fB\-n, \-\-numeric-only [short|long]\fP"
@@ -43,24 +43,24 @@ Print help and exit.
 Output version information and exit.
 
 .SH EXAMPLES
-Calculates the thin provisioning metadata device size for block size 64 kilobytes,
-pool size 1 terabytes and maximum number of thin provisioned devices and snapshots of 1000
+Calculates the thin provisioning metadata device size for block size 64 kibibytes,
+pool size 1 tebibytes and maximum number of thin provisioned devices and snapshots of 1000
 in units of sectors with long output:
 .sp
 .B thin_metadata_size -b64k -s1t -m1000
 
-Or (using the long options instead) for block size 1 gigabyte, pool size 1 petabytes and maximum number of thin provisioned devices
-and snapshots of 1 million with numeric only output in units of gigabytes:
+Or (using the long options instead) for block size 1 gibibyte, pool size 1 petabyte and maximum number of thin provisioned devices
+and snapshots of 1 million with numeric-only output in units of gigabytes:
 .sp
-.B thin_metadata_size --block-size=1g --pool-size=1p --max-thins=1M --unit=g --numeric-only
+.B thin_metadata_size --block-size=1g --pool-size=1P --max-thins=1M --unit=G --numeric-only
 
-Same as before (1g,1p,1M,numeric-only) but with unit specifier character appended:
+Same as before (1g, 1P, 1M, numeric-only) but with unit specifier character appended:
 .sp
-.B thin_metadata_size --block-size=1giga --pool-size=1petabytes --max-thins=1mebi --unit=g --numeric-only=short
+.B thin_metadata_size --block-size=1gibi --pool-size=1petabytes --max-thins=1mega --unit=G --numeric-only=short
 
 Or with unit specifier string appended:
 .sp
-.B thin_metadata_size --block-size=1giga --pool-size=1petabytes --max-thins=1mebi --unit=g -nlong
+.B thin_metadata_size --block-size=1gibi --pool-size=1petabytes --max-thins=1mega --unit=G -nlong
 
 .SH DIAGNOSTICS
 .B thin_metadata_size
