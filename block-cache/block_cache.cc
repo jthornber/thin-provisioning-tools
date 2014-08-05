@@ -493,7 +493,7 @@ block_cache::~block_cache()
 		  << "read misses:\t" << read_misses_ << "\n"
 		  << "write hits:\t" << write_hits_ << "\n"
 		  << "write misses:\t" << write_misses_ << "\n"
-		  << "write zeroes:\t" << write_zeroes_ << "\n";
+		  << "write zeroes:\t" << write_zeroes_ << std::endl;
 }
 
 uint64_t
