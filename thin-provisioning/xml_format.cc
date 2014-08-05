@@ -256,7 +256,8 @@ tp::create_xml_emitter(ostream &out)
 }
 
 void
-tp::parse_xml(std::istream &in, emitter::ptr e)
+tp::parse_xml(std::istream &in, emitter::ptr e,
+	      size_t input_length, base::progress_monitor::ptr monitor)
 {
 	XML_Parser parser = XML_ParserCreate(NULL);
 	if (!parser)
@@ -265,8 +266,10 @@ tp::parse_xml(std::istream &in, emitter::ptr e)
 	XML_SetUserData(parser, e.get());
 	XML_SetElementHandler(parser, start_tag, end_tag);
 
+	size_t total = 0;
+
 	while (!in.eof()) {
-		char buffer[4096];
+		char buffer[1024 * 1024];
 		in.read(buffer, sizeof(buffer));
 		size_t len = in.gcount();
 		int done = in.eof();
@@ -280,6 +283,9 @@ tp::parse_xml(std::istream &in, emitter::ptr e)
 			    << endl;
 			throw runtime_error(out.str());
 		}
+
+		total += len;
+		monitor->update_percent(total * 100 / input_length);
 	}
 }
 

@@ -46,6 +46,7 @@ SOURCE=\
 	base/base64.cc \
 	base/endian_utils.cc \
 	base/error_state.cc \
+	base/progress_monitor.cc \
 	\
 	caching/hint_array.cc \
 	caching/superblock.cc \
@@ -377,6 +378,7 @@ ERA_DUMP_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	\
 	era/writeset_tree.cc \
 	era/era_detail.cc \

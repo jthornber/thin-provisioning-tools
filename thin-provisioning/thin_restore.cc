@@ -41,6 +41,24 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	size_t get_file_length(string const &file) {
+		struct stat info;
+		int r;
+
+		r = ::stat(file.c_str(), &info);
+		if (r)
+			throw runtime_error("Couldn't stat backup path");
+
+		return info.st_size;
+	}
+
+	progress_monitor::ptr create_monitor() {
+		if (isatty(fileno(stdout)))
+			return create_progress_bar("Restoring");
+		else
+			return create_quiet_progress_monitor();
+	}
+
 	int restore(string const &backup_file, string const &dev) {
 		try {
 			// The block size gets updated by the restorer.
@@ -49,7 +67,9 @@ namespace {
 
 			check_file_exists(backup_file);
 			ifstream in(backup_file.c_str(), ifstream::in);
-			parse_xml(in, restorer);
+
+			progress_monitor::ptr monitor = create_monitor();
+			parse_xml(in, restorer, get_file_length(backup_file), monitor);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
