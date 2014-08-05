@@ -52,14 +52,14 @@ namespace {
 		return info.st_size;
 	}
 
-	progress_monitor::ptr create_monitor() {
-		if (isatty(fileno(stdout)))
+	progress_monitor::ptr create_monitor(bool quiet) {
+		if (!quiet && isatty(fileno(stdout)))
 			return create_progress_bar("Restoring");
 		else
 			return create_quiet_progress_monitor();
 	}
 
-	int restore(string const &backup_file, string const &dev) {
+	int restore(string const &backup_file, string const &dev, bool quiet) {
 		try {
 			// The block size gets updated by the restorer.
 			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
@@ -68,7 +68,7 @@ namespace {
 			check_file_exists(backup_file);
 			ifstream in(backup_file.c_str(), ifstream::in);
 
-			progress_monitor::ptr monitor = create_monitor();
+			progress_monitor::ptr monitor = create_monitor(quiet);
 			parse_xml(in, restorer, get_file_length(backup_file), monitor);
 
 		} catch (std::exception &e) {
@@ -85,6 +85,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-i|--input} <input xml file>" << endl
 		    << "  {-o|--output} <output device or file>" << endl
+		    << "  {-q|--quiet}" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -93,12 +94,14 @@ int main(int argc, char **argv)
 {
 	int c;
 	char const *prog_name = basename(argv[0]);
-	const char *shortopts = "hi:o:V";
+	const char *shortopts = "hi:o:qV";
 	string input, output;
+	bool quiet = false;
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
+		{ "quiet", no_argument, NULL, 'q'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -115,6 +118,10 @@ int main(int argc, char **argv)
 
 		case 'o':
 			output = optarg;
+			break;
+
+		case 'q':
+			quiet = true;
 			break;
 
 		case 'V':
@@ -144,7 +151,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return restore(input, output);
+	return restore(input, output, quiet);
 }
 
 //----------------------------------------------------------------

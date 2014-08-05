@@ -17,6 +17,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
     """
 
@@ -30,6 +31,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
     """
 
