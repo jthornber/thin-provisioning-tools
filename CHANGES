@@ -1,0 +1,15 @@
+v0.4
+====
+
+- All tools switch to using libaio.  This gives a large performance
+  boost, especially to the write focused tools like thin_restore.
+
+- Added a progress monitor to thin_restore
+
+- Added a --quiet/-q option to thin_restore to turn off the progress bar
+
+- Removed variable hint size support from cache tools.  The kernel
+  still only supports a fixed 32bit width.  This will have a side
+  effect of reducing the executable sizes due to less template
+  instatiation.
+
