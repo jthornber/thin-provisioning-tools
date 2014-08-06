@@ -48,10 +48,9 @@ AC_PREFIX_DEFAULT(/usr)
 
 AC_CHECK_HEADERS([expat.h \
 	          iostream \
+		  libaio.h \
 	          boost/bind.hpp \
 		  boost/crc.hpp \
-		  boost/intrusive/circular_list_algorithms.hpp \
-		  boost/intrusive/rbtree_algorithms.hpp \
 		  boost/lexical_cast.hpp \
 		  boost/noncopyable.hpp \
 		  boost/optional.hpp \
