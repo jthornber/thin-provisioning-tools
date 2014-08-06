@@ -1,6 +1,8 @@
+#include "caching/xml_format.h"
+
 #include "base/base64.h"
 #include "base/indented_stream.h"
-#include "caching/xml_format.h"
+#include "base/xml_utils.h"
 
 #include <boost/lexical_cast.hpp>
 #include <expat.h>
@@ -8,6 +10,7 @@
 using namespace caching;
 using namespace persistent_data;
 using namespace std;
+using namespace xml_utils;
 
 //----------------------------------------------------------------
 
@@ -116,49 +119,6 @@ namespace {
 	//--------------------------------
 	// Parser
 	//--------------------------------
-
-	// FIXME: factor out common code with thinp one
-	typedef std::map<string, string> attributes;
-
-	void build_attributes(attributes &a, char const **attr) {
-		while (*attr) {
-			char const *key = *attr;
-
-			attr++;
-			if (!*attr) {
-				ostringstream out;
-				out << "No value given for xml attribute: " << key;
-				throw runtime_error(out.str());
-			}
-
-			char const *value = *attr;
-			a.insert(make_pair(string(key), string(value)));
-			attr++;
-		}
-	}
-
-	template <typename T>
-	T get_attr(attributes const &attr, string const &key) {
-		attributes::const_iterator it = attr.find(key);
-		if (it == attr.end()) {
-			ostringstream out;
-			out << "could not find attribute: " << key;
-			throw runtime_error(out.str());
-		}
-
-		return boost::lexical_cast<T>(it->second);
-	}
-
-	template <typename T>
-	boost::optional<T> get_opt_attr(attributes const &attr, string const &key) {
-		typedef boost::optional<T> rtype;
-		attributes::const_iterator it = attr.find(key);
-		if (it == attr.end())
-			return rtype();
-
-		return rtype(boost::lexical_cast<T>(it->second));
-	}
-
 	void parse_superblock(emitter *e, attributes const &attr) {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "block_size"),

@@ -47,6 +47,7 @@ SOURCE=\
 	base/endian_utils.cc \
 	base/error_state.cc \
 	base/progress_monitor.cc \
+	base/xml_utils.cc \
 	\
 	caching/hint_array.cc \
 	caching/superblock.cc \
@@ -175,6 +176,7 @@ THIN_CHECK_SOURCE=\
 	\
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -198,6 +200,7 @@ THIN_DELTA_SOURCE=\
 	\
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -287,6 +290,7 @@ CACHE_CHECK_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
 	persistent-data/error_set.cc \
@@ -348,6 +352,7 @@ ERA_CHECK_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \
 	era/era_detail.cc \
@@ -380,6 +385,7 @@ ERA_DUMP_SOURCE=\
 	base/error_state.cc \
 	base/endian_utils.cc \
 	base/progress_monitor.cc \
+	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \
 	era/era_detail.cc \
@@ -413,6 +419,7 @@ ERA_INVALIDATE_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \
 	era/era_detail.cc \
