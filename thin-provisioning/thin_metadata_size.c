@@ -111,10 +111,10 @@ static struct global *init_prg(char *prg_path)
 	unsigned u;
 	static char *unit_chars = "bskKmMgGtTpPeEzZyY";
 	static char *unit_strings[] = { "bytes", "sectors",
-					"kilobytes", "kibibytes", "megabytes",  "mebibytes",
-					"gigabytes", "gibibytes", "terabytes",  "tebibytes",
-					"petabytes", "pebibytes", "exabytes",   "ebibytes",
-					"zetabytes", "zebibytes", "yottabytes", "yobibytes", NULL };
+					"kibibytes", "kilobytes", "mebibytes", "megabytes",
+					"gibibytes", "gigabytes", "tebibytes", "terabytes",
+					"pebibytes", "petabytes", "ebibytes",  "exabytes",
+					"zebibytes", "zetabytes", "yobibytes", "yottabytes", NULL };
 	static unsigned long long unit_factors[ARRAY_SIZE(unit_strings) - 1] = { 1, 512, 1024, 1000 };
 	struct global *r = malloc(sizeof(*r));
 
