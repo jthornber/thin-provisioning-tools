@@ -411,7 +411,7 @@ ERA_DUMP_OBJECTS=$(subst .cc,.o,$(ERA_DUMP_SOURCE))
 
 era_dump: $(ERA_DUMP_OBJECTS)  era/era_dump.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 ERA_INVALIDATE_SOURCE=\
 	block-cache/block_cache.cc \
@@ -445,7 +445,7 @@ ERA_INVALIDATE_OBJECTS=$(subst .cc,.o,$(ERA_INVALIDATE_SOURCE))
 
 era_invalidate: $(ERA_INVALIDATE_OBJECTS)  era/era_invalidate.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 #----------------------------------------------------------------
 
