@@ -10,6 +10,7 @@ Requirements
 A C++ compiler that supports the c++11 standard (eg, g++).
 The [Boost C++ library](http://www.boost.org/).
 The [expat](http://expat.sourceforge.net/) xml parser library (version 1).
+The libaio library (note this is not the same as the aio library that you get by linking -lrt)
 make, autoconf etc.
 
 There are more requirements for testing, detailed below.
