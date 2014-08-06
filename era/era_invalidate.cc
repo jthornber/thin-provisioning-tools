@@ -178,10 +178,11 @@ namespace {
 	}
 
 	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] --written-since <era> {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-o <xml file>}" << endl
+		out << "Usage: " << cmd << " [options] --written-since <era> {device|file}\n"
+		    << "Options:\n"
+		    << "  {-h|--help}\n"
+		    << "  {-o <xml file>}\n"
+		    << "  {--metadata-snapshot}\n"
 		    << "  {-V|--version}" << endl;
 	}
 }
