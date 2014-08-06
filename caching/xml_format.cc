@@ -262,7 +262,6 @@ caching::parse_xml(istream &in, emitter::ptr e)
 			throw runtime_error(out.str());
 		}
 	}
-
 }
 
 //----------------------------------------------------------------
