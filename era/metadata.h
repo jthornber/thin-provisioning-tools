@@ -29,7 +29,7 @@ namespace era {
 
 		metadata(block_manager<>::ptr bm, open_type ot);
 		metadata(block_manager<>::ptr bm, block_address metadata_snap);
-		void commit(bool clean_shutdown = true);
+		void commit();
 
 		typedef persistent_data::transaction_manager tm;
 		tm::ptr tm_;
@@ -41,6 +41,11 @@ namespace era {
 	private:
 		void open_metadata(block_manager<>::ptr bm,
 				   block_address loc = SUPERBLOCK_LOCATION);
+
+		void commit_space_map();
+		void commit_writesets();
+		void commit_era_array();
+		void commit_superblock();
 	};
 };
 

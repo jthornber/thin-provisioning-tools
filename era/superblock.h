@@ -1,5 +1,5 @@
 #ifndef ERA_SUPERBLOCK_H
-#define ERA_SUPERBLOCK_h
+#define ERA_SUPERBLOCK_H
 
 #include "persistent-data/block.h"
 #include "era/era_detail.h"

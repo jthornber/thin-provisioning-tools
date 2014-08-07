@@ -63,6 +63,7 @@ SOURCE=\
 	era/writeset_tree.cc \
 	era/metadata.cc \
 	era/metadata_dump.cc \
+	era/restore_emitter.cc \
 	era/xml_format.cc \
 	\
 	persistent-data/checksum.cc \
@@ -443,7 +444,42 @@ ERA_INVALIDATE_SOURCE=\
 
 ERA_INVALIDATE_OBJECTS=$(subst .cc,.o,$(ERA_INVALIDATE_SOURCE))
 
-era_invalidate: $(ERA_INVALIDATE_OBJECTS)  era/era_invalidate.o
+era_invalidate: $(ERA_INVALIDATE_OBJECTS) era/era_invalidate.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
+
+ERA_RESTORE_SOURCE=\
+	block-cache/block_cache.cc \
+	\
+	base/base64.cc \
+	base/error_state.cc \
+	base/endian_utils.cc \
+	base/xml_utils.cc \
+	\
+	era/writeset_tree.cc \
+	era/era_detail.cc \
+	era/era_array.cc \
+	era/metadata.cc \
+	era/metadata_dump.cc \
+	era/restore_emitter.cc \
+	era/superblock.cc \
+	era/xml_format.cc \
+	\
+	persistent-data/checksum.cc \
+	persistent-data/error_set.cc \
+	persistent-data/file_utils.cc \
+	persistent-data/hex_dump.cc \
+	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/bitset.cc \
+	persistent-data/space_map.cc \
+	persistent-data/space-maps/disk.cc \
+	persistent-data/space-maps/recursive.cc \
+	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/transaction_manager.cc \
+
+ERA_RESTORE_OBJECTS=$(subst .cc,.o,$(ERA_RESTORE_SOURCE))
+
+era_restore: $(ERA_RESTORE_OBJECTS) era/era_restore.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 

@@ -53,4 +53,38 @@ metadata::open_metadata(block_manager<>::ptr bm, block_address loc)
 						  sb_.nr_blocks));
 }
 
+void
+metadata::commit()
+{
+	commit_space_map();
+	commit_writesets();
+	commit_era_array();
+	commit_superblock();
+}
+
+void
+metadata::commit_space_map()
+{
+	metadata_sm_->commit();
+	metadata_sm_->copy_root(&sb_.metadata_space_map_root, sizeof(sb_.metadata_space_map_root));
+}
+
+void
+metadata::commit_writesets()
+{
+	sb_.writeset_tree_root = writeset_tree_->get_root();
+}
+
+void
+metadata::commit_era_array()
+{
+	sb_.era_array_root = era_array_->get_root();
+}
+
+void
+metadata::commit_superblock()
+{
+	write_superblock(tm_->get_bm(), sb_);
+}
+
 //----------------------------------------------------------------
