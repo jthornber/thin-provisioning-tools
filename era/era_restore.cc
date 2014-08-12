@@ -13,7 +13,7 @@
 #include <string>
 
 using namespace boost;
-using namespace caching;
+using namespace era;
 using namespace persistent_data;
 using namespace std;
 
@@ -29,7 +29,7 @@ namespace {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
-			emitter::ptr restorer = create_restore_emitter(md);
+			emitter::ptr restorer = create_restore_emitter(*md);
 
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);
@@ -49,8 +49,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-i|--input} <input xml file>" << endl
 		    << "  {-o|--output} <output device or file>" << endl
-		    << "  {-V|--version}" << endl
-		    << endl;
+		    << "  {-V|--version}" << endl;
 	}
 }
 
