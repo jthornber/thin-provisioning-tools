@@ -486,6 +486,7 @@ block_cache::~block_cache()
 
 	::close(fd_);
 
+#if 0
 	std::cerr << "\nblock cache stats\n"
 		  << "=================\n"
 		  << "prefetches:\t" << prefetches_ << "\n"
@@ -494,6 +495,7 @@ block_cache::~block_cache()
 		  << "write hits:\t" << write_hits_ << "\n"
 		  << "write misses:\t" << write_misses_ << "\n"
 		  << "write zeroes:\t" << write_zeroes_ << std::endl;
+#endif
 }
 
 uint64_t
