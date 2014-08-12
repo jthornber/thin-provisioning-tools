@@ -29,6 +29,7 @@ PROGRAMS=\
 	era_check \
 	era_dump \
 	era_invalidate \
+	era_restore \
 	\
 	thin_check \
 	thin_delta \
