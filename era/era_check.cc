@@ -211,8 +211,6 @@ namespace {
 		if (sb_rep.get_error() == FATAL)
 			return FATAL;
 
-		return sb_rep.get_error();
-
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
 
