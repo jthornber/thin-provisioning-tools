@@ -78,17 +78,17 @@ namespace persistent_data {
 		class write_ref : public read_ref {
 		public:
 			write_ref(block_cache::block &b);
+			write_ref(block_cache::block &b, unsigned &ref_count);
+			write_ref(write_ref const &rhs);
+			~write_ref();
+
+			write_ref const &operator =(write_ref const &rhs);
 
 			using read_ref::data;
 			void *data();
-		};
 
-		class super_ref : public write_ref {
-		public:
-			super_ref(block_cache::block &b);
-
-			using read_ref::data;
-			using write_ref::data;
+		private:
+			unsigned *ref_count_;
 		};
 
 		// Locking methods
@@ -140,6 +140,7 @@ namespace persistent_data {
 
 		int fd_;
 		mutable block_cache bc_;
+		unsigned superblock_ref_count_;
 	};
 
 	// A little utility to help build validators

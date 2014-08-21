@@ -152,8 +152,49 @@ namespace persistent_data {
 
 	template <uint32_t BlockSize>
 	block_manager<BlockSize>::write_ref::write_ref(block_cache::block &b)
-		: read_ref(b)
+		: read_ref(b),
+		  ref_count_(NULL)
 	{
+	}
+
+	template <uint32_t BlockSize>
+	block_manager<BlockSize>::write_ref::write_ref(block_cache::block &b, unsigned &ref_count)
+		: read_ref(b),
+		  ref_count_(&ref_count) {
+		if (*ref_count_)
+			throw std::runtime_error("superblock already locked");
+		(*ref_count_)++;
+	}
+
+	template <uint32_t BlockSize>
+	block_manager<BlockSize>::write_ref::write_ref(write_ref const &rhs)
+		: read_ref(rhs),
+		  ref_count_(rhs.ref_count_) {
+		if (ref_count_)
+			(*ref_count_)++;
+	}
+
+	template <uint32_t BlockSize>
+	block_manager<BlockSize>::write_ref::~write_ref()
+	{
+		if (ref_count_) {
+			if (!*ref_count_)
+				throw std::runtime_error("write_ref ref_count going below zero");
+
+			(*ref_count_)--;
+		}
+	}
+
+	template <uint32_t BlockSize>
+	typename block_manager<BlockSize>::write_ref const &
+	block_manager<BlockSize>::write_ref::operator =(write_ref const &rhs)
+	{
+		if (&rhs != this) {
+			read_ref::operator =(rhs);
+			ref_count_ = rhs.ref_count_;
+			if (ref_count_)
+				(*ref_count_)++;
+		}
 	}
 
 	template <uint32_t BlockSize>
@@ -161,14 +202,6 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_ref::data()
 	{
 		return read_ref::b_.get_data();
-	}
-
-	//--------------------------------
-
-	template <uint32_t BlockSize>
-	block_manager<BlockSize>::super_ref::super_ref(block_cache::block &b)
-		: write_ref(b)
-	{
 	}
 
 	//----------------------------------------------------------------
@@ -179,7 +212,8 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						mode m)
 		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m)),
-		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16)
+		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16),
+		  superblock_ref_count_(0)
 	{
 	}
 
@@ -235,7 +269,7 @@ namespace persistent_data {
 					     typename bcache::validator::ptr v)
 	{
 		block_cache::block &b = bc_.get(location, block_cache::GF_BARRIER, v);
-		return super_ref(b);
+		return write_ref(b, superblock_ref_count_);
 	}
 
 	template <uint32_t BlockSize>
@@ -244,7 +278,7 @@ namespace persistent_data {
 						  typename bcache::validator::ptr v)
 	{
 		block_cache::block &b = bc_.get(location, block_cache::GF_ZERO | block_cache::GF_BARRIER, v);
-		return super_ref(b);
+		return write_ref(b, superblock_ref_count_);
 	}
 
 	template <uint32_t BlockSize>
