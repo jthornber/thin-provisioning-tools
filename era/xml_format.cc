@@ -49,7 +49,7 @@ namespace {
 		void writeset_bit(uint32_t bit, bool value) {
 			out_.indent();
 			// FIXME: collect all the bits, then uuencode
-			out_ << "<bit bit=\"" << bit << "\" value=\"" << value << "\">" << endl;
+			out_ << "<bit block=\"" << bit << "\" value=\"" << value << "\"/>" << endl;
 		}
 
 		void end_writeset() {
@@ -67,7 +67,7 @@ namespace {
 		void era(pd::block_address block, uint32_t era) {
 			out_.indent();
 			out_ << "<era block=\"" << block
-			     << "\" era=\"" << era << "\">" << endl;
+			     << "\" era=\"" << era << "\"/>" << endl;
 		}
 
 		void end_era_array() {
@@ -83,6 +83,20 @@ namespace {
 	//--------------------------------
 	// Parser
 	//--------------------------------
+	void parse_bit(attributes const &a, emitter *e) {
+		bool value;
+
+		string txt = get_attr<string>(a, "value");
+		if (txt == "true")
+			value = true;
+		else if (txt == "false")
+			value = false;
+		else
+			throw runtime_error("invalid boolean");
+
+		e->writeset_bit(get_attr<uint32_t>(a, "block"), value);
+	}
+
 	void start_tag(void *data, char const *el, char const **attr) {
 		emitter *e = static_cast<emitter *>(data);
 		attributes a;
@@ -100,8 +114,7 @@ namespace {
 					  get_attr<uint32_t>(a, "nr_bits"));
 
 		else if (!strcmp(el, "bit"))
-			e->writeset_bit(get_attr<uint32_t>(a, "bit"),
-					get_attr<bool>(a, "value"));
+			parse_bit(a, e);
 
 		else if (!strcmp(el, "era_array"))
 			e->begin_era_array();
@@ -125,6 +138,14 @@ namespace {
 
 		else if (!strcmp(el, "era_array"))
 			e->end_era_array();
+
+		else if (!strcmp(el, "era"))
+			/* do nothing */
+			;
+
+		else if (!strcmp(el, "bit"))
+			/* do nothing */
+			;
 
 		else
 			throw runtime_error("unknown tag type");
