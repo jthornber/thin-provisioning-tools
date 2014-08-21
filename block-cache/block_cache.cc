@@ -504,6 +504,12 @@ block_cache::get_nr_blocks() const
 	return nr_data_blocks_;
 }
 
+uint64_t
+block_cache::get_nr_locked() const
+{
+	return nr_locked_;
+}
+
 void
 block_cache::zero_block(block &b)
 {

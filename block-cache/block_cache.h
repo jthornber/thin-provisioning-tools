@@ -119,6 +119,7 @@ namespace bcache {
 		~block_cache();
 
 		uint64_t get_nr_blocks() const;
+		uint64_t get_nr_locked() const;
 
 		enum get_flags {
 			GF_ZERO = (1 << 0),

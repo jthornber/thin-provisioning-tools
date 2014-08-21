@@ -36,7 +36,6 @@
 namespace persistent_data {
 	using namespace bcache;
 
-
 	uint32_t const MD_BLOCK_SIZE = 4096;
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>

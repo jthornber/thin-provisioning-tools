@@ -268,6 +268,9 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock(block_address location,
 					     typename bcache::validator::ptr v)
 	{
+		if (bc_.get_nr_locked() > 0)
+			throw std::runtime_error("attempt to lock superblock while other locks are still held");
+
 		block_cache::block &b = bc_.get(location, block_cache::GF_BARRIER, v);
 		return write_ref(b, superblock_ref_count_);
 	}
@@ -277,6 +280,9 @@ namespace persistent_data {
 	block_manager<BlockSize>::superblock_zero(block_address location,
 						  typename bcache::validator::ptr v)
 	{
+		if (bc_.get_nr_locked() > 0)
+			throw std::runtime_error("attempt to lock superblock while other locks are still held");
+
 		block_cache::block &b = bc_.get(location, block_cache::GF_ZERO | block_cache::GF_BARRIER, v);
 		return write_ref(b, superblock_ref_count_);
 	}
