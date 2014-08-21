@@ -360,6 +360,8 @@ TEST_F(ValidatorTests, validator_can_be_changed_by_write_lock_zero)
 		expect_prepare(vmock);
 		bm4096::write_ref wr = bm->write_lock_zero(0, vmock);
 	}
+	// We need to flush to ensure the vmock->prepare has occurred
+	bm->flush();
 
 	expect_no_check(vmock2);
 	expect_prepare(vmock2);
