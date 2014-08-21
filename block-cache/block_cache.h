@@ -214,6 +214,8 @@ namespace bcache {
 		unsigned write_hits_;
 		unsigned write_misses_;
 		unsigned prefetches_;
+
+		validator::ptr noop_validator_;
 	};
 }
 

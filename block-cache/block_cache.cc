@@ -403,7 +403,7 @@ block_cache::new_block(block_address index)
 
 		b->error_ = 0;
 		b->flags_ = 0;
-		b->v_ = validator::ptr(new noop_validator);
+		b->v_ = noop_validator_;
 
 		b->index_ = index;
 		setup_control_block(*b);
@@ -450,7 +450,8 @@ block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, s
 	  write_zeroes_(0),
 	  write_hits_(0),
 	  write_misses_(0),
-	  prefetches_(0)
+	  prefetches_(0),
+	  noop_validator_(new noop_validator())
 {
 	int r;
 	unsigned nr_cache_blocks = calc_nr_cache_blocks(mem, block_size);
