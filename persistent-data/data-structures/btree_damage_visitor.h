@@ -85,12 +85,17 @@ namespace persistent_data {
 		// different sub tree (by looking at the btree_path).
 		class path_tracker {
 		public:
+			path_tracker() {
+				// We push an empty path, to ensure there
+				// is always a current_path.
+				paths_.push_back(btree_path());
+			}
+
 			// returns the old path if the tree has changed.
 			btree_path const *next_path(btree_path const &p) {
 				if (p != current_path()) {
 					if (paths_.size() == 2)
 						paths_.pop_front();
-
 					paths_.push_back(p);
 
 					return &paths_.front();
