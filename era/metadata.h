@@ -39,6 +39,7 @@ namespace era {
 		era_array::ptr era_array_;
 
 	private:
+		void create_metadata(block_manager<>::ptr bm);
 		void open_metadata(block_manager<>::ptr bm,
 				   block_address loc = SUPERBLOCK_LOCATION);
 

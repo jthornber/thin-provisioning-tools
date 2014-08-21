@@ -16,14 +16,22 @@ namespace {
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}
+
+	void
+	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
+		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
+			uint32_t count = rhs->get_count(b);
+			if (count > 0)
+				lhs->set_count(b, rhs->get_count(b));
+		}
+	}
 }
 
 metadata::metadata(block_manager<>::ptr bm, open_type ot)
 {
 	switch (ot) {
 	case CREATE:
-		// finish
-		throw runtime_error("not imlemented");
+		create_metadata(bm);
 		break;
 
 	case OPEN:
@@ -35,6 +43,21 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 metadata::metadata(block_manager<>::ptr bm, block_address metadata_snap)
 {
 	open_metadata(bm);
+}
+
+void
+metadata::create_metadata(block_manager<>::ptr bm)
+{
+	tm_ = open_tm(bm);
+
+	space_map::ptr core = tm_->get_sm();
+	metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+	copy_space_maps(metadata_sm_, core);
+	tm_->set_sm(metadata_sm_);
+
+	writeset_tree_ = writeset_tree::ptr(new writeset_tree(tm_, era_detail_traits::ref_counter(tm_)));
+	era_array_ = era_array::ptr(new era_array(tm_,
+						  uint32_traits::ref_counter()));
 }
 
 void
