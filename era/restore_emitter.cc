@@ -29,11 +29,15 @@ namespace {
 			sb.current_era = current_era;
 
 			nr_blocks = nr_blocks;
+
+			md_.era_array_->grow(nr_blocks, 0);
+
+			in_superblock_ = true;
 		}
 
 		virtual void end_superblock() {
 			if (!in_superblock_)
-				throw runtime_error("missing superblock");
+				throw runtime_error("xml missing superblock");
 
 			md_.commit();
 		}
@@ -41,6 +45,9 @@ namespace {
 		virtual void begin_writeset(uint32_t era, uint32_t nr_bits) {
 			if (!in_superblock_)
 				throw runtime_error("missing superblock");
+
+			if (in_writeset_)
+				throw runtime_error("attempt to begin writeset when already in one");
 
 			in_writeset_ = true;
 			era_ = era;
@@ -55,6 +62,8 @@ namespace {
 
 		virtual void end_writeset() {
 			in_writeset_ = false;
+
+			bits_->flush();
 
 			era_detail e;
 			e.nr_bits = bits_->get_nr_bits();
