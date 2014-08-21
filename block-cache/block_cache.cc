@@ -77,6 +77,21 @@ block_cache::init_free_list(unsigned count)
 	return 0;
 }
 
+void
+block_cache::exit_free_list()
+{
+	if (blocks_data_)
+		free(blocks_data_);
+
+	if (blocks_memory_) {
+		struct block *blocks = static_cast<block *>(blocks_memory_);
+		for (unsigned i = 0; i < nr_cache_blocks_; i++)
+			(blocks + i)->~block();
+
+		free(blocks_memory_);
+	}
+}
+
 block_cache::block *
 block_cache::__alloc_block()
 {
@@ -475,11 +490,7 @@ block_cache::~block_cache()
 	flush();
 	wait_all();
 
-	if (blocks_memory_)
-		free(blocks_memory_);
-
-	if (blocks_data_)
-		free(blocks_data_);
+	exit_free_list();
 
 	if (aio_context_)
 		io_destroy(aio_context_);

@@ -138,6 +138,7 @@ namespace bcache {
 
 	private:
 		int init_free_list(unsigned count);
+		void exit_free_list();
 		block *__alloc_block();
 		void complete_io(block &b, int result);
 		void issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc);
