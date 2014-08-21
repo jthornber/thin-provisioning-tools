@@ -577,8 +577,6 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 
 		b = new_block(index);
 		if (b) {
-			b->v_ = v;
-
 			if (flags & GF_ZERO)
 				zero_block(*b);
 			else {
@@ -586,6 +584,8 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 				wait_specific(*b);
 				v->check(b->data_, b->index_);
 			}
+
+			b->v_ = v;
 		}
 	}
 
