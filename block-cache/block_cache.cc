@@ -564,10 +564,9 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 		if (flags & GF_ZERO)
 			zero_block(*b);
 		else {
-			if (b->v_.get() &&
-			    b->v_.get() != v.get() &&
-			    b->test_flags(BF_DIRTY)) {
-				b->v_->prepare(b->data_, b->index_);
+			if (b->v_.get() != v.get()) {
+				if (b->test_flags(BF_DIRTY))
+					b->v_->prepare(b->data_, b->index_);
 				v->check(b->data_, b->index_);
 			}
 		}
