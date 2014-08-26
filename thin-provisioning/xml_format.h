@@ -28,8 +28,7 @@
 
 namespace thin_provisioning {
 	emitter::ptr create_xml_emitter(std::ostream &out);
-	void parse_xml(std::istream &in, emitter::ptr e,
-		       size_t input_length, base::progress_monitor::ptr p);
+	void parse_xml(std::string const &backup_file, emitter::ptr e, bool quiet);
 }
 
 //----------------------------------------------------------------

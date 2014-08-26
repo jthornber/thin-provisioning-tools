@@ -60,16 +60,16 @@ namespace {
 
 //----------------------------------------------------------------
 
-base::progress_monitor::ptr
+std::auto_ptr<base::progress_monitor>
 base::create_progress_bar(std::string const &title)
 {
-	return progress_monitor::ptr(new progress_bar(title));
+	return auto_ptr<progress_monitor>(new progress_bar(title));
 }
 
-base::progress_monitor::ptr
+std::auto_ptr<base::progress_monitor>
 base::create_quiet_progress_monitor()
 {
-	return progress_monitor::ptr(new quiet_progress());
+	return auto_ptr<progress_monitor>(new quiet_progress());
 }
 
 //----------------------------------------------------------------

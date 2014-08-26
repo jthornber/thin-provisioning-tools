@@ -159,29 +159,14 @@ era::create_xml_emitter(std::ostream &out)
 }
 
 void
-era::parse_xml(std::istream &in, emitter::ptr e)
+era::parse_xml(std::string const &backup_file, emitter::ptr e, bool quiet)
 {
 	xml_parser p;
 
 	XML_SetUserData(p.get_parser(), e.get());
 	XML_SetElementHandler(p.get_parser(), start_tag, end_tag);
 
-	while (!in.eof()) {
-		char buffer[4096];
-		in.read(buffer, sizeof(buffer));
-		size_t len = in.gcount();
-		int done = in.eof();
-
-		if (!XML_Parse(p.get_parser(), buffer, len, done)) {
-			ostringstream out;
-			out << "Parse error at line "
-			    << XML_GetCurrentLineNumber(p.get_parser())
-			    << ":\n"
-			    << XML_ErrorString(XML_GetErrorCode(p.get_parser()))
-			    << endl;
-			throw runtime_error(out.str());
-		}
-	}
+	p.parse(backup_file, quiet);
 }
 
 //----------------------------------------------------------------

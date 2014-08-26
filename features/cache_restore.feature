@@ -18,6 +18,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
@@ -36,6 +37,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
@@ -80,3 +82,18 @@ Feature: thin_restore
     And an empty dev file
     When I run cache_restore with -i metadata.xml -o metadata.bin --omit-clean-shutdown
     Then it should pass
+
+  Scenario: --quiet is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin --quiet
+    Then it should pass with:
+    """
+    """
+
+  Scenario: -q is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin -q
+    Then it should pass with:
+    """
+    """
+

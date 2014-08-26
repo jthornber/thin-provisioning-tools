@@ -1,9 +1,11 @@
 #ifndef BASE_XML_UTILS_H
 #define BASE_XML_UTILS_H
 
+#include <base/progress_monitor.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <expat.h>
+#include <iosfwd>
 #include <map>
 
 using namespace std;
@@ -30,7 +32,12 @@ namespace xml_utils {
 			return parser_;
 		}
 
+		void parse(std::string const &backup_file, bool quiet);
+
 	private:
+		size_t get_file_length(string const &file) const;
+		auto_ptr<base::progress_monitor> create_monitor(bool quiet);
+
 		XML_Parser parser_;
         };
 

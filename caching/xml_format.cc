@@ -236,12 +236,15 @@ caching::create_xml_emitter(ostream &out)
 }
 
 void
-caching::parse_xml(istream &in, emitter::ptr e)
+caching::parse_xml(istream &in, emitter::ptr e,
+		   size_t input_length, base::progress_monitor &monitor)
 {
 	xml_parser p;
 
 	XML_SetUserData(p.get_parser(), e.get());
 	XML_SetElementHandler(p.get_parser(), start_tag, end_tag);
+
+	size_t total = 0;
 
 	while (!in.eof()) {
 		char buffer[4096];
@@ -258,6 +261,9 @@ caching::parse_xml(istream &in, emitter::ptr e)
 			    << endl;
 			throw runtime_error(out.str());
 		}
+
+		total += len;
+		monitor.update_percent(total * 100 / input_length);
 	}
 }
 

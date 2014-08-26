@@ -18,6 +18,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
     """
@@ -33,6 +34,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
     """
@@ -64,3 +66,17 @@ Feature: thin_restore
     Then it should pass
     And the metadata should be valid
     
+  Scenario: --quiet is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin --quiet
+    Then it should pass with:
+    """
+    """
+
+  Scenario: -q is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin -q
+    Then it should pass with:
+    """
+    """
+

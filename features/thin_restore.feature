@@ -55,6 +55,20 @@ Feature: thin_restore
     No output file provided.
     """
 
+  Scenario: --quiet is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin --quiet
+    Then it should pass with:
+    """
+    """
+
+  Scenario: -q is accepted
+    Given valid metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin -q
+    Then it should pass with:
+    """
+    """
+
   Scenario: dump/restore is a noop
     Given valid metadata
     When I dump

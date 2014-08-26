@@ -178,6 +178,7 @@ THIN_CHECK_SOURCE=\
 	\
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
@@ -202,6 +203,7 @@ THIN_DELTA_SOURCE=\
 	\
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
@@ -269,11 +271,11 @@ thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
 
 thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_delta: $(THIN_DELTA_OBJECTS) thin-provisioning/thin_delta.o
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
 
 thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
 	@echo "    [LD]  $@"
@@ -292,6 +294,7 @@ CACHE_CHECK_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	persistent-data/checksum.cc \
@@ -354,6 +357,7 @@ ERA_CHECK_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \
@@ -421,6 +425,7 @@ ERA_INVALIDATE_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \
@@ -455,6 +460,7 @@ ERA_RESTORE_SOURCE=\
 	base/base64.cc \
 	base/error_state.cc \
 	base/endian_utils.cc \
+	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	\
 	era/writeset_tree.cc \

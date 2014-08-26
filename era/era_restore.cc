@@ -21,19 +21,22 @@ using namespace std;
 
 namespace {
 	struct flags {
+		flags()
+			: quiet(false) {
+		}
+
 		optional<string> input;
 		optional<string> output;
+		bool quiet;
 	};
 
-	int restore(flags const &fs) {
+	int restore(flags const &fs, bool quiet) {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(*md);
 
-			check_file_exists(*fs.input);
-			ifstream in(fs.input->c_str(), ifstream::in);
-			parse_xml(in, restorer);
+			parse_xml(*fs.input, restorer, fs.quiet);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -49,6 +52,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-i|--input} <input xml file>" << endl
 		    << "  {-o|--output} <output device or file>" << endl
+		    << "  {-q|--quiet}" << endl
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -58,11 +62,12 @@ int main(int argc, char **argv)
 	int c;
 	flags fs;
 	char const *prog_name = basename(argv[0]);
-	char const *short_opts = "hi:o:V";
+	char const *short_opts = "hi:o:qV";
 	option const long_opts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
+		{ "quiet", no_argument, NULL, 'q'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -79,6 +84,10 @@ int main(int argc, char **argv)
 
 		case 'o':
 			fs.output = optional<string>(string(optarg));
+			break;
+
+		case 'q':
+			fs.quiet = true;
 			break;
 
 		case 'V':
@@ -108,7 +117,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return restore(fs);
+	return restore(fs, fs.quiet);
 }
 
 //----------------------------------------------------------------
