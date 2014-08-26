@@ -237,7 +237,7 @@ namespace {
 			out << "examining mapping array" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				mapping_array ma(tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
+				mapping_array ma(*tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
 				check_mapping_array(ma, mapping_rep);
 			}
 		}
@@ -250,7 +250,7 @@ namespace {
 				out << "examining hint array" << end_message();
 				{
 					nested_output::nest _ = out.push();
-					hint_array ha(tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
+					hint_array ha(*tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
 					ha.check(hint_rep);
 				}
 			}
@@ -264,7 +264,7 @@ namespace {
 				out << "examining discard bitset" << end_message();
 				{
 					nested_output::nest _ = out.push();
-					persistent_data::bitset discards(tm, sb.discard_root, sb.discard_nr_blocks);
+					persistent_data::bitset discards(*tm, sb.discard_root, sb.discard_nr_blocks);
 				}
 			}
 		}

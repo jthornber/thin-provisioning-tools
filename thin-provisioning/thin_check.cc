@@ -194,7 +194,7 @@ namespace {
 			out << "examining devices tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				device_tree dtree(tm, sb.device_details_root_,
+				device_tree dtree(*tm, sb.device_details_root_,
 						  device_tree_detail::device_details_traits::ref_counter());
 				check_device_tree(dtree, dev_rep);
 			}
@@ -204,7 +204,7 @@ namespace {
 			out << "examining top level of mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				dev_tree dtree(tm, sb.data_mapping_root_,
+				dev_tree dtree(*tm, sb.data_mapping_root_,
 					       mapping_tree_detail::mtree_traits::ref_counter(tm));
 				check_mapping_tree(dtree, mapping_rep);
 			}
@@ -213,7 +213,7 @@ namespace {
 			out << "examining mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				mapping_tree mtree(tm, sb.data_mapping_root_,
+				mapping_tree mtree(*tm, sb.data_mapping_root_,
 						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 				check_mapping_tree(mtree, mapping_rep);
 			}

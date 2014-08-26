@@ -217,14 +217,14 @@ namespace {
 		writeset_tree_reporter wt_rep(out);
 		{
 			era_detail_traits::ref_counter rc(tm);
-			writeset_tree wt(tm, sb.writeset_tree_root, rc);
+			writeset_tree wt(*tm, sb.writeset_tree_root, rc);
 			check_writeset_tree(tm, wt, wt_rep);
 		}
 
 		era_array_reporter ea_rep(out);
 		{
 			uint32_traits::ref_counter rc;
-			era_array ea(tm, rc, sb.era_array_root, sb.nr_blocks);
+			era_array ea(*tm, rc, sb.era_array_root, sb.nr_blocks);
 			check_era_array(ea, sb.current_era, ea_rep);
 		}
 

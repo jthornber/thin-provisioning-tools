@@ -450,7 +450,7 @@ namespace {
 
 			superblock_detail::superblock sb = read_superblock(bm);
 
-			dev_tree dtree(tm, sb.data_mapping_root_,
+			dev_tree dtree(*tm, sb.data_mapping_root_,
 				       mapping_tree_detail::mtree_traits::ref_counter(tm));
 
 			dev_tree::key k = {*fs.snap1};
@@ -462,7 +462,7 @@ namespace {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap1(tm, *snap1_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap1(*tm, *snap1_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 
 			k[0] = *fs.snap2;
 			boost::optional<uint64_t> snap2_root = dtree.lookup(k);
@@ -473,7 +473,7 @@ namespace {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap2(tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap2(*tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 			btree_visit_values(snap1, mr1, damage_v);
 			btree_visit_values(snap2, mr2, damage_v);
 		}

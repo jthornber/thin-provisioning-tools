@@ -61,7 +61,7 @@ metadata::setup_hint_array(size_t width)
 {
 	if (width > 0)
 		hints_ = hint_array::ptr(
-			new hint_array(tm_, width));
+			new hint_array(*tm_, width));
 }
 
 void
@@ -70,16 +70,16 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	tm_ = open_tm(bm);
 
 	space_map::ptr core = tm_->get_sm();
-	metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+	metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
 	copy_space_maps(metadata_sm_, core);
 	tm_->set_sm(metadata_sm_);
 
-	mappings_ = mapping_array::ptr(new mapping_array(tm_, mapping_array::ref_counter()));
+	mappings_ = mapping_array::ptr(new mapping_array(*tm_, mapping_array::ref_counter()));
 
 	// We can't instantiate the hint array yet, since we don't know the
 	// hint width.
 
-	discard_bits_ = persistent_data::bitset::ptr(new persistent_data::bitset(tm_));
+	discard_bits_ = persistent_data::bitset::ptr(new persistent_data::bitset(*tm_));
 }
 
 void
@@ -89,19 +89,19 @@ metadata::open_metadata(block_manager<>::ptr bm)
 	sb_ = read_superblock(tm_->get_bm());
 
 	mappings_ = mapping_array::ptr(
-		new mapping_array(tm_,
+		new mapping_array(*tm_,
 				  mapping_array::ref_counter(),
 				  sb_.mapping_root,
 				  sb_.cache_blocks));
 
 	if (sb_.hint_root)
 		hints_ = hint_array::ptr(
-			new hint_array(tm_, sb_.policy_hint_size,
+			new hint_array(*tm_, sb_.policy_hint_size,
 				       sb_.hint_root, sb_.cache_blocks));
 
 	if (sb_.discard_root)
 		discard_bits_ = persistent_data::bitset::ptr(
-			new persistent_data::bitset(tm_, sb_.discard_root, sb_.discard_nr_blocks));
+			new persistent_data::bitset(*tm_, sb_.discard_root, sb_.discard_nr_blocks));
 }
 
 void

@@ -38,7 +38,7 @@ namespace {
 	xx(4);
 
 	template <uint32_t WIDTH>
-	shared_ptr<array_base> mk_array(transaction_manager::ptr tm) {
+	shared_ptr<array_base> mk_array(transaction_manager &tm) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
@@ -47,7 +47,7 @@ namespace {
 		return r;
 	}
 
-	shared_ptr<array_base> mk_array(transaction_manager::ptr tm, uint32_t width) {
+	shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width) {
 		switch (width) {
 #define xx(n)	case n:	return mk_array<n>(tm)
 
@@ -76,7 +76,7 @@ namespace {
 	//--------------------------------
 
 	template <uint32_t WIDTH>
-	shared_ptr<array_base> mk_array(transaction_manager::ptr tm, block_address root, unsigned nr_entries) {
+	shared_ptr<array_base> mk_array(transaction_manager &tm, block_address root, unsigned nr_entries) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
@@ -85,7 +85,7 @@ namespace {
 		return r;
 	}
 
-	shared_ptr<array_base> mk_array(transaction_manager::ptr tm, uint32_t width, block_address root, unsigned nr_entries) {
+	shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width, block_address root, unsigned nr_entries) {
 		switch (width) {
 #define xx(n)	case n:	return mk_array<n>(tm, root, nr_entries)
 			all_widths
@@ -230,13 +230,13 @@ missing_hints::visit(damage_visitor &v) const
 
 //----------------------------------------------------------------
 
-hint_array::hint_array(tm_ptr tm, unsigned width)
+hint_array::hint_array(transaction_manager &tm, unsigned width)
 	: width_(check_width(width)),
 	  impl_(mk_array(tm, width))
 {
 }
 
-hint_array::hint_array(hint_array::tm_ptr tm, unsigned width,
+hint_array::hint_array(transaction_manager &tm, unsigned width,
 		       block_address root, unsigned nr_entries)
 	: width_(check_width(width)),
 	  impl_(mk_array(tm, width, root, nr_entries))

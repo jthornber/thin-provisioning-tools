@@ -31,7 +31,7 @@ namespace {
 		BloomFilterTests()
 			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
 			  sm_(setup_core_map()),
-			  tm_(new transaction_manager(bm_, sm_)) {
+			  tm_(bm_, sm_) {
 		}
 
 		set<block_address> generate_random_blocks(unsigned count,
@@ -73,7 +73,7 @@ namespace {
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
 		space_map::ptr sm_;
-		transaction_manager::ptr tm_;
+		transaction_manager tm_;
 
 		boost::random::mt19937 rng_;
 	};

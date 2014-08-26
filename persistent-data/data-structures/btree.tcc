@@ -64,7 +64,7 @@ namespace persistent_data {
 	inline void
 	ro_spine::step(block_address b)
 	{
-		spine_.push_back(tm_->read_lock(b, validator_));
+		spine_.push_back(tm_.read_lock(b, validator_));
 		if (spine_.size() > 2)
 			spine_.pop_front();
 	}
@@ -72,11 +72,11 @@ namespace persistent_data {
 	inline bool
 	shadow_spine::step(block_address b)
 	{
-		pair<write_ref, bool> p = tm_->shadow(b, validator_);
+		pair<write_ref, bool> p = tm_.shadow(b, validator_);
 		try {
 			step(p.first);
 		} catch (...) {
-			tm_->get_sm()->dec(p.first.get_location());
+			tm_.get_sm()->dec(p.first.get_location());
 			throw;
 		}
 		return p.second;
@@ -392,17 +392,17 @@ namespace persistent_data {
 
 	template <unsigned Levels, typename ValueTraits>
 	btree<Levels, ValueTraits>::
-	btree(typename transaction_manager::ptr tm,
+	btree(transaction_manager &tm,
 	      typename ValueTraits::ref_counter rc)
 		: tm_(tm),
 		  destroy_(false),
-		  internal_rc_(tm->get_sm()),
+		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
 		  validator_(new btree_node_validator)
 	{
 		using namespace btree_detail;
 
-		write_ref root = tm_->new_block(validator_);
+		write_ref root = tm_.new_block(validator_);
 
 		if (Levels > 1) {
 			internal_node n = to_node<block_traits>(root);
@@ -424,13 +424,13 @@ namespace persistent_data {
 
 	template <unsigned Levels, typename ValueTraits>
 	btree<Levels, ValueTraits>::
-	btree(typename transaction_manager::ptr tm,
+	btree(transaction_manager &tm,
 	      block_address root,
 	      typename ValueTraits::ref_counter rc)
 		: tm_(tm),
 		  destroy_(false),
 		  root_(root),
-		  internal_rc_(tm->get_sm()),
+		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
 		  validator_(new btree_node_validator)
 	{
@@ -559,7 +559,7 @@ namespace persistent_data {
 	typename btree<Levels, ValueTraits>::ptr
 	btree<Levels, ValueTraits>::clone() const
 	{
-		tm_->get_sm()->inc(root_);
+		tm_.get_sm()->inc(root_);
 		return ptr(new btree<Levels, ValueTraits>(tm_, root_, rc_));
 	}
 
@@ -635,13 +635,13 @@ namespace persistent_data {
 		node_type type;
 		unsigned nr_left, nr_right;
 
-		write_ref left = tm_->new_block(validator_);
+		write_ref left = tm_.new_block(validator_);
 		node_ref<ValueTraits> l = to_node<ValueTraits>(left);
 		l.set_nr_entries(0);
 		l.set_max_entries();
 		l.set_value_size(sizeof(typename ValueTraits::disk_type));
 
-		write_ref right = tm_->new_block(validator_);
+		write_ref right = tm_.new_block(validator_);
 		node_ref<ValueTraits> r = to_node<ValueTraits>(right);
 		r.set_nr_entries(0);
 		r.set_max_entries();
@@ -695,7 +695,7 @@ namespace persistent_data {
 		node_ref<ValueTraits> l = spine.template get_node<ValueTraits>();
 		block_address left = spine.get_block();
 
-		write_ref right = tm_->new_block(validator_);
+		write_ref right = tm_.new_block(validator_);
 		node_ref<ValueTraits> r = to_node<ValueTraits>(right);
 
 		unsigned nr_left = l.get_nr_entries() / 2;
@@ -822,14 +822,14 @@ namespace persistent_data {
 	{
 		using namespace btree_detail;
 
-		read_ref blk = tm_->read_lock(b, validator_);
+		read_ref blk = tm_.read_lock(b, validator_);
 		internal_node o = to_node<block_traits>(blk);
 
 		// FIXME: use a switch statement
 		if (o.get_type() == INTERNAL) {
 			if (v.visit_internal(loc, o)) {
 				for (unsigned i = 0; i < o.get_nr_entries(); i++)
-					tm_->prefetch(o.value_at(i));
+					tm_.prefetch(o.value_at(i));
 
 				for (unsigned i = 0; i < o.get_nr_entries(); i++) {
 					node_location loc2(loc);

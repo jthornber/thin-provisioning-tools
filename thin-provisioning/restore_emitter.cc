@@ -134,7 +134,7 @@ namespace {
 	private:
 		single_mapping_tree::ptr new_mapping_tree() {
 			return single_mapping_tree::ptr(
-				new single_mapping_tree(md_->tm_,
+				new single_mapping_tree(*md_->tm_,
 							mapping_tree_detail::block_time_ref_counter(md_->data_sm_)));
 		}
 

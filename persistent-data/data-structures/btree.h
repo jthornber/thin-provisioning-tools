@@ -198,7 +198,7 @@ namespace persistent_data {
 
 		class ro_spine : private boost::noncopyable {
 		public:
-			ro_spine(transaction_manager::ptr tm,
+			ro_spine(transaction_manager &tm,
 				 bcache::validator::ptr v)
 				: tm_(tm),
 				  validator_(v) {
@@ -212,7 +212,7 @@ namespace persistent_data {
 			}
 
 		private:
-			transaction_manager::ptr tm_;
+			transaction_manager &tm_;
 			bcache::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
@@ -223,7 +223,7 @@ namespace persistent_data {
 			typedef transaction_manager::write_ref write_ref;
 			typedef boost::optional<block_address> maybe_block;
 
-			shadow_spine(transaction_manager::ptr tm,
+			shadow_spine(transaction_manager &tm,
 				     bcache::validator::ptr v)
 
 				: tm_(tm),
@@ -276,7 +276,7 @@ namespace persistent_data {
 			}
 
 		private:
-			transaction_manager::ptr tm_;
+			transaction_manager &tm_;
 			bcache::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
 		        maybe_block root_;
@@ -335,10 +335,10 @@ namespace persistent_data {
 		typedef typename btree_detail::node_ref<ValueTraits> leaf_node;
 		typedef typename btree_detail::node_ref<block_traits> internal_node;
 
-		btree(typename persistent_data::transaction_manager::ptr tm,
+		btree(transaction_manager &tm,
 		      typename ValueTraits::ref_counter rc);
 
-		btree(typename transaction_manager::ptr tm,
+		btree(transaction_manager &tm,
 		      block_address root,
 		      typename ValueTraits::ref_counter rc);
 
@@ -434,7 +434,7 @@ namespace persistent_data {
 		void inc_children(btree_detail::shadow_spine &spine,
 				  RefCounter &leaf_rc);
 
-		typename persistent_data::transaction_manager::ptr tm_;
+		transaction_manager &tm_;
 		bool destroy_;
 		block_address root_;
 		block_ref_counter internal_rc_;

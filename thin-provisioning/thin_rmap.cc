@@ -75,7 +75,7 @@ namespace {
 			transaction_manager::ptr tm = open_tm(bm);
 
 			superblock_detail::superblock sb = read_superblock(bm);
-			mapping_tree mtree(tm, sb.data_mapping_root_,
+			mapping_tree mtree(*tm, sb.data_mapping_root_,
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 
 			btree_visit_values(mtree, rv, dv);

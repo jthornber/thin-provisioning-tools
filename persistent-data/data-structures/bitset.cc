@@ -33,12 +33,12 @@ namespace persistent_data {
 			typedef boost::shared_ptr<bitset_impl> ptr;
 			typedef persistent_data::transaction_manager::ptr tm_ptr;
 
-			bitset_impl(tm_ptr tm)
+			bitset_impl(transaction_manager &tm)
 			: nr_bits_(0),
 			  array_(tm, rc_) {
 			}
 
-			bitset_impl(tm_ptr tm, block_address root, unsigned nr_bits)
+			bitset_impl(transaction_manager &tm, block_address root, unsigned nr_bits)
 				: nr_bits_(nr_bits),
 				  array_(tm, rc_, root, nr_bits / BITS_PER_ULL) {
 			}
@@ -203,12 +203,12 @@ namespace persistent_data {
 
 //----------------------------------------------------------------
 
-persistent_data::bitset::bitset(tm_ptr tm)
+persistent_data::bitset::bitset(transaction_manager &tm)
 	: impl_(new bitset_impl(tm))
 {
 }
 
-persistent_data::bitset::bitset(tm_ptr tm, block_address root, unsigned nr_bits)
+persistent_data::bitset::bitset(transaction_manager &tm, block_address root, unsigned nr_bits)
 	: impl_(new bitset_impl(tm, root, nr_bits))
 {
 }

@@ -71,36 +71,36 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 		if (sb_.version_ != 1)
 			throw runtime_error("unknown metadata version");
 
-		metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
+		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
+		data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
 
 		details_ = device_tree::ptr(
-			new device_tree(tm_, sb_.device_details_root_,
+			new device_tree(*tm_, sb_.device_details_root_,
 					device_tree_detail::device_details_traits::ref_counter()));
 
 		mappings_top_level_ = dev_tree::ptr(
-			new dev_tree(tm_, sb_.data_mapping_root_,
+			new dev_tree(*tm_, sb_.data_mapping_root_,
 				     mapping_tree_detail::mtree_ref_counter(tm_)));
 
 		mappings_ = mapping_tree::ptr(
-			new mapping_tree(tm_, sb_.data_mapping_root_,
+			new mapping_tree(*tm_, sb_.data_mapping_root_,
 					 mapping_tree_detail::block_time_ref_counter(data_sm_)));
 		break;
 
 	case CREATE:
 		tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_WRITE));
 		space_map::ptr core = tm_->get_sm();
-		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+		metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
 		copy_space_maps(metadata_sm_, core);
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = create_disk_sm(tm_, nr_data_blocks);
-		details_ = device_tree::ptr(new device_tree(tm_, device_tree_detail::device_details_traits::ref_counter()));
-		mappings_ = mapping_tree::ptr(new mapping_tree(tm_,
+		data_sm_ = create_disk_sm(*tm_, nr_data_blocks);
+		details_ = device_tree::ptr(new device_tree(*tm_, device_tree_detail::device_details_traits::ref_counter()));
+		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_,
 							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
-		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, mappings_->get_root(),
+		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, mappings_->get_root(),
 								 mapping_tree_detail::mtree_ref_counter(tm_)));
 
 		::memset(&sb_, 0, sizeof(sb_));
@@ -125,11 +125,11 @@ metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 	//metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
 	//tm_->set_sm(metadata_sm_);
 
-	data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-	details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));
-	mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_,
+	data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
+	details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));
+	mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
 							 mapping_tree_detail::mtree_ref_counter(tm_)));
-	mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_,
+	mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
 						       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 }
 
@@ -146,29 +146,29 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		if (sb_.version_ != 1)
 			throw runtime_error("unknown metadata version");
 
-		metadata_sm_ = open_metadata_sm(tm_, &sb_.metadata_space_map_root_);
+		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = open_disk_sm(tm_, static_cast<void *>(&sb_.data_space_map_root_));
-		details_ = device_tree::ptr(new device_tree(tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));
-		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, sb_.data_mapping_root_,
+		data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
+		details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_, device_tree_detail::device_details_traits::ref_counter()));
+		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
 								 mapping_tree_detail::mtree_ref_counter(tm_)));
-		mappings_ = mapping_tree::ptr(new mapping_tree(tm_, sb_.data_mapping_root_,
+		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
 							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 		break;
 
 	case CREATE:
 		tm_ = open_tm(bm);
 		space_map::ptr core = tm_->get_sm();
-		metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+		metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
 		copy_space_maps(metadata_sm_, core);
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = create_disk_sm(tm_, nr_data_blocks);
-		details_ = device_tree::ptr(new device_tree(tm_, device_tree_detail::device_details_traits::ref_counter()));
-		mappings_ = mapping_tree::ptr(new mapping_tree(tm_,
+		data_sm_ = create_disk_sm(*tm_, nr_data_blocks);
+		details_ = device_tree::ptr(new device_tree(*tm_, device_tree_detail::device_details_traits::ref_counter()));
+		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_,
 							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
-		mappings_top_level_ = dev_tree::ptr(new dev_tree(tm_, mappings_->get_root(),
+		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, mappings_->get_root(),
 								 mapping_tree_detail::mtree_ref_counter(tm_)));
 
 		::memset(&sb_, 0, sizeof(sb_));

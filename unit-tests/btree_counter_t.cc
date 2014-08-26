@@ -25,7 +25,7 @@ namespace {
 		BTreeCounterTests()
 			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
 			  sm_(setup_core_map()),
-			  tm_(new transaction_manager(bm_, sm_)) {
+			  tm_(bm_, sm_) {
 		}
 
 		void check_nr_metadata_blocks_is_ge(unsigned n) {
@@ -38,7 +38,7 @@ namespace {
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
 		space_map::ptr sm_;
-		transaction_manager::ptr tm_;
+		transaction_manager tm_;
 		uint64_traits::ref_counter rc_;
 
 		btree<1, uint64_traits>::ptr tree_;

@@ -34,7 +34,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-bloom_filter::bloom_filter(tm_ptr tm,
+bloom_filter::bloom_filter(transaction_manager &tm,
 			   unsigned nr_bits, unsigned nr_probes)
 	: tm_(tm),
 	  bits_(tm),
@@ -45,7 +45,7 @@ bloom_filter::bloom_filter(tm_ptr tm,
 	bits_.grow(nr_bits, false);
 }
 
-bloom_filter::bloom_filter(tm_ptr tm, block_address root,
+bloom_filter::bloom_filter(transaction_manager &tm, block_address root,
 			   unsigned nr_bits, unsigned nr_probes)
 	: tm_(tm),
 	  bits_(tm, root, nr_bits),

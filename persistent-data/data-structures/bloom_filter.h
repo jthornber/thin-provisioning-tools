@@ -12,13 +12,12 @@ namespace persistent_data {
 	class bloom_filter {
 	public:
 		typedef boost::shared_ptr<bloom_filter> ptr;
-		typedef persistent_data::transaction_manager::ptr tm_ptr;
 
 		// nr_bits must be a power of two
-		bloom_filter(tm_ptr tm,
+		bloom_filter(transaction_manager &tm,
 			     unsigned nr_bits, unsigned nr_probes);
 
-		bloom_filter(tm_ptr tm, block_address root,
+		bloom_filter(transaction_manager &tm, block_address root,
 			     unsigned nr_bits_power, unsigned nr_probes);
 
 		block_address get_root() const;
@@ -34,7 +33,7 @@ namespace persistent_data {
 
 		void fill_probes(block_address b, vector<unsigned> &probes) const;
 
-		tm_ptr tm_;
+		transaction_manager &tm_;
 		persistent_data::bitset bits_;
 		unsigned nr_probes_;
 		uint64_t mask_;

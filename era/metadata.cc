@@ -51,12 +51,12 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	tm_ = open_tm(bm);
 
 	space_map::ptr core = tm_->get_sm();
-	metadata_sm_ = create_metadata_sm(tm_, tm_->get_bm()->get_nr_blocks());
+	metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
 	copy_space_maps(metadata_sm_, core);
 	tm_->set_sm(metadata_sm_);
 
-	writeset_tree_ = writeset_tree::ptr(new writeset_tree(tm_, era_detail_traits::ref_counter(tm_)));
-	era_array_ = era_array::ptr(new era_array(tm_,
+	writeset_tree_ = writeset_tree::ptr(new writeset_tree(*tm_, era_detail_traits::ref_counter(tm_)));
+	era_array_ = era_array::ptr(new era_array(*tm_,
 						  uint32_traits::ref_counter()));
 }
 
@@ -66,11 +66,11 @@ metadata::open_metadata(block_manager<>::ptr bm, block_address loc)
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm(), loc);
 
-	writeset_tree_ = writeset_tree::ptr(new writeset_tree(tm_,
+	writeset_tree_ = writeset_tree::ptr(new writeset_tree(*tm_,
 							      sb_.writeset_tree_root,
 							      era_detail_traits::ref_counter(tm_)));
 
-	era_array_ = era_array::ptr(new era_array(tm_,
+	era_array_ = era_array::ptr(new era_array(*tm_,
 						  uint32_traits::ref_counter(),
 						  sb_.era_array_root,
 						  sb_.nr_blocks));
