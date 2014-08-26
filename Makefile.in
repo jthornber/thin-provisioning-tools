@@ -98,14 +98,23 @@ PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
 
 CXX_PROGRAM_SOURCE=\
 	caching/cache_check.cc \
+	caching/cache_dump.cc \
 	caching/cache_restore.cc \
+	caching/cache_metadata_size.cc \
+	caching/cache_repair.cc \
+	\
+	era/era_check.cc \
+	era/era_dump.cc \
+	era/era_invalidate.cc \
+	era/era_restore.cc \
 	\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_repair.cc \
-	thin-provisioning/thin_rmap.cc
+	thin-provisioning/thin_rmap.cc \
+	thin-provisioning/thin_metadata_size.cc
 
 C_PROGRAM_SOURCE=\
 	thin-provisioning/thin_metadata_size.c
