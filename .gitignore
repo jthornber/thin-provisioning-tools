@@ -8,8 +8,10 @@
 test.data
 cachegrind.*
 \#*\#
+core
 
 thin_check
+thin_delta
 thin_dump
 thin_restore
 thin_repair
@@ -25,6 +27,7 @@ cache_metadata_size
 era_check
 era_dump
 era_invalidate
+era_restore
 
 *.metadata
 bad-metadata
