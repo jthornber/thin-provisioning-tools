@@ -47,3 +47,5 @@ config.cache
 config.log
 config.status
 configure
+
+callgrind.*
