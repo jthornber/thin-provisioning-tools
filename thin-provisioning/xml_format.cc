@@ -23,7 +23,6 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
-#include <expat.h>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -221,12 +220,10 @@ void
 tp::parse_xml(std::istream &in, emitter::ptr e,
 	      size_t input_length, base::progress_monitor::ptr monitor)
 {
-	XML_Parser parser = XML_ParserCreate(NULL);
-	if (!parser)
-		throw runtime_error("couldn't create xml parser");
+	xml_parser p;
 
-	XML_SetUserData(parser, e.get());
-	XML_SetElementHandler(parser, start_tag, end_tag);
+	XML_SetUserData(p.get_parser(), e.get());
+	XML_SetElementHandler(p.get_parser(), start_tag, end_tag);
 
 	size_t total = 0;
 
@@ -236,12 +233,12 @@ tp::parse_xml(std::istream &in, emitter::ptr e,
 		size_t len = in.gcount();
 		int done = in.eof();
 
-		if (!XML_Parse(parser, buffer, len, done)) {
+		if (!XML_Parse(p.get_parser(), buffer, len, done)) {
 			ostringstream out;
 			out << "Parse error at line "
-			    << XML_GetCurrentLineNumber(parser)
+			    << XML_GetCurrentLineNumber(p.get_parser())
 			    << ":\n"
-			    << XML_ErrorString(XML_GetErrorCode(parser))
+			    << XML_ErrorString(XML_GetErrorCode(p.get_parser()))
 			    << endl;
 			throw runtime_error(out.str());
 		}

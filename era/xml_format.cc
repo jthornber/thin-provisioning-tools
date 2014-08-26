@@ -3,8 +3,6 @@
 #include "base/indented_stream.h"
 #include "base/xml_utils.h"
 
-#include <expat.h>
-
 using namespace boost;
 using namespace era;
 using namespace persistent_data;
@@ -163,12 +161,10 @@ era::create_xml_emitter(std::ostream &out)
 void
 era::parse_xml(std::istream &in, emitter::ptr e)
 {
-	XML_Parser parser = XML_ParserCreate(NULL);
-	if (!parser)
-		throw runtime_error("couldn't create xml parser");
+	xml_parser p;
 
-	XML_SetUserData(parser, e.get());
-	XML_SetElementHandler(parser, start_tag, end_tag);
+	XML_SetUserData(p.get_parser(), e.get());
+	XML_SetElementHandler(p.get_parser(), start_tag, end_tag);
 
 	while (!in.eof()) {
 		char buffer[4096];
@@ -176,12 +172,12 @@ era::parse_xml(std::istream &in, emitter::ptr e)
 		size_t len = in.gcount();
 		int done = in.eof();
 
-		if (!XML_Parse(parser, buffer, len, done)) {
+		if (!XML_Parse(p.get_parser(), buffer, len, done)) {
 			ostringstream out;
 			out << "Parse error at line "
-			    << XML_GetCurrentLineNumber(parser)
+			    << XML_GetCurrentLineNumber(p.get_parser())
 			    << ":\n"
-			    << XML_ErrorString(XML_GetErrorCode(parser))
+			    << XML_ErrorString(XML_GetErrorCode(p.get_parser()))
 			    << endl;
 			throw runtime_error(out.str());
 		}
