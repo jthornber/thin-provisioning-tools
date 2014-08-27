@@ -13,3 +13,5 @@ v0.4
   effect of reducing the executable sizes due to less template
   instatiation.
 
+- Tools rolled into a single executable to save space.
+
