@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
 #include "thin-provisioning/emitter.h"
 #include "thin-provisioning/human_readable_format.h"
 #include "thin-provisioning/metadata.h"
@@ -68,7 +69,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int thin_restore_main(int argc, char **argv)
 {
 	int c;
 	char const *prog_name = basename(argv[0]);
@@ -131,5 +132,7 @@ int main(int argc, char **argv)
 
 	return restore(input, output, quiet);
 }
+
+base::command thin_provisioning::thin_restore_cmd("thin_restore", thin_restore_main);
 
 //----------------------------------------------------------------

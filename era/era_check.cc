@@ -14,6 +14,7 @@
 
 #include "base/error_state.h"
 #include "base/nested_output.h"
+#include "era/commands.h"
 #include "era/writeset_tree.h"
 #include "era/era_array.h"
 #include "era/superblock.h"
@@ -276,7 +277,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int era_check_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -321,5 +322,7 @@ int main(int argc, char **argv)
 
 	return check_with_exception_handling(argv[optind], fs);
 }
+
+base::command era::era_check_cmd("era_check", era_check_main);
 
 //----------------------------------------------------------------

@@ -22,6 +22,7 @@
 
 #include "version.h"
 
+#include "base/application.h"
 #include "base/error_state.h"
 #include "base/nested_output.h"
 #include "persistent-data/space-maps/core.h"
@@ -29,6 +30,7 @@
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
+#include "thin-provisioning/commands.h"
 
 using namespace base;
 using namespace std;
@@ -272,7 +274,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int thin_check_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -342,3 +344,7 @@ int main(int argc, char **argv)
 
 	return check(argv[optind], fs);
 }
+
+base::command thin_provisioning::thin_check_cmd("thin_check", thin_check_main);
+
+//----------------------------------------------------------------

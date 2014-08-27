@@ -1,4 +1,4 @@
-Feature: thin_restore
+Feature: era_restore
   Scenario: print version (-V flag)
     When I run era_restore with -V
     Then it should pass with version
@@ -67,15 +67,15 @@ Feature: thin_restore
     And the metadata should be valid
     
   Scenario: --quiet is accepted
-    Given valid metadata
-    When I run thin_restore with -i metadata.xml -o metadata.bin --quiet
+    Given valid era metadata
+    When I run era_restore with -i metadata.xml -o metadata.bin --quiet
     Then it should pass with:
     """
     """
 
   Scenario: -q is accepted
-    Given valid metadata
-    When I run thin_restore with -i metadata.xml -o metadata.bin -q
+    Given valid era metadata
+    When I run era_restore with -i metadata.xml -o metadata.bin -q
     Then it should pass with:
     """
     """

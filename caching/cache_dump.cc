@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "version.h"
+#include "caching/commands.h"
 #include "caching/mapping_array.h"
 #include "caching/metadata.h"
 #include "caching/metadata_dump.h"
@@ -66,7 +67,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_dump_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -113,5 +114,7 @@ int main(int argc, char **argv)
 
 	return dump(argv[optind], output, fs);
 }
+
+base::command caching::cache_dump_cmd("cache_dump", cache_dump_main);
 
 //----------------------------------------------------------------

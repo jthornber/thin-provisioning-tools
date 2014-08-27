@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "era/commands.h"
 #include "era/metadata.h"
 #include "era/restore_emitter.h"
 #include "era/xml_format.h"
@@ -57,7 +58,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int era_restore_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -119,5 +120,7 @@ int main(int argc, char **argv)
 
 	return restore(fs, fs.quiet);
 }
+
+base::command era::era_restore_cmd("era_restore", era_restore_main);
 
 //----------------------------------------------------------------

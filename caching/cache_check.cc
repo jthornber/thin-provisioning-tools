@@ -14,6 +14,7 @@
 
 #include "base/error_state.h"
 #include "base/nested_output.h"
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
@@ -322,7 +323,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_check_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -383,5 +384,7 @@ int main(int argc, char **argv)
 
 	return check_with_exception_handling(argv[optind], fs);
 }
+
+base::command caching::cache_check_cmd("cache_check", cache_check_main);
 
 //----------------------------------------------------------------

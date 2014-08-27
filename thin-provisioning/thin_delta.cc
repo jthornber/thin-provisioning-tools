@@ -12,13 +12,14 @@
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/commands.h"
 
 using namespace std;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
-namespace {
+namespace local {
 	class application {
 	public:
 		application(string const &cmd)
@@ -503,11 +504,13 @@ namespace {
 
 // FIXME: add metadata snap switch
 
-int main(int argc, char **argv)
+int thin_delta_main(int argc, char **argv)
 {
+	using namespace local;
+
 	int c;
 	flags fs;
-	application app(basename(argv[0]));
+	local::application app(basename(argv[0]));
 
 	char const shortopts[] = "hV";
 	option const longopts[] = {
@@ -564,5 +567,7 @@ int main(int argc, char **argv)
 
 	return delta(app, fs);
 }
+
+base::command thin_provisioning::thin_delta_cmd("thin_delta", thin_delta_main);
 
 //----------------------------------------------------------------

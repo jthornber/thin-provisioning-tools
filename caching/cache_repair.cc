@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/metadata_dump.h"
 #include "caching/restore_emitter.h"
@@ -52,7 +53,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_repair_main(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
@@ -104,5 +105,7 @@ int main(int argc, char **argv)
 
 	return repair(*input_path, *output_path);
 }
+
+base::command caching::cache_repair_cmd("cache_repair", cache_repair_main);
 
 //----------------------------------------------------------------

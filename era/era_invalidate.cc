@@ -5,6 +5,7 @@
 
 #include "version.h"
 #include "base/indented_stream.h"
+#include "era/commands.h"
 #include "era/era_array.h"
 #include "era/writeset_tree.h"
 #include "era/metadata.h"
@@ -189,7 +190,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int era_invalidate_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -247,5 +248,7 @@ int main(int argc, char **argv)
 
 	return invalidate(argv[optind], output, fs);
 }
+
+base::command era::era_invalidate_cmd("era_invalidate", era_invalidate_main);
 
 //----------------------------------------------------------------

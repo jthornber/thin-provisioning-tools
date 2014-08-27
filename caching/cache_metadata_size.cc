@@ -1,5 +1,7 @@
 #include "version.h"
 
+#include "caching/commands.h"
+
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <iostream>
@@ -132,7 +134,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int cache_metadata_size_main(int argc, char **argv)
 {
 	flags fs;
 
@@ -155,5 +157,7 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+base::command caching::cache_metadata_size_cmd("cache_metadata_size", cache_metadata_size_main);
 
 //----------------------------------------------------------------

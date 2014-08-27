@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "thin-provisioning/commands.h"
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
 #include "metadata.h"
@@ -40,7 +41,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int thin_repair_main(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
@@ -92,3 +93,7 @@ int main(int argc, char **argv)
 
 	return repair(*input_path, *output_path);
 }
+
+base::command thin_provisioning::thin_repair_cmd("thin_repair", thin_repair_main);
+
+//----------------------------------------------------------------

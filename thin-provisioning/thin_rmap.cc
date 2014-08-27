@@ -10,6 +10,7 @@
 #include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"
@@ -125,7 +126,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int thin_rmap_main(int argc, char **argv)
 {
 	int c;
 	vector<region> regions;
@@ -173,5 +174,7 @@ int main(int argc, char **argv)
 
 	return rmap(argv[optind], regions);
 }
+
+base::command thin_provisioning::thin_rmap_cmd("thin_rmap", thin_rmap_main);
 
 //----------------------------------------------------------------

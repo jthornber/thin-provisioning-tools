@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/restore_emitter.h"
 #include "caching/xml_format.h"
@@ -95,7 +96,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int cache_restore_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -168,5 +169,7 @@ int main(int argc, char **argv)
 
 	return restore(fs);
 }
+
+base::command caching::cache_restore_cmd("cache_restore", cache_restore_main);
 
 //----------------------------------------------------------------
