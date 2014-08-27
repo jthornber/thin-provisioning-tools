@@ -159,21 +159,21 @@ distclean: clean
 install: bin/pdata_tools
 	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/cache_check
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/cache_dump
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/cache_metadata_size
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/cache_repair
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/cache_restore
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_check
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_dump
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_repair
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_restore
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_rmap
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/thin_metadata_size
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/era_check
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/era_dump
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/era_invalidate
-	ln -s -f $(BINDIR)/pdata_tools $(BINDIR)/era_restore
+	ln -s -f pdata_tools $(BINDIR)/cache_check
+	ln -s -f pdata_tools $(BINDIR)/cache_dump
+	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
+	ln -s -f pdata_tools $(BINDIR)/cache_repair
+	ln -s -f pdata_tools $(BINDIR)/cache_restore
+	ln -s -f pdata_tools $(BINDIR)/thin_check
+	ln -s -f pdata_tools $(BINDIR)/thin_dump
+	ln -s -f pdata_tools $(BINDIR)/thin_repair
+	ln -s -f pdata_tools $(BINDIR)/thin_restore
+	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
+	ln -s -f pdata_tools $(BINDIR)/era_check
+	ln -s -f pdata_tools $(BINDIR)/era_dump
+	ln -s -f pdata_tools $(BINDIR)/era_invalidate
+	ln -s -f pdata_tools $(BINDIR)/era_restore
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
