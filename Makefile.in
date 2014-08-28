@@ -106,7 +106,7 @@ MANPATH:=$(DATADIR)/man
 vpath %.cc $(TOP_DIR)
 
 INSTALL_DIR = $(INSTALL) -m 755 -d
-INSTALL_PROGRAM = $(INSTALL) -m 755
+INSTALL_PROGRAM = $(INSTALL) -m 755 -s
 INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
