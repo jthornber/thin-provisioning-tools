@@ -1,9 +1,9 @@
 Given(/^valid thin metadata$/) do
   in_current_dir do
     system("thinp_xml create --nr-thins uniform[4..9] --nr-mappings uniform[1000..10000] > #{xml_file}")
+    system("dd if=/dev/zero of=#{dev_file} bs=4k count=1024 > /dev/null")
   end
 
-  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
   run_simple("thin_restore -i #{xml_file} -o #{dev_file}")
 end
 

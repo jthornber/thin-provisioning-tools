@@ -32,8 +32,8 @@ end
 Given(/^valid era metadata$/) do
   in_current_dir do
     system("era_xml create --nr-blocks 100 --nr-writesets 2 --current-era 1000 > #{xml_file}")
+    system("dd if=/dev/zero of=#{dev_file} bs=4k count=1024 > /dev/null")
   end
 
-  run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
   run_simple("era_restore -i #{xml_file} -o #{dev_file}")
 end

@@ -86,14 +86,16 @@ Feature: cache_restore
   Scenario: --quiet is accepted
     Given valid cache metadata
     When I run cache_restore with -i metadata.xml -o metadata.bin --quiet
-    Then it should pass with:
+    Then it should pass
+    And the output should contain exactly:
     """
     """
 
   Scenario: -q is accepted
     Given valid cache metadata
     When I run cache_restore with -i metadata.xml -o metadata.bin -q
-    Then it should pass with:
+    Then it should pass
+    And the output should contain exactly:
     """
     """
 
