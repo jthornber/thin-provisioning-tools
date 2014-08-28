@@ -13,7 +13,7 @@ application::run(int argc, char **argv)
 {
 	string cmd = basename(argv[0]);
 
-	if (cmd == string("pdata-tools")) {
+	if (cmd == string("pdata_tools")) {
 		argc--;
 		argv++;
 
