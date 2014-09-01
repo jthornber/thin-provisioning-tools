@@ -15,3 +15,5 @@ v0.4
 
 - Tools rolled into a single executable to save space.
 
+- Fixed some bugs when walking bitsets (possibly effecting cache_dump
+  and cache_check).
