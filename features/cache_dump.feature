@@ -44,7 +44,7 @@ Feature: cache_dump
 
   Scenario: dump/restore is a noop
     Given valid cache metadata
-    When I cache_dump
-    And I cache_restore
-    And I cache_dump
+    When I cache dump
+    And I cache restore
+    And I cache dump
     Then cache dumps 1 and 2 should be identical
