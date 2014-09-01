@@ -16,6 +16,9 @@ namespace {
 
 			update_percent(0);
 		}
+		~progress_bar() {
+			cout << "\n";
+		}
 
 		void update_percent(unsigned p) {
 			unsigned nr_equals = max<unsigned>(progress_width_ * p / 100, 1);
