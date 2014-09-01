@@ -40,7 +40,7 @@ namespace persistent_data {
 
 			bitset_impl(transaction_manager &tm, block_address root, unsigned nr_bits)
 				: nr_bits_(nr_bits),
-				  array_(tm, rc_, root, nr_bits / BITS_PER_ULL) {
+				  array_(tm, rc_, root, div_up<unsigned>(nr_bits, BITS_PER_ULL)) {
 			}
 
 			block_address get_root() const {
