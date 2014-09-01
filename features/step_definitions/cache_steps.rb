@@ -100,10 +100,10 @@ Given(/^an empty dev file$/) do
   run_simple("dd if=/dev/zero of=#{dev_file} bs=4k count=1024")
 end
 
-When(/^I cache_dump$/) do
+When(/^I cache dump$/) do
   run_simple("cache_dump #{dev_file} -o #{new_dump_file}", true)
 end
 
-When(/^I cache_restore$/) do
+When(/^I cache restore$/) do
   run_simple("cache_restore -i #{dump_files[-1]} -o #{dev_file}", true)
 end

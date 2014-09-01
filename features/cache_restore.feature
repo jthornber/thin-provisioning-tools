@@ -99,3 +99,9 @@ Feature: cache_restore
     """
     """
 
+  Scenario: dump/restore is a noop
+    Given valid cache metadata
+    When I cache dump
+    And I cache restore
+    And I cache dump
+    Then dumps 1 and 2 should be identical
