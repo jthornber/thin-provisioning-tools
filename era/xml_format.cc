@@ -47,7 +47,7 @@ namespace {
 		void writeset_bit(uint32_t bit, bool value) {
 			out_.indent();
 			// FIXME: collect all the bits, then uuencode
-			out_ << "<bit block=\"" << bit << "\" value=\"" << value << "\"/>" << endl;
+			out_ << "<bit block=\"" << bit << "\" value=\"" << truth_value(value) << "\"/>" << endl;
 		}
 
 		void end_writeset() {
@@ -72,6 +72,10 @@ namespace {
 			out_.dec();
 			out_.indent();
 			out_ << "</era_array>" << endl;
+		}
+
+		char const *truth_value(bool v) const {
+			return v ? "true" : "false";
 		}
 
 	private:
