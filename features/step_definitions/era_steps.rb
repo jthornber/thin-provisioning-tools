@@ -37,3 +37,11 @@ Given(/^valid era metadata$/) do
 
   run_simple("era_restore -i #{xml_file} -o #{dev_file}")
 end
+
+When(/^I era dump$/) do
+  run_simple("era_dump #{dev_file} -o #{new_dump_file}", true)
+end
+
+When(/^I era restore$/) do
+  run_simple("era_restore -i #{dump_files[-1]} -o #{dev_file}", true)
+end

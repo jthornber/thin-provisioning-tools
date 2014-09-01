@@ -82,3 +82,14 @@ Feature: era_restore
     """
     """
 
+  Scenario: dump/restore is a noop
+    Given valid era metadata
+    When I era dump
+    And I era restore
+    And I era dump
+    Then dumps 1 and 2 should be identical
+
+  Scenario: dump matches original metadata
+    Given valid era metadata
+    When I era dump
+    Then dumps 0 and 1 should be identical
