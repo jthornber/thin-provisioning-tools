@@ -197,6 +197,8 @@ int era_invalidate_main(int argc, char **argv)
 	string output("-");
 	char const shortopts[] = "ho:V";
 
+	memset(&fs, 0, sizeof(flags));
+
 	option const longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "output", required_argument, NULL, 'o' },
