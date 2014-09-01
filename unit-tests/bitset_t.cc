@@ -32,6 +32,26 @@ using namespace testing;
 namespace {
 	block_address const NR_BLOCKS = 102400;
 
+	class bitset_checker : public bitset_detail::bitset_visitor {
+	public:
+		bitset_checker(unsigned size, unsigned m)
+			: size_(size), m_(m) {
+		}
+
+		void visit(uint32_t index, bool value) {
+			ASSERT_THAT(index, Lt(size_));
+			ASSERT_THAT(value, Eq(index % 7 ? true : false));
+		}
+
+		void visit(bitset_detail::missing_bits const &d) {
+			// we aren't expecting any damage
+			FAIL();
+		}
+
+	private:
+		unsigned size_, m_;
+	};
+
 	class BitsetTests : public Test {
 	public:
 		BitsetTests()
@@ -152,7 +172,7 @@ TEST_F(BitsetTests, set_works)
 
 TEST_F(BitsetTests, reopen_works)
 {
-	unsigned const COUNT = 100000;
+	unsigned const COUNT = 100001;
 	block_address root;
 
 	{
@@ -169,6 +189,31 @@ TEST_F(BitsetTests, reopen_works)
 		bitset::ptr bs = open_bitset(root, COUNT);
 		for (unsigned i = 0; i < COUNT; i++)
 			ASSERT_THAT(bs->get(i), Eq(i % 7 ? true : false));
+	}
+}
+
+TEST_F(BitsetTests, walk_bitset)
+{
+	unsigned const COUNT = 100001;
+	block_address root;
+
+	{
+		bitset::ptr bs = create_bitset();
+
+		bs->grow(COUNT, true);
+		for (unsigned i = 0; i < COUNT; i += 7)
+			bs->set(i, false);
+
+		root = bs->get_root();
+
+		bitset_checker c(COUNT, 7);
+		bs->walk_bitset(c);
+	}
+
+	{
+		bitset::ptr bs = open_bitset(root, COUNT);
+		bitset_checker c(COUNT, 7);
+		bs->walk_bitset(c);
 	}
 }
 
