@@ -16,11 +16,13 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-.PHONY: all
-
 V=@
 
-all: bin/pdata_tools
+PROGRAMS=\
+	bin/pdata_tools
+
+.PHONY: all
+all: $(PROGRAMS)
 
 SOURCE=\
 	base/application.cc \
