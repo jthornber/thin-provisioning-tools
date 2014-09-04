@@ -88,9 +88,14 @@ namespace {
 		walk_writeset_tree(md.tm_, *md.writeset_tree_, v, dv);
 	}
 
-	void mark_blocks_since(metadata const &md, uint32_t threshold, set<uint32_t> &result) {
-		walk_array(*md.era_array_, md.sb_.nr_blocks, threshold, result);
-		walk_writesets(md, threshold, result);
+	void mark_blocks_since(metadata const &md, optional<uint32_t> const &threshold, set<uint32_t> &result) {
+		if (!threshold)
+			// Can't get here, just putting in to pacify the compiler
+			throw std::runtime_error("threshold not set");
+		else {
+			walk_array(*md.era_array_, md.sb_.nr_blocks, *threshold, result);
+			walk_writesets(md, *threshold, result);
+		}
 	}
 
 	//--------------------------------
@@ -155,11 +160,11 @@ namespace {
 					throw runtime_error("no metadata snapshot taken.");
 
 				metadata::ptr md(new metadata(bm, *sb.metadata_snap));
-				mark_blocks_since(*md, *fs.era_threshold_, blocks);
+				mark_blocks_since(*md, fs.era_threshold_, blocks);
 
 			} else {
 				metadata::ptr md(new metadata(bm, metadata::OPEN));
-				mark_blocks_since(*md, *fs.era_threshold_, blocks);
+				mark_blocks_since(*md, fs.era_threshold_, blocks);
 			}
 
 			if (want_stdout(output))

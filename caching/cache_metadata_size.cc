@@ -17,6 +17,15 @@ namespace {
 	struct flags {
 		flags()
 			: max_hint_width(4) {
+
+			// Dance around some spurious compiler warnings
+			device_size = 0;
+			block_size = 0;
+			nr_blocks = 0;
+
+			device_size.reset();
+			block_size.reset();
+			nr_blocks.reset();
 		}
 
 		boost::optional<uint64_t> device_size;

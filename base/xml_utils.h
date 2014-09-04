@@ -7,6 +7,7 @@
 #include <expat.h>
 #include <iosfwd>
 #include <map>
+#include <stdexcept>
 
 using namespace std;
 
