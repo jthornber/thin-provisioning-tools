@@ -26,6 +26,14 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	template <typename T>
+	std::ostream &operator << (ostream &out, boost::optional<T> const &maybe) {
+		if (maybe)
+			out << *maybe;
+
+		return out;
+	}
+
 	class hr_emitter : public emitter {
 	public:
 		hr_emitter(ostream &out)
