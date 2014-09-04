@@ -25,7 +25,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.0.0)
     rspec-support (3.0.4)
-    thinp_xml (0.0.19)
+    thinp_xml (0.0.20)
       ejt_command_line (>= 0.0.2)
 
 PLATFORMS
