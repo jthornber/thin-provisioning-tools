@@ -100,8 +100,11 @@ namespace base {
 			else {
 				typename rset::const_iterator b = runs_.begin();
 
-				// Some versions of gcc give a spurious warning here.
-				maybe last = b->end_;
+				// Some versions of gcc give a spurious
+				// warning here.  So we initialize it to
+				// get round it.
+				maybe last(0);
+				last = b->end_;
 
 				if (b->begin_)
 					replacement.insert(run<T>(maybe(), *(b->begin_)));
