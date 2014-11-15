@@ -38,16 +38,16 @@ namespace {
 	xx(4);
 
 	template <uint32_t WIDTH>
-	shared_ptr<array_base> mk_array(transaction_manager &tm) {
+	boost::shared_ptr<array_base> mk_array(transaction_manager &tm) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter()));
+		boost::shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter()));
 
 		return r;
 	}
 
-	shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width) {
+	boost::shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width) {
 		switch (width) {
 #define xx(n)	case n:	return mk_array<n>(tm)
 
@@ -58,15 +58,15 @@ namespace {
 		}
 
 		// never get here
-		return shared_ptr<array_base>();
+		return boost::shared_ptr<array_base>();
 	}
 
 	//--------------------------------
 
 	template <typename HA>
-	shared_ptr<HA>
-	downcast_array(shared_ptr<array_base> base) {
-		shared_ptr<HA> a = dynamic_pointer_cast<HA>(base);
+	boost::shared_ptr<HA>
+	downcast_array(boost::shared_ptr<array_base> base) {
+		boost::shared_ptr<HA> a = dynamic_pointer_cast<HA>(base);
 		if (!a)
 			throw runtime_error("internal error: couldn't cast hint array");
 
@@ -76,16 +76,16 @@ namespace {
 	//--------------------------------
 
 	template <uint32_t WIDTH>
-	shared_ptr<array_base> mk_array(transaction_manager &tm, block_address root, unsigned nr_entries) {
+	boost::shared_ptr<array_base> mk_array(transaction_manager &tm, block_address root, unsigned nr_entries) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter(), root, nr_entries));
+		boost::shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter(), root, nr_entries));
 
 		return r;
 	}
 
-	shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width, block_address root, unsigned nr_entries) {
+	boost::shared_ptr<array_base> mk_array(transaction_manager &tm, uint32_t width, block_address root, unsigned nr_entries) {
 		switch (width) {
 #define xx(n)	case n:	return mk_array<n>(tm, root, nr_entries)
 			all_widths
@@ -95,21 +95,21 @@ namespace {
 		}
 
 		// never get here
-		return shared_ptr<array_base>();
+		return boost::shared_ptr<array_base>();
 	}
 
 	//--------------------------------
 
 	template <uint32_t WIDTH>
-	void get_hint(shared_ptr<array_base> base, unsigned index, vector<unsigned char> &data) {
+	void get_hint(boost::shared_ptr<array_base> base, unsigned index, vector<unsigned char> &data) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = downcast_array<ha>(base);
+		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		data = a->get(index);
 	}
 
-	void get_hint_(uint32_t width, shared_ptr<array_base> base, unsigned index, vector<unsigned char> &data) {
+	void get_hint_(uint32_t width, boost::shared_ptr<array_base> base, unsigned index, vector<unsigned char> &data) {
 		switch (width) {
 #define xx(n) case n: return get_hint<n>(base, index, data)
 			all_widths
@@ -120,15 +120,15 @@ namespace {
 	//--------------------------------
 
 	template <uint32_t WIDTH>
-	void set_hint(shared_ptr<array_base> base, unsigned index, vector<unsigned char> const &data) {
+	void set_hint(boost::shared_ptr<array_base> base, unsigned index, vector<unsigned char> const &data) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = downcast_array<ha>(base);
+		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		a->set(index, data);
 	}
 
-        void set_hint_(uint32_t width, shared_ptr<array_base> base,
+        void set_hint_(uint32_t width, boost::shared_ptr<array_base> base,
 		      unsigned index, vector<unsigned char> const &data) {
 		switch (width) {
 #define xx(n) case n: return set_hint<n>(base, index, data)
@@ -140,15 +140,15 @@ namespace {
 	//--------------------------------
 
 	template <uint32_t WIDTH>
-	void grow(shared_ptr<array_base> base, unsigned new_nr_entries, vector<unsigned char> const &value) {
+	void grow(boost::shared_ptr<array_base> base, unsigned new_nr_entries, vector<unsigned char> const &value) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = downcast_array<ha>(base);
+		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		a->grow(new_nr_entries, value);
 	}
 
-	void grow_(uint32_t width, shared_ptr<array_base> base,
+	void grow_(uint32_t width, boost::shared_ptr<array_base> base,
 		   unsigned new_nr_entries, vector<unsigned char> const &value)
 	{
 		switch (width) {
@@ -194,17 +194,17 @@ namespace {
 	};
 
 	template <uint32_t WIDTH>
-	void walk_hints(shared_ptr<array_base> base, hint_visitor &hv, damage_visitor &dv) {
+	void walk_hints(boost::shared_ptr<array_base> base, hint_visitor &hv, damage_visitor &dv) {
 		typedef hint_traits<WIDTH> traits;
 		typedef array<traits> ha;
 
-		shared_ptr<ha> a = downcast_array<ha>(base);
+		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		value_adapter vv(hv);
 		ll_damage_visitor ll(dv);
 		a->visit_values(vv, ll);
 	}
 
-	void walk_hints_(uint32_t width, shared_ptr<array_base> base,
+	void walk_hints_(uint32_t width, boost::shared_ptr<array_base> base,
 			 hint_visitor &hv, damage_visitor &dv) {
 		switch (width) {
 #define xx(n) case n: walk_hints<n>(base, hv, dv); break
