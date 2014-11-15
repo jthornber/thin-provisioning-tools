@@ -40,7 +40,7 @@ namespace {
 
 			using namespace boost::random;
 
-			uniform_int_distribution<uint64_t> uniform_dist(0, max);
+			boost::random::uniform_int_distribution<uint64_t> uniform_dist(0, max);
 
 			while (r.size() < count) {
 				block_address b = uniform_dist(rng_);
