@@ -40,7 +40,7 @@ namespace {
 	template <uint32_t WIDTH>
 	boost::shared_ptr<array_base> mk_array(transaction_manager &tm) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter()));
 
@@ -78,7 +78,7 @@ namespace {
 	template <uint32_t WIDTH>
 	boost::shared_ptr<array_base> mk_array(transaction_manager &tm, block_address root, unsigned nr_entries) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<array_base> r = typename ha::ptr(new ha(tm, typename traits::ref_counter(), root, nr_entries));
 
@@ -103,7 +103,7 @@ namespace {
 	template <uint32_t WIDTH>
 	void get_hint(boost::shared_ptr<array_base> base, unsigned index, vector<unsigned char> &data) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		data = a->get(index);
@@ -122,7 +122,7 @@ namespace {
 	template <uint32_t WIDTH>
 	void set_hint(boost::shared_ptr<array_base> base, unsigned index, vector<unsigned char> const &data) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		a->set(index, data);
@@ -142,7 +142,7 @@ namespace {
 	template <uint32_t WIDTH>
 	void grow(boost::shared_ptr<array_base> base, unsigned new_nr_entries, vector<unsigned char> const &value) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		a->grow(new_nr_entries, value);
@@ -196,7 +196,7 @@ namespace {
 	template <uint32_t WIDTH>
 	void walk_hints(boost::shared_ptr<array_base> base, hint_visitor &hv, damage_visitor &dv) {
 		typedef hint_traits<WIDTH> traits;
-		typedef array<traits> ha;
+		typedef persistent_data::array<traits> ha;
 
 		boost::shared_ptr<ha> a = downcast_array<ha>(base);
 		value_adapter vv(hv);
