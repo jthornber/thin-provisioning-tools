@@ -13,6 +13,7 @@ namespace thin_provisioning {
 	extern base::command thin_restore_cmd;
 	extern base::command thin_repair_cmd;
 	extern base::command thin_rmap_cmd;
+	extern base::command thin_trim_cmd;
 	extern base::command thin_metadata_size_cmd;
 }
 
