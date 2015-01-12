@@ -19,7 +19,8 @@
 V=@
 
 PROGRAMS=\
-	bin/pdata_tools
+	bin/pdata_tools \
+	bin/volume_manager
 
 .PHONY: all
 all: $(PROGRAMS)
@@ -44,6 +45,8 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	device-mapper/interface.cc \
+	device-mapper/ioctl_interface.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -56,7 +59,6 @@ SOURCE=\
 	era/superblock.cc \
 	era/writeset_tree.cc \
 	era/xml_format.cc \
-	main.cc \
 	persistent-data/checksum.cc \
 	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/bloom_filter.cc \
@@ -136,7 +138,11 @@ lib/libpdata.a: $(OBJECTS)
 	@echo "    [AR]  $<"
 	$(V)ar -rv $@ $(OBJECTS) > /dev/null 2>&1
 
-bin/pdata_tools: $(OBJECTS)
+bin/pdata_tools: $(OBJECTS) main.o
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+
+bin/volume_manager: $(OBJECTS) volume-manager/main.o
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 

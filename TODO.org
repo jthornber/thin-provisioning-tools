@@ -1,3 +1,16 @@
+* volume manager [0/1]
+
+  - [ ] think of a name
+  
+** dm interface
+
+   - [ ] write a wrapper for the ioctl interface.
+
+	 Low level.
+
+   - [ ] write higher level interface for managing stacks of devices.
+
+
 * restoring an xml file that specifies 0 data blocks fails in an unexpected way.
 
   Need to check the case where blocks past the end are specified in the ranges.

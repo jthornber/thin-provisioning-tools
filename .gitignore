@@ -11,6 +11,7 @@ cachegrind.*
 core
 
 bin/pdata_tools
+bin/volume_manager
 
 *.metadata
 bad-metadata
