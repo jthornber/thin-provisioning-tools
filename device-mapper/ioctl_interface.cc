@@ -287,7 +287,17 @@ ioctl_interface::execute(info_instr &instr)
 void
 ioctl_interface::execute(message_instr &instr)
 {
-	throw runtime_error("not implemented");
+	string const &txt = instr.get_message();
+	size_t payload_size = sizeof(dm_target_msg) + txt.length() + 1;
+	ioctl_buffer iob(payload_size);
+
+	dm_target_msg *msg = reinterpret_cast<dm_target_msg *>(iob.get_payload());
+	copy_string(instr.get_name(), iob.get_ctl().name);
+	msg->sector = instr.get_sector();
+	memcpy(msg->message, txt.c_str(), txt.length());
+	msg->message[txt.length()] = '\0';
+
+	ioctl(DM_TARGET_MSG_CMD, iob);
 }
 
 int

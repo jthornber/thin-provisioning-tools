@@ -233,10 +233,28 @@ namespace dm {
 		virtual void execute(interface &dm);
 	};
 
-	class message_instr : public instruction {
+	class message_instr : public named_instr {
 	public:
+		message_instr(std::string const &name, uint64_t sector, std::string const &msg)
+			: named_instr(name),
+			  sector_(sector),
+			  msg_(msg) {
+		}
+
+		uint64_t get_sector() const {
+			return sector_;
+		}
+
+		std::string const &get_message() const {
+			return msg_;
+		}
+
 	protected:
 		virtual void execute(interface &dm);
+
+	private:
+		uint64_t sector_;
+		std::string msg_;
 	};
 
 	//--------------------------------

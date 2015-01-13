@@ -1,9 +1,85 @@
 #include "device-mapper/ioctl_interface.h"
 
+#include <boost/shared_ptr.hpp>
 #include <iostream>
+#include <list>
 
 using namespace dm;
 using namespace std;
+
+//----------------------------------------------------------------
+
+namespace {
+	class op {
+	public:
+		virtual ~op() {}
+		virtual void execute() = 0;
+	};
+
+	// Atomic, reversable operations
+	class reversable_op : public op {
+	public:
+		typedef boost::shared_ptr<reversable_op> ptr;
+
+		virtual void undo() = 0;
+	};
+
+	class compound_op : public reversable_op {
+	public:
+		virtual void execute() {
+			list<reversable_op::ptr>::iterator it = ops_.begin(), e = ops_.end();
+
+			try {
+				while (it != e) {
+					(*it)->execute();
+					++it;
+				}
+			} catch (...) {
+				while (it != ops_.begin()) {
+					--it;
+					(*it)->undo();
+				}
+
+				throw;
+			}
+		}
+
+		virtual void undo() {
+			list<reversable_op::ptr>::reverse_iterator it = ops_.rbegin(), e = ops_.rend();
+			while (it != e) {
+				(*it)->undo();
+				--it;
+			}
+		}
+
+		void prepend(reversable_op::ptr const &op) {
+			ops_.push_front(op);
+		}
+
+		void append(reversable_op::ptr const &op) {
+			ops_.push_back(op);
+		}
+
+	private:
+		list<reversable_op::ptr> ops_;
+	};
+
+	// Some ops are reversable.  If an undo fails we do not preserve atomicity.
+	//
+	// reversable ops: version, list_devices, create, remove, suspend, resume, clear, load, status, table, info, wait
+	// non-reversable ops: remove_all, message (depends on the message, but we can't do it generically)
+
+	// Do we want to get intermediate results, eg. a status command run
+	// in the middle of a sequence?
+
+	class dm_sequence : public reversable_op {
+	public:
+		void version();
+
+	private:
+		
+	};
+}
 
 //----------------------------------------------------------------
 
