@@ -34,6 +34,11 @@ namespace base {
 	T div_down(T const &v, T const &divisor) {
 		return v / divisor;
 	}
+
+	template <typename T>
+	T round_up(T const &v, T const &divisor) {
+		return divisor * div_up(v, divisor);
+	}
 }
 
 //----------------------------------------------------------------

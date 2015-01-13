@@ -14,7 +14,7 @@ namespace dm {
 		// The payload size does not include the dm_ioctl control
 		// struct, it specifies any additional space that you
 		// require.
-		ioctl_buffer(size_t payload_size);
+		ioctl_buffer(size_t payload_size = 0);
 
 		dm_ioctl &get_ctl();
 		dm_ioctl const &get_ctl() const;
@@ -24,11 +24,14 @@ namespace dm {
 		void const *get_payload() const;
 
 	private:
-		size_t payload_size_;
 		std::vector<unsigned char> buffer_;
 		dm_ioctl *ctl_;
-		void *payload_;
+	};
 
+	class insufficient_payload_space : public std::exception {
+		virtual const char *what() const throw () {
+			return "insufficient payload space to complete ioctl";
+		}
 	};
 
 	class ioctl_interface : public interface {

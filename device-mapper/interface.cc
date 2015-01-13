@@ -8,13 +8,6 @@ using namespace std;
 //----------------------------------------------------------------
 
 void
-version_instr::set_version(unsigned *version)
-{
-	memcpy(version_, version, sizeof(*version_));
-}
-
-
-void
 version_instr::execute(interface &dm)
 {
 	dm.execute(*this);
