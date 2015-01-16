@@ -186,10 +186,16 @@ namespace {
 		int r = ::stat(path.c_str(), &info);
 		if (r) {
 			ostringstream msg;
-			char buffer[128], *ptr;
-
-			ptr = ::strerror_r(errno, buffer, sizeof(buffer));
-			msg << path << ": " << ptr;
+			char buffer[128];
+#ifdef STRERROR_R_CHAR_P /* GNU-specific strerror_r */
+                        char *msg = strerror_r(errno, buffer, sizeof(buffer));
+                        if (msg != buffer)
+                                strncpy(buffer, msg, sizeof(buffer));
+#else /* POSIX strerror_r variant */
+                        if (strerror_r(errno, buffer, sizeof(buffer)))
+                                *buffer = '\0';
+#endif
+			msg << path << ": " << buffer;
 			throw runtime_error(msg.str());
 		}
 
