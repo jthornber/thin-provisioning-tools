@@ -5,8 +5,16 @@
 #include "persistent-data/data-structures/array_block.h"
 #include "test_utils.h"
 
+#include <boost/version.hpp>
+
+#if BOOST_VERSION >= 104700
+#define HAVE_RANDOM_UNIFORM_INT_DISTRIBUTION
+#endif
+
 #include <boost/random/mersenne_twister.hpp>
+#ifdef HAVE_RANDOM_UNIFORM_INT_DISTRIBUTION
 #include <boost/random/uniform_int_distribution.hpp>
+#endif
 #include <utility>
 #include <deque>
 #include <vector>
@@ -40,10 +48,16 @@ namespace {
 
 			using namespace boost::random;
 
+#ifdef HAVE_RANDOM_UNIFORM_INT_DISTRIBUTION
 			boost::random::uniform_int_distribution<uint64_t> uniform_dist(0, max);
+#endif
 
 			while (r.size() < count) {
+#ifdef HAVE_RANDOM_UNIFORM_INT_DISTRIBUTION
 				block_address b = uniform_dist(rng_);
+#else
+				block_address b = random() % max;
+#endif
 				r.insert(b);
 			}
 
@@ -75,7 +89,9 @@ namespace {
 		space_map::ptr sm_;
 		transaction_manager tm_;
 
+#ifdef HAVE_RANDOM_UNIFORM_INT_DISTRIBUTION
 		boost::random::mt19937 rng_;
+#endif
 	};
 }
 
@@ -312,3 +328,4 @@ TEST_F(BloomFilterTests, false_positives_over_multiple_eras)
 }
 
 //----------------------------------------------------------------
+
