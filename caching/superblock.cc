@@ -302,8 +302,9 @@ namespace validator {
 superblock
 caching::read_superblock(block_manager<>::ptr bm, block_address location)
 {
+	using namespace validator;
 	superblock sb;
-	block_manager<>::read_ref r = bm->read_lock(location, validator::mk_v());
+	block_manager<>::read_ref r = bm->read_lock(location, mk_v());
 	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 	superblock_traits::unpack(*sbd, sb);
 
@@ -313,7 +314,8 @@ caching::read_superblock(block_manager<>::ptr bm, block_address location)
 void
 caching::write_superblock(block_manager<>::ptr bm, superblock const &sb, block_address location)
 {
-	block_manager<>::write_ref w = bm->superblock_zero(location, validator::mk_v());
+	using namespace validator;
+	block_manager<>::write_ref w = bm->superblock_zero(location, mk_v());
 	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data()));
 }
 
