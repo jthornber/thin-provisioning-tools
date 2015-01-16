@@ -203,7 +203,7 @@ thin_pool::get_nr_free_data_blocks() const
 	return md_->data_sm_->get_nr_free();
 }
 
-sector_t
+thin_provisioning::sector_t
 thin_pool::get_data_block_size() const
 {
 	return md_->sb_.data_block_size_;
