@@ -45,10 +45,17 @@ namespace {
 	// to exception.h
 	void syscall_failed(char const *call) {
 		char buffer[128];
-		char *msg = strerror_r(errno, buffer, sizeof(buffer));
 
+#ifdef STRERROR_R_CHAR_P /* GNU-specific strerror_r */
+		char *msg = strerror_r(errno, buffer, sizeof(buffer));
+		if (msg != buffer)
+			strncpy(buffer, msg, sizeof(buffer));
+#else /* POSIX strerror_r variant */
+		if (strerror_r(errno, buffer, sizeof(buffer)))
+			*buffer = '\0';
+#endif
 		ostringstream out;
-		out << "syscall '" << call << "' failed: " << msg;
+		out << "syscall '" << call << "' failed: " << buffer;
 		throw runtime_error(out.str());
 	}
 

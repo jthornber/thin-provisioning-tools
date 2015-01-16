@@ -42,6 +42,10 @@ AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
 
+################################################################
+dnl -- Checks for functions.
+AC_FUNC_STRERROR_R
+
 ################################################################################
 dnl -- Prefix is /usr by default, the exec_prefix default is setup later
 AC_PREFIX_DEFAULT(/usr)
