@@ -29,6 +29,7 @@ SOURCE=\
 	base/base64.cc \
 	base/endian_utils.cc \
 	base/error_state.cc \
+	base/error_string.cc \
 	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
@@ -98,6 +99,7 @@ CFLAGS+=-g -Wall -O3
 CXXFLAGS+=-g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
+CXXFLAGS+=@CXX_STRERROR_FLAG@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-lstdc++ -laio -lexpat
 INSTALL:=@INSTALL@
