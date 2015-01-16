@@ -112,7 +112,7 @@ namespace {
 			ref_t b1 = test_bit_le(bits, b * 2);
 			ref_t b2 = test_bit_le(bits, b * 2 + 1);
 			ref_t result = b2 ? 1 : 0;
-			result |= b1 ? 0b10 : 0;
+			result |= b1 ? 2 : 0;
 			return result;
 		}
 
@@ -165,7 +165,7 @@ namespace {
 				ref_t b1 = test_bit_le(bits, b * 2);
 				ref_t b2 = test_bit_le(bits, b * 2 + 1);
 				ref_t result = b2 ? 1 : 0;
-				result |= b1 ? 0b10 : 0;
+				result |= b1 ? 2 : 0;
 				it(offset + b, result);
 			}
 		}

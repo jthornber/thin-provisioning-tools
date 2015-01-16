@@ -35,9 +35,9 @@ using namespace testing;
 namespace {
 	uint64_t MAX_VALUE = 1000ull;
 	block_address const NR_BLOCKS = 1024;
-	typedef typename bcache::noop_validator noop_validator;
-	typedef typename block_manager<>::read_ref read_ref;
-	typedef typename block_manager<>::write_ref write_ref;
+	typedef bcache::noop_validator noop_validator;
+	typedef block_manager<>::read_ref read_ref;
+	typedef block_manager<>::write_ref write_ref;
 
 	// FIXME: lift to utils?
 	class simple_ref_counter {

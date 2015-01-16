@@ -18,13 +18,14 @@
 
 #include "block.h"
 
+#include "base/error_string.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <string.h>
 
 #include <boost/bind.hpp>
 #include <stdexcept>
@@ -44,11 +45,8 @@ namespace {
 	// FIXME: introduce a new exception for this, or at least lift this
 	// to exception.h
 	void syscall_failed(char const *call) {
-		char buffer[128];
-		char *msg = strerror_r(errno, buffer, sizeof(buffer));
-
 		ostringstream out;
-		out << "syscall '" << call << "' failed: " << msg;
+		out << "syscall '" << call << "' failed: " << base::error_string(errno);;
 		throw runtime_error(out.str());
 	}
 

@@ -7,7 +7,7 @@ using namespace persistent_data;
 //----------------------------------------------------------------
 
 namespace {
-	static const uint64_t m1 = 0x9e37fffffffc0001UL;
+	static const uint64_t m1 = 0x9e37fffffffc0001ULL;
 	static const unsigned bits = 18;
 
 	static uint32_t hash1(block_address const &b) {

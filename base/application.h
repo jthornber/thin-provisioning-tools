@@ -41,7 +41,7 @@ namespace base {
 
 	private:
 		void usage();
-		std::string basename(std::string const &path) const;
+		std::string get_basename(std::string const &path) const;
 
 		std::list<command const *> cmds_;
 	};

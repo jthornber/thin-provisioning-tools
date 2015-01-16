@@ -1,5 +1,6 @@
 #include "base/application.h"
 
+#include <libgen.h>
 #include <linux/limits.h>
 #include <string.h>
 
@@ -11,7 +12,7 @@ using namespace std;
 int
 application::run(int argc, char **argv)
 {
-	string cmd = basename(argv[0]);
+	string cmd = get_basename(argv[0]);
 
 	if (cmd == string("pdata_tools")) {
 		argc--;
@@ -49,7 +50,7 @@ application::usage()
 }
 
 std::string
-application::basename(std::string const &path) const
+application::get_basename(std::string const &path) const
 {
 	char buffer[PATH_MAX + 1];
 

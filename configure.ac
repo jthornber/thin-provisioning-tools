@@ -42,6 +42,13 @@ AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
 
+################################################################
+dnl -- Checks for functions.
+AC_FUNC_STRERROR_R
+if test x$ac_cv_func_strerror_r_char_p = xyes; then
+   CXX_STRERROR_FLAG="-DSTRERROR_R_CHAR_P"
+fi
+
 ################################################################################
 dnl -- Prefix is /usr by default, the exec_prefix default is setup later
 AC_PREFIX_DEFAULT(/usr)
@@ -136,6 +143,7 @@ VERSION_PATCHLEVEL=`echo "$VER" | $AWK -F '[[(.]]' '{print $3}'`
 ################################################################
 AC_SUBST(CXXDEBUG_FLAG)
 AC_SUBST(CXXOPTIMISE_FLAG)
+AC_SUBST(CXX_STRERROR_FLAG)
 AC_SUBST(INSTALL)
 AC_SUBST(prefix)
 AC_SUBST(RELEASE_DATE)
