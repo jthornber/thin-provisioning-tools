@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
+#include <libgen.h>
 
 #undef BLOCK_SIZE
 
