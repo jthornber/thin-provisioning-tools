@@ -182,7 +182,7 @@ ioctl_interface::execute(clear_instr &instr)
 void
 ioctl_interface::execute(load_instr &instr)
 {
-	auto_ptr<ioctl_buffer> iob;
+	unique_ptr<ioctl_buffer> iob;
 	size_t payload_size = 1024;
 
 	// FIXME: add retry with bigger buffer

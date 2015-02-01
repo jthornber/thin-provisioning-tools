@@ -1,6 +1,8 @@
 #ifndef THINP_TOOLS_DEVICE_MAPPER_INTERFACE_H
 #define THINP_TOOLS_DEVICE_MAPPER_INTERFACE_H
 
+#include "boost/shared_ptr.hpp"
+
 #include <string>
 #include <stdint.h>
 #include <vector>
@@ -261,6 +263,8 @@ namespace dm {
 
 	class interface {
 	public:
+		typedef boost::shared_ptr<interface> ptr;
+
 		virtual ~interface() {}
 
 		void execute(instruction &instr);

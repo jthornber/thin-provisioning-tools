@@ -1,0 +1,63 @@
+Notes on design of a volume manager
+===================================
+
+dm interface
+============
+
+FIXME: what form does the error take?  We need to know how far
+execution got.  Does dmexec rollback?
+
+I think we need to specify some preconditions on the dm state.
+For instance at the start of a program no referenced device
+should have an inactive table loaded (ditto the end).  If we
+choose these restrictions carefully it should be easier to
+unpick programs should a dm call fail.
+
+resume() ditches the previously active table.  To reverse we
+need to keep it around.  Which means reading the table, and
+reloading in the error path.  Of course the reload could
+potentially fail also.  So after a program has executed,
+possibly unsuccessfully, every device will be in one of three
+states: BEFORE, AFTER, BROKEN.  The program we pass to dmexec
+will try very hard to ensure either all BEFORE or all AFTER.
+But broken is always going to be a possibility.  Recovering from
+BROKEN state is going to require sys admin intervention (eg,
+deactivation of BROKEN devices).
+
+Some operations cannot be reversed.  Such as zeroing data, thin
+delete messages etc.  These act as barriers wrt unpicking a
+failed program.  We could:
+
+i) Force a program to have at most one irreversible op (irop),
+   and this must be the last op of the program.
+
+ii) Force programs with irops to be compiled differently.
+    ie. without the unpicking.  This should encourage the client
+    to split the program up into reversible sections and
+    irreversible.  This may seem tedious, but this is just
+    forcing something that _must_ be done for any dm interface.
+
+iii) Automatically break the program down into reversible basic
+     blocks and irreversible ones.  The caller then has to
+     inspect basic block status's.  The main problem with this
+     is identifying the BBs in a meaningful way for the client.
+
+iv) Don't even attempt to reverse an irop, but do reverse the others.
+    In the example scenarios this seems to be effectively what I hand
+    code.  We could add this behaviour with a flag to the compile fn.
+
+Reversible programs could have an undo() method.
+
+I'm going to start prototyping based on (ii)
+
+thin pool or cache formatting is irreversible only if the data
+on the volume is not discarded.  We need to track this state for
+all volumes (LVs and PVs in the VG).
+
+Add a discard op
+
+Resume can only fail for certain targets (those with a presume
+fn).  Peep hole optimiser will be able to remove a lot of the
+error handling.
+
+We need some wait scenarios exhibiting dmeventd-like behaviour.

@@ -46,6 +46,7 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	device-mapper/dm.cc \
 	device-mapper/interface.cc \
 	device-mapper/ioctl_interface.cc \
 	era/era_array.cc \
@@ -98,7 +99,7 @@ OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall
-CXXFLAGS+=-g -Wall -fno-strict-aliasing
+CXXFLAGS+=-std=c++11 -g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@

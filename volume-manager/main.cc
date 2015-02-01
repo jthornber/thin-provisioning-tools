@@ -1,4 +1,5 @@
 #include "device-mapper/ioctl_interface.h"
+#include "device-mapper/dm.h"
 
 #include <boost/shared_ptr.hpp>
 #include <iostream>
@@ -9,60 +10,8 @@ using namespace std;
 
 //----------------------------------------------------------------
 
+
 namespace {
-	class op {
-	public:
-		virtual ~op() {}
-		virtual void execute() = 0;
-	};
-
-	// Atomic, reversable operations
-	class reversable_op : public op {
-	public:
-		typedef boost::shared_ptr<reversable_op> ptr;
-
-		virtual void undo() = 0;
-	};
-
-	class compound_op : public reversable_op {
-	public:
-		virtual void execute() {
-			list<reversable_op::ptr>::iterator it = ops_.begin(), e = ops_.end();
-
-			try {
-				while (it != e) {
-					(*it)->execute();
-					++it;
-				}
-			} catch (...) {
-				while (it != ops_.begin()) {
-					--it;
-					(*it)->undo();
-				}
-
-				throw;
-			}
-		}
-
-		virtual void undo() {
-			list<reversable_op::ptr>::reverse_iterator it = ops_.rbegin(), e = ops_.rend();
-			while (it != e) {
-				(*it)->undo();
-				--it;
-			}
-		}
-
-		void prepend(reversable_op::ptr const &op) {
-			ops_.push_front(op);
-		}
-
-		void append(reversable_op::ptr const &op) {
-			ops_.push_back(op);
-		}
-
-	private:
-		list<reversable_op::ptr> ops_;
-	};
 
 	// Some ops are reversable.  If an undo fails we do not preserve atomicity.
 	//
@@ -77,8 +26,169 @@ namespace {
 		void version();
 
 	private:
-		
+
 	};
+
+	uint64_t k(uint64_t n) {
+		return 2 * n;
+	}
+
+	uint64_t meg(uint64_t n) {
+		return 1024 * k(n);
+	}
+
+	uint64_t gig(uint64_t n) {
+		return 1024 * meg(n);
+	}
+
+	//--------------------------------
+	// Some vm scenarios I'm using to explore the possibilities for the
+	// high level dm interface
+#if 0
+	void activate_linear_vol(interface &dm) {
+		compiler dmc;
+
+		device pv1 = dmc.external_volume("/dev/vdc");
+		device pv2 = dmc.external_volume("/dev/vdd");
+
+		device lv = cmd.create("lvol1", "UUIDFLKLSF");
+		lv.load() << linear(gig(2), pv1, meg(900))
+			  << linear(gig(1), pv2, 0);
+		lv.resume();
+
+		program activate = dmc.compile_reversible();
+
+		// these will throw on failure
+		activate();
+		activate.reverse();
+	}
+
+	void thin_scenario_1(interface &dm) {
+		compiler dmc;
+
+		device fast_pv = dmc.external_volume("/dev/vdc");
+		device slow_pv = dmc.external_volume("/dev/vdd");
+
+		device md_dev = dmc.create("thin-metadata");
+		md_dev.load() << linear(meg(8), fast_pv, 0);
+		md_dev.resume();
+
+		device data_dev = dmc.create("thin-data");
+		data_dev.load() << linear(gig(2), slow_pv, 0);
+		data_dev.resume();
+
+		md_dev.format_thin_pool(); // irreversible
+
+		device pool_dev = dmc.create("thin-pool");
+		pool_dev.load() << pool(gig(2), metadata_dev, data_dev);
+		pool_dev.resume();
+
+		device thin_dev = dmc.create("thin1");
+		pool_dev.create_thin(0)
+		thin_dev.load() << thin(gig(1), pool_dev, 0);
+		thin_dev.resume();
+
+		// By giving the IGNORE_IROPS flag, we're telling the
+		// compiler that we know the pool format is harmless
+		// (ie. it hasn't over written any important data).
+		program activate = dmc.compile_reversible(IGNORE_IROPS);
+
+		future<thin_status> &status = thin_dev.status<thin_status>();
+		program update_status = dmc.compile(); // no need for this to be reversible
+
+		// Now that we have the pieces for our program, we can put
+		// them together.
+		activate(dm);
+
+		try {
+			update_status(dm);
+			cout << "initial allocated blocks: " << status->allocated_blocks_ << "\n";
+
+			// Not a program, just simulating volume use
+			wipe_device(thin);
+
+			update_status(dm);
+			cout << "After wipe allocated blocks: " << status->allocated_blocks_ << "\n";
+		} catch (...) {
+			activate.reverse();
+			throw;
+		}
+
+		activate.reverse();
+	}
+
+	//--------------------------------
+
+	// Exactly the same as scenario 1, except we force consideration of
+	// object lifetimes by returning the programs from functions.
+
+	pair<program, program> compile_programs_for_scenario2()
+	{
+		compiler dmc;
+
+		device fast_pv = dmc.external_volume("/dev/vdc");
+		device slow_pv = dmc.external_volume("/dev/vdd");
+
+		device md_dev = dmc.create("thin-metadata");
+		md_dev.load() << linear(meg(8), fast_pv, 0);
+		md_dev.resume();
+
+		device data_dev = dmc.create("thin-data");
+		data_dev.load() << linear(gig(2), slow_pv, 0);
+		data_dev.resume();
+
+		md_dev.format_thin_pool(); // irreversible
+
+		device pool_dev = dmc.create("thin-pool");
+		pool_dev.load() << pool(gig(2), metadata_dev, data_dev);
+		pool_dev.resume();
+
+		device thin_dev = dmc.create("thin1");
+		pool_dev.create_thin(0)
+		thin_dev.load() << thin(gig(1), pool_dev, 0);
+		thin_dev.resume();
+
+		// By giving the IGNORE_IROPS flag, we're telling the
+		// compiler that we know the pool format is harmless
+		// (ie. it hasn't over written any important data).
+		// Without this flag this call would fail (throw).
+		program activate = dmc.compile_reversible(IGNORE_IROPS);
+
+		future<thin_status> &status = thin_dev.status<thin_status>();
+		program update_status = dmc.compile_reversible();
+
+		return make_pair(activate, update_status);
+	}
+
+	void thin_scenario_2(interface &dm) {
+		// Program needs to be light weight so we can return it
+		// by value.
+		pair<program, program> p = compile_programs_for_scenario2();
+		program &activate = p.first();
+		program &update_status = p.second();
+
+		activate(dm);
+
+		// FIXME: pass a lambda to activate, so the reverse is
+		// automatically done. eg, activate.ensure_reversed(...)
+		try {
+			update_status(dm);
+			cout << "initial allocated blocks: " << status->allocated_blocks_ << "\n";
+
+			// Not a program, just simulating volume use
+			wipe_device(thin);
+
+			update_status(dm);
+			cout << "After wipe allocated blocks: " << status->allocated_blocks_ << "\n";
+
+		} catch (...) {
+			activate.reverse();
+			throw;
+		}
+
+		activate.reverse();
+	}
+#endif
 }
 
 //----------------------------------------------------------------
@@ -86,74 +196,9 @@ namespace {
 int main(int argc, char **argv)
 {
 	ioctl_interface dm;
-
-	{
-		version_instr v;
-		dm.execute(v);
-		cout << "dm version: "
-		     << v.get_major() << ", "
-		     << v.get_minor() << ", "
-		     << v.get_patch() << "\n";
-	}
-
-	{
-		remove_all_instr i;
-		dm.execute(i);
-	}
-
-	{
-		create_instr i("foo", "lskflsk");
-		dm.execute(i);
-	}
-
-	{
-		load_instr i("foo");
-		i.add_target(target_info(1024, "linear", "/dev/sdb 0"));
-		i.add_target(target_info(1024, "linear", "/dev/vdd 2048"));
-		dm.execute(i);
-	}
-
-	{
-		resume_instr i("foo");
-		dm.execute(i);
-	}
-
-	{
-		list_devices_instr i;
-		dm.execute(i);
-
-		list_devices_instr::dev_list::const_iterator it, e = i.get_devices().end();
-		for (it = i.get_devices().begin(); it != e; ++it)
-			cerr << "device: " << it->name_ << "(" << it->major_ << ", " << it->minor_ << ")\n";
-	}
-
-	{
-		table_instr i("foo");
-		dm.execute(i);
-
-		table_instr::target_list::const_iterator it, e = i.get_targets().end();
-		for (it = i.get_targets().begin(); it != e; ++it) {
-			cerr << "target: " << it->length_sectors_ << " " << it->type_ << " " << it->args_ << "\n";
-		}
-	}
-
-	{
-		status_instr i("foo");
-		dm.execute(i);
-
-		table_instr::target_list::const_iterator it, e = i.get_targets().end();
-		for (it = i.get_targets().begin(); it != e; ++it) {
-			cerr << "target: " << it->length_sectors_ << " " << it->type_ << " " << it->args_ << "\n";
-		}
-	}
-
-	{
-		remove_instr i("foo");
-		dm.execute(i);
-	}
+//	activate_linear_vol(dm);
 
 	return 0;
 }
 
 //----------------------------------------------------------------
-
