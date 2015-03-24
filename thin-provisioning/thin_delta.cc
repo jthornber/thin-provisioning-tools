@@ -123,11 +123,18 @@ namespace local {
 	class mapping_recorder {
 	public:
 		mapping_recorder() {
-			reset_range();
+			no_range();
 		}
 
 		void visit(btree_path const &path, mapping_tree_detail::block_time const &bt) {
 			record(path[0], bt.block_);
+		}
+
+		void complete() {
+			if (range_in_progress()) {
+				push_range();
+				no_range();
+			}
 		}
 
 		mapping_deque const &get_mappings() const {
@@ -135,39 +142,44 @@ namespace local {
 		}
 
 	private:
-		void reset_range() {
+		void no_range() {
 			obegin_ = oend_ = 0;
 			dbegin_ = dend_ = 0;
 		}
 
-		void record(uint64_t oblock, uint64_t dblock) {
-			if (obegin_ == oend_) {
-				// We're starting a new range
-				obegin_ = oblock;
-				oend_ = obegin_;
-
-				dbegin_ = dblock;
-				dend_ = dbegin_;
-
-			} else {
-				if (oblock != oend_ || dblock != dend_) {
-					// Emit the current range ...
-					push_mapping(obegin_, dbegin_, oend_ - obegin_);
-
-					obegin_ = oblock;
-					oend_ = obegin_;
-
-					dbegin_ = dblock;
-					dend_ = dbegin_;
-				}
-			}
-
+		void inc_range() {
 			oend_++;
 			dend_++;
 		}
 
-		void push_mapping(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
-			mappings_.push_back(mapping(vbegin, dbegin, len));
+		void begin_range(uint64_t oblock, uint64_t dblock) {
+			obegin_ = oend_ = oblock;
+			dbegin_ = dend_ = dblock;
+			inc_range();
+		}
+
+		bool range_in_progress() {
+			return oend_ != obegin_;
+		}
+
+		bool continues_range(uint64_t oblock, uint64_t dblock) {
+			return (oblock == oend_) && (dblock == dend_);
+		}
+
+		void push_range() {
+			mapping m(obegin_, dbegin_, oend_ - obegin_);
+			mappings_.push_back(m);
+		}
+
+		void record(uint64_t oblock, uint64_t dblock) {
+			if (!range_in_progress())
+				begin_range(oblock, dblock);
+
+			else if (!continues_range(oblock, dblock)) {
+				push_range();
+				begin_range(oblock, dblock);
+			} else
+				inc_range();
 		}
 
 		uint64_t obegin_, oend_;
@@ -437,6 +449,20 @@ namespace local {
 			}
 		}
 
+		while (left_it != left.end()) {
+			left_mapping = *left_it++;
+
+			if (left_mapping.len_)
+				e.left_only(left_mapping.vbegin_, left_mapping.dbegin_, left_mapping.len_);
+		}
+
+		while (right_it != right.end()) {
+			right_mapping = *right_it++;
+
+			if (right_mapping.len_)
+				e.right_only(right_mapping.vbegin_, right_mapping.dbegin_, right_mapping.len_);
+		}
+
 		e.complete();
 	}
 
@@ -476,7 +502,10 @@ namespace local {
 
 			single_mapping_tree snap2(*tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 			btree_visit_values(snap1, mr1, damage_v);
+			mr1.complete();
+
 			btree_visit_values(snap2, mr2, damage_v);
+			mr2.complete();
 		}
 
 		if (fs.verbose) {
