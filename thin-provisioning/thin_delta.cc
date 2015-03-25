@@ -33,7 +33,7 @@ namespace local {
 			    << "Options:\n"
 			    << "  {--thin1, --snap1}\n"
 			    << "  {--thin2, --snap2}\n"
-			    << "  {-m, --metadata-snap}\n"
+			    << "  {-m, --metadata-snap} [block#]\n"
 			    << "  {--verbose}\n"
 			    << "  {-h|--help}\n"
 			    << "  {-V|--version}" << endl;
@@ -45,13 +45,13 @@ namespace local {
 			exit(1);
 		}
 
-		uint64_t parse_snap(string const &str) {
+		uint64_t parse_int(string const &str, string const &desc) {
 			try {
 				return boost::lexical_cast<uint64_t>(str);
 
 			} catch (...) {
 				ostringstream out;
-				out << "Couldn't parse snapshot designator: '" << str << "'";
+				out << "Couldn't parse " << desc << ": '" << str << "'";
 				die(out.str());
 			}
 
@@ -68,6 +68,7 @@ namespace local {
 		}
 
 		boost::optional<string> dev;
+		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
 		bool verbose;
@@ -535,7 +536,7 @@ namespace local {
 			block_manager<>::ptr bm = open_bm(*fs.dev);
 			transaction_manager::ptr tm = open_tm(bm);
 
-			sb = read_superblock(bm);
+			sb = fs.metadata_snap ? read_superblock(bm, *fs.metadata_snap) : read_superblock(bm);
 			data_sm = open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
 
 			dev_tree dtree(*tm, sb.data_mapping_root_,
@@ -638,15 +639,15 @@ int thin_delta_main(int argc, char **argv)
 			return 0;
 
 		case 1:
-			fs.snap1 = app.parse_snap(optarg);
+			fs.snap1 = app.parse_int(optarg, "thin id 1");
 			break;
 
 		case 2:
-			fs.snap2 = app.parse_snap(optarg);
+			fs.snap2 = app.parse_int(optarg, "thin id 2");
 			break;
 
 		case 'm':
-			abort();
+			fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
 			break;
 
 		case 4:
