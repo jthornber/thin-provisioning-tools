@@ -250,7 +250,7 @@ namespace {
 				// Count the device tree
 				{
 					noop_value_counter<device_tree_detail::device_details> vc;
-					device_tree dtree(tm, sb.device_details_root_,
+					device_tree dtree(*tm, sb.device_details_root_,
 							  device_tree_detail::device_details_traits::ref_counter());
 					count_btree_blocks(dtree, bc, vc);
 				}
@@ -258,7 +258,7 @@ namespace {
 				// Count the mapping tree
 				{
 					noop_value_counter<mapping_tree_detail::block_time> vc;
-					mapping_tree mtree(tm, sb.data_mapping_root_,
+					mapping_tree mtree(*tm, sb.data_mapping_root_,
 							   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 					count_btree_blocks(mtree, bc, vc);
 				}
@@ -266,14 +266,14 @@ namespace {
 				// Count the metadata space map
 				{
 					persistent_space_map::ptr metadata_sm =
-						open_metadata_sm(tm, static_cast<void *>(&sb.metadata_space_map_root_));
+						open_metadata_sm(*tm, static_cast<void *>(&sb.metadata_space_map_root_));
 					metadata_sm->count_metadata(bc);
 				}
 
 				// Count the data space map
 				{
 					persistent_space_map::ptr data_sm =
-						open_disk_sm(tm, static_cast<void *>(&sb.data_space_map_root_));
+						open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
 					data_sm->count_metadata(bc);
 				}
 
@@ -282,7 +282,7 @@ namespace {
 				// just calculated.
 				{
 					persistent_space_map::ptr metadata_sm =
-						open_metadata_sm(tm, static_cast<void *>(&sb.metadata_space_map_root_));
+						open_metadata_sm(*tm, static_cast<void *>(&sb.metadata_space_map_root_));
 					for (unsigned b = 0; b < metadata_sm->get_nr_blocks(); b++) {
 						ref_t c_actual = metadata_sm->get_count(b);
 						ref_t c_expected = bc.get_count(b);
