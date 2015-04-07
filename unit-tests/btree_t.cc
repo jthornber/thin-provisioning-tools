@@ -20,6 +20,7 @@
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/simple_traits.h"
 
 using namespace std;
 using namespace persistent_data;
@@ -30,21 +31,28 @@ using namespace testing;
 namespace {
 	block_address const NR_BLOCKS = 102400;
 
-	transaction_manager::ptr
-	create_tm() {
-		block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS, 4, block_io<>::READ_WRITE));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
+	class BtreeTests : public Test {
+	public:
+		BtreeTests() 
+			: bm_(new block_manager<>("./test.data", NR_BLOCKS, 4, block_manager<>::READ_WRITE)),
+			  sm_(new core_map(NR_BLOCKS)),
+			  tm_(bm_, sm_) {
+		}
 
-	btree<1, uint64_traits>::ptr
-	create_btree() {
-		uint64_traits::ref_counter rc;
+		btree<1, uint64_traits>::ptr
+		create_btree() {
+			uint64_traits::ref_counter rc;
 
-		return btree<1, uint64_traits>::ptr(
-			new btree<1, uint64_traits>(create_tm(), rc));
-	}
+			return btree<1, uint64_traits>::ptr(
+				new btree<1, uint64_traits>(tm_, rc));
+		}
+
+	private:
+		block_manager<>::ptr bm_;
+		space_map::ptr sm_;
+		transaction_manager tm_;
+	};
+
 
 	// Checks that a btree is well formed.
 	//
@@ -98,7 +106,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-TEST(BtreeTests, empty_btree_contains_nothing)
+TEST_F(BtreeTests, empty_btree_contains_nothing)
 {
 	btree<1, uint64_traits>::ptr tree = create_btree();
 	check_constraints(tree);
@@ -109,7 +117,7 @@ TEST(BtreeTests, empty_btree_contains_nothing)
 	}
 }
 
-TEST(BtreeTests, insert_works)
+TEST_F(BtreeTests, insert_works)
 {
 	unsigned const COUNT = 100000;
 
@@ -128,7 +136,7 @@ TEST(BtreeTests, insert_works)
 	check_constraints(tree);
 }
 
-TEST(BtreeTests, insert_does_not_insert_imaginary_values)
+TEST_F(BtreeTests, insert_does_not_insert_imaginary_values)
 {
 	btree<1, uint64_traits>::ptr tree = create_btree();
 	uint64_t key[1] = {0};
@@ -155,7 +163,7 @@ TEST(BtreeTests, insert_does_not_insert_imaginary_values)
 	check_constraints(tree);
 }
 
-TEST(BtreeTests, clone)
+TEST_F(BtreeTests, clone)
 {
 	typedef btree<1, uint64_traits> tree64;
 

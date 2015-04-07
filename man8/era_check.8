@@ -1,0 +1,57 @@
+.TH ERA_CHECK 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+era_check \- validate era metadata on device or file
+
+.SH SYNOPSIS
+.B era_check
+.RB [ options ]
+.I {device|file}
+
+.SH DESCRIPTION
+.B era_check
+checks era metadata created by
+the device-mapper era target on a
+.I device
+or
+.I file.
+
+.SH OPTIONS
+.IP "\fB\-q, \-\-quiet\fP"
+Suppress output messages, return only exit code.
+
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
+
+.IP "\fB\-\-super\-block\-only\fP"
+Only check the superblock is present.
+
+.B era_check
+will return a non-zero exit code if it finds a fatal
+error.  If any errors are discovered use
+.B era_repair
+to correct.
+
+.SH EXAMPLE
+Analyse thin provisioning metadata on logical volume
+/dev/vg/metadata:
+.sp
+.B era_check /dev/vg/metadata
+
+The device may not be actively used by the target
+when running.
+
+.SH DIAGNOSTICS
+.B era_check
+returns an exit code of 0 for success or 1 for error.
+
+.SH SEE ALSO
+.B era_dump(8)
+.B era_repair(8)
+.B era_restore(8)
+.B era_invalidate(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>

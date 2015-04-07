@@ -119,6 +119,7 @@ namespace persistent_data {
 
 	namespace space_map_detail {
 		class damage {
+		public:
 			virtual ~damage() {}
 		};
 

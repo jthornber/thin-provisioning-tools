@@ -1,0 +1,46 @@
+.TH ERA_INVALIDATE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.SH NAME
+era_invalidate \- Provide a list of blocks that have changed since a particular era.
+
+.SH SYNOPSIS
+.B era_invalidate
+.RB [ options ]
+.I {device|file}
+
+.SH DESCRIPTION
+.B era_invalidate
+Examines era metadata and lists blocks that may have changed since a given era.
+
+.SH OPTIONS
+.IP "\fB\-h, \-\-help\fP"
+Print help and exit.
+
+.IP "\fB\-V, \-\-version\fP"
+Output version information and exit.
+
+.IP "\fB\-o <output file>\fP"
+Write output to a file rather than
+.B stdout
+.
+
+.SH EXAMPLE
+List the blocks that may have been written since the beginning of era
+13 on the metadata device /dev/vg/metadata.
+.sp
+.B era_invalidate --written-since 13 /dev/vg/metadata
+
+The device may not be actively used by the target
+when running.
+
+.SH DIAGNOSTICS
+.B era_invalidate
+returns an exit code of 0 for success or 1 for error (eg, metadata corruption).
+
+.SH SEE ALSO
+.B era_check(8),
+.B era_dump(8),
+.B era_repair(8),
+.B era_restore(8)
+
+.SH AUTHOR
+Joe Thornber <ejt@redhat.com>

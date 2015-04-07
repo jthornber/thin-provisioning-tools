@@ -19,7 +19,7 @@
 #ifndef BTREE_H
 #define BTREE_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/data-structures/ref_counter.h"
 
@@ -41,22 +41,6 @@ namespace persistent_data {
 
 	private:
 		space_map::ptr sm_;
-	};
-
-	// FIXME: move to sep file.  I don't think it's directly used by
-	// the btree code.
-	struct uint64_traits {
-		typedef base::le64 disk_type;
-		typedef uint64_t value_type;
-		typedef no_op_ref_counter<uint64_t> ref_counter;
-
-		static void unpack(disk_type const &disk, value_type &value) {
-			value = base::to_cpu<uint64_t>(disk);
-		}
-
-		static void pack(value_type const &value, disk_type &disk) {
-			disk = base::to_disk<base::le64>(value);
-		}
 	};
 
 	struct block_traits {
@@ -179,12 +163,15 @@ namespace persistent_data {
 
 		private:
 			static unsigned calc_max_entries(void);
+			void check_fits_within_block() const;
 
 			void *key_ptr(unsigned i) const;
 			void *value_ptr(unsigned i) const;
 
 			block_address location_;
 			disk_node *raw_;
+
+			mutable bool checked_; // flag indicating we've checked the data fits in the block
 		};
 
 		//------------------------------------------------
@@ -197,7 +184,7 @@ namespace persistent_data {
 			return node_ref<ValueTraits>(
 				b.get_location(),
 				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data().raw())));
+					const_cast<void *>(b.data())));
 		}
 
 		template <typename ValueTraits>
@@ -206,14 +193,13 @@ namespace persistent_data {
 		{
 			return node_ref<ValueTraits>(
 				b.get_location(),
-				reinterpret_cast<disk_node *>(
-					const_cast<unsigned char *>(b.data().raw())));
+				reinterpret_cast<disk_node *>(b.data()));
 		}
 
 		class ro_spine : private boost::noncopyable {
 		public:
-			ro_spine(transaction_manager::ptr tm,
-				 block_manager<>::validator::ptr v)
+			ro_spine(transaction_manager &tm,
+				 bcache::validator::ptr v)
 				: tm_(tm),
 				  validator_(v) {
 			}
@@ -226,8 +212,8 @@ namespace persistent_data {
 			}
 
 		private:
-			transaction_manager::ptr tm_;
-			block_manager<>::validator::ptr validator_;
+			transaction_manager &tm_;
+			bcache::validator::ptr validator_;
 			std::list<block_manager<>::read_ref> spine_;
 		};
 
@@ -237,8 +223,8 @@ namespace persistent_data {
 			typedef transaction_manager::write_ref write_ref;
 			typedef boost::optional<block_address> maybe_block;
 
-			shadow_spine(transaction_manager::ptr tm,
-				     block_manager<>::validator::ptr v)
+			shadow_spine(transaction_manager &tm,
+				     bcache::validator::ptr v)
 
 				: tm_(tm),
 				  validator_(v) {
@@ -290,8 +276,8 @@ namespace persistent_data {
 			}
 
 		private:
-			transaction_manager::ptr tm_;
-			block_manager<>::validator::ptr validator_;
+			transaction_manager &tm_;
+			bcache::validator::ptr validator_;
 			std::list<block_manager<>::write_ref> spine_;
 		        maybe_block root_;
 		};
@@ -349,10 +335,10 @@ namespace persistent_data {
 		typedef typename btree_detail::node_ref<ValueTraits> leaf_node;
 		typedef typename btree_detail::node_ref<block_traits> internal_node;
 
-		btree(typename persistent_data::transaction_manager::ptr tm,
+		btree(transaction_manager &tm,
 		      typename ValueTraits::ref_counter rc);
 
-		btree(typename transaction_manager::ptr tm,
+		btree(transaction_manager &tm,
 		      block_address root,
 		      typename ValueTraits::ref_counter rc);
 
@@ -448,12 +434,12 @@ namespace persistent_data {
 		void inc_children(btree_detail::shadow_spine &spine,
 				  RefCounter &leaf_rc);
 
-		typename persistent_data::transaction_manager::ptr tm_;
+		transaction_manager &tm_;
 		bool destroy_;
 		block_address root_;
 		block_ref_counter internal_rc_;
 		typename ValueTraits::ref_counter rc_;
-		typename block_manager<>::validator::ptr validator_;
+		typename bcache::validator::ptr validator_;
 	};
 };
 

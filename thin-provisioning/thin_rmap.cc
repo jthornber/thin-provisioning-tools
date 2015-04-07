@@ -10,6 +10,7 @@
 #include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"
@@ -23,7 +24,7 @@ namespace {
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		block_io<>::mode m = block_io<>::READ_ONLY;
+		block_manager<>::mode m = block_manager<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -75,7 +76,7 @@ namespace {
 			transaction_manager::ptr tm = open_tm(bm);
 
 			superblock_detail::superblock sb = read_superblock(bm);
-			mapping_tree mtree(tm, sb.data_mapping_root_,
+			mapping_tree mtree(*tm, sb.data_mapping_root_,
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 
 			btree_visit_values(mtree, rv, dv);
@@ -125,7 +126,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int thin_rmap_main(int argc, char **argv)
 {
 	int c;
 	vector<region> regions;
@@ -173,5 +174,7 @@ int main(int argc, char **argv)
 
 	return rmap(argv[optind], regions);
 }
+
+base::command thin_provisioning::thin_rmap_cmd("thin_rmap", thin_rmap_main);
 
 //----------------------------------------------------------------

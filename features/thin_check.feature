@@ -17,9 +17,10 @@ Feature: thin_check
       {-q|--quiet}
       {-h|--help}
       {-V|--version}
-      {--super-block-only}
-      {--skip-mappings}
+      {--clear-needs-check-flag}
       {--ignore-non-fatal-errors}
+      {--skip-mappings}
+      {--super-block-only}
     """
 
   Scenario: print help
@@ -32,9 +33,10 @@ Feature: thin_check
       {-q|--quiet}
       {-h|--help}
       {-V|--version}
-      {--super-block-only}
-      {--skip-mappings}
+      {--clear-needs-check-flag}
       {--ignore-non-fatal-errors}
+      {--skip-mappings}
+      {--super-block-only}
     """
 
   Scenario: Unrecognised option should cause failure
@@ -42,7 +44,7 @@ Feature: thin_check
     Then it should fail
 
   Scenario: --super-block-only check passes on valid metadata
-    Given valid metadata
+    Given valid thin metadata
     When I run thin_check with --super-block-only
     Then it should pass
 
@@ -57,12 +59,12 @@ Feature: thin_check
     """
 
   Scenario: --skip-mappings check passes on valid metadata
-    Given valid metadata
+    Given valid thin metadata
     When I run thin_check with --skip-mappings
     Then it should pass
 
   Scenario: --ignore-non-fatal-errors check passes on valid metadata
-    Given valid metadata
+    Given valid thin metadata
     When I run thin_check with --ignore-non-fatal-errors
     Then it should pass
 
@@ -77,3 +79,8 @@ Feature: thin_check
     When I run thin_check with --quiet
     Then it should fail
     And it should give no output
+
+  Scenario: Accepts --clear-needs-check-flag
+    Given valid thin metadata
+    When I run thin_check with --clear-needs-check-flag
+    Then it should pass

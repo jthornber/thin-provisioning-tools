@@ -99,6 +99,8 @@ namespace base {
 				replacement.insert(run<T>());
 			else {
 				typename rset::const_iterator b = runs_.begin();
+
+				// Some versions of gcc give a spurious warning here.
 				maybe last = b->end_;
 
 				if (b->begin_)

@@ -4,8 +4,6 @@
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/run.h"
 
-using namespace boost;
-
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
@@ -50,7 +48,7 @@ namespace thin_provisioning {
 
 		class damage_visitor {
 		public:
-			typedef shared_ptr<damage_visitor> ptr;
+			typedef boost::shared_ptr<damage_visitor> ptr;
 
 			virtual ~damage_visitor() {}
 

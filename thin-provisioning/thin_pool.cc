@@ -122,7 +122,7 @@ thin_pool::create_thin(thin_dev_t dev)
 	if (device_exists(dev))
 		throw std::runtime_error("Device already exists");
 
-	single_mapping_tree::ptr new_tree(new single_mapping_tree(md_->tm_,
+	single_mapping_tree::ptr new_tree(new single_mapping_tree(*md_->tm_,
 								  mapping_tree_detail::block_time_ref_counter(md_->data_sm_)));
 	md_->mappings_top_level_->insert(key, new_tree->get_root());
 	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
@@ -140,7 +140,7 @@ thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
 
-	single_mapping_tree otree(md_->tm_, *mtree_root,
+	single_mapping_tree otree(*md_->tm_, *mtree_root,
 				  mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
 
 	single_mapping_tree::ptr clone(otree.clone());
@@ -203,7 +203,7 @@ thin_pool::get_nr_free_data_blocks() const
 	return md_->data_sm_->get_nr_free();
 }
 
-sector_t
+thin_provisioning::sector_t
 thin_pool::get_data_block_size() const
 {
 	return md_->sb_.data_block_size_;

@@ -39,6 +39,7 @@ namespace thin_provisioning {
 	// single_map := <origin> <data>
 	// named_mapping := <identifier> <mapping>
 	//------------------------------------------------
+
 	class emitter {
 	public:
 		typedef boost::shared_ptr<emitter> ptr;

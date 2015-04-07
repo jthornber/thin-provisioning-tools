@@ -26,6 +26,7 @@
 #include "metadata.h"
 #include "xml_format.h"
 #include "version.h"
+#include "thin-provisioning/commands.h"
 
 using namespace persistent_data;
 using namespace std;
@@ -95,7 +96,7 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int thin_dump_main(int argc, char **argv)
 {
 	int c;
 	char const *output = NULL;
@@ -165,3 +166,7 @@ int main(int argc, char **argv)
 
 	return dump(argv[optind], output, format, flags, metadata_snap);
 }
+
+base::command thin_provisioning::thin_dump_cmd("thin_dump", thin_dump_main);
+
+//----------------------------------------------------------------

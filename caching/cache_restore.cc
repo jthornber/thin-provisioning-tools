@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/restore_emitter.h"
 #include "caching/xml_format.h"
@@ -20,11 +21,30 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
+	size_t get_file_length(string const &file) {
+		struct stat info;
+		int r;
+
+		r = ::stat(file.c_str(), &info);
+		if (r)
+			throw runtime_error("Couldn't stat backup path");
+
+		return info.st_size;
+	}
+
+	auto_ptr<progress_monitor> create_monitor(bool quiet) {
+		if (!quiet && isatty(fileno(stdout)))
+			return create_progress_bar("Restoring");
+		else
+			return create_quiet_progress_monitor();
+	}
+
 	struct flags {
 		flags()
 			: metadata_version(1),
 			  override_metadata_version(false),
-			  clean_shutdown(true) {
+			  clean_shutdown(true),
+			  quiet(false) {
 		}
 
 		optional<string> input;
@@ -33,11 +53,12 @@ namespace {
 		uint32_t metadata_version;
 		bool override_metadata_version;
 		bool clean_shutdown;
+		bool quiet;
 	};
 
 	int restore(flags const &fs) {
 		try {
-			block_manager<>::ptr bm = open_bm(*fs.output, block_io<>::READ_WRITE);
+			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown);
 
@@ -48,7 +69,9 @@ namespace {
 
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);
-			parse_xml(in, restorer);
+
+			auto_ptr<progress_monitor> monitor = create_monitor(fs.quiet);
+			parse_xml(in, restorer, get_file_length(*fs.input), *monitor);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -64,6 +87,7 @@ namespace {
 		    << "  {-h|--help}" << endl
 		    << "  {-i|--input} <input xml file>" << endl
 		    << "  {-o|--output} <output device or file>" << endl
+		    << "  {-q|--quiet}" << endl
 		    << "  {-V|--version}" << endl
 		    << endl
 		    << "  {--debug-override-metadata-version} <integer>" << endl
@@ -72,18 +96,19 @@ namespace {
 	}
 }
 
-int main(int argc, char **argv)
+int cache_restore_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
 	char const *prog_name = basename(argv[0]);
-	char const *short_opts = "hi:o:V";
+	char const *short_opts = "hi:o:qV";
 	option const long_opts[] = {
 		{ "debug-override-metadata-version", required_argument, NULL, 0 },
 		{ "omit-clean-shutdown", no_argument, NULL, 1 },
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
+		{ "quiet", no_argument, NULL, 'q'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -109,6 +134,10 @@ int main(int argc, char **argv)
 
 		case 'o':
 			fs.output = optional<string>(string(optarg));
+			break;
+
+		case 'q':
+			fs.quiet = true;
 			break;
 
 		case 'V':
@@ -140,5 +169,7 @@ int main(int argc, char **argv)
 
 	return restore(fs);
 }
+
+base::command caching::cache_restore_cmd("cache_restore", cache_restore_main);
 
 //----------------------------------------------------------------

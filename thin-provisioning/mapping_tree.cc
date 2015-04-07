@@ -141,9 +141,9 @@ namespace {
 		}
 	};
 
-	class ll_damage_visitor {
+	class dev_tree_damage_visitor {
 	public:
-		ll_damage_visitor(damage_visitor &v)
+		dev_tree_damage_visitor(damage_visitor &v)
 		: v_(v) {
 		}
 
@@ -158,14 +158,56 @@ namespace {
 				break;
 
 			default:
-				// shouldn't get here.
-				throw std::runtime_error("ll_damage_visitor: path too long");
+				throw std::runtime_error("dev_tree_damage_visitor: path too long");
 			}
 		}
 
 	private:
 		damage_visitor &v_;
 	};
+
+	class mapping_tree_damage_visitor {
+	public:
+		mapping_tree_damage_visitor(damage_visitor &v)
+		: v_(v) {
+		}
+
+		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
+			switch (path.size()) {
+			case 0:
+				v_.visit(missing_devices(d.desc_, d.lost_keys_));
+				break;
+
+			default:
+				throw std::runtime_error("mapping_tree_damage_visitor: path too long");
+			}
+		}
+
+	private:
+		damage_visitor &v_;
+	};
+
+	class single_mapping_tree_damage_visitor {
+	public:
+		single_mapping_tree_damage_visitor(damage_visitor &v)
+		: v_(v) {
+		}
+
+		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
+			switch (path.size()) {
+			case 0:
+				v_.visit(missing_mappings(d.desc_, path[0], d.lost_keys_));
+				break;
+
+			default:
+				throw std::runtime_error("single_mapping_tree_damage_visitor: path too long");
+			}
+		}
+
+	private:
+		damage_visitor &v_;
+	};
+
 }
 
 void
@@ -173,7 +215,7 @@ thin_provisioning::walk_mapping_tree(dev_tree const &tree,
 				     mapping_tree_detail::device_visitor &dev_v,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	ll_damage_visitor ll_dv(dv);
+	dev_tree_damage_visitor ll_dv(dv);
 	btree_visit_values(tree, dev_v, ll_dv);
 }
 
@@ -190,7 +232,7 @@ thin_provisioning::walk_mapping_tree(mapping_tree const &tree,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	ll_damage_visitor ll_dv(dv);
+	mapping_tree_damage_visitor ll_dv(dv);
 	btree_visit_values(tree, mv, ll_dv);
 }
 
@@ -207,7 +249,7 @@ thin_provisioning::walk_mapping_tree(single_mapping_tree const &tree,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	ll_damage_visitor ll_dv(dv);
+	single_mapping_tree_damage_visitor ll_dv(dv);
 	btree_visit_values(tree, mv, ll_dv);
 }
 

@@ -16,53 +16,60 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-.PHONY: all
-
 V=@
-PROGRAMS=\
-	cache_check \
-	cache_dump \
-	cache_restore \
-	cache_repair \
-	cache_metadata_size \
-	\
-	thin_check \
-	thin_dump \
-	thin_restore \
-	thin_repair \
-	thin_rmap \
-	thin_metadata_size
 
+PROGRAMS=\
+	bin/pdata_tools
+
+.PHONY: all
 all: $(PROGRAMS)
 
 SOURCE=\
+	base/application.cc \
 	base/base64.cc \
+	base/endian_utils.cc \
 	base/error_state.cc \
-	\
+	base/error_string.cc \
+	base/progress_monitor.cc \
+	base/xml_utils.cc \
+	block-cache/block_cache.cc \
+	caching/cache_check.cc \
+	caching/cache_dump.cc \
+	caching/cache_metadata_size.cc \
+	caching/cache_repair.cc \
+	caching/cache_restore.cc \
 	caching/hint_array.cc \
-	caching/superblock.cc \
 	caching/mapping_array.cc \
 	caching/metadata.cc \
 	caching/metadata_dump.cc \
 	caching/restore_emitter.cc \
+	caching/superblock.cc \
 	caching/xml_format.cc \
-	\
+	era/era_array.cc \
+	era/era_check.cc \
+	era/era_detail.cc \
+	era/era_dump.cc \
+	era/era_invalidate.cc \
+	era/era_restore.cc \
+	era/metadata.cc \
+	era/metadata_dump.cc \
+	era/restore_emitter.cc \
+	era/superblock.cc \
+	era/writeset_tree.cc \
+	era/xml_format.cc \
+	main.cc \
 	persistent-data/checksum.cc \
-	persistent-data/endian_utils.cc \
+	persistent-data/data-structures/bitset.cc \
+	persistent-data/data-structures/bloom_filter.cc \
+	persistent-data/data-structures/btree.cc \
 	persistent-data/error_set.cc \
 	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
-	persistent-data/lock_tracker.cc \
-	persistent-data/transaction_manager.cc \
-	\
-	persistent-data/data-structures/bitset.cc \
-	persistent-data/data-structures/btree.cc \
-	\
-	persistent-data/space_map.cc \
+	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc \
-	\
+	persistent-data/space_map.cc \
+	persistent-data/transaction_manager.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
@@ -72,23 +79,16 @@ SOURCE=\
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
-	thin-provisioning/thin_pool.cc \
-	thin-provisioning/xml_format.cc
-
-PDATA_OBJECTS=$(subst .cc,.o,$(SOURCE))
-
-CXX_PROGRAM_SOURCE=\
-	caching/cache_check.cc \
-	caching/cache_restore.cc \
-	\
 	thin-provisioning/thin_check.cc \
+	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
-	thin-provisioning/thin_restore.cc \
+	thin-provisioning/thin_metadata_size.cc \
+	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_repair.cc \
-	thin-provisioning/thin_rmap.cc
-
-C_PROGRAM_SOURCE=\
-	thin-provisioning/thin_metadata_size.c
+	thin-provisioning/thin_restore.cc \
+	thin-provisioning/thin_rmap.cc \
+	thin-provisioning/thin_trim.cc \
+	thin-provisioning/xml_format.cc
 
 CC:=@CC@
 CXX:=@CXX@
@@ -99,18 +99,19 @@ CFLAGS+=-g -Wall -O3
 CXXFLAGS+=-g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
+CXXFLAGS+=@CXX_STRERROR_FLAG@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-lstdc++
-LIBEXPAT:=-lexpat
+LIBS:=-lstdc++ -laio -lexpat
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
-MANPATH:=$(DESTDIR)$(MANDIR)
+DATADIR:=$(DESTDIR)$(PREFIX)/share
+MANPATH:=$(DATADIR)/man
 
 vpath %.cc $(TOP_DIR)
 
 INSTALL_DIR = $(INSTALL) -m 755 -d
-INSTALL_PROGRAM = $(INSTALL) -m 755
+INSTALL_PROGRAM = $(INSTALL) -m 755 -s
 INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
@@ -123,14 +124,6 @@ endif
 
 .SUFFIXES: .d
 
-%.o: %.c
-	@echo "    [CC] $<"
-	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
-	@echo "    [DEP] $<"
-	$(V) $(CC) -MM -MT $(subst .c,.o,$<) $(INCLUDES) $(CFLAGS) $< > $*.$$$$; \
-	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
-	$(RM) $*.$$$$
-
 %.o: %.cc
 	@echo "    [CXX] $<"
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
@@ -141,149 +134,15 @@ endif
 
 #----------------------------------------------------------------
 
-lib/libpdata.a: $(PDATA_OBJECTS)
+lib/libpdata.a: $(OBJECTS)
 	@echo "    [AR]  $<"
-	$(V)ar -rv $@ $(PDATA_OBJECTS) > /dev/null 2>&1
+	$(V)ar -rv $@ $(OBJECTS) > /dev/null 2>&1
+
+bin/pdata_tools: $(OBJECTS)
+	@echo "    [LD]  $@"
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 #----------------------------------------------------------------
-# Thin provisioning tools
-
-THIN_DEBUG_SOURCE=$(SOURCE)
-THIN_DUMP_SOURCE=$(SOURCE)
-THIN_REPAIR_SOURCE=$(SOURCE)
-THIN_RESTORE_SOURCE=$(SOURCE)
-THIN_CHECK_SOURCE=\
-	base/error_state.cc \
-	persistent-data/checksum.cc \
-	persistent-data/endian_utils.cc \
-	persistent-data/error_set.cc \
-	persistent-data/file_utils.cc \
-	persistent-data/hex_dump.cc \
-	persistent-data/lock_tracker.cc \
-	persistent-data/data-structures/btree.cc \
-	persistent-data/space_map.cc \
-	persistent-data/space-maps/disk.cc \
-	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc \
-	persistent-data/transaction_manager.cc \
-	thin-provisioning/device_tree.cc \
-	thin-provisioning/mapping_tree.cc \
-	thin-provisioning/metadata.cc \
-	thin-provisioning/metadata_checker.cc \
-	thin-provisioning/superblock.cc
-
-THIN_RMAP_SOURCE=\
-	persistent-data/checksum.cc \
-	persistent-data/endian_utils.cc \
-	persistent-data/error_set.cc \
-	persistent-data/file_utils.cc \
-	persistent-data/hex_dump.cc \
-	persistent-data/lock_tracker.cc \
-	persistent-data/data-structures/btree.cc \
-	persistent-data/space_map.cc \
-	persistent-data/space-maps/disk.cc \
-	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc \
-	persistent-data/transaction_manager.cc \
-	thin-provisioning/device_tree.cc \
-	thin-provisioning/mapping_tree.cc \
-	thin-provisioning/metadata.cc \
-	thin-provisioning/metadata_checker.cc \
-	thin-provisioning/rmap_visitor.cc \
-	thin-provisioning/superblock.cc
-
-THIN_DEBUG_OBJECTS=$(subst .cc,.o,$(THIN_DEBUG_SOURCE))
-THIN_DUMP_OBJECTS=$(subst .cc,.o,$(THIN_DUMP_SOURCE))
-THIN_REPAIR_OBJECTS=$(subst .cc,.o,$(THIN_REPAIR_SOURCE))
-THIN_RESTORE_OBJECTS=$(subst .cc,.o,$(THIN_RESTORE_SOURCE))
-THIN_CHECK_OBJECTS=$(subst .cc,.o,$(THIN_CHECK_SOURCE))
-THIN_RMAP_OBJECTS=$(subst .cc,.o,$(THIN_RMAP_SOURCE))
-
-thin_debug: $(THIN_DEBUG_OBJECTS) thin-provisioning/thin_debug.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-thin_repair: $(THIN_REPAIR_OBJECTS) thin-provisioning/thin_repair.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-thin_dump: $(THIN_DUMP_OBJECTS) thin-provisioning/thin_dump.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-thin_restore: $(THIN_RESTORE_OBJECTS) thin-provisioning/thin_restore.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-thin_check: $(THIN_CHECK_OBJECTS) thin-provisioning/thin_check.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
-
-thin_rmap: $(THIN_RMAP_OBJECTS) thin-provisioning/thin_rmap.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
-
-thin_metadata_size: thin-provisioning/thin_metadata_size.o
-	@echo "    [LD]  $@"
-	$(V) $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $+ -lm
-
-#----------------------------------------------------------------
-# Cache tools
-
-CACHE_CHECK_SOURCE=\
-	base/base64.cc \
-	base/error_state.cc \
-	persistent-data/checksum.cc \
-	persistent-data/endian_utils.cc \
-	persistent-data/error_set.cc \
-	persistent-data/file_utils.cc \
-	persistent-data/hex_dump.cc \
-	persistent-data/lock_tracker.cc \
-	persistent-data/data-structures/btree.cc \
-	persistent-data/data-structures/bitset.cc \
-	persistent-data/space_map.cc \
-	persistent-data/space-maps/disk.cc \
-	persistent-data/space-maps/recursive.cc \
-	persistent-data/space-maps/careful_alloc.cc \
-	persistent-data/transaction_manager.cc \
-	caching/hint_array.cc \
-	caching/superblock.cc \
-	caching/mapping_array.cc \
-	caching/metadata.cc \
-	caching/metadata_dump.cc \
-	caching/restore_emitter.cc \
-	caching/xml_format.cc
-
-CACHE_CHECK_OBJECTS=$(subst .cc,.o,$(CACHE_CHECK_SOURCE))
-
-CACHE_DUMP_SOURCE=$(SOURCE)
-CACHE_DUMP_OBJECTS=$(subst .cc,.o,$(CACHE_DUMP_SOURCE))
-
-CACHE_REPAIR_SOURCE=$(SOURCE)
-CACHE_REPAIR_OBJECTS=$(subst .cc,.o,$(CACHE_REPAIR_SOURCE))
-
-CACHE_RESTORE_SOURCE=$(SOURCE)
-CACHE_RESTORE_OBJECTS=$(subst .cc,.o,$(CACHE_RESTORE_SOURCE))
-
-cache_check: $(CACHE_CHECK_OBJECTS) caching/cache_check.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-cache_dump: $(CACHE_DUMP_OBJECTS) caching/cache_dump.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-cache_repair: $(CACHE_REPAIR_OBJECTS) caching/cache_repair.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-cache_restore: $(CACHE_RESTORE_OBJECTS) caching/cache_restore.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(LIBEXPAT)
-
-cache_metadata_size: caching/cache_metadata_size.o
-	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
@@ -302,29 +161,44 @@ clean:
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
 
-install: $(PROGRAMS)
+install: bin/pdata_tools
 	$(INSTALL_DIR) $(BINDIR)
-	$(INSTALL_PROGRAM) cache_check $(BINDIR)
-	$(INSTALL_PROGRAM) cache_dump $(BINDIR)
-	$(INSTALL_PROGRAM) cache_repair $(BINDIR)
-	$(INSTALL_PROGRAM) cache_restore $(BINDIR)
-	$(INSTALL_PROGRAM) thin_check $(BINDIR)
-	$(INSTALL_PROGRAM) thin_dump $(BINDIR)
-	$(INSTALL_PROGRAM) thin_repair $(BINDIR)
-	$(INSTALL_PROGRAM) thin_restore $(BINDIR)
-	$(INSTALL_PROGRAM) thin_rmap $(BINDIR)
-	$(INSTALL_PROGRAM) thin_metadata_size $(BINDIR)
+	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
+	ln -s -f pdata_tools $(BINDIR)/cache_check
+	ln -s -f pdata_tools $(BINDIR)/cache_dump
+	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
+	ln -s -f pdata_tools $(BINDIR)/cache_repair
+	ln -s -f pdata_tools $(BINDIR)/cache_restore
+	ln -s -f pdata_tools $(BINDIR)/thin_check
+	ln -s -f pdata_tools $(BINDIR)/thin_delta
+	ln -s -f pdata_tools $(BINDIR)/thin_dump
+	ln -s -f pdata_tools $(BINDIR)/thin_repair
+	ln -s -f pdata_tools $(BINDIR)/thin_restore
+	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_trim
+	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
+	ln -s -f pdata_tools $(BINDIR)/era_check
+	ln -s -f pdata_tools $(BINDIR)/era_dump
+	ln -s -f pdata_tools $(BINDIR)/era_invalidate
+	ln -s -f pdata_tools $(BINDIR)/era_restore
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/era_invalidate.8 $(MANPATH)/man8
+
+#	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
 
 .PHONY: install
 
@@ -333,7 +207,7 @@ include unit-tests/Makefile
 
 .PHONEY: features
 
-features: $(PROGRAMS)
+features: pdata_tools
 	cucumber --no-color --format progress
 
 test: features unit-test

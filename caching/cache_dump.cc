@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "version.h"
+#include "caching/commands.h"
 #include "caching/mapping_array.h"
 #include "caching/metadata.h"
 #include "caching/metadata_dump.h"
@@ -34,7 +35,7 @@ namespace {
 
 	int dump(string const &dev, string const &output, flags const &fs) {
 		try {
-			block_manager<>::ptr bm = open_bm(dev, block_io<>::READ_ONLY);
+			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY);
 			metadata::ptr md(new metadata(bm, metadata::OPEN));
 
 			if (want_stdout(output)) {
@@ -66,7 +67,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_dump_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -113,5 +114,7 @@ int main(int argc, char **argv)
 
 	return dump(argv[optind], output, fs);
 }
+
+base::command caching::cache_dump_cmd("cache_dump", cache_dump_main);
 
 //----------------------------------------------------------------

@@ -17,6 +17,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
     """
 
@@ -30,6 +31,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
     """
 
@@ -53,19 +55,35 @@ Feature: thin_restore
     No output file provided.
     """
 
+  Scenario: --quiet is accepted
+    Given valid thin metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin --quiet
+    Then it should pass
+    And the output should contain exactly:
+    """
+    """
+
+  Scenario: -q is accepted
+    Given valid thin metadata
+    When I run thin_restore with -i metadata.xml -o metadata.bin -q
+    Then it should pass
+    And the output should contain exactly:
+    """
+    """
+
   Scenario: dump/restore is a noop
-    Given valid metadata
+    Given valid thin metadata
     When I dump
     And I restore
     And I dump
     Then dumps 1 and 2 should be identical
 
   Scenario: dump matches original metadata
-    Given valid metadata
+    Given valid thin metadata
     When I dump
     Then dumps 0 and 1 should be identical
 
   Scenario: dump matches original metadata (small)
-    Given small metadata
+    Given small thin metadata
     When I dump
     Then dumps 0 and 1 should be identical

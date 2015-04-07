@@ -16,6 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/endian_utils.h"
+
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/space-maps/disk_structures.h"
 #include "persistent-data/space-maps/recursive.h"
@@ -24,7 +26,6 @@
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/checksum.h"
-#include "persistent-data/endian_utils.h"
 #include "persistent-data/math_utils.h"
 #include "persistent-data/transaction_manager.h"
 
@@ -37,9 +38,9 @@ using namespace sm_disk_detail;
 namespace {
 	uint64_t const BITMAP_CSUM_XOR = 240779;
 
-	struct bitmap_block_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(&b);
+	struct bitmap_block_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(raw);
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
@@ -49,8 +50,8 @@ namespace {
 				throw checksum_error("bad block nr in space map bitmap");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			bitmap_header *data = reinterpret_cast<bitmap_header *>(&b);
+		virtual void prepare(void *raw, block_address location) const {
+			bitmap_header *data = reinterpret_cast<bitmap_header *>(raw);
 			data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(BITMAP_CSUM_XOR);
@@ -64,9 +65,9 @@ namespace {
 	uint64_t const INDEX_CSUM_XOR = 160478;
 
 	// FIXME: factor out the common code in these validators
-	struct index_block_validator : public block_manager<>::validator {
-		virtual void check(buffer<> const &b, block_address location) const {
-			metadata_index const *mi = reinterpret_cast<metadata_index const *>(&b);
+	struct index_block_validator : public bcache::validator {
+		virtual void check(void const *raw, block_address location) const {
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
@@ -76,8 +77,8 @@ namespace {
 				throw checksum_error("bad block nr in metadata index block");
 		}
 
-		virtual void prepare(buffer<> &b, block_address location) const {
-			metadata_index *mi = reinterpret_cast<metadata_index *>(&b);
+		virtual void prepare(void *raw, block_address location) const {
+			metadata_index *mi = reinterpret_cast<metadata_index *>(raw);
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
 
 			crc32c sum(INDEX_CSUM_XOR);
@@ -86,9 +87,9 @@ namespace {
 		}
 	};
 
-	block_manager<>::validator::ptr
+	bcache::validator::ptr
 	index_validator() {
-		return block_manager<>::validator::ptr(new index_block_validator());
+		return bcache::validator::ptr(new index_block_validator());
 	}
 
 	//--------------------------------
@@ -98,26 +99,26 @@ namespace {
 		typedef transaction_manager::read_ref read_ref;
 		typedef transaction_manager::write_ref write_ref;
 
-		bitmap(transaction_manager::ptr tm,
+		bitmap(transaction_manager &tm,
 		       index_entry const &ie,
-		       block_manager<>::validator::ptr v)
+		       bcache::validator::ptr v)
 			: tm_(tm),
 			  validator_(v),
 			  ie_(ie) {
 		}
 
 		ref_t lookup(unsigned b) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_, validator_);
+			read_ref rr = tm_.read_lock(ie_.blocknr_, validator_);
 			void const *bits = bitmap_data(rr);
 			ref_t b1 = test_bit_le(bits, b * 2);
 			ref_t b2 = test_bit_le(bits, b * 2 + 1);
 			ref_t result = b2 ? 1 : 0;
-			result |= b1 ? 0b10 : 0;
+			result |= b1 ? 2 : 0;
 			return result;
 		}
 
 		void insert(unsigned b, ref_t n) {
-			write_ref wr = tm_->shadow(ie_.blocknr_, validator_).first;
+			write_ref wr = tm_.shadow(ie_.blocknr_, validator_).first;
 			void *bits = bitmap_data(wr);
 			bool was_free = !test_bit_le(bits, b * 2) && !test_bit_le(bits, b * 2 + 1);
 			if (n == 1 || n == 3)
@@ -158,31 +159,31 @@ namespace {
 		}
 
 		void iterate(block_address offset, block_address hi, space_map::iterator &it) const {
-			read_ref rr = tm_->read_lock(ie_.blocknr_, validator_);
+			read_ref rr = tm_.read_lock(ie_.blocknr_, validator_);
 			void const *bits = bitmap_data(rr);
 
 			for (unsigned b = 0; b < hi; b++) {
 				ref_t b1 = test_bit_le(bits, b * 2);
 				ref_t b2 = test_bit_le(bits, b * 2 + 1);
 				ref_t result = b2 ? 1 : 0;
-				result |= b1 ? 0b10 : 0;
+				result |= b1 ? 2 : 0;
 				it(offset + b, result);
 			}
 		}
 
 	private:
 		void *bitmap_data(transaction_manager::write_ref &wr) {
-			bitmap_header *h = reinterpret_cast<bitmap_header *>(&wr.data()[0]);
+			bitmap_header *h = reinterpret_cast<bitmap_header *>(wr.data());
 			return h + 1;
 		}
 
 		void const *bitmap_data(transaction_manager::read_ref &rr) const {
-			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(&rr.data()[0]);
+			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(rr.data());
 			return h + 1;
 		}
 
-		transaction_manager::ptr tm_;
-		block_manager<>::validator::ptr validator_;
+		transaction_manager &tm_;
+		bcache::validator::ptr validator_;
 
 		index_entry ie_;
 	};
@@ -242,7 +243,7 @@ namespace {
 		typedef transaction_manager::write_ref write_ref;
 
 		sm_disk(index_store::ptr indexes,
-			transaction_manager::ptr tm)
+			transaction_manager &tm)
 			: tm_(tm),
 			  bitmap_validator_(new bitmap_block_validator),
 			  indexes_(indexes),
@@ -252,7 +253,7 @@ namespace {
 		}
 
 		sm_disk(index_store::ptr indexes,
-			transaction_manager::ptr tm,
+			transaction_manager &tm,
 			sm_root const &root)
 			: tm_(tm),
 			  bitmap_validator_(new bitmap_block_validator),
@@ -355,7 +356,7 @@ namespace {
 
 			indexes_->resize(bitmap_count);
 			for (block_address i = old_bitmap_count; i < bitmap_count; i++) {
-				write_ref wr = tm_->new_block(bitmap_validator_);
+				write_ref wr = tm_.new_block(bitmap_validator_);
 
 				index_entry ie;
 				ie.blocknr_ = wr.get_location();
@@ -445,7 +446,7 @@ namespace {
 		}
 
 	protected:
-		transaction_manager::ptr get_tm() const {
+		transaction_manager &get_tm() const {
 			return tm_;
 		}
 
@@ -509,8 +510,8 @@ namespace {
 			ref_counts_.remove(key);
 		}
 
-		transaction_manager::ptr tm_;
-		block_manager<>::validator::ptr bitmap_validator_;
+		transaction_manager &tm_;
+		bcache::validator::ptr bitmap_validator_;
 		index_store::ptr indexes_;
 		block_address nr_blocks_;
 		block_address nr_allocated_;
@@ -552,12 +553,12 @@ namespace {
 	public:
 		typedef boost::shared_ptr<btree_index_store> ptr;
 
-		btree_index_store(transaction_manager::ptr tm)
+		btree_index_store(transaction_manager &tm)
 			: tm_(tm),
 			  bitmaps_(tm, index_entry_traits::ref_counter()) {
 		}
 
-		btree_index_store(transaction_manager::ptr tm,
+		btree_index_store(transaction_manager &tm,
 				  block_address root)
 			: tm_(tm),
 			  bitmaps_(tm, root, index_entry_traits::ref_counter()) {
@@ -623,7 +624,7 @@ namespace {
 		}
 
 	private:
-		transaction_manager::ptr tm_;
+		transaction_manager &tm_;
 		btree<1, index_entry_traits> bitmaps_;
 	};
 
@@ -631,13 +632,13 @@ namespace {
 	public:
 		typedef boost::shared_ptr<metadata_index_store> ptr;
 
-		metadata_index_store(transaction_manager::ptr tm)
+		metadata_index_store(transaction_manager &tm)
 			: tm_(tm) {
-			block_manager<>::write_ref wr = tm_->new_block(index_validator());
+			block_manager<>::write_ref wr = tm_.new_block(index_validator());
 			bitmap_root_ = wr.get_location();
 		}
 
-		metadata_index_store(transaction_manager::ptr tm, block_address root, block_address nr_indexes)
+		metadata_index_store(transaction_manager &tm, block_address root, block_address nr_indexes)
 			: tm_(tm),
 			  bitmap_root_(root) {
 			resize(nr_indexes);
@@ -667,10 +668,10 @@ namespace {
 
 		virtual void commit_ies() {
 			std::pair<block_manager<>::write_ref, bool> p =
-				tm_->shadow(bitmap_root_, index_validator());
+				tm_.shadow(bitmap_root_, index_validator());
 
 			bitmap_root_ = p.first.get_location();
-			metadata_index *mdi = reinterpret_cast<metadata_index *>(&p.first.data());
+			metadata_index *mdi = reinterpret_cast<metadata_index *>(p.first.data());
 
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::pack(entries_[i], mdi->index[i]);
@@ -701,14 +702,14 @@ namespace {
 	private:
 		void load_ies() {
 			block_manager<>::read_ref rr =
-				tm_->read_lock(bitmap_root_, index_validator());
+				tm_.read_lock(bitmap_root_, index_validator());
 
-			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(&rr.data());
+			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(rr.data());
 			for (unsigned i = 0; i < entries_.size(); i++)
 				index_entry_traits::unpack(*(mdi->index + i), entries_[i]);
 		}
 
-		transaction_manager::ptr tm_;
+		transaction_manager &tm_;
 		block_address bitmap_root_;
 		std::vector<index_entry> entries_;
 	};
@@ -717,7 +718,7 @@ namespace {
 //----------------------------------------------------------------
 
 checked_space_map::ptr
-persistent_data::create_disk_sm(transaction_manager::ptr tm,
+persistent_data::create_disk_sm(transaction_manager &tm,
 				block_address nr_blocks)
 {
 	index_store::ptr store(new btree_index_store(tm));
@@ -728,7 +729,7 @@ persistent_data::create_disk_sm(transaction_manager::ptr tm,
 }
 
 checked_space_map::ptr
-persistent_data::open_disk_sm(transaction_manager::ptr tm, void *root)
+persistent_data::open_disk_sm(transaction_manager &tm, void *root)
 {
 	sm_root_disk d;
 	sm_root v;
@@ -740,7 +741,7 @@ persistent_data::open_disk_sm(transaction_manager::ptr tm, void *root)
 }
 
 checked_space_map::ptr
-persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address nr_blocks)
+persistent_data::create_metadata_sm(transaction_manager &tm, block_address nr_blocks)
 {
 	index_store::ptr store(new metadata_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
@@ -751,7 +752,7 @@ persistent_data::create_metadata_sm(transaction_manager::ptr tm, block_address n
 }
 
 checked_space_map::ptr
-persistent_data::open_metadata_sm(transaction_manager::ptr tm, void *root)
+persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
 {
 	sm_root_disk d;
 	sm_root v;

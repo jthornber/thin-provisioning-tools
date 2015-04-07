@@ -2,8 +2,8 @@
 
 #include "test_utils.h"
 
+#include "base/endian_utils.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
-#include "persistent-data/endian_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/run.h"
@@ -281,7 +281,7 @@ namespace {
 		DamageTests()
 			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
 			  sm_(setup_core_map()),
-			  tm_(new transaction_manager(bm_, sm_)) {
+			  tm_(bm_, sm_) {
 		}
 
 		virtual ~DamageTests() {}
@@ -315,7 +315,7 @@ namespace {
 		with_temp_directory dir_;
 		block_manager<>::ptr bm_;
 		space_map::ptr sm_;
-		transaction_manager::ptr tm_;
+		transaction_manager tm_;
 		thing_traits::ref_counter rc_;
 
 		boost::optional<btree_layout> layout_;

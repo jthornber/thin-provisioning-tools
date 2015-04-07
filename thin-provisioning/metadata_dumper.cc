@@ -200,7 +200,7 @@ namespace {
 	private:
 		void emit_mappings(block_address subtree_root) {
 			mapping_emitter me(e_);
-			single_mapping_tree tree(md_->tm_, subtree_root,
+			single_mapping_tree tree(*md_->tm_, subtree_root,
 						 mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
 			walk_mapping_tree(tree, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
 		}
@@ -226,7 +226,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 			    md->sb_.trans_id_,
 			    md->sb_.data_block_size_,
 			    md->data_sm_->get_nr_blocks(),
-			    optional<block_address>());
+			    boost::optional<block_address>());
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(repair));

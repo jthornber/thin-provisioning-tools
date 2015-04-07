@@ -19,9 +19,7 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include "persistent-data/buffer.h"
-#include "persistent-data/cache.h"
-#include "persistent-data/lock_tracker.h"
+#include "block-cache/block_cache.h"
 
 #include <stdint.h>
 #include <map>
@@ -36,145 +34,77 @@
 //----------------------------------------------------------------
 
 namespace persistent_data {
+	using namespace bcache;
 
 	uint32_t const MD_BLOCK_SIZE = 4096;
-
-	typedef uint64_t block_address;
-
-	template <uint32_t BlockSize = MD_BLOCK_SIZE>
-	class block_io : private boost::noncopyable {
-	public:
-		typedef boost::shared_ptr<block_io> ptr;
-		enum mode {
-			READ_ONLY,
-			READ_WRITE,
-			CREATE
-		};
-
-		block_io(std::string const &path, block_address nr_blocks, mode m);
-		~block_io();
-
-		block_address get_nr_blocks() const {
-			return nr_blocks_;
-		}
-
-		void read_buffer(block_address location, buffer<BlockSize> &buf) const;
-		void write_buffer(block_address location, buffer<BlockSize> const &buf);
-
-	private:
-		int fd_;
-		block_address nr_blocks_;
-		mode mode_;
-	};
 
 	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_manager : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;
 
+		enum mode {
+			READ_ONLY,
+			READ_WRITE,
+			CREATE
+		};
+
 		block_manager(std::string const &path,
 			      block_address nr_blocks,
 			      unsigned max_concurrent_locks,
-			      typename block_io<BlockSize>::mode m);
-
-		class validator {
-		public:
-			typedef boost::shared_ptr<validator> ptr;
-
-			virtual ~validator() {}
-
-			virtual void check(buffer<BlockSize> const &b, block_address location) const = 0;
-			virtual void prepare(buffer<BlockSize> &b, block_address location) const = 0;
-		};
-
-		class noop_validator : public validator {
-		public:
-			void check(buffer<BlockSize> const &b, block_address location) const {}
-			void prepare(buffer<BlockSize> &b, block_address location) const {}
-		};
-
-		enum block_type {
-			BT_SUPERBLOCK,
-			BT_NORMAL
-		};
-
-		struct block : private boost::noncopyable {
-			typedef boost::shared_ptr<block> ptr;
-
-			block(typename block_io<BlockSize>::ptr io,
-			      block_address location,
-			      block_type bt,
-			      typename validator::ptr v,
-			      bool zero = false);
-			~block();
-
-			void check_read_lockable() const {
-				// FIXME: finish
-			}
-
-			void check_write_lockable() const {
-				// FIXME: finish
-			}
-
-			void flush();
-
-			void change_validator(typename block_manager<BlockSize>::validator::ptr v,
-					      bool check = true);
-
-			typename block_io<BlockSize>::ptr io_;
-			block_address location_;
-			std::auto_ptr<buffer<BlockSize> > data_;
-			typename validator::ptr validator_;
-			block_type bt_;
-			bool dirty_;
-		};
+			      mode m);
 
 		class read_ref {
 		public:
 			static uint32_t const BLOCK_SIZE = BlockSize;
 
-			read_ref(block_manager<BlockSize> const &bm,
-				 typename block::ptr b);
+			read_ref(block_cache::block &b);
+
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
 
 			read_ref const &operator =(read_ref const &rhs);
 
 			block_address get_location() const;
-			buffer<BlockSize> const &data() const;
+			void const *data() const;
 
 		protected:
-			block_manager<BlockSize> const *bm_;
-			typename block::ptr block_;
-			unsigned *holders_;
+			block_cache::block &b_;
 		};
 
 		// Inherited from read_ref, since you can read a block that's write
 		// locked.
 		class write_ref : public read_ref {
 		public:
-			write_ref(block_manager<BlockSize> const &bm,
-				  typename block::ptr b);
+			write_ref(block_cache::block &b);
+			write_ref(block_cache::block &b, unsigned &ref_count);
+			write_ref(write_ref const &rhs);
+			~write_ref();
+
+			write_ref const &operator =(write_ref const &rhs);
 
 			using read_ref::data;
-			buffer<BlockSize> &data();
+			void *data();
+
+		private:
+			unsigned *ref_count_;
 		};
 
 		// Locking methods
 		read_ref
 		read_lock(block_address location,
 			  typename validator::ptr v =
-			  typename validator::ptr(new noop_validator())) const;
+			  typename validator::ptr(new bcache::noop_validator())) const;
 
 		write_ref
 		write_lock(block_address location,
 			   typename validator::ptr v =
-			   typename validator::ptr(new noop_validator()));
+			   typename validator::ptr(new bcache::noop_validator()));
 
 		write_ref
 		write_lock_zero(block_address location,
 				typename validator::ptr v =
-				typename validator::ptr(new noop_validator()));
+				typename validator::ptr(new bcache::noop_validator()));
 
 		// The super block is the one that should be written last.
 		// Unlocking this block triggers the following events:
@@ -188,13 +118,14 @@ namespace persistent_data {
 		// being unlocked then an exception will be thrown.
 		write_ref superblock(block_address b,
 				     typename validator::ptr v =
-				     typename validator::ptr(new noop_validator()));
+				     typename validator::ptr(new bcache::noop_validator()));
 		write_ref superblock_zero(block_address b,
 					  typename validator::ptr v =
-					  typename validator::ptr(new noop_validator()));
+					  typename validator::ptr(new bcache::noop_validator()));
 
 		block_address get_nr_blocks() const;
 
+		void prefetch(block_address b) const;
 		void flush() const;
 
 
@@ -203,34 +134,18 @@ namespace persistent_data {
 		bool is_locked(block_address b) const;
 
 	private:
+		int open_or_create_block_file(std::string const &path, off_t file_size, mode m);
 		void check(block_address b) const;
-		void write_block(typename block::ptr b) const;
 
-		enum lock_type {
-			READ_LOCK,
-			WRITE_LOCK
-		};
-
-		struct cache_traits {
-			typedef typename block::ptr value_type;
-			typedef block_address key_type;
-
-			static key_type get_key(value_type const &v) {
-				return v->location_;
-			}
-		};
-
-		typename block_io<BlockSize>::ptr io_;
-		mutable base::cache<cache_traits> cache_;
-
-		// FIXME: we need a dirty list as well as a cache
-		mutable lock_tracker tracker_;
+		int fd_;
+		mutable block_cache bc_;
+		unsigned superblock_ref_count_;
 	};
 
 	// A little utility to help build validators
-	inline block_manager<>::validator::ptr
-	mk_validator(block_manager<>::validator *v) {
-		return block_manager<>::validator::ptr(v);
+	inline bcache::validator::ptr
+	mk_validator(bcache::validator *v) {
+		return bcache::validator::ptr(v);
 	}
 }
 

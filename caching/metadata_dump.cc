@@ -15,7 +15,7 @@ namespace {
 
 	void raise_metadata_damage() {
 		throw std::runtime_error("metadata contains errors (run cache_check for details).\n"
-					 "perhaps you wanted to run with --repair");
+					 "perhaps you wanted to run with --repair ?");
 	}
 
 	//--------------------------------

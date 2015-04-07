@@ -13,7 +13,9 @@
 #include <unistd.h>
 
 #include "base/error_state.h"
+#include "base/error_string.h"
 #include "base/nested_output.h"
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "persistent-data/block.h"
 #include "persistent-data/file_utils.h"
@@ -201,10 +203,7 @@ namespace {
 		int r = ::stat(path.c_str(), &info);
 		if (r) {
 			ostringstream msg;
-			char buffer[128], *ptr;
-
-			ptr = ::strerror_r(errno, buffer, sizeof(buffer));
-			msg << path << ": " << ptr;
+			msg << path << ": " << error_string(errno);
 			throw runtime_error(msg.str());
 		}
 
@@ -237,7 +236,7 @@ namespace {
 			out << "examining mapping array" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				mapping_array ma(tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
+				mapping_array ma(*tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
 				check_mapping_array(ma, mapping_rep);
 			}
 		}
@@ -250,7 +249,7 @@ namespace {
 				out << "examining hint array" << end_message();
 				{
 					nested_output::nest _ = out.push();
-					hint_array ha(tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
+					hint_array ha(*tm, sb.policy_hint_size, sb.hint_root, sb.cache_blocks);
 					ha.check(hint_rep);
 				}
 			}
@@ -264,7 +263,7 @@ namespace {
 				out << "examining discard bitset" << end_message();
 				{
 					nested_output::nest _ = out.push();
-					persistent_data::bitset discards(tm, sb.discard_root, sb.discard_nr_blocks);
+					persistent_data::bitset discards(*tm, sb.discard_root, sb.discard_nr_blocks);
 				}
 			}
 		}
@@ -286,7 +285,7 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 		err = metadata_check(bm, fs);
 
 		return err == NO_ERROR ? 0 : 1;
@@ -322,14 +321,14 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_check_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
 	const char shortopts[] = "qhV";
 	const struct option longopts[] = {
 		{ "quiet", no_argument, NULL, 'q' },
-		{ "superblock-only", no_argument, NULL, 1 },
+		{ "super-block-only", no_argument, NULL, 1 },
 		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "skip-hints", no_argument, NULL, 3 },
 		{ "skip-discards", no_argument, NULL, 4 },
@@ -383,5 +382,7 @@ int main(int argc, char **argv)
 
 	return check_with_exception_handling(argv[optind], fs);
 }
+
+base::command caching::cache_check_cmd("cache_check", cache_check_main);
 
 //----------------------------------------------------------------

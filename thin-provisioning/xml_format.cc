@@ -18,9 +18,11 @@
 
 #include "xml_format.h"
 
+#include "base/indented_stream.h"
+#include "base/xml_utils.h"
+
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
-#include <expat.h>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -29,6 +31,7 @@
 
 using namespace std;
 using namespace thin_provisioning;
+using namespace xml_utils;
 
 namespace tp = thin_provisioning;
 
@@ -41,8 +44,7 @@ namespace {
 	class xml_emitter : public emitter {
 	public:
 		xml_emitter(ostream &out)
-			: out_(out),
-			  indent_(0) {
+		: out_(out) {
 		}
 
 		void begin_superblock(string const &uuid,
@@ -51,7 +53,7 @@ namespace {
 				      uint32_t data_block_size,
 				      uint64_t nr_data_blocks,
 				      boost::optional<uint64_t> metadata_snap) {
-			indent();
+			out_.indent();
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " time=\"" << time << "\""
 			     << " transaction=\"" << trans_id << "\""
@@ -61,14 +63,13 @@ namespace {
 			if (metadata_snap)
 				out_ << "\" metadata_snap=\"" << *metadata_snap;
 
-			out_ << "\">"
-			     << endl;
-			inc();
+			out_ << "\">" << endl;
+			out_.inc();
 		}
 
 		void end_superblock() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</superblock>" << endl;
 		}
 
@@ -77,40 +78,40 @@ namespace {
 				  uint64_t trans_id,
 				  uint64_t creation_time,
 				  uint64_t snap_time) {
-			indent();
+			out_.indent();
 			out_ << "<device dev_id=\"" << dev_id << "\""
 			     << " mapped_blocks=\"" << mapped_blocks << "\""
 			     << " transaction=\"" << trans_id << "\""
 			     << " creation_time=\"" << creation_time << "\""
 			     << " snap_time=\"" << snap_time << "\">" << endl;
-			inc();
+			out_.inc();
 		}
 
 		void end_device() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</device>" << endl;
 		}
 
 		void begin_named_mapping(string const &name) {
-			indent();
+			out_.indent();
 			out_ << "<named_mapping>" << endl;
-			inc();
+			out_.inc();
 		}
 
 		void end_named_mapping() {
-			dec();
-			indent();
+			out_.dec();
+			out_.indent();
 			out_ << "</named_mapping>" << endl;
 		}
 
 		void identifier(string const &name) {
-			indent();
+			out_.indent();
 			out_ << "<identifier name=\"" << name << "\"/>" << endl;
 		}
 
 		void range_map(uint64_t origin_begin, uint64_t data_begin, uint32_t time, uint64_t len) {
-			indent();
+			out_.indent();
 
 			out_ << "<range_mapping origin_begin=\"" << origin_begin << "\""
 			     << " data_begin=\"" << data_begin << "\""
@@ -120,7 +121,7 @@ namespace {
 		}
 
 		void single_map(uint64_t origin_block, uint64_t data_block, uint32_t time) {
-			indent();
+			out_.indent();
 
 			out_ << "<single_mapping origin_block=\"" << origin_block << "\""
 			     << " data_block=\"" << data_block << "\""
@@ -129,67 +130,12 @@ namespace {
 		}
 
 	private:
-		void indent() {
-			for (unsigned i = 0; i < indent_ * 2; i++)
-				out_ << ' ';
-		}
-
-		void inc() {
-			indent_++;
-		}
-
-		void dec() {
-			indent_--;
-		}
-
-		ostream &out_;
-		unsigned indent_;
+		indented_stream out_;
 	};
 
 	//------------------------------------------------
 	// XML parser
 	//------------------------------------------------
-	typedef std::map<string, string> attributes;
-
-	void build_attributes(attributes &a, char const **attr) {
-		while (*attr) {
-			char const *key = *attr;
-
-			attr++;
-			if (!*attr) {
-				ostringstream out;
-				out << "No value given for xml attribute: " << key;
-				throw runtime_error(out.str());
-			}
-
-			char const *value = *attr;
-			a.insert(make_pair(string(key), string(value)));
-			attr++;
-		}
-	}
-
-	template <typename T>
-	T get_attr(attributes const &attr, string const &key) {
-		attributes::const_iterator it = attr.find(key);
-		if (it == attr.end()) {
-			ostringstream out;
-			out << "could not find attribute: " << key;
-			throw runtime_error(out.str());
-		}
-
-		return boost::lexical_cast<T>(it->second);
-	}
-
-	template <typename T>
-	boost::optional<T> get_opt_attr(attributes const &attr, string const &key) {
-		typedef boost::optional<T> rtype;
-		attributes::const_iterator it = attr.find(key);
-		if (it == attr.end())
-			return rtype();
-
-		return rtype(boost::lexical_cast<T>(it->second));
-	}
-
 	void parse_superblock(emitter *e, attributes const &attr) {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "time"),
@@ -271,31 +217,14 @@ tp::create_xml_emitter(ostream &out)
 }
 
 void
-tp::parse_xml(std::istream &in, emitter::ptr e)
+tp::parse_xml(std::string const &backup_file, emitter::ptr e, bool quiet)
 {
-	XML_Parser parser = XML_ParserCreate(NULL);
-	if (!parser)
-		throw runtime_error("couldn't create xml parser");
+	xml_parser p;
 
-	XML_SetUserData(parser, e.get());
-	XML_SetElementHandler(parser, start_tag, end_tag);
+	XML_SetUserData(p.get_parser(), e.get());
+	XML_SetElementHandler(p.get_parser(), start_tag, end_tag);
 
-	while (!in.eof()) {
-		char buffer[4096];
-		in.read(buffer, sizeof(buffer));
-		size_t len = in.gcount();
-		int done = in.eof();
-
-		if (!XML_Parse(parser, buffer, len, done)) {
-			ostringstream out;
-			out << "Parse error at line "
-			    << XML_GetCurrentLineNumber(parser)
-			    << ":\n"
-			    << XML_ErrorString(XML_GetErrorCode(parser))
-			    << endl;
-			throw runtime_error(out.str());
-		}
-	}
+	p.parse(backup_file, quiet);
 }
 
 //----------------------------------------------------------------

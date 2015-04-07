@@ -17,9 +17,6 @@ namespace {
 			  clean_shutdown_(clean_shutdown) {
 		}
 
-		virtual ~restorer() {
-		}
-
 		virtual void begin_superblock(std::string const &uuid,
 					      pd::block_address block_size,
 					      pd::block_address nr_cache_blocks,

@@ -1,6 +1,6 @@
 .TH THIN_CHECK 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
 .SH NAME
-thin_check \- repair thin provisioning metadata on device or file
+thin_check \- validate thin provisioning metadata on device or file
 
 .SH SYNOPSIS
 .B thin_check
@@ -35,19 +35,18 @@ metadata.
 .IP "\fB\-\-ignore\-non\-fatal\-errors\fP"
 .B thin_check
 will only return a non-zero exit code if it finds a fatal
-error.  An example of a on fatal error is an incorrect data block
+error.  An example of a non fatal error is an incorrect data block
 reference count causing a block to be considered allocated when it in
 fact isn't.  Ignoring errors for a long time is not advised, you
 really should be using thin_repair to fix them.
 
 .SH EXAMPLE
-Analyses and repairs thin provisioning metadata on logical volume
+Analyses thin provisioning metadata on logical volume
 /dev/vg/metadata:
 .sp
 .B thin_check /dev/vg/metadata
 
-The device may not be actively used by the target
-when running.
+The device must not be actively used by the target when running.
 
 .SH DIAGNOSTICS
 .B thin_check

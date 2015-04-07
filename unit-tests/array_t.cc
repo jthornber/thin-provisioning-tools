@@ -20,6 +20,7 @@
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/data-structures/array.h"
+#include "persistent-data/data-structures/simple_traits.h"
 
 #include <vector>
 
@@ -36,7 +37,9 @@ namespace {
 	class ArrayTests : public Test {
 	public:
 		ArrayTests()
-			: tm_(create_tm()) {
+			: bm_(new block_manager<>("./test.data", NR_BLOCKS, 4, block_manager<>::READ_WRITE)),
+			  sm_(new core_map(NR_BLOCKS)),
+			  tm_(bm_, sm_) {
 		}
 
 		void
@@ -75,15 +78,9 @@ namespace {
 		array64::ptr a_;
 
 	private:
-		static transaction_manager::ptr
-		create_tm() {
-			block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS, 4, block_io<>::READ_WRITE));
-			space_map::ptr sm(new core_map(NR_BLOCKS));
-			transaction_manager::ptr tm(new transaction_manager(bm, sm));
-			return tm;
-		}
-
-		transaction_manager::ptr tm_;
+		block_manager<>::ptr bm_;
+		space_map::ptr sm_;
+		transaction_manager tm_;
 	};
 
 	class value_visitor {

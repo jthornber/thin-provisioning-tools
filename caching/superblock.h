@@ -1,7 +1,7 @@
 #ifndef CACHE_SUPERBLOCK_H
 #define CACHE_SUPERBLOCK_H
 
-#include "persistent-data/endian_utils.h"
+#include "base/endian_utils.h"
 #include "persistent-data/data-structures/btree.h"
 
 #include <set>
@@ -128,7 +128,7 @@ namespace caching {
 
 	//--------------------------------
 
-	persistent_data::block_manager<>::validator::ptr superblock_validator();
+	bcache::validator::ptr superblock_validator();
 
 	superblock read_superblock(persistent_data::block_manager<>::ptr bm,
 				   persistent_data::block_address location = SUPERBLOCK_LOCATION);

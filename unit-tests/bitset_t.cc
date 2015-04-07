@@ -32,34 +32,60 @@ using namespace testing;
 namespace {
 	block_address const NR_BLOCKS = 102400;
 
-	transaction_manager::ptr
-	create_tm() {
-		block_manager<>::ptr bm(new block_manager<>("./test.data", NR_BLOCKS, 4, block_io<>::READ_WRITE));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
+	class bitset_checker : public bitset_detail::bitset_visitor {
+	public:
+		bitset_checker(unsigned size, unsigned m)
+			: size_(size), m_(m) {
+		}
 
-	bitset::ptr
-	create_bitset() {
-		return bitset::ptr(new bitset(create_tm()));
-	}
+		void visit(uint32_t index, bool value) {
+			ASSERT_THAT(index, Lt(size_));
+			ASSERT_THAT(value, Eq(index % 7 ? true : false));
+		}
 
-	bitset::ptr
-	open_bitset(block_address root, unsigned count) {
-		return bitset::ptr(new bitset(create_tm(), root, count));
-	}
+		void visit(bitset_detail::missing_bits const &d) {
+			// we aren't expecting any damage
+			FAIL();
+		}
+
+	private:
+		unsigned size_, m_;
+	};
+
+	class BitsetTests : public Test {
+	public:
+		BitsetTests()
+			: bm_(new block_manager<>("./test.data", NR_BLOCKS, 4, block_manager<>::READ_WRITE)),
+			  sm_(new core_map(NR_BLOCKS)),
+			  tm_(bm_, sm_) {
+		}
+
+		bitset::ptr
+		create_bitset() {
+			return bitset::ptr(new bitset(tm_));
+		}
+
+		bitset::ptr
+		open_bitset(block_address root, unsigned count) {
+			return bitset::ptr(new bitset(tm_, root, count));
+		}
+
+	private:
+		block_manager<>::ptr bm_;
+		space_map::ptr sm_;
+		transaction_manager tm_;
+	};
 }
 
 //----------------------------------------------------------------
 
-TEST(BitsetTests, create_empty_bitset)
+TEST_F(BitsetTests, create_empty_bitset)
 {
 	bitset::ptr bs = create_bitset();
 	ASSERT_THROW(bs->get(0), runtime_error);
 }
 
-TEST(BitsetTests, grow_default_false)
+TEST_F(BitsetTests, grow_default_false)
 {
 	unsigned const COUNT = 100000;
 
@@ -70,7 +96,7 @@ TEST(BitsetTests, grow_default_false)
 		ASSERT_FALSE(bs->get(i));
 }
 
-TEST(BitsetTests, grow_default_true)
+TEST_F(BitsetTests, grow_default_true)
 {
 	unsigned const COUNT = 100000;
 
@@ -81,7 +107,7 @@ TEST(BitsetTests, grow_default_true)
 		ASSERT_TRUE(bs->get(i));
 }
 
-TEST(BitsetTests, grow_throws_if_actualy_asked_to_shrink)
+TEST_F(BitsetTests, grow_throws_if_actualy_asked_to_shrink)
 {
 	unsigned const COUNT = 100000;
 
@@ -90,7 +116,7 @@ TEST(BitsetTests, grow_throws_if_actualy_asked_to_shrink)
 	ASSERT_THROW(bs->grow(COUNT / 2, false), runtime_error);
 }
 
-TEST(BitsetTests, multiple_grow_calls)
+TEST_F(BitsetTests, multiple_grow_calls)
 {
 	unsigned const COUNT = 100000;
 	unsigned const STEP = 37;
@@ -121,7 +147,7 @@ TEST(BitsetTests, multiple_grow_calls)
 	}
 }
 
-TEST(BitsetTests, set_out_of_bounds_throws)
+TEST_F(BitsetTests, set_out_of_bounds_throws)
 {
 	unsigned const COUNT = 100000;
 	bitset::ptr bs = create_bitset();
@@ -131,7 +157,7 @@ TEST(BitsetTests, set_out_of_bounds_throws)
 	ASSERT_THROW(bs->set(COUNT, true), runtime_error);
 }
 
-TEST(BitsetTests, set_works)
+TEST_F(BitsetTests, set_works)
 {
 	unsigned const COUNT = 100000;
 	bitset::ptr bs = create_bitset();
@@ -144,9 +170,9 @@ TEST(BitsetTests, set_works)
 		ASSERT_THAT(bs->get(i), Eq(i % 7 ? true : false));
 }
 
-TEST(BitsetTests, reopen_works)
+TEST_F(BitsetTests, reopen_works)
 {
-	unsigned const COUNT = 100000;
+	unsigned const COUNT = 100001;
 	block_address root;
 
 	{
@@ -163,6 +189,31 @@ TEST(BitsetTests, reopen_works)
 		bitset::ptr bs = open_bitset(root, COUNT);
 		for (unsigned i = 0; i < COUNT; i++)
 			ASSERT_THAT(bs->get(i), Eq(i % 7 ? true : false));
+	}
+}
+
+TEST_F(BitsetTests, walk_bitset)
+{
+	unsigned const COUNT = 100001;
+	block_address root;
+
+	{
+		bitset::ptr bs = create_bitset();
+
+		bs->grow(COUNT, true);
+		for (unsigned i = 0; i < COUNT; i += 7)
+			bs->set(i, false);
+
+		root = bs->get_root();
+
+		bitset_checker c(COUNT, 7);
+		bs->walk_bitset(c);
+	}
+
+	{
+		bitset::ptr bs = open_bitset(root, COUNT);
+		bitset_checker c(COUNT, 7);
+		bs->walk_bitset(c);
 	}
 }
 

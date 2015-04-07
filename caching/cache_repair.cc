@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/metadata_dump.h"
 #include "caching/restore_emitter.h"
@@ -16,12 +17,12 @@ using namespace caching;
 
 namespace {
 	metadata::ptr open_metadata_for_read(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_ONLY);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 		return metadata::ptr(new metadata(bm, metadata::OPEN));
 	}
 
 	emitter::ptr output_emitter(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_io<>::READ_WRITE);
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
 		metadata::ptr md(new metadata(bm, metadata::CREATE));
 		return create_restore_emitter(md, true);
 	}
@@ -52,7 +53,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-int main(int argc, char **argv)
+int cache_repair_main(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
@@ -104,5 +105,7 @@ int main(int argc, char **argv)
 
 	return repair(*input_path, *output_path);
 }
+
+base::command caching::cache_repair_cmd("cache_repair", cache_repair_main);
 
 //----------------------------------------------------------------

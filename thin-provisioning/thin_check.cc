@@ -22,6 +22,7 @@
 
 #include "version.h"
 
+#include "base/application.h"
 #include "base/error_state.h"
 #include "base/nested_output.h"
 #include "persistent-data/data-structures/btree_counter.h"
@@ -31,6 +32,7 @@
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
+#include "thin-provisioning/commands.h"
 
 using namespace base;
 using namespace std;
@@ -44,7 +46,7 @@ namespace {
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
-		block_io<>::mode m = block_io<>::READ_ONLY;
+		block_manager<>::mode m = block_manager<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
 
@@ -150,6 +152,15 @@ namespace {
 	//--------------------------------
 
 	struct flags {
+		flags()
+			: check_device_tree(true),
+			  check_mapping_tree_level1(true),
+			  check_mapping_tree_level2(true),
+			  ignore_non_fatal_errors(false),
+			  quiet(false),
+			  clear_needs_check_flag_on_success(false) {
+		}
+
 		bool check_device_tree;
 		bool check_mapping_tree_level1;
 		bool check_mapping_tree_level2;
@@ -157,6 +168,7 @@ namespace {
 		bool ignore_non_fatal_errors;
 
 		bool quiet;
+		bool clear_needs_check_flag_on_success;
 	};
 
 	error_state metadata_check(string const &path, flags fs) {
@@ -186,7 +198,7 @@ namespace {
 			out << "examining devices tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				device_tree dtree(tm, sb.device_details_root_,
+				device_tree dtree(*tm, sb.device_details_root_,
 						  device_tree_detail::device_details_traits::ref_counter());
 				check_device_tree(dtree, dev_rep);
 			}
@@ -196,7 +208,7 @@ namespace {
 			out << "examining top level of mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				dev_tree dtree(tm, sb.data_mapping_root_,
+				dev_tree dtree(*tm, sb.data_mapping_root_,
 					       mapping_tree_detail::mtree_traits::ref_counter(tm));
 				check_mapping_tree(dtree, mapping_rep);
 			}
@@ -205,7 +217,7 @@ namespace {
 			out << "examining mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				mapping_tree mtree(tm, sb.data_mapping_root_,
+				mapping_tree mtree(*tm, sb.data_mapping_root_,
 						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 				check_mapping_tree(mtree, mapping_rep);
 			}
@@ -290,11 +302,30 @@ namespace {
 		return mplus_err;
 	}
 
+	void clear_needs_check(string const &path) {
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
+
+		superblock_detail::superblock sb = read_superblock(bm);
+		sb.set_needs_check_flag(false);
+		write_superblock(bm, sb);
+	}
+
+	// Returns 0 on success, 1 on failure (this gets returned directly
+	// by main).
 	int check(string const &path, flags fs) {
 		error_state err;
+		bool success = false;
 
 		try {
 			err = metadata_check(path, fs);
+
+			if (fs.ignore_non_fatal_errors)
+				success = (err == FATAL) ? 1 : 0;
+			else
+				success =  (err == NO_ERROR) ? 0 : 1;
+
+			if (!success && fs.clear_needs_check_flag_on_success)
+				clear_needs_check(path);
 
 		} catch (std::exception &e) {
 			if (!fs.quiet)
@@ -303,10 +334,7 @@ namespace {
 			return 1;
 		}
 
-		if (fs.ignore_non_fatal_errors)
-			return (err == FATAL) ? 1 : 0;
-		else
-			return (err == NO_ERROR) ? 0 : 1;
+		return success;
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -315,21 +343,17 @@ namespace {
 		    << "  {-q|--quiet}" << endl
 		    << "  {-h|--help}" << endl
 		    << "  {-V|--version}" << endl
-		    << "  {--super-block-only}" << endl
+		    << "  {--clear-needs-check-flag}" << endl
+		    << "  {--ignore-non-fatal-errors}" << endl
 		    << "  {--skip-mappings}" << endl
-		    << "  {--ignore-non-fatal-errors}" << endl;
+		    << "  {--super-block-only}" << endl;
 	}
 }
 
-int main(int argc, char **argv)
+int thin_check_main(int argc, char **argv)
 {
 	int c;
 	flags fs;
-	fs.check_device_tree = true;
-	fs.check_mapping_tree_level1 = true,
-	fs.check_mapping_tree_level2 = true,
-	fs.ignore_non_fatal_errors = false,
-	fs.quiet = false;
 
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
@@ -339,6 +363,7 @@ int main(int argc, char **argv)
 		{ "super-block-only", no_argument, NULL, 1},
 		{ "skip-mappings", no_argument, NULL, 2},
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
+		{ "clear-needs-check-flag", no_argument, NULL, 4 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -373,6 +398,11 @@ int main(int argc, char **argv)
 			fs.ignore_non_fatal_errors = true;
 			break;
 
+		case 4:
+			// clear needs-check flag
+			fs.clear_needs_check_flag_on_success = true;
+			break;
+
 		default:
 			usage(cerr, basename(argv[0]));
 			return 1;
@@ -390,3 +420,7 @@ int main(int argc, char **argv)
 
 	return check(argv[optind], fs);
 }
+
+base::command thin_provisioning::thin_check_cmd("thin_check", thin_check_main);
+
+//----------------------------------------------------------------

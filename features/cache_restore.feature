@@ -1,4 +1,4 @@
-Feature: thin_restore
+Feature: cache_restore
   Scenario: print version (-V flag)
     When I run cache_restore with -V
     Then it should pass with version
@@ -18,6 +18,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
@@ -36,6 +37,7 @@ Feature: thin_restore
       {-h|--help}
       {-i|--input} <input xml file>
       {-o|--output} <output device or file>
+      {-q|--quiet}
       {-V|--version}
 
       {--debug-override-metadata-version} <integer>
@@ -80,3 +82,26 @@ Feature: thin_restore
     And an empty dev file
     When I run cache_restore with -i metadata.xml -o metadata.bin --omit-clean-shutdown
     Then it should pass
+
+  Scenario: --quiet is accepted
+    Given valid cache metadata
+    When I run cache_restore with -i metadata.xml -o metadata.bin --quiet
+    Then it should pass
+    And the output should contain exactly:
+    """
+    """
+
+  Scenario: -q is accepted
+    Given valid cache metadata
+    When I run cache_restore with -i metadata.xml -o metadata.bin -q
+    Then it should pass
+    And the output should contain exactly:
+    """
+    """
+
+  Scenario: dump/restore is a noop
+    Given valid cache metadata
+    When I cache dump
+    And I cache restore
+    And I cache dump
+    Then dumps 1 and 2 should be identical

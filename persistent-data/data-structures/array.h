@@ -31,9 +31,9 @@ namespace persistent_data {
 	namespace array_detail {
 		uint32_t const ARRAY_CSUM_XOR = 595846735;
 
-		struct array_block_validator : public block_manager<>::validator {
-			virtual void check(buffer<> const &b, block_address location) const {
-				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(&b);
+		struct array_block_validator : public bcache::validator {
+			virtual void check(void const *raw, block_address location) const {
+				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(raw);
 				crc32c sum(ARRAY_CSUM_XOR);
 				sum.append(&data->max_entries, MD_BLOCK_SIZE - sizeof(uint32_t));
 				if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
@@ -43,8 +43,8 @@ namespace persistent_data {
 					throw checksum_error("bad block nr in array block");
 			}
 
-			virtual void prepare(buffer<> &b, block_address location) const {
-				array_block_disk *data = reinterpret_cast<array_block_disk *>(&b);
+			virtual void prepare(void *raw, block_address location) const {
+				array_block_disk *data = reinterpret_cast<array_block_disk *>(raw);
 				data->blocknr = to_disk<base::le64, uint64_t>(location);
 
 				crc32c sum(ARRAY_CSUM_XOR);
@@ -172,7 +172,7 @@ namespace persistent_data {
 		unsigned visit_array_block(ValueVisitor &vv,
 					   btree_path const &p,
 					   typename block_traits::value_type const &v) const {
-			rblock rb(tm_->read_lock(v, validator_), rc_);
+			rblock rb(tm_.read_lock(v, validator_), rc_);
 
 			for (uint32_t i = 0; i < rb.nr_entries(); i++)
 				vv.visit(p[0] * rb.max_entries() + i, rb.get(i));
@@ -207,8 +207,6 @@ namespace persistent_data {
 			unsigned entries_per_block_;
 		};
 
-		typedef typename persistent_data::transaction_manager::ptr tm_ptr;
-
 		typedef block_manager<>::write_ref write_ref;
 		typedef block_manager<>::read_ref read_ref;
 
@@ -219,23 +217,23 @@ namespace persistent_data {
 		typedef typename ValueTraits::value_type value_type;
 		typedef typename ValueTraits::ref_counter ref_counter;
 
-		array(tm_ptr tm, ref_counter rc)
+		array(transaction_manager &tm, ref_counter rc)
 			: tm_(tm),
 			  entries_per_block_(rblock::calc_max_entries()),
 			  nr_entries_(0),
-			  block_rc_(tm->get_sm(), *this),
+			  block_rc_(tm.get_sm(), *this),
 			  block_tree_(tm, block_rc_),
 			  rc_(rc),
 			  validator_(new array_detail::array_block_validator) {
 		}
 
-		array(tm_ptr tm, ref_counter rc,
+		array(transaction_manager &tm, ref_counter rc,
 		      block_address root,
 		      unsigned nr_entries)
 			: tm_(tm),
 			  entries_per_block_(rblock::calc_max_entries()),
 			  nr_entries_(nr_entries),
-			  block_rc_(tm->get_sm(), *this),
+			  block_rc_(tm.get_sm(), *this),
 			  block_tree_(tm, root, block_rc_),
 			  rc_(rc),
 			  validator_(new array_detail::array_block_validator) {
@@ -378,7 +376,7 @@ namespace persistent_data {
 
 		wblock new_ablock(unsigned ablock_index) {
 			uint64_t key[1] = {ablock_index};
-			write_ref b = tm_->new_block(validator_);
+			write_ref b = tm_.new_block(validator_);
 			block_address location = b.get_location();
 
 			wblock wb(b, rc_);
@@ -389,13 +387,13 @@ namespace persistent_data {
 
 		rblock get_ablock(unsigned ablock_index) const {
 			block_address addr = lookup_block_address(ablock_index);
-			return rblock(tm_->read_lock(addr, validator_), rc_);
+			return rblock(tm_.read_lock(addr, validator_), rc_);
 		}
 
 		wblock shadow_ablock(unsigned ablock_index) {
 			uint64_t key[1] = {ablock_index};
 			block_address addr = lookup_block_address(ablock_index);
-			std::pair<write_ref, bool> p = tm_->shadow(addr, validator_);
+			std::pair<write_ref, bool> p = tm_.shadow(addr, validator_);
 			wblock wb = wblock(p.first, rc_);
 
 			if (p.second)
@@ -407,17 +405,17 @@ namespace persistent_data {
 		}
 
 		void dec_ablock_entries(block_address addr) {
-			rblock b(tm_->read_lock(addr, validator_), rc_);
+			rblock b(tm_.read_lock(addr, validator_), rc_);
 			b.dec_all_entries();
 		}
 
-		tm_ptr tm_;
+		transaction_manager &tm_;
 		unsigned entries_per_block_;
 		unsigned nr_entries_;
 		block_ref_counter block_rc_;
 		btree<1, block_traits> block_tree_;
 		typename ValueTraits::ref_counter rc_;
-		block_manager<>::validator::ptr validator_;
+		bcache::validator::ptr validator_;
 	};
 }
 

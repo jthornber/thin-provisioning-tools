@@ -1,3 +1,3 @@
 require 'aruba/cucumber'
 
-ENV['PATH'] = "#{Dir::pwd}:#{ENV['PATH']}"
+ENV['PATH'] = "#{Dir::pwd}/bin:#{ENV['PATH']}"
