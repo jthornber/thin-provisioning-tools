@@ -54,6 +54,9 @@ namespace thin_provisioning {
 			transaction_manager::ptr tm_;
 		};
 
+		// This value type is itself a tree containing mappings.
+		// Used when manipulating the top level of the mapping
+		// tree.
 		struct mtree_traits {
 			typedef base::le64 disk_type;
 			typedef uint64_t value_type;
