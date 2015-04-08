@@ -646,6 +646,8 @@ namespace {
 		}
 
 		virtual void count_metadata(block_counter &bc) const {
+			bc.inc(bitmap_root_);
+
 			for (unsigned i = 0; i < entries_.size(); i++) {
 				block_address b = entries_[i].blocknr_;
 
