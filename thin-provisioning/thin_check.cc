@@ -292,7 +292,9 @@ namespace {
 							    << ", expected " << c_expected
 							    << ", but got " << c_actual
 							    << end_message();
-							mplus_err = combine_errors(mplus_err, FATAL);
+
+							mplus_err = combine_errors(mplus_err,
+										   c_actual > c_expected ? NON_FATAL : FATAL);
 						}
 					}
 				}
