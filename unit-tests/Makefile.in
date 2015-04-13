@@ -57,6 +57,7 @@ TEST_SOURCE=\
 	unit-tests/cache_superblock_t.cc \
 	unit-tests/damage_tracker_t.cc \
 	unit-tests/endian_t.cc \
+	unit-tests/error_state_t.cc \
 	unit-tests/rmap_visitor_t.cc \
 	unit-tests/run_set_t.cc \
 	unit-tests/space_map_t.cc \

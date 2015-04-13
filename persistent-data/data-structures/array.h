@@ -286,23 +286,8 @@ namespace persistent_data {
 			}
 		}
 
-		//--------------------------------
-
-		struct ablock_counter {
-			ablock_counter(block_counter &bc)
-			: bc_(bc) {
-			}
-
-			void visit(btree_detail::node_location const &loc, block_address b) {
-				bc_.inc(b);
-			}
-
-		private:
-			block_counter &bc_;
-		};
-
 		void count_metadata_blocks(block_counter &bc) const {
-			ablock_counter vc(bc);
+			block_address_counter vc(bc);
 			count_btree_blocks(block_tree_, bc, vc);
 		}
 

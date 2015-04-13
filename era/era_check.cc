@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "base/error_state.h"
+#include "base/error_string.h"
 #include "base/nested_output.h"
 #include "era/commands.h"
 #include "era/writeset_tree.h"
@@ -186,10 +187,7 @@ namespace {
 		int r = ::stat(path.c_str(), &info);
 		if (r) {
 			ostringstream msg;
-			char buffer[128], *ptr;
-
-			ptr = ::strerror_r(errno, buffer, sizeof(buffer));
-			msg << path << ": " << ptr;
+			msg << path << ": " << error_string(errno);;
 			throw runtime_error(msg.str());
 		}
 

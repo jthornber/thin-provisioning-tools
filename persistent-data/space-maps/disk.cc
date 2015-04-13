@@ -24,6 +24,7 @@
 #include "persistent-data/space-maps/careful_alloc.h"
 
 #include "persistent-data/data-structures/btree_damage_visitor.h"
+#include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/math_utils.h"
 #include "persistent-data/transaction_manager.h"
@@ -112,7 +113,7 @@ namespace {
 			ref_t b1 = test_bit_le(bits, b * 2);
 			ref_t b2 = test_bit_le(bits, b * 2 + 1);
 			ref_t result = b2 ? 1 : 0;
-			result |= b1 ? 0b10 : 0;
+			result |= b1 ? 2 : 0;
 			return result;
 		}
 
@@ -165,7 +166,7 @@ namespace {
 				ref_t b1 = test_bit_le(bits, b * 2);
 				ref_t b2 = test_bit_le(bits, b * 2 + 1);
 				ref_t result = b2 ? 1 : 0;
-				result |= b1 ? 0b10 : 0;
+				result |= b1 ? 2 : 0;
 				it(offset + b, result);
 			}
 		}
@@ -223,6 +224,7 @@ namespace {
 	public:
 		typedef boost::shared_ptr<index_store> ptr;
 
+		virtual void count_metadata(block_counter &bc) const = 0;
 		virtual void resize(block_address nr_indexes) = 0;
 		virtual index_entry find_ie(block_address b) const = 0;
 		virtual void save_ie(block_address b, struct index_entry ie) = 0;
@@ -406,6 +408,13 @@ namespace {
 			}
 		}
 
+		virtual void count_metadata(block_counter &bc) const {
+			indexes_->count_metadata(bc);
+
+			noop_value_counter<uint32_t> vc;
+			count_btree_blocks(ref_counts_, bc, vc);
+		}
+
 		virtual size_t root_size() const {
 			return sizeof(sm_root_disk);
 		}
@@ -555,6 +564,29 @@ namespace {
 			  bitmaps_(tm, root, index_entry_traits::ref_counter()) {
 		}
 
+		//--------------------------------
+
+		struct index_entry_counter {
+			index_entry_counter(block_counter &bc)
+			: bc_(bc) {
+			}
+
+			void visit(btree_detail::node_location const &loc, index_entry const &ie) {
+				if (ie.blocknr_ != 0)
+					bc_.inc(ie.blocknr_);
+			}
+
+		private:
+			block_counter &bc_;
+		};
+
+		virtual void count_metadata(block_counter &bc) const {
+			index_entry_counter vc(bc);
+			count_btree_blocks(bitmaps_, bc, vc);
+		}
+
+		//--------------------------------
+
 		virtual void resize(block_address nr_entries) {
 			// No op
 		}
@@ -611,6 +643,17 @@ namespace {
 			  bitmap_root_(root) {
 			resize(nr_indexes);
 			load_ies();
+		}
+
+		virtual void count_metadata(block_counter &bc) const {
+			bc.inc(bitmap_root_);
+
+			for (unsigned i = 0; i < entries_.size(); i++) {
+				block_address b = entries_[i].blocknr_;
+
+				if (b != 0)
+					bc.inc(b);
+			}
 		}
 
 		virtual void resize(block_address nr_indexes) {

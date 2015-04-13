@@ -29,6 +29,7 @@ SOURCE=\
 	base/base64.cc \
 	base/endian_utils.cc \
 	base/error_state.cc \
+	base/error_string.cc \
 	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
@@ -86,6 +87,7 @@ SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
+	thin-provisioning/thin_trim.cc \
 	thin-provisioning/xml_format.cc
 
 CC:=@CC@
@@ -97,6 +99,7 @@ CFLAGS+=-g -Wall -O3
 CXXFLAGS+=-g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
+CXXFLAGS+=@CXX_STRERROR_FLAG@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-lstdc++ -laio -lexpat
 INSTALL:=@INSTALL@
@@ -167,10 +170,12 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_repair
 	ln -s -f pdata_tools $(BINDIR)/cache_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_check
+	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/era_check
 	ln -s -f pdata_tools $(BINDIR)/era_dump
@@ -182,10 +187,12 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8

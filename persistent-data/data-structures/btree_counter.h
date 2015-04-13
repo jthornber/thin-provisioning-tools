@@ -1,6 +1,7 @@
 #ifndef PERSISTENT_DATA_DATA_STRUCTURES_BTREE_COUNTER_H
 #define PERSISTENT_DATA_DATA_STRUCTURES_BTREE_COUNTER_H
 
+#include "persistent-data/data-structures/btree.h"
 #include "persistent-data/block_counter.h"
 
 //----------------------------------------------------------------
@@ -63,6 +64,19 @@ namespace persistent_data {
 	struct noop_value_counter {
 		void visit(btree_detail::node_location const &loc, T const &v) {
 		}
+	};
+
+	struct block_address_counter {
+		block_address_counter(block_counter &bc)
+		: bc_(bc) {
+		}
+
+		void visit(btree_detail::node_location const &loc, block_address b) {
+			bc_.inc(b);
+		}
+
+	private:
+		block_counter &bc_;
 	};
 
 	// Counts how many times each metadata block is referenced in the

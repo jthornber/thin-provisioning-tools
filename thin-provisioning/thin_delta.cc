@@ -6,9 +6,11 @@
 
 #include "version.h"
 
+#include "base/indented_stream.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/run.h"
 #include "persistent-data/space-maps/core.h"
+#include "persistent-data/space-maps/disk.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
@@ -27,8 +29,11 @@ namespace local {
 		}
 
 		void usage(ostream &out) {
-			out << "Usage: " << cmd_ << " [options] --snap1 <snap> --snap2 <snap> <device or file>\n"
+			out << "Usage: " << cmd_ << " [options] <device or file>\n"
 			    << "Options:\n"
+			    << "  {--thin1, --snap1}\n"
+			    << "  {--thin2, --snap2}\n"
+			    << "  {-m, --metadata-snap} [block#]\n"
 			    << "  {--verbose}\n"
 			    << "  {-h|--help}\n"
 			    << "  {-V|--version}" << endl;
@@ -40,13 +45,13 @@ namespace local {
 			exit(1);
 		}
 
-		uint64_t parse_snap(string const &str) {
+		uint64_t parse_int(string const &str, string const &desc) {
 			try {
 				return boost::lexical_cast<uint64_t>(str);
 
 			} catch (...) {
 				ostringstream out;
-				out << "Couldn't parse snapshot designator: '" << str << "'";
+				out << "Couldn't parse " << desc << ": '" << str << "'";
 				die(out.str());
 			}
 
@@ -63,6 +68,7 @@ namespace local {
 		}
 
 		boost::optional<string> dev;
+		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
 		bool verbose;
@@ -123,11 +129,18 @@ namespace local {
 	class mapping_recorder {
 	public:
 		mapping_recorder() {
-			reset_range();
+			no_range();
 		}
 
 		void visit(btree_path const &path, mapping_tree_detail::block_time const &bt) {
 			record(path[0], bt.block_);
+		}
+
+		void complete() {
+			if (range_in_progress()) {
+				push_range();
+				no_range();
+			}
 		}
 
 		mapping_deque const &get_mappings() const {
@@ -135,39 +148,44 @@ namespace local {
 		}
 
 	private:
-		void reset_range() {
+		void no_range() {
 			obegin_ = oend_ = 0;
 			dbegin_ = dend_ = 0;
 		}
 
-		void record(uint64_t oblock, uint64_t dblock) {
-			if (obegin_ == oend_) {
-				// We're starting a new range
-				obegin_ = oblock;
-				oend_ = obegin_;
-
-				dbegin_ = dblock;
-				dend_ = dbegin_;
-
-			} else {
-				if (oblock != oend_ || dblock != dend_) {
-					// Emit the current range ...
-					push_mapping(obegin_, dbegin_, oend_ - obegin_);
-
-					obegin_ = oblock;
-					oend_ = obegin_;
-
-					dbegin_ = dblock;
-					dend_ = dbegin_;
-				}
-			}
-
+		void inc_range() {
 			oend_++;
 			dend_++;
 		}
 
-		void push_mapping(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
-			mappings_.push_back(mapping(vbegin, dbegin, len));
+		void begin_range(uint64_t oblock, uint64_t dblock) {
+			obegin_ = oend_ = oblock;
+			dbegin_ = dend_ = dblock;
+			inc_range();
+		}
+
+		bool range_in_progress() {
+			return oend_ != obegin_;
+		}
+
+		bool continues_range(uint64_t oblock, uint64_t dblock) {
+			return (oblock == oend_) && (dblock == dend_);
+		}
+
+		void push_range() {
+			mapping m(obegin_, dbegin_, oend_ - obegin_);
+			mappings_.push_back(m);
+		}
+
+		void record(uint64_t oblock, uint64_t dblock) {
+			if (!range_in_progress())
+				begin_range(oblock, dblock);
+
+			else if (!continues_range(oblock, dblock)) {
+				push_range();
+				begin_range(oblock, dblock);
+			} else
+				inc_range();
 		}
 
 		uint64_t obegin_, oend_;
@@ -189,7 +207,7 @@ namespace local {
 
 	class diff_emitter {
 	public:
-		diff_emitter(ostream &out)
+		diff_emitter(indented_stream &out)
 		: out_(out) {
 		}
 
@@ -200,18 +218,22 @@ namespace local {
 		virtual void complete() = 0;
 
 	protected:
-		ostream &out() {
+		void indent() {
+			out_.indent();
+		}
+
+		indented_stream &out() {
 			return out_;
 		}
 
 	private:
-		ostream &out_;
+		indented_stream &out_;
 	};
 
 
 	class simple_emitter : public diff_emitter {
 	public:
-		simple_emitter(ostream &out)
+		simple_emitter(indented_stream &out)
 		: diff_emitter(out) {
 		}
 
@@ -260,6 +282,7 @@ namespace local {
 			if (!current_type_)
 				return;
 
+			indent();
 			switch (*current_type_) {
 			case LEFT_ONLY:
 				out() << "<left_only";
@@ -288,27 +311,30 @@ namespace local {
 
 	class verbose_emitter : public diff_emitter {
 	public:
-		verbose_emitter(ostream &out)
+		verbose_emitter(indented_stream &out)
 		: diff_emitter(out) {
 		}
 
 		void left_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(LEFT_ONLY);
-			out() << "  <range begin=\"" << vbegin << "\""
+			indent();
+			out() << "<range begin=\"" << vbegin << "\""
 			      << " data_begin=\"" << dbegin << "\""
 			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void right_only(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(RIGHT_ONLY);
-			out() << "  <range begin=\"" << vbegin << "\""
+			indent();
+			out() << "<range begin=\"" << vbegin << "\""
 			      << " data_begin=\"" << dbegin << "\""
 			      << " length=\"" << len << "\"/>\n";
 		}
 
 		void blocks_differ(uint64_t vbegin, uint64_t left_dbegin, uint64_t right_dbegin, uint64_t len) {
 			begin_block(DIFFER);
-			out() << "  <range begin=\"" << vbegin << "\""
+			indent();
+			out() << "<range begin=\"" << vbegin << "\""
 			      << " left_data_begin=\"" << left_dbegin << "\""
 			      << " right_data_begin=\"" << right_dbegin << "\""
 			      << " length=\"" << len << "\"/>\n";
@@ -316,7 +342,8 @@ namespace local {
 
 		void blocks_same(uint64_t vbegin, uint64_t dbegin, uint64_t len) {
 			begin_block(SAME);
-			out() << "  <range begin=\"" << vbegin << "\""
+			indent();
+			out() << "<range begin=\"" << vbegin << "\""
 			      << " data_begin=\"" << dbegin << "\""
 			      << " length=\"" << len << "\"/>\n";
 		}
@@ -347,6 +374,7 @@ namespace local {
 		}
 
 		void open(block_type t) {
+			indent();
 			switch (t) {
 			case LEFT_ONLY:
 				out() << "<left_only>\n";
@@ -364,24 +392,27 @@ namespace local {
 				out() << "<same>\n";
 				break;
 			}
+			out().inc();
 		}
 
 		void close(block_type t) {
+			out().dec();
+			indent();
 			switch (t) {
 			case LEFT_ONLY:
-				out() << "</left_only>\n\n";
+				out() << "</left_only>\n";
 				break;
 
 			case RIGHT_ONLY:
-				out() << "</right_only>\n\n";
+				out() << "</right_only>\n";
 				break;
 
 			case DIFFER:
-				out() << "</different>\n\n";
+				out() << "</different>\n";
 				break;
 
 			case SAME:
-				out() << "</same>\n\n";
+				out() << "</same>\n";
 				break;
 			}
 
@@ -437,19 +468,76 @@ namespace local {
 			}
 		}
 
+		while (left_it != left.end()) {
+			left_mapping = *left_it++;
+
+			if (left_mapping.len_)
+				e.left_only(left_mapping.vbegin_, left_mapping.dbegin_, left_mapping.len_);
+		}
+
+		while (right_it != right.end()) {
+			right_mapping = *right_it++;
+
+			if (right_mapping.len_)
+				e.right_only(right_mapping.vbegin_, right_mapping.dbegin_, right_mapping.len_);
+		}
+
 		e.complete();
+	}
+
+	// FIXME: duplication with xml_format
+	void begin_superblock(indented_stream &out,
+			      string const &uuid,
+			      uint64_t time,
+			      uint64_t trans_id,
+			      uint32_t data_block_size,
+			      uint64_t nr_data_blocks,
+			      boost::optional<uint64_t> metadata_snap) {
+		out.indent();
+		out << "<superblock uuid=\"" << uuid << "\""
+		    << " time=\"" << time << "\""
+		    << " transaction=\"" << trans_id << "\""
+		    << " data_block_size=\"" << data_block_size << "\""
+		    << " nr_data_blocks=\"" << nr_data_blocks;
+
+		if (metadata_snap)
+			out << "\" metadata_snap=\"" << *metadata_snap;
+
+		out << "\">\n";
+		out.inc();
+	}
+
+	void end_superblock(indented_stream &out) {
+		out.dec();
+		out.indent();
+		out << "</superblock>\n";
+	}
+
+	void begin_diff(indented_stream &out, uint64_t snap1, uint64_t snap2) {
+		out.indent();
+		out << "<diff left=\"" << snap1 << "\" right=\"" << snap2 << "\">\n";
+		out.inc();
+	}
+
+	void end_diff(indented_stream &out) {
+		out.dec();
+		out.indent();
+		out << "</diff>\n";
 	}
 
 	void delta_(application &app, flags const &fs) {
 		mapping_recorder mr1;
 		mapping_recorder mr2;
 		damage_visitor damage_v;
+		superblock_detail::superblock sb;
+		checked_space_map::ptr data_sm;
 
 		{
 			block_manager<>::ptr bm = open_bm(*fs.dev);
 			transaction_manager::ptr tm = open_tm(bm);
 
-			superblock_detail::superblock sb = read_superblock(bm);
+			sb = fs.metadata_snap ? read_superblock(bm, *fs.metadata_snap) : read_superblock(bm);
+			data_sm = open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
 
 			dev_tree dtree(*tm, sb.data_mapping_root_,
 				       mapping_tree_detail::mtree_traits::ref_counter(tm));
@@ -476,16 +564,32 @@ namespace local {
 
 			single_mapping_tree snap2(*tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 			btree_visit_values(snap1, mr1, damage_v);
+			mr1.complete();
+
 			btree_visit_values(snap2, mr2, damage_v);
+			mr2.complete();
 		}
 
+		indented_stream is(cout);
+		begin_superblock(is, "", sb.time_,
+				 sb.trans_id_,
+				 sb.data_block_size_,
+				 data_sm->get_nr_blocks(),
+				 sb.metadata_snap_ ?
+				 boost::optional<block_address>(sb.metadata_snap_) :
+				 boost::optional<block_address>());
+		begin_diff(is, *fs.snap1, *fs.snap2);
+
 		if (fs.verbose) {
-			verbose_emitter e(cout);
+			verbose_emitter e(is);
 			dump_diff(mr1.get_mappings(), mr2.get_mappings(), e);
 		} else {
-			simple_emitter e(cout);
+			simple_emitter e(is);
 			dump_diff(mr1.get_mappings(), mr2.get_mappings(), e);
 		}
+
+		end_diff(is);
+		end_superblock(is);
 	}
 
 	int delta(application &app, flags const &fs) {
@@ -512,13 +616,15 @@ int thin_delta_main(int argc, char **argv)
 	flags fs;
 	local::application app(basename(argv[0]));
 
-	char const shortopts[] = "hV";
+	char const shortopts[] = "hVm";
 	option const longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
+		{ "thin1", required_argument, NULL, 1 },
 		{ "snap1", required_argument, NULL, 1 },
+		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
-		{ "metadata-snap", no_argument, NULL, 3 },
+		{ "metadata-snap", no_argument, NULL, 'm' },
 		{ "verbose", no_argument, NULL, 4 }
 	};
 
@@ -533,15 +639,15 @@ int thin_delta_main(int argc, char **argv)
 			return 0;
 
 		case 1:
-			fs.snap1 = app.parse_snap(optarg);
+			fs.snap1 = app.parse_int(optarg, "thin id 1");
 			break;
 
 		case 2:
-			fs.snap2 = app.parse_snap(optarg);
+			fs.snap2 = app.parse_int(optarg, "thin id 2");
 			break;
 
-		case 3:
-			abort();
+		case 'm':
+			fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
 			break;
 
 		case 4:
