@@ -98,4 +98,15 @@ TEST_F(DamageTrackerTests, gi_bi_gi_bl_gl)
 	assert_damage(dt.good_leaf(15, 20), run64(10ull, 15ull));
 }
 
+TEST_F(DamageTrackerTests, end_resets_tracker)
+{
+	dt.good_internal(0);
+	dt.good_leaf(0, 10);
+	dt.bad_node();
+	assert_damage(dt.end(), run64(10ull));
+
+	assert_no_damage(dt.good_leaf(20, 30));
+	assert_no_damage(dt.end());
+}
+
 //----------------------------------------------------------------

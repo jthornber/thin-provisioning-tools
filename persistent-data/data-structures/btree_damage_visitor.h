@@ -70,10 +70,17 @@ namespace persistent_data {
 			}
 
 			maybe_run64 end() {
+				maybe_run64 r;
+
 				if (damaged_)
-					return maybe_run64(damage_begin_);
+					r = maybe_run64(damage_begin_);
 				else
-					return maybe_run64();
+					r = maybe_run64();
+
+				damaged_ = false;
+				damage_begin_ = 0;
+
+				return r;
 			}
 
 		private:
