@@ -363,18 +363,30 @@ namespace persistent_data {
 	}
 
 	template <typename ValueTraits>
+	bool
+	node_ref<ValueTraits>::value_sizes_match() const {
+		return sizeof(typename ValueTraits::disk_type) == get_value_size();
+	}
+
+	template <typename ValueTraits>
+	std::string
+	node_ref<ValueTraits>::value_mismatch_string() const {
+		std::ostringstream out;
+		out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
+		    << ", but got " << get_value_size()
+		    << ".  This is not the btree you are looking for." << std::endl;
+
+		return out.str();
+	}
+
+	template <typename ValueTraits>
 	void
 	node_ref<ValueTraits>::check_fits_within_block() const {
 		if (checked_)
 			return;
 
-		if (sizeof(typename ValueTraits::disk_type) != get_value_size()) {
-			std::ostringstream out;
-			out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
-			    << ", but got " << get_value_size()
-			    << ".  This is not the btree you are looking for." << std::endl;
-			throw std::runtime_error(out.str());
-		}
+		if (!value_sizes_match())
+			throw std::runtime_error(value_mismatch_string());
 
 		unsigned max = calc_max_entries();
 

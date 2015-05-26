@@ -161,6 +161,9 @@ namespace persistent_data {
 				return raw_;
 			}
 
+			bool value_sizes_match() const;
+			std::string value_mismatch_string() const;
+
 		private:
 			static unsigned calc_max_entries(void);
 			void check_fits_within_block() const;

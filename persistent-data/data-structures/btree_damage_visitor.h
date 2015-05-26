@@ -210,6 +210,7 @@ namespace persistent_data {
 					    btree_detail::node_ref<block_traits> const &n) {
 				if (!already_visited(n) &&
 				    check_block_nr(n) &&
+				    check_value_size(n) &&
 				    check_max_entries(n) &&
 				    check_nr_entries(n, loc.is_sub_root()) &&
 				    check_ordered_keys(n) &&
@@ -229,6 +230,7 @@ namespace persistent_data {
 					btree_detail::node_ref<ValueTraits2> const &n) {
 				if (!already_visited(n) &&
 				    check_block_nr(n) &&
+				    check_value_size(n) &&
 				    check_max_entries(n) &&
 				    check_nr_entries(n, loc.is_sub_root()) &&
 				    check_ordered_keys(n) &&
@@ -269,6 +271,16 @@ namespace persistent_data {
 					    << ", claims " << n.get_block_nr();
 
 					report_damage(out.str());
+					return false;
+				}
+
+				return true;
+			}
+
+			template <typename node>
+			bool check_value_size(node const &n) {
+				if (!n.value_sizes_match()) {
+					report_damage(n.value_mismatch_string());
 					return false;
 				}
 
