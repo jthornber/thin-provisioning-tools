@@ -608,9 +608,13 @@ namespace persistent_data {
 
 			}
 
-			mi = leaf.lower_bound(key);
-			if (!mi || *mi < 0)
-				return boost::optional<leaf_type>();
+			{
+				int lb = leaf.lower_bound(key);
+				if (lb < 0)
+					return boost::optional<leaf_type>();
+
+				mi = lb;
+			}
 
 			node_ref<block_traits> internal = spine.template get_node<block_traits>();
 			block = internal.value_at(*mi);
