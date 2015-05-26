@@ -458,7 +458,8 @@ namespace persistent_data {
 		template <typename ValueTraits>
 		struct lower_bound_search {
 			static boost::optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
-				return n.lower_bound(key);
+				int i = n.lower_bound(key);
+				return (i < 0) ? boost::optional<unsigned>() : boost::optional<unsigned>(i);
 			}
 		};
 
