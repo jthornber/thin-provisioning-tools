@@ -19,11 +19,13 @@ namespace caching {
 	class superblock_flags {
 	public:
 		enum flag {
-			CLEAN_SHUTDOWN
+			CLEAN_SHUTDOWN,
+			NEEDS_CHECK
 		};
 
 		enum flag_bits {
-			CLEAN_SHUTDOWN_BIT = 0
+			CLEAN_SHUTDOWN_BIT = 0,
+			NEEDS_CHECK_BIT = 1,
 		};
 
 		superblock_flags();
