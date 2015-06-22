@@ -323,11 +323,11 @@ namespace {
 			err = metadata_check(path, fs);
 
 			if (fs.ignore_non_fatal_errors)
-				success = (err == FATAL) ? 1 : 0;
+				success = (err == FATAL) ? false : true;
 			else
-				success =  (err == NO_ERROR) ? 0 : 1;
+				success = (err == NO_ERROR) ? true : false;
 
-			if (!success && fs.clear_needs_check_flag_on_success)
+			if (success && fs.clear_needs_check_flag_on_success)
 				clear_needs_check(path);
 
 		} catch (std::exception &e) {
@@ -337,7 +337,7 @@ namespace {
 			return 1;
 		}
 
-		return success;
+		return !success;
 	}
 
 	void usage(ostream &out, string const &cmd) {
