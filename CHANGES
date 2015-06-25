@@ -1,3 +1,9 @@
+v0.5.1
+======
+
+Fix bug where the tools would crash if given a very large metadata
+device to restore to.
+
 v0.5
 ====
 
