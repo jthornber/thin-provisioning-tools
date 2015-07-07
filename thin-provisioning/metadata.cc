@@ -118,7 +118,7 @@ metadata::metadata(std::string const &dev_path, open_type ot,
 
 metadata::metadata(std::string const &dev_path, block_address metadata_snap)
 {
-	tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_ONLY));
+	tm_ = open_tm(open_bm(dev_path, block_manager<>::READ_ONLY, !metadata_snap));
 	sb_ = read_superblock(tm_->get_bm(), metadata_snap);
 
 	// We don't open the metadata sm for a held root

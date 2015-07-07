@@ -27,6 +27,7 @@
 #include "xml_format.h"
 #include "version.h"
 #include "thin-provisioning/commands.h"
+#include "persistent-data/file_utils.h"
 
 using namespace persistent_data;
 using namespace std;
@@ -38,23 +39,24 @@ struct flags {
 };
 
 namespace {
+	block_address find_metadata_snap(string const &path)
+	{
+		superblock_detail::superblock sb = read_superblock(open_bm(path, block_manager<>::READ_ONLY, false), 0);
+		uint64_t ms = sb.metadata_snap_;
+
+		if (!ms) {
+			cerr << "no metadata snapshot found!" << endl;
+			exit(1);
+		}
+
+		return ms;
+	}
+
 	int dump_(string const &path, ostream &out, string const &format, struct flags &flags,
 		  block_address metadata_snap) {
 		try {
 			metadata::ptr md(new metadata(path, metadata_snap));
 			emitter::ptr e;
-
-			if (flags.find_metadata_snap) {
-				uint64_t metadata_snap_root = md->sb_.metadata_snap_; /* FIXME: use thin_pool method? */
-
-				if (metadata_snap_root) {
-					md.reset();
-					md = metadata::ptr(new metadata(path, metadata_snap_root));
-				} else {
-					cerr << "no metadata snapshot found!" << endl;
-					exit(1);
-				}
-			}
 
 			if (format == "xml")
 				e = create_xml_emitter(out);
@@ -163,6 +165,9 @@ int thin_dump_main(int argc, char **argv)
 		usage(cerr, basename(argv[0]));
 		return 1;
 	}
+
+	if (flags.find_metadata_snap)
+		metadata_snap = find_metadata_snap(argv[optind]);
 
 	return dump(argv[optind], output, format, flags, metadata_snap);
 }
