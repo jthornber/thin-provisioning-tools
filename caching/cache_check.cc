@@ -220,7 +220,9 @@ namespace {
 		write_superblock(bm, sb);
 	}
 
-	error_state metadata_check(block_manager<>::ptr bm, flags const &fs) {
+	error_state metadata_check(string const &path, flags const &fs) {
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
+
 		nested_output out(cerr, 2);
 		if (fs.quiet_)
 			out.disable();
@@ -295,8 +297,7 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
-		err = metadata_check(bm, fs);
+		err = metadata_check(path, fs);
 
 		bool success = false;
 
