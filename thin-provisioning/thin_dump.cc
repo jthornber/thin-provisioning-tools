@@ -39,19 +39,6 @@ struct flags {
 };
 
 namespace {
-	block_address find_metadata_snap(string const &path)
-	{
-		superblock_detail::superblock sb = read_superblock(open_bm(path, block_manager<>::READ_ONLY, false), 0);
-		uint64_t ms = sb.metadata_snap_;
-
-		if (!ms) {
-			cerr << "no metadata snapshot found!" << endl;
-			exit(1);
-		}
-
-		return ms;
-	}
-
 	int dump_(string const &path, ostream &out, string const &format, struct flags &flags,
 		  block_address metadata_snap) {
 		try {

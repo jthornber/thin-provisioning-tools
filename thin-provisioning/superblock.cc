@@ -1,6 +1,7 @@
 #include "persistent-data/checksum.h"
 #include "persistent-data/errors.h"
 #include "thin-provisioning/superblock.h"
+#include "persistent-data/file_utils.h"
 
 using namespace thin_provisioning;
 using namespace superblock_detail;
@@ -179,6 +180,20 @@ namespace thin_provisioning {
 		} catch (std::exception const &e) {
 			visitor.visit(superblock_corruption(e.what()));
 		}
+	}
+
+	block_address find_metadata_snap(string const &path)
+	{
+		superblock_detail::superblock sb =
+			read_superblock(open_bm(path, block_manager<>::READ_ONLY, false), 0);
+		uint64_t ms = sb.metadata_snap_;
+
+		if (!ms) {
+			cerr << "no metadata snapshot found!" << endl;
+			exit(1);
+		}
+
+		return ms;
 	}
 }
 
