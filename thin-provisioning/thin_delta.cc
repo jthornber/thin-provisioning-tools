@@ -64,7 +64,8 @@ namespace local {
 
 	struct flags {
 		flags()
-			: verbose(false) {
+			: verbose(false),
+			  find_metadata_snap(false) {
 		}
 
 		boost::optional<string> dev;
@@ -72,16 +73,10 @@ namespace local {
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
 		bool verbose;
+		bool find_metadata_snap;
 	};
 
 	//--------------------------------
-
-	block_manager<>::ptr
-	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_blocks(path);
-		block_manager<>::mode m = block_manager<>::READ_ONLY;
-		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
-	}
 
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {
@@ -533,7 +528,7 @@ namespace local {
 		checked_space_map::ptr data_sm;
 
 		{
-			block_manager<>::ptr bm = open_bm(*fs.dev);
+			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.metadata_snap);
 			transaction_manager::ptr tm = open_tm(bm);
 
 			sb = fs.metadata_snap ? read_superblock(bm, *fs.metadata_snap) : read_superblock(bm);
@@ -616,7 +611,7 @@ int thin_delta_main(int argc, char **argv)
 	flags fs;
 	local::application app(basename(argv[0]));
 
-	char const shortopts[] = "hVm";
+	char const shortopts[] = "hVm::";
 	option const longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -624,7 +619,7 @@ int thin_delta_main(int argc, char **argv)
 		{ "snap1", required_argument, NULL, 1 },
 		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
-		{ "metadata-snap", no_argument, NULL, 'm' },
+		{ "metadata-snap", optional_argument, NULL, 'm' },
 		{ "verbose", no_argument, NULL, 4 }
 	};
 
@@ -647,7 +642,10 @@ int thin_delta_main(int argc, char **argv)
 			break;
 
 		case 'm':
-			fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
+			if (optarg)
+				fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
+			else
+				fs.find_metadata_snap = true;
 			break;
 
 		case 4:
@@ -670,6 +668,11 @@ int thin_delta_main(int argc, char **argv)
 
 	if (!fs.snap2)
 		app.die("--snap2 not specified.");
+
+	if (fs.find_metadata_snap) {
+		fs.metadata_snap = find_metadata_snap(*fs.dev);
+		cerr << "metadata snap = " << fs.metadata_snap << "\n";
+	}
 
 	return delta(app, fs);
 }

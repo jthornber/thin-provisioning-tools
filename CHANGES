@@ -1,3 +1,8 @@
+v0.5.5
+======
+
+You may now give the --metadata_snap option to thin_delta without specifying where the snap is.
+
 v0.5.1
 ======
 
