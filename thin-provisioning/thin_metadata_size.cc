@@ -324,7 +324,7 @@ static const unsigned mappings_per_block(void)
 static void print_precision(struct global *g, double r, unsigned idx)
 {
 	bool full = g->options.n[NUMERIC] == NO_NUMBER;
-	double rtrunc = truncl(r);
+	double rtrunc = floor(r);
 
 	if (full)
 		printf("%s - ", g->prg);
