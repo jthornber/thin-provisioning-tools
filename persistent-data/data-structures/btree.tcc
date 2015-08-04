@@ -38,11 +38,17 @@ namespace {
 			node_header const *n = &data->header;
 			crc32c sum(BTREE_CSUM_XOR);
 			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(n->csum))
-				throw checksum_error("bad checksum in btree node");
+			if (sum.get_sum() != to_cpu<uint32_t>(n->csum)) {
+				std::ostringstream out;
+				out << "bad checksum in btree node (block " << location << ")";
+				throw checksum_error(out.str());
+			}
 
-			if (to_cpu<uint64_t>(n->blocknr) != location)
-				throw checksum_error("bad block nr in btree node");
+			if (to_cpu<uint64_t>(n->blocknr) != location) {
+				std::ostringstream out;
+				out << "bad block nr in btree node (block = " << location << ")";
+				throw checksum_error(out.str());
+			}
 		}
 
 		virtual void prepare(void *raw, block_address location) const {
