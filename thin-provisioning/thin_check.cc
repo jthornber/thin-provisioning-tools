@@ -169,23 +169,9 @@ namespace {
 		bool clear_needs_check_flag_on_success;
 	};
 
-	error_state check_space_map_counts(flags const &fs, nested_output &out,
-					   superblock_detail::superblock &sb,
-					   block_manager<>::ptr bm,
-					   transaction_manager::ptr tm) {
-		block_counter bc;
-
-		// Count the superblock
-		bc.inc(superblock_detail::SUPERBLOCK_LOCATION);
-
-		// Count the metadata snap, if present
-		if (sb.metadata_snap_ != superblock_detail::SUPERBLOCK_LOCATION) {
-			bc.inc(sb.metadata_snap_);
-
-			superblock_detail::superblock snap = read_superblock(bm, sb.metadata_snap_);
-			bc.inc(snap.data_mapping_root_);
-			bc.inc(snap.device_details_root_);
-		}
+	void count_trees(transaction_manager::ptr tm,
+			 superblock_detail::superblock &sb,
+			 block_counter &bc) {
 
 		// Count the device tree
 		{
@@ -201,6 +187,25 @@ namespace {
 			mapping_tree mtree(*tm, sb.data_mapping_root_,
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 			count_btree_blocks(mtree, bc, vc);
+		}
+	}
+
+	error_state check_space_map_counts(flags const &fs, nested_output &out,
+					   superblock_detail::superblock &sb,
+					   block_manager<>::ptr bm,
+					   transaction_manager::ptr tm) {
+		block_counter bc;
+
+		// Count the superblock
+		bc.inc(superblock_detail::SUPERBLOCK_LOCATION);
+		count_trees(tm, sb, bc);
+
+		// Count the metadata snap, if present
+		if (sb.metadata_snap_ != superblock_detail::SUPERBLOCK_LOCATION) {
+			bc.inc(sb.metadata_snap_);
+
+			superblock_detail::superblock snap = read_superblock(bm, sb.metadata_snap_);
+			count_trees(tm, snap, bc);
 		}
 
 		// Count the metadata space map
