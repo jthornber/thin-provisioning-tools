@@ -70,6 +70,7 @@ SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
+	persistent-data/validators.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \

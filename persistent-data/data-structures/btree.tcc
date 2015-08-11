@@ -21,6 +21,7 @@
 #include "persistent-data/errors.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/transaction_manager.h"
+#include "persistent-data/validators.h"
 
 #include <iostream>
 
@@ -32,35 +33,6 @@ namespace {
 	using namespace btree_detail;
 	using namespace std;
 
-	struct btree_node_validator : public bcache::validator {
-		virtual void check(void const *raw, block_address location) const {
-			disk_node const *data = reinterpret_cast<disk_node const *>(raw);
-			node_header const *n = &data->header;
-			crc32c sum(BTREE_CSUM_XOR);
-			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(n->csum)) {
-				std::ostringstream out;
-				out << "bad checksum in btree node (block " << location << ")";
-				throw checksum_error(out.str());
-			}
-
-			if (to_cpu<uint64_t>(n->blocknr) != location) {
-				std::ostringstream out;
-				out << "bad block nr in btree node (block = " << location << ")";
-				throw checksum_error(out.str());
-			}
-		}
-
-		virtual void prepare(void *raw, block_address location) const {
-			disk_node *data = reinterpret_cast<disk_node *>(raw);
-			node_header *n = &data->header;
-			n->blocknr = to_disk<base::le64, uint64_t>(location);
-
-			crc32c sum(BTREE_CSUM_XOR);
-			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			n->csum = to_disk<base::le32>(sum.get_sum());
-		}
-	};
 }
 
 //----------------------------------------------------------------
@@ -416,7 +388,7 @@ namespace persistent_data {
 		  destroy_(false),
 		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
-		  validator_(new btree_node_validator)
+		  validator_(create_btree_node_validator())
 	{
 		using namespace btree_detail;
 
@@ -450,7 +422,7 @@ namespace persistent_data {
 		  root_(root),
 		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
-		  validator_(new btree_node_validator)
+		  validator_(create_btree_node_validator())
 	{
 	}
 
