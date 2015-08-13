@@ -46,14 +46,23 @@ namespace {
 	// to exception.h
 	void syscall_failed(char const *call) {
 		ostringstream out;
-		out << "syscall '" << call << "' failed: " << base::error_string(errno);;
+		out << "syscall '" << call << "' failed: " << base::error_string(errno);
+		throw runtime_error(out.str());
+	}
+
+	void syscall_failed(string const &call, string const &message)
+	{
+		ostringstream out;
+		out << "syscall '" << call << "' failed: " << base::error_string(errno) << "\n"
+		    << message;
 		throw runtime_error(out.str());
 	}
 
 	int open_file(string const &path, int flags) {
 		int fd = ::open(path.c_str(), OPEN_FLAGS | flags, DEFAULT_MODE);
 		if (fd < 0)
-			syscall_failed("open");
+			syscall_failed("open",
+				 "Note: you cannot run this tool with these options on live metadata.");
 
 		return fd;
 	}
