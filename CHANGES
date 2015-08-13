@@ -3,6 +3,10 @@ v0.5.5
 
 You may now give the --metadata_snap option to thin_delta without specifying where the snap is.
 
+Update man pages to make it clearer that most tools shouldn't be run on live metadata.
+
+Fix some bugs in the metadata reference counting for thin_check.
+
 v0.5.1
 ======
 
