@@ -10,7 +10,8 @@ thin_delta \- Print the differences in the mappings between two thin devices.
 .SH DESCRIPTION
 .B thin_delta
 allows you to compare the mappings in two thin volumes (snapshots allow common blocks between thin volumes).
-.
+
+This tool cannot be run on live metadata unless the \fB\-\-metadata\-snap\fP option is used.
 
 .SH OPTIONS
 .IP "\fB\-\-thin1, \-\-snap1\fP"
