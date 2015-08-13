@@ -669,10 +669,8 @@ int thin_delta_main(int argc, char **argv)
 	if (!fs.snap2)
 		app.die("--snap2 not specified.");
 
-	if (fs.find_metadata_snap) {
+	if (fs.find_metadata_snap)
 		fs.metadata_snap = find_metadata_snap(*fs.dev);
-		cerr << "metadata snap = " << fs.metadata_snap << "\n";
-	}
 
 	return delta(app, fs);
 }
