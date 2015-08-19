@@ -34,6 +34,7 @@
 #include "thin-provisioning/superblock.h"
 
 #include <boost/uuid/sha1.hpp>
+#include <boost/lexical_cast.hpp>
 #include <vector>
 
 using namespace base;
@@ -56,6 +57,19 @@ namespace {
 		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
+	}
+
+	uint64_t parse_int(string const &str, string const &desc) {
+		try {
+			return boost::lexical_cast<uint64_t>(str);
+
+		} catch (...) {
+			ostringstream out;
+			out << "Couldn't parse " << desc << ": '" << str << "'";
+			exit(1);
+		}
+
+		return 0; // never get here
 	}
 
 	//--------------------------------
@@ -197,6 +211,7 @@ int thin_show_dups_main(int argc, char **argv)
 
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
+		{ "block-sectors", required_argument, NULL, 1},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -211,6 +226,10 @@ int thin_show_dups_main(int argc, char **argv)
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		case 1:
+			fs.block_size = 512 * parse_int(optarg, "block sectors");
+			break;
 
 		default:
 			usage(cerr, basename(argv[0]));
