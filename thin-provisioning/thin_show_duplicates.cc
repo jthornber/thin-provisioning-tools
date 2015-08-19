@@ -191,6 +191,7 @@ namespace {
 		}
 
 		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
+		cout << (detector.get_total_duplicates() * 100) / nr_blocks << "% duplicates\n";
 
 		return 0;
 	}
