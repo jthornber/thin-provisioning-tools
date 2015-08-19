@@ -24,6 +24,7 @@
 
 #include "base/application.h"
 #include "base/error_state.h"
+#include "base/progress_monitor.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
@@ -140,6 +141,7 @@ namespace {
 
 	int show_dups(string const &path, flags const &fs) {
 		cerr << "path = " << path << "\n";
+		cerr << "block size = " << fs.block_size << "\n";
 		block_address nr_blocks = get_nr_blocks(path, fs.block_size);
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 
@@ -160,6 +162,8 @@ namespace {
 		for (block_address i = 0; i < cache_blocks; i++)
 			cache.prefetch(i);
 
+		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+
 		for (block_address i = 0; i < nr_blocks; i++) {
 			block_cache::block &b = cache.get(i, 0, v);
 			block_address prefetch = i + cache_blocks;
@@ -168,9 +172,11 @@ namespace {
 
 			detector.examine(b);
 			b.put();
+
+			pbar->update_percent(i * 100 / nr_blocks);
 		}
 
-		cout << "total dups: " << detector.get_total_duplicates() << endl;
+		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
 
 		return 0;
 	}
