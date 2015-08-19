@@ -12,7 +12,7 @@ using namespace base;
 //----------------------------------------------------------------
 
 persistent_data::block_address
-persistent_data::get_nr_blocks(string const &path)
+persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 {
 	using namespace persistent_data;
 
@@ -39,7 +39,7 @@ persistent_data::get_nr_blocks(string const &path)
 			throw runtime_error("ioctl BLKGETSIZE64 failed");
 		}
 		::close(fd);
-		nr_blocks = div_down<block_address>(nr_blocks, MD_BLOCK_SIZE);
+		nr_blocks = div_down<block_address>(nr_blocks, block_size);
 	} else
 		// FIXME: needs a better message
 		throw runtime_error("bad path");

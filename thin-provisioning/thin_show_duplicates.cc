@@ -32,6 +32,9 @@
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
 
+#include <boost/uuid/sha1.hpp>
+#include <vector>
+
 using namespace base;
 using namespace std;
 using namespace thin_provisioning;
@@ -57,14 +60,126 @@ namespace {
 	//--------------------------------
 
 	struct flags {
-		flags() {
+		flags()
+			: block_size(512 * 1024),
+			  cache_mem(64 * 1024 * 1024) {
 		}
+
+		unsigned block_size;
+		unsigned cache_mem;
 	};
 
+	int open_file(string const &path) {
+		int fd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_EXCL, 0666);
+		if (fd < 0)
+			syscall_failed("open",
+				 "Note: you cannot run this tool with these options on live metadata.");
+
+		return fd;
+	}
+
+	class duplicate_counter {
+	public:
+		duplicate_counter(block_address nr_blocks)
+		: counts_(nr_blocks),
+		  total_dups_(0) {
+		}
+
+		void add_duplicate(block_address b1, block_address b2) {
+			// cout << "block " << b2 << " is a duplicate of " << b1 << "\n";
+			total_dups_++;
+			counts_[b1]++;
+		}
+
+		block_address get_total() const {
+			return total_dups_;
+		}
+
+	private:
+		vector<block_address> counts_;
+		block_address total_dups_;
+	};
+
+	class duplicate_detector {
+	public:
+		duplicate_detector(unsigned block_size, block_address nr_blocks)
+			: block_size_(block_size),
+			  results_(nr_blocks) {
+		}
+
+		void examine(block_cache::block const &b) {
+			digestor_.reset();
+			digestor_.process_bytes(b.get_data(), block_size_);
+			unsigned int digest[5];
+			digestor_.get_digest(digest);
+
+			// hack
+			vector<unsigned int> v(5);
+			for (unsigned i = 0; i < 5; i++)
+				v[i] = digest[i];
+
+			fingerprint_map::const_iterator it = fm_.find(v);
+			if (it != fm_.end()) {
+				results_.add_duplicate(it->second, b.get_index());
+			} else
+				fm_.insert(make_pair(v, b.get_index()));
+		}
+
+		block_address get_total_duplicates() const {
+			return results_.get_total();
+		}
+
+	private:
+		typedef map<vector<unsigned int>, block_address> fingerprint_map;
+
+		unsigned block_size_;
+		boost::uuids::detail::sha1 digestor_;
+		fingerprint_map fm_;
+		duplicate_counter results_;
+	};
+
+	int show_dups(string const &path, flags const &fs) {
+		cerr << "path = " << path << "\n";
+		block_address nr_blocks = get_nr_blocks(path, fs.block_size);
+		cerr << "nr_blocks = " << nr_blocks << "\n";
+
+		// The cache uses a LRU eviction policy, which plays badly
+		// with a sequential read.  So we can't prefetch all the
+		// blocks.
+
+		// FIXME: add MRU policy to cache
+		unsigned cache_blocks = (fs.cache_mem / fs.block_size) / 2;
+		int fd = open_file(path);
+		sector_t block_sectors = fs.block_size / 512;
+		block_cache cache(fd, block_sectors, nr_blocks, fs.cache_mem);
+		validator::ptr v(new bcache::noop_validator());
+
+		duplicate_detector detector(fs.block_size, nr_blocks);
+
+		// warm up the cache
+		for (block_address i = 0; i < cache_blocks; i++)
+			cache.prefetch(i);
+
+		for (block_address i = 0; i < nr_blocks; i++) {
+			block_cache::block &b = cache.get(i, 0, v);
+			block_address prefetch = i + cache_blocks;
+			if (prefetch < nr_blocks)
+				cache.prefetch(prefetch);
+
+			detector.examine(b);
+			b.put();
+		}
+
+		cout << "total dups: " << detector.get_total_duplicates() << endl;
+
+		return 0;
+	}
+
 	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
+		out << "Usage: " << cmd << " [options] {device|file}\n"
+		    << "Options:\n"
+		    << "  {--block-sectors} <integer>\n"
+		    << "  {-h|--help}\n"
 		    << "  {-V|--version}" << endl;
 	}
 }
@@ -103,7 +218,7 @@ int thin_show_dups_main(int argc, char **argv)
 		exit(1);
 	}
 
-	return 0;
+	return show_dups(argv[optind], fs);
 }
 
 base::command thin_provisioning::thin_show_dups_cmd("thin_show_duplicates", thin_show_dups_main);
