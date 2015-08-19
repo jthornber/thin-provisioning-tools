@@ -24,7 +24,7 @@ persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 		throw runtime_error("Couldn't stat dev path");
 
 	if (S_ISREG(info.st_mode) && info.st_size)
-		nr_blocks = div_up<block_address>(info.st_size, MD_BLOCK_SIZE);
+		nr_blocks = div_up<block_address>(info.st_size, block_size);
 
 	else if (S_ISBLK(info.st_mode)) {
 		// To get the size of a block device we need to
