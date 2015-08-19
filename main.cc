@@ -32,6 +32,7 @@ int main(int argc, char **argv)
 	app.add_cmd(thin_provisioning::thin_restore_cmd);
 	app.add_cmd(thin_provisioning::thin_repair_cmd);
 	app.add_cmd(thin_provisioning::thin_rmap_cmd);
+	app.add_cmd(thin_provisioning::thin_show_dups_cmd);
 
 	// FIXME: convert thin_metadata_size to c++
 	//app.add_cmd(thin_provisioning::thin_metadata_size_cmd);

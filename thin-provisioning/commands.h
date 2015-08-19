@@ -15,6 +15,7 @@ namespace thin_provisioning {
 	extern base::command thin_rmap_cmd;
 	extern base::command thin_trim_cmd;
 	extern base::command thin_metadata_size_cmd;
+	extern base::command thin_show_dups_cmd;
 }
 
 //----------------------------------------------------------------
