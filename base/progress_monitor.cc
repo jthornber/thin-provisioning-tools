@@ -31,17 +31,22 @@ namespace {
 
 			if (nr_equals < progress_width_)
 				cout << '>';
+			else
+				cout << "=";
 
 			for (unsigned i = 0; i < nr_spaces; i++)
 				cout << ' ';
 
-			cout << "] " << spinner_char() << " " << p << "%\r" << flush;
+			cout << "] " << spinner_char(p) << " " << p << "%\r" << flush;
 
 			spinner_++;
 		}
 
 	private:
-		char spinner_char() const {
+		char spinner_char(unsigned p) const {
+			if (p == 100)
+				return ' ';
+
 			char cs[] = {'|', '/', '-', '\\'};
 
 			unsigned index = spinner_ % sizeof(cs);
