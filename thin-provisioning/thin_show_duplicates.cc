@@ -25,6 +25,7 @@
 #include "base/application.h"
 #include "base/error_state.h"
 #include "base/progress_monitor.h"
+#include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
@@ -32,18 +33,27 @@
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/superblock.h"
+#include "thin-provisioning/rmap_visitor.h"
 
 #include <boost/uuid/sha1.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
 #include <vector>
 
 using namespace base;
+using namespace boost;
+using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
+	bool factor_of(block_address f, block_address n) {
+		cerr << n << " % " << f << "\n";
+		return (n % f) == 0;
+	}
+
 	block_manager<>::ptr
 	open_bm(string const &path) {
 		block_address nr_blocks = get_nr_blocks(path);
@@ -74,13 +84,21 @@ namespace {
 
 	//--------------------------------
 
+	struct data_block {
+		block_address begin, end;
+		void *data;
+	};
+
+	//--------------------------------
+
 	struct flags {
 		flags()
-			: block_size(512 * 1024),
-			  cache_mem(64 * 1024 * 1024) {
+			: cache_mem(64 * 1024 * 1024) {
 		}
 
-		unsigned block_size;
+		string data_dev;
+		optional<string> metadata_dev;
+		optional<unsigned> block_size;
 		unsigned cache_mem;
 	};
 
@@ -93,6 +111,38 @@ namespace {
 		return fd;
 	}
 
+
+	// FIXME: introduce abstraction for a stream of segments
+
+	using namespace mapping_tree_detail;
+
+	typedef rmap_visitor::region region;
+	typedef rmap_visitor::rmap_region rmap_region;
+
+	class damage_visitor {
+	public:
+		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
+			throw std::runtime_error("damage in mapping tree, please run thin_check");
+		}
+	};
+
+	// FIXME: too big to return by value
+	vector<rmap_region> read_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+				      block_address nr_blocks) {
+		damage_visitor dv;
+		rmap_visitor rv;
+
+		mapping_tree mtree(*tm, sb.data_mapping_root_,
+				   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+
+		rv.add_data_region(rmap_visitor::region(0, nr_blocks));
+
+		btree_visit_values(mtree, rv, dv);
+		rv.complete();
+		cerr << "rmap size: " << rv.get_rmap().size() << "\n";
+		return rv.get_rmap();
+	}
+
 	class duplicate_counter {
 	public:
 		duplicate_counter(block_address nr_blocks)
@@ -101,7 +151,6 @@ namespace {
 		}
 
 		void add_duplicate(block_address b1, block_address b2) {
-			// cout << "block " << b2 << " is a duplicate of " << b1 << "\n";
 			total_dups_++;
 			counts_[b1]++;
 		}
@@ -153,10 +202,98 @@ namespace {
 		duplicate_counter results_;
 	};
 
-	int show_dups(string const &path, flags const &fs) {
-		cerr << "path = " << path << "\n";
+	int show_dups_pool(flags const &fs) {
+		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
+		transaction_manager::ptr tm = open_tm(bm);
+		superblock_detail::superblock sb = read_superblock(bm);
+
+		block_address block_size = sb.data_block_size_ * 512;
+#if 0
+		if (fs.block_size) {
+			if (!factor_of(*fs.block_size, sb.data_block_size_ * 512))
+				throw runtime_error("specified block size must be a factor of the pool block size.");
+
+			block_size = *fs.block_size;
+		}
+#endif
+
+		cerr << "path = " << fs.data_dev << "\n";
+		cerr << "block size = " << block_size << "\n";
+		block_address nr_blocks = get_nr_blocks(fs.data_dev, block_size);
+		cerr << "nr_blocks = " << nr_blocks << "\n";
+
+		cerr << "reading rmap...";
+		vector<rmap_region> rmap = read_rmap(tm, sb, nr_blocks);
+		cerr << "done\n";
+
+		uint32_t const UNMAPPED = -1;
+		vector<uint32_t> block_to_thin(nr_blocks, UNMAPPED);
+		vector<rmap_region>::const_iterator it;
+		set<uint32_t> thins;
+		block_address nr_mapped = 0;
+		for (it = rmap.begin(); it != rmap.end(); ++it) {
+			rmap_region const &r = *it;
+			for (block_address b = r.data_begin; b != r.data_end; b++)
+				if (block_to_thin[b] == UNMAPPED) {
+					nr_mapped++;
+					block_to_thin[b] = r.thin_dev;
+				}
+			thins.insert(r.thin_dev);
+		}
+		cerr << nr_mapped << " mapped blocks\n";
+
+		cerr << "there are " << thins.size() << " thin devices\n";
+
+		// The cache uses a LRU eviction policy, which plays badly
+		// with a sequential read.  So we can't prefetch all the
+		// blocks.
+
+		// FIXME: add MRU policy to cache
+		unsigned cache_blocks = (fs.cache_mem / block_size) / 2;
+		int fd = open_file(fs.data_dev);
+		sector_t block_sectors = block_size / 512;
+		block_cache cache(fd, block_sectors, nr_blocks, fs.cache_mem);
+		validator::ptr v(new bcache::noop_validator());
+
+		duplicate_detector detector(block_size, nr_blocks);
+
+		// warm up the cache
+		for (block_address i = 0; i < cache_blocks; i++)
+			cache.prefetch(i);
+
+		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+
+		for (block_address i = 0; i < nr_blocks; i++) {
+			if (block_to_thin[i] == UNMAPPED)
+				continue;
+
+			block_cache::block &b = cache.get(i, 0, v);
+			block_address prefetch = i + cache_blocks;
+			if (prefetch < nr_blocks)
+				cache.prefetch(prefetch);
+
+			detector.examine(b);
+			b.put();
+
+			if (!(i & 127))
+				pbar->update_percent(i * 100 / nr_blocks);
+		}
+		pbar->update_percent(100);
+
+		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
+		cout << (detector.get_total_duplicates() * 100) / nr_mapped << "% duplicates\n";
+
+		return 0;
+	}
+
+	int show_dups_linear(flags const &fs) {
+		if (!fs.block_size)
+			// FIXME: this check should be moved to the switch parsing
+			throw runtime_error("--block-sectors or --metadata-dev must be supplied");
+
+		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "block size = " << fs.block_size << "\n";
-		block_address nr_blocks = get_nr_blocks(path, fs.block_size);
+		block_address nr_blocks = get_nr_blocks(fs.data_dev, *fs.block_size);
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 
 		// The cache uses a LRU eviction policy, which plays badly
@@ -164,13 +301,13 @@ namespace {
 		// blocks.
 
 		// FIXME: add MRU policy to cache
-		unsigned cache_blocks = (fs.cache_mem / fs.block_size) / 2;
-		int fd = open_file(path);
-		sector_t block_sectors = fs.block_size / 512;
+		unsigned cache_blocks = (fs.cache_mem / *fs.block_size) / 2;
+		int fd = open_file(fs.data_dev);
+		sector_t block_sectors = *fs.block_size / 512;
 		block_cache cache(fd, block_sectors, nr_blocks, fs.cache_mem);
 		validator::ptr v(new bcache::noop_validator());
 
-		duplicate_detector detector(fs.block_size, nr_blocks);
+		duplicate_detector detector(*fs.block_size, nr_blocks);
 
 		// warm up the cache
 		for (block_address i = 0; i < cache_blocks; i++)
@@ -189,6 +326,7 @@ namespace {
 
 			pbar->update_percent(i * 100 / nr_blocks);
 		}
+		pbar->update_percent(100);
 
 		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
 		cout << (detector.get_total_duplicates() * 100) / nr_blocks << "% duplicates\n";
@@ -196,10 +334,20 @@ namespace {
 		return 0;
 	}
 
+	int show_dups(flags const &fs) {
+		if (fs.metadata_dev)
+			return show_dups_pool(fs);
+		else {
+			cerr << "No metadata device provided, so treating data device as a linear device\n";
+			return show_dups_linear(fs);
+		}
+	}
+
 	void usage(ostream &out, string const &cmd) {
 		out << "Usage: " << cmd << " [options] {device|file}\n"
 		    << "Options:\n"
 		    << "  {--block-sectors} <integer>\n"
+		    << "  {--metadata-dev} <path>\n"
 		    << "  {-h|--help}\n"
 		    << "  {-V|--version}" << endl;
 	}
@@ -213,6 +361,7 @@ int thin_show_dups_main(int argc, char **argv)
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
 		{ "block-sectors", required_argument, NULL, 1},
+		{ "metadata-dev", required_argument, NULL, 2},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -232,6 +381,10 @@ int thin_show_dups_main(int argc, char **argv)
 			fs.block_size = 512 * parse_int(optarg, "block sectors");
 			break;
 
+		case 2:
+			fs.metadata_dev = optarg;
+			break;
+
 		default:
 			usage(cerr, basename(argv[0]));
 			return 1;
@@ -239,12 +392,14 @@ int thin_show_dups_main(int argc, char **argv)
 	}
 
 	if (argc == optind) {
-		cerr << "No input file provided." << endl;
+		cerr << "No data device/file provided." << endl;
 		usage(cerr, basename(argv[0]));
 		exit(1);
 	}
 
-	return show_dups(argv[optind], fs);
+	fs.data_dev = argv[optind];
+
+	return show_dups(fs);
 }
 
 base::command thin_provisioning::thin_show_dups_cmd("thin_show_duplicates", thin_show_dups_main);
