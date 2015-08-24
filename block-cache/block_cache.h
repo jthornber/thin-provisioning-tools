@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <vector>
+#include <iostream>
 
 //----------------------------------------------------------------
 
@@ -110,6 +111,44 @@ namespace bcache {
 
 			iocb control_block_;
 			validator::ptr v_;
+		};
+
+		class auto_block {
+		public:
+			auto_block()
+				: b_(0) {
+			}
+
+			auto_block(block &b)
+			: b_(&b) {
+			}
+
+			~auto_block() {
+				put();
+			}
+
+			auto_block &operator =(block &b) {
+				put();
+				b_ = &b;
+				return *this;
+			}
+
+			void *get_data() const {
+				if (b_)
+					return b_->get_data();
+
+				throw std::runtime_error("auto_block not set");
+			}
+
+		private:
+			void put() {
+				if (b_) {
+					b_->put();
+					b_ = 0;
+				}
+			}
+
+			block *b_;
 		};
 
 		//--------------------------------

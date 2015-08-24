@@ -38,6 +38,7 @@
 #include <boost/uuid/sha1.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
+#include <deque>
 #include <vector>
 
 using namespace base;
@@ -52,6 +53,15 @@ namespace {
 	bool factor_of(block_address f, block_address n) {
 		cerr << n << " % " << f << "\n";
 		return (n % f) == 0;
+	}
+
+	int open_file(string const &path) {
+		int fd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_EXCL, 0666);
+		if (fd < 0)
+			syscall_failed("open",
+				 "Note: you cannot run this tool with these options on live metadata.");
+
+		return fd;
 	}
 
 	block_manager<>::ptr
@@ -84,9 +94,97 @@ namespace {
 
 	//--------------------------------
 
-	struct data_block {
-		block_address begin, end;
-		void *data;
+	// Once we start using variable sized blocks we will find we want
+	// to examine data that crosses cache block boundaries.  So a block
+	// to be examined can be composed of multiple chunks of memory.
+
+	struct mem {
+		mem(void *b, void *e)
+			: begin(b),
+			  end(e) {
+		}
+
+		void *begin, *end;
+	};
+
+	struct chunk {
+		sector_t offset_sectors_;
+		deque<mem> mem_;
+	};
+
+	class chunk_stream {
+	public:
+		virtual ~chunk_stream() {}
+
+		virtual void rewind() = 0;
+		virtual bool advance() = 0;
+		virtual chunk const &get() const = 0;
+	};
+
+	class cache_stream : public chunk_stream {
+	public:
+		cache_stream(string const &path,
+			     block_address block_size,
+			     size_t cache_mem)
+			: block_size_(block_size),
+			  nr_blocks_(get_nr_blocks(path, block_size)),
+
+			  // hack because cache uses LRU rather than MRU
+			  cache_blocks_((cache_mem / block_size) / 2u),
+			  fd_(open_file(path)),
+			  v_(new bcache::noop_validator()),
+			  cache_(new block_cache(fd_, block_size / 512, nr_blocks_, cache_mem)),
+			  current_index_(0) {
+			load(0);
+		}
+
+		virtual void rewind() {
+			load(0);
+		}
+
+		virtual bool advance() {
+			if (current_index_ >= nr_blocks_)
+				return false;
+
+			current_index_++;
+
+			load(current_index_);
+			return true;
+		}
+
+		virtual chunk const &get() const {
+			return current_chunk_;
+		}
+
+	private:
+		void load(block_address b) {
+			current_index_ = b;
+			current_block_ = cache_->get(current_index_, 0, v_);
+
+			current_chunk_.offset_sectors_ = (b * block_size_) / 512;
+			current_chunk_.mem_.clear();
+			current_chunk_.mem_.push_back(mem(current_block_.get_data(),
+							  current_block_.get_data() + block_size_));
+		}
+
+		block_address block_size_;
+		block_address nr_blocks_;
+		block_address cache_blocks_;
+		int fd_;
+		validator::ptr v_;
+		auto_ptr<block_cache> cache_;
+
+		block_address current_index_;
+		block_cache::auto_block current_block_;
+		chunk current_chunk_;
+	};
+
+	class fixed_block_stream : public chunk_stream {
+	public:
+	};
+
+	class variable_size_stream : public chunk_stream {
+
 	};
 
 	//--------------------------------
@@ -101,16 +199,6 @@ namespace {
 		optional<unsigned> block_size;
 		unsigned cache_mem;
 	};
-
-	int open_file(string const &path) {
-		int fd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_EXCL, 0666);
-		if (fd < 0)
-			syscall_failed("open",
-				 "Note: you cannot run this tool with these options on live metadata.");
-
-		return fd;
-	}
-
 
 	// FIXME: introduce abstraction for a stream of segments
 
@@ -216,6 +304,10 @@ namespace {
 			block_size = *fs.block_size;
 		}
 #endif
+
+		{
+			cache_stream(fs.data_dev, block_size, fs.cache_mem);
+		}
 
 		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "block size = " << block_size << "\n";
