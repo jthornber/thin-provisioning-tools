@@ -136,6 +136,8 @@ namespace {
 			  cache_(new block_cache(fd_, block_size / 512, nr_blocks_, cache_mem)),
 			  current_index_(0) {
 			load(0);
+			for (block_address i = 1; i < min(cache_blocks_, nr_blocks_); i++)
+				cache_->prefetch(i);
 		}
 
 		virtual void rewind() {
@@ -165,6 +167,9 @@ namespace {
 			current_chunk_.mem_.clear();
 			current_chunk_.mem_.push_back(mem(current_block_.get_data(),
 							  current_block_.get_data() + block_size_));
+
+			if (current_index_ + cache_blocks_ < nr_blocks_)
+				cache_->prefetch(current_index_ + cache_blocks_);
 		}
 
 		block_address block_size_;
