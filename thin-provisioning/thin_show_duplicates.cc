@@ -99,15 +99,17 @@ namespace {
 	// to be examined can be composed of multiple chunks of memory.
 
 	struct mem {
-		mem(void *b, void *e)
+		mem(uint8_t *b, uint8_t *e)
 			: begin(b),
 			  end(e) {
 		}
 
-		void *begin, *end;
+		uint8_t *begin, *end;
 	};
 
 	struct chunk {
+		// FIXME: switch to bytes rather than sectors
+		// FIXME: add length too
 		sector_t offset_sectors_;
 		deque<mem> mem_;
 	};
@@ -116,8 +118,10 @@ namespace {
 	public:
 		virtual ~chunk_stream() {}
 
+		virtual block_address nr_chunks() const = 0;
 		virtual void rewind() = 0;
-		virtual bool advance() = 0;
+		virtual bool advance(block_address count = 1ull) = 0;
+		virtual block_address index() const = 0;
 		virtual chunk const &get() const = 0;
 	};
 
@@ -140,18 +144,26 @@ namespace {
 				cache_->prefetch(i);
 		}
 
+		virtual block_address nr_chunks() const {
+			return nr_blocks_;
+		}
+
 		virtual void rewind() {
 			load(0);
 		}
 
-		virtual bool advance() {
-			if (current_index_ >= nr_blocks_)
+		virtual bool advance(block_address count = 1ull) {
+			if (current_index_ + count >= nr_blocks_)
 				return false;
 
-			current_index_++;
+			current_index_ += count;
 
 			load(current_index_);
 			return true;
+		}
+
+		virtual block_address index() const {
+			return current_index_;
 		}
 
 		virtual chunk const &get() const {
@@ -165,8 +177,8 @@ namespace {
 
 			current_chunk_.offset_sectors_ = (b * block_size_) / 512;
 			current_chunk_.mem_.clear();
-			current_chunk_.mem_.push_back(mem(current_block_.get_data(),
-							  current_block_.get_data() + block_size_));
+			current_chunk_.mem_.push_back(mem(static_cast<uint8_t *>(current_block_.get_data()),
+							  static_cast<uint8_t *>(current_block_.get_data()) + block_size_));
 
 			if (current_index_ + cache_blocks_ < nr_blocks_)
 				cache_->prefetch(current_index_ + cache_blocks_);
@@ -184,12 +196,112 @@ namespace {
 		chunk current_chunk_;
 	};
 
-	class fixed_block_stream : public chunk_stream {
+	//--------------------------------
+
+	typedef rmap_visitor::region region;
+	typedef rmap_visitor::rmap_region rmap_region;
+
+	uint32_t const UNMAPPED = -1;
+
+	class pool_stream : public chunk_stream {
 	public:
-	};
 
-	class variable_size_stream : public chunk_stream {
+		pool_stream(cache_stream &stream,
+			    transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+			    block_address nr_blocks)
+			: stream_(stream),
+			  block_to_thin_(stream.nr_chunks(), UNMAPPED),
+			  nr_mapped_(0) {
+			init_rmap(tm, sb, nr_blocks);
+		}
 
+		block_address nr_chunks() const {
+			return stream_.nr_chunks();
+		}
+
+		void rewind() {
+			stream_.rewind();
+		}
+
+		bool advance(block_address count = 1ull) {
+			while (count--)
+				if (!advance_one())
+					return false;
+
+			return true;
+		}
+
+		block_address index() const {
+			return stream_.index();
+		}
+
+		chunk const &get() const {
+			return stream_.get();
+		}
+
+	private:
+		class damage_visitor {
+		public:
+			virtual void visit(btree_path const &path, btree_detail::damage const &d) {
+				throw std::runtime_error("damage in mapping tree, please run thin_check");
+			}
+		};
+
+		// FIXME: too big to return by value
+		vector<rmap_region> read_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+					      block_address nr_blocks) {
+			damage_visitor dv;
+			rmap_visitor rv;
+
+			mapping_tree mtree(*tm, sb.data_mapping_root_,
+					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+
+			rv.add_data_region(rmap_visitor::region(0, nr_blocks));
+
+			btree_visit_values(mtree, rv, dv);
+			rv.complete();
+			cerr << "rmap size: " << rv.get_rmap().size() << "\n";
+			return rv.get_rmap();
+		}
+
+		void init_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+			       block_address nr_blocks) {
+			cerr << "reading rmap...";
+			vector<rmap_region> rmap = read_rmap(tm, sb, nr_blocks);
+			cerr << "done\n";
+
+			vector<rmap_region>::const_iterator it;
+			set<uint32_t> thins;
+			for (it = rmap.begin(); it != rmap.end(); ++it) {
+				rmap_region const &r = *it;
+				for (block_address b = r.data_begin; b != r.data_end; b++)
+					if (block_to_thin_[b] == UNMAPPED) {
+						nr_mapped_++;
+						block_to_thin_[b] = r.thin_dev;
+					}
+				thins.insert(r.thin_dev);
+			}
+
+			cerr << nr_mapped_ << " mapped blocks\n";
+			cerr << "there are " << thins.size() << " thin devices\n";
+		}
+
+		bool advance_one() {
+			block_address new_index = index() + 1;
+
+			while (block_to_thin_[new_index] == UNMAPPED &&
+			       new_index < nr_chunks())
+				new_index++;
+
+			if (new_index >= nr_chunks())
+				return false;
+
+			return stream_.advance(new_index - index());
+		}
+
+		cache_stream &stream_;
+		vector<uint32_t> block_to_thin_;
+		block_address nr_mapped_;
 	};
 
 	//--------------------------------
@@ -208,33 +320,6 @@ namespace {
 	// FIXME: introduce abstraction for a stream of segments
 
 	using namespace mapping_tree_detail;
-
-	typedef rmap_visitor::region region;
-	typedef rmap_visitor::rmap_region rmap_region;
-
-	class damage_visitor {
-	public:
-		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
-			throw std::runtime_error("damage in mapping tree, please run thin_check");
-		}
-	};
-
-	// FIXME: too big to return by value
-	vector<rmap_region> read_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
-				      block_address nr_blocks) {
-		damage_visitor dv;
-		rmap_visitor rv;
-
-		mapping_tree mtree(*tm, sb.data_mapping_root_,
-				   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
-
-		rv.add_data_region(rmap_visitor::region(0, nr_blocks));
-
-		btree_visit_values(mtree, rv, dv);
-		rv.complete();
-		cerr << "rmap size: " << rv.get_rmap().size() << "\n";
-		return rv.get_rmap();
-	}
 
 	class duplicate_counter {
 	public:
@@ -264,6 +349,7 @@ namespace {
 			  results_(nr_blocks) {
 		}
 
+		// FIXME: remove
 		void examine(block_cache::block const &b) {
 			digestor_.reset();
 			digestor_.process_bytes(b.get_data(), block_size_);
@@ -280,6 +366,28 @@ namespace {
 				results_.add_duplicate(it->second, b.get_index());
 			} else
 				fm_.insert(make_pair(v, b.get_index()));
+		}
+
+		void examine(chunk const &c) {
+			digestor_.reset();
+
+			for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++)
+				digestor_.process_bytes(it->begin, it->end - it->begin);
+
+			unsigned int digest[5];
+			digestor_.get_digest(digest);
+
+			// hack
+			vector<unsigned int> v(5);
+			for (unsigned i = 0; i < 5; i++)
+				v[i] = digest[i];
+
+			fingerprint_map::const_iterator it = fm_.find(v);
+			block_address index = (c.offset_sectors_ * 512) / block_size_;
+			if (it != fm_.end()) {
+				results_.add_duplicate(it->second, index);
+			} else
+				fm_.insert(make_pair(v, index));
 		}
 
 		block_address get_total_duplicates() const {
@@ -299,86 +407,29 @@ namespace {
 		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
 		transaction_manager::ptr tm = open_tm(bm);
 		superblock_detail::superblock sb = read_superblock(bm);
-
 		block_address block_size = sb.data_block_size_ * 512;
-#if 0
-		if (fs.block_size) {
-			if (!factor_of(*fs.block_size, sb.data_block_size_ * 512))
-				throw runtime_error("specified block size must be a factor of the pool block size.");
-
-			block_size = *fs.block_size;
-		}
-#endif
-
-		{
-			cache_stream(fs.data_dev, block_size, fs.cache_mem);
-		}
+		block_address nr_blocks = get_nr_blocks(fs.data_dev, block_size);
 
 		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "block size = " << block_size << "\n";
-		block_address nr_blocks = get_nr_blocks(fs.data_dev, block_size);
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 
-		cerr << "reading rmap...";
-		vector<rmap_region> rmap = read_rmap(tm, sb, nr_blocks);
-		cerr << "done\n";
-
-		uint32_t const UNMAPPED = -1;
-		vector<uint32_t> block_to_thin(nr_blocks, UNMAPPED);
-		vector<rmap_region>::const_iterator it;
-		set<uint32_t> thins;
-		block_address nr_mapped = 0;
-		for (it = rmap.begin(); it != rmap.end(); ++it) {
-			rmap_region const &r = *it;
-			for (block_address b = r.data_begin; b != r.data_end; b++)
-				if (block_to_thin[b] == UNMAPPED) {
-					nr_mapped++;
-					block_to_thin[b] = r.thin_dev;
-				}
-			thins.insert(r.thin_dev);
-		}
-		cerr << nr_mapped << " mapped blocks\n";
-
-		cerr << "there are " << thins.size() << " thin devices\n";
-
-		// The cache uses a LRU eviction policy, which plays badly
-		// with a sequential read.  So we can't prefetch all the
-		// blocks.
-
-		// FIXME: add MRU policy to cache
-		unsigned cache_blocks = (fs.cache_mem / block_size) / 2;
-		int fd = open_file(fs.data_dev);
-		sector_t block_sectors = block_size / 512;
-		block_cache cache(fd, block_sectors, nr_blocks, fs.cache_mem);
-		validator::ptr v(new bcache::noop_validator());
+		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
+		pool_stream pstream(stream, tm, sb, nr_blocks);
 
 		duplicate_detector detector(block_size, nr_blocks);
-
-		// warm up the cache
-		for (block_address i = 0; i < cache_blocks; i++)
-			cache.prefetch(i);
-
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 
-		for (block_address i = 0; i < nr_blocks; i++) {
-			if (block_to_thin[i] == UNMAPPED)
-				continue;
+		do {
+			chunk const &c = pstream.get();
+			detector.examine(c);
+			pbar->update_percent((pstream.index() * 100) / pstream.nr_chunks());
 
-			block_cache::block &b = cache.get(i, 0, v);
-			block_address prefetch = i + cache_blocks;
-			if (prefetch < nr_blocks)
-				cache.prefetch(prefetch);
-
-			detector.examine(b);
-			b.put();
-
-			if (!(i & 127))
-				pbar->update_percent(i * 100 / nr_blocks);
-		}
+		} while (pstream.advance());
 		pbar->update_percent(100);
 
 		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
-		cout << (detector.get_total_duplicates() * 100) / nr_mapped << "% duplicates\n";
+//		cout << (detector.get_total_duplicates() * 100) / nr_mapped_ << "% duplicates\n";
 
 		return 0;
 	}
