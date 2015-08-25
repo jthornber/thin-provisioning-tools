@@ -50,7 +50,7 @@ pool_stream::pool_stream(cache_stream &stream,
 block_address
 pool_stream::nr_chunks() const
 {
-	return stream_.nr_chunks();
+	return nr_mapped_;
 }
 
 void

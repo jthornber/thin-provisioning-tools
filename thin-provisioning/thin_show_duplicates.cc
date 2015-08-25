@@ -210,12 +210,11 @@ namespace {
 		pbar->update_percent(100);
 
 		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
-//		cout << (detector.get_total_duplicates() * 100) / nr_mapped_ << "% duplicates\n";
+		cout << (detector.get_total_duplicates() * 100) / pstream.nr_chunks() << "% duplicates\n";
 
 		return 0;
 	}
 
-#if 0
 	int show_dups_linear(flags const &fs) {
 		if (!fs.block_size)
 			// FIXME: this check should be moved to the switch parsing
@@ -223,39 +222,21 @@ namespace {
 
 		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "block size = " << fs.block_size << "\n";
+		block_address block_size = *fs.block_size * 512;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, *fs.block_size);
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 
-		// The cache uses a LRU eviction policy, which plays badly
-		// with a sequential read.  So we can't prefetch all the
-		// blocks.
-
-		// FIXME: add MRU policy to cache
-		unsigned cache_blocks = (fs.cache_mem / *fs.block_size) / 2;
-		int fd = open_file(fs.data_dev);
-		sector_t block_sectors = *fs.block_size / 512;
-		block_cache cache(fd, block_sectors, nr_blocks, fs.cache_mem);
-		validator::ptr v(new bcache::noop_validator());
+		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 
 		duplicate_detector detector(*fs.block_size, nr_blocks);
 
-		// warm up the cache
-		for (block_address i = 0; i < cache_blocks; i++)
-			cache.prefetch(i);
-
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+		do {
+			chunk const &c = stream.get();
+			detector.examine(c);
+			pbar->update_percent((stream.index() * 100) / stream.nr_chunks());
 
-		for (block_address i = 0; i < nr_blocks; i++) {
-			block_cache::block &b = cache.get(i, 0, v);
-			block_address prefetch = i + cache_blocks;
-			if (prefetch < nr_blocks)
-				cache.prefetch(prefetch);
-
-			detector.examine(b);
-			b.put();
-
-			pbar->update_percent(i * 100 / nr_blocks);
-		}
+		} while (stream.advance());
 		pbar->update_percent(100);
 
 		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
@@ -263,14 +244,13 @@ namespace {
 
 		return 0;
 	}
-#endif
 
 	int show_dups(flags const &fs) {
 		if (fs.metadata_dev)
 			return show_dups_pool(fs);
 		else {
 			cerr << "No metadata device provided, so treating data device as a linear device\n";
-			//return show_dups_linear(fs);
+			return show_dups_linear(fs);
 		}
 	}
 
