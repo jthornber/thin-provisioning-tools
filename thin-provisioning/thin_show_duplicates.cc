@@ -220,15 +220,15 @@ namespace {
 			// FIXME: this check should be moved to the switch parsing
 			throw runtime_error("--block-sectors or --metadata-dev must be supplied");
 
-		cerr << "path = " << fs.data_dev << "\n";
-		cerr << "block size = " << fs.block_size << "\n";
-		block_address block_size = *fs.block_size * 512;
+		block_address block_size = *fs.block_size;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, *fs.block_size);
+
+		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "nr_blocks = " << nr_blocks << "\n";
+		cerr << "block size = " << block_size << "\n";
 
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
-
-		duplicate_detector detector(*fs.block_size, nr_blocks);
+		duplicate_detector detector(block_size, nr_blocks);
 
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 		do {
