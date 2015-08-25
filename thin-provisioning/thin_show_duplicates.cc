@@ -106,47 +106,44 @@ namespace {
 	public:
 		duplicate_counter(block_address nr_blocks)
 		: counts_(nr_blocks),
-		  total_dups_(0) {
+		  non_zero_dups_(0),
+		  zero_dups_(0) {
 		}
 
 		void add_duplicate(block_address b1, block_address b2) {
-			total_dups_++;
+			non_zero_dups_++;
 			counts_[b1]++;
 		}
 
+		void add_zero_duplicate(block_address b) {
+			zero_dups_++;
+		}
+
 		block_address get_total() const {
-			return total_dups_;
+			return non_zero_dups_ + zero_dups_;
+		}
+
+		block_address get_non_zeroes() const {
+			return non_zero_dups_;
+		}
+
+		block_address get_zeroes() const {
+			return zero_dups_;
 		}
 
 	private:
 		vector<block_address> counts_;
-		block_address total_dups_;
+		block_address non_zero_dups_;
+		block_address zero_dups_;
 	};
 
 	class duplicate_detector {
 	public:
 		duplicate_detector(unsigned block_size, block_address nr_blocks)
 			: block_size_(block_size),
-			  results_(nr_blocks) {
-		}
-
-		// FIXME: remove
-		void examine(block_cache::block const &b) {
-			digestor_.reset();
-			digestor_.process_bytes(b.get_data(), block_size_);
-			unsigned int digest[5];
-			digestor_.get_digest(digest);
-
-			// hack
-			vector<unsigned int> v(5);
-			for (unsigned i = 0; i < 5; i++)
-				v[i] = digest[i];
-
-			fingerprint_map::const_iterator it = fm_.find(v);
-			if (it != fm_.end()) {
-				results_.add_duplicate(it->second, b.get_index());
-			} else
-				fm_.insert(make_pair(v, b.get_index()));
+			  results_(nr_blocks),
+			  zero_fingerprint_(5, 0ull) {
+			calc_zero_fingerprint();
 		}
 
 		void examine(chunk const &c) {
@@ -163,16 +160,37 @@ namespace {
 			for (unsigned i = 0; i < 5; i++)
 				v[i] = digest[i];
 
-			fingerprint_map::const_iterator it = fm_.find(v);
 			block_address index = (c.offset_sectors_ * 512) / block_size_;
-			if (it != fm_.end()) {
-				results_.add_duplicate(it->second, index);
-			} else
-				fm_.insert(make_pair(v, index));
+
+			if (v == zero_fingerprint_)
+				results_.add_zero_duplicate(index);
+
+			else {
+				fingerprint_map::const_iterator it = fm_.find(v);
+				if (it != fm_.end()) {
+					results_.add_duplicate(it->second, index);
+				} else
+					fm_.insert(make_pair(v, index));
+			}
 		}
 
-		block_address get_total_duplicates() const {
-			return results_.get_total();
+		duplicate_counter const &get_results() const {
+			return results_;
+		}
+
+		void calc_zero_fingerprint() {
+			auto_ptr<uint8_t> bytes(new uint8_t[block_size_]);
+			memset(bytes.get(), 0, block_size_);
+
+			digestor_.reset();
+			digestor_.process_bytes(bytes.get(), block_size_);
+
+			unsigned int digest[5];
+			digestor_.get_digest(digest);
+
+			// hack
+			for (unsigned i = 0; i < 5; i++)
+				zero_fingerprint_[i] = digest[i];
 		}
 
 	private:
@@ -182,6 +200,8 @@ namespace {
 		boost::uuids::detail::sha1 digestor_;
 		fingerprint_map fm_;
 		duplicate_counter results_;
+
+		vector<unsigned int> zero_fingerprint_;
 	};
 
 	int show_dups_pool(flags const &fs) {
@@ -209,8 +229,8 @@ namespace {
 		} while (pstream.advance());
 		pbar->update_percent(100);
 
-		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
-		cout << (detector.get_total_duplicates() * 100) / pstream.nr_chunks() << "% duplicates\n";
+		cout << "\n\ntotal dups: " << detector.get_results().get_total() << endl;
+		cout << (detector.get_results().get_total() * 100) / pstream.nr_chunks() << "% duplicates\n";
 
 		return 0;
 	}
@@ -239,8 +259,12 @@ namespace {
 		} while (stream.advance());
 		pbar->update_percent(100);
 
-		cout << "\n\ntotal dups: " << detector.get_total_duplicates() << endl;
-		cout << (detector.get_total_duplicates() * 100) / nr_blocks << "% duplicates\n";
+		cout << "\n\ntotal dups: " << detector.get_results().get_total() << endl;
+		cout << (detector.get_results().get_total() * 100) / nr_blocks << "% duplicates\n";
+
+		duplicate_counter r = detector.get_results();
+		cout << "\n\nchunks\tnon zero dups\tzero dups\n"
+		     << nr_blocks << "\t" << r.get_non_zeroes() << "\t" << r.get_zeroes() << "\n";
 
 		return 0;
 	}
