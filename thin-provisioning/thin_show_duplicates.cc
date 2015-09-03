@@ -36,6 +36,7 @@
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"
 #include "thin-provisioning/superblock.h"
+#include "thin-provisioning/variable_chunk_stream.h"
 
 #include <boost/uuid/sha1.hpp>
 #include <boost/lexical_cast.hpp>
@@ -98,25 +99,21 @@ namespace {
 		unsigned cache_mem;
 	};
 
-	// FIXME: introduce abstraction for a stream of segments
-
 	using namespace mapping_tree_detail;
 
 	class duplicate_counter {
 	public:
-		duplicate_counter(block_address nr_blocks)
-		: counts_(nr_blocks),
-		  non_zero_dups_(0),
+		duplicate_counter()
+		: non_zero_dups_(0),
 		  zero_dups_(0) {
 		}
 
-		void add_duplicate(block_address b1, block_address b2) {
-			non_zero_dups_++;
-			counts_[b1]++;
+		void add_duplicate(block_address len) {
+			non_zero_dups_ += len;
 		}
 
-		void add_zero_duplicate(block_address b) {
-			zero_dups_++;
+		void add_zero_duplicate(block_address len) {
+			zero_dups_ += len;
 		}
 
 		block_address get_total() const {
@@ -132,45 +129,35 @@ namespace {
 		}
 
 	private:
-		vector<block_address> counts_;
 		block_address non_zero_dups_;
 		block_address zero_dups_;
 	};
 
 	class duplicate_detector {
 	public:
-		duplicate_detector(unsigned block_size, block_address nr_blocks)
-			: block_size_(block_size),
-			  results_(nr_blocks),
-			  zero_fingerprint_(5, 0ull) {
-			calc_zero_fingerprint();
-		}
-
 		void examine(chunk const &c) {
-			digestor_.reset();
-
-			for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++)
-				digestor_.process_bytes(it->begin, it->end - it->begin);
-
-			unsigned int digest[5];
-			digestor_.get_digest(digest);
-
-			// hack
-			vector<unsigned int> v(5);
-			for (unsigned i = 0; i < 5; i++)
-				v[i] = digest[i];
-
-			block_address index = (c.offset_sectors_ * 512) / block_size_;
-
-			if (v == zero_fingerprint_)
-				results_.add_zero_duplicate(index);
+			if (all_zeroes(c))
+				results_.add_zero_duplicate(c.len_);
 
 			else {
+				digestor_.reset();
+
+				for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++)
+					digestor_.process_bytes(it->begin, it->end - it->begin);
+
+				unsigned int digest[5];
+				digestor_.get_digest(digest);
+
+				// hack
+				vector<unsigned int> v(5);
+				for (unsigned i = 0; i < 5; i++)
+					v[i] = digest[i];
+
 				fingerprint_map::const_iterator it = fm_.find(v);
 				if (it != fm_.end()) {
-					results_.add_duplicate(it->second, index);
+					results_.add_duplicate(c.len_);
 				} else
-					fm_.insert(make_pair(v, index));
+					fm_.insert(make_pair(v, c.offset_));
 			}
 		}
 
@@ -178,30 +165,24 @@ namespace {
 			return results_;
 		}
 
-		void calc_zero_fingerprint() {
-			auto_ptr<uint8_t> bytes(new uint8_t[block_size_]);
-			memset(bytes.get(), 0, block_size_);
+	private:
+		bool all_zeroes(chunk const &c) const {
+			for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++) {
+				for (uint8_t *ptr = it->begin; ptr != it->end; ptr++) {
+					if (*ptr != 0)
+						return false;
+				}
+			}
 
-			digestor_.reset();
-			digestor_.process_bytes(bytes.get(), block_size_);
-
-			unsigned int digest[5];
-			digestor_.get_digest(digest);
-
-			// hack
-			for (unsigned i = 0; i < 5; i++)
-				zero_fingerprint_[i] = digest[i];
+			return true;
 		}
 
-	private:
 		typedef map<vector<unsigned int>, block_address> fingerprint_map;
 
 		unsigned block_size_;
 		boost::uuids::detail::sha1 digestor_;
 		fingerprint_map fm_;
 		duplicate_counter results_;
-
-		vector<unsigned int> zero_fingerprint_;
 	};
 
 	int show_dups_pool(flags const &fs) {
@@ -218,15 +199,16 @@ namespace {
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 		pool_stream pstream(stream, tm, sb, nr_blocks);
 
-		duplicate_detector detector(block_size, nr_blocks);
+		duplicate_detector detector;
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 
 		do {
 			chunk const &c = pstream.get();
 			detector.examine(c);
+			pstream.put(c);
 			pbar->update_percent((pstream.index() * 100) / pstream.nr_chunks());
 
-		} while (pstream.advance());
+		} while (pstream.next());
 		pbar->update_percent(100);
 
 		cout << "\n\ntotal dups: " << detector.get_results().get_total() << endl;
@@ -247,24 +229,27 @@ namespace {
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 		cerr << "block size = " << block_size << "\n";
 
-		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
-		duplicate_detector detector(block_size, nr_blocks);
+		cache_stream low_level_stream(fs.data_dev, block_size, fs.cache_mem);
+		variable_chunk_stream stream(low_level_stream, 4096);
+		duplicate_detector detector;
 
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 		do {
+			// FIXME: use a wrapper class to automate the put()
 			chunk const &c = stream.get();
 			detector.examine(c);
-			pbar->update_percent((stream.index() * 100) / stream.nr_chunks());
+			stream.put(c);
+//			pbar->update_percent((stream.index() * 100) / stream.nr_chunks());
 
-		} while (stream.advance());
+		} while (stream.next());
 		pbar->update_percent(100);
 
-		cout << "\n\ntotal dups: " << detector.get_results().get_total() << endl;
-		cout << (detector.get_results().get_total() * 100) / nr_blocks << "% duplicates\n";
-
 		duplicate_counter r = detector.get_results();
-		cout << "\n\nchunks\tnon zero dups\tzero dups\n"
-		     << nr_blocks << "\t" << r.get_non_zeroes() << "\t" << r.get_zeroes() << "\n";
+		block_address meg = 1024 * 1024;
+		cout << "\n\n"
+		     << (nr_blocks * block_size) / meg << "m examined, "
+		     << r.get_non_zeroes() / meg << "m duplicates, "
+		     << r.get_zeroes() / meg << "m zeroes\n";
 
 		return 0;
 	}

@@ -37,21 +37,24 @@ namespace thin_provisioning {
 	};
 
 	struct chunk {
-		// FIXME: switch to bytes rather than sectors
-		// FIXME: add length too
-		uint64_t offset_sectors_;
+		uint64_t offset_, len_;
 		std::deque<mem> mem_;
+
+		uint8_t operator[](uint64_t n) const;
 	};
 
 	class chunk_stream {
 	public:
 		virtual ~chunk_stream() {}
 
-		virtual bcache::block_address nr_chunks() const = 0;
 		virtual void rewind() = 0;
-		virtual bool advance(bcache::block_address count = 1ull) = 0;
 		virtual bcache::block_address index() const = 0;
-		virtual chunk const &get() const = 0;
+
+		virtual bool next(bcache::block_address count = 1ull) = 0;
+		virtual bool eof() const = 0;
+
+		virtual chunk const &get() = 0;
+		virtual void put(chunk const &c) = 0;
 	};
 }
 

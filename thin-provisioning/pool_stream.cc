@@ -60,13 +60,19 @@ pool_stream::rewind()
 }
 
 bool
-pool_stream::advance(block_address count)
+pool_stream::next(block_address count)
 {
 	while (count--)
 		if (!advance_one())
 			return false;
 
 	return true;
+}
+
+bool
+pool_stream::eof() const
+{
+	return stream_.eof();
 }
 
 block_address
@@ -76,12 +82,16 @@ pool_stream::index() const
 }
 
 chunk const &
-pool_stream::get() const
+pool_stream::get()
 {
 	return stream_.get();
 }
 
-
+void
+pool_stream::put(chunk const &c)
+{
+	stream_.put(c);
+}
 
 // FIXME: too big to return by value
 vector<pool_stream::rmap_region>
@@ -140,7 +150,7 @@ pool_stream::advance_one()
 	if (new_index >= nr_chunks())
 		return false;
 
-	return stream_.advance(new_index - index());
+	return stream_.next(new_index - index());
 }
 
 //----------------------------------------------------------------

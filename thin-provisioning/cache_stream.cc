@@ -32,9 +32,8 @@ cache_stream::cache_stream(string const &path,
 	  v_(new bcache::noop_validator()),
 	  cache_(new block_cache(fd_, block_size / 512, nr_blocks_, cache_mem)),
 	  current_index_(0) {
-	load(0);
-	for (block_address i = 1; i < min(cache_blocks_, nr_blocks_); i++)
-		cache_->prefetch(i);
+
+	rewind();
 }
 
 block_address
@@ -46,19 +45,27 @@ cache_stream::nr_chunks() const
 void
 cache_stream::rewind()
 {
-	load(0);
+	current_index_ = 0;
+
+	for (block_address i = 1; i < min(cache_blocks_, nr_blocks_); i++)
+		cache_->prefetch(i);
 }
 
 bool
-cache_stream::advance(block_address count)
+cache_stream::next(block_address count)
 {
-	if (current_index_ + count >= nr_blocks_)
-		return false;
+	current_index_ = min(current_index_ + count, nr_blocks_);
 
-	current_index_ += count;
+	if (current_index_ + cache_blocks_ < nr_blocks_)
+		cache_->prefetch(current_index_ + cache_blocks_);
 
-	load(current_index_);
-	return true;
+	return !eof();
+}
+
+bool
+cache_stream::eof() const
+{
+	return current_index_ >= nr_blocks_;
 }
 
 block_address
@@ -68,24 +75,26 @@ cache_stream::index() const
 }
 
 chunk const &
-cache_stream::get() const
+cache_stream::get()
 {
-	return current_chunk_;
+	chunk_wrapper *w = new chunk_wrapper(*this);
+	return w->c_;
 }
 
 void
-cache_stream::load(block_address b)
+cache_stream::put(chunk const &c)
 {
-	current_index_ = b;
-	current_block_ = cache_->get(current_index_, 0, v_);
+	chunk_wrapper *w = container_of(const_cast<chunk *>(&c), chunk_wrapper, c_);
+	delete w;
+}
 
-	current_chunk_.offset_sectors_ = (b * block_size_) / 512;
-	current_chunk_.mem_.clear();
-	current_chunk_.mem_.push_back(mem(static_cast<uint8_t *>(current_block_.get_data()),
-					  static_cast<uint8_t *>(current_block_.get_data()) + block_size_));
-
-	if (current_index_ + cache_blocks_ < nr_blocks_)
-		cache_->prefetch(current_index_ + cache_blocks_);
+cache_stream::chunk_wrapper::chunk_wrapper(cache_stream &parent)
+	: block_(parent.cache_->get(parent.current_index_, 0, parent.v_))
+{
+	c_.offset_ = parent.current_index_ * parent.block_size_;
+	c_.len_ = parent.block_size_;
+	c_.mem_.push_back(mem(static_cast<uint8_t *>(block_.get_data()),
+			      static_cast<uint8_t *>(block_.get_data()) + parent.block_size_));
 }
 
 //----------------------------------------------------------------

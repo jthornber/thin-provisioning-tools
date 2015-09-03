@@ -34,16 +34,20 @@ namespace thin_provisioning {
 
 		block_address nr_chunks() const;
 		void rewind();
-		bool advance(block_address count = 1ull);
+		bool next(block_address count = 1ull);
+		bool eof() const;
 		block_address index() const;
-		chunk const &get() const;
+
+		chunk const &get();
+		void put(chunk const &c);
 
 	private:
 		typedef rmap_visitor::region region;
 		typedef rmap_visitor::rmap_region rmap_region;
 
 		// FIXME: too big to return by value
-		vector<rmap_region> read_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+		vector<rmap_region> read_rmap(transaction_manager::ptr tm,
+					      superblock_detail::superblock const &sb,
 					      block_address nr_blocks);
 		void init_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
 			       block_address nr_blocks);
