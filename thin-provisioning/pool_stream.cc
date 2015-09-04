@@ -41,22 +41,25 @@ pool_stream::pool_stream(cache_stream &stream,
 			 transaction_manager::ptr tm, superblock_detail::superblock const &sb,
 			 block_address nr_blocks)
 	: stream_(stream),
-	  block_to_thin_(stream.nr_chunks(), UNMAPPED),
-	  nr_mapped_(0)
+	  block_to_thin_(nr_blocks, UNMAPPED),
+	  nr_mapped_(0),
+	  index_(0),
+	  block_size_(sb.data_block_size_ * 512)
 {
 	init_rmap(tm, sb, nr_blocks);
 }
 
 block_address
-pool_stream::nr_chunks() const
+pool_stream::size() const
 {
-	return nr_mapped_;
+	return nr_mapped_ * block_size_;
 }
 
 void
 pool_stream::rewind()
 {
 	stream_.rewind();
+	index_ = 0;
 }
 
 bool
@@ -73,12 +76,6 @@ bool
 pool_stream::eof() const
 {
 	return stream_.eof();
-}
-
-block_address
-pool_stream::index() const
-{
-	return stream_.index();
 }
 
 chunk const &
@@ -141,16 +138,14 @@ pool_stream::init_rmap(transaction_manager::ptr tm,
 bool
 pool_stream::advance_one()
 {
-	block_address new_index = index() + 1;
+	block_address count = 1;
 
-	while (block_to_thin_[new_index] == UNMAPPED &&
-	       new_index < nr_chunks())
-		new_index++;
+	while (((index_ + count) < block_to_thin_.size()) &&
+	       (block_to_thin_[index_ + count] == UNMAPPED))
+		count++;
 
-	if (new_index >= nr_chunks())
-		return false;
-
-	return stream_.next(new_index - index());
+	index_ += count;
+	return stream_.next(count);
 }
 
 //----------------------------------------------------------------

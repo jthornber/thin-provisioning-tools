@@ -37,9 +37,9 @@ cache_stream::cache_stream(string const &path,
 }
 
 block_address
-cache_stream::nr_chunks() const
+cache_stream::size() const
 {
-	return nr_blocks_;
+	return nr_blocks_ * block_size_;
 }
 
 void
@@ -66,12 +66,6 @@ bool
 cache_stream::eof() const
 {
 	return current_index_ >= nr_blocks_;
-}
-
-block_address
-cache_stream::index() const
-{
-	return current_index_;
 }
 
 chunk const &

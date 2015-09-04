@@ -19,6 +19,12 @@ variable_chunk_stream::~variable_chunk_stream()
 	put_big_chunk();
 }
 
+bcache::block_address
+variable_chunk_stream::size() const
+{
+	return stream_.size();
+}
+
 void
 variable_chunk_stream::rewind()
 {
@@ -43,12 +49,6 @@ bool
 variable_chunk_stream::eof() const
 {
 	return stream_.eof();
-}
-
-bcache::block_address
-variable_chunk_stream::index() const
-{
-	return index_;
 }
 
 chunk const &

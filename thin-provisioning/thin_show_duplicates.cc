@@ -182,6 +182,34 @@ namespace {
 		duplicate_counter results_;
 	};
 
+	void display_results(chunk_stream const &stream, duplicate_counter const &r) {
+		block_address meg = 1024 * 1024;
+		cout << "\n\n"
+		     << stream.size() / meg << "m examined, "
+		     << r.get_non_zeroes() / meg << "m duplicates, "
+		     << r.get_zeroes() / meg << "m zeroes\n";
+	}
+
+	void scan(chunk_stream &stream, block_address stream_size) {
+		duplicate_detector detector;
+		block_address total_seen(0);
+		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+
+		do {
+			// FIXME: use a wrapper class to automate the put()
+			chunk const &c = stream.get();
+			detector.examine(c);
+			stream.put(c);
+
+			total_seen += c.len_;
+			pbar->update_percent((total_seen * 100) / stream.size());
+
+		} while (stream.next());
+
+		pbar->update_percent(100);
+		display_results(stream, detector.get_results());
+	}
+
 	int show_dups_pool(flags const &fs) {
 		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
 		transaction_manager::ptr tm = open_tm(bm);
@@ -195,21 +223,9 @@ namespace {
 
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 		pool_stream pstream(stream, tm, sb, nr_blocks);
+		variable_chunk_stream vstream(pstream, 4096);
 
-		duplicate_detector detector;
-		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
-
-		do {
-			chunk const &c = pstream.get();
-			detector.examine(c);
-			pstream.put(c);
-			pbar->update_percent((pstream.index() * 100) / pstream.nr_chunks());
-
-		} while (pstream.next());
-		pbar->update_percent(100);
-
-		cout << "\n\ntotal dups: " << detector.get_results().get_total() << endl;
-		cout << (detector.get_results().get_total() * 100) / pstream.nr_chunks() << "% duplicates\n";
+		scan(vstream, nr_blocks * block_size);
 
 		return 0;
 	}
@@ -229,26 +245,8 @@ namespace {
 
 		cache_stream low_level_stream(fs.data_dev, block_size, fs.cache_mem);
 		variable_chunk_stream stream(low_level_stream, 4096);
-		duplicate_detector detector;
 
-		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
-		do {
-			// FIXME: use a wrapper class to automate the put()
-			chunk const &c = stream.get();
-			detector.examine(c);
-			stream.put(c);
-
-			pbar->update_percent((c.offset_ * 100) / dev_size);
-
-		} while (stream.next());
-		pbar->update_percent(100);
-
-		duplicate_counter r = detector.get_results();
-		block_address meg = 1024 * 1024;
-		cout << "\n\n"
-		     << (nr_blocks * block_size) / meg << "m examined, "
-		     << r.get_non_zeroes() / meg << "m duplicates, "
-		     << r.get_zeroes() / meg << "m zeroes\n";
+		scan(stream, dev_size);
 
 		return 0;
 	}

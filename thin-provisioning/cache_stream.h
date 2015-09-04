@@ -14,10 +14,9 @@ namespace thin_provisioning {
 			     block_address block_size,
 			     size_t cache_mem);
 
-		block_address nr_chunks() const;
+		block_address size() const;
 
 		virtual void rewind();
-		virtual block_address index() const;
 
 		virtual bool next(block_address count = 1ull);
 		virtual bool eof() const;

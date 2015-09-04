@@ -51,7 +51,7 @@ namespace thin_provisioning {
 		virtual ~chunk_stream() {}
 
 		virtual void rewind() = 0;
-		virtual bcache::block_address index() const = 0;
+		virtual bcache::block_address size() const = 0;
 
 		virtual bool next(bcache::block_address count = 1ull) = 0;
 		virtual bool eof() const = 0;

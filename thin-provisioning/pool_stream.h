@@ -32,11 +32,10 @@ namespace thin_provisioning {
 			    transaction_manager::ptr tm, superblock_detail::superblock const &sb,
 			    block_address nr_blocks);
 
-		block_address nr_chunks() const;
+		block_address size() const;
 		void rewind();
 		bool next(block_address count = 1ull);
 		bool eof() const;
-		block_address index() const;
 
 		chunk const &get();
 		void put(chunk const &c);
@@ -56,6 +55,8 @@ namespace thin_provisioning {
 		cache_stream &stream_;
 		vector<uint32_t> block_to_thin_;
 		block_address nr_mapped_;
+		block_address index_;
+		block_address block_size_;
 	};
 }
 

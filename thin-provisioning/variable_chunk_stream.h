@@ -13,11 +13,10 @@ namespace thin_provisioning {
 		variable_chunk_stream(chunk_stream &stream, unsigned window_size);
 		~variable_chunk_stream();
 
-		// FIXME: we don't know in advance how many chunks we will have
+		virtual bcache::block_address size() const;
 		virtual void rewind();
 		virtual bool next(bcache::block_address count = 1ull);
 		virtual bool eof() const;
-		virtual bcache::block_address index() const;
 		virtual chunk const &get();
 		virtual void put(chunk const &c);
 
