@@ -80,7 +80,7 @@ variable_chunk_stream::next_big_chunk()
 		return false;
 
 	big_chunk_ = &stream_.get();
-	little_b_ = little_e_ = big_chunk_->mem_.front().begin;
+	little_b_ = little_e_ = last_hashed_ = big_chunk_->mem_.front().begin;
 	h_.reset();
 
 	return true;
@@ -95,6 +95,7 @@ variable_chunk_stream::advance_one()
 
 	big_e = big_chunk_->mem_.front().end;
 	little_b_ = little_e_;
+	little_e_ = last_hashed_;
 
 	if (little_b_ == big_e) {
 		if (next_big_chunk())
@@ -105,35 +106,28 @@ variable_chunk_stream::advance_one()
 
 	assert(little_e_ >= big_chunk_->mem_.front().begin);
 	assert(little_b_ >= big_chunk_->mem_.front().begin);
-#if 1
-	if (little_e_ > big_e) {
-		cerr << "before -- little_e_: " << (void *) little_e_ << ", big_e: " << (void *) big_e << "\n";
-	}
-#endif
 	assert(little_e_ <= big_e);
 	assert(little_b_ <= big_e);
 
 
 	while (little_e_ != big_e) {
 		optional<unsigned> maybe_break = h_.step(*little_e_);
+		little_e_++;
 
 		if (maybe_break) {
 			// The break is not neccessarily at the current
 			// byte.
+			last_hashed_ = little_e_;
 			little_e_ = little_b_ + *maybe_break;
 			break;
 		}
-
-		little_e_++;
 	}
+
+	if (little_e_ == big_e)
+		last_hashed_ = little_e_;
 
 	assert(little_e_ >= big_chunk_->mem_.front().begin);
 	assert(little_b_ >= big_chunk_->mem_.front().begin);
-#if 1
-	if (little_e_ > big_e) {
-		cerr << "after -- little_e_: " << (void *) little_e_ << ", big_e: " << (void *) big_e << "\n";
-	}
-#endif
 	assert(little_e_ <= big_e);
 	assert(little_b_ <= big_e);
 

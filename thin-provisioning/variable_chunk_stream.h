@@ -32,7 +32,7 @@ namespace thin_provisioning {
 		chunk_stream &stream_;
 		chunk const *big_chunk_;
 
-		uint8_t *little_b_, *little_e_;
+		uint8_t *little_b_, *little_e_, *last_hashed_;
 		chunk little_chunk_;
 	};
 }

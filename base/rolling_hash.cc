@@ -82,7 +82,6 @@ content_based_hash::reset()
 optional<unsigned>
 content_based_hash::step(uint8_t byte)
 {
-#if 0
 	optional<unsigned> r;
 
 	rhash_.step(byte);
@@ -114,28 +113,6 @@ content_based_hash::step(uint8_t byte)
 	}
 
 	return r;
-#else
-	optional<unsigned> r;
-
-	rhash_.step(byte);
-	len_++;
-
-	if (len_ < min_len_)
-		return r;
-
-	if (hit_break(div_)) {
-		// found a break
-		r = len_;
-		len_ = 0;
-		backup_break_.reset();
-
-	} else if (len_ >= max_len_) {
-		r = len_;
-		len_ = 0;
-	}
-
-	return r;
-#endif
 }
 
 bool
