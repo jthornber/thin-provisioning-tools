@@ -224,6 +224,7 @@ namespace {
 
 		block_address block_size = *fs.block_size;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, *fs.block_size);
+		block_address dev_size = nr_blocks * *fs.block_size;
 
 		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "nr_blocks = " << nr_blocks << "\n";
@@ -239,7 +240,8 @@ namespace {
 			chunk const &c = stream.get();
 			detector.examine(c);
 			stream.put(c);
-//			pbar->update_percent((stream.index() * 100) / stream.nr_chunks());
+
+			pbar->update_percent((c.offset_ * 100) / dev_size);
 
 		} while (stream.next());
 		pbar->update_percent(100);
