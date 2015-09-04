@@ -10,7 +10,8 @@ using namespace std;
 rolling_hash::rolling_hash(unsigned window_size)
 	: a_(MULTIPLIER),
 	  a_to_k_minus_1_(a_),
-	  window_size_(window_size) {
+	  window_size_(window_size),
+	  buffer_(window_size) {
 
 	for (unsigned i = 1; i < window_size_ - 1; i++)
 		a_to_k_minus_1_ *= a_;
@@ -22,12 +23,12 @@ void
 rolling_hash::reset()
 {
 	// prime with zeroes
-	chars_.clear();
+	buffer_.clear();
 
 	hash_ = 0;
 	for (unsigned i = 0; i < window_size_; i++) {
 		hash_ = (hash_ * a_) + SEED;
-		chars_.push_back(0);
+		buffer_.push_back(0);
 	}
 }
 

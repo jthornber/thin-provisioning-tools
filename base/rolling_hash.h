@@ -1,7 +1,7 @@
 #ifndef BASE_ROLLING_HASH_H
 #define BASE_ROLLING_HASH_H
 
-#include <list>
+#include <boost/circular_buffer.hpp>
 #include <stdint.h>
 #include <boost/optional.hpp>
 
@@ -31,20 +31,18 @@ namespace base {
 
 	private:
 		void update_hash(uint8_t byte) {
-			hash_ -= a_to_k_minus_1_ * (chars_.front() + hash_detail::SEED);
-			chars_.pop_front();
-			chars_.push_back(byte);
+			hash_ -= a_to_k_minus_1_ * (buffer_.front() + hash_detail::SEED);
+			buffer_.push_back(byte);
 			hash_ = (hash_ * a_) + byte + hash_detail::SEED;
 		}
 
 		uint32_t a_;
 		uint32_t a_to_k_minus_1_;
 
-		// FIXME: use a ring buffer
-		std::list<uint8_t> chars_;
-
 		uint32_t hash_;
 		uint32_t window_size_;
+
+		boost::circular_buffer<uint8_t> buffer_;
 	};
 
 	class content_based_hash {
