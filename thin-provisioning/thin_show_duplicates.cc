@@ -142,8 +142,7 @@ namespace {
 			else {
 				digestor_.reset();
 
-				for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++)
-					digestor_.process_bytes(it->begin, it->end - it->begin);
+				digestor_.process_bytes(c.mem_.begin, c.mem_.end - c.mem_.begin);
 
 				unsigned int digest[5];
 				digestor_.get_digest(digest);
@@ -167,11 +166,9 @@ namespace {
 
 	private:
 		bool all_zeroes(chunk const &c) const {
-			for (deque<mem>::const_iterator it = c.mem_.begin(); it != c.mem_.end(); it++) {
-				for (uint8_t *ptr = it->begin; ptr != it->end; ptr++) {
-					if (*ptr != 0)
-						return false;
-				}
+			for (uint8_t *ptr = c.mem_.begin; ptr != c.mem_.end; ptr++) {
+				if (*ptr != 0)
+					return false;
 			}
 
 			return true;

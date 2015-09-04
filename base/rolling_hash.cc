@@ -40,7 +40,7 @@ content_based_hash::content_based_hash(unsigned window_size)
 	  // FIXME: hard coded values
 	  backup_div_((window_size / 4) - 1),
 	  div_((window_size / 2) - 1),
-	  min_len_(window_size / 8),
+	  min_len_(window_size / 4),
 	  max_len_(window_size),
 	  len_(0)
 {

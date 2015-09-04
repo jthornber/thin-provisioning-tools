@@ -59,8 +59,8 @@ variable_chunk_stream::get()
 	little_chunk_.len_ = little_e_ - little_b_;
 	little_chunk_.offset_ = big_chunk_->offset_ + little_chunk_.len_;
 
-	little_chunk_.mem_.clear();
-	little_chunk_.mem_.push_back(mem(little_b_, little_e_));
+	little_chunk_.mem_.begin = little_b_;
+	little_chunk_.mem_.end = little_e_;
 
 	return little_chunk_;
 }
@@ -80,7 +80,7 @@ variable_chunk_stream::next_big_chunk()
 		return false;
 
 	big_chunk_ = &stream_.get();
-	little_b_ = little_e_ = last_hashed_ = big_chunk_->mem_.front().begin;
+	little_b_ = little_e_ = last_hashed_ = big_chunk_->mem_.begin;
 	h_.reset();
 
 	return true;
@@ -93,19 +93,19 @@ variable_chunk_stream::advance_one()
 
 	assert(big_chunk_);
 
-	big_e = big_chunk_->mem_.front().end;
+	big_e = big_chunk_->mem_.end;
 	little_b_ = little_e_;
 	little_e_ = last_hashed_;
 
 	if (little_b_ == big_e) {
 		if (next_big_chunk())
-			big_e = big_chunk_->mem_.front().end;
+			big_e = big_chunk_->mem_.end;
 		else
 			return false;
 	}
 
-	assert(little_e_ >= big_chunk_->mem_.front().begin);
-	assert(little_b_ >= big_chunk_->mem_.front().begin);
+	assert(little_e_ >= big_chunk_->mem_.begin);
+	assert(little_b_ >= big_chunk_->mem_.begin);
 	assert(little_e_ <= big_e);
 	assert(little_b_ <= big_e);
 
@@ -126,8 +126,8 @@ variable_chunk_stream::advance_one()
 	if (little_e_ == big_e)
 		last_hashed_ = little_e_;
 
-	assert(little_e_ >= big_chunk_->mem_.front().begin);
-	assert(little_b_ >= big_chunk_->mem_.front().begin);
+	assert(little_e_ >= big_chunk_->mem_.begin);
+	assert(little_b_ >= big_chunk_->mem_.begin);
 	assert(little_e_ <= big_e);
 	assert(little_b_ <= big_e);
 

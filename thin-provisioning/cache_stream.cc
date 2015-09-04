@@ -93,8 +93,8 @@ cache_stream::chunk_wrapper::chunk_wrapper(cache_stream &parent)
 {
 	c_.offset_ = parent.current_index_ * parent.block_size_;
 	c_.len_ = parent.block_size_;
-	c_.mem_.push_back(mem(static_cast<uint8_t *>(block_.get_data()),
-			      static_cast<uint8_t *>(block_.get_data()) + parent.block_size_));
+	c_.mem_.begin = static_cast<uint8_t *>(block_.get_data());
+	c_.mem_.end = c_.mem_.begin + parent.block_size_;
 }
 
 //----------------------------------------------------------------

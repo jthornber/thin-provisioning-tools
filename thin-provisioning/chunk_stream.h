@@ -28,6 +28,11 @@
 
 namespace thin_provisioning {
 	struct mem {
+		mem()
+			: begin(0),
+			  end(0) {
+		}
+
 		mem(uint8_t *b, uint8_t *e)
 			: begin(b),
 			  end(e) {
@@ -38,9 +43,7 @@ namespace thin_provisioning {
 
 	struct chunk {
 		uint64_t offset_, len_;
-		std::deque<mem> mem_;
-
-		uint8_t operator[](uint64_t n) const;
+		mem mem_;
 	};
 
 	class chunk_stream {
