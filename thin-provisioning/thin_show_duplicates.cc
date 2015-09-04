@@ -90,13 +90,15 @@ namespace {
 
 	struct flags {
 		flags()
-			: cache_mem(64 * 1024 * 1024) {
+			: cache_mem(64 * 1024 * 1024),
+			  content_based_chunks(false) {
 		}
 
 		string data_dev;
 		optional<string> metadata_dev;
 		optional<unsigned> block_size;
 		unsigned cache_mem;
+		bool content_based_chunks;
 	};
 
 	using namespace mapping_tree_detail;
@@ -190,7 +192,7 @@ namespace {
 		     << r.get_zeroes() / meg << "m zeroes\n";
 	}
 
-	void scan(chunk_stream &stream, block_address stream_size) {
+	void scan(chunk_stream &stream) {
 		duplicate_detector detector;
 		block_address total_seen(0);
 		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
@@ -210,6 +212,11 @@ namespace {
 		display_results(stream, detector.get_results());
 	}
 
+	void scan_with_variable_sized_chunks(chunk_stream &stream) {
+		variable_chunk_stream vstream(stream, 4096);
+		scan(vstream);
+	}
+
 	int show_dups_pool(flags const &fs) {
 		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
 		transaction_manager::ptr tm = open_tm(bm);
@@ -217,15 +224,13 @@ namespace {
 		block_address block_size = sb.data_block_size_ * 512;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, block_size);
 
-		cerr << "path = " << fs.data_dev << "\n";
-		cerr << "block size = " << block_size << "\n";
-		cerr << "nr_blocks = " << nr_blocks << "\n";
-
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 		pool_stream pstream(stream, tm, sb, nr_blocks);
-		variable_chunk_stream vstream(pstream, 4096);
 
-		scan(vstream, nr_blocks * block_size);
+		if (fs.content_based_chunks)
+			scan_with_variable_sized_chunks(pstream);
+		else
+			scan(pstream);
 
 		return 0;
 	}
@@ -237,16 +242,17 @@ namespace {
 
 		block_address block_size = *fs.block_size;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, *fs.block_size);
-		block_address dev_size = nr_blocks * *fs.block_size;
 
 		cerr << "path = " << fs.data_dev << "\n";
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 		cerr << "block size = " << block_size << "\n";
 
-		cache_stream low_level_stream(fs.data_dev, block_size, fs.cache_mem);
-		variable_chunk_stream stream(low_level_stream, 4096);
+		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 
-		scan(stream, dev_size);
+		if (fs.content_based_chunks)
+			scan_with_variable_sized_chunks(stream);
+		else
+			scan(stream);
 
 		return 0;
 	}
@@ -264,6 +270,7 @@ namespace {
 		out << "Usage: " << cmd << " [options] {device|file}\n"
 		    << "Options:\n"
 		    << "  {--block-sectors} <integer>\n"
+		    << "  {--content-based-chunks}\n"
 		    << "  {--metadata-dev} <path>\n"
 		    << "  {-h|--help}\n"
 		    << "  {-V|--version}" << endl;
@@ -278,7 +285,8 @@ int thin_show_dups_main(int argc, char **argv)
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
 		{ "block-sectors", required_argument, NULL, 1},
-		{ "metadata-dev", required_argument, NULL, 2},
+		{ "content-based-chunks", no_argument, NULL, 2},
+		{ "metadata-dev", required_argument, NULL, 3},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -299,6 +307,10 @@ int thin_show_dups_main(int argc, char **argv)
 			break;
 
 		case 2:
+			fs.content_based_chunks = true;
+			break;
+
+		case 3:
 			fs.metadata_dev = optarg;
 			break;
 
