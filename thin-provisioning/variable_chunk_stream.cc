@@ -91,8 +91,6 @@ variable_chunk_stream::advance_one()
 {
 	uint8_t *big_e;
 
-	assert(big_chunk_);
-
 	big_e = big_chunk_->mem_.end;
 	little_b_ = little_e_;
 	little_e_ = last_hashed_;
@@ -103,12 +101,6 @@ variable_chunk_stream::advance_one()
 		else
 			return false;
 	}
-
-	assert(little_e_ >= big_chunk_->mem_.begin);
-	assert(little_b_ >= big_chunk_->mem_.begin);
-	assert(little_e_ <= big_e);
-	assert(little_b_ <= big_e);
-
 
 	while (little_e_ != big_e) {
 		optional<unsigned> maybe_break = h_.step(*little_e_);
@@ -125,11 +117,6 @@ variable_chunk_stream::advance_one()
 
 	if (little_e_ == big_e)
 		last_hashed_ = little_e_;
-
-	assert(little_e_ >= big_chunk_->mem_.begin);
-	assert(little_b_ >= big_chunk_->mem_.begin);
-	assert(little_e_ <= big_e);
-	assert(little_b_ <= big_e);
 
 	return true;
 }
