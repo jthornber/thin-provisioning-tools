@@ -130,6 +130,14 @@ namespace {
 			return zero_dups_;
 		}
 
+		void display_results(chunk_stream const &stream) const {
+			block_address meg = 1024 * 1024;
+			cout << "\n\n"
+			     << stream.size() / meg << "m examined, "
+			     << get_non_zeroes() / meg << "m duplicates, "
+			     << get_zeroes() / meg << "m zeroes\n";
+		}
+
 	private:
 		block_address non_zero_dups_;
 		block_address zero_dups_;
@@ -137,13 +145,36 @@ namespace {
 
 	class duplicate_detector {
 	public:
+		void scan(chunk_stream &stream) {
+			block_address total_seen(0);
+			auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+
+			do {
+				// FIXME: use a wrapper class to automate the put()
+				chunk const &c = stream.get();
+				examine(c);
+				stream.put(c);
+
+				total_seen += c.len_;
+				pbar->update_percent((total_seen * 100) / stream.size());
+
+			} while (stream.next());
+
+			pbar->update_percent(100);
+			results_.display_results(stream);
+		}
+
+		duplicate_counter const &get_results() const {
+			return results_;
+		}
+
+	private:
 		void examine(chunk const &c) {
 			if (all_zeroes(c))
 				results_.add_zero_duplicate(c.len_);
 
 			else {
 				digestor_.reset();
-
 				digestor_.process_bytes(c.mem_.begin, c.mem_.end - c.mem_.begin);
 
 				unsigned int digest[5];
@@ -162,11 +193,6 @@ namespace {
 			}
 		}
 
-		duplicate_counter const &get_results() const {
-			return results_;
-		}
-
-	private:
 		bool all_zeroes(chunk const &c) const {
 			for (uint8_t *ptr = c.mem_.begin; ptr != c.mem_.end; ptr++) {
 				if (*ptr != 0)
@@ -184,37 +210,10 @@ namespace {
 		duplicate_counter results_;
 	};
 
-	void display_results(chunk_stream const &stream, duplicate_counter const &r) {
-		block_address meg = 1024 * 1024;
-		cout << "\n\n"
-		     << stream.size() / meg << "m examined, "
-		     << r.get_non_zeroes() / meg << "m duplicates, "
-		     << r.get_zeroes() / meg << "m zeroes\n";
-	}
-
-	void scan(chunk_stream &stream) {
-		duplicate_detector detector;
-		block_address total_seen(0);
-		auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
-
-		do {
-			// FIXME: use a wrapper class to automate the put()
-			chunk const &c = stream.get();
-			detector.examine(c);
-			stream.put(c);
-
-			total_seen += c.len_;
-			pbar->update_percent((total_seen * 100) / stream.size());
-
-		} while (stream.next());
-
-		pbar->update_percent(100);
-		display_results(stream, detector.get_results());
-	}
-
-	void scan_with_variable_sized_chunks(chunk_stream &stream) {
+	void scan_with_variable_sized_chunks(chunk_stream &stream,
+					     duplicate_detector &detector) {
 		variable_chunk_stream vstream(stream, 4096);
-		scan(vstream);
+		detector.scan(vstream);
 	}
 
 	int show_dups_pool(flags const &fs) {
@@ -227,10 +226,12 @@ namespace {
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 		pool_stream pstream(stream, tm, sb, nr_blocks);
 
+		duplicate_detector detector;
+
 		if (fs.content_based_chunks)
-			scan_with_variable_sized_chunks(pstream);
+			scan_with_variable_sized_chunks(pstream, detector);
 		else
-			scan(pstream);
+			detector.scan(pstream);
 
 		return 0;
 	}
@@ -248,11 +249,12 @@ namespace {
 		cerr << "block size = " << block_size << "\n";
 
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
+		duplicate_detector dd;
 
 		if (fs.content_based_chunks)
-			scan_with_variable_sized_chunks(stream);
+			scan_with_variable_sized_chunks(stream, dd);
 		else
-			scan(stream);
+			dd.scan(stream);
 
 		return 0;
 	}
