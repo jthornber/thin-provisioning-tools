@@ -164,6 +164,12 @@ namespace {
 			results_.display_results(stream);
 		}
 
+
+		void scan_with_variable_sized_chunks(chunk_stream &stream) {
+			variable_chunk_stream vstream(stream, 4096);
+			scan(vstream);
+		}
+
 		duplicate_counter const &get_results() const {
 			return results_;
 		}
@@ -210,12 +216,6 @@ namespace {
 		duplicate_counter results_;
 	};
 
-	void scan_with_variable_sized_chunks(chunk_stream &stream,
-					     duplicate_detector &detector) {
-		variable_chunk_stream vstream(stream, 4096);
-		detector.scan(vstream);
-	}
-
 	int show_dups_pool(flags const &fs) {
 		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
 		transaction_manager::ptr tm = open_tm(bm);
@@ -229,7 +229,7 @@ namespace {
 		duplicate_detector detector;
 
 		if (fs.content_based_chunks)
-			scan_with_variable_sized_chunks(pstream, detector);
+			detector.scan_with_variable_sized_chunks(pstream);
 		else
 			detector.scan(pstream);
 
@@ -252,7 +252,7 @@ namespace {
 		duplicate_detector dd;
 
 		if (fs.content_based_chunks)
-			scan_with_variable_sized_chunks(stream, dd);
+			dd.scan_with_variable_sized_chunks(stream);
 		else
 			dd.scan(stream);
 
