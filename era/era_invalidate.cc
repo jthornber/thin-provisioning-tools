@@ -152,7 +152,7 @@ namespace {
 	int invalidate(string const &dev, string const &output, flags const &fs) {
 		try {
 			set<uint32_t> blocks;
-			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY);
+			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY, !fs.metadata_snapshot_);
 
 			if (fs.metadata_snapshot_) {
 				superblock sb = read_superblock(bm);
