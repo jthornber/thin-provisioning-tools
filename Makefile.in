@@ -75,6 +75,7 @@ SOURCE=\
 	thin-provisioning/cache_stream.cc \
 	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
+	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \

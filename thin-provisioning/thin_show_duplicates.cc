@@ -30,6 +30,7 @@
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
 #include "thin-provisioning/cache_stream.h"
+#include "thin-provisioning/fixed_chunk_stream.h"
 #include "thin-provisioning/pool_stream.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/device_tree.h"
@@ -54,7 +55,6 @@ using namespace thin_provisioning;
 
 namespace {
 	bool factor_of(block_address f, block_address n) {
-		cerr << n << " % " << f << "\n";
 		return (n % f) == 0;
 	}
 
@@ -145,6 +145,21 @@ namespace {
 
 	class duplicate_detector {
 	public:
+		void scan_with_variable_sized_chunks(chunk_stream &stream) {
+			variable_chunk_stream vstream(stream, 4096);
+			scan(vstream);
+		}
+
+		void scan_with_fixed_sized_chunks(chunk_stream &stream, block_address chunk_size) {
+			fixed_chunk_stream fstream(stream, chunk_size);
+			scan(fstream);
+		}
+
+		duplicate_counter const &get_results() const {
+			return results_;
+		}
+
+	private:
 		void scan(chunk_stream &stream) {
 			block_address total_seen(0);
 			auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
@@ -164,17 +179,6 @@ namespace {
 			results_.display_results(stream);
 		}
 
-
-		void scan_with_variable_sized_chunks(chunk_stream &stream) {
-			variable_chunk_stream vstream(stream, 4096);
-			scan(vstream);
-		}
-
-		duplicate_counter const &get_results() const {
-			return results_;
-		}
-
-	private:
 		void examine(chunk const &c) {
 			if (all_zeroes(c))
 				results_.add_zero_duplicate(c.len_);
@@ -230,8 +234,16 @@ namespace {
 
 		if (fs.content_based_chunks)
 			detector.scan_with_variable_sized_chunks(pstream);
-		else
-			detector.scan(pstream);
+		else {
+			if (*fs.block_size) {
+				if (factor_of(*fs.block_size, block_size))
+					block_size = *fs.block_size;
+				else
+					throw runtime_error("specified block size is not a factor of the pool chunk size\n");
+			}
+
+			detector.scan_with_fixed_sized_chunks(pstream, block_size);
+		}
 
 		return 0;
 	}
@@ -254,7 +266,7 @@ namespace {
 		if (fs.content_based_chunks)
 			dd.scan_with_variable_sized_chunks(stream);
 		else
-			dd.scan(stream);
+			dd.scan_with_fixed_sized_chunks(stream, block_size);
 
 		return 0;
 	}
