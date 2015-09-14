@@ -46,6 +46,7 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	cruncher/compressor.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -109,7 +110,7 @@ CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-lstdc++ -laio -lexpat
+LIBS:=-lstdc++ -laio -lexpat -llz4
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
