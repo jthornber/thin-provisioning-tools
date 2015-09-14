@@ -31,8 +31,11 @@ compressor::compress(compressor::mem_region const &src,
 					   COMPRESSION_LEVEL);
 
 	// FIXME: catch OOS
+	if (r == 0)
+		throw compression_oos_error("out of dest space for compression");
+
 	if (r <= 0)
-		throw runtime_error("compression failed. FIXME: catch insufficient dest space");
+		throw compression_error("compression failed");
 
 	return r;
 }
@@ -45,7 +48,7 @@ compressor::decompress(compressor::mem_region const &src,
 				    (char *) dest.begin,
 				    src.size(), dest.size());
 	if (r <= 0)
-		throw runtime_error("decompression failed.");
+		throw compression_error("decompression failed.");
 }
 
 //----------------------------------------------------------------
