@@ -5,6 +5,7 @@
 #include "caching/commands.h"
 #include "era/commands.h"
 #include "thin-provisioning/commands.h"
+#include "cruncher/commands.h"
 
 //----------------------------------------------------------------
 
@@ -36,6 +37,8 @@ int main(int argc, char **argv)
 
 	// FIXME: convert thin_metadata_size to c++
 	//app.add_cmd(thin_provisioning::thin_metadata_size_cmd);
+
+	app.add_cmd(cruncher::crunch_cmd);
 
 	return app.run(argc, argv);
 }

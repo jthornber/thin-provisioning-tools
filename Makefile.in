@@ -47,6 +47,7 @@ SOURCE=\
 	caching/superblock.cc \
 	caching/xml_format.cc \
 	cruncher/compressor.cc \
+	cruncher/crunch.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -178,6 +179,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/cache_repair
 	ln -s -f pdata_tools $(BINDIR)/cache_restore
+	ln -s -f pdata_tools $(BINDIR)/crunch
 	ln -s -f pdata_tools $(BINDIR)/thin_check
 	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
