@@ -1,15 +1,17 @@
-#ifndef THIN_PROVISIONING_FIXED_CHUNK_STREAM_H
-#define THIN_PROVISIONING_FIXED_CHUNK_STREAM_H
+#ifndef CHUNKER_VARIABLE_CHUNK_STREAM_H
+#define CHUNKER_VARIABLE_CHUNK_STREAM_H
 
-#include "thin-provisioning/chunk_stream.h"
+#include "base/rolling_hash.h"
+#include "chunker/chunk_stream.h"
 
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	class fixed_chunk_stream : public chunk_stream {
+	class variable_chunk_stream : public chunk_stream {
 	public:
-		fixed_chunk_stream(chunk_stream &stream, unsigned chunk_size);
-		~fixed_chunk_stream();
+		// window_size must be a power of 2
+		variable_chunk_stream(chunk_stream &stream, unsigned window_size);
+		~variable_chunk_stream();
 
 		virtual bcache::block_address size() const;
 		virtual void rewind();
@@ -24,9 +26,9 @@ namespace thin_provisioning {
 		void put_big_chunk();
 
 		bcache::block_address index_;
+		base::content_based_hash h_;
 
 		chunk_stream &stream_;
-		unsigned chunk_size_;
 		chunk const *big_chunk_;
 
 		uint8_t *little_b_, *little_e_, *last_hashed_;

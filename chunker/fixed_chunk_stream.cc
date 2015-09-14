@@ -1,4 +1,4 @@
-#include "thin-provisioning/fixed_chunk_stream.h"
+#include "chunker/fixed_chunk_stream.h"
 
 using namespace thin_provisioning;
 

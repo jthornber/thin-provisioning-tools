@@ -46,6 +46,11 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	chunker/cache_stream.cc \
+	chunker/chunk_stream.cc \
+	chunker/fixed_chunk_stream.cc \
+	chunker/pool_stream.cc \
+	chunker/variable_chunk_stream.cc \
 	cruncher/compressor.cc \
 	cruncher/crunch.cc \
 	era/era_array.cc \
@@ -74,16 +79,12 @@ SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
-	thin-provisioning/cache_stream.cc \
-	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
-	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/metadata_dumper.cc \
-	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
@@ -97,7 +98,6 @@ SOURCE=\
 	thin-provisioning/thin_rmap.cc \
 	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_trim.cc \
-	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/xml_format.cc
 
 CC:=@CC@

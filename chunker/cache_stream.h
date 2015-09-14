@@ -1,7 +1,7 @@
-#ifndef THIN_PROVISIONING_CACHE_STREAM_H
-#define THIN_PROVISIONING_CACHE_STREAM_H
+#ifndef CHUNKER_CACHE_STREAM_H
+#define CHUNKER_CACHE_STREAM_H
 
-#include "thin-provisioning/chunk_stream.h"
+#include "chunker/chunk_stream.h"
 
 //----------------------------------------------------------------
 

@@ -29,15 +29,15 @@
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
-#include "thin-provisioning/cache_stream.h"
-#include "thin-provisioning/fixed_chunk_stream.h"
-#include "thin-provisioning/pool_stream.h"
+#include "chunker/cache_stream.h"
+#include "chunker/fixed_chunk_stream.h"
+#include "chunker/pool_stream.h"
+#include "chunker/variable_chunk_stream.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/rmap_visitor.h"
 #include "thin-provisioning/superblock.h"
-#include "thin-provisioning/variable_chunk_stream.h"
 
 #include <boost/uuid/sha1.hpp>
 #include <boost/lexical_cast.hpp>

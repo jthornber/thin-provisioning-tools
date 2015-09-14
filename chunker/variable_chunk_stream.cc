@@ -1,4 +1,4 @@
-#include "thin-provisioning/variable_chunk_stream.h"
+#include "chunker/variable_chunk_stream.h"
 
 using namespace boost;
 using namespace std;

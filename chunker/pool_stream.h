@@ -16,10 +16,10 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef POOL_STREAM_H
-#define POOL_STREAM_H
+#ifndef CHUNKER_POOL_STREAM_H
+#define CHUNKER_STREAM_H
 
-#include "thin-provisioning/cache_stream.h"
+#include "chunker/cache_stream.h"
 #include "thin-provisioning/rmap_visitor.h"
 #include "thin-provisioning/superblock.h"
 

@@ -16,7 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "thin-provisioning/pool_stream.h"
+#include "chunker/pool_stream.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 
 using namespace thin_provisioning;
