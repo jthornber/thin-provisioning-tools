@@ -53,6 +53,7 @@ SOURCE=\
 	chunker/variable_chunk_stream.cc \
 	cruncher/compressor.cc \
 	cruncher/crunch.cc \
+	cruncher/metadata.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -144,8 +145,12 @@ endif
 	$(RM) $*.$$$$
 
 %.h: %.xdr
-	@echo "    [XDRGEN] $<"
-	$(V) $(XDRGEN) -f c++-header $@ > $<
+	@echo "    [XDRGEN] $< -> C++ header"
+	$(V) $(XDRGEN) -f c++-header $< > $@
+
+%.cc: %.xdr
+	@echo "    [XDRGEN] $< -> C++ implementation"
+	$(V) $(XDRGEN) -f c++-impl $< > $@
 
 #----------------------------------------------------------------
 
