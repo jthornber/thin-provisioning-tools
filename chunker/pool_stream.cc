@@ -19,6 +19,7 @@
 #include "chunker/pool_stream.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 
+using namespace chunker;
 using namespace thin_provisioning;
 using namespace persistent_data;
 

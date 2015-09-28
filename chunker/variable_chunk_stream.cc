@@ -1,8 +1,8 @@
 #include "chunker/variable_chunk_stream.h"
 
 using namespace boost;
+using namespace chunker;
 using namespace std;
-using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
@@ -11,7 +11,9 @@ variable_chunk_stream::variable_chunk_stream(chunk_stream &stream, unsigned wind
 	  h_(window_size),
 	  stream_(stream),
 	  big_chunk_(0) {
+
 	next_big_chunk();
+	advance_one();
 }
 
 variable_chunk_stream::~variable_chunk_stream()
@@ -57,6 +59,8 @@ variable_chunk_stream::get()
 	assert(big_chunk_);
 
 	little_chunk_.len_ = little_e_ - little_b_;
+	assert(little_chunk_.len_);
+
 	little_chunk_.offset_ = big_chunk_->offset_ + little_chunk_.len_;
 
 	little_chunk_.mem_.begin = little_b_;
@@ -87,20 +91,19 @@ variable_chunk_stream::next_big_chunk()
 }
 
 bool
-variable_chunk_stream::advance_one()
+variable_chunk_stream::need_big_chunk() const
+{
+	return (!big_chunk_ || little_e_ == big_chunk_->mem_.end);
+}
+
+void
+variable_chunk_stream::advance_one_assuming_big_chunk()
 {
 	uint8_t *big_e;
 
 	big_e = big_chunk_->mem_.end;
 	little_b_ = little_e_;
 	little_e_ = last_hashed_;
-
-	if (little_b_ == big_e) {
-		if (next_big_chunk())
-			big_e = big_chunk_->mem_.end;
-		else
-			return false;
-	}
 
 	while (little_e_ != big_e) {
 		optional<unsigned> maybe_break = h_.step(*little_e_);
@@ -117,7 +120,15 @@ variable_chunk_stream::advance_one()
 
 	if (little_e_ == big_e)
 		last_hashed_ = little_e_;
+}
 
+bool
+variable_chunk_stream::advance_one()
+{
+	if (need_big_chunk() && !next_big_chunk())
+		return false;
+
+	advance_one_assuming_big_chunk();
 	return true;
 }
 

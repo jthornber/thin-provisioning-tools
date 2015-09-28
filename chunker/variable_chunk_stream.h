@@ -6,7 +6,7 @@
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace chunker {
 	class variable_chunk_stream : public chunk_stream {
 	public:
 		// window_size must be a power of 2
@@ -21,7 +21,9 @@ namespace thin_provisioning {
 		virtual void put(chunk const &c);
 
 	private:
+		bool need_big_chunk() const;
 		bool next_big_chunk();
+		void advance_one_assuming_big_chunk();
 		bool advance_one();
 		void put_big_chunk();
 

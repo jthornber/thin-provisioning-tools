@@ -5,7 +5,7 @@
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace chunker {
 	class fixed_chunk_stream : public chunk_stream {
 	public:
 		fixed_chunk_stream(chunk_stream &stream, unsigned chunk_size);

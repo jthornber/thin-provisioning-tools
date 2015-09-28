@@ -25,11 +25,14 @@
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace chunker {
+	namespace tp = thin_provisioning;
+
 	class pool_stream : public chunk_stream {
 	public:
 		pool_stream(cache_stream &stream,
-			    transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+			    transaction_manager::ptr tm,
+			    tp::superblock_detail::superblock const &sb,
 			    block_address nr_blocks);
 
 		block_address size() const;
@@ -41,14 +44,15 @@ namespace thin_provisioning {
 		void put(chunk const &c);
 
 	private:
-		typedef rmap_visitor::region region;
-		typedef rmap_visitor::rmap_region rmap_region;
+		typedef tp::rmap_visitor::region region;
+		typedef tp::rmap_visitor::rmap_region rmap_region;
 
 		// FIXME: too big to return by value
 		vector<rmap_region> read_rmap(transaction_manager::ptr tm,
-					      superblock_detail::superblock const &sb,
+					      tp::superblock_detail::superblock const &sb,
 					      block_address nr_blocks);
-		void init_rmap(transaction_manager::ptr tm, superblock_detail::superblock const &sb,
+		void init_rmap(transaction_manager::ptr tm,
+			       tp::superblock_detail::superblock const &sb,
 			       block_address nr_blocks);
 		bool advance_one();
 

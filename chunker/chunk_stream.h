@@ -26,7 +26,7 @@
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace chunker {
 	struct mem {
 		mem()
 			: begin(0),

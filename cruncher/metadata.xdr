@@ -1,0 +1,26 @@
+module metadata;
+
+//----------------------------------------------------------------
+
+// Mappings
+struct header {
+       int foo;
+       unsigned int bar;
+};
+
+//----------------------------------------------------------------
+
+// Container
+typedef opaque sha1[20];
+
+struct index_entry {
+	sha1 hash;
+	unsigned int size;
+};
+
+struct container {
+	index_entry entry<>;
+	opaque compressed<>;
+};
+
+//----------------------------------------------------------------

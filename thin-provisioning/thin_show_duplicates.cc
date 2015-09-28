@@ -47,6 +47,7 @@
 
 using namespace base;
 using namespace boost;
+using namespace chunker;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;

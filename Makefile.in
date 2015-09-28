@@ -117,6 +117,7 @@ PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
 DATADIR:=$(DESTDIR)$(PREFIX)/share
 MANPATH:=$(DATADIR)/man
+XDRGEN:=~/xdrgen/dist/build/xdrgen/xdrgen
 
 vpath %.cc $(TOP_DIR)
 
@@ -141,6 +142,10 @@ endif
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
+
+%.h: %.xdr
+	@echo "    [XDRGEN] $<"
+	$(V) $(XDRGEN) -f c++-header $@ > $<
 
 #----------------------------------------------------------------
 

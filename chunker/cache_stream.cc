@@ -1,7 +1,7 @@
 #include "chunker/cache_stream.h"
 #include "persistent-data/file_utils.h"
 
-using namespace thin_provisioning;
+using namespace chunker;
 using namespace std;
 using namespace persistent_data;
 

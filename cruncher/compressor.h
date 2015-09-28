@@ -27,12 +27,22 @@ namespace cruncher {
 		compressor();
 
 		struct mem_region {
-			uint8_t *begin;
-			uint8_t *end;
+			mem_region()
+				: begin(0),
+				  end(0) {
+			}
+
+			mem_region(uint8_t *b, uint8_t *e)
+				: begin(b),
+				  end(e) {
+			}
 
 			unsigned size() const {
 				return end - begin;
 			}
+
+			uint8_t *begin;
+			uint8_t *end;
 		};
 
 		unsigned compress(mem_region const &src,

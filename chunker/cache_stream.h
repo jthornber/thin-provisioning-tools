@@ -5,7 +5,7 @@
 
 //----------------------------------------------------------------
 
-namespace thin_provisioning {
+namespace chunker {
 	using namespace bcache;
 
 	class cache_stream : public chunk_stream {
