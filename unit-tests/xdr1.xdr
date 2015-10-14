@@ -1,0 +1,3 @@
+module unit-tests.xdr1;
+
+typedef int foo;

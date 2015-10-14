@@ -53,7 +53,6 @@ SOURCE=\
 	chunker/variable_chunk_stream.cc \
 	cruncher/compressor.cc \
 	cruncher/crunch.cc \
-	cruncher/metadata.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -147,11 +146,11 @@ endif
 
 .SECONDARY:
 
-%.h: %.xdr .PRECIOUS
+%.h: %.xdr $(XDRGEN)
 	@echo "    [XDRGEN] $< -> C++ header"
 	$(V) $(XDRGEN) -f c++-header $< > $@
 
-%.cc: %.xdr .PRECIOUS
+%.cc: %.xdr $(XDRGEN)
 	@echo "    [XDRGEN] $< -> C++ implementation"
 	$(V) $(XDRGEN) -f c++-impl $< > $@
 
