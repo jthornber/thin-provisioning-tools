@@ -64,17 +64,17 @@ namespace xdr {
 		uint32_t padding_;
 	};
 
-	void encode(xdr_write_buffer &buf, bool n);
-	void encode(xdr_write_buffer &buf, int32_t n);
-	void encode(xdr_write_buffer &buf, uint32_t n);
+	void encode_bool(xdr_write_buffer &buf, bool n);
+	void encode_int32_t(xdr_write_buffer &buf, int32_t n);
+	void encode_uint32_t(xdr_write_buffer &buf, uint32_t n);
 
-	void encode(xdr_write_buffer &buf, int64_t n);
-	void encode(xdr_write_buffer &buf, uint64_t n);
+	void encode_int64_t(xdr_write_buffer &buf, int64_t n);
+	void encode_uint64_t(xdr_write_buffer &buf, uint64_t n);
 
-	void encode_fixed(xdr_write_buffer &buf, uint32_t expected_len, xdr_opaque const &data);
-	void encode_variable(xdr_write_buffer &buf, uint32_t max, xdr_opaque const &data);
+	void encode_fixed_opaque(xdr_write_buffer &buf, uint32_t expected_len, xdr_opaque const &data);
+	void encode_variable_opaque(xdr_write_buffer &buf, uint32_t max, xdr_opaque const &data);
 
-	void encode(xdr_write_buffer &buf, uint32_t max, std::string const &str);
+	void encode_string(xdr_write_buffer &buf, std::string const &str, uint32_t max = 0);
 
 	//--------------------------------
 
@@ -97,17 +97,17 @@ namespace xdr {
 		uint8_t const *begin_, *end_, *current_;
 	};
 
-	void decode(xdr_read_buffer &buf, bool &n);
-	void decode(xdr_read_buffer &buf, int32_t &n);
-	void decode(xdr_read_buffer &buf, uint32_t &n);
+	void decode_bool(xdr_read_buffer &buf, bool &n);
+	void decode_int32_t(xdr_read_buffer &buf, int32_t &n);
+	void decode_uint32_t(xdr_read_buffer &buf, uint32_t &n);
 
-	void decode(xdr_read_buffer &buf, int64_t &n);
-	void decode(xdr_read_buffer &buf, uint64_t &n);
+	void decode_int64_t(xdr_read_buffer &buf, int64_t &n);
+	void decode_uint64_t(xdr_read_buffer &buf, uint64_t &n);
 
-	void decode_fixed(xdr_read_buffer &buf, uint32_t len, xdr_opaque &data);
-	void decode_variable(xdr_read_buffer &buf, uint32_t max, xdr_opaque &data);
+	void decode_fixed_opaque(xdr_read_buffer &buf, uint32_t len, xdr_opaque &data);
+	void decode_variable_opaque(xdr_read_buffer &buf, xdr_opaque &data, uint32_t max = 0);
 
-	void decode(xdr_read_buffer &buf, uint32_t max, std::string &str);
+	void decode_string(xdr_read_buffer &buf, std::string &str, uint32_t max = 0);
 }
 
 //----------------------------------------------------------------

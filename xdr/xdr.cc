@@ -67,38 +67,38 @@ xdr_write_buffer::push_hyper(uint64_t n)
 //--------------------------------
 
 void
-xdr::encode(xdr_write_buffer &buf, bool n)
+xdr::encode_bool(xdr_write_buffer &buf, bool n)
 {
 	uint32_t n_ = n ? 1u : 0u;
 	buf.push_word(n_);
 }
 
 void
-xdr::encode(xdr_write_buffer &buf, int32_t n)
+xdr::encode_int32_t(xdr_write_buffer &buf, int32_t n)
 {
 	buf.push_word(n);
 }
 
 void
-xdr::encode(xdr_write_buffer &buf, uint32_t n)
+xdr::encode_uint32_t(xdr_write_buffer &buf, uint32_t n)
 {
 	buf.push_word(n);
 }
 
 void
-xdr::encode(xdr_write_buffer &buf, int64_t n)
+xdr::encode_int64_t(xdr_write_buffer &buf, int64_t n)
 {
 	buf.push_hyper(n);
 }
 
 void
-xdr::encode(xdr_write_buffer &buf, uint64_t n)
+xdr::encode_uint64_t(xdr_write_buffer &buf, uint64_t n)
 {
 	buf.push_hyper(n);
 }
 
 void
-xdr::encode_fixed(xdr_write_buffer &buf, uint32_t len, xdr_opaque const &data)
+xdr::encode_fixed_opaque(xdr_write_buffer &buf, uint32_t len, xdr_opaque const &data)
 {
 	if (data.size() != len)
 		throw runtime_error("fixed length opaque not of expected length");
@@ -107,7 +107,7 @@ xdr::encode_fixed(xdr_write_buffer &buf, uint32_t len, xdr_opaque const &data)
 }
 
 void
-xdr::encode_variable(xdr_write_buffer &buf, uint32_t max, xdr_opaque const &data)
+xdr::encode_variable_opaque(xdr_write_buffer &buf, uint32_t max, xdr_opaque const &data)
 {
 	uint32_t len = data.size();
 	if (len > max)
@@ -118,10 +118,10 @@ xdr::encode_variable(xdr_write_buffer &buf, uint32_t max, xdr_opaque const &data
 }
 
 void
-xdr::encode(xdr_write_buffer &buf, uint32_t max, std::string const &str)
+xdr::encode_string(xdr_write_buffer &buf, std::string const &str, uint32_t max)
 {
 	uint32_t len = str.size();
-	if (len > max)
+	if (max && len > max)
 		throw runtime_error("string too long");
 
 	buf.push_word(len);
@@ -154,9 +154,7 @@ xdr_read_buffer::pop_bytes(uint8_t *begin, uint8_t *end)
 void
 xdr_read_buffer::pop_bytes_no_copy(uint32_t len, uint8_t const **begin, uint8_t const **end)
 {
-	if (current_ + len)
-		throw runtime_error("insufficient data");
-
+	ensure_data(len);
 	*begin = current_;
 	*end = *begin + len;
 	current_ += len;
@@ -202,39 +200,39 @@ xdr_read_buffer::ensure_data(size_t len) const
 //--------------------------------
 
 void
-xdr::decode(xdr_read_buffer &buf, bool &n)
+xdr::decode_bool(xdr_read_buffer &buf, bool &n)
 {
 	n = buf.pop_word();
 }
 
 void
-xdr::decode(xdr_read_buffer &buf, int32_t &n)
+xdr::decode_int32_t(xdr_read_buffer &buf, int32_t &n)
 {
 	uint32_t n_ = buf.pop_word();
 	n = *reinterpret_cast<int32_t *>(&n_);
 }
 
 void
-xdr::decode(xdr_read_buffer &buf, uint32_t &n)
+xdr::decode_uint32_t(xdr_read_buffer &buf, uint32_t &n)
 {
 	n = buf.pop_word();
 }
 
 void
-xdr::decode(xdr_read_buffer &buf, int64_t &n)
+xdr::decode_int64_t(xdr_read_buffer &buf, int64_t &n)
 {
 	uint64_t n_ = buf.pop_hyper();
 	n = *reinterpret_cast<int64_t *>(&n_);
 }
 
 void
-xdr::decode(xdr_read_buffer &buf, uint64_t &n)
+xdr::decode_uint64_t(xdr_read_buffer &buf, uint64_t &n)
 {
 	n = buf.pop_hyper();
 }
 
 void
-xdr::decode_fixed(xdr_read_buffer &buf, uint32_t len, xdr_opaque &data)
+xdr::decode_fixed_opaque(xdr_read_buffer &buf, uint32_t len, xdr_opaque &data)
 {
 	uint8_t const *b, *e;
 
@@ -243,11 +241,11 @@ xdr::decode_fixed(xdr_read_buffer &buf, uint32_t len, xdr_opaque &data)
 }
 
 void
-xdr::decode_variable(xdr_read_buffer &buf, uint32_t max, xdr_opaque &data)
+xdr::decode_variable_opaque(xdr_read_buffer &buf, xdr_opaque &data, uint32_t max)
 {
 	uint32_t len = buf.pop_word();
 
-	if (len > max)
+	if (max && len > max)
 		throw runtime_error("opaque too long");
 
 	uint8_t const *b, *e;
@@ -256,16 +254,11 @@ xdr::decode_variable(xdr_read_buffer &buf, uint32_t max, xdr_opaque &data)
 }
 
 void
-xdr::decode(xdr_read_buffer &buf, uint32_t max, std::string &str)
+xdr::decode_string(xdr_read_buffer &buf, std::string &str, uint32_t max)
 {
-	uint32_t len = buf.pop_word();
-
-	if (len > max)
-		throw runtime_error("string too long");
-
-	str.reserve(len);
-	buf.pop_bytes(reinterpret_cast<uint8_t *>(&str[0]),
-	 		reinterpret_cast<uint8_t *>(&str[len]));
+	xdr_opaque o;
+	decode_variable_opaque(buf, o, max);
+	str = string(reinterpret_cast<char const *>(o.begin()), o.size());
 }
 
 //----------------------------------------------------------------

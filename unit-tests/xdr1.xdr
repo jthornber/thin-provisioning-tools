@@ -1,3 +1,10 @@
 module unit-tests.xdr1;
 
 typedef int foo;
+
+typedef int fixed_array_t[5];
+
+typedef int var_array_t<1234>;
+typedef int big_var_array_t<10000>;
+
+typedef string small_string_t<5>;
