@@ -93,6 +93,7 @@ SOURCE=\
 
 CC:=@CC@
 CXX:=@CXX@
+STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
@@ -112,7 +113,7 @@ MANPATH:=$(DATADIR)/man
 vpath %.cc $(TOP_DIR)
 
 INSTALL_DIR = $(INSTALL) -m 755 -d
-INSTALL_PROGRAM = $(INSTALL) -m 755 -s
+INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
@@ -165,6 +166,7 @@ distclean: clean
 install: bin/pdata_tools
 	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
+	$(STRIP) $(BINDIR)/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_check
 	ln -s -f pdata_tools $(BINDIR)/cache_dump
 	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size

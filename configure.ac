@@ -41,6 +41,9 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
+AC_DEFUN([AC_PROG_STRIP], [AC_CHECK_TOOL(STRIP, strip, :)])
+AC_PROG_STRIP
+AC_ARG_VAR(STRIP, [Command for discarding symbols from object files])
 
 ################################################################
 dnl -- Checks for functions.
