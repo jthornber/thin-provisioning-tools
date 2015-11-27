@@ -46,6 +46,16 @@ AC_PROG_STRIP
 AC_ARG_VAR(STRIP, [Command for discarding symbols from object files])
 
 ################################################################
+dnl -- Check for large file support
+AC_SYS_LARGEFILE
+if test x$ac_cv_sys_file_offset_bits = x64; then
+    LFS_FLAGS+="-D_FILE_OFFSET_BITS=64"
+fi
+if test x$ac_cv_sys_large_files = x1; then
+    LFS_FLAGS+="-D_LARGE_FILES"
+fi
+
+################################################################
 dnl -- Checks for functions.
 AC_FUNC_STRERROR_R
 if test x$ac_cv_func_strerror_r_char_p = xyes; then
@@ -147,6 +157,7 @@ VERSION_PATCHLEVEL=`echo "$VER" | $AWK -F '[[(.]]' '{print $3}'`
 AC_SUBST(CXXDEBUG_FLAG)
 AC_SUBST(CXXOPTIMISE_FLAG)
 AC_SUBST(CXX_STRERROR_FLAG)
+AC_SUBST(LFS_FLAGS)
 AC_SUBST(INSTALL)
 AC_SUBST(prefix)
 AC_SUBST(RELEASE_DATE)
