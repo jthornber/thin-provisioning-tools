@@ -50,7 +50,8 @@ namespace {
 			in_superblock_ = true;
 			nr_data_blocks_ = nr_data_blocks;
 			superblock &sb = md_->sb_;
-			memcpy(&sb.uuid_, &uuid, sizeof(sb.uuid_));
+			memset(&sb.uuid_, 0, sizeof(sb.uuid_));
+			memcpy(&sb.uuid_, uuid.c_str(), std::min(sizeof(sb.uuid_), uuid.length()));
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
 			sb.data_block_size_ = data_block_size;

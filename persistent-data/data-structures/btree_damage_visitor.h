@@ -197,6 +197,7 @@ namespace persistent_data {
 
 			error_outcome error_accessing_node(node_location const &l, block_address b,
 							   std::string const &what) {
+				update_path(l.path);
 				report_damage(what);
 				return btree<Levels, ValueTraits>::visitor::EXCEPTION_HANDLED;
 			}
