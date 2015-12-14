@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
@@ -17,10 +18,12 @@ namespace {
 	int repair(string const &old_path, string const &new_path) {
 		try {
 			// block size gets updated by the restorer
-			metadata::ptr new_md(new metadata(new_path, metadata::CREATE, 128, 0));
+			block_manager<>::ptr new_bm = open_bm(new_path, block_manager<>::READ_WRITE);
+			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);
 
-			metadata::ptr old_md(new metadata(old_path));
+			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
+			metadata::ptr old_md(new metadata(old_bm));
 			metadata_dump(old_md, e, true);
 
 		} catch (std::exception &e) {

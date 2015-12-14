@@ -6,6 +6,7 @@
 
 #undef BLOCK_SIZE
 
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "metadata.h"
 #include "version.h"
@@ -118,7 +119,8 @@ namespace {
 	int trim(string const &metadata_dev, string const &data_dev) {
 		// We can trim any block that has zero count in the data
 		// space map.
-		metadata md(metadata_dev, 0);
+		block_manager<>::ptr bm = open_bm(metadata_dev, block_manager<>::READ_ONLY);
+		metadata md(bm);
 
 		if (!md.data_sm_->get_nr_free())
 			return 0;

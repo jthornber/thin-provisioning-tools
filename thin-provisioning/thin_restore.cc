@@ -45,7 +45,8 @@ namespace {
 	int restore(string const &backup_file, string const &dev, bool quiet) {
 		try {
 			// The block size gets updated by the restorer.
-			metadata::ptr md(new metadata(dev, metadata::CREATE, 128, 0));
+			block_manager<>::ptr bm(open_bm(dev, block_manager<>::READ_WRITE));
+			metadata::ptr md(new metadata(bm, metadata::CREATE, 128, 0));
 			emitter::ptr restorer = create_restore_emitter(md);
 
 			parse_xml(backup_file, restorer, quiet);

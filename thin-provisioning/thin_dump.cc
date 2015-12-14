@@ -42,7 +42,8 @@ namespace {
 	int dump_(string const &path, ostream &out, string const &format, struct flags &flags,
 		  block_address metadata_snap) {
 		try {
-			metadata::ptr md(new metadata(path, metadata_snap));
+			block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY, !metadata_snap);
+			metadata::ptr md(new metadata(bm, metadata_snap));
 			emitter::ptr e;
 
 			if (format == "xml")

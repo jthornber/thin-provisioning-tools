@@ -59,21 +59,10 @@ namespace thin_provisioning {
 		typedef block_manager<>::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
-
-		// Deprecated: it would be better if we passed in an already
-		// constructed block_manager.
-		metadata(std::string const &dev_path, open_type ot,
-			 sector_t data_block_size = 128, // Only used if CREATE
-			 block_address nr_data_blocks = 0); // Only used if CREATE
-
-		metadata(std::string const &dev_path,
-			 block_address metadata_snap = 0);
-
-		// ... use these instead ...
 		metadata(block_manager<>::ptr bm, open_type ot,
 			 sector_t data_block_size = 128,
 			 block_address nr_data_blocks = 0); // Only used if CREATE
-		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+		metadata(block_manager<>::ptr bm, block_address metadata_snap = 0);
 
 		void commit();
 
