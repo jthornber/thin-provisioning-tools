@@ -112,33 +112,32 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm, block_address metadata_snap)
+metadata::metadata(block_manager<>::ptr bm)
+{
+	tm_ = open_tm(bm);
+	sb_ = read_superblock(tm_->get_bm(), SUPERBLOCK_LOCATION);
+
+	open_space_maps();
+	open_btrees();
+}
+
+metadata::metadata(block_manager<>::ptr bm,
+		   boost::optional<block_address> metadata_snap)
 {
 	tm_ = open_tm(bm);
 
-	if (metadata_snap) {
-		if (metadata_snap != sb_.metadata_snap_)
+	superblock_detail::superblock actual_sb = read_superblock(bm, SUPERBLOCK_LOCATION);
+
+	if (!actual_sb.metadata_snap_)
+		throw runtime_error("no current metadata snap");
+
+	if (metadata_snap && *metadata_snap != actual_sb.metadata_snap_)
 			throw runtime_error("metadata snapshot does not match that in superblock");
 
-		sb_ = read_superblock(tm_->get_bm(), metadata_snap);
+	sb_ = read_superblock(bm, actual_sb.metadata_snap_);
 
-		// metadata snaps don't record the space maps
-
-	} else {
-		sb_ = read_superblock(tm_->get_bm(), SUPERBLOCK_LOCATION);
-
-		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
-		tm_->set_sm(metadata_sm_);
-
-		data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
-	}
-
-	details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_,
-						    device_tree_detail::device_details_traits::ref_counter()));
-	mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
-							 mapping_tree_detail::mtree_ref_counter(tm_)));
-	mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
-						       mapping_tree_detail::block_time_ref_counter(data_sm_)));
+	// metadata snaps don't record the space maps
+	open_btrees();
 }
 
 void
@@ -156,6 +155,24 @@ metadata::commit()
 	write_ref superblock = tm_->get_bm()->superblock_zero(SUPERBLOCK_LOCATION, superblock_validator());
         superblock_disk *disk = reinterpret_cast<superblock_disk *>(superblock.data());
 	superblock_traits::pack(sb_, *disk);
+}
+
+void metadata::open_space_maps()
+{
+	metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
+	tm_->set_sm(metadata_sm_);
+
+	data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
+}
+
+void metadata::open_btrees()
+{
+	details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_,
+						    device_tree_detail::device_details_traits::ref_counter()));
+	mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
+							 mapping_tree_detail::mtree_ref_counter(tm_)));
+	mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
+						       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 }
 
 //----------------------------------------------------------------

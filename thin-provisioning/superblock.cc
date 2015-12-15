@@ -181,18 +181,6 @@ namespace thin_provisioning {
 			visitor.visit(superblock_corruption(e.what()));
 		}
 	}
-
-	block_address find_metadata_snap(string const &path)
-	{
-		superblock_detail::superblock sb =
-			read_superblock(open_bm(path, block_manager<>::READ_ONLY, false), 0);
-		uint64_t ms = sb.metadata_snap_;
-
-		if (!ms)
-			throw runtime_error("no metadata snapshot found!\n");
-
-		return ms;
-	}
 }
 
 //----------------------------------------------------------------

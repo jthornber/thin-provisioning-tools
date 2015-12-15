@@ -14,6 +14,7 @@
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/commands.h"
 
 using namespace std;
@@ -65,15 +66,16 @@ namespace local {
 	struct flags {
 		flags()
 			: verbose(false),
-			  find_metadata_snap(false) {
+			  use_metadata_snap(false) {
 		}
+
+		bool verbose;
+		bool use_metadata_snap;
 
 		boost::optional<string> dev;
 		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
-		bool verbose;
-		bool find_metadata_snap;
 	};
 
 	//--------------------------------
@@ -528,17 +530,12 @@ namespace local {
 		checked_space_map::ptr data_sm;
 
 		{
-			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.metadata_snap);
-			transaction_manager::ptr tm = open_tm(bm);
-
-			sb = fs.metadata_snap ? read_superblock(bm, *fs.metadata_snap) : read_superblock(bm);
-			data_sm = open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
-
-			dev_tree dtree(*tm, sb.data_mapping_root_,
-				       mapping_tree_detail::mtree_traits::ref_counter(tm));
+			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.use_metadata_snap);
+			metadata::ptr md(fs.use_metadata_snap ? new metadata(bm, fs.metadata_snap) : new metadata(bm));
+			sb = md->sb_;
 
 			dev_tree::key k = {*fs.snap1};
-			boost::optional<uint64_t> snap1_root = dtree.lookup(k);
+			boost::optional<uint64_t> snap1_root = md->mappings_top_level_->lookup(k);
 
 			if (!snap1_root) {
 				ostringstream out;
@@ -546,10 +543,11 @@ namespace local {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap1(*tm, *snap1_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap1(*md->tm_, *snap1_root,
+						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 
 			k[0] = *fs.snap2;
-			boost::optional<uint64_t> snap2_root = dtree.lookup(k);
+			boost::optional<uint64_t> snap2_root = md->mappings_top_level_->lookup(k);
 
 			if (!snap2_root) {
 				ostringstream out;
@@ -557,7 +555,8 @@ namespace local {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap2(*tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap2(*md->tm_, *snap2_root,
+						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 			btree_visit_values(snap1, mr1, damage_v);
 			mr1.complete();
 
@@ -642,10 +641,9 @@ int thin_delta_main(int argc, char **argv)
 			break;
 
 		case 'm':
+			fs.use_metadata_snap = true;
 			if (optarg)
 				fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
-			else
-				fs.find_metadata_snap = true;
 			break;
 
 		case 4:
@@ -668,9 +666,6 @@ int thin_delta_main(int argc, char **argv)
 
 	if (!fs.snap2)
 		app.die("--snap2 not specified.");
-
-	if (fs.find_metadata_snap)
-		fs.metadata_snap = find_metadata_snap(*fs.dev);
 
 	return delta(app, fs);
 }
