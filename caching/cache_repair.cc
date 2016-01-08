@@ -40,20 +40,28 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} <input metadata (binary format)>" << endl
-		    << "  {-o|--output} <output metadata (binary format)>" << endl
-		    << "  {-V|--version}" << endl;
-	}
 }
 
 //----------------------------------------------------------------
 
-int cache_repair_main(int argc, char **argv)
+cache_repair_cmd::cache_repair_cmd()
+	: command("cache_repair")
+{
+}
+
+void
+cache_repair_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-i|--input} <input metadata (binary format)>" << endl
+	    << "  {-o|--output} <output metadata (binary format)>" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+cache_repair_cmd::run(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
@@ -70,7 +78,7 @@ int cache_repair_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'i':
@@ -86,26 +94,24 @@ int cache_repair_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (!input_path) {
 		cerr << "no input file provided" << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	if (!output_path) {
 		cerr << "no output file provided" << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return repair(*input_path, *output_path);
 }
-
-base::command caching::cache_repair_cmd("cache_repair", cache_repair_main);
 
 //----------------------------------------------------------------

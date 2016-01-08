@@ -100,7 +100,28 @@ namespace {
 	}
 }
 
-int thin_dump_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_dump_cmd::thin_dump_cmd()
+	: command("thin_dump")
+{
+}
+
+void
+thin_dump_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-f|--format} {xml|human_readable}" << endl
+	    << "  {-r|--repair}" << endl
+	    << "  {-m|--metadata-snap} [block#]" << endl
+	    << "  {-o <xml file>}" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_dump_cmd::run(int argc, char **argv)
 {
 	int c;
 	char const *output = NULL;
@@ -123,7 +144,7 @@ int thin_dump_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'f':
@@ -141,7 +162,7 @@ int thin_dump_main(int argc, char **argv)
 				metadata_snap = strtoull(optarg, &end_ptr, 10);
 				if (end_ptr == optarg) {
 					cerr << "couldn't parse <metadata_snap>" << endl;
-					usage(cerr, basename(argv[0]));
+					usage(cerr);
 					return 1;
 				}
 
@@ -158,20 +179,18 @@ int thin_dump_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return dump(argv[optind], output, format, flags);
 }
-
-base::command thin_provisioning::thin_dump_cmd("thin_dump", thin_dump_main);
 
 //----------------------------------------------------------------

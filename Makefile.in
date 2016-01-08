@@ -38,6 +38,7 @@ SOURCE=\
 	caching/cache_metadata_size.cc \
 	caching/cache_repair.cc \
 	caching/cache_restore.cc \
+	caching/commands.cc \
 	caching/hint_array.cc \
 	caching/mapping_array.cc \
 	caching/metadata.cc \
@@ -45,6 +46,7 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	era/commands.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -71,6 +73,7 @@ SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
+	thin-provisioning/commands.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
@@ -173,6 +176,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_check
 	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
+	ln -s -f pdata_tools $(BINDIR)/thin_ls
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
@@ -190,6 +194,7 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_ls.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8

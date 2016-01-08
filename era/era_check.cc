@@ -262,20 +262,28 @@ namespace {
 		return r;
 
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--super-block-only}" << endl;
-	}
 }
 
 //----------------------------------------------------------------
 
-int era_check_main(int argc, char **argv)
+era_check_cmd::era_check_cmd()
+	: command("era_check")
+{
+}
+
+void
+era_check_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl
+	    << "  {--super-block-only}" << endl;
+}
+
+int
+era_check_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -295,7 +303,7 @@ int era_check_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'q':
@@ -307,20 +315,18 @@ int era_check_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return check_with_exception_handling(argv[optind], fs);
 }
-
-base::command era::era_check_cmd("era_check", era_check_main);
 
 //----------------------------------------------------------------

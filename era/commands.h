@@ -6,10 +6,35 @@
 //----------------------------------------------------------------
 
 namespace era {
-	extern base::command era_check_cmd;
-	extern base::command era_dump_cmd;
-	extern base::command era_invalidate_cmd;
-	extern base::command era_restore_cmd;
+	class era_check_cmd : public base::command {
+	public:
+		era_check_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	class era_dump_cmd : public base::command {
+	public:
+		era_dump_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	class era_invalidate_cmd : public base::command {
+	public:
+		era_invalidate_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	class era_restore_cmd : public base::command {
+	public:
+		era_restore_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	void register_era_commands(base::application &app);
 }
 
 //----------------------------------------------------------------

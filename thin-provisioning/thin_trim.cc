@@ -135,14 +135,6 @@ namespace {
 		return 0;
 	}
 
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}\n"
-		    << "Options:\n"
-		    << "  {--pool-inactive}\n"
-		    << "  {-h|--help}\n"
-		    << "  {-V|--version}" << endl;
-	}
-
 	struct flags {
 		boost::optional<string> metadata_dev;
 		boost::optional<string> data_dev;
@@ -151,7 +143,23 @@ namespace {
 
 //----------------------------------------------------------------
 
-int thin_trim_main(int argc, char **argv)
+thin_trim_cmd::thin_trim_cmd()
+	: command("thin_trim")
+{
+}
+
+void
+thin_trim_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {--pool-inactive}\n"
+	    << "  {-h|--help}\n"
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_trim_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -177,7 +185,7 @@ int thin_trim_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'V':
@@ -185,13 +193,13 @@ int thin_trim_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (!fs.metadata_dev || !fs.data_dev) {
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 

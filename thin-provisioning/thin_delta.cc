@@ -602,7 +602,19 @@ namespace local {
 
 // FIXME: add metadata snap switch
 
-int thin_delta_main(int argc, char **argv)
+thin_delta_cmd::thin_delta_cmd()
+	: command("thin_delta")
+{
+}
+
+void
+thin_delta_cmd::usage(std::ostream &out) const
+{
+	// FIXME: finish
+}
+
+int
+thin_delta_cmd::run(int argc, char **argv)
 {
 	using namespace local;
 
@@ -669,7 +681,5 @@ int thin_delta_main(int argc, char **argv)
 
 	return delta(app, fs);
 }
-
-base::command thin_provisioning::thin_delta_cmd("thin_delta", thin_delta_main);
 
 //----------------------------------------------------------------

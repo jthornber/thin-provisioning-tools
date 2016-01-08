@@ -60,20 +60,32 @@ namespace {
 	}
 
 	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options]" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} <input xml file>" << endl
-		    << "  {-o|--output} <output device or file>" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-V|--version}" << endl;
 	}
 }
 
-int thin_restore_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_restore_cmd::thin_restore_cmd()
+	: command("thin_restore")
+{
+}
+
+void
+thin_restore_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options]" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-i|--input} <input xml file>" << endl
+	    << "  {-o|--output} <output device or file>" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_restore_cmd::run(int argc, char **argv)
 {
 	int c;
-	char const *prog_name = basename(argv[0]);
 	const char *shortopts = "hi:o:qV";
 	string input, output;
 	bool quiet = false;
@@ -89,7 +101,7 @@ int thin_restore_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, prog_name);
+			usage(cout);
 			return 0;
 
 		case 'i':
@@ -109,31 +121,29 @@ int thin_restore_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, prog_name);
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc != optind) {
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
         if (input.empty()) {
 		cerr << "No input file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	if (output.empty()) {
 		cerr << "No output file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	return restore(input, output, quiet);
 }
-
-base::command thin_provisioning::thin_restore_cmd("thin_restore", thin_restore_main);
 
 //----------------------------------------------------------------

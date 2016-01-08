@@ -84,7 +84,7 @@ namespace {
 
 	//--------------------------------
 
-	typedef map<block_address, device_tree_detail::device_details> dd_map;
+ 	typedef map<block_address, device_tree_detail::device_details> dd_map;
 
 	class details_extractor : public device_tree_detail::device_visitor {
 	public:
