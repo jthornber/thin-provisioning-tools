@@ -212,7 +212,8 @@ namespace {
 
 	struct flags {
 		flags()
-			: use_metadata_snap(false) {
+			: use_metadata_snap(false),
+			  headers(true) {
 
 			fields.push_back(DEV_ID);
 			fields.push_back(MAPPED);
@@ -221,6 +222,7 @@ namespace {
 		}
 
 		bool use_metadata_snap;
+		bool headers;
 		vector<output_field> fields;
 	};
 
@@ -363,7 +365,8 @@ namespace {
 		for (it = map.begin(); it != map.end(); ++it)
 			pass1(md, mappings, it->first);
 
-		print_headers(grid, flags.fields);
+		if (flags.headers)
+			print_headers(grid, flags.fields);
 
 		for (it = map.begin(); it != map.end(); ++it) {
 			vector<output_field>::const_iterator f;
@@ -478,6 +481,7 @@ thin_ls_cmd::usage(std::ostream &out) const
 	    << "Options:\n"
 	    << "  {-h|--help}\n"
 	    << "  {-m|--metadata-snap}\n"
+	    << "  {--no-headers}\n"
 	    << "  {-o|--format <fields>}\n"
 	    << "  {-V|--version}\n\n"
 	    << "where <fields> is a comma separated list from:\n";
@@ -511,6 +515,7 @@ thin_ls_cmd::run(int argc, char **argv)
 		{ "metadata-snap", no_argument, NULL, 'm' },
 		{ "version", no_argument, NULL, 'V'},
 		{ "format", required_argument, NULL, 'o' },
+		{ "no-headers", no_argument, NULL, 1 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -531,6 +536,10 @@ thin_ls_cmd::run(int argc, char **argv)
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		case 1:
+			flags.headers = false;
+			break;
 
 		default:
 			usage(cerr);
