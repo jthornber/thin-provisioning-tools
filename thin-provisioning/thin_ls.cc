@@ -22,15 +22,16 @@
 #include <libgen.h>
 
 #include "base/disk_units.h"
+#include "boost/lexical_cast.hpp"
+#include "boost/optional.hpp"
+#include "boost/range.hpp"
+#include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
 #include "thin-provisioning/human_readable_format.h"
-#include "thin-provisioning/metadata_dumper.h"
 #include "thin-provisioning/metadata.h"
+#include "thin-provisioning/metadata_dumper.h"
 #include "thin-provisioning/xml_format.h"
 #include "version.h"
-#include "thin-provisioning/commands.h"
-#include "persistent-data/file_utils.h"
-#include "boost/optional.hpp"
-#include "boost/lexical_cast.hpp"
 
 using namespace base;
 using namespace boost;
@@ -161,85 +162,41 @@ namespace {
 		SNAPSHOT_TIME
 	};
 
+	char const *field_names[] = {
+		"DEV",
+		"MAPPED_BLOCKS",
+		"MAPPED_EXCL_BLOCKS",
+		"MAPPED_SHARED_BLOCKS",
+		"MAPPED",
+		"EXCLUSIVE",
+		"SHARED",
+		"TRANSACTION_ID",
+		"CREATION_TIME",
+		"SNAPSHOT_TIME"
+	};
+
 	output_field string_to_field(string const &str) {
-		if (str == "DEV_ID")
-			return DEV_ID;
-
-		else if (str == "MAPPED_BLOCKS")
-			return MAPPED_BLOCKS;
-
-		else if (str == "MAPPED_EXCL_BLOCKS")
-			return MAPPED_EXCL_BLOCKS;
-
-		else if (str == "MAPPED_SHARED_BLOCKS")
-			return MAPPED_SHARED_BLOCKS;
-
-		else if (str == "MAPPED")
-			return MAPPED;
-
-		else if (str == "EXCLUSIVE")
-			return EXCLUSIVE;
-
-		else if (str == "SHARED")
-			return SHARED;
-
-		else if (str == "TRANSACTION_ID")
-			return TRANSACTION_ID;
-
-		else if (str == "CREATION_TIME")
-			return CREATION_TIME;
-
-		else if (str == "SNAPSHOT_TIME")
-			return SNAPSHOT_TIME;
+		for (unsigned i = 0; i < size(field_names); i++)
+			if (str == field_names[i])
+				return static_cast<output_field>(i);
 
 		throw runtime_error("unknown field");
 		return DEV_ID;
 	}
 
-	string header(output_field const &f) {
-		switch (f) {
-		case DEV_ID:
-			return "DEV";
-
-		case MAPPED_BLOCKS:
-			return "BLOCKS";
-
-		case MAPPED_EXCL_BLOCKS:
-			return "BLOCKS_EXCL";
-
-		case MAPPED_SHARED_BLOCKS:
-			return "BLOCKS_SHARED";
-
-		case MAPPED:
-			return "MAPPED";
-
-		case EXCLUSIVE:
-			return "EXCLUSIVE";
-
-		case SHARED:
-			return "SHARED";
-
-		case TRANSACTION_ID:
-			return "TRANSACTION";
-
-		case CREATION_TIME:
-			return "CREATION";
-
-		case SNAPSHOT_TIME:
-			return "SNAPSHOT";
-		}
-
-		return "<unknown>";
+	string field_to_string(output_field const &f) {
+		return field_names[static_cast<unsigned>(f)];
 	}
 
 	void print_headers(grid_layout &out, vector<output_field> const &fields) {
 		vector<output_field>::const_iterator it;
 		for (it = fields.begin(); it != fields.end(); ++it)
-			out.field(header(*it));
+			out.field(field_to_string(*it));
 
 		out.new_row();
 	}
 
+	//------------------------------------------------
 
 	struct flags {
 		flags()
@@ -500,8 +457,6 @@ thin_ls_cmd::usage(std::ostream &out) const
 	    << "  SNAPSHOT_TIME"
 	    << endl;
 }
-
-
 
 vector<output_field> parse_fields(string const &str)
 {
