@@ -170,9 +170,9 @@ namespace {
 		"MAPPED",
 		"EXCLUSIVE",
 		"SHARED",
-		"TRANSACTION_ID",
-		"CREATION_TIME",
-		"SNAPSHOT_TIME"
+		"TRANSACTION",
+		"CREATE_TIME",
+		"SNAP_TIME"
 	};
 
 	output_field string_to_field(string const &str) {
