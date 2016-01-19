@@ -21,16 +21,18 @@
 #include <getopt.h>
 #include <libgen.h>
 
-#include "human_readable_format.h"
-#include "metadata_dumper.h"
-#include "metadata.h"
-#include "xml_format.h"
+#include "base/disk_units.h"
+#include "thin-provisioning/human_readable_format.h"
+#include "thin-provisioning/metadata_dumper.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/xml_format.h"
 #include "version.h"
 #include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
 #include "boost/optional.hpp"
 #include "boost/lexical_cast.hpp"
 
+using namespace base;
 using namespace boost;
 using namespace persistent_data;
 using namespace std;
@@ -40,82 +42,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-
-	enum disk_unit {
-		UNIT_BYTE,
-		UNIT_SECTOR,
-
-		// decimal multipliers
-		UNIT_kB,
-		UNIT_MB,
-		UNIT_GB,
-		UNIT_TB,
-		UNIT_PB,
-
-		// binary mulitpliers
-		UNIT_KiB,
-		UNIT_MiB,
-		UNIT_GiB,
-		UNIT_TiB,
-		UNIT_PiB
-	};
-
-	unsigned long long disk_unit_multiplier(disk_unit u) {
-		switch (u) {
-		case UNIT_BYTE:
-			return 1;
-
-		case UNIT_SECTOR:
-			return 512;
-
-		case UNIT_kB:
-			return 1000;
-
-		case UNIT_MB:
-			return 1000000;
-
-		case UNIT_GB:
-			return 1000000000ull;
-
-		case UNIT_TB:
-			return 1000000000000ull;
-
-		case UNIT_PB:
-			return 1000000000000000ull;
-
-		case UNIT_KiB:
-			return 1024ull;
-
-		case UNIT_MiB:
-			return 1024ull * 1024ull;
-
-		case UNIT_GiB:
-			return 1024ull * 1024ull * 1024ull;
-
-		case UNIT_TiB:
-			return 1024ull * 1024ull * 1024ull * 1024ull;
-
-		case UNIT_PiB:
-			return 1024ull * 1024ull * 1024ull * 1024ull * 1024ull;
-		}
-
-		throw runtime_error("unknown unit type");
-		return 1;
-	}
-
-	string format_disk_unit(unsigned long long numerator, disk_unit u) {
-		numerator *= disk_unit_multiplier(u);
-		unsigned i;
-		for (i = 0; numerator >= 1024; i++)
-			numerator /= 1024;
-
-		char const *extensions[] = {
-			"", "KiB", "MiB", "GiB", "TiB", "PiB"
-		};
-
-		// FIXME: check subscript of i
-		return lexical_cast<string>(numerator) + " " + extensions[i];
-	}
 
 	//------------------------------------------------
 

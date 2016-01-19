@@ -27,6 +27,7 @@ all: $(PROGRAMS)
 SOURCE=\
 	base/application.cc \
 	base/base64.cc \
+	base/disk_units.cc \
 	base/endian_utils.cc \
 	base/error_state.cc \
 	base/error_string.cc \
