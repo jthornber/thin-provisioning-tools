@@ -29,6 +29,7 @@
 #include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
 #include "boost/optional.hpp"
+#include "boost/lexical_cast.hpp"
 
 using namespace boost;
 using namespace persistent_data;
@@ -39,6 +40,156 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+
+	enum disk_unit {
+		UNIT_BYTE,
+		UNIT_SECTOR,
+
+		// decimal multipliers
+		UNIT_kB,
+		UNIT_MB,
+		UNIT_GB,
+		UNIT_TB,
+		UNIT_PB,
+
+		// binary mulitpliers
+		UNIT_KiB,
+		UNIT_MiB,
+		UNIT_GiB,
+		UNIT_TiB,
+		UNIT_PiB
+	};
+
+	unsigned long long disk_unit_multiplier(disk_unit u) {
+		switch (u) {
+		case UNIT_BYTE:
+			return 1;
+
+		case UNIT_SECTOR:
+			return 512;
+
+		case UNIT_kB:
+			return 1000;
+
+		case UNIT_MB:
+			return 1000000;
+
+		case UNIT_GB:
+			return 1000000000ull;
+
+		case UNIT_TB:
+			return 1000000000000ull;
+
+		case UNIT_PB:
+			return 1000000000000000ull;
+
+		case UNIT_KiB:
+			return 1024ull;
+
+		case UNIT_MiB:
+			return 1024ull * 1024ull;
+
+		case UNIT_GiB:
+			return 1024ull * 1024ull * 1024ull;
+
+		case UNIT_TiB:
+			return 1024ull * 1024ull * 1024ull * 1024ull;
+
+		case UNIT_PiB:
+			return 1024ull * 1024ull * 1024ull * 1024ull * 1024ull;
+		}
+
+		throw runtime_error("unknown unit type");
+		return 1;
+	}
+
+	string format_disk_unit(unsigned long long numerator, disk_unit u) {
+		numerator *= disk_unit_multiplier(u);
+		unsigned i;
+		for (i = 0; numerator >= 1024; i++)
+			numerator /= 1024;
+
+		char const *extensions[] = {
+			"", "KiB", "MiB", "GiB", "TiB", "PiB"
+		};
+
+		// FIXME: check subscript of i
+		return lexical_cast<string>(numerator) + " " + extensions[i];
+	}
+
+	//------------------------------------------------
+
+	// FIXME: move to own file
+	class grid_layout {
+	public:
+		typedef list<string> row;
+		typedef list<row> grid;
+
+		grid_layout()
+			: nr_fields_(0) {
+			new_row();
+		}
+
+		void render(ostream &out) {
+			vector<unsigned> widths;
+			calc_field_widths(widths);
+
+			grid::const_iterator row;
+			for (row = grid_.begin(); row != grid_.end(); ++row) {
+				row::const_iterator col;
+				unsigned i;
+				for (col = row->begin(), i = 0; col != row->end(); ++col, ++i)
+					out << justify(widths[i], *col) << " ";
+				out << "\n";
+			}
+		}
+
+		void new_row() {
+			grid_.push_back(row());
+		}
+
+		template <typename T>
+		void field(T const &t) {
+			push_field(lexical_cast<string>(t));
+		}
+
+	private:
+		row &current_row() {
+			return grid_.back();
+		}
+
+		void push_field(string const &s) {
+			current_row().push_back(s);
+			nr_fields_ = max<unsigned>(nr_fields_, current_row().size());
+		}
+
+		void calc_field_widths(vector<unsigned> &widths) const {
+			widths.resize(nr_fields_, 0);
+
+			grid::const_iterator row;
+			for (row = grid_.begin(); row != grid_.end(); ++row) {
+				row::const_iterator col;
+				unsigned i;
+				for (col = row->begin(), i = 0; col != row->end(); ++col, ++i)
+					widths[i] = max<unsigned>(widths[i], col->length());
+			}
+		}
+
+		string justify(unsigned width, string const &txt) const {
+			if (txt.length() > width)
+				throw runtime_error("string field too long, internal error");
+
+			string result(width - txt.length(), ' ');
+			result += txt;
+			return result;
+		}
+
+		grid grid_;
+		unsigned nr_fields_;
+	};
+
+	//------------------------------------------------
+
 	class mapping_set {
 	public:
 		mapping_set(block_address nr_blocks)
@@ -74,13 +225,85 @@ namespace {
 
 	//------------------------------------------------
 
+	enum output_field {
+		DEV_ID,
+		MAPPED_BLOCKS,
+		MAPPED_EXCL_BLOCKS,
+		MAPPED_SHARED_BLOCKS,
+		MAPPED,
+		EXCLUSIVE,
+		SHARED,
+		TRANSACTION_ID,
+		CREATION_TIME,
+		SNAPSHOT_TIME
+	};
+
+	string header(output_field const &f) {
+		switch (f) {
+		case DEV_ID:
+			return "DEV";
+
+		case MAPPED_BLOCKS:
+			return "BLOCKS";
+
+		case MAPPED_EXCL_BLOCKS:
+			return "BLOCKS_EXCL";
+
+		case MAPPED_SHARED_BLOCKS:
+			return "BLOCKS_SHARED";
+
+		case MAPPED:
+			return "MAPPED";
+
+		case EXCLUSIVE:
+			return "EXCLUSIVE";
+
+		case SHARED:
+			return "SHARED";
+
+		case TRANSACTION_ID:
+			return "TRANSACTION";
+
+		case CREATION_TIME:
+			return "CREATION";
+
+		case SNAPSHOT_TIME:
+			return "SNAPSHOT";
+		}
+
+		return "<unknown>";
+	}
+
+	void print_headers(grid_layout &out, vector<output_field> const &fields) {
+		vector<output_field>::const_iterator it;
+		for (it = fields.begin(); it != fields.end(); ++it)
+			out.field(header(*it));
+
+		out.new_row();
+	}
+
+
 	struct flags {
 		flags()
 			: use_metadata_snap(false) {
+
+			fields.push_back(DEV_ID);
+			fields.push_back(MAPPED_BLOCKS);
+			fields.push_back(MAPPED_EXCL_BLOCKS);
+			fields.push_back(MAPPED_SHARED_BLOCKS);
+			fields.push_back(MAPPED);
+			fields.push_back(EXCLUSIVE);
+			fields.push_back(SHARED);
+			fields.push_back(TRANSACTION_ID);
+			fields.push_back(CREATION_TIME);
+			fields.push_back(SNAPSHOT_TIME);
 		}
 
 		bool use_metadata_snap;
+		vector<output_field> fields;
 	};
+
+	//------------------------------------------------
 
 	class mapping_pass1 : public mapping_tree_detail::mapping_visitor {
 	public:
@@ -195,29 +418,103 @@ namespace {
 
 	//------------------------------------------------
 
-	int ls_(string const &path, ostream &out, struct flags &flags) {
-		try {
-			block_manager<>::ptr bm(open_bm(path, block_manager<>::READ_ONLY));
-			metadata::ptr md(new metadata(bm));
+	void ls_(string const &path, ostream &out, struct flags &flags) {
+		grid_layout grid;
 
-			details_extractor de;
-			device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy());
-			walk_device_tree(*md->details_, de, *dd_policy);
+		block_manager<>::ptr bm(open_bm(path, block_manager<>::READ_ONLY));
+		metadata::ptr md;
 
-			mapping_set mappings(md->data_sm_->get_nr_blocks());
+		if (flags.use_metadata_snap)
+			md.reset(new metadata(bm, optional<block_address>()));
+		else
+			md.reset(new metadata(bm));
 
-			dd_map const &map = de.get_details();
-			dd_map::const_iterator it;
-			for (it = map.begin(); it != map.end(); ++it)
-				pass1(md, mappings, it->first);
+		details_extractor de;
+		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy());
+		walk_device_tree(*md->details_, de, *dd_policy);
 
-			for (it = map.begin(); it != map.end(); ++it) {
-				block_address exclusive = count_exclusives(md, mappings, it->first);
+		mapping_set mappings(md->data_sm_->get_nr_blocks());
 
-				out << it->first << ": "
-				    << it->second.mapped_blocks_ << " mapped blocks, "
-				    << exclusive << " exclusive blocks\n";
+		dd_map const &map = de.get_details();
+		dd_map::const_iterator it;
+		for (it = map.begin(); it != map.end(); ++it)
+			pass1(md, mappings, it->first);
+
+		print_headers(grid, flags.fields);
+
+		for (it = map.begin(); it != map.end(); ++it) {
+			vector<output_field>::const_iterator f;
+
+			optional<block_address> exclusive;
+
+			for (f = flags.fields.begin(); f != flags.fields.end(); ++f) {
+				switch (*f) {
+				case DEV_ID:
+					grid.field(it->first);
+					break;
+
+				case MAPPED_BLOCKS:
+					grid.field(it->second.mapped_blocks_);
+					break;
+
+				case MAPPED_EXCL_BLOCKS:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+					grid.field(*exclusive);
+					break;
+
+				case MAPPED_SHARED_BLOCKS:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+					grid.field(it->second.mapped_blocks_ - *exclusive);
+					break;
+
+				case MAPPED:
+					grid.field(
+						format_disk_unit(it->second.mapped_blocks_ *
+								 md->sb_.data_block_size_, UNIT_SECTOR));
+					break;
+
+				case EXCLUSIVE:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+
+					grid.field(
+						format_disk_unit(*exclusive * md->sb_.data_block_size_,
+								 UNIT_SECTOR));
+					break;
+
+				case SHARED:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+
+					grid.field(
+						format_disk_unit((it->second.mapped_blocks_ - *exclusive) *
+								 md->sb_.data_block_size_, UNIT_SECTOR));
+					break;
+
+
+				case TRANSACTION_ID:
+					grid.field(it->second.transaction_id_);
+					break;
+
+				case CREATION_TIME:
+					grid.field(it->second.creation_time_);
+					break;
+
+				case SNAPSHOT_TIME:
+					grid.field(it->second.snapshotted_time_);
+				}
 			}
+			grid.new_row();
+		}
+
+		grid.render(out);
+	}
+
+	int ls(string const &path, ostream &out, struct flags &flags) {
+		try {
+			ls_(path, out, flags);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -225,13 +522,6 @@ namespace {
 		}
 
 		return 0;
-	}
-
-	int ls(string const &path, struct flags &flags) {
-		return ls_(path, cout, flags);
-	}
-
-	void usage(ostream &out, string const &cmd) {
 	}
 }
 
@@ -292,7 +582,7 @@ thin_ls_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return ls(argv[optind], flags);
+	return ls(argv[optind], cout, flags);
 }
 
 //----------------------------------------------------------------
