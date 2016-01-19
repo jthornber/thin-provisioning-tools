@@ -154,6 +154,11 @@ namespace {
 		MAPPED_BLOCKS,
 		MAPPED_EXCL_BLOCKS,
 		MAPPED_SHARED_BLOCKS,
+
+		MAPPED_SECTORS,
+		EXCLUSIVE_SECTORS,
+		SHARED_SECTORS,
+
 		MAPPED,
 		EXCLUSIVE,
 		SHARED,
@@ -167,9 +172,15 @@ namespace {
 		"MAPPED_BLOCKS",
 		"MAPPED_EXCL_BLOCKS",
 		"MAPPED_SHARED_BLOCKS",
+
+		"MAPPED_SECTORS",
+		"EXCLUSIVE_SECTORS",
+		"SHARED_SECTORS",
+
 		"MAPPED",
 		"EXCLUSIVE",
 		"SHARED",
+
 		"TRANSACTION",
 		"CREATE_TIME",
 		"SNAP_TIME"
@@ -204,8 +215,6 @@ namespace {
 
 			fields.push_back(DEV_ID);
 			fields.push_back(MAPPED);
-			fields.push_back(EXCLUSIVE);
-			fields.push_back(SHARED);
 			fields.push_back(CREATION_TIME);
 			fields.push_back(SNAPSHOT_TIME);
 		}
@@ -340,6 +349,8 @@ namespace {
 		else
 			md.reset(new metadata(bm));
 
+		block_address block_size = md->sb_.data_block_size_;
+
 		details_extractor de;
 		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy());
 		walk_device_tree(*md->details_, de, *dd_policy);
@@ -380,10 +391,27 @@ namespace {
 					grid.field(it->second.mapped_blocks_ - *exclusive);
 					break;
 
+				case MAPPED_SECTORS:
+					grid.field(it->second.mapped_blocks_ * block_size);
+					break;
+
+				case EXCLUSIVE_SECTORS:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+					grid.field(*exclusive * block_size);
+					break;
+
+				case SHARED_SECTORS:
+					if (!exclusive)
+						exclusive = count_exclusives(md, mappings, it->first);
+					grid.field((it->second.mapped_blocks_ - *exclusive) * block_size);
+					break;
+
+
 				case MAPPED:
 					grid.field(
-						format_disk_unit(it->second.mapped_blocks_ *
-								 md->sb_.data_block_size_, UNIT_SECTOR));
+						format_disk_unit(it->second.mapped_blocks_ * block_size,
+								 UNIT_SECTOR));
 					break;
 
 				case EXCLUSIVE:
@@ -391,7 +419,7 @@ namespace {
 						exclusive = count_exclusives(md, mappings, it->first);
 
 					grid.field(
-						format_disk_unit(*exclusive * md->sb_.data_block_size_,
+						format_disk_unit(*exclusive * block_size,
 								 UNIT_SECTOR));
 					break;
 
@@ -401,7 +429,7 @@ namespace {
 
 					grid.field(
 						format_disk_unit((it->second.mapped_blocks_ - *exclusive) *
-								 md->sb_.data_block_size_, UNIT_SECTOR));
+								 block_size, UNIT_SECTOR));
 					break;
 
 				case TRANSACTION_ID:
