@@ -152,8 +152,8 @@ namespace {
 	enum output_field {
 		DEV_ID,
 		MAPPED_BLOCKS,
-		MAPPED_EXCL_BLOCKS,
-		MAPPED_SHARED_BLOCKS,
+		EXCLUSIVE_BLOCKS,
+		SHARED_BLOCKS,
 
 		MAPPED_SECTORS,
 		EXCLUSIVE_SECTORS,
@@ -162,6 +162,7 @@ namespace {
 		MAPPED,
 		EXCLUSIVE,
 		SHARED,
+
 		TRANSACTION_ID,
 		CREATION_TIME,
 		SNAPSHOT_TIME	// make sure this is always the last one
@@ -170,8 +171,8 @@ namespace {
 	char const *field_names[] = {
 		"DEV",
 		"MAPPED_BLOCKS",
-		"MAPPED_EXCL_BLOCKS",
-		"MAPPED_SHARED_BLOCKS",
+		"EXCLUSIVE_BLOCKS",
+		"SHARED_BLOCKS",
 
 		"MAPPED_SECTORS",
 		"EXCLUSIVE_SECTORS",
@@ -379,13 +380,13 @@ namespace {
 					grid.field(it->second.mapped_blocks_);
 					break;
 
-				case MAPPED_EXCL_BLOCKS:
+				case EXCLUSIVE_BLOCKS:
 					if (!exclusive)
 						exclusive = count_exclusives(md, mappings, it->first);
 					grid.field(*exclusive);
 					break;
 
-				case MAPPED_SHARED_BLOCKS:
+				case SHARED_BLOCKS:
 					if (!exclusive)
 						exclusive = count_exclusives(md, mappings, it->first);
 					grid.field(it->second.mapped_blocks_ - *exclusive);
