@@ -42,9 +42,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-
-	//------------------------------------------------
-
 	// FIXME: move to own file
 	class grid_layout {
 	public:
@@ -419,7 +416,6 @@ namespace {
 								 md->sb_.data_block_size_, UNIT_SECTOR));
 					break;
 
-
 				case TRANSACTION_ID:
 					grid.field(it->second.transaction_id_);
 					break;
@@ -462,10 +458,64 @@ void
 thin_ls_cmd::usage(std::ostream &out) const
 {
 	out << "Usage: " << get_name() << " [options] {device|file}" << endl
-	    << "Options:" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-m|--metadata-snap}" << endl
-	    << "  {-V|--version}" << endl;
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-m|--metadata-snap}\n"
+	    << "  {-o|--format <fields>}\n"
+	    << "  {-V|--version}\n\n"
+	    << "where <fields> is a comma separated list from:\n"
+	    << "  DEV_ID, MAPPED_BLOCKS, MAPPED_EXCL_BLOCKS, MAPPED_SHARED_BLOCKS,\n"
+	    << "  MAPPED, EXCLUSIVE, SHARED, TRANSACTION_ID, CREATION_TIME,\n"
+	    << "  SNAPSHOT_TIME"
+	    << endl;
+}
+
+
+
+vector<output_field> parse_fields(string const &str) {
+	vector<output_field> fields;
+	vector<string> tokens;
+
+	stringstream in(str);
+	string item;
+
+	while (getline(in, item, ','))
+		tokens.push_back(item);
+
+	vector<string>::const_iterator tok;
+	for (tok = tokens.begin(); tok != tokens.end(); ++tok) {
+		if (*tok == "DEV_ID")
+			fields.push_back(DEV_ID);
+
+		else if (*tok == "MAPPED_BLOCKS")
+			fields.push_back(MAPPED_BLOCKS);
+
+		else if (*tok == "MAPPED_EXCL_BLOCKS")
+			fields.push_back(MAPPED_EXCL_BLOCKS);
+
+		else if (*tok == "MAPPED_SHARED_BLOCKS")
+			fields.push_back(MAPPED_SHARED_BLOCKS);
+
+		else if (*tok == "MAPPED")
+			fields.push_back(MAPPED);
+
+		else if (*tok == "EXCLUSIVE")
+			fields.push_back(EXCLUSIVE);
+
+		else if (*tok == "SHARED")
+			fields.push_back(SHARED);
+
+		else if (*tok == "TRANSACTION_ID")
+			fields.push_back(TRANSACTION_ID);
+
+		else if (*tok == "CREATION_TIME")
+			fields.push_back(CREATION_TIME);
+
+		else if (*tok == "SNAPSHOT_TIME")
+			fields.push_back(SNAPSHOT_TIME);
+	}
+
+	return fields;
 }
 
 int
@@ -479,6 +529,7 @@ thin_ls_cmd::run(int argc, char **argv)
 		{ "help", no_argument, NULL, 'h'},
 		{ "metadata-snap", no_argument, NULL, 'm' },
 		{ "version", no_argument, NULL, 'V'},
+		{ "format", required_argument, NULL, 'o' },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -490,6 +541,10 @@ thin_ls_cmd::run(int argc, char **argv)
 
 		case 'm':
 			flags.use_metadata_snap = true;
+			break;
+
+		case 'o':
+			flags.fields = parse_fields(optarg);
 			break;
 
 		case 'V':
