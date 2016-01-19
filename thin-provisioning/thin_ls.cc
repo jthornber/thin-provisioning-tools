@@ -161,6 +161,41 @@ namespace {
 		SNAPSHOT_TIME
 	};
 
+	output_field string_to_field(string const &str) {
+		if (str == "DEV_ID")
+			return DEV_ID;
+
+		else if (str == "MAPPED_BLOCKS")
+			return MAPPED_BLOCKS;
+
+		else if (str == "MAPPED_EXCL_BLOCKS")
+			return MAPPED_EXCL_BLOCKS;
+
+		else if (str == "MAPPED_SHARED_BLOCKS")
+			return MAPPED_SHARED_BLOCKS;
+
+		else if (str == "MAPPED")
+			return MAPPED;
+
+		else if (str == "EXCLUSIVE")
+			return EXCLUSIVE;
+
+		else if (str == "SHARED")
+			return SHARED;
+
+		else if (str == "TRANSACTION_ID")
+			return TRANSACTION_ID;
+
+		else if (str == "CREATION_TIME")
+			return CREATION_TIME;
+
+		else if (str == "SNAPSHOT_TIME")
+			return SNAPSHOT_TIME;
+
+		throw runtime_error("unknown field");
+		return DEV_ID;
+	}
+
 	string header(output_field const &f) {
 		switch (f) {
 		case DEV_ID:
@@ -211,13 +246,9 @@ namespace {
 			: use_metadata_snap(false) {
 
 			fields.push_back(DEV_ID);
-			fields.push_back(MAPPED_BLOCKS);
-			fields.push_back(MAPPED_EXCL_BLOCKS);
-			fields.push_back(MAPPED_SHARED_BLOCKS);
 			fields.push_back(MAPPED);
 			fields.push_back(EXCLUSIVE);
 			fields.push_back(SHARED);
-			fields.push_back(TRANSACTION_ID);
 			fields.push_back(CREATION_TIME);
 			fields.push_back(SNAPSHOT_TIME);
 		}
@@ -472,48 +503,14 @@ thin_ls_cmd::usage(std::ostream &out) const
 
 
 
-vector<output_field> parse_fields(string const &str) {
+vector<output_field> parse_fields(string const &str)
+{
 	vector<output_field> fields;
-	vector<string> tokens;
-
 	stringstream in(str);
 	string item;
 
 	while (getline(in, item, ','))
-		tokens.push_back(item);
-
-	vector<string>::const_iterator tok;
-	for (tok = tokens.begin(); tok != tokens.end(); ++tok) {
-		if (*tok == "DEV_ID")
-			fields.push_back(DEV_ID);
-
-		else if (*tok == "MAPPED_BLOCKS")
-			fields.push_back(MAPPED_BLOCKS);
-
-		else if (*tok == "MAPPED_EXCL_BLOCKS")
-			fields.push_back(MAPPED_EXCL_BLOCKS);
-
-		else if (*tok == "MAPPED_SHARED_BLOCKS")
-			fields.push_back(MAPPED_SHARED_BLOCKS);
-
-		else if (*tok == "MAPPED")
-			fields.push_back(MAPPED);
-
-		else if (*tok == "EXCLUSIVE")
-			fields.push_back(EXCLUSIVE);
-
-		else if (*tok == "SHARED")
-			fields.push_back(SHARED);
-
-		else if (*tok == "TRANSACTION_ID")
-			fields.push_back(TRANSACTION_ID);
-
-		else if (*tok == "CREATION_TIME")
-			fields.push_back(CREATION_TIME);
-
-		else if (*tok == "SNAPSHOT_TIME")
-			fields.push_back(SNAPSHOT_TIME);
-	}
+		fields.push_back(string_to_field(item));
 
 	return fields;
 }
