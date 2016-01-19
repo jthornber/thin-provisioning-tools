@@ -341,6 +341,21 @@ namespace {
 
 	//------------------------------------------------
 
+	bool pass1_needed(vector<output_field> const &fields) {
+		vector<output_field>::const_iterator it;
+		for (it = fields.begin(); it != fields.end(); ++it) {
+			if (*it == EXCLUSIVE_BLOCKS ||
+			    *it == SHARED_BLOCKS ||
+			    *it == EXCLUSIVE_SECTORS ||
+			    *it == SHARED_SECTORS ||
+			    *it == EXCLUSIVE ||
+			    *it == SHARED)
+				return true;
+		}
+
+		return false;
+	}
+
 	void ls_(string const &path, ostream &out, struct flags &flags) {
 		grid_layout grid;
 
@@ -359,11 +374,14 @@ namespace {
 		walk_device_tree(*md->details_, de, *dd_policy);
 
 		mapping_set mappings(md->data_sm_->get_nr_blocks());
-
-		dd_map const &map = de.get_details();
 		dd_map::const_iterator it;
-		for (it = map.begin(); it != map.end(); ++it)
-			pass1(md, mappings, it->first);
+		dd_map const &map = de.get_details();
+
+		bool some_exclusive_fields = pass1_needed(flags.fields);
+		if (some_exclusive_fields) {
+			for (it = map.begin(); it != map.end(); ++it)
+				pass1(md, mappings, it->first);
+		}
 
 		if (flags.headers)
 			print_headers(grid, flags.fields);
@@ -371,7 +389,10 @@ namespace {
 		for (it = map.begin(); it != map.end(); ++it) {
 			vector<output_field>::const_iterator f;
 
-			optional<block_address> exclusive;
+			block_address exclusive = 0;
+
+			if (some_exclusive_fields)
+				exclusive = count_exclusives(md, mappings, it->first);
 
 			for (f = flags.fields.begin(); f != flags.fields.end(); ++f) {
 				switch (*f) {
@@ -384,15 +405,11 @@ namespace {
 					break;
 
 				case EXCLUSIVE_BLOCKS:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-					grid.field(*exclusive);
+					grid.field(exclusive);
 					break;
 
 				case SHARED_BLOCKS:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-					grid.field(it->second.mapped_blocks_ - *exclusive);
+					grid.field(it->second.mapped_blocks_ - exclusive);
 					break;
 
 				case MAPPED_SECTORS:
@@ -400,15 +417,11 @@ namespace {
 					break;
 
 				case EXCLUSIVE_SECTORS:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-					grid.field(*exclusive * block_size);
+					grid.field(exclusive * block_size);
 					break;
 
 				case SHARED_SECTORS:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-					grid.field((it->second.mapped_blocks_ - *exclusive) * block_size);
+					grid.field((it->second.mapped_blocks_ - exclusive) * block_size);
 					break;
 
 
@@ -419,20 +432,14 @@ namespace {
 					break;
 
 				case EXCLUSIVE:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-
 					grid.field(
-						format_disk_unit(*exclusive * block_size,
+						format_disk_unit(exclusive * block_size,
 								 UNIT_SECTOR));
 					break;
 
 				case SHARED:
-					if (!exclusive)
-						exclusive = count_exclusives(md, mappings, it->first);
-
 					grid.field(
-						format_disk_unit((it->second.mapped_blocks_ - *exclusive) *
+						format_disk_unit((it->second.mapped_blocks_ - exclusive) *
 								 block_size, UNIT_SECTOR));
 					break;
 
