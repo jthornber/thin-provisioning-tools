@@ -159,7 +159,7 @@ namespace {
 		SHARED,
 		TRANSACTION_ID,
 		CREATION_TIME,
-		SNAPSHOT_TIME
+		SNAPSHOT_TIME	// make sure this is always the last one
 	};
 
 	char const *field_names[] = {
@@ -445,17 +445,17 @@ thin_ls_cmd::thin_ls_cmd()
 void
 thin_ls_cmd::usage(std::ostream &out) const
 {
-	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
 	    << "Options:\n"
 	    << "  {-h|--help}\n"
 	    << "  {-m|--metadata-snap}\n"
 	    << "  {-o|--format <fields>}\n"
 	    << "  {-V|--version}\n\n"
-	    << "where <fields> is a comma separated list from:\n"
-	    << "  DEV_ID, MAPPED_BLOCKS, MAPPED_EXCL_BLOCKS, MAPPED_SHARED_BLOCKS,\n"
-	    << "  MAPPED, EXCLUSIVE, SHARED, TRANSACTION_ID, CREATION_TIME,\n"
-	    << "  SNAPSHOT_TIME"
-	    << endl;
+	    << "where <fields> is a comma separated list from:\n";
+
+	for (unsigned i = 0; i <= static_cast<unsigned>(SNAPSHOT_TIME); i++) {
+            out << "  " << field_to_string(static_cast<output_field>(i)) << "\n";
+        }
 }
 
 vector<output_field> parse_fields(string const &str)
