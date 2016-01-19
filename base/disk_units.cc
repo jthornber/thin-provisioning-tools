@@ -66,7 +66,7 @@ base::format_disk_unit(unsigned long long numerator, disk_unit u)
 	};
 
 	// FIXME: check subscript of i
-	return lexical_cast<string>(numerator) + " " + extensions[i];
+	return lexical_cast<string>(numerator) + extensions[i];
 }
 
 //----------------------------------------------------------------
