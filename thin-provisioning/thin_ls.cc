@@ -445,7 +445,7 @@ thin_ls_cmd::run(int argc, char **argv)
 {
 	int c;
 	struct flags flags;
-	const char shortopts[] = "hm::V";
+	const char shortopts[] = "ho:m::V";
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
