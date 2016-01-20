@@ -22,6 +22,7 @@
 #include <libgen.h>
 
 #include "base/disk_units.h"
+#include "base/grid_layout.h"
 #include "boost/lexical_cast.hpp"
 #include "boost/optional.hpp"
 #include "boost/range.hpp"
@@ -43,77 +44,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	// FIXME: move to own file
-	class grid_layout {
-	public:
-		typedef list<string> row;
-		typedef list<row> grid;
-
-		grid_layout()
-			: nr_fields_(0) {
-			new_row();
-		}
-
-		void render(ostream &out) {
-			vector<unsigned> widths;
-			calc_field_widths(widths);
-
-			grid::const_iterator row;
-			for (row = grid_.begin(); row != grid_.end(); ++row) {
-				row::const_iterator col;
-				unsigned i;
-				for (col = row->begin(), i = 0; col != row->end(); ++col, ++i)
-					out << justify(widths[i], *col) << " ";
-				out << "\n";
-			}
-		}
-
-		void new_row() {
-			grid_.push_back(row());
-		}
-
-		template <typename T>
-		void field(T const &t) {
-			push_field(lexical_cast<string>(t));
-		}
-
-	private:
-		row &current_row() {
-			return grid_.back();
-		}
-
-		void push_field(string const &s) {
-			current_row().push_back(s);
-			nr_fields_ = max<unsigned>(nr_fields_, current_row().size());
-		}
-
-		void calc_field_widths(vector<unsigned> &widths) const {
-			widths.resize(nr_fields_, 0);
-
-			grid::const_iterator row;
-			for (row = grid_.begin(); row != grid_.end(); ++row) {
-				row::const_iterator col;
-				unsigned i;
-				for (col = row->begin(), i = 0; col != row->end(); ++col, ++i)
-					widths[i] = max<unsigned>(widths[i], col->length());
-			}
-		}
-
-		string justify(unsigned width, string const &txt) const {
-			if (txt.length() > width)
-				throw runtime_error("string field too long, internal error");
-
-			string result(width - txt.length(), ' ');
-			result += txt;
-			return result;
-		}
-
-		grid grid_;
-		unsigned nr_fields_;
-	};
-
-	//------------------------------------------------
-
 	class mapping_set {
 	public:
 		mapping_set(block_address nr_blocks)

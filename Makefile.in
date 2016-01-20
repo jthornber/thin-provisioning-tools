@@ -31,6 +31,7 @@ SOURCE=\
 	base/endian_utils.cc \
 	base/error_state.cc \
 	base/error_string.cc \
+	base/grid_layout.cc \
 	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
