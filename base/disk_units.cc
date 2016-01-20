@@ -53,13 +53,35 @@ base::disk_unit_multiplier(disk_unit u)
 	return 1;
 }
 
+
+namespace {
+	bool small_enough(unsigned long long n) {
+		if (n > 1024ull * 1024ull)
+			return false;
+
+		if (n < 1024ull)
+			return true;
+
+		return (n & 1023) && (n < 8ull * 1024ull);
+	}
+
+	unsigned long long round_ull(unsigned long long n, unsigned long long d) {
+		return round(static_cast<double>(n) / static_cast<double>(d));
+	}
+}
+
 string
 base::format_disk_unit(unsigned long long numerator, disk_unit u)
 {
 	numerator *= disk_unit_multiplier(u);
 	unsigned i;
-	for (i = 0; numerator >= 1024; i++)
-		numerator /= 1024;
+	for (i = 0; numerator > 1024ull * 1024ull; i++)
+		numerator /= 1024ull;
+
+	if (numerator > 8 * 1024ull) {
+		numerator = round_ull(numerator, 1024ull);
+		i++;
+	}
 
 	char const *extensions[] = {
 		"", "KiB", "MiB", "GiB", "TiB", "PiB"
