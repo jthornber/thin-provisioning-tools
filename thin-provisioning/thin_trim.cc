@@ -6,6 +6,10 @@
 
 #undef BLOCK_SIZE
 
+#ifndef BLKDISCARD
+#define BLKDISCARD _IO(0x12,119)
+#endif
+
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "metadata.h"
