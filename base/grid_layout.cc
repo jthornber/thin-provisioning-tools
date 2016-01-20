@@ -20,12 +20,21 @@ grid_layout::render(ostream &out) const
 	calc_field_widths(widths);
 
 	grid::const_iterator row;
+	bool newline_needed = false;
+
 	for (row = grid_.begin(); row != grid_.end(); ++row) {
 		row::const_iterator col;
 		unsigned i;
-		for (col = row->begin(), i = 0; col != row->end(); ++col, ++i)
+
+		if (newline_needed) {
+			out << "\n";
+			newline_needed = false;
+		}
+
+		for (col = row->begin(), i = 0; col != row->end(); ++col, ++i) {
 			out << justify(widths[i], *col) << " ";
-		out << "\n";
+			newline_needed = true;
+		}
 	}
 }
 
