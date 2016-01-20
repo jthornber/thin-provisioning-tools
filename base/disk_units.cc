@@ -1,7 +1,8 @@
 #include "base/disk_units.h"
 
-#include <stdexcept>
 #include <boost/lexical_cast.hpp>
+#include <cmath>
+#include <stdexcept>
 
 using namespace std;
 using namespace boost;
