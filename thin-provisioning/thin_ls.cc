@@ -46,8 +46,8 @@ using namespace thin_provisioning;
 namespace {
 	class mapping_set {
 	public:
-		mapping_set(block_address nr_blocks)
-		: bits_(nr_blocks * 2, false) {
+		mapping_set()
+		: bits_(10240, false) {
 		}
 
 		enum block_state {
@@ -57,15 +57,15 @@ namespace {
 		};
 
 		void inc(block_address b) {
-			if (bits_[b * 2])
-				bits_[b * 2 + 1] = true; // shared
+			if (get_bit(b * 2))
+				set_bit(b * 2 + 1, true); // shared
 			else
-				bits_[b * 2] = true; // exclusive
+				set_bit(b * 2, true); // exclusive
 		}
 
 		block_state get_state(block_address b) const {
-			if (bits_[b * 2]) {
-				if (bits_[b * 2 + 1])
+			if (get_bit(b * 2)) {
+				if (get_bit(b * 2 + 1))
 					return SHARED;
 				else
 					return EXCLUSIVE;
@@ -74,7 +74,27 @@ namespace {
 		}
 
 	private:
-		vector<bool> bits_;
+		void ensure_size(block_address bit) const {
+			if (bit >= bits_.size()) {
+				unsigned new_size = bits_.size() * 2;
+				while (new_size < bit)
+					new_size *= 2;
+
+				bits_.resize(new_size, false);
+			}
+		}
+
+		bool get_bit(block_address bit) const {
+			ensure_size(bit);
+			return bits_[bit];
+		}
+
+		void set_bit(block_address bit, bool v) {
+			ensure_size(bit);
+			bits_[bit] = v;
+		}
+
+		mutable vector<bool> bits_;
 	};
 
 	//------------------------------------------------
@@ -289,7 +309,8 @@ namespace {
 	void ls_(string const &path, ostream &out, struct flags &flags) {
 		grid_layout grid;
 
-		block_manager<>::ptr bm(open_bm(path, block_manager<>::READ_ONLY));
+		block_manager<>::ptr bm(open_bm(path, block_manager<>::READ_ONLY,
+						!flags.use_metadata_snap));
 		metadata::ptr md;
 
 		if (flags.use_metadata_snap)
@@ -303,7 +324,7 @@ namespace {
 		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy());
 		walk_device_tree(*md->details_, de, *dd_policy);
 
-		mapping_set mappings(md->data_sm_->get_nr_blocks());
+		mapping_set mappings;
 		dd_map::const_iterator it;
 		dd_map const &map = de.get_details();
 
