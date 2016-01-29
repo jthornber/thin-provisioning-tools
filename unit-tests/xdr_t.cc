@@ -91,6 +91,15 @@ TEST_F(XDR1Tests, encode_overlong_string)
 	ASSERT_THROW(encode_small_string_t(write_buf_, str), runtime_error);
 }
 
+TEST_F(XDR1Tests, decode_overlong_string)
+{
+	string str("th quick brown fox jumps");
+	encode_string(write_buf_, str);
+	complete_write();
+	string str2;
+	ASSERT_THROW(decode_small_string_t(read_buf(), str2), runtime_error);
+}
+
 TEST_F(XDR1Tests, encode_foo)
 {
         foo v(1234);
@@ -141,6 +150,28 @@ TEST_F(XDR1Tests, decode_overlarge_var_array)
 	complete_write();
 	var_array_t v2;
 	ASSERT_THROW(decode_var_array_t(read_buf(), v2), runtime_error);
+}
+
+TEST_F(XDR1Tests, encode_struct1)
+{
+	struct1 v;
+	v.v1 = 1234;
+	v.v2 = 9876545;
+	encode_struct1(write_buf_, v);
+	complete_write();
+	struct1 v2;
+	decode_struct1(read_buf(), v2);
+	EXPECT_THAT(v2.v1, Eq(v.v1));
+	EXPECT_THAT(v2.v2, Eq(v.v2));
+}
+
+TEST_F(XDR1Tests, encode_struct2)
+{
+	struct2 v;
+	encode_struct2(write_buf_, v);
+	complete_write();
+	struct2 v2;
+	decode_struct2(read_buf(), v2);
 }
 
 //----------------------------------------------------------------

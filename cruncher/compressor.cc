@@ -24,11 +24,10 @@ unsigned
 compressor::compress(compressor::mem_region const &src,
 		     compressor::mem_region &dest)
 {
-	int r = LZ4_compress_HC_extStateHC(compression_tables_.data(),
-					   (const char *) src.begin,
-					   (char *) dest.begin,
-					   src.size(), dest.size(),
-					   COMPRESSION_LEVEL);
+	int r = LZ4_compressHC2_withStateHC(compression_tables_.data(),
+		(const char *) src.begin,
+		(char *) dest.begin,
+		src.size(), COMPRESSION_LEVEL);
 
 	// FIXME: catch OOS
 	if (r == 0)

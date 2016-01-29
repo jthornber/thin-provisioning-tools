@@ -19,8 +19,26 @@ struct index_entry {
 };
 
 struct container {
-	index_entry entry<>;
-	opaque compressed<>;
+	index_entry fixed_entry[20];
+        index_entry var_entry<23 + 5>;
+        index_entry var_no_limit<>;
+
+        opaque fixed_compressed[345];
+	opaque var_compressed<8192>;
+        opaque var_no_limit_opaque<>;
+};
+
+struct string_list {
+        string text<>;
+        string_list *next;
+};
+
+union union1 switch (unsigned int foo) {
+case 0:
+        string_list foo;
+
+case 10:
+        container c;
 };
 
 //----------------------------------------------------------------

@@ -8,3 +8,47 @@ typedef int var_array_t<1234>;
 typedef int big_var_array_t<10000>;
 
 typedef string small_string_t<5>;
+
+typedef opaque sha1[20];
+
+struct struct1 {
+       unsigned int v1;
+       unsigned hyper v2;
+};
+
+struct struct2 {
+       struct1 v1;
+       struct1 v2;
+};
+
+enum message_type {
+	ZEROES = 0,
+	DUPLICATE = 1,
+	DATA
+};
+
+struct zero_info {
+	unsigned int len;
+};
+
+struct duplicate_info {
+	unsigned int dev_id;
+	unsigned hyper offset;
+	unsigned int len;
+};
+
+struct data_info {
+	sha1 hash;
+	unsigned int len;
+};
+
+union message switch (message_type t) {
+case ZEROES:
+	zero_info zinfo;
+
+case DUPLICATE:
+	duplicate_info dup_info;
+
+case DATA:
+	data_info dinfo;
+};

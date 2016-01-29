@@ -38,7 +38,7 @@ int crunch(flags const &fs)
 	vector<uint8_t> dest_mem(16 * 1024, 0); // plenty big enough
 
 	block_address block_size = 1024 * 1024 * 4;
-	block_address nr_blocks = get_nr_blocks(fs.source, block_size);
+	// block_address nr_blocks = get_nr_blocks(fs.source, block_size);
 
 	cache_stream stream(fs.source, block_size, 1024 * 1024 * 1024);
 	variable_chunk_stream vstream(stream, 4096);
