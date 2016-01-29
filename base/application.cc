@@ -1,11 +1,44 @@
 #include "base/application.h"
 
+#include <boost/lexical_cast.hpp>
 #include <libgen.h>
 #include <linux/limits.h>
 #include <string.h>
+#include <stdlib.h>
 
 using namespace base;
+using namespace boost;
 using namespace std;
+
+//----------------------------------------------------------------
+
+command::command(string const &name)
+	: name_(name) {
+}
+
+void
+command::die(string const &msg)
+{
+	cerr << msg << endl;
+	usage(cerr);
+	exit(1);
+}
+
+uint64_t
+command::parse_uint64(string const &str, string const &desc)
+{
+	try {
+		// FIXME: check trailing garbage is handled
+		return lexical_cast<uint64_t>(str);
+
+	} catch (...) {
+		ostringstream out;
+		out << "Couldn't parse " << desc << ": '" << str << "'";
+		die(out.str());
+	}
+
+	return 0; // never get here
+}
 
 //----------------------------------------------------------------
 
@@ -26,7 +59,7 @@ application::run(int argc, char **argv)
 		cmd = argv[0];
 	}
 
-	std::list<command const *>::const_iterator it;
+	std::list<command::ptr>::const_iterator it;
 	for (it = cmds_.begin(); it != cmds_.end(); ++it) {
 		if (cmd == (*it)->get_name())
 			return (*it)->run(argc, argv);
@@ -43,7 +76,7 @@ application::usage()
 	std::cerr << "Usage: <command> <args>\n"
 		  << "commands:\n";
 
-	std::list<command const *>::const_iterator it;
+	std::list<command::ptr>::const_iterator it;
 	for (it = cmds_.begin(); it != cmds_.end(); ++it) {
 		std::cerr << "  " << (*it)->get_name() << "\n";
 	}

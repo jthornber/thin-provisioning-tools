@@ -284,13 +284,13 @@ namespace {
 
 //----------------------------------------------------------------
 
-thin_show_duplicates_cmd::thin_show_duplicates_cmd()
-	: command("thin_show_duplicates")
+thin_archive_cmd::thin_archive_cmd()
+	: command("thin_archive")
 {
 }
 
 void
-thin_show_duplicates_cmd::usage(ostream &out) const
+thin_archive_cmd::usage(ostream &out) const
 {
 	out << "Usage: " << get_name() << " [options] {device|file}\n"
 	    << "Options:\n"
@@ -302,7 +302,7 @@ thin_show_duplicates_cmd::usage(ostream &out) const
 }
 
 int
-thin_show_duplicates_cmd::run(int argc, char **argv)
+thin_archive_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
