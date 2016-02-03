@@ -55,13 +55,9 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	bool factor_of(block_address f, block_address n) {
-		return (n % f) == 0;
-	}
-
 	block_manager<>::ptr
 	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_blocks(path);
+	block_address nr_blocks = get_nr_blocks(path);
 		block_manager<>::mode m = block_manager<>::READ_ONLY;
 		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
 	}
@@ -74,94 +70,153 @@ namespace {
 		return tm;
 	}
 
-	uint64_t parse_int(string const &str, string const &desc) {
-		try {
-			return boost::lexical_cast<uint64_t>(str);
+	//--------------------------------
 
-		} catch (...) {
-			ostringstream out;
-			out << "Couldn't parse " << desc << ": '" << str << "'";
-			exit(1);
+	typedef uint64_t offset_t;
+
+	class stream_description {
+	public:
+		enum entry_type {
+			ZEROES,
+			UNMAPPED,
+			MAPPED
+		};
+
+		struct entry {
+			entry(entry_type t, offset_t len)
+				: t_(t), len_(len) {
+			}
+
+			entry_type t_;
+			offset_t len_;
+		};
+
+		typedef uint64_t entry_id;
+
+
+		stream_description()
+			: size_(0) {
 		}
 
-		return 0; // never get here
-	}
+		void zeroes(offset_t len) {
+			append(ZEROES, len);
+		}
+
+		void unmapped(offset_t len) {
+			append(UNMAPPED, len);
+		}
+
+		void mapped(offset_t len, entry_id id) {
+			append(MAPPED, len);
+		}
+
+		offset_t size() const {
+			return size_;
+		}
+
+		deque<entry> const &entries() const {
+			return entries_;
+		}
+
+		// FIXME: remove
+		void dump() const {
+			cerr << "in dump\n";
+
+			deque<entry>::const_iterator it;
+
+			for (it = entries_.begin(); it != entries_.end(); ++it) {
+				switch (it->t_) {
+				case ZEROES:
+					cerr << "ZEROES";
+					break;
+
+				case UNMAPPED:
+					cerr << "UNMAPPED";
+					break;
+
+				case MAPPED:
+					cerr << "MAPPED";
+					break;
+				}
+
+				cerr << ": " << it->len_ << "\n";
+			}
+		}
+
+	private:
+		void append(entry_type t, offset_t len) {
+			entries_.push_back(entry(t, len));
+		}
+
+		offset_t size_;
+		deque<entry> entries_;
+		set<entry_id> chunks_;
+	};
+
+	// FIXME: change to std::array
+	typedef vector<uint32_t> fingerprint;
+	typedef block_address fingerprint_location;
+
+	class fingerprint_index {
+	public:
+		typedef map<fingerprint, fingerprint_location> fingerprint_map;
+
+		fingerprint_index()
+			: nr_duplicates_(0) {
+		}
+
+		optional<fingerprint_location> lookup(fingerprint const &fp) {
+			fingerprint_map::const_iterator it = map_.find(fp);
+			if (it != map_.end())
+				return optional<fingerprint_location>(it->second);
+			else
+				return optional<fingerprint_location>();
+		}
+
+		void insert(fingerprint const &fp, fingerprint_location loc) {
+			map_.insert(make_pair(fp, loc));
+		}
+
+	private:
+		unsigned nr_duplicates_;
+		fingerprint_map map_;
+	};
+
+	class chunk_store {
+	public:
+		fingerprint_location append(fingerprint const &fp, void *data_begin, void *data_end) {
+			return 0;
+		}
+	};
 
 	//--------------------------------
 
 	struct flags {
 		flags()
-			: cache_mem(64 * 1024 * 1024),
-			  content_based_chunks(false) {
+			: cache_mem(64 * 1024 * 1024) {
 		}
 
 		string data_dev;
 		optional<string> metadata_dev;
 		optional<unsigned> block_size;
 		unsigned cache_mem;
-		bool content_based_chunks;
 	};
 
 	using namespace mapping_tree_detail;
 
-	class duplicate_counter {
+	class scanner {
 	public:
-		duplicate_counter()
-		: non_zero_dups_(0),
-		  zero_dups_(0) {
-		}
-
-		void add_duplicate(block_address len) {
-			non_zero_dups_ += len;
-		}
-
-		void add_zero_duplicate(block_address len) {
-			zero_dups_ += len;
-		}
-
-		block_address get_total() const {
-			return non_zero_dups_ + zero_dups_;
-		}
-
-		block_address get_non_zeroes() const {
-			return non_zero_dups_;
-		}
-
-		block_address get_zeroes() const {
-			return zero_dups_;
-		}
-
-		void display_results(chunk_stream const &stream) const {
-			block_address meg = 1024 * 1024;
-			cout << "\n\n"
-			     << stream.size() / meg << "m examined, "
-			     << get_non_zeroes() / meg << "m duplicates, "
-			     << get_zeroes() / meg << "m zeroes\n";
-		}
-
-	private:
-		block_address non_zero_dups_;
-		block_address zero_dups_;
-	};
-
-	class duplicate_detector {
-	public:
-		void scan_with_variable_sized_chunks(chunk_stream &stream) {
-			variable_chunk_stream vstream(stream, 4096);
-			scan(vstream);
-		}
-
-		void scan_with_fixed_sized_chunks(chunk_stream &stream, block_address chunk_size) {
-			fixed_chunk_stream fstream(stream, chunk_size);
-			scan(fstream);
-		}
-
-		duplicate_counter const &get_results() const {
-			return results_;
-		}
-
-	private:
 		void scan(chunk_stream &stream) {
+			variable_chunk_stream vstream(stream, 4096);
+			scan_(vstream);
+		}
+
+		void dump_stream() const {
+			stream_.dump();
+		}
+
+	private:
+		void scan_(chunk_stream &stream) {
 			block_address total_seen(0);
 			auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 
@@ -177,12 +232,11 @@ namespace {
 			} while (stream.next());
 
 			pbar->update_percent(100);
-			results_.display_results(stream);
 		}
 
 		void examine(chunk const &c) {
 			if (all_zeroes(c))
-				results_.add_zero_duplicate(c.len_);
+				stream_.zeroes(c.len_);
 
 			else {
 				digestor_.reset();
@@ -192,15 +246,17 @@ namespace {
 				digestor_.get_digest(digest);
 
 				// hack
-				vector<unsigned int> v(5);
+				fingerprint fp(5);
 				for (unsigned i = 0; i < 5; i++)
-					v[i] = digest[i];
+				       fp[i] = digest[i];
 
-				fingerprint_map::const_iterator it = fm_.find(v);
-				if (it != fm_.end()) {
-					results_.add_duplicate(c.len_);
-				} else
-					fm_.insert(make_pair(v, c.offset_));
+				optional<fingerprint_location> loc = fp_index_.lookup(fp);
+
+				if (!loc) {
+					loc = chunk_store_.append(fp, NULL, NULL);
+					fp_index_.insert(fp, *loc);
+				}
+				stream_.mapped(c.len_, *loc);
 			}
 		}
 
@@ -217,8 +273,9 @@ namespace {
 
 		unsigned block_size_;
 		boost::uuids::detail::sha1 digestor_;
-		fingerprint_map fm_;
-		duplicate_counter results_;
+		fingerprint_index fp_index_;
+		stream_description stream_;
+		chunk_store chunk_store_;
 	};
 
 	int show_dups_pool(flags const &fs) {
@@ -231,20 +288,8 @@ namespace {
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
 		pool_stream pstream(stream, tm, sb, nr_blocks);
 
-		duplicate_detector detector;
-
-		if (fs.content_based_chunks)
-			detector.scan_with_variable_sized_chunks(pstream);
-		else {
-			if (*fs.block_size) {
-				if (factor_of(*fs.block_size, block_size))
-					block_size = *fs.block_size;
-				else
-					throw runtime_error("specified block size is not a factor of the pool chunk size\n");
-			}
-
-			detector.scan_with_fixed_sized_chunks(pstream, block_size);
-		}
+		scanner s;
+		s.scan(pstream);
 
 		return 0;
 	}
@@ -262,12 +307,10 @@ namespace {
 		cerr << "block size = " << block_size << "\n";
 
 		cache_stream stream(fs.data_dev, block_size, fs.cache_mem);
-		duplicate_detector dd;
 
-		if (fs.content_based_chunks)
-			dd.scan_with_variable_sized_chunks(stream);
-		else
-			dd.scan_with_fixed_sized_chunks(stream, block_size);
+		scanner s;
+		s.scan(stream);
+		s.dump_stream();
 
 		return 0;
 	}
@@ -284,25 +327,24 @@ namespace {
 
 //----------------------------------------------------------------
 
-thin_show_duplicates_cmd::thin_show_duplicates_cmd()
-	: command("thin_show_duplicates")
+thin_archive_cmd::thin_archive_cmd()
+	: command("thin_archive")
 {
 }
 
 void
-thin_show_duplicates_cmd::usage(ostream &out) const
+thin_archive_cmd::usage(ostream &out) const
 {
 	out << "Usage: " << get_name() << " [options] {device|file}\n"
 	    << "Options:\n"
 	    << "  {--block-sectors} <integer>\n"
-	    << "  {--content-based-chunks}\n"
 	    << "  {--metadata-dev} <path>\n"
 	    << "  {-h|--help}\n"
 	    << "  {-V|--version}" << endl;
 }
 
 int
-thin_show_duplicates_cmd::run(int argc, char **argv)
+thin_archive_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -310,7 +352,6 @@ thin_show_duplicates_cmd::run(int argc, char **argv)
 	char const shortopts[] = "qhV";
 	option const longopts[] = {
 		{ "block-sectors", required_argument, NULL, 1},
-		{ "content-based-chunks", no_argument, NULL, 2},
 		{ "metadata-dev", required_argument, NULL, 3},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
@@ -328,11 +369,7 @@ thin_show_duplicates_cmd::run(int argc, char **argv)
 			return 0;
 
 		case 1:
-			fs.block_size = 512 * parse_int(optarg, "block sectors");
-			break;
-
-		case 2:
-			fs.content_based_chunks = true;
+			fs.block_size = 512 * parse_uint64(optarg, "block sectors");
 			break;
 
 		case 3:

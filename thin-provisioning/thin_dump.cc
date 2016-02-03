@@ -29,26 +29,42 @@
 #include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
 
+using namespace boost;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
-struct flags {
-	bool find_metadata_snap;
-	bool repair;
-};
-
 namespace {
-	int dump_(string const &path, ostream &out, string const &format, struct flags &flags,
-		  block_address metadata_snap) {
+	// FIXME: put the path into the flags
+	struct flags {
+		flags()
+			: repair(false),
+			  use_metadata_snap(false) {
+		}
+
+		bool repair;
+		bool use_metadata_snap;
+		optional<block_address> snap_location;
+	};
+
+	metadata::ptr open_metadata(string const &path, struct flags &flags) {
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY, !flags.use_metadata_snap);
+		metadata::ptr md(flags.use_metadata_snap ? new metadata(bm, flags.snap_location) : new metadata(bm));
+
+		return md;
+	}
+
+	int dump_(string const &path, ostream &out, string const &format, struct flags &flags) {
 		try {
-			metadata::ptr md(new metadata(path, metadata_snap));
+			metadata::ptr md = open_metadata(path, flags);
 			emitter::ptr e;
 
 			if (format == "xml")
 				e = create_xml_emitter(out);
+
 			else if (format == "human_readable")
 				e = create_human_readable_emitter(out);
+
 			else {
 				cerr << "unknown format '" << format << "'" << endl;
 				exit(1);
@@ -64,13 +80,12 @@ namespace {
 		return 0;
 	}
 
-	int dump(string const &path, char const *output, string const &format, struct flags &flags,
-		 block_address metadata_snap = 0) {
+	int dump(string const &path, char const *output, string const &format, struct flags &flags) {
 		if (output) {
 			ofstream out(output);
-			return dump_(path, out, format, flags, metadata_snap);
+			return dump_(path, out, format, flags);
 		} else
-			return dump_(path, cout, format, flags, metadata_snap);
+			return dump_(path, cout, format, flags);
 	}
 
 	void usage(ostream &out, string const &cmd) {
@@ -85,7 +100,28 @@ namespace {
 	}
 }
 
-int thin_dump_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_dump_cmd::thin_dump_cmd()
+	: command("thin_dump")
+{
+}
+
+void
+thin_dump_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-f|--format} {xml|human_readable}" << endl
+	    << "  {-r|--repair}" << endl
+	    << "  {-m|--metadata-snap} [block#]" << endl
+	    << "  {-o <xml file>}" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_dump_cmd::run(int argc, char **argv)
 {
 	int c;
 	char const *output = NULL;
@@ -94,7 +130,6 @@ int thin_dump_main(int argc, char **argv)
 	string format = "xml";
 	block_address metadata_snap = 0;
 	struct flags flags;
-	flags.find_metadata_snap = flags.repair = false;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
@@ -109,7 +144,7 @@ int thin_dump_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'f':
@@ -121,16 +156,18 @@ int thin_dump_main(int argc, char **argv)
 			break;
 
 		case 'm':
+			flags.use_metadata_snap = true;
 			if (optarg) {
+				// FIXME: deprecate this option
 				metadata_snap = strtoull(optarg, &end_ptr, 10);
 				if (end_ptr == optarg) {
 					cerr << "couldn't parse <metadata_snap>" << endl;
-					usage(cerr, basename(argv[0]));
+					usage(cerr);
 					return 1;
 				}
-			} else
-				flags.find_metadata_snap = true;
 
+				flags.snap_location = metadata_snap;
+			}
 			break;
 
 		case 'o':
@@ -142,23 +179,18 @@ int thin_dump_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
-	if (flags.find_metadata_snap)
-		metadata_snap = find_metadata_snap(argv[optind]);
-
-	return dump(argv[optind], output, format, flags, metadata_snap);
+	return dump(argv[optind], output, format, flags);
 }
-
-base::command thin_provisioning::thin_dump_cmd("thin_dump", thin_dump_main);
 
 //----------------------------------------------------------------

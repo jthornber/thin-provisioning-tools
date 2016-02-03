@@ -137,9 +137,6 @@ namespace thin_provisioning {
 
 	void check_superblock(persistent_data::block_manager<>::ptr bm,
 			      superblock_detail::damage_visitor &visitor);
-
-	persistent_data::block_address find_metadata_snap(string const &path);
-
 }
 
 //----------------------------------------------------------------

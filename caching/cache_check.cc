@@ -31,7 +31,6 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
-
 	class reporter_base {
 	public:
 		reporter_base(nested_output &o)
@@ -326,24 +325,32 @@ namespace {
 		return r;
 
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--clear-needs-check-flag}" << endl
-		    << "  {--super-block-only}" << endl
-		    << "  {--skip-mappings}" << endl
-		    << "  {--skip-hints}" << endl
-		    << "  {--skip-discards}" << endl;
-	}
 }
 
 //----------------------------------------------------------------
 
-int cache_check_main(int argc, char **argv)
+cache_check_cmd::cache_check_cmd()
+	: command("cache_check")
+{
+}
+
+void
+cache_check_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl
+	    << "  {--clear-needs-check-flag}" << endl
+	    << "  {--super-block-only}" << endl
+	    << "  {--skip-mappings}" << endl
+	    << "  {--skip-hints}" << endl
+	    << "  {--skip-discards}" << endl;
+}
+
+int
+cache_check_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -384,7 +391,7 @@ int cache_check_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'q':
@@ -396,20 +403,18 @@ int cache_check_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return check_with_exception_handling(argv[optind], fs);
 }
-
-base::command caching::cache_check_cmd("cache_check", cache_check_main);
 
 //----------------------------------------------------------------

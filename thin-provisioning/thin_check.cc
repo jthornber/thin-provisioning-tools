@@ -344,21 +344,31 @@ namespace {
 
 		return !success;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--clear-needs-check-flag}" << endl
-		    << "  {--ignore-non-fatal-errors}" << endl
-		    << "  {--skip-mappings}" << endl
-		    << "  {--super-block-only}" << endl;
-	}
 }
 
-int thin_check_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_check_cmd::thin_check_cmd()
+	: command("thin_check")
+{
+}
+
+void
+thin_check_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl
+	    << "  {--clear-needs-check-flag}" << endl
+	    << "  {--ignore-non-fatal-errors}" << endl
+	    << "  {--skip-mappings}" << endl
+	    << "  {--super-block-only}" << endl;
+}
+
+int
+thin_check_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -378,7 +388,7 @@ int thin_check_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'q':
@@ -412,7 +422,7 @@ int thin_check_main(int argc, char **argv)
 			break;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
@@ -420,7 +430,7 @@ int thin_check_main(int argc, char **argv)
 	if (argc == optind) {
 		if (!fs.quiet) {
 			cerr << "No input file provided." << endl;
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 		}
 
 		exit(1);
@@ -428,7 +438,5 @@ int thin_check_main(int argc, char **argv)
 
 	return check(argv[optind], fs);
 }
-
-base::command thin_provisioning::thin_check_cmd("thin_check", thin_check_main);
 
 //----------------------------------------------------------------
