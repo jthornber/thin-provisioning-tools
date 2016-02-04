@@ -1,3 +1,8 @@
+v0.6.1
+======
+
+./configure --enable-static-cxx
+
 v0.6.0
 ======
 
