@@ -101,7 +101,7 @@ namespace {
 
 			for (unsigned i = 0; i < NR_BLOCKS; i++) {
 				boost::optional<block_address> mb = sm->new_block();
-				ASSERT_TRUE(mb);
+				ASSERT_TRUE(!!mb);
 				ASSERT_THAT(sm->get_nr_free(), Eq(NR_BLOCKS - i - 1));
 			}
 
@@ -137,7 +137,7 @@ namespace {
 
 		void test_not_allocated_twice(space_map::ptr sm) {
 			boost::optional<block_address> mb = sm->new_block();
-			ASSERT_TRUE(mb);
+			ASSERT_TRUE(!!mb);
 
 			for (;;) {
 				boost::optional<block_address> b = sm->new_block();

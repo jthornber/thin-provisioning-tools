@@ -14,7 +14,7 @@ xml_parser::parse(std::string const &backup_file, bool quiet)
 	persistent_data::check_file_exists(backup_file);
 	ifstream in(backup_file.c_str(), ifstream::in);
 
-	std::auto_ptr<base::progress_monitor> monitor = create_monitor(quiet);
+	std::unique_ptr<base::progress_monitor> monitor = create_monitor(quiet);
 
 	size_t total = 0;
 	size_t input_length = get_file_length(backup_file);
@@ -53,7 +53,7 @@ xml_parser::get_file_length(string const &file) const
 	return info.st_size;
 }
 
-auto_ptr<base::progress_monitor>
+unique_ptr<base::progress_monitor>
 xml_parser::create_monitor(bool quiet)
 {
 	if (!quiet && isatty(fileno(stdout)))

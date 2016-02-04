@@ -15,8 +15,8 @@ namespace base {
 		virtual void update_percent(unsigned) = 0;
 	};
 
-	std::auto_ptr<progress_monitor> create_progress_bar(std::string const &title);
-	std::auto_ptr<progress_monitor> create_quiet_progress_monitor();
+	std::unique_ptr<progress_monitor> create_progress_bar(std::string const &title);
+	std::unique_ptr<progress_monitor> create_quiet_progress_monitor();
 }
 
 //----------------------------------------------------------------

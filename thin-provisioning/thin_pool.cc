@@ -232,7 +232,7 @@ bool
 thin_pool::device_exists(thin_dev_t dev) const
 {
 	uint64_t key[1] = {dev};
-	return md_->details_->lookup(key);
+	return !!md_->details_->lookup(key);
 }
 
 //----------------------------------------------------------------

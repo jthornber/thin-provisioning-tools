@@ -117,6 +117,10 @@ namespace bcache {
 					bc_->release(*this);
 			}
 
+			void unlink_set() {
+				set_hook_.unlink();
+			}
+
 			void unlink() {
 				list_hook_.unlink();
 			}
@@ -131,7 +135,7 @@ namespace bcache {
 			void *data_;
 
 			bi::list_member_hook<bi::link_mode<bi::auto_unlink>> list_hook_;
-			bi::set_member_hook<> set_hook_;
+			bi::set_member_hook<bi::link_mode<bi::auto_unlink>> set_hook_;
 
 			unsigned ref_count_;
 
@@ -142,8 +146,6 @@ namespace bcache {
 			validator::ptr v_;
 		};
 
-<<<<<<< HEAD
-=======
 		struct cmp_index {
 			bool operator()(block_address index, block const &b) const {
 				return index > b.index_;
@@ -192,7 +194,6 @@ namespace bcache {
 			block *b_;
 		};
 
->>>>>>> 7fadc34... [block-cache] convert to use boost::intrusive rather than kernel style lists.
 		//--------------------------------
 
 		block_cache(int fd, sector_t block_size,
@@ -282,7 +283,7 @@ namespace bcache {
 		block_list io_pending_;
 
 		typedef bi::member_hook<block,
-					bi::set_member_hook<>,
+					bi::set_member_hook<bi::link_mode<bi::auto_unlink>>,
 					&block::set_hook_> block_option;
 		typedef bi::set<block, block_option,
 				bi::constant_time_size<false>> block_set;

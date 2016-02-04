@@ -305,7 +305,7 @@ block_cache::find_unused_clean_block()
 		if (b.ref_count_)
 			continue;
 
-		block_set_.remove_node(b);
+		b.unlink_set();
 		b.unlink();
 		return &b;
 	}
