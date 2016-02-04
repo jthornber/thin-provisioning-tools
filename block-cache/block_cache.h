@@ -1,17 +1,35 @@
 #ifndef BLOCK_CACHE_H
 #define BLOCK_CACHE_H
 
-#include "block-cache/list.h"
-
-#include <boost/shared_ptr.hpp>
+#include <boost/intrusive/list.hpp>
+#include <boost/intrusive/set.hpp>
 #include <boost/noncopyable.hpp>
-
-#include <stdexcept>
+#include <boost/shared_ptr.hpp>
+#include <functional>
+#include <iostream>
 #include <libaio.h>
 #include <memory>
+#include <stdexcept>
 #include <stdint.h>
 #include <stdlib.h>
 #include <vector>
+
+namespace bi = boost::intrusive;
+
+//----------------------------------------------------------------
+
+// FIXME: move to own file in base
+template<class P, class M>
+size_t offsetof__(const M P::*member)
+{
+	return (size_t) &( reinterpret_cast<P*>(0)->*member);
+}
+
+template<class P, class M>
+P *container_of(M *ptr, M const P::*member)
+{
+	return (P *)((char *)(ptr) - offsetof__(member));
+}
 
 //----------------------------------------------------------------
 
@@ -50,7 +68,14 @@ namespace bcache {
 		public:
 			block()
 				: v_() {
-				INIT_LIST_HEAD(&list_);
+			}
+
+			bool operator <(block const &rhs) const {
+				return index_ > rhs.index_;
+			}
+
+			bool operator ==(block const &rhs) const {
+				return index_ == rhs.index_;
 			}
 
 			// Do not give this class a destructor, it wont get
@@ -92,16 +117,21 @@ namespace bcache {
 					bc_->release(*this);
 			}
 
+			void unlink() {
+				list_hook_.unlink();
+			}
+
 		private:
 			friend class block_cache;
+			friend class cmp_index;
 
 			block_cache *bc_;
 
 			uint64_t index_;
 			void *data_;
 
-			list_head list_;
-			list_head hash_list_;
+			bi::list_member_hook<bi::link_mode<bi::auto_unlink>> list_hook_;
+			bi::set_member_hook<> set_hook_;
 
 			unsigned ref_count_;
 
@@ -112,6 +142,57 @@ namespace bcache {
 			validator::ptr v_;
 		};
 
+<<<<<<< HEAD
+=======
+		struct cmp_index {
+			bool operator()(block_address index, block const &b) const {
+				return index > b.index_;
+			}
+
+			bool operator()(block const &b, block_address index) const {
+				return b.index_ > index;
+			}
+		};
+
+		class auto_block {
+		public:
+			auto_block()
+				: b_(0) {
+			}
+
+			auto_block(block &b)
+			: b_(&b) {
+			}
+
+			~auto_block() {
+				put();
+			}
+
+			auto_block &operator =(block &b) {
+				put();
+				b_ = &b;
+				return *this;
+			}
+
+			void *get_data() const {
+				if (b_)
+					return b_->get_data();
+
+				throw std::runtime_error("auto_block not set");
+			}
+
+		private:
+			void put() {
+				if (b_) {
+					b_->put();
+					b_ = 0;
+				}
+			}
+
+			block *b_;
+		};
+
+>>>>>>> 7fadc34... [block-cache] convert to use boost::intrusive rather than kernel style lists.
 		//--------------------------------
 
 		block_cache(int fd, sector_t block_size,
@@ -137,24 +218,24 @@ namespace bcache {
 		void prefetch(block_address index);
 
 	private:
+		typedef bi::member_hook<block,
+					bi::list_member_hook<bi::link_mode<bi::auto_unlink>>,
+					&block::list_hook_> list_hook_option;
+		typedef bi::list<block, list_hook_option,
+					bi::constant_time_size<false>> block_list;
+
 		int init_free_list(unsigned count);
-		void exit_free_list();
 		block *__alloc_block();
 		void complete_io(block &b, int result);
 		void issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc);
 		void issue_read(block &b);
 		void issue_write(block &b);
 		void wait_io();
-		list_head *__categorise(block &b);
+		block_list &__categorise(block &b);
 		void hit(block &b);
 		void wait_all();
 		void wait_specific(block &b);
 		unsigned writeback(unsigned count);
-		void hash_init(unsigned nr_buckets);
-		unsigned hash(uint64_t index);
-		block *hash_lookup(block_address index);
-		void hash_insert(block &b);
-		void hash_remove(block &b);
 		void setup_control_block(block &b);
 		block *find_unused_clean_block();
 		block *new_block(block_address index);
@@ -163,6 +244,7 @@ namespace bcache {
 		unsigned calc_nr_buckets(unsigned nr_blocks);
 		void zero_block(block &b);
 		block *lookup_or_read_block(block_address index, unsigned flags, validator::ptr v);
+		void exit_free_list();
 
 		void preemptive_writeback();
 		void release(block_cache::block &block);
@@ -178,9 +260,8 @@ namespace bcache {
 		uint64_t nr_data_blocks_;
 		uint64_t nr_cache_blocks_;
 
-		// We can't use auto_ptr or unique_ptr because the memory is allocated with malloc
-		void *blocks_memory_;
-		void *blocks_data_;
+		std::unique_ptr<std::vector<block>> blocks_memory_;
+		unsigned char *blocks_data_;
 
 		io_context_t aio_context_;
 		std::vector<io_event> events_;
@@ -189,23 +270,23 @@ namespace bcache {
 		 * Blocks on the free list are not initialised, apart from the
 		 * b.data field.
 		 */
-		list_head free_;
-		list_head errored_;
-		list_head dirty_;
-		list_head clean_;
+		block_list free_;
+		block_list errored_;
+		block_list dirty_;
+		block_list clean_;
 
 		unsigned nr_locked_;
 		unsigned nr_dirty_;
 
 		unsigned nr_io_pending_;
-		struct list_head io_pending_;
+		block_list io_pending_;
 
-		/*
-		 * Hash table fields.
-		 */
-		unsigned nr_buckets_;
-		unsigned mask_;
-		std::vector<list_head> buckets_;
+		typedef bi::member_hook<block,
+					bi::set_member_hook<>,
+					&block::set_hook_> block_option;
+		typedef bi::set<block, block_option,
+				bi::constant_time_size<false>> block_set;
+		block_set block_set_;
 
 		// Stats
 		unsigned read_hits_;
