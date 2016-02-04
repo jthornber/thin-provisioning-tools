@@ -58,9 +58,6 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-	}
 }
 
 //----------------------------------------------------------------
