@@ -142,7 +142,7 @@ namespace {
 		bool device_exists(thin_dev_t dev) const {
 			uint64_t key[1] = {dev};
 			device_tree::maybe_value v = md_->details_->lookup(key);
-			return v;
+			return v.operator bool();
 		}
 
 		metadata::ptr md_;

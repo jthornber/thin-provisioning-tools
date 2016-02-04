@@ -111,7 +111,7 @@ namespace test {
 				throw std::runtime_error("system failed");
 		}
 
-		std::auto_ptr<with_directory> dir_;
+		std::unique_ptr<with_directory> dir_;
 	};
 
 	//--------------------------------

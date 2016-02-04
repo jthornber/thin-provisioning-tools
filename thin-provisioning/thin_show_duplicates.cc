@@ -163,7 +163,7 @@ namespace {
 	private:
 		void scan(chunk_stream &stream) {
 			block_address total_seen(0);
-			auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+			unique_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 
 			do {
 				// FIXME: use a wrapper class to automate the put()

@@ -115,7 +115,7 @@ TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall -O3
 CFLAGS+=@LFS_FLAGS@
-CXXFLAGS+=-g -Wall -fno-strict-aliasing
+CXXFLAGS+=-g -Wall -fno-strict-aliasing -std=c++11
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@

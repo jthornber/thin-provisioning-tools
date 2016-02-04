@@ -16,10 +16,6 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include <iostream>
-#include <getopt.h>
-#include <libgen.h>
-
 #include "version.h"
 
 #include "base/application.h"
@@ -39,10 +35,14 @@
 #include "thin-provisioning/rmap_visitor.h"
 #include "thin-provisioning/superblock.h"
 
-#include <boost/uuid/sha1.hpp>
+#include <array>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
+#include <boost/uuid/sha1.hpp>
 #include <deque>
+#include <getopt.h>
+#include <iostream>
+#include <libgen.h>
 #include <vector>
 
 using namespace base;
@@ -154,7 +154,8 @@ namespace {
 	};
 
 	// FIXME: change to std::array
-	typedef vector<uint32_t> fingerprint;
+//	typedef vector<uint32_t> fingerprint;
+	typedef std::array<uint32_t, 5> fingerprint;
 	typedef block_address fingerprint_location;
 
 	class fingerprint_index {
@@ -218,7 +219,7 @@ namespace {
 	private:
 		void scan_(chunk_stream &stream) {
 			block_address total_seen(0);
-			auto_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
+			unique_ptr<progress_monitor> pbar = create_progress_bar("Examining data");
 
 			do {
 				// FIXME: use a wrapper class to automate the put()
@@ -246,7 +247,7 @@ namespace {
 				digestor_.get_digest(digest);
 
 				// hack
-				fingerprint fp(5);
+				fingerprint fp;
 				for (unsigned i = 0; i < 5; i++)
 				       fp[i] = digest[i];
 

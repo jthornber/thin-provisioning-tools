@@ -63,10 +63,11 @@ TEST_SOURCE=\
 	unit-tests/run_set_t.cc \
 	unit-tests/space_map_t.cc \
 	unit-tests/span_iterator_t.cc \
-	unit-tests/transaction_manager_t.cc \
-	\
-	unit-tests/xdr1.cc \
-	unit-tests/xdr_t.cc
+	unit-tests/transaction_manager_t.cc
+
+#\
+#	unit-tests/xdr1.cc \
+#	unit-tests/xdr_t.cc
 
 #	unit-tests/thin_metadata_t.cc \
 

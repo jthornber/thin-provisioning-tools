@@ -36,7 +36,7 @@ namespace {
 
 TEST_F(RunSetTests, create)
 {
-	auto_ptr<run_set<unsigned> > rs(new run_set<unsigned>());
+	unique_ptr<run_set<unsigned> > rs(new run_set<unsigned>());
 }
 
 TEST_F(RunSetTests, add_single_blocks)

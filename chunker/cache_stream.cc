@@ -78,7 +78,7 @@ cache_stream::get()
 void
 cache_stream::put(chunk const &c)
 {
-	chunk_wrapper *w = container_of(const_cast<chunk *>(&c), chunk_wrapper, c_);
+	chunk_wrapper *w = container_of(const_cast<chunk *>(&c), &chunk_wrapper::c_);
 	delete w;
 }
 
