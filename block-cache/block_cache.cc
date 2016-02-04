@@ -28,31 +28,14 @@ using namespace bcache;
 
 //----------------------------------------------------------------
 
-namespace {
-	void *alloc_aligned(size_t len, size_t alignment)
-	{
-		void *result = NULL;
-		int r = posix_memalign(&result, alignment, len);
-		if (r)
-			return NULL;
-
-		return result;
-	}
-}
-
-//----------------------------------------------------------------
-
 int
 block_cache::init_free_list(unsigned count)
 {
 	size_t block_size = block_size_ << SECTOR_SHIFT;
-	unsigned char *data = static_cast<unsigned char *>(alloc_aligned(count * block_size, PAGE_SIZE));
+	size_t len = count * block_size;
 
-	/* Allocate the data for each block.  We page align the data. */
-	if (!data)
-		return -ENOMEM;
-
-	blocks_data_ = data;
+	blocks_data_.reset(new base::aligned_memory(len, PAGE_SIZE));
+	unsigned char *data = static_cast<unsigned char *>(blocks_data_->data());
 
 	for (unsigned i = 0; i < count; i++) {
 		block &b = (*blocks_memory_)[i];
@@ -61,13 +44,6 @@ block_cache::init_free_list(unsigned count)
 	}
 
 	return 0;
-}
-
-void
-block_cache::exit_free_list()
-{
-	if (blocks_data_)
-		free(blocks_data_);
 }
 
 block_cache::block *
@@ -414,8 +390,6 @@ block_cache::~block_cache()
 	assert(!nr_locked_);
 	flush();
 	wait_all();
-
-	exit_free_list();
 
 	if (aio_context_)
 		io_destroy(aio_context_);

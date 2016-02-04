@@ -25,6 +25,7 @@ PROGRAMS=\
 all: $(PROGRAMS)
 
 SOURCE=\
+	base/aligned_memory.cc \
 	base/application.cc \
 	base/base64.cc \
 	base/disk_units.cc \

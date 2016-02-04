@@ -1,6 +1,7 @@
 #ifndef BLOCK_CACHE_H
 #define BLOCK_CACHE_H
 
+#include "base/aligned_memory.h"
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/noncopyable.hpp>
@@ -241,7 +242,6 @@ namespace bcache {
 		unsigned calc_nr_buckets(unsigned nr_blocks);
 		void zero_block(block &b);
 		block *lookup_or_read_block(block_address index, unsigned flags, validator::ptr v);
-		void exit_free_list();
 
 		void preemptive_writeback();
 		void release(block_cache::block &block);
@@ -258,7 +258,7 @@ namespace bcache {
 		uint64_t nr_cache_blocks_;
 
 		std::unique_ptr<std::vector<block>> blocks_memory_;
-		unsigned char *blocks_data_;
+		std::unique_ptr<base::aligned_memory> blocks_data_;
 
 		io_context_t aio_context_;
 		std::vector<io_event> events_;
