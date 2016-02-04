@@ -80,27 +80,35 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options]" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} <input xml file>" << endl
-		    << "  {-o|--output} <output device or file>" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-V|--version}" << endl
-		    << endl
-		    << "  {--debug-override-metadata-version} <integer>" << endl
-		    << "  {--omit-clean-shutdown}" << endl;
-
-	}
 }
 
-int cache_restore_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+cache_restore_cmd::cache_restore_cmd()
+	: command("cache_restore")
+{
+}
+
+void
+cache_restore_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options]" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-i|--input} <input xml file>" << endl
+	    << "  {-o|--output} <output device or file>" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-V|--version}" << endl
+	    << endl
+	    << "  {--debug-override-metadata-version} <integer>" << endl
+	    << "  {--omit-clean-shutdown}" << endl;
+}
+
+int
+cache_restore_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
-	char const *prog_name = basename(argv[0]);
 	char const *short_opts = "hi:o:qV";
 	option const long_opts[] = {
 		{ "debug-override-metadata-version", required_argument, NULL, 0 },
@@ -125,7 +133,7 @@ int cache_restore_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, prog_name);
+			usage(cout);
 			return 0;
 
 		case 'i':
@@ -145,31 +153,29 @@ int cache_restore_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, prog_name);
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc != optind) {
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
         if (!fs.input) {
 		cerr << "No input file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	if (!fs.output) {
 		cerr << "No output file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	return restore(fs);
 }
-
-base::command caching::cache_restore_cmd("cache_restore", cache_restore_main);
 
 //----------------------------------------------------------------

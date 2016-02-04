@@ -48,10 +48,10 @@ persistent_data::get_nr_blocks(string const &path)
 }
 
 persistent_data::block_manager<>::ptr
-persistent_data::open_bm(std::string const &dev_path, block_manager<>::mode m)
+persistent_data::open_bm(std::string const &dev_path, block_manager<>::mode m, bool excl)
 {
 	block_address nr_blocks = get_nr_blocks(dev_path);
-	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m));
+	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m, excl));
 }
 
 void

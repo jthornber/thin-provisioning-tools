@@ -178,6 +178,10 @@ namespace {
 				v_.visit(missing_devices(d.desc_, d.lost_keys_));
 				break;
 
+			case 1:
+				v_.visit(missing_mappings(d.desc_, path[0], d.lost_keys_));
+				break;
+
 			default:
 				throw std::runtime_error("mapping_tree_damage_visitor: path too long");
 			}
@@ -196,7 +200,7 @@ namespace {
 		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
 			switch (path.size()) {
 			case 0:
-				v_.visit(missing_mappings(d.desc_, path[0], d.lost_keys_));
+				v_.visit(missing_devices(d.desc_, d.lost_keys_));
 				break;
 
 			default:

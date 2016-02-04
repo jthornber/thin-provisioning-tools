@@ -1,6 +1,7 @@
 #include "persistent-data/checksum.h"
 #include "persistent-data/errors.h"
 #include "thin-provisioning/superblock.h"
+#include "persistent-data/file_utils.h"
 
 using namespace thin_provisioning;
 using namespace superblock_detail;

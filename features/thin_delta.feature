@@ -12,8 +12,11 @@ Feature: thin_delta
     Then it should pass with:
 
     """
-    Usage: thin_delta [options] --snap1 <snap> --snap2 <snap> <device or file>
+    Usage: thin_delta [options] <device or file>
     Options:
+      {--thin1, --snap1}
+      {--thin2, --snap2}
+      {-m, --metadata-snap} [block#]
       {--verbose}
       {-h|--help}
       {-V|--version}
@@ -23,8 +26,11 @@ Feature: thin_delta
     When I run `thin_delta -h`
     Then it should pass with:
     """
-    Usage: thin_delta [options] --snap1 <snap> --snap2 <snap> <device or file>
+    Usage: thin_delta [options] <device or file>
     Options:
+      {--thin1, --snap1}
+      {--thin2, --snap2}
+      {-m, --metadata-snap} [block#]
       {--verbose}
       {-h|--help}
       {-V|--version}

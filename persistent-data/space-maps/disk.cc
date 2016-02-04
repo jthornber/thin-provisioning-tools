@@ -747,6 +747,11 @@ persistent_data::create_metadata_sm(transaction_manager &tm, block_address nr_bl
 {
 	index_store::ptr store(new metadata_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
+
+	if (nr_blocks > MAX_METADATA_BLOCKS) {
+		cerr << "truncating metadata device to " << MAX_METADATA_BLOCKS << " 4k blocks\n";
+		nr_blocks = MAX_METADATA_BLOCKS;
+	}
 	sm->extend(nr_blocks);
 	sm->commit();
 	return create_careful_alloc_sm(

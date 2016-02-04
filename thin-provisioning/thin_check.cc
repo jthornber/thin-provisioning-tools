@@ -169,23 +169,9 @@ namespace {
 		bool clear_needs_check_flag_on_success;
 	};
 
-	error_state check_space_map_counts(flags const &fs, nested_output &out,
-					   superblock_detail::superblock &sb,
-					   block_manager<>::ptr bm,
-					   transaction_manager::ptr tm) {
-		block_counter bc;
-
-		// Count the superblock
-		bc.inc(superblock_detail::SUPERBLOCK_LOCATION);
-
-		// Count the metadata snap, if present
-		if (sb.metadata_snap_ != superblock_detail::SUPERBLOCK_LOCATION) {
-			bc.inc(sb.metadata_snap_);
-
-			superblock_detail::superblock snap = read_superblock(bm, sb.metadata_snap_);
-			bc.inc(snap.data_mapping_root_);
-			bc.inc(snap.device_details_root_);
-		}
+	void count_trees(transaction_manager::ptr tm,
+			 superblock_detail::superblock &sb,
+			 block_counter &bc) {
 
 		// Count the device tree
 		{
@@ -201,6 +187,25 @@ namespace {
 			mapping_tree mtree(*tm, sb.data_mapping_root_,
 					   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 			count_btree_blocks(mtree, bc, vc);
+		}
+	}
+
+	error_state check_space_map_counts(flags const &fs, nested_output &out,
+					   superblock_detail::superblock &sb,
+					   block_manager<>::ptr bm,
+					   transaction_manager::ptr tm) {
+		block_counter bc;
+
+		// Count the superblock
+		bc.inc(superblock_detail::SUPERBLOCK_LOCATION);
+		count_trees(tm, sb, bc);
+
+		// Count the metadata snap, if present
+		if (sb.metadata_snap_ != superblock_detail::SUPERBLOCK_LOCATION) {
+			bc.inc(sb.metadata_snap_);
+
+			superblock_detail::superblock snap = read_superblock(bm, sb.metadata_snap_);
+			count_trees(tm, snap, bc);
 		}
 
 		// Count the metadata space map
@@ -323,11 +328,11 @@ namespace {
 			err = metadata_check(path, fs);
 
 			if (fs.ignore_non_fatal_errors)
-				success = (err == FATAL) ? 1 : 0;
+				success = (err == FATAL) ? false : true;
 			else
-				success =  (err == NO_ERROR) ? 0 : 1;
+				success = (err == NO_ERROR) ? true : false;
 
-			if (!success && fs.clear_needs_check_flag_on_success)
+			if (success && fs.clear_needs_check_flag_on_success)
 				clear_needs_check(path);
 
 		} catch (std::exception &e) {
@@ -337,23 +342,33 @@ namespace {
 			return 1;
 		}
 
-		return success;
-	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--clear-needs-check-flag}" << endl
-		    << "  {--ignore-non-fatal-errors}" << endl
-		    << "  {--skip-mappings}" << endl
-		    << "  {--super-block-only}" << endl;
+		return !success;
 	}
 }
 
-int thin_check_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_check_cmd::thin_check_cmd()
+	: command("thin_check")
+{
+}
+
+void
+thin_check_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl
+	    << "  {--clear-needs-check-flag}" << endl
+	    << "  {--ignore-non-fatal-errors}" << endl
+	    << "  {--skip-mappings}" << endl
+	    << "  {--super-block-only}" << endl;
+}
+
+int
+thin_check_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -373,7 +388,7 @@ int thin_check_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'q':
@@ -407,7 +422,7 @@ int thin_check_main(int argc, char **argv)
 			break;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
@@ -415,7 +430,7 @@ int thin_check_main(int argc, char **argv)
 	if (argc == optind) {
 		if (!fs.quiet) {
 			cerr << "No input file provided." << endl;
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 		}
 
 		exit(1);
@@ -423,7 +438,5 @@ int thin_check_main(int argc, char **argv)
 
 	return check(argv[optind], fs);
 }
-
-base::command thin_provisioning::thin_check_cmd("thin_check", thin_check_main);
 
 //----------------------------------------------------------------

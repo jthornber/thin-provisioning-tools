@@ -9,9 +9,9 @@ thin_trim \- Issue discard requests for free pool space (offline tool).
 
 .SH DESCRIPTION
 .B thin_trim
-sends discard requests to the pool device for unprovisioned areas.  It is an offline tool, 
-.B do not run it while the pool is active
-.
+sends discard requests to the pool device for unprovisioned areas.
+
+This tool cannot be run on live metadata.
 
 .SH OPTIONS
 .IP "\fB\-\-pool-inactive\fP"

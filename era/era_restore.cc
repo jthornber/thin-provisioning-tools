@@ -46,23 +46,32 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options]" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} <input xml file>" << endl
-		    << "  {-o|--output} <output device or file>" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-V|--version}" << endl;
-	}
 }
 
-int era_restore_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+era_restore_cmd::era_restore_cmd()
+	: command("era_restore")
+{
+}
+
+void
+era_restore_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options]" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-i|--input} <input xml file>" << endl
+	    << "  {-o|--output} <output device or file>" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+era_restore_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
-	char const *prog_name = basename(argv[0]);
 	char const *short_opts = "hi:o:qV";
 	option const long_opts[] = {
 		{ "help", no_argument, NULL, 'h'},
@@ -76,7 +85,7 @@ int era_restore_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, prog_name);
+			usage(cout);
 			return 0;
 
 		case 'i':
@@ -96,31 +105,29 @@ int era_restore_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, prog_name);
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc != optind) {
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
         if (!fs.input) {
 		cerr << "No input file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	if (!fs.output) {
 		cerr << "No output file provided." << endl << endl;
-		usage(cerr, prog_name);
+		usage(cerr);
 		return 1;
 	}
 
 	return restore(fs, fs.quiet);
 }
-
-base::command era::era_restore_cmd("era_restore", era_restore_main);
 
 //----------------------------------------------------------------

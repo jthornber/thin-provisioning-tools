@@ -27,9 +27,11 @@ all: $(PROGRAMS)
 SOURCE=\
 	base/application.cc \
 	base/base64.cc \
+	base/disk_units.cc \
 	base/endian_utils.cc \
 	base/error_state.cc \
 	base/error_string.cc \
+	base/grid_layout.cc \
 	base/progress_monitor.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
@@ -38,6 +40,7 @@ SOURCE=\
 	caching/cache_metadata_size.cc \
 	caching/cache_repair.cc \
 	caching/cache_restore.cc \
+	caching/commands.cc \
 	caching/hint_array.cc \
 	caching/mapping_array.cc \
 	caching/metadata.cc \
@@ -45,6 +48,7 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
+	era/commands.cc \
 	era/era_array.cc \
 	era/era_check.cc \
 	era/era_detail.cc \
@@ -70,6 +74,8 @@ SOURCE=\
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
+	persistent-data/validators.cc \
+	thin-provisioning/commands.cc \
 	thin-provisioning/device_tree.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
@@ -82,6 +88,7 @@ SOURCE=\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
+	thin-provisioning/thin_ls.cc \
 	thin-provisioning/thin_metadata_size.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_repair.cc \
@@ -92,14 +99,17 @@ SOURCE=\
 
 CC:=@CC@
 CXX:=@CXX@
+STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall -O3
+CFLAGS+=@LFS_FLAGS@
 CXXFLAGS+=-g -Wall -fno-strict-aliasing
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
+CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-lstdc++ -laio -lexpat
 INSTALL:=@INSTALL@
@@ -111,7 +121,7 @@ MANPATH:=$(DATADIR)/man
 vpath %.cc $(TOP_DIR)
 
 INSTALL_DIR = $(INSTALL) -m 755 -d
-INSTALL_PROGRAM = $(INSTALL) -m 755 -s
+INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
@@ -164,6 +174,7 @@ distclean: clean
 install: bin/pdata_tools
 	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
+	$(STRIP) $(BINDIR)/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_check
 	ln -s -f pdata_tools $(BINDIR)/cache_dump
 	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
@@ -172,6 +183,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_check
 	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
+	ln -s -f pdata_tools $(BINDIR)/thin_ls
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
@@ -189,6 +201,7 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_ls.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8

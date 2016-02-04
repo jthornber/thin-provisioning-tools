@@ -70,10 +70,17 @@ namespace persistent_data {
 			}
 
 			maybe_run64 end() {
+				maybe_run64 r;
+
 				if (damaged_)
-					return maybe_run64(damage_begin_);
+					r = maybe_run64(damage_begin_);
 				else
-					return maybe_run64();
+					r = maybe_run64();
+
+				damaged_ = false;
+				damage_begin_ = 0;
+
+				return r;
 			}
 
 		private:
@@ -190,6 +197,7 @@ namespace persistent_data {
 
 			error_outcome error_accessing_node(node_location const &l, block_address b,
 							   std::string const &what) {
+				update_path(l.path);
 				report_damage(what);
 				return btree<Levels, ValueTraits>::visitor::EXCEPTION_HANDLED;
 			}
@@ -210,6 +218,7 @@ namespace persistent_data {
 					    btree_detail::node_ref<block_traits> const &n) {
 				if (!already_visited(n) &&
 				    check_block_nr(n) &&
+				    check_value_size(n) &&
 				    check_max_entries(n) &&
 				    check_nr_entries(n, loc.is_sub_root()) &&
 				    check_ordered_keys(n) &&
@@ -229,6 +238,7 @@ namespace persistent_data {
 					btree_detail::node_ref<ValueTraits2> const &n) {
 				if (!already_visited(n) &&
 				    check_block_nr(n) &&
+				    check_value_size(n) &&
 				    check_max_entries(n) &&
 				    check_nr_entries(n, loc.is_sub_root()) &&
 				    check_ordered_keys(n) &&
@@ -269,6 +279,16 @@ namespace persistent_data {
 					    << ", claims " << n.get_block_nr();
 
 					report_damage(out.str());
+					return false;
+				}
+
+				return true;
+			}
+
+			template <typename node>
+			bool check_value_size(node const &n) {
+				if (!n.value_sizes_match()) {
+					report_damage(n.value_mismatch_string());
 					return false;
 				}
 

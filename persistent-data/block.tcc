@@ -46,14 +46,23 @@ namespace {
 	// to exception.h
 	void syscall_failed(char const *call) {
 		ostringstream out;
-		out << "syscall '" << call << "' failed: " << base::error_string(errno);;
+		out << "syscall '" << call << "' failed: " << base::error_string(errno);
+		throw runtime_error(out.str());
+	}
+
+	void syscall_failed(string const &call, string const &message)
+	{
+		ostringstream out;
+		out << "syscall '" << call << "' failed: " << base::error_string(errno) << "\n"
+		    << message;
 		throw runtime_error(out.str());
 	}
 
 	int open_file(string const &path, int flags) {
 		int fd = ::open(path.c_str(), OPEN_FLAGS | flags, DEFAULT_MODE);
 		if (fd < 0)
-			syscall_failed("open");
+			syscall_failed("open",
+				 "Note: you cannot run this tool with these options on live metadata.");
 
 		return fd;
 	}
@@ -80,7 +89,7 @@ namespace {
 			throw runtime_error(out.str());
 		}
 
-		int fd = open_file(path, O_CREAT | O_RDWR);
+		int fd = open_file(path, O_CREAT | O_EXCL | O_RDWR);
 
 		int r = ::ftruncate(fd, file_size);
 		if (r < 0)
@@ -89,14 +98,18 @@ namespace {
 		return fd;
 	}
 
-	int open_block_file(string const &path, off_t min_size, bool writeable) {
+	int open_block_file(string const &path, off_t min_size, bool writeable, bool excl = true) {
 		if (!file_exists(path)) {
 			ostringstream out;
 			out << __FUNCTION__ << ": file '" << path << "' doesn't exist";
 			throw runtime_error(out.str());
 		}
 
-		return open_file(path, writeable ? O_RDWR : O_RDONLY);
+		int flags = writeable ? O_RDWR : O_RDONLY;
+		if (excl)
+			flags |= O_EXCL;
+
+		return open_file(path, flags);
 	}
 };
 
@@ -208,8 +221,9 @@ namespace persistent_data {
 	block_manager<BlockSize>::block_manager(std::string const &path,
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
-						mode m)
-		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m)),
+						mode m,
+						bool excl)
+		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m, excl)),
 		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16),
 		  superblock_ref_count_(0)
 	{
@@ -217,14 +231,14 @@ namespace persistent_data {
 
 	template <uint32_t BlockSize>
 	int
-	block_manager<BlockSize>::open_or_create_block_file(string const &path, off_t file_size, mode m)
+	block_manager<BlockSize>::open_or_create_block_file(string const &path, off_t file_size, mode m, bool excl)
 	{
 		switch (m) {
 		case READ_ONLY:
-			return open_block_file(path, file_size, false);
+			return open_block_file(path, file_size, false, excl);
 
 		case READ_WRITE:
-			return open_block_file(path, file_size, true);
+			return open_block_file(path, file_size, true, excl);
 
 		case CREATE:
 			return create_block_file(path, file_size);

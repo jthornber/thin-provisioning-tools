@@ -74,6 +74,11 @@ superblock_flags::superblock_flags(uint32_t bits)
 		bits &= ~(1 << CLEAN_SHUTDOWN_BIT);
 	}
 
+	if (bits & (1u << NEEDS_CHECK_BIT)) {
+		flags_.insert(NEEDS_CHECK);
+		bits &= ~(1u << NEEDS_CHECK_BIT);
+	}
+
 	unhandled_flags_ = bits;
 }
 
@@ -102,6 +107,9 @@ superblock_flags::encode() const
 
 	if (get_flag(CLEAN_SHUTDOWN))
 		r = r | (1 << CLEAN_SHUTDOWN_BIT);
+
+	if (get_flag(NEEDS_CHECK))
+		r = r | (1u << NEEDS_CHECK_BIT);
 
 	return r;
 }

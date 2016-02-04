@@ -24,13 +24,15 @@ in order to put it back onto a metadata
 (to process by the device-mapper target) or
 .I file.
 
+This tool cannot be run on live metadata unless the \fB\-\-metadata\-snap\fP option is used.
+
 .IP "\fB\-f, \-\-format\fP \fI{xml|human_readable}\fP".
 Print output in XML or human readable format.
 
 .IP "\fB\-r, \-\-repair\fP".
 Repair the metadata whilst dumping it.
 
-.IP "\fB\-m, \-\-metadata_snap\fP [block#]".
+.IP "\fB\-m, \-\-metadata\-snap\fP [block#]".
 Dump metadata snapshot created by device-mapper thin provisioning target.
 If block is not provided, access the default metadata snapshot created by
 the thin provisioning device-mapper target, else try the one at block#.

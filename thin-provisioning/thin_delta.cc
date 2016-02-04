@@ -14,6 +14,7 @@
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/commands.h"
 
 using namespace std;
@@ -64,24 +65,20 @@ namespace local {
 
 	struct flags {
 		flags()
-			: verbose(false) {
+			: verbose(false),
+			  use_metadata_snap(false) {
 		}
+
+		bool verbose;
+		bool use_metadata_snap;
 
 		boost::optional<string> dev;
 		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
-		bool verbose;
 	};
 
 	//--------------------------------
-
-	block_manager<>::ptr
-	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_blocks(path);
-		block_manager<>::mode m = block_manager<>::READ_ONLY;
-		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
-	}
 
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {
@@ -533,17 +530,12 @@ namespace local {
 		checked_space_map::ptr data_sm;
 
 		{
-			block_manager<>::ptr bm = open_bm(*fs.dev);
-			transaction_manager::ptr tm = open_tm(bm);
-
-			sb = fs.metadata_snap ? read_superblock(bm, *fs.metadata_snap) : read_superblock(bm);
-			data_sm = open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
-
-			dev_tree dtree(*tm, sb.data_mapping_root_,
-				       mapping_tree_detail::mtree_traits::ref_counter(tm));
+			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.use_metadata_snap);
+			metadata::ptr md(fs.use_metadata_snap ? new metadata(bm, fs.metadata_snap) : new metadata(bm));
+			sb = md->sb_;
 
 			dev_tree::key k = {*fs.snap1};
-			boost::optional<uint64_t> snap1_root = dtree.lookup(k);
+			boost::optional<uint64_t> snap1_root = md->mappings_top_level_->lookup(k);
 
 			if (!snap1_root) {
 				ostringstream out;
@@ -551,10 +543,11 @@ namespace local {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap1(*tm, *snap1_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap1(*md->tm_, *snap1_root,
+						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 
 			k[0] = *fs.snap2;
-			boost::optional<uint64_t> snap2_root = dtree.lookup(k);
+			boost::optional<uint64_t> snap2_root = md->mappings_top_level_->lookup(k);
 
 			if (!snap2_root) {
 				ostringstream out;
@@ -562,7 +555,8 @@ namespace local {
 				app.die(out.str());
 			}
 
-			single_mapping_tree snap2(*tm, *snap2_root, mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+			single_mapping_tree snap2(*md->tm_, *snap2_root,
+						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 			btree_visit_values(snap1, mr1, damage_v);
 			mr1.complete();
 
@@ -608,7 +602,19 @@ namespace local {
 
 // FIXME: add metadata snap switch
 
-int thin_delta_main(int argc, char **argv)
+thin_delta_cmd::thin_delta_cmd()
+	: command("thin_delta")
+{
+}
+
+void
+thin_delta_cmd::usage(std::ostream &out) const
+{
+	// FIXME: finish
+}
+
+int
+thin_delta_cmd::run(int argc, char **argv)
 {
 	using namespace local;
 
@@ -616,7 +622,7 @@ int thin_delta_main(int argc, char **argv)
 	flags fs;
 	local::application app(basename(argv[0]));
 
-	char const shortopts[] = "hVm";
+	char const shortopts[] = "hVm::";
 	option const longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
@@ -624,7 +630,7 @@ int thin_delta_main(int argc, char **argv)
 		{ "snap1", required_argument, NULL, 1 },
 		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
-		{ "metadata-snap", no_argument, NULL, 'm' },
+		{ "metadata-snap", optional_argument, NULL, 'm' },
 		{ "verbose", no_argument, NULL, 4 }
 	};
 
@@ -647,7 +653,9 @@ int thin_delta_main(int argc, char **argv)
 			break;
 
 		case 'm':
-			fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
+			fs.use_metadata_snap = true;
+			if (optarg)
+				fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
 			break;
 
 		case 4:
@@ -673,7 +681,5 @@ int thin_delta_main(int argc, char **argv)
 
 	return delta(app, fs);
 }
-
-base::command thin_provisioning::thin_delta_cmd("thin_delta", thin_delta_main);
 
 //----------------------------------------------------------------

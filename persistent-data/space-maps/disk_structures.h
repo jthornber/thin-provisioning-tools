@@ -61,6 +61,7 @@ namespace persistent_data {
 		};
 
 		unsigned const MAX_METADATA_BITMAPS = 255;
+		unsigned const MAX_METADATA_BLOCKS = (255 * ((1 << 14) - 64));
 		unsigned const ENTRIES_PER_BYTE = 4;
 
 		struct metadata_index {

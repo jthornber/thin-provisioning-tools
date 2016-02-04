@@ -31,7 +31,6 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
-
 	class reporter_base {
 	public:
 		reporter_base(nested_output &o)
@@ -187,7 +186,8 @@ namespace {
 			  check_hints_(true),
 			  check_discards_(true),
 			  ignore_non_fatal_errors_(false),
-			  quiet_(false) {
+			  quiet_(false),
+			  clear_needs_check_on_success_(false) {
 		}
 
 		bool check_mappings_;
@@ -195,6 +195,7 @@ namespace {
 		bool check_discards_;
 		bool ignore_non_fatal_errors_;
 		bool quiet_;
+		bool clear_needs_check_on_success_;
 	};
 
 	struct stat guarded_stat(string const &path) {
@@ -210,7 +211,17 @@ namespace {
 		return info;
 	}
 
-	error_state metadata_check(block_manager<>::ptr bm, flags const &fs) {
+	void clear_needs_check(string const &path) {
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
+
+		superblock sb = read_superblock(bm);
+		sb.flags.clear_flag(superblock_flags::NEEDS_CHECK);
+		write_superblock(bm, sb);
+	}
+
+	error_state metadata_check(string const &path, flags const &fs) {
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
+
 		nested_output out(cerr, 2);
 		if (fs.quiet_)
 			out.disable();
@@ -285,8 +296,17 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
-		err = metadata_check(bm, fs);
+		err = metadata_check(path, fs);
+
+		bool success = false;
+
+		if (fs.ignore_non_fatal_errors_)
+			success = (err == FATAL) ? false : true;
+		else
+			success = (err == NO_ERROR) ? true : false;
+
+		if (success && fs.clear_needs_check_on_success_)
+			clear_needs_check(path);
 
 		return err == NO_ERROR ? 0 : 1;
 	}
@@ -305,23 +325,32 @@ namespace {
 		return r;
 
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-q|--quiet}" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-V|--version}" << endl
-		    << "  {--super-block-only}" << endl
-		    << "  {--skip-mappings}" << endl
-		    << "  {--skip-hints}" << endl
-		    << "  {--skip-discards}" << endl;
-	}
 }
 
 //----------------------------------------------------------------
 
-int cache_check_main(int argc, char **argv)
+cache_check_cmd::cache_check_cmd()
+	: command("cache_check")
+{
+}
+
+void
+cache_check_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-q|--quiet}" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl
+	    << "  {--clear-needs-check-flag}" << endl
+	    << "  {--super-block-only}" << endl
+	    << "  {--skip-mappings}" << endl
+	    << "  {--skip-hints}" << endl
+	    << "  {--skip-discards}" << endl;
+}
+
+int
+cache_check_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -332,6 +361,7 @@ int cache_check_main(int argc, char **argv)
 		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "skip-hints", no_argument, NULL, 3 },
 		{ "skip-discards", no_argument, NULL, 4 },
+		{ "clear-needs-check-flag", no_argument, NULL, 5 },
 		{ "help", no_argument, NULL, 'h' },
 		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
@@ -356,8 +386,12 @@ int cache_check_main(int argc, char **argv)
 			fs.check_discards_ = false;
 			break;
 
+		case 5:
+			fs.clear_needs_check_on_success_ = true;
+			break;
+
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'q':
@@ -369,20 +403,18 @@ int cache_check_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return check_with_exception_handling(argv[optind], fs);
 }
-
-base::command caching::cache_check_cmd("cache_check", cache_check_main);
 
 //----------------------------------------------------------------

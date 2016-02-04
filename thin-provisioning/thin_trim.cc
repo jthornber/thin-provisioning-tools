@@ -6,6 +6,11 @@
 
 #undef BLOCK_SIZE
 
+#ifndef BLKDISCARD
+#define BLKDISCARD _IO(0x12,119)
+#endif
+
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "metadata.h"
 #include "version.h"
@@ -118,7 +123,8 @@ namespace {
 	int trim(string const &metadata_dev, string const &data_dev) {
 		// We can trim any block that has zero count in the data
 		// space map.
-		metadata md(metadata_dev, 0);
+		block_manager<>::ptr bm = open_bm(metadata_dev, block_manager<>::READ_ONLY);
+		metadata md(bm);
 
 		if (!md.data_sm_->get_nr_free())
 			return 0;
@@ -133,14 +139,6 @@ namespace {
 		return 0;
 	}
 
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}\n"
-		    << "Options:\n"
-		    << "  {--pool-inactive}\n"
-		    << "  {-h|--help}\n"
-		    << "  {-V|--version}" << endl;
-	}
-
 	struct flags {
 		boost::optional<string> metadata_dev;
 		boost::optional<string> data_dev;
@@ -149,7 +147,23 @@ namespace {
 
 //----------------------------------------------------------------
 
-int thin_trim_main(int argc, char **argv)
+thin_trim_cmd::thin_trim_cmd()
+	: command("thin_trim")
+{
+}
+
+void
+thin_trim_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {--pool-inactive}\n"
+	    << "  {-h|--help}\n"
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_trim_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -175,7 +189,7 @@ int thin_trim_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'V':
@@ -183,13 +197,13 @@ int thin_trim_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (!fs.metadata_dev || !fs.data_dev) {
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
