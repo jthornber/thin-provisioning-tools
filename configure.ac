@@ -145,14 +145,6 @@ AC_ARG_ENABLE(static_cxx,
               STATIC_CXX=$enableval, STATIC_CXX=no)
 AC_MSG_RESULT($STATIC_CXX)
 
-if test x$STATIC_CXX = xyes; then
-   STATIC_LINK_FLAGS=-static-libstdc++
-   DYNAMIC_LINK_FLAGS=
-else
-   STATIC_LINK_FLAGS=
-   DYNAMIC_LINK_FLAGS=-lstdc++
-fi
-
 ################################################################################
 dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
@@ -180,8 +172,7 @@ AC_SUBST(RELEASE_DATE)
 AC_SUBST(RELEASE_DATE)
 AC_SUBST(TESTING)
 AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
-AC_SUBST(STATIC_LINK_FLAGS)
-AC_SUBST(DYNAMIC_LINK_FLAGS)
+AC_SUBST(STATIC_CXX)
 
 ################################################################################
 dnl -- First and last lines should not contain files to generate in order to
