@@ -114,9 +114,9 @@ INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-laio -lexpat
 
 ifeq ("@STATIC_CXX@", "yes")
-LIBS+=$(shell  g++ -print-file-name=libstdc++.a)
+CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed
 else
-LIBS+=-lstdc++
+CXXLIB+=-lstdc++
 endif
 
 INSTALL:=@INSTALL@
@@ -157,7 +157,7 @@ lib/libpdata.a: $(OBJECTS)
 
 bin/pdata_tools: $(OBJECTS)
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
 #----------------------------------------------------------------
 
