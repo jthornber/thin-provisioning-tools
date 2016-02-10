@@ -1,7 +1,7 @@
 v0.6.1
 ======
 
-./configure --enable-static-cxx
+Fix bug in thin_dump when using metadata snaps.
 
 v0.6.0
 ======
