@@ -222,10 +222,14 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(repair));
 	walk_device_tree(*md->details_, de, *dd_policy);
 
+	// metadata snap doesn't have the space maps so we don't know how
+	// many data blocks there are.
+	block_address nr_data_blocks = md->data_sm_ ? md->data_sm_->get_nr_blocks() : 0;
+
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
 			    md->sb_.data_block_size_,
-			    md->data_sm_->get_nr_blocks(),
+			    nr_data_blocks,
 			    boost::optional<block_address>());
 
 	{
