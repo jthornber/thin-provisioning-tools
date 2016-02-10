@@ -111,7 +111,14 @@ CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-lstdc++ -laio -lexpat
+LIBS:=-laio -lexpat
+
+ifeq ("@STATIC_CXX@", "yes")
+CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed
+else
+CXXLIB+=-lstdc++
+endif
+
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
@@ -150,7 +157,7 @@ lib/libpdata.a: $(OBJECTS)
 
 bin/pdata_tools: $(OBJECTS)
 	@echo "    [LD]  $@"
-	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
 #----------------------------------------------------------------
 

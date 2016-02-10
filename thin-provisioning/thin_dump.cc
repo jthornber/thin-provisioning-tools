@@ -87,17 +87,6 @@ namespace {
 		} else
 			return dump_(path, cout, format, flags);
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-f|--format} {xml|human_readable}" << endl
-		    << "  {-r|--repair}" << endl
-		    << "  {-m|--metadata-snap} [block#]" << endl
-		    << "  {-o <xml file>}" << endl
-		    << "  {-V|--version}" << endl;
-	}
 }
 
 //----------------------------------------------------------------

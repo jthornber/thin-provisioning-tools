@@ -138,6 +138,14 @@ AC_ARG_ENABLE(testing,
 AC_MSG_RESULT($TESTING)
 
 ################################################################################
+dnl -- Enable static libstdc++
+AC_MSG_CHECKING(whether to statically link libstdc++)
+AC_ARG_ENABLE(static_cxx,
+              AC_HELP_STRING(--enable-static-cxx, [enable static link of libstdc++]),
+              STATIC_CXX=$enableval, STATIC_CXX=no)
+AC_MSG_RESULT($STATIC_CXX)
+
+################################################################################
 dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
 
@@ -164,6 +172,7 @@ AC_SUBST(RELEASE_DATE)
 AC_SUBST(RELEASE_DATE)
 AC_SUBST(TESTING)
 AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
+AC_SUBST(STATIC_CXX)
 
 ################################################################################
 dnl -- First and last lines should not contain files to generate in order to
