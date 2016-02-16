@@ -1,3 +1,9 @@
+v0.6.2
+======
+
+Fix recent regression in thin_repair.
+Force g++-98 dialect
+
 v0.6.1
 ======
 
