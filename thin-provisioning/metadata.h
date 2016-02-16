@@ -74,7 +74,7 @@ namespace thin_provisioning {
 		// ii)  Read the metadata snap as given in the superblock
 		// iii) Read the metadata snap given on command line, checking it matches superblock.
 		//
-		metadata(block_manager<>::ptr bm); // (i)
+		metadata(block_manager<>::ptr bm, bool read_space_maps = true); // (i)
 		metadata(block_manager<>::ptr,
 			 boost::optional<block_address> metadata_snap); // (ii) and (iii)
 

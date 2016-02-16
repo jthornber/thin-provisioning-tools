@@ -112,12 +112,14 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm)
+metadata::metadata(block_manager<>::ptr bm, bool read_space_maps)
 {
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm(), SUPERBLOCK_LOCATION);
 
-	open_space_maps();
+	if (read_space_maps)
+		open_space_maps();
+
 	open_btrees();
 }
 
