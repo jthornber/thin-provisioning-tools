@@ -103,13 +103,6 @@ namespace local {
 			  len_(len) {
 		}
 
-		void consume(uint64_t delta) {
-			delta = min<uint64_t>(delta, len_);
-			vbegin_ += delta;
-			dbegin_ += delta;
-			len_ -= delta;
-		}
-
 		uint64_t vbegin_, dbegin_, len_;
 	};
 
@@ -119,6 +112,51 @@ namespace local {
 		    << ", len = " << m.len_ << "]";
 		return out;
 	}
+
+	//--------------------------------
+
+	template <typename Container>
+	class mapping_stream {
+	public:
+		mapping_stream(Container const &c)
+		: it_(c.begin()),
+		  end_(c.end()) {
+			m_ = *it_;
+		}
+
+		mapping const &get_mapping() const {
+			return m_;
+		}
+
+		bool more_mappings() const {
+			return it_ != end_;
+		}
+
+		void consume(uint64_t delta) {
+			if (it_ == end_)
+				throw runtime_error("end of stream already reached");
+
+			if (delta > m_.len_)
+				throw runtime_error("delta too long");
+
+			if (delta == m_.len_) {
+				++it_;
+				m_ = *it_;
+
+			} else {
+				m_.vbegin_ += delta;
+				m_.dbegin_ += delta;
+				m_.len_ -= delta;
+			}
+		}
+
+	private:
+		typename Container::const_iterator it_;
+		typename Container::const_iterator end_;
+		mapping m_;
+	};
+
+	//--------------------------------
 
 	typedef std::deque<mapping> mapping_deque;
 
@@ -426,58 +464,45 @@ namespace local {
 
 		// We iterate through both sets of mappings in parallel
 		// noting any differences.
-		mapping_deque::const_iterator left_it = left.begin();
-		mapping_deque::const_iterator right_it = right.begin();
+		mapping_stream<mapping_deque> ls{left};
+		mapping_stream<mapping_deque> rs{right};
 
-		mapping left_mapping;
-		mapping right_mapping;
+		while (ls.more_mappings() && rs.more_mappings()) {
+			auto &lm = ls.get_mapping();
+			auto &rm = rs.get_mapping();
 
-		while ((left_mapping.len_ || left_it != left.end()) &&
-		       (right_mapping.len_ || right_it != right.end())) {
-			if (!left_mapping.len_ && left_it != left.end())
-				left_mapping = *left_it++;
+			if (lm.vbegin_ < rm.vbegin_) {
+				auto delta = min<uint64_t>(lm.len_, rm.vbegin_ - lm.vbegin_);
+				e.left_only(lm.vbegin_, lm.dbegin_, delta);
+				ls.consume(delta);
 
-			if (!right_mapping.len_ && right_it != right.end())
-				right_mapping = *right_it++;
+			} else if (lm.vbegin_ > rm.vbegin_) {
+				auto delta = min<uint64_t>(rm.len_, lm.vbegin_ - rm.vbegin_);
+				e.right_only(rm.vbegin_, rm.dbegin_, delta);
+				rs.consume(delta);
 
-			while (left_mapping.len_ && right_mapping.len_) {
-				if (left_mapping.vbegin_ < right_mapping.vbegin_) {
-					uint64_t delta = min<uint64_t>(left_mapping.len_, right_mapping.vbegin_ - left_mapping.vbegin_);
-					e.left_only(left_mapping.vbegin_, left_mapping.dbegin_, delta);
-					left_mapping.consume(delta);
+			} else if (lm.dbegin_ != rm.dbegin_) {
+				auto delta = min<uint64_t>(lm.len_, rm.len_);
+				e.blocks_differ(lm.vbegin_, lm.dbegin_, rm.dbegin_, delta);
+				ls.consume(delta);
+				rs.consume(delta);
 
-				} else if (left_mapping.vbegin_ > right_mapping.vbegin_) {
-					uint64_t delta = min<uint64_t>(right_mapping.len_, left_mapping.vbegin_ - right_mapping.vbegin_);
-					e.right_only(right_mapping.vbegin_, right_mapping.dbegin_, delta);
-					right_mapping.consume(delta);
-
-				} else if (left_mapping.dbegin_ != right_mapping.dbegin_) {
-					uint64_t delta = min<uint64_t>(left_mapping.len_, right_mapping.len_);
-					e.blocks_differ(left_mapping.vbegin_, left_mapping.dbegin_, right_mapping.dbegin_, delta);
-					left_mapping.consume(delta);
-					right_mapping.consume(delta);
-
-				} else {
-					uint64_t delta = min<uint64_t>(left_mapping.len_, right_mapping.len_);
-					e.blocks_same(left_mapping.vbegin_, left_mapping.dbegin_, delta);
-					left_mapping.consume(delta);
-					right_mapping.consume(delta);
-				}
+			} else {
+				auto delta = min<uint64_t>(lm.len_, rm.len_);
+				e.blocks_same(lm.vbegin_, lm.dbegin_, delta);
+				ls.consume(delta);
+				rs.consume(delta);
 			}
 		}
 
-		while (left_it != left.end()) {
-			left_mapping = *left_it++;
-
-			if (left_mapping.len_)
-				e.left_only(left_mapping.vbegin_, left_mapping.dbegin_, left_mapping.len_);
+		while (ls.more_mappings()) {
+			auto &lm = ls.get_mapping();
+			e.left_only(lm.vbegin_, lm.dbegin_, lm.len_);
 		}
 
-		while (right_it != right.end()) {
-			right_mapping = *right_it++;
-
-			if (right_mapping.len_)
-				e.right_only(right_mapping.vbegin_, right_mapping.dbegin_, right_mapping.len_);
+		while (rs.more_mappings()) {
+			auto &rm = rs.get_mapping();
+			e.right_only(rm.vbegin_, rm.dbegin_, rm.len_);
 		}
 
 		e.complete();
