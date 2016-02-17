@@ -432,7 +432,8 @@ namespace local {
 		mapping left_mapping;
 		mapping right_mapping;
 
-		while (left_it != left.end() && right_it != right.end()) {
+		while ((left_mapping.len_ || left_it != left.end()) &&
+		       (right_mapping.len_ || right_it != right.end())) {
 			if (!left_mapping.len_ && left_it != left.end())
 				left_mapping = *left_it++;
 
