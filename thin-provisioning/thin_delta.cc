@@ -527,7 +527,7 @@ namespace local {
 		mapping_recorder mr2;
 		damage_visitor damage_v;
 		superblock_detail::superblock sb;
-		checked_space_map::ptr data_sm;
+		block_address nr_data_blocks = 0ull;
 
 		{
 			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.use_metadata_snap);
@@ -562,13 +562,16 @@ namespace local {
 
 			btree_visit_values(snap2, mr2, damage_v);
 			mr2.complete();
+
+			if (md->data_sm_)
+				nr_data_blocks = md->data_sm_->get_nr_blocks();
 		}
 
 		indented_stream is(cout);
 		begin_superblock(is, "", sb.time_,
 				 sb.trans_id_,
 				 sb.data_block_size_,
-				 data_sm->get_nr_blocks(),
+				 nr_data_blocks,
 				 sb.metadata_snap_ ?
 				 boost::optional<block_address>(sb.metadata_snap_) :
 				 boost::optional<block_address>());
