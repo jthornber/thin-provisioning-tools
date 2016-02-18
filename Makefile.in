@@ -130,6 +130,7 @@ DEVTOOLS_SOURCE=\
 	era/devel_commands.cc \
 	thin-provisioning/damage_generator.cc \
 	thin-provisioning/devel_commands.cc \
+	thin-provisioning/thin_debug.cc \
 	thin-provisioning/thin_generate_damage.cc \
 	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/thin_generate_metadata.cc \

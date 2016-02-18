@@ -29,6 +29,9 @@
 #include <vector>
 
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/simple_traits.h"
+#include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
 #include "version.h"
@@ -43,7 +46,7 @@ namespace {
 
 	class formatter {
 	public:
-		typedef shared_ptr<formatter> ptr;
+		typedef std::shared_ptr<formatter> ptr;
 
 		virtual ~formatter() {}
 
@@ -60,8 +63,8 @@ namespace {
 		virtual void output(ostream &out, int depth = 0) = 0;
 
 	protected:
-		typedef variant<string, ptr> value;
-		typedef tuple<string, value> field_type;
+		typedef boost::variant<string, ptr> value;
+		typedef boost::tuple<string, value> field_type;
 
 		vector<field_type> fields_;
 	};
@@ -183,7 +186,7 @@ namespace {
 		virtual void exec(strings const &args, ostream &out) {
 			xml_formatter f;
 
-			superblock const &sb = md_->sb_;
+			thin_provisioning::superblock_detail::superblock const &sb = md_->sb_;
 
 			field(f, "csum", sb.csum_);
 			field(f, "flags", sb.flags_);
@@ -210,9 +213,10 @@ namespace {
 		metadata::ptr md_;
 	};
 
-	class device_details_show_traits : public device_details_traits {
+	class device_details_show_traits : public thin_provisioning::device_tree_detail::device_details_traits {
 	public:
-		static void show(formatter &f, string const &key, device_details const &value) {
+		static void show(formatter &f, string const &key,
+				 thin_provisioning::device_tree_detail::device_details const &value) {
 			field(f, "mapped blocks", value.mapped_blocks_);
 			field(f, "transaction id", value.transaction_id_);
 			field(f, "creation time", value.creation_time_);
@@ -227,9 +231,10 @@ namespace {
 		}
 	};
 
-	class block_show_traits : public block_traits {
+	class block_show_traits : public thin_provisioning::mapping_tree_detail::block_traits {
 	public:
-		static void show(formatter &f, string const &key, block_time const &value) {
+		static void show(formatter &f, string const &key,
+				 thin_provisioning::mapping_tree_detail::block_time const &value) {
 			field(f, "block", value.block_);
 			field(f, "time", value.time_);
 		}
@@ -249,7 +254,7 @@ namespace {
 				throw runtime_error("incorrect number of arguments");
 
 			block_address block = lexical_cast<block_address>(args[1]);
-			block_manager<>::read_ref rr = md_->tm_->read_lock(block);
+			block_manager::read_ref rr = md_->tm_->read_lock(block);
 
 			node_ref<uint64_show_traits> n = btree_detail::to_node<uint64_show_traits>(rr);
 			if (n.get_type() == INTERNAL)
@@ -289,7 +294,8 @@ namespace {
 
 	int debug(string const &path) {
 		try {
-			metadata::ptr md(new metadata(path, metadata::OPEN));
+			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY, 1);
+			metadata::ptr md(new metadata(bm, false));
 			command_interpreter interp(cin, cout);
 			interp.register_command("hello", command::ptr(new hello));
 			interp.register_command("superblock", command::ptr(new show_superblock(md)));
@@ -306,15 +312,24 @@ namespace {
 		return 0;
 	}
 
-	void usage(string const &cmd) {
-		cerr << "Usage: " << cmd << " {device|file}" << endl
-		     << "Options:" << endl
-		     << "  {-h|--help}" << endl
-		     << "  {-V|--version}" << endl;
-	}
 }
 
-int main(int argc, char **argv)
+thin_debug_cmd::thin_debug_cmd()
+	: command("thin_debug")
+{
+}
+
+void
+thin_debug_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_debug_cmd::run(int argc, char **argv)
 {
 	int c;
 	const char shortopts[] = "hV";
@@ -327,7 +342,7 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'V':
@@ -337,7 +352,7 @@ int main(int argc, char **argv)
 	}
 
 	if (argc == optind) {
-		usage(basename(argv[0]));
+		usage(cerr);
 		exit(1);
 	}
 
