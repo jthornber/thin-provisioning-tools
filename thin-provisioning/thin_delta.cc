@@ -464,31 +464,31 @@ namespace local {
 
 		// We iterate through both sets of mappings in parallel
 		// noting any differences.
-		mapping_stream<mapping_deque> ls{left};
-		mapping_stream<mapping_deque> rs{right};
+		mapping_stream<mapping_deque> ls(left);
+		mapping_stream<mapping_deque> rs(right);
 
 		while (ls.more_mappings() && rs.more_mappings()) {
-			auto &lm = ls.get_mapping();
-			auto &rm = rs.get_mapping();
+			mapping const &lm = ls.get_mapping();
+			mapping const &rm = rs.get_mapping();
 
 			if (lm.vbegin_ < rm.vbegin_) {
-				auto delta = min<uint64_t>(lm.len_, rm.vbegin_ - lm.vbegin_);
+				uint64_t delta = min<uint64_t>(lm.len_, rm.vbegin_ - lm.vbegin_);
 				e.left_only(lm.vbegin_, lm.dbegin_, delta);
 				ls.consume(delta);
 
 			} else if (lm.vbegin_ > rm.vbegin_) {
-				auto delta = min<uint64_t>(rm.len_, lm.vbegin_ - rm.vbegin_);
+				uint64_t delta = min<uint64_t>(rm.len_, lm.vbegin_ - rm.vbegin_);
 				e.right_only(rm.vbegin_, rm.dbegin_, delta);
 				rs.consume(delta);
 
 			} else if (lm.dbegin_ != rm.dbegin_) {
-				auto delta = min<uint64_t>(lm.len_, rm.len_);
+				uint64_t delta = min<uint64_t>(lm.len_, rm.len_);
 				e.blocks_differ(lm.vbegin_, lm.dbegin_, rm.dbegin_, delta);
 				ls.consume(delta);
 				rs.consume(delta);
 
 			} else {
-				auto delta = min<uint64_t>(lm.len_, rm.len_);
+				uint64_t delta = min<uint64_t>(lm.len_, rm.len_);
 				e.blocks_same(lm.vbegin_, lm.dbegin_, delta);
 				ls.consume(delta);
 				rs.consume(delta);
@@ -496,13 +496,13 @@ namespace local {
 		}
 
 		while (ls.more_mappings()) {
-			auto &lm = ls.get_mapping();
+			mapping const &lm = ls.get_mapping();
 			e.left_only(lm.vbegin_, lm.dbegin_, lm.len_);
 			ls.consume(lm.len_);
 		}
 
 		while (rs.more_mappings()) {
-			auto &rm = rs.get_mapping();
+			mapping const &rm = rs.get_mapping();
 			e.right_only(rm.vbegin_, rm.dbegin_, rm.len_);
 			rs.consume(rm.len_);
 		}
