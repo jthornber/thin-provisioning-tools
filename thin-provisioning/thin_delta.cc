@@ -498,11 +498,13 @@ namespace local {
 		while (ls.more_mappings()) {
 			auto &lm = ls.get_mapping();
 			e.left_only(lm.vbegin_, lm.dbegin_, lm.len_);
+			ls.consume(lm.len_);
 		}
 
 		while (rs.more_mappings()) {
 			auto &rm = rs.get_mapping();
 			e.right_only(rm.vbegin_, rm.dbegin_, rm.len_);
+			rs.consume(rm.len_);
 		}
 
 		e.complete();
