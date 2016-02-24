@@ -95,7 +95,14 @@ SOURCE=\
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
 	thin-provisioning/thin_trim.cc \
-	thin-provisioning/xml_format.cc
+	thin-provisioning/xml_format.cc \
+
+DEVTOOLS_SOURCE=\
+	thin-provisioning/thin_generate_metadata.cc
+
+ifeq ("@DEVTOOLS@", "yes")
+SOURCE+=$(DEVTOOLS_SOURCE)
+endif
 
 CC:=@CC@
 CXX:=@CXX@
@@ -106,6 +113,11 @@ TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall -O3
 CFLAGS+=@LFS_FLAGS@
 CXXFLAGS+=-g -Wall -fno-strict-aliasing -std=c++11
+
+ifeq ("@DEVTOOLS@", "yes")
+CXXFLAGS+=-DDEV_TOOLS
+endif
+
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@

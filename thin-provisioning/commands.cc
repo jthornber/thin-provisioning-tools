@@ -17,6 +17,10 @@ thin_provisioning::register_thin_commands(base::application &app)
 	app.add_cmd(command::ptr(new thin_repair_cmd()));
 	app.add_cmd(command::ptr(new thin_rmap_cmd()));
 	app.add_cmd(command::ptr(new thin_trim_cmd()));
+
+#if DEV_COMMANDS
+	app.add_cmd(command::ptr(new thin_generate_metadata_cmd()));
+#endif
 }
 
 //----------------------------------------------------------------
