@@ -33,6 +33,7 @@ SOURCE=\
 	base/error_string.cc \
 	base/grid_layout.cc \
 	base/progress_monitor.cc \
+	base/rolling_hash.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
 	caching/cache_check.cc \
@@ -76,12 +77,16 @@ SOURCE=\
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
 	thin-provisioning/commands.cc \
+	thin-provisioning/cache_stream.cc \
+	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
+	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
 	thin-provisioning/metadata_dumper.cc \
+	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
@@ -94,11 +99,13 @@ SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
+	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_trim.cc \
-	thin-provisioning/xml_format.cc \
+	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
-	thin-provisioning/thin_generate_metadata.cc
+	thin-provisioning/thin_generate_metadata.cc \
+	thin-provisioning/variable_chunk_stream.cc
 
 ifeq ("@DEVTOOLS@", "yes")
 SOURCE+=$(DEVTOOLS_SOURCE)
@@ -206,6 +213,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
 	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/era_check

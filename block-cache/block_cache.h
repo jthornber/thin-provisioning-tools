@@ -1,6 +1,8 @@
 #ifndef BLOCK_CACHE_H
 #define BLOCK_CACHE_H
 
+#include "base/container_of.h"
+
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/noncopyable.hpp>
@@ -13,23 +15,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <vector>
+#include <iostream>
 
 namespace bi = boost::intrusive;
-
-//----------------------------------------------------------------
-
-// FIXME: move to own file in base
-template<class P, class M>
-size_t offsetof__(const M P::*member)
-{
-	return (size_t) &( reinterpret_cast<P*>(0)->*member);
-}
-
-template<class P, class M>
-P *container_of(M *ptr, M const P::*member)
-{
-	return (P *)((char *)(ptr) - offsetof__(member));
-}
 
 //----------------------------------------------------------------
 

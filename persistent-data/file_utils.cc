@@ -12,7 +12,7 @@ using namespace base;
 //----------------------------------------------------------------
 
 persistent_data::block_address
-persistent_data::get_nr_blocks(string const &path)
+persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 {
 	using namespace persistent_data;
 
@@ -24,7 +24,7 @@ persistent_data::get_nr_blocks(string const &path)
 		throw runtime_error("Couldn't stat dev path");
 
 	if (S_ISREG(info.st_mode) && info.st_size)
-		nr_blocks = div_up<block_address>(info.st_size, MD_BLOCK_SIZE);
+		nr_blocks = div_up<block_address>(info.st_size, block_size);
 
 	else if (S_ISBLK(info.st_mode)) {
 		// To get the size of a block device we need to
@@ -39,7 +39,7 @@ persistent_data::get_nr_blocks(string const &path)
 			throw runtime_error("ioctl BLKGETSIZE64 failed");
 		}
 		::close(fd);
-		nr_blocks = div_down<block_address>(nr_blocks, MD_BLOCK_SIZE);
+		nr_blocks = div_down<block_address>(nr_blocks, block_size);
 	} else
 		// FIXME: needs a better message
 		throw runtime_error("bad path");

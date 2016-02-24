@@ -223,6 +223,7 @@ namespace persistent_data {
 						unsigned max_concurrent_blocks,
 						mode m,
 						bool excl)
+		// FIXME: * BlockSize ?
 		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m, excl)),
 		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16),
 		  superblock_ref_count_(0)

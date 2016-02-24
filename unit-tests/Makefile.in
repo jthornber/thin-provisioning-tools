@@ -59,6 +59,7 @@ TEST_SOURCE=\
 	unit-tests/endian_t.cc \
 	unit-tests/error_state_t.cc \
 	unit-tests/rmap_visitor_t.cc \
+	unit-tests/rolling_hash_t.cc \
 	unit-tests/run_set_t.cc \
 	unit-tests/space_map_t.cc \
 	unit-tests/span_iterator_t.cc \

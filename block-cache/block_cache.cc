@@ -188,7 +188,7 @@ block_cache::wait_io()
 
 	for (i = 0; i < static_cast<unsigned>(r); i++) {
 		io_event const &e = events_[i];
-		block *b = container_of(e.obj, &block::control_block_);
+		block *b = base::container_of(e.obj, &block::control_block_);
 
 		if (e.res == block_size_ << SECTOR_SHIFT)
 			complete_io(*b, 0);

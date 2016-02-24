@@ -18,8 +18,9 @@ thin_provisioning::register_thin_commands(base::application &app)
 	app.add_cmd(command::ptr(new thin_rmap_cmd()));
 	app.add_cmd(command::ptr(new thin_trim_cmd()));
 
-#if DEV_COMMANDS
+#ifdef DEV_TOOLS
 	app.add_cmd(command::ptr(new thin_generate_metadata_cmd()));
+	app.add_cmd(command::ptr(new thin_show_duplicates_cmd()));
 #endif
 }
 
