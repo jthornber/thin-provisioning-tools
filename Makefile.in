@@ -105,7 +105,8 @@ SOURCE=\
 
 DEVTOOLS_SOURCE=\
 	thin-provisioning/thin_generate_metadata.cc \
-	thin-provisioning/variable_chunk_stream.cc
+	thin-provisioning/variable_chunk_stream.cc \
+	thin-provisioning/thin_show_blocks.cc
 
 ifeq ("@DEVTOOLS@", "yes")
 SOURCE+=$(DEVTOOLS_SOURCE)

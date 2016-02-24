@@ -11,6 +11,23 @@ cachegrind.*
 core
 
 bin/pdata_tools
+thin_check
+thin_dump
+thin_restore
+thin_repair
+thin_rmap
+thin_metadata_size
+thin_show_blocks
+
+cache_check
+cache_dump
+cache_restore
+cache_repair
+cache_metadata_size
+
+era_check
+era_dump
+era_invalidate
 
 *.metadata
 bad-metadata
@@ -27,6 +44,8 @@ autom4te.cache/
 *.xml
 *.bin
 *.patch
+*.orig
+*.rej
 
 version.h
 config.cache

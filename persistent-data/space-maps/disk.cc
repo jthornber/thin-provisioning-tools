@@ -62,8 +62,6 @@ namespace {
 
 	//--------------------------------
 
-	uint64_t const INDEX_CSUM_XOR = 160478;
-
 	// FIXME: factor out the common code in these validators
 	struct index_block_validator : public bcache::validator {
 		virtual void check(void const *raw, block_address location) const {
