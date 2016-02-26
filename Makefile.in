@@ -106,7 +106,8 @@ SOURCE=\
 DEVTOOLS_SOURCE=\
 	thin-provisioning/thin_generate_metadata.cc \
 	thin-provisioning/variable_chunk_stream.cc \
-	thin-provisioning/thin_show_metadata.cc
+	thin-provisioning/thin_show_metadata.cc \
+	ui/ui.cc
 
 ifeq ("@DEVTOOLS@", "yes")
 SOURCE+=$(DEVTOOLS_SOURCE)
@@ -132,6 +133,10 @@ CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-laio -lexpat
+
+ifeq ("@DEVTOOLS@", "yes")
+LIBS+=-lncurses
+endif
 
 ifeq ("@STATIC_CXX@", "yes")
 CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed

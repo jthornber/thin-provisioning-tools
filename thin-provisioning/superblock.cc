@@ -146,18 +146,28 @@ namespace thin_provisioning {
 		}
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<>::ptr bm, block_address location)
+	superblock_detail::superblock read_superblock(block_manager<> const &bm, block_address location)
 	{
 		using namespace superblock_detail;
 
 		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
+		block_manager<>::read_ref r = bm.read_lock(location, superblock_validator());
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
 	}
 
+	superblock_detail::superblock read_superblock(block_manager<>::ptr bm, block_address location)
+	{
+		return read_superblock(*bm, location);
+	}
+
 	superblock_detail::superblock read_superblock(block_manager<>::ptr bm)
+	{
+		return read_superblock(bm, SUPERBLOCK_LOCATION);
+	}
+
+	superblock_detail::superblock read_superblock(block_manager<> const &bm)
 	{
 		return read_superblock(bm, SUPERBLOCK_LOCATION);
 	}
