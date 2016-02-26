@@ -300,14 +300,16 @@ namespace persistent_data {
 				size_t elt_size = sizeof(uint64_t) + n.get_value_size();
 				if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
 					std::ostringstream out;
-					out << "max entries too large: " << n.get_max_entries();
+					out << "max entries too large: " << n.get_max_entries()
+					    << " (block " << n.get_location() << ")";
 					report_damage(out.str());
 					return false;
 				}
 
 				if (n.get_max_entries() % 3) {
 					std::ostringstream out;
-					out << "max entries is not divisible by 3: " << n.get_max_entries();
+					out << "max entries is not divisible by 3: " << n.get_max_entries()
+					    << " (block " << n.get_location() << ")";
 					report_damage(out.str());
 					return false;
 				}
@@ -321,7 +323,8 @@ namespace persistent_data {
 					std::ostringstream out;
 					out << "bad nr_entries: "
 					    << n.get_nr_entries() << " < "
-					    << n.get_max_entries();
+					    << n.get_max_entries()
+					    << " (block " << n.get_location() << ")";
 					report_damage(out.str());
 					return false;
 				}
@@ -333,7 +336,8 @@ namespace persistent_data {
 					    << n.get_nr_entries()
 					    << ", expected at least "
 					    << min
-					    << "(max_entries = " << n.get_max_entries() << ")";
+					    << " (block " << n.get_location()
+					    << ", max_entries = " << n.get_max_entries() << ")";
 					report_damage(out.str());
 					return false;
 				}
@@ -354,7 +358,8 @@ namespace persistent_data {
 					uint64_t k = n.key_at(i);
 					if (k <= last_key) {
 						ostringstream out;
-						out << "keys are out of order, " << k << " <= " << last_key;
+						out << "keys are out of order, " << k << " <= " << last_key
+						    << " (block " << n.get_location() << ")";
 						report_damage(out.str());
 						return false;
 					}
@@ -372,7 +377,8 @@ namespace persistent_data {
 				if (*key > n.key_at(0)) {
 					ostringstream out;
 					out << "parent key mismatch: parent was " << *key
-					    << ", but lowest in node was " << n.key_at(0);
+					    << ", but lowest in node was " << n.key_at(0)
+					    << " (block " << n.get_location() << ")";
 					report_damage(out.str());
 					return false;
 				}
@@ -388,7 +394,8 @@ namespace persistent_data {
 				if (last_leaf_key_[level] && *last_leaf_key_[level] >= n.key_at(0)) {
 					ostringstream out;
 					out << "the last key of the previous leaf was " << *last_leaf_key_[level]
-					    << " and the first key of this leaf is " << n.key_at(0);
+					    << " and the first key of this leaf is " << n.key_at(0)
+					    << " (block " << n.get_location() << ")";
 					report_damage(out.str());
 					return false;
 				}
