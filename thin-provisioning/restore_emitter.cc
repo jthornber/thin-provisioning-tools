@@ -82,10 +82,11 @@ namespace {
 			if (device_exists(dev))
 				throw std::runtime_error("Device already exists");
 
-			// Add entry to the details tree
-			uint64_t key[1] = {dev};
-			device_tree_detail::device_details details = {mapped_blocks, trans_id, (uint32_t)creation_time, (uint32_t)snap_time};
-			md_->details_->insert(key, details);
+			// Store the entry of the details tree
+			current_device_details_.mapped_blocks_ = 0;
+			current_device_details_.transaction_id_ = trans_id;
+			current_device_details_.creation_time_ = (uint32_t)creation_time;
+			current_device_details_.snapshotted_time_ = (uint32_t)snap_time;
 
 			current_mapping_ = empty_mapping_->clone();
 			current_device_ = boost::optional<uint32_t>(dev);
@@ -93,6 +94,9 @@ namespace {
 
 		virtual void end_device() {
 			uint64_t key[1] = {*current_device_};
+
+			// Add entry to the details tree
+			md_->details_->insert(key, current_device_details_);
 
 			md_->mappings_top_level_->insert(key, current_mapping_->get_root());
 			md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
@@ -134,6 +138,8 @@ namespace {
 			bt.time_ = time;
 			current_mapping_->insert(key, bt);
 			md_->data_sm_->inc(data_block);
+
+			current_device_details_.mapped_blocks_ += 1;
 		}
 
 	private:
@@ -153,6 +159,7 @@ namespace {
 		bool in_superblock_;
 		block_address nr_data_blocks_;
 		boost::optional<uint32_t> current_device_;
+		device_tree_detail::device_details current_device_details_;
 		single_mapping_tree::ptr current_mapping_;
 		single_mapping_tree::ptr empty_mapping_;
 	};
