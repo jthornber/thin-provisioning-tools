@@ -89,6 +89,8 @@ SOURCE=\
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
+	thin-provisioning/thin_ll_dump.cc \
+	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_ls.cc \
 	thin-provisioning/thin_metadata_size.cc \
 	thin-provisioning/thin_pool.cc \
