@@ -81,6 +81,7 @@ SOURCE=\
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/metadata_counter.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
