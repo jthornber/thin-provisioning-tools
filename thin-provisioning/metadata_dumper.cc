@@ -244,3 +244,14 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 }
 
 //----------------------------------------------------------------
+
+void
+thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root) {
+	mapping_emitter me(e);
+	single_mapping_tree tree(*md->tm_, subtree_root,
+				 mapping_tree_detail::block_time_ref_counter(md->data_sm_));
+	walk_mapping_tree(tree, static_cast<mapping_tree_detail::mapping_visitor &>(me),
+			  *mapping_damage_policy(repair));
+}
+
+//----------------------------------------------------------------
