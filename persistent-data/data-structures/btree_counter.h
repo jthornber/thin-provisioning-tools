@@ -100,6 +100,17 @@ namespace persistent_data {
 		btree_count_detail::counting_visitor<NoopValueVisitor, noop_damage_visitor, Levels, ValueTraits, ValueCounter> v(noop_vv, noop_dv, bc, vc);
 		tree.visit_depth_first(v);
 	}
+
+	template <unsigned Levels, typename ValueTraits>
+	void count_btree_blocks(btree<Levels, ValueTraits> const &tree, block_counter &bc) {
+		typedef noop_value_visitor<typename ValueTraits::value_type> NoopValueVisitor;
+		NoopValueVisitor noop_vv;
+		noop_damage_visitor noop_dv;
+		typedef noop_value_counter<typename ValueTraits::value_type> NoopValueCounter;
+		NoopValueCounter vc;
+		btree_count_detail::counting_visitor<NoopValueVisitor, noop_damage_visitor, Levels, ValueTraits, NoopValueCounter> v(noop_vv, noop_dv, bc, vc);
+		tree.visit_depth_first(v);
+	}
 }
 
 //----------------------------------------------------------------
