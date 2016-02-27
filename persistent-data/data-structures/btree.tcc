@@ -32,7 +32,6 @@ namespace {
 	using namespace persistent_data;
 	using namespace btree_detail;
 	using namespace std;
-
 }
 
 //----------------------------------------------------------------

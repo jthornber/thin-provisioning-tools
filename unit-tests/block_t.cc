@@ -44,6 +44,14 @@ namespace {
  					throw runtime_error("validator check zero");
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			unsigned char const *data = reinterpret_cast<unsigned char const *>(raw);
+			for (unsigned b = 0; b < BlockSize; b++)
+				if (data[b] != 0)
+					return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			unsigned char *data = reinterpret_cast<unsigned char *>(raw);
 			for (unsigned b = 0; b < BlockSize; b++)

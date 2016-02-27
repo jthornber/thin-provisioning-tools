@@ -26,12 +26,14 @@ namespace bcache {
 		virtual ~validator() {}
 
 		virtual void check(void const *data, block_address location) const = 0;
+		virtual bool check_raw(void const *data) const = 0;
 		virtual void prepare(void *data, block_address location) const = 0;
 	};
 
 	class noop_validator : public validator {
 	public:
 		void check(void const *data, block_address location) const {}
+		bool check_raw(void const *data) const {return true;}
 		void prepare(void *data, block_address location) const {}
 	};
 

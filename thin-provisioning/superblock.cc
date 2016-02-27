@@ -98,6 +98,15 @@ namespace {
 			}
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			superblock_disk *sbd = reinterpret_cast<superblock_disk *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
