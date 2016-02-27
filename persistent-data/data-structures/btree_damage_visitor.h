@@ -27,6 +27,12 @@ namespace persistent_data {
 			return out;
 		}
 
+		class noop_damage_visitor {
+		public:
+			virtual void visit(btree_path const &path, damage const &d) {
+			}
+		};
+
 		// Tracks damage in a single level btree.  Use multiple
 		// trackers if you have a multilayer tree.
 		class damage_tracker {
