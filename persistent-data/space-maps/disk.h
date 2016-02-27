@@ -36,6 +36,12 @@ namespace persistent_data {
 
 	checked_space_map::ptr
 	open_metadata_sm(transaction_manager &tm, void *root);
+
+	bcache::validator::ptr
+	bitmap_validator();
+
+	bcache::validator::ptr
+	index_validator();
 }
 
 //----------------------------------------------------------------

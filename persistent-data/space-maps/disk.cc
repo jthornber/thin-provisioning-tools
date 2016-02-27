@@ -87,11 +87,6 @@ namespace {
 		}
 	};
 
-	bcache::validator::ptr
-	index_validator() {
-		return bcache::validator::ptr(new index_block_validator());
-	}
-
 	//--------------------------------
 
 	class bitmap {
@@ -771,6 +766,16 @@ persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
 	return create_careful_alloc_sm(
 		create_recursive_sm(
 			checked_space_map::ptr(new sm_disk(store, tm, v))));
+}
+
+bcache::validator::ptr
+persistent_data::bitmap_validator() {
+	return bcache::validator::ptr(new bitmap_block_validator());
+}
+
+bcache::validator::ptr
+persistent_data::index_validator() {
+	return bcache::validator::ptr(new index_block_validator());
 }
 
 //----------------------------------------------------------------
