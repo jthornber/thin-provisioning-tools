@@ -44,6 +44,8 @@ namespace {
 		virtual void begin_superblock(std::string const &uuid,
 					      uint64_t time,
 					      uint64_t trans_id,
+					      boost::optional<uint32_t> flags,
+					      boost::optional<uint32_t> version,
 					      uint32_t data_block_size,
 					      uint64_t nr_data_blocks,
 					      boost::optional<uint64_t> metadata_snap) {
@@ -54,6 +56,8 @@ namespace {
 			memcpy(&sb.uuid_, uuid.c_str(), std::min(sizeof(sb.uuid_), uuid.length()));
 			sb.time_ = time;
 			sb.trans_id_ = trans_id;
+			sb.flags_ = flags ? *flags : 0;
+			sb.version_ = version ? *version : 1;
 			sb.data_block_size_ = data_block_size;
 			sb.metadata_snap_ = metadata_snap ? *metadata_snap : 0;
 			md_->data_sm_->extend(nr_data_blocks);

@@ -228,6 +228,8 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
+			    md->sb_.flags_,
+			    md->sb_.version_,
 			    md->sb_.data_block_size_,
 			    nr_data_blocks,
 			    boost::optional<block_address>());
