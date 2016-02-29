@@ -32,7 +32,6 @@ namespace {
 	using namespace persistent_data;
 	using namespace btree_detail;
 	using namespace std;
-
 }
 
 //----------------------------------------------------------------
@@ -90,14 +89,22 @@ namespace persistent_data {
 	{
 		uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
 		if (flags & INTERNAL_NODE) {
-			if (flags & LEAF_NODE)
-				throw runtime_error("btree node is both internal and leaf");
+			if (flags & LEAF_NODE) {
+				ostringstream out;
+				out << "btree node is both internal and leaf"
+				    << " (block " << location_ << ")";
+				throw runtime_error(out.str());
+			}
 			return INTERNAL;
 
 		} else if (flags & LEAF_NODE)
 			return LEAF;
-		else
-			throw runtime_error("unknown node type");
+		else {
+			ostringstream out;
+			out << "unknown node type"
+			    << " (block " << location_ << ")";
+			throw runtime_error(out.str());
+		}
 	}
 
 	template <typename ValueTraits>
@@ -352,7 +359,8 @@ namespace persistent_data {
 		std::ostringstream out;
 		out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
 		    << ", but got " << get_value_size()
-		    << ".  This is not the btree you are looking for." << std::endl;
+		    << ".  This is not the btree you are looking for."
+		    << " (block " << location_ << ")" << std::endl;
 
 		return out.str();
 	}
@@ -371,7 +379,8 @@ namespace persistent_data {
 		if (max < get_nr_entries()) {
 			std::ostringstream out;
 			out << "Bad nr of elements: max per block = "
-			    << max << ", actual = " << get_nr_entries() << std::endl;
+			    << max << ", actual = " << get_nr_entries()
+			    << " (block " << location_ << ")" << std::endl;
 			throw std::runtime_error(out.str());
 		}
 

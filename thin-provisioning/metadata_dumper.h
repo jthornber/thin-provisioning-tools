@@ -29,6 +29,7 @@ namespace thin_provisioning {
 	// the dumper to do it's best to recover info.  If not set, any
 	// corruption encountered will cause an exception to be thrown.
 	void metadata_dump(metadata::ptr md, emitter::ptr e, bool repair);
+	void metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root);
 }
 
 //----------------------------------------------------------------

@@ -43,6 +43,15 @@ namespace persistent_data {
 					throw checksum_error("bad block nr in array block");
 			}
 
+			virtual bool check_raw(void const *raw) const {
+				array_block_disk const *data = reinterpret_cast<array_block_disk const *>(raw);
+				crc32c sum(ARRAY_CSUM_XOR);
+				sum.append(&data->max_entries, MD_BLOCK_SIZE - sizeof(uint32_t));
+				if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
+					return false;
+				return true;
+			}
+
 			virtual void prepare(void *raw, block_address location) const {
 				array_block_disk *data = reinterpret_cast<array_block_disk *>(raw);
 				data->blocknr = to_disk<base::le64, uint64_t>(location);

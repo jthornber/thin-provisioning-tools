@@ -31,6 +31,16 @@ namespace {
 			}
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			disk_node const *data = reinterpret_cast<disk_node const *>(raw);
+			node_header const *n = &data->header;
+			crc32c sum(BTREE_CSUM_XOR);
+			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(n->csum))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			disk_node *data = reinterpret_cast<disk_node *>(raw);
 			node_header *n = &data->header;

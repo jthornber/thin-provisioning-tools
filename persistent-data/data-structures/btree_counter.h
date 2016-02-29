@@ -2,35 +2,44 @@
 #define PERSISTENT_DATA_DATA_STRUCTURES_BTREE_COUNTER_H
 
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/btree_base_visitor.h"
+#include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/block_counter.h"
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	namespace btree_count_detail {
-		template <unsigned Levels, typename ValueTraits, typename ValueCounter>
-		class counting_visitor : public btree<Levels, ValueTraits>::visitor {
+		template <typename ValueVisitor, typename DamageVisitor, unsigned Levels, typename ValueTraits, typename ValueCounter>
+		class counting_visitor : public btree_damage_visitor<ValueVisitor, DamageVisitor, Levels, ValueTraits> {
+			typedef btree_damage_visitor<ValueVisitor, DamageVisitor, Levels, ValueTraits> BtreeDamageVisitor;
 		public:
 			typedef btree<Levels, ValueTraits> tree;
 
-			counting_visitor(block_counter &bc, ValueCounter &vc)
-				: bc_(bc),
+			counting_visitor(ValueVisitor &value_visitor,
+					 DamageVisitor &damage_visitor,
+					 block_counter &bc,
+					 ValueCounter &vc)
+				: BtreeDamageVisitor(value_visitor, damage_visitor, false),
+				  bc_(bc),
 				  vc_(vc) {
 			}
 
 			virtual bool visit_internal(node_location const &l,
 						    typename tree::internal_node const &n) {
-				return visit_node(n);
+				return BtreeDamageVisitor::visit_internal(l, n) ?
+					visit_node(n) : false;
 			}
 
 			virtual bool visit_internal_leaf(node_location const &l,
 							 typename tree::internal_node const &n) {
-				return visit_node(n);
+				return BtreeDamageVisitor::visit_internal_leaf(l, n) ?
+					visit_node(n) : false;
 			}
 
 			virtual bool visit_leaf(node_location const &l,
 						typename tree::leaf_node const &n) {
-				if (visit_node(n)) {
+				if (BtreeDamageVisitor::visit_leaf(l, n) && visit_node(n)) {
 					unsigned nr = n.get_nr_entries();
 
 					for (unsigned i = 0; i < nr; i++) {
@@ -85,7 +94,21 @@ namespace persistent_data {
 	// is not corrupt.
 	template <unsigned Levels, typename ValueTraits, typename ValueCounter>
 	void count_btree_blocks(btree<Levels, ValueTraits> const &tree, block_counter &bc, ValueCounter &vc) {
-		btree_count_detail::counting_visitor<Levels, ValueTraits, ValueCounter> v(bc, vc);
+		typedef noop_value_visitor<typename ValueTraits::value_type> NoopValueVisitor;
+		NoopValueVisitor noop_vv;
+		noop_damage_visitor noop_dv;
+		btree_count_detail::counting_visitor<NoopValueVisitor, noop_damage_visitor, Levels, ValueTraits, ValueCounter> v(noop_vv, noop_dv, bc, vc);
+		tree.visit_depth_first(v);
+	}
+
+	template <unsigned Levels, typename ValueTraits>
+	void count_btree_blocks(btree<Levels, ValueTraits> const &tree, block_counter &bc) {
+		typedef noop_value_visitor<typename ValueTraits::value_type> NoopValueVisitor;
+		NoopValueVisitor noop_vv;
+		noop_damage_visitor noop_dv;
+		typedef noop_value_counter<typename ValueTraits::value_type> NoopValueCounter;
+		NoopValueCounter vc;
+		btree_count_detail::counting_visitor<NoopValueVisitor, noop_damage_visitor, Levels, ValueTraits, NoopValueCounter> v(noop_vv, noop_dv, bc, vc);
 		tree.visit_depth_first(v);
 	}
 }

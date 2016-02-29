@@ -19,13 +19,16 @@ xml_parser::parse(std::string const &backup_file, bool quiet)
 	size_t total = 0;
 	size_t input_length = get_file_length(backup_file);
 
-	while (!in.eof()) {
+	XML_Error error_code = XML_ERROR_NONE;
+	while (!in.eof() && error_code == XML_ERROR_NONE) {
 		char buffer[4096];
 		in.read(buffer, sizeof(buffer));
 		size_t len = in.gcount();
 		int done = in.eof();
 
-		if (!XML_Parse(parser_, buffer, len, done)) {
+		// Do not throw while normally aborted by element handlers
+		if (!XML_Parse(parser_, buffer, len, done) &&
+		    (error_code = XML_GetErrorCode(parser_)) != XML_ERROR_ABORTED) {
 			ostringstream out;
 			out << "Parse error at line "
 			    << XML_GetCurrentLineNumber(parser_)

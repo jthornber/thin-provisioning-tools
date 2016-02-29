@@ -85,6 +85,7 @@ SOURCE=\
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/metadata_counter.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
@@ -99,14 +100,17 @@ SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
-	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_trim.cc \
 	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
+	thin-provisioning/thin_ll_dump.cc \
+	thin-provisioning/thin_ll_restore.cc \
+	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_generate_metadata.cc \
 	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/thin_show_metadata.cc \
+	thin-provisioning/thin_scan.cc \
 	ui/ui.cc
 
 ifeq ("@DEVTOOLS@", "yes")

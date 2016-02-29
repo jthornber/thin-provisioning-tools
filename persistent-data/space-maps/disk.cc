@@ -50,6 +50,15 @@ namespace {
 				throw checksum_error("bad block nr in space map bitmap");
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(raw);
+			crc32c sum(BITMAP_CSUM_XOR);
+			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			bitmap_header *data = reinterpret_cast<bitmap_header *>(raw);
 			data->blocknr = to_disk<base::le64, uint64_t>(location);
@@ -75,6 +84,15 @@ namespace {
 				throw checksum_error("bad block nr in metadata index block");
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
+			crc32c sum(INDEX_CSUM_XOR);
+			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			metadata_index *mi = reinterpret_cast<metadata_index *>(raw);
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
@@ -84,11 +102,6 @@ namespace {
 			mi->csum_ = to_disk<base::le32>(sum.get_sum());
 		}
 	};
-
-	bcache::validator::ptr
-	index_validator() {
-		return bcache::validator::ptr(new index_block_validator());
-	}
 
 	//--------------------------------
 
@@ -769,6 +782,16 @@ persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
 	return create_careful_alloc_sm(
 		create_recursive_sm(
 			checked_space_map::ptr(new sm_disk(store, tm, v))));
+}
+
+bcache::validator::ptr
+persistent_data::bitmap_validator() {
+	return bcache::validator::ptr(new bitmap_block_validator());
+}
+
+bcache::validator::ptr
+persistent_data::index_validator() {
+	return bcache::validator::ptr(new index_block_validator());
 }
 
 //----------------------------------------------------------------

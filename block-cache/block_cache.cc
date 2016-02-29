@@ -545,7 +545,9 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 		return *b;
 	}
 
-	throw std::runtime_error("couldn't get block");
+	std::ostringstream out;
+	out << "couldn't get block " << index;
+	throw std::runtime_error(out.str());
 }
 
 void
