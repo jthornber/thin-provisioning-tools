@@ -140,16 +140,9 @@ the metadata:
 
 	$ dmsetup message vg001-mythinpool-tpool 0 reserve_metadata_snap
 
-Then, extract the held root from the device mapper's status of the thin pool
-(7th field). This value must be passed to ```thin_dump```.
-
-	$ sudo dmsetup status vg001-mythinpool-tpool
-	0 8192 thin-pool 2 11/1024 1/64 10 rw discard_passdown
-	                                ^
-
 Extract the metadata:
 
-	$ sudo bin/thin_dump -m10 /dev/mapper/vg001-mythinpool_tmeta
+	$ sudo bin/thin_dump -m /dev/mapper/vg001-mythinpool_tmeta
 	<superblock uuid="" time="1" transaction="2" data_block_size="128"nr_data_blocks="0">
 	    <device dev_id="1" mapped_blocks="1" transaction="0" creation_time="0" snap_time="1">
 	        <single_mapping origin_block="0" data_block="0" time="0"/>
