@@ -129,14 +129,6 @@ namespace {
 	};
 
 	struct block_range {
-		uint64_t begin_;
-		uint64_t end_; // one-pass-the-end
-		boost::optional<uint64_t> blocknr_begin_;
-		metadata_block_type type_;
-		int64_t ref_count_; // ref_count in metadata space map
-		size_t value_size_; // btree node only
-		bool is_valid_; // btree node only
-
 		block_range()
 			: begin_(0), end_(0),
 			  type_(UNKNOWN), ref_count_(-1),
@@ -184,6 +176,14 @@ namespace {
 			end_ = std::max(end_, r.end_);
 			return true;
 		}
+
+		uint64_t begin_;
+		uint64_t end_; // one-pass-the-end
+		boost::optional<uint64_t> blocknr_begin_;
+		metadata_block_type type_;
+		int64_t ref_count_; // ref_count in metadata space map
+		size_t value_size_; // btree node only
+		bool is_valid_;
 	};
 
 	void output_block_range(block_range const &r, std::ostream &out) {
