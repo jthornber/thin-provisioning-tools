@@ -152,13 +152,12 @@ namespace {
 		bool is_adjacent_to(block_range const &r) const {
 			block_range const &lhs = begin_ < r.begin_ ? *this : r;
 			block_range const &rhs = begin_ < r.begin_ ? r : *this;
-			uint64_t common_end = std::min(end_, r.end_);
 
 			if (size() && r.size() &&
-			    rhs.begin_ == common_end &&
+			    rhs.begin_ == lhs.end_ &&
 			    ((!blocknr_begin_ && !r.blocknr_begin_) ||
 			     (blocknr_begin_ && r.blocknr_begin_ &&
-			      *rhs.blocknr_begin_ > *lhs.blocknr_begin_ &&
+			      *rhs.blocknr_begin_ >= *lhs.blocknr_begin_ &&
 			      (*rhs.blocknr_begin_ - *lhs.blocknr_begin_ == rhs.begin_ - lhs.begin_))) &&
 			    type_ == r.type_ &&
 			    ref_count_ == r.ref_count_ &&
