@@ -85,9 +85,6 @@ namespace {
 	void parse_device(metadata::ptr md, emitter::ptr e, attributes const &attr) {
 		uint32_t dev_id = get_attr<uint32_t>(attr, "dev_id");
 		device_tree_detail::device_details details;
-		details.transaction_id_ = 0;
-		details.creation_time_ = 0;
-		details.snapshotted_time_ = 0;
 
 		device_tree::ptr details_tree;
 		boost::optional<uint32_t> details_root = get_opt_attr<uint32_t>(attr, "blocknr");

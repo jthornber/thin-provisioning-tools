@@ -20,6 +20,8 @@ namespace thin_provisioning {
 			uint64_t transaction_id_;  /* when created */
 			uint32_t creation_time_;
 			uint32_t snapshotted_time_;
+
+			device_details();
 		};
 
 		struct device_details_traits {
