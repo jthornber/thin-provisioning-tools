@@ -109,6 +109,10 @@ namespace {
 		EXCLUSIVE_SECTORS,
 		SHARED_SECTORS,
 
+		MAPPED_BYTES,
+		EXCLUSIVE_BYTES,
+		SHARED_BYTES,
+
 		MAPPED,
 		EXCLUSIVE,
 		SHARED,
@@ -127,6 +131,10 @@ namespace {
 		"MAPPED_SECTORS",
 		"EXCLUSIVE_SECTORS",
 		"SHARED_SECTORS",
+
+		"MAPPED_BYTES",
+		"EXCLUSIVE_BYTES",
+		"SHARED_BYTES",
 
 		"MAPPED",
 		"EXCLUSIVE",
@@ -298,6 +306,8 @@ namespace {
 			    *it == SHARED_BLOCKS ||
 			    *it == EXCLUSIVE_SECTORS ||
 			    *it == SHARED_SECTORS ||
+			    *it == EXCLUSIVE_BYTES ||
+			    *it == SHARED_BYTES ||
 			    *it == EXCLUSIVE ||
 			    *it == SHARED)
 				return true;
@@ -375,6 +385,20 @@ namespace {
 					grid.field((it->second.mapped_blocks_ - exclusive) * block_size);
 					break;
 
+				case MAPPED_BYTES:
+					grid.field(it->second.mapped_blocks_ * block_size *
+					           disk_unit_multiplier(UNIT_SECTOR));
+					break;
+
+				case EXCLUSIVE_BYTES:
+					grid.field(exclusive * block_size *
+					           disk_unit_multiplier(UNIT_SECTOR));
+					break;
+
+				case SHARED_BYTES:
+					grid.field((it->second.mapped_blocks_ - exclusive) * block_size *
+					           disk_unit_multiplier(UNIT_SECTOR));
+					break;
 
 				case MAPPED:
 					grid.field(
