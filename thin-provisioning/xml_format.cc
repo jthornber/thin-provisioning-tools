@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "xml_format.h"
+#include "block-cache/block_cache.h"
 
 #include "base/indented_stream.h"
 #include "base/xml_utils.h"
@@ -32,6 +33,7 @@
 using namespace std;
 using namespace thin_provisioning;
 using namespace xml_utils;
+using namespace bcache;
 
 namespace tp = thin_provisioning;
 
@@ -43,7 +45,7 @@ namespace {
 	//------------------------------------------------
 	class xml_emitter : public emitter {
 	public:
-		xml_emitter(ostream &out)
+		xml_emitter(ostream &out, const block_address * const dev_id = NULL)
 		: out_(out) {
 		}
 

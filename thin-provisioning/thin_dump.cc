@@ -54,7 +54,8 @@ namespace {
 		return md;
 	}
 
-	int dump_(string const &path, ostream &out, string const &format, struct flags &flags) {
+	int dump_(string const &path, ostream &out, string const &format,
+		struct flags &flags, const block_address * const dev_id = NULL) {
 		try {
 			metadata::ptr md = open_metadata(path, flags);
 			emitter::ptr e;
@@ -70,7 +71,7 @@ namespace {
 				exit(1);
 			}
 
-			metadata_dump(md, e, flags.repair);
+			metadata_dump(md, e, flags.repair, dev_id);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -80,12 +81,13 @@ namespace {
 		return 0;
 	}
 
-	int dump(string const &path, char const *output, string const &format, struct flags &flags) {
+	int dump(string const &path, char const *output, string const &format,
+		struct flags &flags, const block_address * const dev_id = NULL) {
 		if (output) {
 			ofstream out(output);
-			return dump_(path, out, format, flags);
+			return dump_(path, out, format, flags, dev_id);
 		} else
-			return dump_(path, cout, format, flags);
+			return dump_(path, cout, format, flags, dev_id);
 	}
 }
 
@@ -106,7 +108,8 @@ thin_dump_cmd::usage(std::ostream &out) const
 	    << "  {-r|--repair}" << endl
 	    << "  {-m|--metadata-snap} [block#]" << endl
 	    << "  {-o <xml file>}" << endl
-	    << "  {-V|--version}" << endl;
+	    << "  {-V|--version}" << endl
+	    << "  {-n|--name}" << endl;
 }
 
 int
@@ -114,11 +117,12 @@ thin_dump_cmd::run(int argc, char **argv)
 {
 	int c;
 	char const *output = NULL;
-	const char shortopts[] = "hm::o:f:rV";
+	const char shortopts[] = "hm::o:f:rVn:";
 	char *end_ptr;
 	string format = "xml";
 	block_address metadata_snap = 0;
 	struct flags flags;
+	block_address * dev_id = NULL;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
@@ -127,6 +131,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
 		{ "version", no_argument, NULL, 'V'},
+		{ "name", required_argument, NULL, 'n'},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -167,6 +172,11 @@ thin_dump_cmd::run(int argc, char **argv)
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
+		case 'n':
+			dev_id = new block_address;
+			*dev_id = atoi(optarg);
+			break;
+
 		default:
 			usage(cerr);
 			return 1;
@@ -179,7 +189,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output, format, flags);
+	return dump(argv[optind], output, format, flags, dev_id);
 }
 
 //----------------------------------------------------------------
