@@ -41,6 +41,7 @@ SOURCE=\
 	caching/cache_metadata_size.cc \
 	caching/cache_repair.cc \
 	caching/cache_restore.cc \
+	caching/cache_writeback.cc \
 	caching/commands.cc \
 	caching/hint_array.cc \
 	caching/mapping_array.cc \
@@ -216,6 +217,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/cache_repair
 	ln -s -f pdata_tools $(BINDIR)/cache_restore
+	ln -s -f pdata_tools $(BINDIR)/cache_writeback
 	ln -s -f pdata_tools $(BINDIR)/thin_check
 	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
@@ -235,6 +237,7 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_writeback.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
