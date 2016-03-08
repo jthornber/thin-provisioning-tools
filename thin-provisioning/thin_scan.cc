@@ -129,14 +129,6 @@ namespace {
 	};
 
 	struct block_range {
-		uint64_t begin_;
-		uint64_t end_; // one-pass-the-end
-		boost::optional<uint64_t> blocknr_begin_;
-		metadata_block_type type_;
-		int64_t ref_count_; // ref_count in metadata space map
-		size_t value_size_; // btree node only
-		bool is_valid_; // btree node only
-
 		block_range()
 			: begin_(0), end_(0),
 			  type_(UNKNOWN), ref_count_(-1),
@@ -151,10 +143,50 @@ namespace {
 			  value_size_(rhs.value_size_), is_valid_(rhs.is_valid_)
 		{
 		}
+
+		uint64_t size() const {
+			return (end_ > begin_) ? (end_ - begin_) : 0;
+		}
+
+		// returns true if r is left or right-adjacent
+		bool is_adjacent_to(block_range const &r) const {
+			block_range const &lhs = begin_ < r.begin_ ? *this : r;
+			block_range const &rhs = begin_ < r.begin_ ? r : *this;
+
+			if (size() && r.size() &&
+			    rhs.begin_ == lhs.end_ &&
+			    ((!blocknr_begin_ && !r.blocknr_begin_) ||
+			     (blocknr_begin_ && r.blocknr_begin_ &&
+			      *rhs.blocknr_begin_ >= *lhs.blocknr_begin_ &&
+			      (*rhs.blocknr_begin_ - *lhs.blocknr_begin_ == rhs.begin_ - lhs.begin_))) &&
+			    type_ == r.type_ &&
+			    ref_count_ == r.ref_count_ &&
+			    value_size_ == r.value_size_ &&
+			    is_valid_ == r.is_valid_)
+				return true;
+
+			return false;
+		}
+
+		bool concat(block_range const &r) {
+			if (!is_adjacent_to(r))
+				return false;
+			begin_ = std::min(begin_, r.begin_);
+			end_ = std::max(end_, r.end_);
+			return true;
+		}
+
+		uint64_t begin_;
+		uint64_t end_; // one-pass-the-end
+		boost::optional<uint64_t> blocknr_begin_;
+		metadata_block_type type_;
+		int64_t ref_count_; // ref_count in metadata space map
+		size_t value_size_; // btree node only
+		bool is_valid_;
 	};
 
 	void output_block_range(block_range const &r, std::ostream &out) {
-		if (r.end_ <= r.begin_)
+		if (!r.size())
 			return;
 
 		if (r.end_ - r.begin_ > 1) {
@@ -288,18 +320,8 @@ namespace {
 				curr_range.ref_count_ = -1;
 			}
 
-			// output the current block
-			if (run_range.end_ == 0)
-				run_range = curr_range;
-			else if (((!curr_range.blocknr_begin_ && !run_range.blocknr_begin_) ||
-				  (curr_range.blocknr_begin_ && run_range.blocknr_begin_ &&
-				   *curr_range.blocknr_begin_ == *run_range.blocknr_begin_ + (run_range.end_ - run_range.begin_))) &&
-				 curr_range.type_ == run_range.type_ &&
-				 curr_range.ref_count_ == run_range.ref_count_ &&
-				 curr_range.value_size_ == run_range.value_size_ &&
-				 curr_range.is_valid_ == run_range.is_valid_) {
-				++run_range.end_;
-			} else {
+			// store the current block
+			if (!run_range.concat(curr_range)) {
 				output_block_range(run_range, out);
 				run_range = curr_range;
 			}
