@@ -95,7 +95,8 @@ SOURCE=\
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
 	thin-provisioning/thin_trim.cc \
-	thin-provisioning/xml_format.cc
+	thin-provisioning/xml_format.cc \
+	thin-provisioning/binary_format.cc
 
 CC:=@CC@
 CXX:=@CXX@

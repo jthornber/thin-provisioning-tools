@@ -28,6 +28,7 @@
 #include "version.h"
 #include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
+#include "binary_format.h"
 
 using namespace boost;
 using namespace persistent_data;
@@ -66,6 +67,9 @@ namespace {
 			else if (format == "human_readable")
 				e = create_human_readable_emitter(out);
 
+			else if (format == "binary")
+				e = create_binary_emitter(out);
+
 			else {
 				cerr << "unknown format '" << format << "'" << endl;
 				exit(1);
@@ -84,7 +88,11 @@ namespace {
 	int dump(string const &path, char const *output, string const &format,
 		struct flags &flags, const block_address * const dev_id = NULL) {
 		if (output) {
-			ofstream out(output);
+			ios_base::openmode mode = ios_base::out;
+			if (format == "binary")
+				mode |= ios_base::binary;
+			ofstream out(output, mode);
+			assert(out.is_open());
 			return dump_(path, out, format, flags, dev_id);
 		} else
 			return dump_(path, cout, format, flags, dev_id);
@@ -104,7 +112,7 @@ thin_dump_cmd::usage(std::ostream &out) const
 	out << "Usage: " << get_name() << " [options] {device|file}" << endl
 	    << "Options:" << endl
 	    << "  {-h|--help}" << endl
-	    << "  {-f|--format} {xml|human_readable}" << endl
+	    << "  {-f|--format} {xml|human_readable|binary}" << endl
 	    << "  {-r|--repair}" << endl
 	    << "  {-m|--metadata-snap} [block#]" << endl
 	    << "  {-o <xml file>}" << endl
@@ -186,6 +194,11 @@ thin_dump_cmd::run(int argc, char **argv)
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
 		usage(cerr);
+		return 1;
+	}
+
+	if (format == "binary" && !dev_id) {
+		cerr << "binary format can only be used with -n" << endl;
 		return 1;
 	}
 
