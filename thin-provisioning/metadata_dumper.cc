@@ -165,16 +165,21 @@ namespace {
 				     emitter::ptr e,
 				     dd_map const &dd,
 				     bool repair,
-				     mapping_tree_detail::damage_visitor::ptr damage_policy)
+				     mapping_tree_detail::damage_visitor::ptr damage_policy,
+					 const block_address * const dev_id = NULL)
 			: md_(md),
 			  e_(e),
 			  dd_(dd),
 			  repair_(repair),
-			  damage_policy_(damage_policy) {
+			  damage_policy_(damage_policy), 
+			  dev_id_(dev_id) {
 		}
 
 		void visit(btree_path const &path, block_address tree_root) {
 			block_address dev_id = path[0];
+
+			if (dev_id_ && dev_id != *dev_id_)
+				return;
 
 			dd_map::const_iterator it = dd_.find(path[0]);
 			if (it != dd_.end()) {
@@ -210,13 +215,15 @@ namespace {
 		dd_map const &dd_;
 		bool repair_;
 		mapping_tree_detail::damage_visitor::ptr damage_policy_;
+		const block_address * const dev_id_;
 	};
 }
 
 //----------------------------------------------------------------
 
 void
-thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
+thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair,
+	const block_address *dev_id)
 {
 	details_extractor de;
 	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(repair));
@@ -226,19 +233,22 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	// many data blocks there are.
 	block_address nr_data_blocks = md->data_sm_ ? md->data_sm_->get_nr_blocks() : 0;
 
-	e->begin_superblock("", md->sb_.time_,
-			    md->sb_.trans_id_,
-			    md->sb_.data_block_size_,
-			    nr_data_blocks,
-			    boost::optional<block_address>());
+	if (!dev_id)
+		e->begin_superblock("", md->sb_.time_,
+			md->sb_.trans_id_,
+			md->sb_.data_block_size_,
+			nr_data_blocks,
+			boost::optional<block_address>());
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(repair));
-		mapping_tree_emitter mte(md, e, de.get_details(), repair, mapping_damage_policy(repair));
+		mapping_tree_emitter mte(md, e, de.get_details(), repair,
+			mapping_damage_policy(repair), dev_id);
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
-	e->end_superblock();
+	if (!dev_id)
+		e->end_superblock();
 }
 
 //----------------------------------------------------------------

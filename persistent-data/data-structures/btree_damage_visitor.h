@@ -176,7 +176,6 @@ namespace persistent_data {
 					btree_detail::node_ref<ValueTraits> const &n) {
 				update_path(loc.path);
 
-
 				bool r = check_leaf(loc, n);
 
 				// If anything goes wrong with the checks, we skip
