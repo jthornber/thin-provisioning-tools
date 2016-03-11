@@ -47,7 +47,7 @@ namespace {
 		}
 
 		void end_device() {
-			emit_bmp();
+			emit_bmp(true);
 		}
 
 		void begin_named_mapping(string const &name) { }
@@ -130,8 +130,9 @@ namespace {
 		 */
 		static const size_t unit = sizeof bitmap * CHAR_BIT;
 
-		void emit_bmp(void) {
-			out_.write((const char*)&bitmap, sizeof bitmap);
+		void emit_bmp(bool omit_if_zero = false) {
+			if (!bitmap && omit_if_zero)
+				out_.write((const char*)&bitmap, sizeof bitmap);
 			bitmap = 0;
 			cur++;
 		}
