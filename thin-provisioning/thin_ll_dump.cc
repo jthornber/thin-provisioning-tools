@@ -371,7 +371,7 @@ thin_ll_dump_cmd::usage(ostream &out) const {
 int
 thin_ll_dump_cmd::run(int argc, char **argv)
 {
-	const char shortopts[] = "hm:o:V";
+	const char shortopts[] = "hm::o:V";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "metadata-snap", optional_argument, NULL, 'm'},
