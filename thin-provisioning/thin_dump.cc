@@ -38,11 +38,10 @@ namespace {
 	// FIXME: put the path into the flags
 	struct flags {
 		flags()
-			: repair(false),
-			  use_metadata_snap(false) {
+			: use_metadata_snap(false) {
 		}
 
-		bool repair;
+		dump_options opts;
 		bool use_metadata_snap;
 		optional<block_address> snap_location;
 	};
@@ -70,7 +69,7 @@ namespace {
 				exit(1);
 			}
 
-			metadata_dump(md, e, flags.repair);
+			metadata_dump(md, e, flags.opts);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -99,13 +98,14 @@ thin_dump_cmd::thin_dump_cmd()
 void
 thin_dump_cmd::usage(std::ostream &out) const
 {
-	out << "Usage: " << get_name() << " [options] {device|file}" << endl
-	    << "Options:" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-f|--format} {xml|human_readable}" << endl
-	    << "  {-r|--repair}" << endl
-	    << "  {-m|--metadata-snap} [block#]" << endl
-	    << "  {-o <xml file>}" << endl
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-f|--format} {xml|human_readable}\n"
+	    << "  {-r|--repair}\n"
+	    << "  {-m|--metadata-snap} [block#]\n"
+	    << "  {-o <xml file>}\n"
+	    << "  {--dev-id} <dev-id>\n"
 	    << "  {-V|--version}" << endl;
 }
 
@@ -118,6 +118,7 @@ thin_dump_cmd::run(int argc, char **argv)
 	char *end_ptr;
 	string format = "xml";
 	block_address metadata_snap = 0;
+	uint64_t dev_id;
 	struct flags flags;
 
 	const struct option longopts[] = {
@@ -126,6 +127,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		{ "output", required_argument, NULL, 'o'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
+		{ "dev-id", required_argument, NULL, 1 },
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -141,7 +143,7 @@ thin_dump_cmd::run(int argc, char **argv)
 			break;
 
 		case 'r':
-			flags.repair = true;
+			flags.opts.repair_ = true;
 			break;
 
 		case 'm':
@@ -150,7 +152,7 @@ thin_dump_cmd::run(int argc, char **argv)
 				// FIXME: deprecate this option
 				metadata_snap = strtoull(optarg, &end_ptr, 10);
 				if (end_ptr == optarg) {
-					cerr << "couldn't parse <metadata_snap>" << endl;
+					cerr << "couldn't parse <metadata-snap>" << endl;
 					usage(cerr);
 					return 1;
 				}
@@ -161,6 +163,16 @@ thin_dump_cmd::run(int argc, char **argv)
 
 		case 'o':
 			output = optarg;
+			break;
+
+		case 1:
+			dev_id = strtoull(optarg, &end_ptr, 10);
+			if (end_ptr == optarg) {
+				cerr << "couldn't parse <dev-id>\n";
+				usage(cerr);
+				return 1;
+			}
+			flags.opts.select_dev(dev_id);
 			break;
 
 		case 'V':

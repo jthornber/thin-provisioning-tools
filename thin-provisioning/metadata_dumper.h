@@ -22,13 +22,40 @@
 #include "emitter.h"
 #include "metadata.h"
 
+#include <boost/optional.hpp>
+#include <set>
+
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
+	class dump_options {
+	public:
+		dump_options()
+			: repair_(false) {
+		}
+
+		bool selected_dev(uint64_t dev_id) const {
+			return !dev_filter_ || dev_filter_->count(dev_id);
+		}
+
+		void select_dev(uint64_t dev_id) {
+			if (!dev_filter_)
+				dev_filter_ = dev_set();
+
+			dev_filter_->insert(dev_id);
+		}
+
+		bool repair_;
+
+		using dev_set = std::set<uint64_t>;
+		using maybe_dev_set = boost::optional<dev_set>;
+		maybe_dev_set dev_filter_;
+	};
+
 	// Set the @repair flag if your metadata is corrupt, and you'd like
 	// the dumper to do it's best to recover info.  If not set, any
 	// corruption encountered will cause an exception to be thrown.
-	void metadata_dump(metadata::ptr md, emitter::ptr e, bool repair);
+	void metadata_dump(metadata::ptr md, emitter::ptr e, dump_options const &opts);
 	void metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root);
 }
 
