@@ -128,6 +128,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
 		{ "dev-id", required_argument, NULL, 1 },
+		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -173,6 +174,10 @@ thin_dump_cmd::run(int argc, char **argv)
 				return 1;
 			}
 			flags.opts.select_dev(dev_id);
+			break;
+
+		case 2:
+			flags.opts.skip_mappings_ = true;
 			break;
 
 		case 'V':

@@ -195,7 +195,8 @@ namespace {
 						 d.snapshotted_time_);
 
 				try {
-					emit_mappings(tree_root);
+					if (!opts_.skip_mappings_)
+						emit_mappings(tree_root);
 				} catch (exception &e) {
 					cerr << e.what();
 					e_->end_device();

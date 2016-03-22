@@ -31,7 +31,8 @@ namespace thin_provisioning {
 	class dump_options {
 	public:
 		dump_options()
-			: repair_(false) {
+			: repair_(false),
+			  skip_mappings_(false) {
 		}
 
 		bool selected_dev(uint64_t dev_id) const {
@@ -46,6 +47,7 @@ namespace thin_provisioning {
 		}
 
 		bool repair_;
+		bool skip_mappings_;
 
 		using dev_set = std::set<uint64_t>;
 		using maybe_dev_set = boost::optional<dev_set>;
