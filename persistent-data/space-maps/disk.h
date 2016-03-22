@@ -37,11 +37,14 @@ namespace persistent_data {
 	checked_space_map::ptr
 	open_metadata_sm(transaction_manager &tm, void *root);
 
-	bcache::validator::ptr
-	bitmap_validator();
+	bcache::validator::ptr bitmap_validator();
 
-	bcache::validator::ptr
-	index_validator();
+	bcache::validator::ptr index_validator();
+
+	// Get the number of data blocks with minimal IO.  Used when
+	// repairing to avoid the bulk of the space maps.
+	block_address
+	get_nr_blocks_in_data_sm(transaction_manager &tm, void *root);
 }
 
 //----------------------------------------------------------------

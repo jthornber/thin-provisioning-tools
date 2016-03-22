@@ -794,4 +794,15 @@ persistent_data::index_validator() {
 	return bcache::validator::ptr(new index_block_validator());
 }
 
+block_address
+persistent_data::get_nr_blocks_in_data_sm(transaction_manager &tm, void *root)
+{
+	sm_root_disk d;
+	sm_root v;
+
+	::memcpy(&d, root, sizeof(d));
+	sm_root_traits::unpack(d, v);
+	return v.nr_blocks_;
+}
+
 //----------------------------------------------------------------

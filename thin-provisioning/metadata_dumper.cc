@@ -185,8 +185,13 @@ namespace {
 						 d.creation_time_,
 						 d.snapshotted_time_);
 
-				emit_mappings(tree_root);
-
+				try {
+					emit_mappings(tree_root);
+				} catch (exception &e) {
+					cerr << e.what();
+					e_->end_device();
+					throw;
+				}
 				e_->end_device();
 
 			} else if (!repair_) {
@@ -211,6 +216,19 @@ namespace {
 		bool repair_;
 		mapping_tree_detail::damage_visitor::ptr damage_policy_;
 	};
+
+	block_address get_nr_blocks(metadata::ptr md) {
+		if (md->data_sm_)
+			return md->data_sm_->get_nr_blocks();
+
+		else if (md->sb_.blocknr_ == superblock_detail::SUPERBLOCK_LOCATION)
+			// grab from the root structure of the space map
+			return get_nr_blocks_in_data_sm(*md->tm_, &md->sb_.data_space_map_root_);
+
+		else
+			// metadata snap, we really don't know
+			return 0ull;
+	}
 }
 
 //----------------------------------------------------------------
@@ -222,16 +240,12 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
 	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(repair));
 	walk_device_tree(*md->details_, de, *dd_policy);
 
-	// metadata snap doesn't have the space maps so we don't know how
-	// many data blocks there are.
-	block_address nr_data_blocks = md->data_sm_ ? md->data_sm_->get_nr_blocks() : 0;
-
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
 			    md->sb_.flags_,
 			    md->sb_.version_,
 			    md->sb_.data_block_size_,
-			    nr_data_blocks,
+			    get_nr_blocks(md),
 			    boost::optional<block_address>());
 
 	{
