@@ -38,10 +38,13 @@ namespace {
 	// FIXME: put the path into the flags
 	struct flags {
 		flags()
-			: use_metadata_snap(false) {
+			: format("xml"),
+			  use_metadata_snap(false) {
 		}
 
 		dump_options opts;
+
+		string format;
 		bool use_metadata_snap;
 		optional<block_address> snap_location;
 	};
@@ -53,22 +56,27 @@ namespace {
 		return md;
 	}
 
-	int dump_(string const &path, ostream &out, string const &format, struct flags &flags) {
+	emitter::ptr create_emitter(string const &format, ostream &out) {
+		emitter::ptr e;
+
+		if (format == "xml")
+			e = create_xml_emitter(out);
+
+		else if (format == "human_readable")
+			e = create_human_readable_emitter(out);
+
+		else {
+			cerr << "unknown format '" << format << "'" << endl;
+			exit(1);
+		}
+
+		return e;
+	}
+
+	int dump_(string const &path, ostream &out, struct flags &flags) {
 		try {
 			metadata::ptr md = open_metadata(path, flags);
-			emitter::ptr e;
-
-			if (format == "xml")
-				e = create_xml_emitter(out);
-
-			else if (format == "human_readable")
-				e = create_human_readable_emitter(out);
-
-			else {
-				cerr << "unknown format '" << format << "'" << endl;
-				exit(1);
-			}
-
+			emitter::ptr e = create_emitter(flags.format, out);
 			metadata_dump(md, e, flags.opts);
 
 		} catch (std::exception &e) {
@@ -79,12 +87,12 @@ namespace {
 		return 0;
 	}
 
-	int dump(string const &path, char const *output, string const &format, struct flags &flags) {
+	int dump(string const &path, char const *output, struct flags &flags) {
 		if (output) {
 			ofstream out(output);
-			return dump_(path, out, format, flags);
+			return dump_(path, out, flags);
 		} else
-			return dump_(path, cout, format, flags);
+			return dump_(path, cout, flags);
 	}
 }
 
@@ -101,7 +109,7 @@ thin_dump_cmd::usage(std::ostream &out) const
 	out << "Usage: " << get_name() << " [options] {device|file}\n"
 	    << "Options:\n"
 	    << "  {-h|--help}\n"
-	    << "  {-f|--format} {xml|human_readable}\n"
+	    << "  {-f|--format} {xml|human_readable|custom}\n"
 	    << "  {-r|--repair}\n"
 	    << "  {-m|--metadata-snap} [block#]\n"
 	    << "  {-o <xml file>}\n"
@@ -116,7 +124,6 @@ thin_dump_cmd::run(int argc, char **argv)
 	char const *output = NULL;
 	const char shortopts[] = "hm::o:f:rV";
 	char *end_ptr;
-	string format = "xml";
 	block_address metadata_snap = 0;
 	uint64_t dev_id;
 	struct flags flags;
@@ -140,7 +147,7 @@ thin_dump_cmd::run(int argc, char **argv)
 			return 0;
 
 		case 'f':
-			format = optarg;
+			flags.format = optarg;
 			break;
 
 		case 'r':
@@ -196,7 +203,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output, format, flags);
+	return dump(argv[optind], output, flags);
 }
 
 //----------------------------------------------------------------
