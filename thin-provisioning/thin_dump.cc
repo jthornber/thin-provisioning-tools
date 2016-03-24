@@ -21,13 +21,14 @@
 #include <getopt.h>
 #include <libgen.h>
 
-#include "human_readable_format.h"
-#include "metadata_dumper.h"
-#include "metadata.h"
-#include "xml_format.h"
-#include "version.h"
-#include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
+#include "thin-provisioning/human_readable_format.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/metadata_dumper.h"
+#include "thin-provisioning/shared_library_emitter.h"
+#include "thin-provisioning/xml_format.h"
+#include "version.h"
 
 using namespace boost;
 using namespace persistent_data;
@@ -56,6 +57,10 @@ namespace {
 		return md;
 	}
 
+	bool begins_with(string const &str, string const &prefix) {
+		return str.substr(0, prefix.length()) == prefix;
+	}
+
 	emitter::ptr create_emitter(string const &format, ostream &out) {
 		emitter::ptr e;
 
@@ -65,9 +70,13 @@ namespace {
 		else if (format == "human_readable")
 			e = create_human_readable_emitter(out);
 
+		else if (begins_with(format, "custom="))
+			e = create_custom_emitter(format.substr(7), out);
+
 		else {
-			cerr << "unknown format '" << format << "'" << endl;
-			exit(1);
+			ostringstream msg;
+			msg << "unknown format '" << format << "'";
+			throw runtime_error(msg.str());
 		}
 
 		return e;

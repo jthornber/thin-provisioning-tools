@@ -91,6 +91,7 @@ SOURCE=\
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
+	thin-provisioning/shared_library_emitter.cc \
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
@@ -123,9 +124,9 @@ STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
-CFLAGS+=-g -Wall -O3
+CFLAGS+=-g -Wall -O3 -fPIC
 CFLAGS+=@LFS_FLAGS@
-CXXFLAGS+=-g -Wall -fno-strict-aliasing -std=c++11
+CXXFLAGS+=-g -Wall -fPIC -fno-strict-aliasing -std=c++11
 
 ifeq ("@DEVTOOLS@", "yes")
 CXXFLAGS+=-DDEV_TOOLS
@@ -260,6 +261,7 @@ endif
 
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
+include contrib/Makefile
 
 .PHONEY: features
 

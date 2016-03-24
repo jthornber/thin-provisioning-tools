@@ -1,0 +1,7 @@
+contrib: contrib/thin_sexp_emitter.so
+
+contrib/thin_sexp_emitter.so: contrib/thin_sexp_emitter.o
+	$(V)echo "    [LD] $@"
+	$(V)$(CC) -shared -Wl,-soname,thin_sexp_emitter.so -o contrib/thin_sexp_emitter.so contrib/thin_sexp_emitter.o
+
+
