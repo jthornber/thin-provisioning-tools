@@ -1,6 +1,7 @@
 PLUGINS=\
 	contrib/thin_sexp_emitter.so \
-	contrib/tmakatos_emitter.so
+	contrib/tmakatos_emitter.so \
+	contrib/ewheeler_emitter.so
 
 contrib: $(PLUGINS)
 
@@ -11,5 +12,9 @@ contrib/thin_sexp_emitter.so: contrib/thin_sexp_emitter.o
 contrib/tmakatos_emitter.so: contrib/tmakatos_emitter.o
 	$(V)echo "    [LD] $@"
 	$(V)$(CC) -shared -Wl,-soname,tmakatos_emitter.so -o $@ $<
+
+contrib/ewheeler_emitter.so: contrib/ewheeler_emitter.o
+	$(V)echo "    [LD] $@"
+	$(V)$(CC) -shared -Wl,-soname,ewheeler_emitter.so -o $@ $<
 
 
