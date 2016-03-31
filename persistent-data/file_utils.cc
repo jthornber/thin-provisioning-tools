@@ -21,7 +21,8 @@ persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 
 	int r = ::stat(path.c_str(), &info);
 	if (r)
-		throw runtime_error("Couldn't stat dev path");
+		throw runtime_error("Couldn't stat dev path " + path + ": " +
+			strerror(errno));
 
 	if (S_ISREG(info.st_mode) && info.st_size)
 		nr_blocks = div_up<block_address>(info.st_size, block_size);
