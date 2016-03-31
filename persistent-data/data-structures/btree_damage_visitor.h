@@ -158,9 +158,8 @@ namespace persistent_data {
 			typedef boost::optional<run64> maybe_run64;
 
 			btree_damage_visitor(ValueVisitor &value_visitor,
-					     DamageVisitor &damage_visitor,
-					     bool avoid_repeated_visits = true)
-				: avoid_repeated_visits_(avoid_repeated_visits),
+					     DamageVisitor &damage_visitor)
+				: avoid_repeated_visits_(true),
 				  value_visitor_(value_visitor),
 				  damage_visitor_(damage_visitor) {
 			}
