@@ -259,9 +259,10 @@ endif
 
 .PHONY: install
 
+include contrib/Makefile
+
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
-include contrib/Makefile
 
 .PHONEY: features
 
