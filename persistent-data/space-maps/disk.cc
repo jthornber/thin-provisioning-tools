@@ -773,4 +773,15 @@ persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
 			checked_space_map::ptr(new sm_disk(store, tm, v))));
 }
 
+block_address
+persistent_data::get_nr_blocks_in_data_sm(transaction_manager &tm, void *root)
+{
+	sm_root_disk d;
+	sm_root v;
+
+	::memcpy(&d, root, sizeof(d));
+	sm_root_traits::unpack(d, v);
+	return v.nr_blocks_;
+}
+
 //----------------------------------------------------------------
