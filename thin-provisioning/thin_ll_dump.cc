@@ -24,6 +24,8 @@
 #include "persistent-data/file_utils.h"
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/btree_counter.h"
+#include "persistent-data/data-structures/btree_damage_visitor.h"
+#include "persistent-data/data-structures/btree_node_checker.h"
 #include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk_structures.h"
@@ -33,70 +35,11 @@
 #include "version.h"
 
 using namespace thin_provisioning;
+using namespace persistent_data;
 
 //----------------------------------------------------------------
 
 namespace {
-	// extracted from btree_damage_visitor.h
-	template <typename node>
-	bool check_block_nr(node const &n) {
-		if (n.get_location() != n.get_block_nr()) {
-			return false;
-		}
-		return true;
-	}
-
-	// extracted from btree_damage_visitor.h
-	template <typename node>
-	bool check_max_entries(node const &n) {
-		size_t elt_size = sizeof(uint64_t) + n.get_value_size();
-		if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
-			return false;
-		}
-
-		if (n.get_max_entries() % 3) {
-			return false;
-		}
-
-		return true;
-	}
-
-	// extracted from btree_damage_visitor.h
-	template <typename node>
-	bool check_nr_entries(node const &n, bool is_root) {
-		if (n.get_nr_entries() > n.get_max_entries()) {
-			return false;
-		}
-
-		block_address min = n.get_max_entries() / 3;
-		if (!is_root && (n.get_nr_entries() < min)) {
-			return false;
-		}
-
-		return true;
-	}
-
-	// extracted from btree_damage_visitor.h
-	template <typename node>
-	bool check_ordered_keys(node const &n) {
-		unsigned nr_entries = n.get_nr_entries();
-
-		if (nr_entries == 0)
-			return true; // can only happen if a root node
-
-		uint64_t last_key = n.key_at(0);
-
-		for (unsigned i = 1; i < nr_entries; i++) {
-			uint64_t k = n.key_at(i);
-			if (k <= last_key) {
-				return false;
-			}
-			last_key = k;
-		}
-
-		return true;
-	}
-
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {
 		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
@@ -136,19 +79,20 @@ namespace {
 			if ((n.get_value_size() == sizeof(mapping_tree_detail::block_traits::disk_type) ||
 			     n.get_value_size() == sizeof(device_tree_detail::device_details_traits::disk_type)) &&
 			    !bc_.get_count(n.get_location()) &&
-			    check_block_nr(n) &&
+			    checker_.check_block_nr(n) &&
 			    (((flags & INTERNAL_NODE) && !(flags & LEAF_NODE)) ||
 			     (flags & LEAF_NODE)) &&
 			    nv_->check_raw(n.raw()) &&
-			    check_max_entries(n) &&
-			    check_nr_entries(n, true) &&
-			    check_ordered_keys(n))
+			    checker_.check_max_entries(n) &&
+			    checker_.check_nr_entries(n, true) &&
+			    checker_.check_ordered_keys(n))
 				return true;
 			return false;
 		}
 
 		bcache::validator::ptr nv_;
 		block_counter const &bc_;
+		btree_detail::btree_node_checker checker_;
 	};
 
 	//-------------------------------------------------------------------
