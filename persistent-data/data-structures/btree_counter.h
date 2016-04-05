@@ -57,6 +57,9 @@ namespace persistent_data {
 		private:
 			bool check_internal(node_location const &l,
 					    btree_detail::node_ref<block_traits> const &n) {
+				if (l.is_sub_root())
+					new_root(l.level());
+
 				if (!checker_.check_block_nr(n) ||
 				    !checker_.check_value_size(n) ||
 				    !checker_.check_max_entries(n) ||
@@ -64,9 +67,6 @@ namespace persistent_data {
 				    !checker_.check_ordered_keys(n) ||
 				    !checker_.check_parent_key(n, l.is_sub_root() ? boost::optional<uint64_t>() : l.key))
 					return false;
-
-				if (l.is_sub_root())
-					new_root(l.level());
 
 				return true;
 			}
@@ -74,22 +74,22 @@ namespace persistent_data {
 			template <typename ValueTraits2>
 			bool check_leaf(node_location const &l,
 				        btree_detail::node_ref<ValueTraits2> const &n) {
+				if (l.is_sub_root())
+					new_root(l.level());
+
 				if (!checker_.check_block_nr(n) ||
 				    !checker_.check_value_size(n) ||
 				    !checker_.check_max_entries(n) ||
 				    !checker_.check_nr_entries(n, l.is_sub_root()) ||
 				    !checker_.check_ordered_keys(n) ||
-				    !checker_.check_parent_key(n, l.is_sub_root() ? boost::optional<uint64_t>() : l.key))
+				    !checker_.check_parent_key(n, l.is_sub_root() ? boost::optional<uint64_t>() : l.key) ||
+				    !checker_.check_leaf_key(n, last_leaf_key_[l.level()]))
 					return false;
 
-				if (l.is_sub_root())
-					new_root(l.level());
-
-				bool r = checker_.check_leaf_key(n, last_leaf_key_[l.level()]);
-				if (r && n.get_nr_entries() > 0)
+				if (n.get_nr_entries() > 0)
 					last_leaf_key_[l.level()] = n.key_at(n.get_nr_entries() - 1);
 
-				return r;
+				return true;
 			}
 
 			void new_root(unsigned level) {
