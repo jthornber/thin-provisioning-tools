@@ -66,7 +66,6 @@ void thin_provisioning::count_metadata(transaction_manager::ptr tm,
 		count_trees(tm, snap, bc);
 	}
 
-	count_trees(tm, sb, bc);
 	count_space_maps(tm, sb, bc);
 }
 
