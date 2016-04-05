@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 using namespace base;
+using namespace bcache;
+using namespace persistent_data;
 
 //----------------------------------------------------------------
 
@@ -25,7 +27,7 @@ persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 			strerror(errno));
 
 	if (S_ISREG(info.st_mode) && info.st_size)
-		nr_blocks = div_up<block_address>(info.st_size, block_size);
+		nr_blocks = div_down<block_address>(info.st_size, block_size);
 
 	else if (S_ISBLK(info.st_mode)) {
 		// To get the size of a block device we need to
@@ -48,10 +50,16 @@ persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 	return nr_blocks;
 }
 
+block_address
+persistent_data::get_nr_metadata_blocks(string const &path)
+{
+	return get_nr_blocks(path, MD_BLOCK_SIZE);
+}
+
 persistent_data::block_manager<>::ptr
 persistent_data::open_bm(std::string const &dev_path, block_manager<>::mode m, bool excl)
 {
-	block_address nr_blocks = get_nr_blocks(dev_path);
+	block_address nr_blocks = get_nr_metadata_blocks(dev_path);
 	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m, excl));
 }
 
