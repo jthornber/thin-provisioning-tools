@@ -119,6 +119,10 @@ else
 CXXLIB+=-lstdc++
 endif
 
+ifeq ("@STATIC@", "yes")
+LDFLAGS+=-static
+endif
+
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
