@@ -223,6 +223,9 @@ namespace persistent_data {
 
 			bool check_internal(node_location const &loc,
 					    btree_detail::node_ref<block_traits> const &n) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
+
 				if (already_visited(n))
 					return false;
 				else if (!checker_.check_block_nr(n) ||
@@ -235,9 +238,6 @@ namespace persistent_data {
 
 					return false;
 				}
-
-				if (loc.is_sub_root())
-					new_root(loc.level());
 
 				good_internal(n.key_at(0));
 
@@ -247,6 +247,9 @@ namespace persistent_data {
 			template <typename ValueTraits2>
 			bool check_leaf(node_location const &loc,
 					btree_detail::node_ref<ValueTraits2> const &n) {
+				if (loc.is_sub_root())
+					new_root(loc.level());
+
 				if (already_visited(n))
 					return false;
 				else if (!checker_.check_block_nr(n) ||
@@ -254,24 +257,19 @@ namespace persistent_data {
 					 !checker_.check_max_entries(n) ||
 					 !checker_.check_nr_entries(n, loc.is_sub_root()) ||
 					 !checker_.check_ordered_keys(n) ||
-					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key)) {
+					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key) ||
+					 !checker_.check_leaf_key(n, last_leaf_key_[loc.level()])) {
 					report_damage(checker_.get_last_error_string());
 
 					return false;
 				}
 
-				if (loc.is_sub_root())
-					new_root(loc.level());
-
-				bool r = checker_.check_leaf_key(n, last_leaf_key_[loc.level()]);
-				if (!r)
-					report_damage(checker_.get_last_error_string());
-				else if (n.get_nr_entries() > 0) {
+				if (n.get_nr_entries() > 0) {
 					last_leaf_key_[loc.level()] = n.key_at(n.get_nr_entries() - 1);
 					good_leaf(n.key_at(0), n.key_at(n.get_nr_entries() - 1) + 1);
 				}
 
-				return r;
+				return true;
 			}
 
 			template <typename node>
