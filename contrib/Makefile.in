@@ -1,20 +1,24 @@
+PLUGIN_LIBS= \
+	contrib/thin_sexp_emitter.a \
+	contrib/tmakatos_emitter.a \
+	contrib/ewheeler_emitter.a
+
 PLUGINS=\
 	contrib/thin_sexp_emitter.so \
 	contrib/tmakatos_emitter.so \
 	contrib/ewheeler_emitter.so
 
-contrib: $(PLUGINS)
+contrib: $(PLUGINS) $(PLUGIN_LIBS)
 
-contrib/thin_sexp_emitter.so: contrib/thin_sexp_emitter.o
+contrib/%.o: contrib/%.cc
+	$(V)echo "    [CC] $@"
+	$(V)$(CC) $^ -o $@
+
+contrib/%.a: contrib/%.o
+	$(V)echo "    [AR] $@"
+	$(V)ar rcs $@ $^
+
+contrib/%.so: contrib/%.a
 	$(V)echo "    [LD] $@"
-	$(V)$(CC) -shared -Wl,-soname,thin_sexp_emitter.so -o $@ $<
-
-contrib/tmakatos_emitter.so: contrib/tmakatos_emitter.o
-	$(V)echo "    [LD] $@"
-	$(V)$(CC) -shared -Wl,-soname,tmakatos_emitter.so -o $@ $<
-
-contrib/ewheeler_emitter.so: contrib/ewheeler_emitter.o
-	$(V)echo "    [LD] $@"
-	$(V)$(CC) -shared -Wl,-soname,ewheeler_emitter.so -o $@ $<
-
+	$(V)$(CC) -shared -Wl,-soname,$@ -o $@ $<
 
