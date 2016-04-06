@@ -111,7 +111,7 @@ namespace tmakatos_emitter {
 	}
 
 	void binary_emitter::emit_bmp(bool omit_if_zero) {
-		if (!(!bitmap && omit_if_zero))
+		if (bitmap || !omit_if_zero)
 			out_.write((const char*)&bitmap, sizeof bitmap);
 		bitmap = 0;
 		cur++;
