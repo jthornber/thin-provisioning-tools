@@ -154,6 +154,14 @@ AC_ARG_ENABLE(static_cxx,
 AC_MSG_RESULT($STATIC_CXX)
 
 ################################################################################
+dnl -- Enable static linking.
+AC_MSG_CHECKING(whether to statically link)
+AC_ARG_ENABLE(static,
+              AC_HELP_STRING(--enable-static, [enable static link]),
+              STATIC=$enableval, STATIC=no)
+AC_MSG_RESULT($STATIC)
+
+################################################################################
 dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
 
@@ -182,6 +190,7 @@ AC_SUBST(TESTING)
 AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
 AC_SUBST(STATIC_CXX)
 AC_SUBST(DEVTOOLS)
+AC_SUBST(STATIC)
 
 ################################################################################
 dnl -- First and last lines should not contain files to generate in order to

@@ -92,7 +92,6 @@ SOURCE=\
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
-	thin-provisioning/shared_library_emitter.cc \
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
@@ -119,10 +118,23 @@ ifeq ("@DEVTOOLS@", "yes")
 SOURCE+=$(DEVTOOLS_SOURCE)
 endif
 
+ifeq ("@STATIC@", "yes")
+SOURCE += thin-provisioning/static_library_emitter.cc
+else
+SOURCE += thin-provisioning/shared_library_emitter.cc
+endif
+
 CC:=@CC@
 CXX:=@CXX@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
+
+# FIXME OBJECTS += $(PLUGIN_LIBS) doesn't work, probably because it's empty at
+# the time of use?
+ifeq ("@STATIC@", "yes")
+OBJECTS += contrib/*.a
+endif
+
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
 CFLAGS+=-g -Wall -O3 -fPIC
@@ -148,6 +160,10 @@ ifeq ("@STATIC_CXX@", "yes")
 CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed
 else
 CXXLIB+=-lstdc++
+endif
+
+ifeq ("@STATIC@", "yes")
+LDFLAGS+=-static
 endif
 
 INSTALL:=@INSTALL@
