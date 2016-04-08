@@ -39,8 +39,6 @@ namespace {
 			range[0] = block_to_byte(b);
 			range[1] = block_to_byte(e) - range[0];
 
-			cerr << "emitting discard for blocks (" << b << ", " << e << "]\n";
-
 			if (ioctl(fd_, BLKDISCARD, &range))
 				throw runtime_error("discard ioctl failed");
 		}
@@ -99,8 +97,13 @@ namespace {
 			highest_ = b;
 
 			if (count) {
-				if (last_referenced_ && (b > *last_referenced_ + 1))
-					emitter_.emit(*last_referenced_ + 1, b);
+				if (last_referenced_) {
+					if (b > *last_referenced_ + 1)
+						emitter_.emit(*last_referenced_ + 1, b);
+
+				} else if (b > 0) {
+					emitter_.emit(0, b);
+				}
 
 				last_referenced_ = b;
 			}
@@ -109,7 +112,7 @@ namespace {
 		void complete() {
 			if (last_referenced_) {
 				if (*last_referenced_ != *highest_)
-					emitter_.emit(*last_referenced_, *highest_ + 1ull);
+					emitter_.emit(*last_referenced_ + 1ull, *highest_ + 1ull);
 
 			} else if (highest_)
 				emitter_.emit(0ull, *highest_ + 1);
@@ -122,17 +125,13 @@ namespace {
 	};
 
 	int trim(string const &metadata_dev, string const &data_dev) {
-		cerr << "in trim\n";
-
 		// We can trim any block that has zero count in the data
 		// space map.
 		block_manager<>::ptr bm = open_bm(metadata_dev, block_manager<>::READ_ONLY);
 		metadata md(bm);
 
-		if (!md.data_sm_->get_nr_free()) {
-			cerr << "All data blocks allocated, nothing to discard\n";
+		if (!md.data_sm_->get_nr_free())
 			return 0;
-		}
 
 		discard_emitter de(data_dev, md.sb_.data_block_size_,
 				   md.data_sm_->get_nr_blocks());
