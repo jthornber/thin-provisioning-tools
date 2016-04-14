@@ -19,8 +19,13 @@ using namespace std;
 
 namespace {
 	struct flags {
+		flags()
+			: cache_size(1024 * 1024 * 128) {
+		}
+
 		using maybe_string = boost::optional<string>;
 
+		size_t cache_size;
 		maybe_string metadata_dev;
 		maybe_string origin_dev;
 		maybe_string fast_dev;
@@ -41,13 +46,22 @@ namespace {
 			if (only_dirty_ && !(m.flags_ & M_DIRTY))
 				return;
 
-			auto sectors_copied = copier_.copy(cblock, m.oblock_);
+			copy_op cop;
+			cop.src_b = cblock;
+			cop.src_e = cblock + 1ull;
+			cop.dest_b = m.oblock_;
+
+			// blocks
+			copier_.issue(cop);
 
 			stats_.blocks_issued++;
+
+#if 0
 			if (sectors_copied < block_size_) {
 				stats_.blocks_failed++;
 				stats_.sectors_failed += block_size_ - sectors_copied;
 			}
+#endif
 		}
 
 		struct copy_stats {
@@ -107,7 +121,8 @@ namespace {
 		block_manager<>::ptr bm = open_bm(*f.metadata_dev, block_manager<>::READ_ONLY);
 		metadata md(bm, metadata::OPEN);
 
-		copier c(*f.fast_dev, *f.origin_dev, md.sb_.data_block_size);
+		copier c(*f.fast_dev, *f.origin_dev,
+			 md.sb_.data_block_size, f.cache_size);
 		copy_visitor cv(c, clean_shutdown(md));
 		ignore_damage_visitor dv;
 		walk_mapping_array(*md.mappings_, cv, dv);

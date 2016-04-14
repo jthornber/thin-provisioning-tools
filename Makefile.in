@@ -36,6 +36,9 @@ SOURCE=\
 	base/rolling_hash.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
+	block-cache/copier.cc \
+	block-cache/io_engine.cc \
+	block-cache/mem_pool.cc \
 	caching/cache_check.cc \
 	caching/cache_dump.cc \
 	caching/cache_metadata_size.cc \
