@@ -64,6 +64,7 @@ namespace {
 		typedef boost::shared_ptr<validator_mock> ptr;
 
 		MOCK_CONST_METHOD2(check, void(void const *, block_address));
+		MOCK_CONST_METHOD1(check_raw, bool(void const *data));
 		MOCK_CONST_METHOD2(prepare, void(void *, block_address));
 	};
 
