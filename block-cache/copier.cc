@@ -37,6 +37,7 @@ copier::issue(copy_op const &op)
 	job.op.read_complete = job.op.write_complete = false;
 	unsigned key = genkey(); // used as context for the io_engine
 
+	cerr << "data = " << &(*data) << "\n";
 	engine_.issue_io(src_handle_,
 			 io_engine::READ,
 			 to_sector(op.src_b),

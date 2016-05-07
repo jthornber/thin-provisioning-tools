@@ -19,6 +19,17 @@ namespace bcache {
 			  write_complete(false) {
 		}
 
+
+		copy_op(block_address src_b_,
+			block_address src_e_,
+			block_address dest_b_)
+			: src_b(src_b_),
+			  src_e(src_e_),
+			  dest_b(dest_b_),
+			  read_complete(false),
+			  write_complete(false) {
+		}
+
 		block_address src_b, src_e;
 		block_address dest_b;
 

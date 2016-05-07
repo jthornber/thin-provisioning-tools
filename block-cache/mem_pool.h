@@ -13,13 +13,14 @@ namespace bcache {
 	// FIXME: move to base?
 
 	namespace mempool_detail {
-		struct alloc_block : public bi::list_base_hook<> {
+		struct alloc_block : public bi::list_base_hook<bi::link_mode<bi::normal_link>> {
 		};
 	};
 
 	class mempool {
 	public:
-		mempool(size_t block_size, size_t total_mem);
+		// alignment must be a power of 2
+		mempool(size_t block_size, size_t total_mem, size_t alignment = 8);
 		~mempool();
 
 		boost::optional<void *> alloc();

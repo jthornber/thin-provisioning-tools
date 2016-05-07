@@ -1,18 +1,19 @@
 #include "block-cache/mem_pool.h"
 
+#include <sstream>
+#include <stdexcept>
 #include <stdlib.h>
 
 using namespace bcache;
 using namespace boost;
 using namespace mempool_detail;
-
-#define PAGE_SIZE 4096
+using namespace std;
 
 //----------------------------------------------------------------
 
-mempool::mempool(size_t block_size, size_t total_mem)
+mempool::mempool(size_t block_size, size_t total_mem, size_t alignment)
 {
-	mem_ = alloc_aligned(total_mem, PAGE_SIZE);
+	mem_ = alloc_aligned(total_mem, alignment);
 
 	unsigned nr_blocks = total_mem / block_size;
 	for (auto i = 0u; i < nr_blocks; i++)
@@ -21,6 +22,7 @@ mempool::mempool(size_t block_size, size_t total_mem)
 
 mempool::~mempool()
 {
+	free_.clear();
 	::free(mem_);
 }
 
@@ -47,8 +49,11 @@ mempool::alloc_aligned(size_t len, size_t alignment)
 {
 	void *result = NULL;
 	int r = posix_memalign(&result, alignment, len);
-	if (r)
-		return NULL;
+	if (r) {
+		ostringstream out;
+		out << "posix_memalign failed: len = " << len << ", alignment = " << alignment << ", r = " << r << "\n";
+		throw runtime_error(out.str());
+	}
 
 	return result;
 }
