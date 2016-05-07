@@ -103,14 +103,17 @@ STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
-CFLAGS+=-g -Wall -O3
+CFLAGS?=@CFLAGS@
+CFLAGS+=-Wall
 CFLAGS+=@LFS_FLAGS@
-CXXFLAGS+=-g -Wall -fno-strict-aliasing -std=gnu++98
+CXXFLAGS?=@CXXFLAGS@
+CXXFLAGS+=-Wall -fno-strict-aliasing -std=gnu++98
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
-INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
+CPPFLAGS?=@CPPFLAGS@
+CPPFLAGS+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-laio -lexpat
 
 ifeq ("@STATIC_CXX@", "yes")
@@ -147,9 +150,9 @@ endif
 
 %.o: %.cc
 	@echo "    [CXX] $<"
-	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
+	$(V) $(CXX) -c $(CPPFLAGS) $(CXXFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
-	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
