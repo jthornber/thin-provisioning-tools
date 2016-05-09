@@ -84,7 +84,7 @@ unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"
 	$(V)g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
-.PHONEY: unit-test
+.PHONY: unit-test
 
 unit-test: unit-tests/unit_tests
 	unit-tests/unit_tests
