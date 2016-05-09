@@ -129,10 +129,10 @@ CXX:=@CXX@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 
-# FIXME OBJECTS += $(PLUGIN_LIBS) doesn't work, probably because it's empty at
+# FIXME EMITTERS += $(PLUGIN_LIBS) doesn't work, probably because it's empty at
 # the time of use?
 ifeq ("@STATIC@", "yes")
-OBJECTS += contrib/*.a
+EMITTERS += contrib/*.a
 endif
 
 TOP_DIR:=@top_srcdir@
@@ -198,11 +198,11 @@ endif
 
 #----------------------------------------------------------------
 
-lib/libpdata.a: $(OBJECTS)
+lib/libpdata.a: $(OBJECTS) $(EMITTERS)
 	@echo "    [AR]  $<"
-	$(V)ar -rv $@ $(OBJECTS) > /dev/null 2>&1
+	$(V)ar -rv $@ $(OBJECTS) $(EMITTERS) > /dev/null 2>&1
 
-bin/pdata_tools: $(OBJECTS)
+bin/pdata_tools: $(OBJECTS) $(EMITTERS)
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
