@@ -138,7 +138,7 @@ INSTALL_DIR = $(INSTALL) -m 755 -d
 INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 
-ifeq ("@TESTING@", "yes")
+ifeq ("@TESTING@,@SYSTEM_GTEST@", "yes,no")
 TEST_INCLUDES=\
 	-Igmock-1.6.0/include \
 	-Igmock-1.6.0/gtest/include

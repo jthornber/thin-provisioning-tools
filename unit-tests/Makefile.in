@@ -16,6 +16,10 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
+GMOCK_LIBS=\
+	-Llib -lpdata -lgmock -lpthread -laio
+
+ifeq ("@SYSTEM_GTEST@", "no")
 GMOCK_DIR=gmock-1.6.0/
 GMOCK_INCLUDES=\
 	-Igmock-1.6.0/include \
@@ -24,14 +28,13 @@ GMOCK_INCLUDES=\
 GMOCK_FLAGS=\
 	-Wno-unused-local-typedefs
 
-GMOCK_LIBS=\
-	-Llib -lpdata -lgmock -lpthread -laio
-
 GMOCK_DEPS=\
 	$(wildcard $(GMOCK_DIR)/include/*.h) \
 	$(wildcard $(GMOCK_DIR)/src/*.cc) \
 	$(wildcard $(GMOCK_DIR)/gtest/include/*.h) \
 	$(wildcard $(GMOCK_DIR)/gtest/src/*.cc)
+
+GMOCK_LIB_DEP=lib/libgmock.a
 
 lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [CXX] gtest"
@@ -40,6 +43,12 @@ lib/libgmock.a: $(GMOCK_DEPS)
 	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
 	@echo "    [AR]  $<"
 	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
+else
+GMOCK_LIBS+=-lgtest
+GMOCK_INCLUDES=
+GMOCK_FLAGS=
+GMOCK_LIB_DEP=
+endif
 
 TEST_SOURCE=\
 	unit-tests/gmock_main.cc \
@@ -80,7 +89,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
-unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
+unit-tests/unit_tests: $(TEST_OBJECTS) $(GMOCK_LIB_DEP) lib/libpdata.a
 	@echo "    [LD]  $<"
 	$(V)g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 

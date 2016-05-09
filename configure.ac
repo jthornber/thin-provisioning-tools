@@ -137,6 +137,12 @@ AC_ARG_ENABLE(testing,
               TESTING=$enableval, TESTING=no)
 AC_MSG_RESULT($TESTING)
 
+AC_MSG_CHECKING(whether to use system gtest/gmock)
+AC_ARG_ENABLE(system-test-libs,
+              AC_HELP_STRING(--enable-system-test-libs, [use system gtest/gmock libs]),
+              SYSTEM_GTEST=$enableval, SYSTEM_GTEST=no)
+AC_MSG_RESULT($SYSTEM_GTEST)
+
 ################################################################################
 dnl -- Enable static libstdc++
 AC_MSG_CHECKING(whether to statically link libstdc++)
