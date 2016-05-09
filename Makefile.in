@@ -229,12 +229,13 @@ install: bin/pdata_tools
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
 
-.PHONEY: features
+.PHONY: features test check
 
-features: pdata_tools
+features: bin/pdata_tools
 	cucumber --no-color --format progress
 
 test: features unit-test
+check: unit-test
 endif
 
 -include $(DEPEND_FILES)
