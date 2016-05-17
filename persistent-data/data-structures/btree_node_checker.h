@@ -41,6 +41,8 @@ namespace persistent_data {
 				error_keys_{0, 0} {
 			}
 
+			virtual ~btree_node_checker() {}
+
 			template <typename ValueTraits>
 			bool check_block_nr(btree_detail::node_ref<ValueTraits> const &n) {
 				if (n.get_location() != n.get_block_nr()) {
@@ -175,20 +177,20 @@ namespace persistent_data {
 				return true;
 			}
 
-			error_type get_last_error();
-			std::string get_last_error_string();
+			error_type get_last_error() const;
+			std::string get_last_error_string() const;
 			void reset();
 
 		private:
-			std::string block_nr_mismatch_string();
-			std::string value_sizes_mismatch_string();
-			std::string max_entries_too_large_string();
-			std::string max_entries_not_divisible_string();
-			std::string nr_entries_too_large_string();
-			std::string nr_entries_too_small_string();
-			std::string keys_out_of_order_string();
-			std::string parent_key_mismatch_string();
-			std::string leaf_key_overlapped_string();
+			std::string block_nr_mismatch_string() const;
+			std::string value_sizes_mismatch_string() const;
+			std::string max_entries_too_large_string() const;
+			std::string max_entries_not_divisible_string() const;
+			std::string nr_entries_too_large_string() const;
+			std::string nr_entries_too_small_string() const;
+			std::string keys_out_of_order_string() const;
+			std::string parent_key_mismatch_string() const;
+			std::string leaf_key_overlapped_string() const;
 
 			error_type last_error_;
 			block_address error_location_;
