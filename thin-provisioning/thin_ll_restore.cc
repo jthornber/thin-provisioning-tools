@@ -216,7 +216,7 @@ thin_ll_restore_cmd::run(int argc, char **argv) {
 	string output;
 	string input_metadata;
 	flags f;
-	char c;
+	int c;
 
 	const char shortopts[] = "hi:o:E:V";
 	const struct option longopts[] = {
