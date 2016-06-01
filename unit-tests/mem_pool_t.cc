@@ -65,7 +65,7 @@ TEST_F(MempoolTests, alignments_observed)
 			if (!md)
 				throw runtime_error("couldn't alloc");
 
-			ASSERT_THAT(aligned(*md, bs), Eq(true));
+			ASSERT_TRUE(aligned(md, bs));
 		}
 	}
 }
@@ -76,7 +76,7 @@ TEST_F(MempoolTests, alloc_free_cycle)
 
 	for (unsigned i = 0; i < 10000; i++) {
 		auto md = mp.alloc();
-		mp.free(*md);
+		mp.free(md);
 	}
 }
 
@@ -86,12 +86,11 @@ TEST_F(MempoolTests, exhaust_pool)
 
 	for (unsigned i = 0; i < 100; i++) {
 		auto md = mp.alloc();
-
-		ASSERT_THAT(*md, NEq(0));
+		ASSERT_NE(md, nullptr);
 	}
 
 	auto md = mp.alloc();
-	ASSERT(*md, Eq(0));
+	ASSERT_EQ(md, nullptr);
 }
 
 //----------------------------------------------------------------

@@ -33,16 +33,16 @@ copier::issue(copy_op const &op)
 			throw runtime_error("couldn't allocate buffer");
 	}
 
-	copy_job job(op, *data);
+	copy_job job(op, data);
 	job.op.read_complete = job.op.write_complete = false;
 	unsigned key = genkey(); // used as context for the io_engine
 
-	cerr << "data = " << &(*data) << "\n";
+	cerr << "data = " << data << "\n";
 	engine_.issue_io(src_handle_,
 			 io_engine::READ,
 			 to_sector(op.src_b),
 			 to_sector(op.src_e),
-			 *data,
+			 data,
 			 key);
 	jobs_.insert(make_pair(key, job));
 }

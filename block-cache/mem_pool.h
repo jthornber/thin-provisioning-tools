@@ -23,7 +23,7 @@ namespace bcache {
 		mempool(size_t block_size, size_t total_mem, size_t alignment = 8);
 		~mempool();
 
-		boost::optional<void *> alloc();
+		void *alloc();
 		void free(void *data);
 
 	private:

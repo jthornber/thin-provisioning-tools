@@ -26,15 +26,15 @@ mempool::~mempool()
 	::free(mem_);
 }
 
-boost::optional<void *>
+void *
 mempool::alloc()
 {
 	if (free_.empty())
-		return optional<void *>();
+		return nullptr;
 
 	mempool_detail::alloc_block &b = free_.front();
 	free_.pop_front();
-	return optional<void *>(reinterpret_cast<void *>(&b));
+	return reinterpret_cast<void *>(&b);
 }
 
 void
