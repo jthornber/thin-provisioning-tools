@@ -33,7 +33,7 @@ using namespace testing;
 namespace {
 	class io_engine_mock : public io_engine {
 	public:
-		MOCK_METHOD2(open_file, handle(string const &, mode));
+		MOCK_METHOD3(open_file, handle(string const &, mode, sharing));
 		MOCK_METHOD1(close_file, void(handle));
 		MOCK_METHOD6(issue_io, bool(handle, dir, sector_t, sector_t, void *, unsigned));
 
@@ -51,9 +51,9 @@ namespace {
 		}
 
 		unique_ptr<copier> make_copier() {
-			EXPECT_CALL(engine_, open_file(src_file_, io_engine::READ_ONLY)).
+			EXPECT_CALL(engine_, open_file(src_file_, io_engine::READ_ONLY, io_engine::EXCLUSIVE)).
 				WillOnce(Return(SRC_HANDLE));
-			EXPECT_CALL(engine_, open_file(dest_file_, io_engine::READ_WRITE)).
+			EXPECT_CALL(engine_, open_file(dest_file_, io_engine::READ_WRITE, io_engine::EXCLUSIVE)).
 				WillOnce(Return(DEST_HANDLE));
 
 			EXPECT_CALL(engine_, close_file(SRC_HANDLE)).Times(1);

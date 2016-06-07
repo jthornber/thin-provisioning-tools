@@ -27,12 +27,17 @@ namespace bcache {
 			WRITE
 		};
 
+		enum sharing {
+			EXCLUSIVE,
+			SHARED
+		};
+
 		io_engine() {}
 		virtual ~io_engine() {}
 
 		using handle = unsigned;
 
-		virtual handle open_file(std::string const &path, mode m) = 0;
+		virtual handle open_file(std::string const &path, mode m, sharing s = EXCLUSIVE) = 0;
 		virtual void close_file(handle h) = 0;
 
 		// returns false if there are insufficient resources to
@@ -79,8 +84,7 @@ namespace bcache {
 
 		using handle = unsigned;
 
-		// FIXME: open exclusive?
-		virtual handle open_file(std::string const &path, mode m);
+		virtual handle open_file(std::string const &path, mode m, sharing s = EXCLUSIVE);
 		virtual void close_file(handle h);
 
 		// Returns false if queueing the io failed

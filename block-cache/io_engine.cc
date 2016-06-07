@@ -75,9 +75,11 @@ aio_engine::~aio_engine()
 }
 
 aio_engine::handle
-aio_engine::open_file(std::string const &path, mode m)
+aio_engine::open_file(std::string const &path, mode m, sharing s)
 {
 	int flags = (m == READ_ONLY) ? O_RDONLY : O_RDWR;
+	if (s == EXCLUSIVE)
+		flags |= O_EXCL;
 	int fd = ::open(path.c_str(), O_DIRECT | flags);
 	if (fd < 0) {
 		ostringstream out;
