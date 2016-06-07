@@ -120,8 +120,8 @@ namespace {
 	int writeback_(flags const &f) {
 		block_manager<>::ptr bm = open_bm(*f.metadata_dev, block_manager<>::READ_ONLY);
 		metadata md(bm, metadata::OPEN);
-
-		copier c(*f.fast_dev, *f.origin_dev,
+		aio_engine engine(f.cache_size / md.sb_.data_block_size);
+		copier c(engine, *f.fast_dev, *f.origin_dev,
 			 md.sb_.data_block_size, f.cache_size);
 		copy_visitor cv(c, clean_shutdown(md));
 		ignore_damage_visitor dv;

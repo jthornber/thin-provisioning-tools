@@ -8,16 +8,23 @@ using namespace std;
 
 //----------------------------------------------------------------
 
-copier::copier(string const &src, string const &dest,
+copier::copier(io_engine &engine,
+	       string const &src, string const &dest,
 	       sector_t block_size, size_t mem)
-	: pool_(block_size, mem),
+	: pool_(block_size * 512, mem),
 	  block_size_(block_size),
 	  nr_blocks_(mem / block_size),
-	  engine_(nr_blocks_),
+	  engine_(engine),
 	  src_handle_(engine_.open_file(src, io_engine::READ_ONLY)),
 	  dest_handle_(engine_.open_file(dest, io_engine::READ_WRITE)),
 	  genkey_count_(0)
 {
+}
+
+copier::~copier()
+{
+	engine_.close_file(src_handle_);
+	engine_.close_file(dest_handle_);
 }
 
 void
@@ -37,14 +44,17 @@ copier::issue(copy_op const &op)
 	job.op.read_complete = job.op.write_complete = false;
 	unsigned key = genkey(); // used as context for the io_engine
 
-	cerr << "data = " << data << "\n";
-	engine_.issue_io(src_handle_,
-			 io_engine::READ,
-			 to_sector(op.src_b),
-			 to_sector(op.src_e),
-			 data,
-			 key);
-	jobs_.insert(make_pair(key, job));
+	auto r = engine_.issue_io(src_handle_,
+				  io_engine::READ,
+				  to_sector(op.src_b),
+				  to_sector(op.src_e),
+				  data,
+				  key);
+
+	if (r)
+		jobs_.insert(make_pair(key, job));
+	else
+		complete(job);
 }
 
 unsigned
@@ -56,7 +66,7 @@ copier::nr_pending() const
 boost::optional<copy_op>
 copier::wait()
 {
-	while (complete_.empty() && !jobs_.empty())
+	while (!jobs_.empty() && complete_.empty())
 		wait_();
 
 	if (complete_.empty())
@@ -77,28 +87,31 @@ copier::wait_()
 	if (it == jobs_.end())
 		throw runtime_error("Internal error.  Lost track of copy job.");
 
-	copy_job j = it->second;
+	copy_job &j = it->second;
 	if (!p.first) {
 		// IO was unsuccessful
-		jobs_.erase(it);
 		complete(j);
+		jobs_.erase(it);
 		return;
 	}
 
 	// IO was successful
 	if (!j.op.read_complete) {
 		j.op.read_complete = true;
-		engine_.issue_io(dest_handle_,
-				 io_engine::WRITE,
-				 to_sector(j.op.dest_b),
-				 to_sector(j.op.dest_b + (j.op.src_e - j.op.src_b)),
-				 j.data,
-				 it->first);
+		if (!engine_.issue_io(dest_handle_,
+				      io_engine::WRITE,
+				      to_sector(j.op.dest_b),
+				      to_sector(j.op.dest_b + (j.op.src_e - j.op.src_b)),
+				      j.data,
+				      it->first)) {
+			complete(j);
+			jobs_.erase(it);
+		}
 
 	} else {
 		j.op.write_complete = true;
-		jobs_.erase(it);
 		complete(j);
+		jobs_.erase(it);
 	}
 }
 

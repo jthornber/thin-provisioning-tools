@@ -5,16 +5,50 @@
 
 #include <boost/optional.hpp>
 #include <ctype.h>
-#include <libaio.h>
 #include <set>
 #include <string>
+#include <libaio.h>
 
 //----------------------------------------------------------------
 
 namespace bcache {
 	using sector_t = uint64_t;
 
-	//----------------
+	// Virtual base class to aid unit testing
+	class io_engine {
+	public:
+		enum mode {
+			READ_ONLY,
+			READ_WRITE
+		};
+
+		enum dir {
+			READ,
+			WRITE
+		};
+
+		io_engine() {}
+		virtual ~io_engine() {}
+
+		using handle = unsigned;
+
+		virtual handle open_file(std::string const &path, mode m) = 0;
+		virtual void close_file(handle h) = 0;
+
+		// returns false if there are insufficient resources to
+		// queue the IO
+		virtual bool issue_io(handle h, dir d, sector_t b, sector_t e, void *data, unsigned context) = 0;
+
+		// returns (success, context)
+		using wait_result = std::pair<bool, unsigned>;
+		virtual wait_result wait() = 0;
+
+	private:
+		io_engine(io_engine const &) = delete;
+		io_engine &operator =(io_engine const &) = delete;
+	};
+
+	//--------------------------------
 
 	class control_block_set {
 	public:
@@ -37,43 +71,32 @@ namespace bcache {
 
 	//----------------
 
-	class io_engine {
+	class aio_engine : public io_engine {
 	public:
-		enum mode {
-			READ_ONLY,
-			READ_WRITE
-		};
-
-		enum dir {
-			READ,
-			WRITE
-		};
-
 		// max_io is the maximum nr of concurrent ios expected
-		io_engine(unsigned max_io);
-		~io_engine();
+		aio_engine(unsigned max_io);
+		~aio_engine();
 
 		using handle = unsigned;
 
-		handle open_file(std::string const &path, mode m);
-		void close_file(handle h);
+		// FIXME: open exclusive?
+		virtual handle open_file(std::string const &path, mode m);
+		virtual void close_file(handle h);
 
-		// returns false if there are insufficient resources to
-		// queue the IO
-		bool issue_io(handle h, dir d, sector_t b, sector_t e, void *data, unsigned context);
+		// Returns false if queueing the io failed
+		virtual bool issue_io(handle h, dir d, sector_t b, sector_t e, void *data, unsigned context);
 
 		// returns (success, context)
-		std::pair<bool, unsigned> wait();
+		virtual wait_result wait();
 
 	private:
 		std::list<base::unique_fd> descriptors_;
 
 		io_context_t aio_context_;
 		control_block_set cbs_;
-		std::vector<io_event> events_;
 
-		io_engine(io_engine const &) = delete;
-		io_engine &operator =(io_engine const &) = delete;
+		aio_engine(io_engine const &) = delete;
+		aio_engine &operator =(io_engine const &) = delete;
 	};
 }
 

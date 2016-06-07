@@ -93,4 +93,20 @@ TEST_F(MempoolTests, exhaust_pool)
 	ASSERT_EQ(md, nullptr);
 }
 
+// Use valgrind
+TEST_F(MempoolTests, data_can_be_written)
+{
+	mempool mp(512, 100 * 512, 512);
+
+	for (unsigned i = 0; i < 100; i++) {
+		auto md = mp.alloc();
+		ASSERT_NE(md, nullptr);
+
+		memset(md, 0, 512);
+	}
+
+	auto md = mp.alloc();
+	ASSERT_EQ(md, nullptr);
+}
+
 //----------------------------------------------------------------

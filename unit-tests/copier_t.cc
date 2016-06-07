@@ -31,56 +31,74 @@ using namespace testing;
 //----------------------------------------------------------------
 
 namespace {
-	class temp_file {
+	class io_engine_mock : public io_engine {
 	public:
-		temp_file(string const &name_base, unsigned meg_size)
-			: path_(gen_path(name_base)) {
+		MOCK_METHOD2(open_file, handle(string const &, mode));
+		MOCK_METHOD1(close_file, void(handle));
+		MOCK_METHOD6(issue_io, bool(handle, dir, sector_t, sector_t, void *, unsigned));
 
-			int fd = ::open(path_.c_str(), O_CREAT | O_RDWR, 0666);
-			if (fd < 0)
-				throw runtime_error("couldn't open file");
-
-			if (::fallocate(fd, 0, 0, 1024 * 1024 * meg_size))
-				throw runtime_error("couldn't fallocate");
-
-			::close(fd);
-		}
-
-		~temp_file() {
-			::unlink(path_.c_str());
-		}
-
-		string const &get_path() const {
-			return path_;
-		}
-
-	private:
-		static string gen_path(string const &base) {
-			return string("./") + base + string(".tmp");
-		}
-
-		string path_;
+		MOCK_METHOD0(wait, wait_result());
 	};
+
+	unsigned const BLOCK_SIZE = 64u;
+	using wait_result = io_engine::wait_result;
 
 	class CopierTests : public Test {
 	public:
 		CopierTests()
-			: src_file_("copy_src", 32),
-			  dest_file_("copy_dest", 32),
-			  copier_(src_file_.get_path(),
-				  dest_file_.get_path(),
-				  64, 1 * 1024 * 1024) {
+			: src_file_("copy_src"),
+			  dest_file_("copy_dest") {
 		}
 
-		copier &get_copier() {
-			return copier_;
+		unique_ptr<copier> make_copier() {
+			EXPECT_CALL(engine_, open_file(src_file_, io_engine::READ_ONLY)).
+				WillOnce(Return(SRC_HANDLE));
+			EXPECT_CALL(engine_, open_file(dest_file_, io_engine::READ_WRITE)).
+				WillOnce(Return(DEST_HANDLE));
+
+			EXPECT_CALL(engine_, close_file(SRC_HANDLE)).Times(1);
+			EXPECT_CALL(engine_, close_file(DEST_HANDLE)).Times(1);
+
+			return unique_ptr<copier>(new copier(engine_, src_file_,
+							     dest_file_,
+							     BLOCK_SIZE, 1 * 1024 * 1024));
 		}
 
-	private:
-		temp_file src_file_;
-		temp_file dest_file_;
+		void issue_successful_op(copier &c, copy_op &op, unsigned context) {
+			InSequence dummy;
 
-		copier copier_;
+			unsigned nr_pending = c.nr_pending();
+			EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::READ,
+						      op.src_b * BLOCK_SIZE,
+						      op.src_e * BLOCK_SIZE, _, context)).
+				WillOnce(Return(true));
+			c.issue(op);
+
+			ASSERT_TRUE(c.nr_pending() == nr_pending + 1);
+
+			EXPECT_CALL(engine_, wait()).
+				WillOnce(Return(wait_result(true, context)));
+
+			EXPECT_CALL(engine_, issue_io(DEST_HANDLE, io_engine::WRITE,
+						      op.dest_b * BLOCK_SIZE,
+						      (op.dest_b + (op.src_e - op.src_b)) * BLOCK_SIZE, _, context)).
+				WillOnce(Return(true));
+
+			EXPECT_CALL(engine_, wait()).
+				WillOnce(Return(wait_result(true, context)));
+
+			auto mop = c.wait();
+			ASSERT_EQ(c.nr_pending(), nr_pending);
+
+			ASSERT_TRUE(mop->success());
+		}
+
+		unsigned const SRC_HANDLE = 10;
+		unsigned const DEST_HANDLE = 11;
+
+		string src_file_;
+		string dest_file_;
+		StrictMock<io_engine_mock> engine_;
 	};
 }
 
@@ -88,15 +106,122 @@ namespace {
 
 TEST_F(CopierTests, empty_test)
 {
+	auto c = make_copier();
+}
+
+TEST_F(CopierTests, successful_copy)
+{
+ 	// Copy first block
+	copy_op op1(0, 1, 0);
+
+	auto c = make_copier();
+	issue_successful_op(*c, op1, 0);
+}
+
+TEST_F(CopierTests, unsuccessful_issue_read)
+{
+	copy_op op1(0, 1, 0);
+	auto c = make_copier();
+
+	InSequence dummy;
+	EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::READ, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(false));
+	c->issue(op1);
+
+	ASSERT_EQ(c->nr_pending(), 1u);
+
+	auto mop = c->wait();
+	ASSERT_EQ(c->nr_pending(), 0u);
+	ASSERT_FALSE(mop->success());
+}
+
+TEST_F(CopierTests, unsuccessful_read)
+{
+	copy_op op1(0, 1, 0);
+	auto c = make_copier();
+
+	InSequence dummy;
+	EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::READ, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(true));
+	c->issue(op1);
+
+	ASSERT_EQ(c->nr_pending(), 1u);
+	EXPECT_CALL(engine_, wait()).
+		WillOnce(Return(wait_result(false, 0u)));
+	ASSERT_EQ(c->nr_pending(), 1u);
+
+	auto mop = c->wait();
+	ASSERT_EQ(c->nr_pending(), 0u);
+	ASSERT_FALSE(mop->success());
+}
+
+TEST_F(CopierTests, unsuccessful_issue_write)
+{
+	copy_op op1(0, 1, 0);
+	auto c = make_copier();
+
+	InSequence dummy;
+	EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::READ, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(true));
+	c->issue(op1);
+
+	ASSERT_EQ(c->nr_pending(), 1u);
+
+	EXPECT_CALL(engine_, wait()).
+		WillOnce(Return(wait_result(true, 0u)));
+	ASSERT_EQ(c->nr_pending(), 1u);
+
+	EXPECT_CALL(engine_, issue_io(DEST_HANDLE, io_engine::WRITE, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(false));
+
+	auto mop = c->wait();
+	ASSERT_EQ(c->nr_pending(), 0u);
+	ASSERT_FALSE(mop->success());
+}
+
+TEST_F(CopierTests, unsuccessful_write)
+{
 	// Copy first block
 	copy_op op1(0, 1, 0);
-	get_copier().issue(op1);
-	auto mop = get_copier().wait();
 
-	if (mop) {
-		cerr << "op completed\n";
-	} else {
-		cerr << "no op completed\n";
+	auto c = make_copier();
+
+	InSequence dummy;
+	EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::READ, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(true));
+	c->issue(op1);
+	ASSERT_EQ(c->nr_pending(), 1u);
+
+	EXPECT_CALL(engine_, wait()).
+		WillOnce(Return(wait_result(true, 0u)));
+
+	EXPECT_CALL(engine_, issue_io(DEST_HANDLE, io_engine::WRITE, 0, BLOCK_SIZE, _, 0)).
+		WillOnce(Return(true));
+
+	EXPECT_CALL(engine_, wait()).
+		WillOnce(Return(wait_result(false, 0u)));
+
+	auto mop = c->wait();
+	ASSERT_EQ(c->nr_pending(), 0u);
+
+	ASSERT_FALSE(mop->success());
+}
+
+TEST_F(CopierTests, copy_the_same_block_many_times)
+{
+	auto c = make_copier();
+	copy_op op1(0, 1, 0);
+
+	for (unsigned i = 0; i < 50000; i++)
+		issue_successful_op(*c, op1, i);
+}
+
+TEST_F(CopierTests, copy_different_blocks)
+{
+	auto c = make_copier();
+	for (unsigned i = 0; i < 5000; i++) {
+		copy_op op(i, i + 1, i);
+		issue_successful_op(*c, op, i);
 	}
 }
 

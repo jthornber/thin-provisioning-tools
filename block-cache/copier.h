@@ -15,10 +15,12 @@ namespace bcache {
 
 	struct copy_op {
 		copy_op()
-			: read_complete(false),
+			: src_b(0),
+			  src_e(0),
+			  dest_b(0),
+			  read_complete(false),
 			  write_complete(false) {
 		}
-
 
 		copy_op(block_address src_b_,
 			block_address src_e_,
@@ -28,6 +30,10 @@ namespace bcache {
 			  dest_b(dest_b_),
 			  read_complete(false),
 			  write_complete(false) {
+		}
+
+		bool success() const {
+			return read_complete && write_complete;
 		}
 
 		block_address src_b, src_e;
@@ -49,8 +55,10 @@ namespace bcache {
 
 	class copier {
 	public:
-		copier(std::string const &src, std::string const &dest,
+		copier(io_engine &engine,
+		       std::string const &src, std::string const &dest,
 		       sector_t block_size, size_t mem);
+		~copier();
 
 		sector_t get_block_size() const {
 			return block_size_;
@@ -72,7 +80,7 @@ namespace bcache {
 		mempool pool_;
 		sector_t block_size_;
 		unsigned nr_blocks_;
-		io_engine engine_;
+		io_engine &engine_;
 		io_engine::handle src_handle_;
 		io_engine::handle dest_handle_;
 		unsigned genkey_count_;

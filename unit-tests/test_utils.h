@@ -114,6 +114,18 @@ namespace test {
 		std::unique_ptr<with_directory> dir_;
 	};
 
+	class temp_file {
+	public:
+		temp_file(std::string const &name_base, unsigned meg_size);
+		~temp_file();
+		std::string const &get_path() const;
+
+	private:
+		static string gen_path(string const &base);
+
+		string path_;
+	};
+
 	//--------------------------------
 
 	template <typename T>
