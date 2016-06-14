@@ -330,7 +330,7 @@ thin_ll_dump_cmd::run(int argc, char **argv)
 	boost::optional<string> output;
 	flags f;
 
-	char c;
+	int c;
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':

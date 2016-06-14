@@ -87,7 +87,7 @@ namespace {
 		device_tree_detail::device_details details;
 
 		device_tree::ptr details_tree;
-		boost::optional<uint32_t> details_root = get_opt_attr<uint32_t>(attr, "blocknr");
+		boost::optional<uint64_t> details_root = get_opt_attr<uint64_t>(attr, "blocknr");
 		if (details_root)
 			details_tree = device_tree::ptr(new device_tree(*md->tm_, *details_root,
 							device_tree_detail::device_details_traits::ref_counter()));
@@ -112,7 +112,7 @@ namespace {
 	}
 
 	void parse_node(metadata::ptr md, emitter::ptr e, attributes const &attr) {
-		metadata_dump_subtree(md, e, true, get_attr<uint32_t>(attr, "blocknr"));
+		metadata_dump_subtree(md, e, true, get_attr<uint64_t>(attr, "blocknr"));
 	}
 
 	void start_tag(void *data, char const *el, char const **attr) {
@@ -216,7 +216,7 @@ thin_ll_restore_cmd::run(int argc, char **argv) {
 	string output;
 	string input_metadata;
 	flags f;
-	char c;
+	int c;
 
 	const char shortopts[] = "hi:o:E:V";
 	const struct option longopts[] = {
