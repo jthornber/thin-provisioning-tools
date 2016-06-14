@@ -525,8 +525,11 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 	block *b = lookup_or_read_block(index, flags, v);
 
 	if (b) {
-		if (b->ref_count_ && flags & (GF_DIRTY | GF_ZERO))
-			throw std::runtime_error("attempt to write lock block concurrently");
+		if (b->ref_count_ && (flags & (GF_DIRTY | GF_ZERO))) {
+			std::ostringstream out;
+			out << "attempt to write lock block " << index << " concurrently";
+			throw std::runtime_error(out.str());
+		}
 
 		// FIXME: this gets called even for new blocks
 		hit(*b);

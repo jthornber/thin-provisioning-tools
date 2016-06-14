@@ -13,6 +13,7 @@ caching::register_cache_commands(application &app)
 	app.add_cmd(command::ptr(new cache_metadata_size_cmd));
 	app.add_cmd(command::ptr(new cache_restore_cmd));
 	app.add_cmd(command::ptr(new cache_repair_cmd));
+	app.add_cmd(command::ptr(new cache_writeback_cmd));
 }
 
 //----------------------------------------------------------------

@@ -16,10 +16,10 @@
 # with thin-provisioning-tools.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-GMOCK_DIR=gmock-1.6.0/
+GMOCK_DIR=googletest
 GMOCK_INCLUDES=\
-	-Igmock-1.6.0/include \
-	-Igmock-1.6.0/gtest/include
+	-I$(GMOCK_DIR)/googlemock/include \
+	-I$(GMOCK_DIR)/googletest/include
 
 GMOCK_FLAGS=\
 	-Wno-unused-local-typedefs
@@ -28,16 +28,16 @@ GMOCK_LIBS=\
 	-Llib -lpdata -lgmock -lpthread -laio
 
 GMOCK_DEPS=\
-	$(wildcard $(GMOCK_DIR)/include/*.h) \
-	$(wildcard $(GMOCK_DIR)/src/*.cc) \
-	$(wildcard $(GMOCK_DIR)/gtest/include/*.h) \
-	$(wildcard $(GMOCK_DIR)/gtest/src/*.cc)
+	$(wildcard $(GMOCK_DIR)/googlemock/include/*.h) \
+	$(wildcard $(GMOCK_DIR)/googlemock/src/*.cc) \
+	$(wildcard $(GMOCK_DIR)/googletest/include/*.h) \
+	$(wildcard $(GMOCK_DIR)/googletest/src/*.cc)
 
 lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [CXX] gtest"
-	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/gtest -c $(GMOCK_DIR)/gtest/src/gtest-all.cc
+	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googletest -c $(GMOCK_DIR)/googletest/src/gtest-all.cc
 	@echo "    [CXX] gmock"
-	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR) -c $(GMOCK_DIR)/src/gmock-all.cc
+	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googlemock -c $(GMOCK_DIR)/googlemock/src/gmock-all.cc
 	@echo "    [AR]  $<"
 	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
 
@@ -55,9 +55,12 @@ TEST_SOURCE=\
 	unit-tests/btree_counter_t.cc \
 	unit-tests/btree_damage_visitor_t.cc \
 	unit-tests/cache_superblock_t.cc \
+	unit-tests/copier_t.cc \
 	unit-tests/damage_tracker_t.cc \
 	unit-tests/endian_t.cc \
 	unit-tests/error_state_t.cc \
+	unit-tests/io_engine_t.cc \
+	unit-tests/mem_pool_t.cc \
 	unit-tests/rmap_visitor_t.cc \
 	unit-tests/rolling_hash_t.cc \
 	unit-tests/run_set_t.cc \
