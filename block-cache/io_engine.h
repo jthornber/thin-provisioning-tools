@@ -14,17 +14,20 @@
 namespace bcache {
 	using sector_t = uint64_t;
 
+	unsigned const SECTOR_SHIFT = 9;
+	unsigned const PAGE_SIZE = 4096;
+
 	// Virtual base class to aid unit testing
 	class io_engine {
 	public:
 		enum mode {
-			READ_ONLY,
-			READ_WRITE
+			M_READ_ONLY,
+			M_READ_WRITE
 		};
 
 		enum dir {
-			READ,
-			WRITE
+			D_READ,
+			D_WRITE
 		};
 
 		enum sharing {
@@ -46,7 +49,8 @@ namespace bcache {
 
 		// returns (success, context)
 		using wait_result = std::pair<bool, unsigned>;
-		virtual wait_result wait() = 0;
+		virtual boost::optional<wait_result> wait() = 0;
+		virtual boost::optional<wait_result> wait(unsigned &microsec) = 0;
 
 	private:
 		io_engine(io_engine const &) = delete;
@@ -90,10 +94,14 @@ namespace bcache {
 		// Returns false if queueing the io failed
 		virtual bool issue_io(handle h, dir d, sector_t b, sector_t e, void *data, unsigned context);
 
-		// returns (success, context)
-		virtual wait_result wait();
+		virtual boost::optional<wait_result> wait();
+		virtual boost::optional<wait_result> wait(unsigned &microsec);
 
 	private:
+		static struct timespec micro_to_ts(unsigned micro);
+		static unsigned ts_to_micro(timespec const &ts);
+		boost::optional<io_engine::wait_result> wait_(timespec *ts);
+
 		std::list<base::unique_fd> descriptors_;
 
 		io_context_t aio_context_;

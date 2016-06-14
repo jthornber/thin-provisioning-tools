@@ -14,13 +14,6 @@ using namespace std;
 
 //----------------------------------------------------------------
 
-namespace {
-	unsigned const SECTOR_SHIFT = 9;
-	unsigned const PAGE_SIZE = 4096;
-}
-
-//----------------------------------------------------------------
-
 control_block_set::control_block_set(unsigned nr)
 	: cbs_(nr)
 {
@@ -77,7 +70,7 @@ aio_engine::~aio_engine()
 aio_engine::handle
 aio_engine::open_file(std::string const &path, mode m, sharing s)
 {
-	int flags = (m == READ_ONLY) ? O_RDONLY : O_RDWR;
+	int flags = (m == M_READ_ONLY) ? O_RDONLY : O_RDWR;
 	if (s == EXCLUSIVE)
 		flags |= O_EXCL;
 	int fd = ::open(path.c_str(), O_DIRECT | flags);
@@ -126,25 +119,44 @@ aio_engine::issue_io(handle h, dir d, sector_t b, sector_t e, void *data, unsign
 	cb->u.c.buf = data;
 	cb->u.c.offset = b << SECTOR_SHIFT;
 	cb->u.c.nbytes = (e - b) << SECTOR_SHIFT;
-	cb->aio_lio_opcode = (d == READ) ? IO_CMD_PREAD : IO_CMD_PWRITE;
+	cb->aio_lio_opcode = (d == D_READ) ? IO_CMD_PREAD : IO_CMD_PWRITE;
 
 	int r = io_submit(aio_context_, 1, &cb);
 	return r == 1;
 }
 
-std::pair<bool, io_engine::handle>
+optional<io_engine::wait_result>
 aio_engine::wait()
+{
+	return wait_(NULL);
+}
+
+optional<io_engine::wait_result>
+aio_engine::wait(unsigned &microsec)
+{
+	timespec start = micro_to_ts(microsec);
+	timespec stop = start;
+	auto r = wait_(&stop);
+	microsec = ts_to_micro(stop) - microsec;
+	return r;
+}
+
+boost::optional<io_engine::wait_result>
+aio_engine::wait_(timespec *ts)
 {
 	int r;
 	struct io_event event;
 
 	memset(&event, 0, sizeof(event));
-
-	r = io_getevents(aio_context_, 1, 1, &event, NULL);
+	r = io_getevents(aio_context_, 1, 1, &event, ts);
 	if (r < 0) {
 		std::ostringstream out;
 		out << "io_getevents failed: " << r;
 		throw std::runtime_error(out.str());
+	}
+
+	if (r == 0) {
+		return optional<wait_result>();
 	}
 
 	iocb *cb = reinterpret_cast<iocb *>(event.obj);
@@ -152,19 +164,36 @@ aio_engine::wait()
 
 	if (event.res == cb->u.c.nbytes) {
 		cbs_.free(cb);
-		return make_pair(true, context);
+		return optional<wait_result>(make_pair(true, context));
 
 	} else if (static_cast<int>(event.res) < 0) {
 		cbs_.free(cb);
-		return make_pair(false, context);
+		return optional<wait_result>(make_pair(false, context));
 
 	} else {
 		cbs_.free(cb);
-		return make_pair(false, context);
+		return optional<wait_result>(make_pair(false, context));
 	}
 
 	// shouldn't get here
-	return make_pair(false, 0);
+	return optional<wait_result>(make_pair(false, 0));
+}
+
+struct timespec
+aio_engine::micro_to_ts(unsigned micro)
+{
+	timespec ts;
+	ts.tv_sec = micro / 1000000u;
+	ts.tv_nsec = (micro % 1000000) * 1000;
+	return ts;
+}
+
+unsigned
+aio_engine::ts_to_micro(timespec const &ts)
+{
+	unsigned micro = ts.tv_sec * 1000000;
+	micro += ts.tv_nsec / 1000;
+	return micro;
 }
 
 //----------------------------------------------------------------
