@@ -19,6 +19,7 @@
 #include "block.h"
 
 #include "base/error_string.h"
+#include "block-cache/io_engine.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -38,8 +39,6 @@ namespace {
 	using namespace std;
 
 	int const DEFAULT_MODE = 0666;
-	unsigned const SECTOR_SHIFT = 9;
-
 	int const OPEN_FLAGS = O_DIRECT;
 
 	// FIXME: introduce a new exception for this, or at least lift this
