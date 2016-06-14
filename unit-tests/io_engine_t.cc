@@ -64,8 +64,8 @@ TEST_F(IOEngineTests, empty_test)
 
 TEST_F(IOEngineTests, open_and_close)
 {
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
-	auto dest_handle = engine_->open_file(dest_file_.get_path(), io_engine::READ_WRITE);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
+	auto dest_handle = engine_->open_file(dest_file_.get_path(), io_engine::M_READ_WRITE);
 	ASSERT_TRUE(src_handle != dest_handle);
 	engine_->close_file(src_handle);
 	engine_->close_file(dest_handle);
@@ -74,17 +74,17 @@ TEST_F(IOEngineTests, open_and_close)
 TEST_F(IOEngineTests, you_can_read_a_read_only_handle)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(src_handle,
-				   io_engine::READ,
+				   io_engine::D_READ,
 				   0, nr_sectors,
 				   data,
 				   123);
 	ASSERT_TRUE(r);
 	auto wr = engine_->wait();
-	ASSERT_TRUE(wr.first);
-	ASSERT_TRUE(wr.second == 123);
+	ASSERT_TRUE(wr->first);
+	ASSERT_TRUE(wr->second == 123);
 
 	engine_->close_file(src_handle);
 	pool_.free(data);
@@ -94,10 +94,10 @@ TEST_F(IOEngineTests, you_can_read_a_read_only_handle)
 TEST_F(IOEngineTests, you_cannot_write_to_a_read_only_handle)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(src_handle,
-				   io_engine::WRITE,
+				   io_engine::D_WRITE,
 				   0, nr_sectors,
 				   data,
 				   0);
@@ -109,17 +109,17 @@ TEST_F(IOEngineTests, you_cannot_write_to_a_read_only_handle)
 TEST_F(IOEngineTests, you_can_write_to_a_read_write_handle)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(src_handle,
-				   io_engine::READ,
+				   io_engine::D_READ,
 				   0, nr_sectors,
 				   data,
 				   123);
 	ASSERT_TRUE(r);
 	auto wr = engine_->wait();
-	ASSERT_TRUE(wr.first);
-	ASSERT_TRUE(wr.second == 123);
+	ASSERT_TRUE(wr->first);
+	ASSERT_TRUE(wr->second == 123);
 
 	engine_->close_file(src_handle);
 	pool_.free(data);
@@ -128,16 +128,16 @@ TEST_F(IOEngineTests, you_can_write_to_a_read_write_handle)
 TEST_F(IOEngineTests, final_block_read_succeeds)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(src_handle,
-				   io_engine::READ,
+				   io_engine::D_READ,
 				   meg(32) - nr_sectors, meg(32),
 				   data,
 				   123);
 	ASSERT_TRUE(r);
 	auto wr = engine_->wait();
-	ASSERT_TRUE(wr.first);
+	ASSERT_TRUE(wr->first);
 
 	engine_->close_file(src_handle);
 	pool_.free(data);
@@ -147,16 +147,16 @@ TEST_F(IOEngineTests, final_block_read_succeeds)
 TEST_F(IOEngineTests, out_of_bounds_read_fails)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::READ_ONLY);
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(src_handle,
-				   io_engine::READ,
+				   io_engine::D_READ,
 				   meg(32), meg(32) + nr_sectors,
 				   data,
 				   123);
 	ASSERT_TRUE(r);
 	auto wr = engine_->wait();
-	ASSERT_FALSE(wr.first);
+	ASSERT_FALSE(wr->first);
 
 	engine_->close_file(src_handle);
 	pool_.free(data);
@@ -166,20 +166,41 @@ TEST_F(IOEngineTests, out_of_bounds_read_fails)
 TEST_F(IOEngineTests, out_of_bounds_write_succeeds)
 {
 	unsigned nr_sectors = 8;
-	auto handle = engine_->open_file(dest_file_.get_path(), io_engine::READ_WRITE);
+	auto handle = engine_->open_file(dest_file_.get_path(), io_engine::M_READ_WRITE);
 	void *data = pool_.alloc();
 	bool r = engine_->issue_io(handle,
-				   io_engine::WRITE,
+				   io_engine::D_WRITE,
 				   meg(32), meg(32) + nr_sectors,
 				   data,
 				   123);
 	ASSERT_TRUE(r);
 	auto wr = engine_->wait();
-	ASSERT_TRUE(wr.first);
+	ASSERT_TRUE(wr->first);
 
 	engine_->close_file(handle);
 	pool_.free(data);
 
 }
+
+TEST_F(IOEngineTests, succeed_with_timeout)
+{
+	unsigned nr_sectors = 8;
+	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
+	void *data = pool_.alloc();
+	bool r = engine_->issue_io(src_handle,
+				   io_engine::D_READ,
+				   0, nr_sectors,
+				   data,
+				   123);
+	ASSERT_TRUE(r);
+	unsigned micro = 10;
+	auto wr = engine_->wait(micro);
+	ASSERT_TRUE(wr->first);
+	ASSERT_TRUE(wr->second == 123);
+
+	engine_->close_file(src_handle);
+	pool_.free(data);
+}
+
 
 //----------------------------------------------------------------

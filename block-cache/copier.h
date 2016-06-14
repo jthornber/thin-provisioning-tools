@@ -32,6 +32,10 @@ namespace bcache {
 			  write_complete(false) {
 		}
 
+		bool operator <(copy_op const &rhs) const {
+			return dest_b < rhs.dest_b;
+		}
+
 		bool success() const {
 			return read_complete && write_complete;
 		}
@@ -69,8 +73,13 @@ namespace bcache {
 
 		unsigned nr_pending() const;
 		boost::optional<copy_op> wait();
+		boost::optional<copy_op> wait(unsigned &micro);
 
 	private:
+		bool pending() const;
+		bool wait_successful(io_engine::wait_result const &p);
+		boost::optional<copy_op> wait_complete();
+		void wait_(unsigned &micro);
 		void wait_();
 		void complete(copy_job const &j);
 

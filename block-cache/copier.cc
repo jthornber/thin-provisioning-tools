@@ -11,12 +11,12 @@ using namespace std;
 copier::copier(io_engine &engine,
 	       string const &src, string const &dest,
 	       sector_t block_size, size_t mem)
-	: pool_(block_size * 512, mem),
+	: pool_(block_size * 512, mem, PAGE_SIZE),
 	  block_size_(block_size),
 	  nr_blocks_(mem / block_size),
 	  engine_(engine),
-	  src_handle_(engine_.open_file(src, io_engine::READ_ONLY)),
-	  dest_handle_(engine_.open_file(dest, io_engine::READ_WRITE)),
+	  src_handle_(engine_.open_file(src, io_engine::M_READ_ONLY)),
+	  dest_handle_(engine_.open_file(dest, io_engine::M_READ_WRITE)),
 	  genkey_count_(0)
 {
 }
@@ -30,14 +30,14 @@ copier::~copier()
 void
 copier::issue(copy_op const &op)
 {
-	auto data = pool_.alloc();
-	if (!data) {
-		wait_();
-		data = pool_.alloc();
+	void *data;
 
-		if (!data)
-			// Shouldn't get here
-			throw runtime_error("couldn't allocate buffer");
+	while (!(data = pool_.alloc())) {
+		wait_();
+
+		// data may still not be present because the wait_ could
+		// have completed a read and issued the corresponding
+		// write.
 	}
 
 	copy_job job(op, data);
@@ -45,7 +45,7 @@ copier::issue(copy_op const &op)
 	unsigned key = genkey(); // used as context for the io_engine
 
 	auto r = engine_.issue_io(src_handle_,
-				  io_engine::READ,
+				  io_engine::D_READ,
 				  to_sector(op.src_b),
 				  to_sector(op.src_e),
 				  data,
@@ -53,6 +53,7 @@ copier::issue(copy_op const &op)
 
 	if (r)
 		jobs_.insert(make_pair(key, job));
+
 	else
 		complete(job);
 }
@@ -66,13 +67,33 @@ copier::nr_pending() const
 boost::optional<copy_op>
 copier::wait()
 {
-	while (!jobs_.empty() && complete_.empty())
+	if (complete_.empty())
 		wait_();
 
+	return wait_complete();
+}
+
+boost::optional<copy_op>
+copier::wait(unsigned &micro)
+{
 	if (complete_.empty())
+		wait_(micro);
+	return wait_complete();
+}
+
+bool
+copier::pending() const
+{
+	return !jobs_.empty();
+}
+
+boost::optional<copy_op>
+copier::wait_complete()
+{
+	if (complete_.empty()) {
 		return optional<copy_op>();
 
-	else {
+	} else {
 		auto op = complete_.front();
 		complete_.pop_front();
 		return optional<copy_op>(op);
@@ -80,9 +101,40 @@ copier::wait()
 }
 
 void
+copier::wait_(unsigned &micro)
+{
+	optional<io_engine::wait_result> mp;
+
+	if (!pending())
+		return;
+
+
+	bool completed = false;
+	while (pending() && !completed) {
+		mp = engine_.wait(micro);
+		if (mp)
+			completed = wait_successful(*mp);
+
+		if (!micro)
+			break;
+	}
+}
+
+void
 copier::wait_()
 {
-	auto p = engine_.wait();
+	bool completed = false;
+
+	while (pending() && !completed) {
+		auto mp = engine_.wait();
+		if (mp)
+			completed = wait_successful(*mp);
+	}
+}
+
+bool
+copier::wait_successful(io_engine::wait_result const &p)
+{
 	auto it = jobs_.find(p.second);
 	if (it == jobs_.end())
 		throw runtime_error("Internal error.  Lost track of copy job.");
@@ -92,26 +144,29 @@ copier::wait_()
 		// IO was unsuccessful
 		complete(j);
 		jobs_.erase(it);
-		return;
+		return true;
 	}
 
 	// IO was successful
 	if (!j.op.read_complete) {
 		j.op.read_complete = true;
 		if (!engine_.issue_io(dest_handle_,
-				      io_engine::WRITE,
+				      io_engine::D_WRITE,
 				      to_sector(j.op.dest_b),
 				      to_sector(j.op.dest_b + (j.op.src_e - j.op.src_b)),
 				      j.data,
 				      it->first)) {
 			complete(j);
 			jobs_.erase(it);
+			return true;
 		}
+		return false;
 
 	} else {
 		j.op.write_complete = true;
 		complete(j);
 		jobs_.erase(it);
+		return true;
 	}
 }
 
