@@ -41,12 +41,10 @@ void thin_provisioning::count_space_maps(transaction_manager::ptr tm,
 	}
 
 	// Count the data space map (no-throw)
-	try {
+	{
 		persistent_space_map::ptr data_sm =
 			open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
 		data_sm->count_metadata(bc);
-	} catch (std::exception &e) {
-		cerr << e.what() << endl;
 	}
 }
 
