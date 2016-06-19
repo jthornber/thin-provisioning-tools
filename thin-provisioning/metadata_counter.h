@@ -8,7 +8,7 @@
 
 namespace thin_provisioning {
 	void count_metadata(transaction_manager::ptr tm,
-			    superblock_detail::superblock &sb,
+			    superblock_detail::superblock const &sb,
 			    block_counter &bc,
 			    bool skip_metadata_snap = false);
 }

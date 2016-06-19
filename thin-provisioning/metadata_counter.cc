@@ -9,7 +9,7 @@ using namespace thin_provisioning;
 
 namespace {
 	void count_trees(transaction_manager::ptr tm,
-			 superblock_detail::superblock &sb,
+			 superblock_detail::superblock const &sb,
 			 block_counter &bc) {
 
 		// Count the device tree
@@ -30,12 +30,12 @@ namespace {
 	}
 
 	void count_space_maps(transaction_manager::ptr tm,
-			      superblock_detail::superblock &sb,
+			      superblock_detail::superblock const &sb,
 			      block_counter &bc) {
 		// Count the metadata space map (no-throw)
 		try {
 			persistent_space_map::ptr metadata_sm =
-				open_metadata_sm(*tm, static_cast<void *>(&sb.metadata_space_map_root_));
+				open_metadata_sm(*tm, static_cast<void const *>(&sb.metadata_space_map_root_));
 			metadata_sm->count_metadata(bc);
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -44,7 +44,7 @@ namespace {
 		// Count the data space map (no-throw)
 		{
 			persistent_space_map::ptr data_sm =
-				open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
+				open_disk_sm(*tm, static_cast<void const *>(&sb.data_space_map_root_));
 			data_sm->count_metadata(bc);
 		}
 	}
@@ -53,7 +53,7 @@ namespace {
 //----------------------------------------------------------------
 
 void thin_provisioning::count_metadata(transaction_manager::ptr tm,
-				       superblock_detail::superblock &sb,
+				       superblock_detail::superblock const &sb,
 				       block_counter &bc,
 				       bool skip_metadata_snap) {
 	// Count the superblock
