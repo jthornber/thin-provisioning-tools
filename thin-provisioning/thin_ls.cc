@@ -248,7 +248,7 @@ namespace {
 
 		mapping_pass1 pass1(mappings);
 		fatal_mapping_damage dv;
-		walk_mapping_tree(dev_mappings, pass1, dv);
+		walk_mapping_tree(dev_mappings, dev_id, pass1, dv);
 	}
 
 
@@ -264,7 +264,7 @@ namespace {
 
 		mapping_pass2 pass2(mappings);
 		fatal_mapping_damage dv;
-		walk_mapping_tree(dev_mappings, pass2, dv);
+		walk_mapping_tree(dev_mappings, dev_id, pass2, dv);
 		return pass2.get_exclusives();
 	}
 
