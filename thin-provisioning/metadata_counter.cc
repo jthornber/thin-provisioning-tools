@@ -7,51 +7,53 @@ using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
-void thin_provisioning::count_trees(transaction_manager::ptr tm,
-				    superblock_detail::superblock &sb,
-				    block_counter &bc) {
+namespace {
+	void count_trees(transaction_manager::ptr tm,
+			 superblock_detail::superblock const &sb,
+			 block_counter &bc) {
 
-	// Count the device tree
-	{
-		noop_value_counter<device_tree_detail::device_details> vc;
-		device_tree dtree(*tm, sb.device_details_root_,
-				  device_tree_detail::device_details_traits::ref_counter());
-		count_btree_blocks(dtree, bc, vc);
+		// Count the device tree
+		{
+			noop_value_counter<device_tree_detail::device_details> vc;
+			device_tree dtree(*tm, sb.device_details_root_,
+					  device_tree_detail::device_details_traits::ref_counter());
+			count_btree_blocks(dtree, bc, vc);
+		}
+
+		// Count the mapping tree
+		{
+			noop_value_counter<mapping_tree_detail::block_time> vc;
+			mapping_tree mtree(*tm, sb.data_mapping_root_,
+					   mapping_tree_detail::block_traits::ref_counter(space_map::ptr()));
+			count_btree_blocks(mtree, bc, vc);
+		}
 	}
 
-	// Count the mapping tree
-	{
-		noop_value_counter<mapping_tree_detail::block_time> vc;
-		mapping_tree mtree(*tm, sb.data_mapping_root_,
-				   mapping_tree_detail::block_traits::ref_counter(space_map::ptr()));
-		count_btree_blocks(mtree, bc, vc);
+	void count_space_maps(transaction_manager::ptr tm,
+			      superblock_detail::superblock const &sb,
+			      block_counter &bc) {
+		// Count the metadata space map (no-throw)
+		try {
+			persistent_space_map::ptr metadata_sm =
+				open_metadata_sm(*tm, static_cast<void const *>(&sb.metadata_space_map_root_));
+			metadata_sm->count_metadata(bc);
+		} catch (std::exception &e) {
+			cerr << e.what() << endl;
+		}
+
+		// Count the data space map (no-throw)
+		{
+			persistent_space_map::ptr data_sm =
+				open_disk_sm(*tm, static_cast<void const *>(&sb.data_space_map_root_));
+			data_sm->count_metadata(bc);
+		}
 	}
 }
 
-void thin_provisioning::count_space_maps(transaction_manager::ptr tm,
-					 superblock_detail::superblock &sb,
-					 block_counter &bc) {
-	// Count the metadata space map (no-throw)
-	try {
-		persistent_space_map::ptr metadata_sm =
-			open_metadata_sm(*tm, static_cast<void *>(&sb.metadata_space_map_root_));
-		metadata_sm->count_metadata(bc);
-	} catch (std::exception &e) {
-		cerr << e.what() << endl;
-	}
-
-	// Count the data space map (no-throw)
-	try {
-		persistent_space_map::ptr data_sm =
-			open_disk_sm(*tm, static_cast<void *>(&sb.data_space_map_root_));
-		data_sm->count_metadata(bc);
-	} catch (std::exception &e) {
-		cerr << e.what() << endl;
-	}
-}
+//----------------------------------------------------------------
 
 void thin_provisioning::count_metadata(transaction_manager::ptr tm,
-				       superblock_detail::superblock &sb,
+				       superblock_detail::superblock const &sb,
 				       block_counter &bc,
 				       bool skip_metadata_snap) {
 	// Count the superblock

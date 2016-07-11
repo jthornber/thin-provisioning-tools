@@ -37,7 +37,7 @@ namespace persistent_data {
 					for (unsigned i = 0; i < nr; i++) {
 						// FIXME: confirm l2 is correct
 						node_location l2(l);
-						l2.push_key(i);
+						l2.push_key(n.key_at(i));
 						vc_.visit(l2, n.value_at(i));
 					}
 

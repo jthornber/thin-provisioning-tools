@@ -193,14 +193,16 @@ namespace {
 
 	class single_mapping_tree_damage_visitor {
 	public:
-		single_mapping_tree_damage_visitor(damage_visitor &v)
-		: v_(v) {
+		single_mapping_tree_damage_visitor(damage_visitor &v,
+						   uint64_t dev_id)
+		: v_(v),
+		  dev_id_(dev_id) {
 		}
 
 		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
 			switch (path.size()) {
 			case 0:
-				v_.visit(missing_devices(d.desc_, d.lost_keys_));
+				v_.visit(missing_mappings(d.desc_, dev_id_, d.lost_keys_));
 				break;
 
 			default:
@@ -210,6 +212,7 @@ namespace {
 
 	private:
 		damage_visitor &v_;
+		uint64_t dev_id_;
 	};
 
 }
@@ -250,19 +253,21 @@ thin_provisioning::check_mapping_tree(mapping_tree const &tree,
 
 void
 thin_provisioning::walk_mapping_tree(single_mapping_tree const &tree,
+				     uint64_t dev_id,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv)
 {
-	single_mapping_tree_damage_visitor ll_dv(dv);
+	single_mapping_tree_damage_visitor ll_dv(dv, dev_id);
 	btree_visit_values(tree, mv, ll_dv);
 }
 
 void
 thin_provisioning::check_mapping_tree(single_mapping_tree const &tree,
+				      uint64_t dev_id,
 				      mapping_tree_detail::damage_visitor &visitor)
 {
 	noop_block_time_visitor mv;
-	walk_mapping_tree(tree, mv, visitor);
+	walk_mapping_tree(tree, dev_id, mv, visitor);
 }
 
 //----------------------------------------------------------------

@@ -742,7 +742,7 @@ persistent_data::create_disk_sm(transaction_manager &tm,
 }
 
 checked_space_map::ptr
-persistent_data::open_disk_sm(transaction_manager &tm, void *root)
+persistent_data::open_disk_sm(transaction_manager &tm, void const *root)
 {
 	sm_root_disk d;
 	sm_root v;
@@ -770,7 +770,7 @@ persistent_data::create_metadata_sm(transaction_manager &tm, block_address nr_bl
 }
 
 checked_space_map::ptr
-persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
+persistent_data::open_metadata_sm(transaction_manager &tm, void const *root)
 {
 	sm_root_disk d;
 	sm_root v;
