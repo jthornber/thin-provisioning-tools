@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/output_file_requirements.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/emitter.h"
@@ -138,7 +139,8 @@ thin_restore_cmd::run(int argc, char **argv)
 		cerr << "No output file provided." << endl << endl;
 		usage(cerr);
 		return 1;
-	}
+	} else
+		check_output_file_requirements(output);
 
 	return restore(input, output, quiet);
 }

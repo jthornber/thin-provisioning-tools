@@ -61,8 +61,14 @@ application::run(int argc, char **argv)
 
 	std::list<command::ptr>::const_iterator it;
 	for (it = cmds_.begin(); it != cmds_.end(); ++it) {
-		if (cmd == (*it)->get_name())
-			return (*it)->run(argc, argv);
+		if (cmd == (*it)->get_name()) {
+			try {
+				return (*it)->run(argc, argv);
+			} catch (std::exception const &e) {
+				cerr << e.what() << "\n";
+				return 1;
+			}
+		}
 	}
 
 	std::cerr << "Unknown command '" << cmd << "'\n";
