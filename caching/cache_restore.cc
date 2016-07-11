@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "base/output_file_requirements.h"
 #include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/restore_emitter.h"
@@ -169,7 +170,10 @@ cache_restore_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	if (!fs.output) {
+	if (fs.output)
+		check_output_file_requirements(*fs.output);
+
+	else {
 		cerr << "No output file provided." << endl << endl;
 		usage(cerr);
 		return 1;

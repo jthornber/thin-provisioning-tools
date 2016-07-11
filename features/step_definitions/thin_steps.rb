@@ -24,6 +24,11 @@ Given(/^a corrupt superblock$/) do
   end
 end
 
+Given(/^a tiny file$/) do
+  run_simple("rm -f tiny")
+  run_simple("fallocate -l 123 tiny")
+end
+
 When(/^I run thin_check with (.*?)$/) do |opts|
   run_simple("thin_check #{opts} #{dev_file}", false)
 end

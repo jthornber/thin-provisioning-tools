@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "base/output_file_requirements.h"
 #include "caching/commands.h"
 #include "caching/metadata.h"
 #include "caching/metadata_dump.h"
@@ -105,7 +106,10 @@ cache_repair_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	if (!output_path) {
+	if (output_path)
+		check_output_file_requirements(*output_path);
+
+	else {
 		cerr << "no output file provided" << endl;
 		usage(cerr);
 		return 1;

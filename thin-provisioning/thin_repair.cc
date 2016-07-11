@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "base/output_file_requirements.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "human_readable_format.h"
@@ -99,7 +100,10 @@ thin_repair_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	if (!output_path) {
+	if (output_path)
+		check_output_file_requirements(*output_path);
+
+	else {
 		cerr << "no output file provided" << endl;
 		usage(cerr);
 		return 1;
