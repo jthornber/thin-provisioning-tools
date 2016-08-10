@@ -50,7 +50,7 @@ thin::lookup(block_address thin_block)
 	return pool_->md_->mappings_->lookup(key);
 }
 
-void
+bool
 thin::insert(block_address thin_block, block_address data_block)
 {
 	uint64_t key[2] = {dev_, thin_block};

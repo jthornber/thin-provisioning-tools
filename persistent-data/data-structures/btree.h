@@ -322,7 +322,7 @@ namespace persistent_data {
 		maybe_pair lookup_le(key const &key) const;
 		maybe_pair lookup_ge(key const &key) const;
 
-		void insert(key const &key, typename ValueTraits::value_type const &value);
+		bool insert(key const &key, typename ValueTraits::value_type const &value);
 		void remove(key const &key);
 
 		void set_root(block_address root);
