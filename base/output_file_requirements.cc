@@ -37,14 +37,17 @@ base::check_output_file_requirements(string const &path)
 		explain_output_file_requirements();
 	}
 
-	if (!info.st_size) {
-		cerr << "Zero size output file.\n\n";
-		explain_output_file_requirements();
-	}
+	// We only really want these checks for regular files
+	if (S_ISREG(info.st_mode)) {
+		if (!info.st_size) {
+			cerr << "Zero size output file.\n\n";
+			explain_output_file_requirements();
+		}
 
-	if (info.st_size < MIN_SIZE) {
-		cerr << "Output file too small.\n\n";
-		explain_output_file_requirements();
+		if (info.st_size < MIN_SIZE) {
+			cerr << "Output file too small.\n\n";
+			explain_output_file_requirements();
+		}
 	}
 }
 

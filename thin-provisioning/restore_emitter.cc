@@ -136,10 +136,9 @@ namespace {
 			mapping_tree_detail::block_time bt;
 			bt.block_ = data_block;
 			bt.time_ = time;
-			current_mapping_->insert(key, bt);
+			current_device_details_.mapped_blocks_ +=
+				static_cast<uint64_t>(current_mapping_->insert(key, bt));
 			md_->data_sm_->inc(data_block);
-
-			current_device_details_.mapped_blocks_ += 1;
 		}
 
 	private:

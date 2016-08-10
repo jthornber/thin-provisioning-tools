@@ -498,7 +498,7 @@ namespace persistent_data {
 	}
 
 	template <unsigned Levels, typename ValueTraits>
-	void
+	bool
 	btree<Levels, ValueTraits>::
 	insert(key const &key,
 	       typename ValueTraits::value_type const &value)
@@ -531,6 +531,8 @@ namespace persistent_data {
 			n.set_value(index, value);
 
 		root_ = spine.get_root();
+
+		return need_insert;
 	}
 
 	template <unsigned Levels, typename ValueTraits>

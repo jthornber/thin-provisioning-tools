@@ -14,6 +14,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/output_file_requirements.h"
 #include "base/xml_utils.h"
 #include "metadata_dumper.h"
 #include "metadata.h"
@@ -261,11 +262,24 @@ thin_ll_restore_cmd::run(int argc, char **argv) {
 		return 1;
 	}
 
-	if (!input_metadata.length() || !input.length() || !output.length()) {
-		cerr << "No input/output file provided." << endl;
+	if (!input.length()) {
+		cerr << "No input file provided." << endl;
 		usage(cerr);
 		return 1;
 	}
+
+	if (!input_metadata.length()) {
+		cerr << "No input metadata provided." << endl;
+		usage(cerr);
+		return 1;
+	}
+
+	if (!output.length()) {
+		cerr << "No output file provided." << endl;
+		usage(cerr);
+		return 1;
+	} else
+		check_output_file_requirements(output);
 
 	return low_level_restore(input_metadata, input, output, f);
 }
