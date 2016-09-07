@@ -12,7 +12,7 @@ contrib: $(PLUGINS) $(PLUGIN_LIBS)
 
 contrib/%.o: contrib/%.cc
 	$(V)echo "    [CC] $@"
-	$(V)$(CC) $^ -o $@
+	$(V)$(CXX) $(INCLUDES) $(CXXFLAGS) $^ -c -o $@
 
 contrib/%.a: contrib/%.o
 	$(V)echo "    [AR] $@"
