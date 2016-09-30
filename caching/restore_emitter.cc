@@ -11,10 +11,11 @@ using namespace superblock_damage;
 namespace {
 	class restorer : public emitter {
 	public:
-		restorer(metadata::ptr md, bool clean_shutdown)
+		restorer(metadata::ptr md, bool clean_shutdown, unsigned metadata_version)
 			: in_superblock_(false),
 			  md_(md),
-			  clean_shutdown_(clean_shutdown) {
+			  clean_shutdown_(clean_shutdown),
+			  metadata_version_(metadata_version) {
 		}
 
 		virtual void begin_superblock(std::string const &uuid,
@@ -24,6 +25,7 @@ namespace {
 					      size_t hint_width) {
 
 			superblock &sb = md_->sb_;
+			sb.version = metadata_version_;
 			strncpy((char *) sb.policy_name, policy.c_str(), sizeof(sb.policy_name));
 			memset(sb.policy_version, 0, sizeof(sb.policy_version)); // FIXME: should come from xml
 			sb.policy_hint_size = hint_width;
@@ -36,6 +38,10 @@ namespace {
 			unmapped_value.oblock_ = 0;
 			unmapped_value.flags_ = 0;
 			md_->mappings_->grow(nr_cache_blocks, unmapped_value);
+
+			if (metadata_version_ > 1)
+				// make everything dirty by default
+				md_->dirty_bits_->grow(nr_cache_blocks, true);
 
 			vector<unsigned char> hint_value(hint_width, '\0');
 			md_->hints_->grow(nr_cache_blocks, hint_value);
@@ -60,8 +66,11 @@ namespace {
 			m.oblock_ = oblock;
 			m.flags_ = M_VALID;
 
-			if (dirty)
-				m.flags_ = m.flags_ | M_DIRTY;
+			if (metadata_version_ == 1) {
+				if (dirty)
+					m.flags_ = m.flags_ | M_DIRTY;
+			} else
+				md_->dirty_bits_->set(cblock, dirty);
 
 			md_->mappings_->set(cblock, m);
 		}
@@ -98,15 +107,17 @@ namespace {
 		bool in_superblock_;
 		metadata::ptr md_;
 		bool clean_shutdown_;
+		unsigned metadata_version_;
 	};
 }
 
 //----------------------------------------------------------------
 
 emitter::ptr
-caching::create_restore_emitter(metadata::ptr md, bool clean_shutdown)
+caching::create_restore_emitter(metadata::ptr md, unsigned metadata_version,
+				bool clean_shutdown)
 {
-	return emitter::ptr(new restorer(md, clean_shutdown));
+	return emitter::ptr(new restorer(md, clean_shutdown, metadata_version));
 }
 
 //----------------------------------------------------------------

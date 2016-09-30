@@ -4,6 +4,7 @@
 #include "base/endian_utils.h"
 #include "persistent-data/data-structures/btree.h"
 
+#include <boost/optional.hpp>
 #include <set>
 
 //----------------------------------------------------------------
@@ -11,6 +12,8 @@
 namespace caching {
 	typedef unsigned char __u8;
 
+	unsigned const MIN_METADATA_VERSION = 1;
+	unsigned const MAX_METADATA_VERSION = 2;
 	unsigned const SPACE_MAP_ROOT_SIZE = 128;
 	unsigned const CACHE_POLICY_NAME_SIZE = 16;
 	unsigned const CACHE_POLICY_VERSION_SIZE = 3;
@@ -78,6 +81,8 @@ namespace caching {
 		uint32_t read_misses;
 		uint32_t write_hits;
 		uint32_t write_misses;
+
+		boost::optional<uint64_t> dirty_root;
 	};
 
 	enum incompat_bits {

@@ -43,29 +43,33 @@ namespace {
 	struct flags {
 		flags()
 			: metadata_version(1),
-			  override_metadata_version(false),
 			  clean_shutdown(true),
-			  quiet(false) {
+			  quiet(false),
+			  override_metadata_version(false),
+			  override_version(1) {
 		}
 
 		optional<string> input;
 		optional<string> output;
 
 		uint32_t metadata_version;
-		bool override_metadata_version;
 		bool clean_shutdown;
 		bool quiet;
+
+		bool override_metadata_version;
+		unsigned override_version;
 	};
 
 	int restore(flags const &fs) {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
-			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown);
+			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown,
+								       fs.metadata_version);
 
 			if (fs.override_metadata_version) {
 				cerr << "overriding" << endl;
-				md->sb_.version = fs.metadata_version;
+				md->sb_.version = fs.override_version;
 			}
 
 			check_file_exists(*fs.input);
@@ -95,12 +99,13 @@ cache_restore_cmd::usage(std::ostream &out) const
 {
 	out << "Usage: " << get_name() << " [options]" << endl
 	    << "Options:" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-i|--input} <input xml file>" << endl
-	    << "  {-o|--output} <output device or file>" << endl
-	    << "  {-q|--quiet}" << endl
-	    << "  {-V|--version}" << endl
-	    << endl
+	    << "  {-h|--help}\n"
+	    << "  {-i|--input} <input xml file>\n"
+	    << "  {-o|--output} <output device or file>\n"
+	    << "  {-q|--quiet}\n"
+	    << "  {--metadata-version} <1 or 2>\n"
+	    << "  {-V|--version}\n"
+	    << "\n"
 	    << "  {--debug-override-metadata-version} <integer>" << endl
 	    << "  {--omit-clean-shutdown}" << endl;
 }
@@ -114,6 +119,7 @@ cache_restore_cmd::run(int argc, char **argv)
 	option const long_opts[] = {
 		{ "debug-override-metadata-version", required_argument, NULL, 0 },
 		{ "omit-clean-shutdown", no_argument, NULL, 1 },
+		{ "metadata-version", required_argument, NULL, 2 },
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
@@ -125,12 +131,21 @@ cache_restore_cmd::run(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
 		switch(c) {
 		case 0:
-			fs.metadata_version = lexical_cast<uint32_t>(optarg);
 			fs.override_metadata_version = true;
+			fs.override_version = lexical_cast<uint32_t>(optarg);
 			break;
 
 		case 1:
 			fs.clean_shutdown = false;
+			break;
+
+		case 2:
+			fs.metadata_version = lexical_cast<uint32_t>(optarg);
+			if ((fs.metadata_version < MIN_METADATA_VERSION) ||
+			    (fs.metadata_version > MAX_METADATA_VERSION))  {
+				cerr << "Bad metadata version\n\n";
+				return 1;
+			}
 			break;
 
 		case 'h':
