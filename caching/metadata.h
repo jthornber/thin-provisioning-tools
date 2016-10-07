@@ -19,8 +19,7 @@ namespace caching {
 	class metadata {
 	public:
 		enum open_type {
-			CREATE,
-			OPEN
+			CREATE
 		};
 
 		typedef block_manager<>::read_ref read_ref;

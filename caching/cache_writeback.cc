@@ -298,7 +298,7 @@ namespace {
 
 	int writeback_(flags const &f) {
 		block_manager<>::ptr bm = open_bm(*f.metadata_dev, block_manager<>::READ_WRITE);
-		metadata md(bm, metadata::OPEN);
+		metadata md(bm);
 
 		// FIXME: we're going to have to copy runs to get the through put with small block sizes
 		unsigned max_ios = f.cache_size / (md.sb_.data_block_size << SECTOR_SHIFT);
