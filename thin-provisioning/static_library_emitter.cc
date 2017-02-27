@@ -1,6 +1,7 @@
 #include "thin-provisioning/shared_library_emitter.h"
 #include <stdexcept>
 #include "contrib/tmakatos_emitter.h"
+#include <iostream>
 
 using namespace std;
 using namespace thin_provisioning;
@@ -12,9 +13,6 @@ thin_provisioning::create_custom_emitter(string const &shared_lib, ostream &out)
 {
 	if (shared_lib != "tmakatos_emitter.so")
 		throw runtime_error(shared_lib + ": no such emitter");
-
-	cout << "XXX creating tmakatos_emitter" << endl;
-	cout << flush;
 
 	return emitter::ptr(new tmakatos_emitter::binary_emitter(out));
 }

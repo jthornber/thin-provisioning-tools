@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <string>
 #include <stdexcept>
+#include <boost/optional/optional_io.hpp>
 
 using namespace bcache;
 using namespace caching;
