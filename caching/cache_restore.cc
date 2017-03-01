@@ -60,6 +60,11 @@ namespace {
 		unsigned override_version;
 	};
 
+	void override_version(metadata::ptr md, flags const &fs) {
+		md->sb_.version = fs.override_version;
+		md->commit(fs.clean_shutdown);
+	}
+
 	int restore(flags const &fs) {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
@@ -67,16 +72,14 @@ namespace {
 			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown,
 								       fs.metadata_version);
 
-			if (fs.override_metadata_version) {
-				cerr << "overriding" << endl;
-				md->sb_.version = fs.override_version;
-			}
-
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);
 
 			unique_ptr<progress_monitor> monitor = create_monitor(fs.quiet);
 			parse_xml(in, restorer, get_file_length(*fs.input), *monitor);
+
+			if (fs.override_metadata_version)
+				override_version(md, fs);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
