@@ -193,7 +193,7 @@ block_cache::wait_io()
 		if (e.res == block_size_ << SECTOR_SHIFT)
 			complete_io(*b, 0);
 
-		else if (e.res < 0)
+		else if (static_cast<long>(e.res) < 0)
 			complete_io(*b, e.res);
 
 		else {
