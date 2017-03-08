@@ -49,6 +49,8 @@ namespace thin_provisioning {
 		virtual void begin_superblock(std::string const &uuid,
 					      uint64_t time,
 					      uint64_t trans_id,
+					      boost::optional<uint32_t> flags,
+					      boost::optional<uint32_t> version,
 					      uint32_t data_block_size,
 					      uint64_t nr_data_blocks,
 					      boost::optional<uint64_t> metadata_snap) = 0;

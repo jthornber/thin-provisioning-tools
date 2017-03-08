@@ -21,13 +21,14 @@
 #include <getopt.h>
 #include <libgen.h>
 
-#include "human_readable_format.h"
-#include "metadata_dumper.h"
-#include "metadata.h"
-#include "xml_format.h"
-#include "version.h"
-#include "thin-provisioning/commands.h"
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/commands.h"
+#include "thin-provisioning/human_readable_format.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/metadata_dumper.h"
+#include "thin-provisioning/shared_library_emitter.h"
+#include "thin-provisioning/xml_format.h"
+#include "version.h"
 
 using namespace boost;
 using namespace persistent_data;
@@ -38,11 +39,13 @@ namespace {
 	// FIXME: put the path into the flags
 	struct flags {
 		flags()
-			: repair(false),
+			: format("xml"),
 			  use_metadata_snap(false) {
 		}
 
-		bool repair;
+		dump_options opts;
+
+		string format;
 		bool use_metadata_snap;
 		optional<block_address> snap_location;
 	};
@@ -54,23 +57,36 @@ namespace {
 		return md;
 	}
 
-	int dump_(string const &path, ostream &out, string const &format, struct flags &flags) {
+	bool begins_with(string const &str, string const &prefix) {
+		return str.substr(0, prefix.length()) == prefix;
+	}
+
+	emitter::ptr create_emitter(string const &format, ostream &out) {
+		emitter::ptr e;
+
+		if (format == "xml")
+			e = create_xml_emitter(out);
+
+		else if (format == "human_readable")
+			e = create_human_readable_emitter(out);
+
+		else if (begins_with(format, "custom="))
+			e = create_custom_emitter(format.substr(7), out);
+
+		else {
+			ostringstream msg;
+			msg << "unknown format '" << format << "'";
+			throw runtime_error(msg.str());
+		}
+
+		return e;
+	}
+
+	int dump_(string const &path, ostream &out, struct flags &flags) {
 		try {
 			metadata::ptr md = open_metadata(path, flags);
-			emitter::ptr e;
-
-			if (format == "xml")
-				e = create_xml_emitter(out);
-
-			else if (format == "human_readable")
-				e = create_human_readable_emitter(out);
-
-			else {
-				cerr << "unknown format '" << format << "'" << endl;
-				exit(1);
-			}
-
-			metadata_dump(md, e, flags.repair);
+			emitter::ptr e = create_emitter(flags.format, out);
+			metadata_dump(md, e, flags.opts);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -80,12 +96,12 @@ namespace {
 		return 0;
 	}
 
-	int dump(string const &path, char const *output, string const &format, struct flags &flags) {
+	int dump(string const &path, char const *output, struct flags &flags) {
 		if (output) {
 			ofstream out(output);
-			return dump_(path, out, format, flags);
+			return dump_(path, out, flags);
 		} else
-			return dump_(path, cout, format, flags);
+			return dump_(path, cout, flags);
 	}
 }
 
@@ -99,13 +115,14 @@ thin_dump_cmd::thin_dump_cmd()
 void
 thin_dump_cmd::usage(std::ostream &out) const
 {
-	out << "Usage: " << get_name() << " [options] {device|file}" << endl
-	    << "Options:" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-f|--format} {xml|human_readable}" << endl
-	    << "  {-r|--repair}" << endl
-	    << "  {-m|--metadata-snap} [block#]" << endl
-	    << "  {-o <xml file>}" << endl
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-f|--format} {xml|human_readable|custom}\n"
+	    << "  {-r|--repair}\n"
+	    << "  {-m|--metadata-snap} [block#]\n"
+	    << "  {-o <xml file>}\n"
+	    << "  {--dev-id} <dev-id>\n"
 	    << "  {-V|--version}" << endl;
 }
 
@@ -116,8 +133,8 @@ thin_dump_cmd::run(int argc, char **argv)
 	char const *output = NULL;
 	const char shortopts[] = "hm::o:f:rV";
 	char *end_ptr;
-	string format = "xml";
 	block_address metadata_snap = 0;
+	uint64_t dev_id;
 	struct flags flags;
 
 	const struct option longopts[] = {
@@ -126,6 +143,8 @@ thin_dump_cmd::run(int argc, char **argv)
 		{ "output", required_argument, NULL, 'o'},
 		{ "format", required_argument, NULL, 'f' },
 		{ "repair", no_argument, NULL, 'r'},
+		{ "dev-id", required_argument, NULL, 1 },
+		{ "skip-mappings", no_argument, NULL, 2 },
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -137,11 +156,11 @@ thin_dump_cmd::run(int argc, char **argv)
 			return 0;
 
 		case 'f':
-			format = optarg;
+			flags.format = optarg;
 			break;
 
 		case 'r':
-			flags.repair = true;
+			flags.opts.repair_ = true;
 			break;
 
 		case 'm':
@@ -150,7 +169,7 @@ thin_dump_cmd::run(int argc, char **argv)
 				// FIXME: deprecate this option
 				metadata_snap = strtoull(optarg, &end_ptr, 10);
 				if (end_ptr == optarg) {
-					cerr << "couldn't parse <metadata_snap>" << endl;
+					cerr << "couldn't parse <metadata-snap>" << endl;
 					usage(cerr);
 					return 1;
 				}
@@ -161,6 +180,20 @@ thin_dump_cmd::run(int argc, char **argv)
 
 		case 'o':
 			output = optarg;
+			break;
+
+		case 1:
+			dev_id = strtoull(optarg, &end_ptr, 10);
+			if (end_ptr == optarg) {
+				cerr << "couldn't parse <dev-id>\n";
+				usage(cerr);
+				return 1;
+			}
+			flags.opts.select_dev(dev_id);
+			break;
+
+		case 2:
+			flags.opts.skip_mappings_ = true;
 			break;
 
 		case 'V':
@@ -179,7 +212,7 @@ thin_dump_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return dump(argv[optind], output, format, flags);
+	return dump(argv[optind], output, flags);
 }
 
 //----------------------------------------------------------------

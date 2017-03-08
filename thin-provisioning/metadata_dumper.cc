@@ -88,8 +88,13 @@ namespace {
 
 	class details_extractor : public device_tree_detail::device_visitor {
 	public:
+		details_extractor(dump_options const &opts)
+		: opts_(opts) {
+		}
+
 		void visit(block_address dev_id, device_tree_detail::device_details const &dd) {
-			dd_.insert(make_pair(dev_id, dd));
+			if (opts_.selected_dev(dev_id))
+				dd_.insert(make_pair(dev_id, dd));
 		}
 
 		dd_map const &get_details() const {
@@ -97,6 +102,7 @@ namespace {
 		}
 
 	private:
+		dump_options const &opts_;
 		dd_map dd_;
 	};
 
@@ -161,20 +167,23 @@ namespace {
 
 	class mapping_tree_emitter : public mapping_tree_detail::device_visitor {
 	public:
-		mapping_tree_emitter(metadata::ptr md,
+		mapping_tree_emitter(dump_options const &opts,
+				     metadata::ptr md,
 				     emitter::ptr e,
 				     dd_map const &dd,
-				     bool repair,
 				     mapping_tree_detail::damage_visitor::ptr damage_policy)
-			: md_(md),
+			: opts_(opts),
+			  md_(md),
 			  e_(e),
 			  dd_(dd),
-			  repair_(repair),
 			  damage_policy_(damage_policy) {
 		}
 
 		void visit(btree_path const &path, block_address tree_root) {
 			block_address dev_id = path[0];
+
+			if (!opts_.selected_dev(dev_id))
+				return;
 
 			dd_map::const_iterator it = dd_.find(path[0]);
 			if (it != dd_.end()) {
@@ -186,7 +195,8 @@ namespace {
 						 d.snapshotted_time_);
 
 				try {
-					emit_mappings(tree_root);
+					if (!opts_.skip_mappings_)
+						emit_mappings(dev_id, tree_root);
 				} catch (exception &e) {
 					cerr << e.what();
 					e_->end_device();
@@ -194,7 +204,7 @@ namespace {
 				}
 				e_->end_device();
 
-			} else if (!repair_) {
+			} else if (!opts_.repair_) {
 				ostringstream msg;
 				msg << "mappings present for device " << dev_id
 				    << ", but it isn't present in device tree";
@@ -203,17 +213,17 @@ namespace {
 		}
 
 	private:
-		void emit_mappings(block_address subtree_root) {
+		void emit_mappings(uint64_t dev_id, block_address subtree_root) {
 			mapping_emitter me(e_);
 			single_mapping_tree tree(*md_->tm_, subtree_root,
 						 mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
-			walk_mapping_tree(tree, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
+			walk_mapping_tree(tree, dev_id, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
 		}
 
+		dump_options const &opts_;
 		metadata::ptr md_;
 		emitter::ptr e_;
 		dd_map const &dd_;
-		bool repair_;
 		mapping_tree_detail::damage_visitor::ptr damage_policy_;
 	};
 
@@ -234,25 +244,39 @@ namespace {
 //----------------------------------------------------------------
 
 void
-thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, bool repair)
+thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options const &opts)
 {
-	details_extractor de;
-	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(repair));
+	details_extractor de(opts);
+	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(opts.repair_));
 	walk_device_tree(*md->details_, de, *dd_policy);
 
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
+			    md->sb_.flags_,
+			    md->sb_.version_,
 			    md->sb_.data_block_size_,
 			    get_nr_blocks(md),
 			    boost::optional<block_address>());
 
 	{
-		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(repair));
-		mapping_tree_emitter mte(md, e, de.get_details(), repair, mapping_damage_policy(repair));
+		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(opts.repair_));
+		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(opts.repair_));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
 	e->end_superblock();
+}
+
+//----------------------------------------------------------------
+
+void
+thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root) {
+	mapping_emitter me(e);
+	single_mapping_tree tree(*md->tm_, subtree_root,
+				 mapping_tree_detail::block_time_ref_counter(md->data_sm_));
+	// FIXME: pass the current device id instead of zero
+	walk_mapping_tree(tree, 0, static_cast<mapping_tree_detail::mapping_visitor &>(me),
+			  *mapping_damage_policy(repair));
 }
 
 //----------------------------------------------------------------

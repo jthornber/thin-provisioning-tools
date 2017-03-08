@@ -39,7 +39,7 @@ namespace thin_provisioning {
 
 		thin_dev_t get_dev_t() const;
 		maybe_address lookup(block_address thin_block);
-		void insert(block_address thin_block, block_address data_block);
+		bool insert(block_address thin_block, block_address data_block);
 		void remove(block_address thin_block);
 
 		void set_snapshot_time(uint32_t time);

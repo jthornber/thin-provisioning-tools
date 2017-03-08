@@ -50,6 +50,8 @@ namespace {
 		void begin_superblock(string const &uuid,
 				      uint64_t time,
 				      uint64_t trans_id,
+				      boost::optional<uint32_t> flags,
+				      boost::optional<uint32_t> version,
 				      uint32_t data_block_size,
 				      uint64_t nr_data_blocks,
 				      boost::optional<uint64_t> metadata_snap) {
@@ -57,6 +59,8 @@ namespace {
 			out_ << "<superblock uuid=\"" << uuid << "\""
 			     << " time=\"" << time << "\""
 			     << " transaction=\"" << trans_id << "\""
+			     << " flags=\"" << (flags ? *flags : 0) << "\""
+			     << " version=\"" << (version ? *version : 1) << "\""
 			     << " data_block_size=\"" << data_block_size << "\""
 			     << " nr_data_blocks=\"" << nr_data_blocks;
 
@@ -140,6 +144,8 @@ namespace {
 		e->begin_superblock(get_attr<string>(attr, "uuid"),
 				    get_attr<uint64_t>(attr, "time"),
 				    get_attr<uint64_t>(attr, "transaction"),
+				    get_opt_attr<uint32_t>(attr, "flags"),
+				    get_opt_attr<uint32_t>(attr, "version"),
 				    get_attr<uint32_t>(attr, "data_block_size"),
 				    get_attr<uint64_t>(attr, "nr_data_blocks"),
 				    get_opt_attr<uint64_t>(attr, "metadata_snap"));

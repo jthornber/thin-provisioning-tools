@@ -33,7 +33,7 @@ namespace {
 		return info.st_size;
 	}
 
-	auto_ptr<progress_monitor> create_monitor(bool quiet) {
+	unique_ptr<progress_monitor> create_monitor(bool quiet) {
 		if (!quiet && isatty(fileno(stdout)))
 			return create_progress_bar("Restoring");
 		else
@@ -71,7 +71,7 @@ namespace {
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);
 
-			auto_ptr<progress_monitor> monitor = create_monitor(fs.quiet);
+			unique_ptr<progress_monitor> monitor = create_monitor(fs.quiet);
 			parse_xml(in, restorer, get_file_length(*fs.input), *monitor);
 
 		} catch (std::exception &e) {

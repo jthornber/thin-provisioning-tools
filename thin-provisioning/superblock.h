@@ -128,6 +128,8 @@ namespace thin_provisioning {
 
 	// FIXME: should we put init_superblock in here too?
 
+	// FIXME: make the bm const, and pass by reference rather than ptr
+	superblock_detail::superblock read_superblock(persistent_data::block_manager<> const &bm);
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm);
 	superblock_detail::superblock read_superblock(persistent_data::block_manager<>::ptr bm,
 						      persistent_data::block_address location);

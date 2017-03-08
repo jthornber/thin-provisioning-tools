@@ -1,5 +1,6 @@
 #include "block-cache/block_cache.h"
 
+#include <algorithm>
 #include <assert.h>
 #include <libaio.h>
 #include <errno.h>
@@ -44,34 +45,19 @@ namespace {
 int
 block_cache::init_free_list(unsigned count)
 {
-	size_t len;
-	block *blocks;
 	size_t block_size = block_size_ << SECTOR_SHIFT;
-	void *data;
-	unsigned i;
-
-	/* Allocate the block structures */
-	len = sizeof(block) * count;
-	blocks = static_cast<block *>(malloc(len));
-	if (!blocks)
-		return -ENOMEM;
-
-	blocks_memory_ = blocks;
+	unsigned char *data = static_cast<unsigned char *>(alloc_aligned(count * block_size, PAGE_SIZE));
 
 	/* Allocate the data for each block.  We page align the data. */
-	data = alloc_aligned(count * block_size, PAGE_SIZE);
-	if (!data) {
-		free(blocks);
+	if (!data)
 		return -ENOMEM;
-	}
 
 	blocks_data_ = data;
 
-	for (i = 0; i < count; i++) {
-		block *b = new (blocks + i) block();
-		b->data_ = static_cast<unsigned char *>(data) + block_size * i;
-
-		list_add(&b->list_, &free_);
+	for (unsigned i = 0; i < count; i++) {
+		block &b = (*blocks_memory_)[i];
+		b.data_ = data + (block_size * i);
+		free_.push_front(b);
 	}
 
 	return 0;
@@ -82,28 +68,18 @@ block_cache::exit_free_list()
 {
 	if (blocks_data_)
 		free(blocks_data_);
-
-	if (blocks_memory_) {
-		struct block *blocks = static_cast<block *>(blocks_memory_);
-		for (unsigned i = 0; i < nr_cache_blocks_; i++)
-			(blocks + i)->~block();
-
-		free(blocks_memory_);
-	}
 }
 
 block_cache::block *
 block_cache::__alloc_block()
 {
-	block *b;
-
-	if (list_empty(&free_))
+	if (free_.empty())
 		return NULL;
 
-	b = list_first_entry(&free_, block, list_);
-	list_del(&b->list_);
+	block &b = free_.front();
+	b.unlink();
 
-	return b;
+	return &b;
 }
 
 /*----------------------------------------------------------------
@@ -131,15 +107,18 @@ block_cache::complete_io(block &b, int result)
 	b.clear_flags(BF_IO_PENDING);
 	nr_io_pending_--;
 
-	if (b.error_)
-		list_move_tail(&b.list_, &errored_);
-	else {
+	if (b.error_) {
+		b.unlink();
+		errored_.push_back(b);
+
+	} else {
 		if (b.test_flags(BF_DIRTY)) {
 			b.clear_flags(BF_DIRTY | BF_PREVIOUSLY_DIRTY);
 			nr_dirty_--;
 		}
 
-		list_move_tail(&b.list_, &clean_);
+		b.unlink();
+		clean_.push_back(b);
 	}
 }
 
@@ -157,7 +136,8 @@ block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc
 	assert(!b.test_flags(BF_IO_PENDING));
 	b.set_flags(BF_IO_PENDING);
 	nr_io_pending_++;
-	list_move_tail(&b.list_, &io_pending_);
+	b.unlink();
+	io_pending_.push_back(b);
 
 	b.control_block_.aio_lio_opcode = opcode;
 	control_blocks[0] = &b.control_block_;
@@ -208,7 +188,7 @@ block_cache::wait_io()
 
 	for (i = 0; i < static_cast<unsigned>(r); i++) {
 		io_event const &e = events_[i];
-		block *b = container_of(e.obj, block, control_block_);
+		block *b = base::container_of(e.obj, &block::control_block_);
 
 		if (e.res == block_size_ << SECTOR_SHIFT)
 			complete_io(*b, 0);
@@ -236,19 +216,20 @@ block_cache::wait_io()
  * We're using lru lists atm, but I think it would be worth
  * experimenting with a multiqueue approach.
  */
-list_head *
+block_cache::block_list &
 block_cache::__categorise(block &b)
 {
 	if (b.error_)
-		return &errored_;
+		return errored_;
 
-	return b.test_flags(BF_DIRTY) ? &dirty_ : &clean_;
+	return b.test_flags(BF_DIRTY) ? dirty_ : clean_;
 }
 
 void
 block_cache::hit(block &b)
 {
-	list_move_tail(&b.list_, __categorise(b));
+	b.unlink();
+	__categorise(b).push_back(b);
 }
 
 /*----------------------------------------------------------------
@@ -257,7 +238,7 @@ block_cache::hit(block &b)
 void
 block_cache::wait_all()
 {
-	while (!list_empty(&io_pending_))
+	while (!io_pending_.empty())
 		wait_io();
 }
 
@@ -271,10 +252,15 @@ block_cache::wait_specific(block &b)
 unsigned
 block_cache::writeback(unsigned count)
 {
-	block *b, *tmp;
 	unsigned actual = 0, dirty_length = 0;
 
-	list_for_each_entry_safe (b, tmp, &dirty_, list_) {
+	// issue_write unlinks b, which invalidates the iteration, so we
+	// keep track of the next element before removing.
+	auto it = dirty_.begin();
+	auto next = it;
+	while (it != dirty_.end()) {
+		next = it;
+		++next;
 		dirty_length++;
 
 		if (actual == count)
@@ -282,67 +268,16 @@ block_cache::writeback(unsigned count)
 
 		// The block may be on the dirty list from a prior
 		// acquisition.
-		if (b->ref_count_)
+		if (it->ref_count_)
 			continue;
 
-		issue_write(*b);
+		issue_write(*it);
 		actual++;
+
+		it = next;
 	}
 
 	return actual;
-}
-
-/*----------------------------------------------------------------
- * Hash table
- *---------------------------------------------------------------*/
-
-/*
- * |nr_buckets| must be a power of two.
- */
-void
-block_cache::hash_init(unsigned nr_buckets)
-{
-	unsigned i;
-
-	nr_buckets_ = nr_buckets;
-	mask_ = nr_buckets - 1;
-
-	for (i = 0; i < nr_buckets; i++)
-		INIT_LIST_HEAD(&buckets_[i]);
-}
-
-unsigned
-block_cache::hash(uint64_t index)
-{
-	const unsigned BIG_PRIME = 4294967291UL;
-	return (((unsigned) index) * BIG_PRIME) & mask_;
-}
-
-block_cache::block *
-block_cache::hash_lookup(block_address index)
-{
-	block *b;
-	unsigned bucket = hash(index);
-
-	list_for_each_entry (b, &buckets_[bucket], hash_list_) {
-		if (b->index_ == index)
-			return b;
-	}
-
-	return NULL;
-}
-
-void
-block_cache::hash_insert(block &b)
-{
-	unsigned bucket = hash(b.index_);
-	list_move_tail(&b.hash_list_, &buckets_[bucket]);
-}
-
-void
-block_cache::hash_remove(block &b)
-{
-	list_del_init(&b.hash_list_);
 }
 
 /*----------------------------------------------------------------
@@ -362,18 +297,17 @@ block_cache::setup_control_block(block &b)
 	cb->u.c.nbytes = block_size_bytes;
 }
 
+// FIXME: return a reference
 block_cache::block *
 block_cache::find_unused_clean_block()
 {
-	struct block *b, *tmp;
-
-	list_for_each_entry_safe (b, tmp, &clean_, list_) {
-		if (b->ref_count_)
+	for (block &b : clean_) {
+		if (b.ref_count_)
 			continue;
 
-		hash_remove(*b);
-		list_del(&b->list_);
-		return b;
+		b.unlink_set();
+		b.unlink();
+		return &b;
 	}
 
 	return NULL;
@@ -386,8 +320,8 @@ block_cache::new_block(block_address index)
 
 	b = __alloc_block();
 	if (!b) {
-		if (list_empty(&clean_)) {
-			if (list_empty(&io_pending_))
+		if (clean_.empty()) {
+			if (io_pending_.empty())
 				writeback(16);
 			wait_io();
 		}
@@ -396,8 +330,6 @@ block_cache::new_block(block_address index)
 	}
 
 	if (b) {
-		INIT_LIST_HEAD(&b->list_);
-		INIT_LIST_HEAD(&b->hash_list_);
 		b->bc_ = this;
 		b->ref_count_ = 0;
 
@@ -408,7 +340,7 @@ block_cache::new_block(block_address index)
 		b->index_ = index;
 		setup_control_block(*b);
 
-		hash_insert(*b);
+		block_set_.insert(*b);
 	}
 
 	return b;
@@ -455,9 +387,6 @@ block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, s
 {
 	int r;
 	unsigned nr_cache_blocks = calc_nr_cache_blocks(mem, block_size);
-	unsigned nr_buckets = calc_nr_buckets(nr_cache_blocks);
-
-	buckets_.resize(nr_buckets);
 
 	fd_ = fd;
 	block_size_ = block_size;
@@ -473,12 +402,7 @@ block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, s
 		throw std::runtime_error("io_setup failed");
 	}
 
-	hash_init(nr_buckets);
-	INIT_LIST_HEAD(&free_);
-	INIT_LIST_HEAD(&errored_);
-	INIT_LIST_HEAD(&dirty_);
-	INIT_LIST_HEAD(&clean_);
-	INIT_LIST_HEAD(&io_pending_);
+	blocks_memory_.reset(new std::vector<block>(nr_cache_blocks));
 
 	r = init_free_list(nr_cache_blocks);
 	if (r)
@@ -552,30 +476,31 @@ block_cache::block *
 block_cache::lookup_or_read_block(block_address index, unsigned flags,
 				  validator::ptr v)
 {
-	block *b = hash_lookup(index);
+	auto it = block_set_.find(index, cmp_index());
 
-	if (b) {
-		if (b->test_flags(BF_IO_PENDING)) {
+	if (it != block_set_.end()) {
+		if (it->test_flags(BF_IO_PENDING)) {
 			inc_miss_counter(flags);
-			wait_specific(*b);
+			wait_specific(*it);
 		} else
 			inc_hit_counter(flags);
 
 		if (flags & GF_ZERO)
-			zero_block(*b);
+			zero_block(*it);
 		else {
-			if (b->v_.get() != v.get()) {
-				if (b->test_flags(BF_DIRTY))
-					b->v_->prepare(b->data_, b->index_);
-				v->check(b->data_, b->index_);
+			if (it->v_.get() != v.get()) {
+				if (it->test_flags(BF_DIRTY))
+					it->v_->prepare(it->data_, it->index_);
+				v->check(it->data_, it->index_);
 			}
 		}
-		b->v_ = v;
+		it->v_ = v;
+		return &(*it);
 
 	} else {
 		inc_miss_counter(flags);
 
-		b = new_block(index);
+		block *b = new_block(index);
 		if (b) {
 			if (flags & GF_ZERO)
 				zero_block(*b);
@@ -587,9 +512,9 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 
 			b->v_ = v;
 		}
-	}
 
-	return (!b || b->error_) ? NULL : b;
+		return (!b || b->error_) ? NULL : b;
+	}
 }
 
 block_cache::block &
@@ -600,8 +525,11 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 	block *b = lookup_or_read_block(index, flags, v);
 
 	if (b) {
-		if (b->ref_count_ && flags & (GF_DIRTY | GF_ZERO))
-			throw std::runtime_error("attempt to write lock block concurrently");
+		if (b->ref_count_ && (flags & (GF_DIRTY | GF_ZERO))) {
+			std::ostringstream out;
+			out << "attempt to write lock block " << index << " concurrently";
+			throw std::runtime_error(out.str());
+		}
 
 		// FIXME: this gets called even for new blocks
 		hit(*b);
@@ -620,7 +548,9 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 		return *b;
 	}
 
-	throw std::runtime_error("couldn't get block");
+	std::ostringstream out;
+	out << "couldn't get block " << index;
+	throw std::runtime_error(out.str());
 }
 
 void
@@ -644,7 +574,8 @@ block_cache::release(block_cache::block &b)
 
 	if (b.test_flags(BF_DIRTY)) {
 		if (!b.test_flags(BF_PREVIOUSLY_DIRTY)) {
-			list_move_tail(&b.list_, &dirty_);
+			b.unlink();
+			dirty_.push_back(b);
 			nr_dirty_++;
 			b.set_flags(BF_PREVIOUSLY_DIRTY);
 		}
@@ -661,19 +592,18 @@ block_cache::release(block_cache::block &b)
 int
 block_cache::flush()
 {
-	block *b, *tmp;
-
-	list_for_each_entry_safe (b, tmp, &dirty_, list_) {
-		if (b->ref_count_ || b->test_flags(BF_IO_PENDING))
+	while (!dirty_.empty()) {
+		block &b = dirty_.front();
+		if (b.ref_count_ || b.test_flags(BF_IO_PENDING))
 			// The superblock may well be still locked.
 			continue;
 
-		issue_write(*b);
+		issue_write(b);
 	}
 
 	wait_all();
 
-	return list_empty(&errored_) ? 0 : -EIO;
+	return errored_.empty() ? 0 : -EIO;
 }
 
 void
@@ -681,11 +611,12 @@ block_cache::prefetch(block_address index)
 {
 	check_index(index);
 
-	block *b = hash_lookup(index);
-	if (!b) {
+	auto it = block_set_.find(index, cmp_index());
+
+	if (it == block_set_.end()) {
 		prefetches_++;
 
-		b = new_block(index);
+		block *b = new_block(index);
 		if (b)
 			issue_read(*b);
 	}

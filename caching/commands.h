@@ -63,6 +63,13 @@ namespace caching {
 		virtual int run(int argc, char **argv);
 	};
 
+	class cache_writeback_cmd : public base::command {
+	public:
+		cache_writeback_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
 	void register_cache_commands(base::application &app);
 }
 

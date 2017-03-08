@@ -91,8 +91,20 @@ namespace {
 			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
 			crc32c sum(SUPERBLOCK_CSUM_SEED);
 			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_)) {
+				ostringstream out;
+				out << "bad checksum in superblock, wanted " << sum.get_sum();
+				throw checksum_error(out.str());
+			}
+		}
+
+		virtual bool check_raw(void const *raw) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags_, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum_))
-				throw checksum_error("bad checksum in superblock");
+				return false;
+			return true;
 		}
 
 		virtual void prepare(void *raw, block_address location) const {
@@ -146,18 +158,28 @@ namespace thin_provisioning {
 		}
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<>::ptr bm, block_address location)
+	superblock_detail::superblock read_superblock(block_manager<> const &bm, block_address location)
 	{
 		using namespace superblock_detail;
 
 		superblock sb;
-		block_manager<>::read_ref r = bm->read_lock(location, superblock_validator());
+		block_manager<>::read_ref r = bm.read_lock(location, superblock_validator());
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
 	}
 
+	superblock_detail::superblock read_superblock(block_manager<>::ptr bm, block_address location)
+	{
+		return read_superblock(*bm, location);
+	}
+
 	superblock_detail::superblock read_superblock(block_manager<>::ptr bm)
+	{
+		return read_superblock(bm, SUPERBLOCK_LOCATION);
+	}
+
+	superblock_detail::superblock read_superblock(block_manager<> const &bm)
 	{
 		return read_superblock(bm, SUPERBLOCK_LOCATION);
 	}

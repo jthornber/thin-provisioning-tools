@@ -26,7 +26,10 @@ namespace {
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
 
 			metadata::ptr old_md(new metadata(old_bm, false));
-			metadata_dump(old_md, e, true);
+
+			dump_options opts;
+			opts.repair_ = true;
+			metadata_dump(old_md, e, opts);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;

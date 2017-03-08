@@ -47,6 +47,13 @@ namespace {
 
 namespace thin_provisioning {
 	namespace device_tree_detail {
+		device_details::device_details()
+			: mapped_blocks_(0),
+			  transaction_id_(0),
+			  creation_time_(0),
+			  snapshotted_time_(0) {
+		}
+
 		void
 		device_details_traits::unpack(device_details_disk const &disk, device_details &value)
 		{

@@ -34,13 +34,18 @@ SOURCE=\
 	base/error_string.cc \
 	base/grid_layout.cc \
 	base/progress_monitor.cc \
+	base/rolling_hash.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
+	block-cache/copier.cc \
+	block-cache/io_engine.cc \
+	block-cache/mem_pool.cc \
 	caching/cache_check.cc \
 	caching/cache_dump.cc \
 	caching/cache_metadata_size.cc \
 	caching/cache_repair.cc \
 	caching/cache_restore.cc \
+	caching/cache_writeback.cc \
 	caching/commands.cc \
 	caching/hint_array.cc \
 	caching/mapping_array.cc \
@@ -67,6 +72,7 @@ SOURCE=\
 	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/bloom_filter.cc \
 	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/btree_node_checker.cc \
 	persistent-data/error_set.cc \
 	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
@@ -77,12 +83,17 @@ SOURCE=\
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
 	thin-provisioning/commands.cc \
+	thin-provisioning/cache_stream.cc \
+	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
+	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
 	thin-provisioning/metadata_checker.cc \
+	thin-provisioning/metadata_counter.cc \
 	thin-provisioning/metadata_dumper.cc \
+	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
@@ -98,24 +109,57 @@ SOURCE=\
 	thin-provisioning/thin_trim.cc \
 	thin-provisioning/xml_format.cc
 
+DEVTOOLS_SOURCE=\
+	thin-provisioning/thin_ll_dump.cc \
+	thin-provisioning/thin_ll_restore.cc \
+	thin-provisioning/thin_show_duplicates.cc \
+	thin-provisioning/thin_generate_metadata.cc \
+	thin-provisioning/variable_chunk_stream.cc \
+	thin-provisioning/thin_show_metadata.cc \
+	thin-provisioning/thin_scan.cc \
+	ui/ui.cc
+
+ifeq ("@DEVTOOLS@", "yes")
+SOURCE+=$(DEVTOOLS_SOURCE)
+endif
+
+ifeq ("@STATIC@", "yes")
+SOURCE += thin-provisioning/static_library_emitter.cc
+else
+SOURCE += thin-provisioning/shared_library_emitter.cc
+endif
+
 CC:=@CC@
 CXX:=@CXX@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
+
+# FIXME EMITTERS += $(PLUGIN_LIBS) doesn't work, probably because it's empty at
+# the time of use?
+ifeq ("@STATIC@", "yes")
+EMITTERS += contrib/*.a
+endif
+
 TOP_DIR:=@top_srcdir@
 TOP_BUILDDIR:=@top_builddir@
-CFLAGS?=@CFLAGS@
-CFLAGS+=-Wall
+CFLAGS+=-g -Wall -O3 -fPIC
 CFLAGS+=@LFS_FLAGS@
-CXXFLAGS?=@CXXFLAGS@
-CXXFLAGS+=-Wall -fno-strict-aliasing -std=gnu++98
+CXXFLAGS+=-g -Wall -fPIC -fno-strict-aliasing -std=c++11
+
+ifeq ("@DEVTOOLS@", "yes")
+CXXFLAGS+=-DDEV_TOOLS
+endif
+
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
-CPPFLAGS?=@CPPFLAGS@
-CPPFLAGS+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-laio -lexpat
+INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
+LIBS:=-laio -lexpat -ldl
+
+ifeq ("@DEVTOOLS@", "yes")
+LIBS+=-lncurses
+endif
 
 ifeq ("@STATIC_CXX@", "yes")
 CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed
@@ -141,8 +185,8 @@ INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
 TEST_INCLUDES=\
-	-Igmock-1.6.0/include \
-	-Igmock-1.6.0/gtest/include
+	-Igoogletest/googlemock/include \
+	-Igoogletest/googletest/include
 else
 TEST_INCLUDES=
 endif
@@ -151,19 +195,19 @@ endif
 
 %.o: %.cc
 	@echo "    [CXX] $<"
-	$(V) $(CXX) -c $(CPPFLAGS) $(CXXFLAGS) -o $@ $<
+	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
-	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
 #----------------------------------------------------------------
 
-lib/libpdata.a: $(OBJECTS)
+lib/libpdata.a: $(OBJECTS) $(EMITTERS)
 	@echo "    [AR]  $<"
-	$(V)ar -rv $@ $(OBJECTS) > /dev/null 2>&1
+	$(V)ar -rv $@ $(OBJECTS) $(EMITTERS) > /dev/null 2>&1
 
-bin/pdata_tools: $(OBJECTS)
+bin/pdata_tools: $(OBJECTS) $(EMITTERS)
 	@echo "    [LD]  $@"
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
@@ -195,6 +239,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/cache_repair
 	ln -s -f pdata_tools $(BINDIR)/cache_restore
+	ln -s -f pdata_tools $(BINDIR)/cache_writeback
 	ln -s -f pdata_tools $(BINDIR)/thin_check
 	ln -s -f pdata_tools $(BINDIR)/thin_delta
 	ln -s -f pdata_tools $(BINDIR)/thin_dump
@@ -202,6 +247,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
 	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/era_check
@@ -213,6 +259,7 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_writeback.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_delta.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_dump.8 $(MANPATH)/man8
@@ -225,21 +272,28 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_invalidate.8 $(MANPATH)/man8
+ifeq ("@DEVTOOLS@", "yes")
+	ln -s -f pdata_tools $(BINDIR)/thin_ll_dump
+	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
+	ln -s -f pdata_tools $(BINDIR)/thin_generate_metadata
+	ln -s -f pdata_tools $(BINDIR)/thin_scan
+endif
 
 #	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
 
 .PHONY: install
 
+include contrib/Makefile
+
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
 
-.PHONY: features test check
+.PHONEY: features
 
-features: bin/pdata_tools
+features: pdata_tools
 	cucumber --no-color --format progress
 
 test: features unit-test
-check: unit-test
 endif
 
 -include $(DEPEND_FILES)

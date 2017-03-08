@@ -139,9 +139,11 @@ namespace thin_provisioning {
 				mapping_tree_detail::damage_visitor &visitor);
 
 	void walk_mapping_tree(single_mapping_tree const &tree,
+			       uint64_t dev_id,
 			       mapping_tree_detail::mapping_visitor &mv,
 			       mapping_tree_detail::damage_visitor &dv);
 	void check_mapping_tree(single_mapping_tree const &tree,
+				uint64_t dev_id,
 				mapping_tree_detail::damage_visitor &visitor);
 }
 

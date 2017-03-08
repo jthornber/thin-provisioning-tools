@@ -13,8 +13,8 @@ using namespace persistent_data;
 
 //----------------------------------------------------------------
 
-block_address
-persistent_data::get_nr_blocks(string const &path, block_address block_size)
+persistent_data::block_address
+persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 {
 	using namespace persistent_data;
 
@@ -24,7 +24,8 @@ persistent_data::get_nr_blocks(string const &path, block_address block_size)
 	int r = ::stat(path.c_str(), &info);
 	if (r) {
 		ostringstream out;
-		out << "Couldn't stat dev path '" << path << "'";
+		out << "Couldn't stat dev path '" << path << "': "
+		    << strerror(errno);
 		throw runtime_error(out.str());
 	}
 

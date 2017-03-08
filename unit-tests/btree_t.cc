@@ -129,7 +129,7 @@ TEST_F(BtreeTests, insert_works)
 		tree->insert(key, value);
 
 		btree<1, uint64_traits>::maybe_value l = tree->lookup(key);
-		ASSERT_TRUE(l);
+		ASSERT_TRUE(!!l);
 		ASSERT_THAT(*l, Eq(i));
 	}
 
@@ -153,7 +153,7 @@ TEST_F(BtreeTests, insert_does_not_insert_imaginary_values)
 	tree->insert(key, value);
 
 	l = tree->lookup(key);
-	ASSERT_TRUE(l);
+	ASSERT_TRUE(!!l);
 	ASSERT_THAT(*l, Eq(100u));
 
 	key[0] = 1;
@@ -183,7 +183,7 @@ TEST_F(BtreeTests, clone)
 		uint64_t value = i * 7;
 
 		l = tree->lookup(key);
-		ASSERT_TRUE(l);
+		ASSERT_TRUE(!!l);
 		ASSERT_THAT(*l, Eq(value));
 	}
 
@@ -200,11 +200,11 @@ TEST_F(BtreeTests, clone)
 		uint64_t value = i * 7;
 
 		l = tree->lookup(key);
-		ASSERT_TRUE(l);
+		ASSERT_TRUE(!!l);
 		ASSERT_THAT(*l, Eq(value));
 
 		l = copy->lookup(key);
-		ASSERT_TRUE(l);
+		ASSERT_TRUE(!!l);
 		ASSERT_THAT(*l, Eq(value));
 	}
 
@@ -216,7 +216,7 @@ TEST_F(BtreeTests, clone)
 		ASSERT_FALSE(l);
 
 		l = copy->lookup(key);
-		ASSERT_TRUE(l);
+		ASSERT_TRUE(!!l);
 		ASSERT_THAT(*l, Eq(value));
 	}
 

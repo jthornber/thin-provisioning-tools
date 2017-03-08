@@ -2,6 +2,7 @@
 #define PERSISTENT_DATA_DATA_STRUCTURES_DAMAGE_VISITOR_H
 
 #include "persistent-data/data-structures/btree.h"
+#include "persistent-data/data-structures/btree_node_checker.h"
 #include "persistent-data/run.h"
 
 //----------------------------------------------------------------
@@ -26,6 +27,12 @@ namespace persistent_data {
 			    << ", \"" << d.desc_ << "\"]";
 			return out;
 		}
+
+		class noop_damage_visitor {
+		public:
+			virtual void visit(btree_path const &path, damage const &d) {
+			}
+		};
 
 		// Tracks damage in a single level btree.  Use multiple
 		// trackers if you have a multilayer tree.
@@ -216,44 +223,53 @@ namespace persistent_data {
 
 			bool check_internal(node_location const &loc,
 					    btree_detail::node_ref<block_traits> const &n) {
-				if (!already_visited(n) &&
-				    check_block_nr(n) &&
-				    check_value_size(n) &&
-				    check_max_entries(n) &&
-				    check_nr_entries(n, loc.is_sub_root()) &&
-				    check_ordered_keys(n) &&
-				    check_parent_key(loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key, n)) {
-					if (loc.is_sub_root())
-						new_root(loc.level());
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
-					good_internal(n.key_at(0));
-					return true;
+				if (already_visited(n))
+					return false;
+				else if (!checker_.check_block_nr(n) ||
+					 !checker_.check_value_size(n) ||
+					 !checker_.check_max_entries(n) ||
+					 !checker_.check_nr_entries(n, loc.is_sub_root()) ||
+					 !checker_.check_ordered_keys(n) ||
+					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key)) {
+					report_damage(checker_.get_last_error_string());
+
+					return false;
 				}
 
-				return false;
+				good_internal(n.key_at(0));
+
+				return true;
 			}
 
 			template <typename ValueTraits2>
 			bool check_leaf(node_location const &loc,
 					btree_detail::node_ref<ValueTraits2> const &n) {
-				if (!already_visited(n) &&
-				    check_block_nr(n) &&
-				    check_value_size(n) &&
-				    check_max_entries(n) &&
-				    check_nr_entries(n, loc.is_sub_root()) &&
-				    check_ordered_keys(n) &&
-				    check_parent_key(loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key, n)) {
-					if (loc.is_sub_root())
-						new_root(loc.level());
+				if (loc.is_sub_root())
+					new_root(loc.level());
 
-					bool r = check_leaf_key(loc.level(), n);
-					if (r && n.get_nr_entries() > 0)
-						good_leaf(n.key_at(0), n.key_at(n.get_nr_entries() - 1) + 1);
+				if (already_visited(n))
+					return false;
+				else if (!checker_.check_block_nr(n) ||
+					 !checker_.check_value_size(n) ||
+					 !checker_.check_max_entries(n) ||
+					 !checker_.check_nr_entries(n, loc.is_sub_root()) ||
+					 !checker_.check_ordered_keys(n) ||
+					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key) ||
+					 !checker_.check_leaf_key(n, last_leaf_key_[loc.level()])) {
+					report_damage(checker_.get_last_error_string());
 
-					return r;
+					return false;
 				}
 
-				return false;
+				if (n.get_nr_entries() > 0) {
+					last_leaf_key_[loc.level()] = n.key_at(n.get_nr_entries() - 1);
+					good_leaf(n.key_at(0), n.key_at(n.get_nr_entries() - 1) + 1);
+				}
+
+				return true;
 			}
 
 			template <typename node>
@@ -268,133 +284,6 @@ namespace persistent_data {
 				}
 
 				return false;
-			}
-
-			template <typename node>
-			bool check_block_nr(node const &n) {
-				if (n.get_location() != n.get_block_nr()) {
-					std::ostringstream out;
-					out << "block number mismatch: actually "
-					    << n.get_location()
-					    << ", claims " << n.get_block_nr();
-
-					report_damage(out.str());
-					return false;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_value_size(node const &n) {
-				if (!n.value_sizes_match()) {
-					report_damage(n.value_mismatch_string());
-					return false;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_max_entries(node const &n) {
-				size_t elt_size = sizeof(uint64_t) + n.get_value_size();
-				if (elt_size * n.get_max_entries() + sizeof(node_header) > MD_BLOCK_SIZE) {
-					std::ostringstream out;
-					out << "max entries too large: " << n.get_max_entries();
-					report_damage(out.str());
-					return false;
-				}
-
-				if (n.get_max_entries() % 3) {
-					std::ostringstream out;
-					out << "max entries is not divisible by 3: " << n.get_max_entries();
-					report_damage(out.str());
-					return false;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_nr_entries(node const &n, bool is_root) {
-				if (n.get_nr_entries() > n.get_max_entries()) {
-					std::ostringstream out;
-					out << "bad nr_entries: "
-					    << n.get_nr_entries() << " < "
-					    << n.get_max_entries();
-					report_damage(out.str());
-					return false;
-				}
-
-				block_address min = n.get_max_entries() / 3;
-				if (!is_root && (n.get_nr_entries() < min)) {
-					ostringstream out;
-					out << "too few entries in btree_node: "
-					    << n.get_nr_entries()
-					    << ", expected at least "
-					    << min
-					    << "(max_entries = " << n.get_max_entries() << ")";
-					report_damage(out.str());
-					return false;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_ordered_keys(node const &n) {
-				unsigned nr_entries = n.get_nr_entries();
-
-				if (nr_entries == 0)
-					return true; // can only happen if a root node
-
-				uint64_t last_key = n.key_at(0);
-
-				for (unsigned i = 1; i < nr_entries; i++) {
-					uint64_t k = n.key_at(i);
-					if (k <= last_key) {
-						ostringstream out;
-						out << "keys are out of order, " << k << " <= " << last_key;
-						report_damage(out.str());
-						return false;
-					}
-					last_key = k;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_parent_key(boost::optional<uint64_t> key, node const &n) {
-				if (!key)
-					return true;
-
-				if (*key > n.key_at(0)) {
-					ostringstream out;
-					out << "parent key mismatch: parent was " << *key
-					    << ", but lowest in node was " << n.key_at(0);
-					report_damage(out.str());
-					return false;
-				}
-
-				return true;
-			}
-
-			template <typename node>
-			bool check_leaf_key(unsigned level, node const &n) {
-				if (n.get_nr_entries() == 0)
-					return true; // can only happen if a root node
-
-				if (last_leaf_key_[level] && *last_leaf_key_[level] >= n.key_at(0)) {
-					ostringstream out;
-					out << "the last key of the previous leaf was " << *last_leaf_key_[level]
-					    << " and the first key of this leaf is " << n.key_at(0);
-					report_damage(out.str());
-					return false;
-				}
-
-				last_leaf_key_[level] = n.key_at(n.get_nr_entries() - 1);
-				return true;
 			}
 
 			void new_root(unsigned level) {
@@ -474,6 +363,7 @@ namespace persistent_data {
 			std::set<block_address> seen_;
 			boost::optional<uint64_t> last_leaf_key_[Levels];
 
+			btree_node_checker checker_;
 			path_tracker path_tracker_;
 			damage_tracker dt_;
 			std::list<std::string> damage_reasons_;

@@ -16,6 +16,8 @@ namespace thin_provisioning {
 		} __attribute__ ((packed));
 
 		struct device_details {
+			device_details();
+
 			uint64_t mapped_blocks_;
 			uint64_t transaction_id_;  /* when created */
 			uint32_t creation_time_;

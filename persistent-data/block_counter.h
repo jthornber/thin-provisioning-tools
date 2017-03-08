@@ -20,6 +20,7 @@
 #define BLOCK_COUNTER_H
 
 #include "block.h"
+#include "run_set.h"
 
 //----------------------------------------------------------------
 
@@ -32,7 +33,9 @@ namespace persistent_data {
 	public:
 		typedef std::map<block_address, unsigned> count_map;
 
-		void inc(block_address b) {
+		virtual ~block_counter() {}
+
+		virtual void inc(block_address b) {
 			count_map::iterator it = counts_.find(b);
 			if (it == counts_.end())
 				counts_.insert(make_pair(b, 1));
@@ -40,7 +43,7 @@ namespace persistent_data {
 				it->second++;
 		}
 
-		unsigned get_count(block_address b) const {
+		virtual unsigned get_count(block_address b) const {
 			count_map::const_iterator it = counts_.find(b);
 			return (it == counts_.end()) ? 0 : it->second;
 		}
@@ -51,6 +54,29 @@ namespace persistent_data {
 
 	private:
 		count_map counts_;
+	};
+
+	//----------------------------------------------------------------
+	// Little helper class that keeps track of which blocks
+	// are referenced.
+	//----------------------------------------------------------------
+	class binary_block_counter : public block_counter {
+	public:
+		virtual ~binary_block_counter() {}
+
+		virtual void inc(block_address b) {
+			visited_.add(b);
+		}
+
+		virtual unsigned get_count(block_address b) const {
+			return visited_.member(b) ? 1 : 0;
+		}
+
+		base::run_set<block_address> const& get_visited() const {
+			return visited_;
+		}
+	private:
+		base::run_set<block_address> visited_;
 	};
 }
 
