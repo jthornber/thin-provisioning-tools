@@ -78,9 +78,9 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 %.gmo: %.cc
 	@echo "    [CXX] $<"
-	$(V) $(CXX) -c $(CPPFLAGS) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
+	$(V) $(CXX) -c $(CPPFLAGS) $(TEST_INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
 	@echo "    [DEP] $<"
-	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) $< > $*.$$$$; \
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(TEST_INCLUDES) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 

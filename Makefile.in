@@ -185,6 +185,7 @@ INSTALL_DATA = $(INSTALL) -p -m 644
 
 ifeq ("@TESTING@", "yes")
 TEST_INCLUDES=\
+	-I$(TOP_DIR) \
 	-Igoogletest/googlemock/include \
 	-Igoogletest/googletest/include
 else
