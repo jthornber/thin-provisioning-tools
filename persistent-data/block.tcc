@@ -188,8 +188,10 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_ref::~write_ref()
 	{
 		if (ref_count_) {
-			if (!*ref_count_)
-				throw std::runtime_error("write_ref ref_count going below zero");
+			if (!*ref_count_) {
+				std::cerr << "write_ref ref_count going below zero";
+				::exit(1);
+			}
 
 			(*ref_count_)--;
 		}
