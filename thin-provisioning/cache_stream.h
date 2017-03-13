@@ -40,7 +40,7 @@ namespace thin_provisioning {
 
 		int fd_;
 		validator::ptr v_;
-		std::auto_ptr<block_cache> cache_;
+		std::unique_ptr<block_cache> cache_;
 
 		block_address current_index_;
 	};
