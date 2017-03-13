@@ -56,16 +56,6 @@ base::disk_unit_multiplier(disk_unit u)
 
 
 namespace {
-	bool small_enough(unsigned long long n) {
-		if (n > 1024ull * 1024ull)
-			return false;
-
-		if (n < 1024ull)
-			return true;
-
-		return (n & 1023) && (n < 8ull * 1024ull);
-	}
-
 	unsigned long long round_ull(unsigned long long n, unsigned long long d) {
 		return round(static_cast<double>(n) / static_cast<double>(d));
 	}
