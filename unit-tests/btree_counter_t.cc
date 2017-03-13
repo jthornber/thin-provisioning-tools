@@ -54,12 +54,6 @@ namespace {
 			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
 		}
 	};
-
-	void dump_counts(block_counter const &bc) {
-		block_counter::count_map::const_iterator it, end = bc.get_counts().end();
-		for (it = bc.get_counts().begin(); it != end; ++it)
-			cout << it->first << " -> " << it->second << endl;
-	}
 }
 
 //----------------------------------------------------------------

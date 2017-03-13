@@ -33,11 +33,6 @@ namespace {
 	unsigned const BLOCK_SIZE = 64u;
 	using wait_result = io_engine::wait_result;
 
-	ostream &operator <<(ostream &out, wait_result const &wr) {
-		out << "wait_result[" << wr.first << ", " << wr.second << "]";
-		return out;
-	}
-
 	ostream &operator <<(ostream &out, optional<wait_result> const &mwr) {
 		if (mwr) {
 			out << "Just[wait_result[" << mwr->first << ", " << mwr->second << "]]";

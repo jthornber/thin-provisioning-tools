@@ -38,19 +38,6 @@ namespace {
 		superblock sb_;
 	};
 
-	bool operator ==(superblock_corrupt const &lhs, superblock_corrupt const &rhs) {
-		return lhs.get_desc() == rhs.get_desc();
-	}
-
-	bool operator ==(superblock_invalid const &lhs, superblock_invalid const &rhs) {
-		return lhs.get_desc() == rhs.get_desc();
-	}
-
-	ostream &operator <<(ostream &out, damage const &d) {
-		out << d.get_desc();
-		return out;
-	}
-
 	ostream &operator <<(ostream &out, superblock_invalid const &d) {
 		out << "superblock_invalid: " << d.get_desc();
 		return out;
