@@ -45,6 +45,8 @@ namespace {
 		le32 write_misses;
 
 		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
+
+		le64 dirty_root; // format 2 only
 	} __attribute__ ((packed));
 
 	struct superblock_traits {
@@ -57,7 +59,7 @@ namespace {
 
 	uint32_t const SUPERBLOCK_MAGIC = 06142003;
 	uint32_t const VERSION_BEGIN = 1;
-	uint32_t const VERSION_END = 2;
+	uint32_t const VERSION_END = 3;
 }
 
 //----------------------------------------------------------------
@@ -195,6 +197,9 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	core.read_misses = to_cpu<uint32_t>(disk.read_misses);
 	core.write_hits = to_cpu<uint32_t>(disk.write_hits);
 	core.write_misses = to_cpu<uint32_t>(disk.write_misses);
+
+	if (core.version >= 2)
+		core.dirty_root = to_cpu<uint64_t>(disk.dirty_root);
 }
 
 void

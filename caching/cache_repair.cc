@@ -19,7 +19,7 @@ using namespace caching;
 namespace {
 	metadata::ptr open_metadata_for_read(string const &path) {
 		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
-		return metadata::ptr(new metadata(bm, metadata::OPEN));
+		return metadata::ptr(new metadata(bm));
 	}
 
 	emitter::ptr output_emitter(string const &path) {

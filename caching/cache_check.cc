@@ -248,7 +248,12 @@ namespace {
 			{
 				nested_output::nest _ = out.push();
 				mapping_array ma(*tm, mapping_array::ref_counter(), sb.mapping_root, sb.cache_blocks);
-				check_mapping_array(ma, mapping_rep);
+				check_mapping_array(ma, mapping_rep, sb.version);
+			}
+
+			if (sb.version >= 2) {
+				persistent_data::bitset dirty(*tm, *sb.dirty_root, sb.cache_blocks);
+				// FIXME: is there no bitset checker?
 			}
 		}
 
@@ -275,6 +280,7 @@ namespace {
 				{
 					nested_output::nest _ = out.push();
 					persistent_data::bitset discards(*tm, sb.discard_root, sb.discard_nr_blocks);
+					// FIXME: is there no bitset checker?
 				}
 			}
 		}

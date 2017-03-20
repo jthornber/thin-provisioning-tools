@@ -36,7 +36,7 @@ namespace {
 	int dump(string const &dev, string const &output, flags const &fs) {
 		try {
 			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY);
-			metadata::ptr md(new metadata(bm, metadata::OPEN));
+			metadata::ptr md(new metadata(bm));
 
 			if (want_stdout(output)) {
 				emitter::ptr e = create_xml_emitter(cout);
