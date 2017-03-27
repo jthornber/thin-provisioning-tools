@@ -219,7 +219,8 @@ namespace {
 		write_superblock(bm, sb);
 	}
 
-	error_state metadata_check(string const &path, flags const &fs) {
+	error_state metadata_check(string const &path, flags const &fs,
+				   bool &needs_check_set) {
 		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 
 		nested_output out(cerr, 2);
@@ -242,6 +243,8 @@ namespace {
 
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);
+
+		needs_check_set = sb.flags.get_flag(superblock_flags::NEEDS_CHECK);
 
 		if (fs.check_mappings_) {
 			out << "examining mapping array" << end_message();
@@ -294,6 +297,7 @@ namespace {
 
 	int check(string const &path, flags const &fs) {
 		error_state err;
+		bool needs_check_set;
 		struct stat info = guarded_stat(path);
 
 		if (!S_ISREG(info.st_mode) && !S_ISBLK(info.st_mode)) {
@@ -302,7 +306,7 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		err = metadata_check(path, fs);
+		err = metadata_check(path, fs, needs_check_set);
 
 		bool success = false;
 
@@ -311,7 +315,7 @@ namespace {
 		else
 			success = (err == NO_ERROR) ? true : false;
 
-		if (success && fs.clear_needs_check_on_success_)
+		if (success && fs.clear_needs_check_on_success_ && needs_check_set)
 			clear_needs_check(path);
 
 		return err == NO_ERROR ? 0 : 1;
