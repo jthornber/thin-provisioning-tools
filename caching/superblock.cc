@@ -252,6 +252,9 @@ superblock_traits::pack(superblock const &sb, superblock_disk &disk)
 	disk.read_misses = to_disk<le32>(core.read_misses);
 	disk.write_hits = to_disk<le32>(core.write_hits);
 	disk.write_misses = to_disk<le32>(core.write_misses);
+
+	if (core.version >= 2)
+		disk.dirty_root = to_disk<le64>(*core.dirty_root);
 }
 
 //--------------------------------
