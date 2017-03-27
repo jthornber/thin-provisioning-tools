@@ -77,9 +77,9 @@ TEST_F(CacheSuperblockTests, magic_is_checked)
 	check_invalid();
 }
 
-TEST_F(CacheSuperblockTests, version_gt_1_is_checked)
+TEST_F(CacheSuperblockTests, version_gt_2_is_checked)
 {
-	sb_.version = 2;
+	sb_.version = 3;
 	check_invalid();
 }
 
