@@ -147,35 +147,7 @@ namespace {
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {
 			recursing_const_lock lock(*this);
-			bool gto = sm_->count_possibly_greater_than_one(b);
-			if (!gto) {
-				ref_t count = 1;
-
-				// FIXME: duplication
-				op_map::const_iterator ops_it = ops_.find(b);
-				if (ops_it != ops_.end()) {
-					list<block_op>::const_iterator it, end = ops_it->second.end();
-					for (it = ops_it->second.begin(); it != end; ++it) {
-						switch (it->op_) {
-						case block_op::INC:
-							count++;
-							break;
-
-						case block_op::DEC:
-							count--;
-							break;
-
-						case block_op::SET:
-							count = it->b_;
-							break;
-						}
-					}
-				}
-
-				gto = count > 1;
-			}
-
-			return gto;
+			return get_count(b) > 1;
 		}
 
 		virtual void extend(block_address extra_blocks) {
