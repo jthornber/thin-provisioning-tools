@@ -292,20 +292,29 @@ namespace {
 			return count;
 		}
 
-		void set_count(block_address b, ref_t c) {
-			ref_t old = get_count(b);
+		template <typename Mut>
+		void modify_count(block_address b, Mut const &m) {
+			check_block(b);
 
-			if (c == old)
-				return;
+			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
+			bitmap bm(tm_, ie, bitmap_validator_);
+
+			ref_t old = bm.lookup(b % ENTRIES_PER_BLOCK);
+			if (old == 3)
+				old = lookup_ref_count(b);
+			ref_t c = m(old);
 
 			if (c > 2) {
-				if (old < 3)
-					insert_bitmap(b, 3);
+				if (old < 3) {
+					bm.insert(b % ENTRIES_PER_BLOCK, 3);
+					indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
+				}
 				insert_ref_count(b, c);
 			} else {
 				if (old > 2)
 					remove_ref_count(b);
-				insert_bitmap(b, c);
+				bm.insert(b % ENTRIES_PER_BLOCK, c);
+				indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
 			}
 
 			if (old == 0)
@@ -317,23 +326,44 @@ namespace {
 			}
 		}
 
+		struct override {
+			override(ref_t new_value)
+				: new_value_(new_value) {
+				}
+
+			ref_t operator()(ref_t old) const {
+				return new_value_;
+			}
+
+			ref_t new_value_;
+		};
+
+		void set_count(block_address b, ref_t c) {
+			override m(c);
+			modify_count(b, m);
+		}
+
 		void commit() {
 			indexes_->commit_ies();
+		}
+
+		static ref_t inc_mutator(ref_t c) {
+			return c + 1;
+		}
+
+		static ref_t dec_mutator(ref_t c) {
+			return c - 1;
 		}
 
 		void inc(block_address b) {
 			if (b == search_start_)
 				search_start_++;
 
-			// FIXME: 2 get_counts
-			ref_t old = get_count(b);
-			set_count(b, old + 1);
+			modify_count(b, inc_mutator);
 		}
 
 		void dec(block_address b) {
-			// FIXME: 2 get_counts
-			ref_t old = get_count(b);
-			set_count(b, old - 1);
+			modify_count(b, dec_mutator);
 		}
 
 		maybe_block find_free(span_iterator &it) {
