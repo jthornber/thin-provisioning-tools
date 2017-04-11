@@ -260,6 +260,7 @@ namespace {
 			  indexes_(indexes),
 			  nr_blocks_(0),
 			  nr_allocated_(0),
+			  search_start_(0),
 			  ref_counts_(tm_, ref_count_traits::ref_counter()) {
 		}
 
@@ -271,6 +272,7 @@ namespace {
 			  indexes_(indexes),
 			  nr_blocks_(root.nr_blocks_),
 			  nr_allocated_(root.nr_allocated_),
+			  search_start_(0),
 			  ref_counts_(tm_, root.ref_count_root_, ref_count_traits::ref_counter()) {
 		}
 
@@ -308,8 +310,11 @@ namespace {
 
 			if (old == 0)
 				nr_allocated_++;
-			else if (c == 0)
+			else if (c == 0) {
+				if (b < search_start_)
+					search_start_ = b;
 				nr_allocated_--;
+			}
 		}
 
 		void commit() {
@@ -317,22 +322,30 @@ namespace {
 		}
 
 		void inc(block_address b) {
+			if (b == search_start_)
+				search_start_++;
+
 			// FIXME: 2 get_counts
 			ref_t old = get_count(b);
 			set_count(b, old + 1);
 		}
 
 		void dec(block_address b) {
+			// FIXME: 2 get_counts
 			ref_t old = get_count(b);
 			set_count(b, old - 1);
 		}
 
-		// FIXME: keep track of the lowest free block so we
-		// can start searching from a suitable place.
 		maybe_block find_free(span_iterator &it) {
 			for (maybe_span ms = it.first(); ms; ms = it.next()) {
 				block_address begin = ms->first;
 				block_address end = ms->second;
+
+				if (end < search_start_)
+					continue;
+
+				if (begin < search_start_)
+					begin = search_start_;
 
 				block_address begin_index = begin / ENTRIES_PER_BLOCK;
 				block_address end_index = div_up<block_address>(end, ENTRIES_PER_BLOCK);
@@ -347,6 +360,8 @@ namespace {
 					boost::optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 					if (maybe_b) {
 						block_address b = (index * ENTRIES_PER_BLOCK) + *maybe_b;
+						if (b)
+							search_start_ = b - 1;
 						return b;
 					}
 				}
@@ -526,6 +541,7 @@ namespace {
 		index_store::ptr indexes_;
 		block_address nr_blocks_;
 		block_address nr_allocated_;
+		block_address search_start_;
 
 		btree<1, ref_count_traits> ref_counts_;
 	};
