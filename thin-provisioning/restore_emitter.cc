@@ -117,8 +117,30 @@ namespace {
 		}
 
 		virtual void range_map(uint64_t origin_begin, uint64_t data_begin, uint32_t time, uint64_t len) {
-			for (uint64_t i = 0; i < len; i++)
-				single_map(origin_begin++, data_begin++, time);
+			if (!current_device_)
+				throw runtime_error("not in device");
+
+			uint64_t data_end = data_begin + len;
+			md_->data_sm_->inc_range(data_begin, data_end);
+
+			while (data_begin != data_end) {
+				if (data_begin >= nr_data_blocks_) {
+					std::ostringstream out;
+					out << "mapping beyond end of data device (" << data_begin
+					    << " >= " << nr_data_blocks_ << ")";
+					throw std::runtime_error(out.str());
+				}
+
+				uint64_t key[1] = {origin_begin};
+				mapping_tree_detail::block_time bt;
+				bt.block_ = data_begin;
+				bt.time_ = time;
+				current_device_details_.mapped_blocks_ +=
+					static_cast<uint64_t>(current_mapping_->insert(key, bt));
+
+				origin_begin++;
+				data_begin++;
+			}
 		}
 
 		virtual void single_map(uint64_t origin_block, uint64_t data_block, uint32_t time) {

@@ -49,6 +49,11 @@ namespace persistent_data {
 		virtual void inc(block_address b) = 0;
 		virtual void dec(block_address b) = 0;
 
+		virtual void inc_range(block_address b, block_address e) {
+			while (b != e)
+				inc(b++);
+		}
+
 		// FIXME: change these to return an optional, failure is
 		// not that rare if we're restricting the area that's
 		// searched.

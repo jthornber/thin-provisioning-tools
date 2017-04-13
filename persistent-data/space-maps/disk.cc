@@ -362,6 +362,45 @@ namespace {
 			modify_count(b, inc_mutator);
 		}
 
+		void inc_range(block_address b, block_address e) {
+			while (b < e) {
+				bool ie_changed = false;
+				block_address ie_index = b / ENTRIES_PER_BLOCK;
+				index_entry ie = indexes_->find_ie(ie_index);
+				bitmap bm(tm_, ie, bitmap_validator_);
+
+				for (block_address sb = b % ENTRIES_PER_BLOCK;
+				     sb < ENTRIES_PER_BLOCK && b < e; sb++, b++) {
+					check_block(b);
+
+					ref_t old = bm.lookup(sb);
+					switch (old) {
+					case 0:
+						nr_allocated_++;
+						// fall through
+					case 1:
+						bm.insert(sb, old + 1);
+						ie_changed = true;
+						break;
+
+					case 2:
+						bm.insert(sb, 3);
+						ie_changed = true;
+						insert_ref_count(b, 3);
+						break;
+
+					case 3:
+						old = lookup_ref_count(b);
+						insert_ref_count(b, old + 1);
+						break;
+					}
+				}
+
+				if (ie_changed)
+					indexes_->save_ie(ie_index, bm.get_ie());
+			}
+		}
+
 		void dec(block_address b) {
 			modify_count(b, dec_mutator);
 		}
