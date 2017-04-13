@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "gmock/gmock.h"
+#include "persistent-data/space-maps/cache.h"
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/careful_alloc.h"
@@ -87,6 +88,22 @@ namespace {
 			static persistent_space_map::ptr
 			open(transaction_manager &tm, void *root) {
 				return persistent_data::open_metadata_sm(tm, root);
+			}
+		};
+
+		struct sm_cache_creator {
+			static persistent_space_map::ptr
+			create(transaction_manager &tm) {
+				return persistent_data::create_cache_sm(
+						persistent_data::create_metadata_sm(tm, NR_BLOCKS),
+						256);
+			}
+
+			static persistent_space_map::ptr
+			open(transaction_manager &tm, void *root) {
+				return persistent_data::create_cache_sm(
+						persistent_data::open_metadata_sm(tm, root),
+						256);
 			}
 		};
 
@@ -272,6 +289,11 @@ TEST_F(SpaceMapTests, test_sm_metadata)
 {
 	do_tests<sm_metadata_creator>();
 	test_sm_reopen<sm_metadata_creator>();
+}
+
+TEST_F(SpaceMapTests, test_sm_cache)
+{
+	do_tests<sm_cache_creator>();
 }
 
 TEST_F(SpaceMapTests, test_metadata_and_disk)

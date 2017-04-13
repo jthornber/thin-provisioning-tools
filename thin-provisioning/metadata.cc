@@ -21,6 +21,7 @@
 
 #include "persistent-data/file_utils.h"
 #include "persistent-data/math_utils.h"
+#include "persistent-data/space-maps/cache.h"
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
 
@@ -56,6 +57,22 @@ namespace {
 				lhs->set_count(b, rhs->get_count(b));
 		}
 	}
+
+	checked_space_map::ptr accel_metadata(checked_space_map::ptr sm) {
+#if 1
+		return create_cache_sm(sm, 4 * 1024);
+#else
+		return sm;
+#endif
+	}
+
+	checked_space_map::ptr accel_data(checked_space_map::ptr sm) {
+#if 0
+		return create_cache_sm(sm, 4 * 1024);
+#else
+		return sm;
+#endif
+	}
 }
 
 //----------------------------------------------------------------
@@ -72,10 +89,10 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		if (sb_.version_ != 1)
 			throw runtime_error("unknown metadata version");
 
-		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
+		metadata_sm_ = accel_metadata(open_metadata_sm(*tm_, &sb_.metadata_space_map_root_));
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
+		data_sm_ = accel_data(open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_)));
 		details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_,
 							    device_tree_detail::device_details_traits::ref_counter()));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
@@ -87,11 +104,11 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 	case CREATE:
 		tm_ = open_tm(bm);
 		space_map::ptr core = tm_->get_sm();
-		metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
+		metadata_sm_ = accel_metadata(create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks()));
 		copy_space_maps(metadata_sm_, core);
 		tm_->set_sm(metadata_sm_);
 
-		data_sm_ = create_disk_sm(*tm_, nr_data_blocks);
+		data_sm_ = accel_data(create_disk_sm(*tm_, nr_data_blocks));
 		details_ = device_tree::ptr(new device_tree(*tm_,
 							    device_tree_detail::device_details_traits::ref_counter()));
 		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_,
@@ -161,10 +178,10 @@ metadata::commit()
 
 void metadata::open_space_maps()
 {
-	metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
+	metadata_sm_ = accel_metadata(open_metadata_sm(*tm_, &sb_.metadata_space_map_root_));
 	tm_->set_sm(metadata_sm_);
 
-	data_sm_ = open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_));
+	data_sm_ = accel_data(open_disk_sm(*tm_, static_cast<void *>(&sb_.data_space_map_root_)));
 }
 
 void metadata::open_btrees()

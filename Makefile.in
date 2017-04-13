@@ -76,6 +76,7 @@ SOURCE=\
 	persistent-data/error_set.cc \
 	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
+	persistent-data/space-maps/cache.cc \
 	persistent-data/space-maps/careful_alloc.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
