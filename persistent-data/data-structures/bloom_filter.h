@@ -26,12 +26,12 @@ namespace persistent_data {
 		void set(uint64_t b);
 		void flush();
 
-		void print_debug(ostream &out);
+		void print_debug(std::ostream &out);
 
 	private:
-		void print_residency(ostream &out);
+		void print_residency(std::ostream &out);
 
-		void fill_probes(block_address b, vector<unsigned> &probes) const;
+		void fill_probes(block_address b, std::vector<unsigned> &probes) const;
 
 		transaction_manager &tm_;
 		persistent_data::bitset bits_;

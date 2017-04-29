@@ -2,22 +2,11 @@
 #include "thin-provisioning/cache_stream.h"
 #include "persistent-data/file_utils.h"
 
+#include <fcntl.h>
+
 using namespace thin_provisioning;
 using namespace std;
 using namespace persistent_data;
-
-//----------------------------------------------------------------
-
-namespace {
-	int open_file(string const &path) {
-		int fd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_EXCL, 0666);
-		if (fd < 0)
-			syscall_failed("open",
-				       "Note: you cannot run this tool with these options on live metadata.");
-
-		return fd;
-	}
-}
 
 //----------------------------------------------------------------
 
@@ -29,7 +18,7 @@ cache_stream::cache_stream(string const &path,
 
 	  // hack because cache uses LRU rather than MRU
 	  cache_blocks_((cache_mem / block_size) / 2u),
-	  fd_(open_file(path)),
+	  fd_(file_utils::open_file(path, O_RDONLY | O_EXCL)),
 	  v_(new bcache::noop_validator()),
 	  cache_(new block_cache(fd_, block_size / 512, nr_blocks_, cache_mem)),
 	  current_index_(0) {

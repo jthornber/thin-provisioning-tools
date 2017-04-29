@@ -19,98 +19,13 @@
 #include "block.h"
 
 #include "base/error_string.h"
+#include "base/file_utils.h"
 #include "block-cache/io_engine.h"
-
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
 
 #include <boost/bind.hpp>
 #include <stdexcept>
-#include <sstream>
 
 //----------------------------------------------------------------
-
-// FIXME: give this namesace a name
-namespace {
-	using namespace std;
-
-	int const DEFAULT_MODE = 0666;
-	int const OPEN_FLAGS = O_DIRECT;
-
-	// FIXME: introduce a new exception for this, or at least lift this
-	// to exception.h
-	void syscall_failed(char const *call) {
-		ostringstream out;
-		out << "syscall '" << call << "' failed: " << base::error_string(errno);
-		throw runtime_error(out.str());
-	}
-
-	void syscall_failed(string const &call, string const &message)
-	{
-		ostringstream out;
-		out << "syscall '" << call << "' failed: " << base::error_string(errno) << "\n"
-		    << message;
-		throw runtime_error(out.str());
-	}
-
-	int open_file(string const &path, int flags) {
-		int fd = ::open(path.c_str(), OPEN_FLAGS | flags, DEFAULT_MODE);
-		if (fd < 0)
-			syscall_failed("open",
-				 "Note: you cannot run this tool with these options on live metadata.");
-
-		return fd;
-	}
-
-	bool file_exists(string const &path) {
-		struct ::stat info;
-
-		int r = ::stat(path.c_str(), &info);
-		if (r) {
-			if (errno == ENOENT)
-				return false;
-
-			syscall_failed("stat");
-			return false; // never get here
-
-		} else
-			return S_ISREG(info.st_mode) || S_ISBLK(info.st_mode);
-	}
-
-	int create_block_file(string const &path, off_t file_size) {
-		if (file_exists(path)) {
-			ostringstream out;
-			out << __FUNCTION__ << ": file '" << path << "' already exists";
-			throw runtime_error(out.str());
-		}
-
-		int fd = open_file(path, O_CREAT | O_EXCL | O_RDWR);
-
-		int r = ::ftruncate(fd, file_size);
-		if (r < 0)
-			syscall_failed("ftruncate");
-
-		return fd;
-	}
-
-	int open_block_file(string const &path, off_t min_size, bool writeable, bool excl = true) {
-		if (!file_exists(path)) {
-			ostringstream out;
-			out << __FUNCTION__ << ": file '" << path << "' doesn't exist";
-			throw runtime_error(out.str());
-		}
-
-		int flags = writeable ? O_RDWR : O_RDONLY;
-		if (excl)
-			flags |= O_EXCL;
-
-		return open_file(path, flags);
-	}
-};
 
 namespace persistent_data {
 	template <uint32_t BlockSize>
@@ -233,17 +148,17 @@ namespace persistent_data {
 
 	template <uint32_t BlockSize>
 	int
-	block_manager<BlockSize>::open_or_create_block_file(string const &path, off_t file_size, mode m, bool excl)
+	block_manager<BlockSize>::open_or_create_block_file(std::string const &path, off_t file_size, mode m, bool excl)
 	{
 		switch (m) {
 		case READ_ONLY:
-			return open_block_file(path, file_size, false, excl);
+			return file_utils::open_block_file(path, file_size, false, excl);
 
 		case READ_WRITE:
-			return open_block_file(path, file_size, true, excl);
+			return file_utils::open_block_file(path, file_size, true, excl);
 
 		case CREATE:
-			return create_block_file(path, file_size);
+			return file_utils::create_block_file(path, file_size);
 
 		default:
 			throw std::runtime_error("unsupported mode");

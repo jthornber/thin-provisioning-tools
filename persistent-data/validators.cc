@@ -4,6 +4,8 @@
 #include "persistent-data/errors.h"
 #include "persistent-data/validators.h"
 
+#include <sstream>
+
 using namespace bcache;
 using namespace persistent_data;
 

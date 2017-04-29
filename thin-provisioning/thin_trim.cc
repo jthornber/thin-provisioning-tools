@@ -1,8 +1,10 @@
 #include <iostream>
 #include <getopt.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <linux/fs.h>
 #include <libgen.h>
+#include <fcntl.h>
 
 #undef BLOCK_SIZE
 

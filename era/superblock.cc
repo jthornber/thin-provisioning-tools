@@ -3,10 +3,13 @@
 #include "persistent-data/checksum.h"
 #include "persistent-data/errors.h"
 
+#include <sstream>
+
 using namespace base;
 using namespace era;
 using namespace superblock_damage;
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 

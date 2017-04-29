@@ -38,7 +38,7 @@ namespace persistent_data {
 		virtual void inc(block_address b) {
 			count_map::iterator it = counts_.find(b);
 			if (it == counts_.end())
-				counts_.insert(make_pair(b, 1));
+				counts_.insert(std::make_pair(b, 1));
 			else
 				it->second++;
 		}
