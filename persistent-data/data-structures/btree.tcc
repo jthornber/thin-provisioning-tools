@@ -24,6 +24,7 @@
 #include "persistent-data/validators.h"
 
 #include <iostream>
+#include <sstream>
 
 //----------------------------------------------------------------
 

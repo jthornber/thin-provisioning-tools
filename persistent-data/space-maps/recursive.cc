@@ -22,6 +22,7 @@
 #include <list>
 
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "base/file_utils.h"
 #include "base/output_file_requirements.h"
 #include "caching/commands.h"
 #include "caching/metadata.h"
@@ -17,22 +18,12 @@
 using namespace boost;
 using namespace caching;
 using namespace persistent_data;
+using namespace file_utils;
 using namespace std;
 
 //----------------------------------------------------------------
 
 namespace {
-	size_t get_file_length(string const &file) {
-		struct stat info;
-		int r;
-
-		r = ::stat(file.c_str(), &info);
-		if (r)
-			throw runtime_error("Couldn't stat backup path");
-
-		return info.st_size;
-	}
-
 	unique_ptr<progress_monitor> create_monitor(bool quiet) {
 		if (!quiet && isatty(fileno(stdout)))
 			return create_progress_bar("Restoring");

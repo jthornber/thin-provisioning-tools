@@ -1,8 +1,9 @@
 #include "xml_utils.h"
 
-#include "persistent-data/file_utils.h"
+#include "base/file_utils.h"
 #include <fstream>
 #include <iostream>
+#include <sys/stat.h>
 
 using namespace xml_utils;
 
@@ -11,13 +12,13 @@ using namespace xml_utils;
 void
 xml_parser::parse(std::string const &backup_file, bool quiet)
 {
-	persistent_data::check_file_exists(backup_file);
+	file_utils::check_file_exists(backup_file);
 	ifstream in(backup_file.c_str(), ifstream::in);
 
 	std::unique_ptr<base::progress_monitor> monitor = create_monitor(quiet);
 
 	size_t total = 0;
-	size_t input_length = get_file_length(backup_file);
+	size_t input_length = file_utils::get_file_length(backup_file);
 
 	XML_Error error_code = XML_ERROR_NONE;
 	while (!in.eof() && error_code == XML_ERROR_NONE) {
@@ -41,19 +42,6 @@ xml_parser::parse(std::string const &backup_file, bool quiet)
 		total += len;
 		monitor->update_percent(total * 100 / input_length);
 	}
-}
-
-size_t
-xml_parser::get_file_length(string const &file) const
-{
-	struct stat info;
-	int r;
-
-	r = ::stat(file.c_str(), &info);
-	if (r)
-		throw runtime_error("Couldn't stat backup path");
-
-	return info.st_size;
 }
 
 unique_ptr<base::progress_monitor>

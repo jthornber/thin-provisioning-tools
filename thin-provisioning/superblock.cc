@@ -3,8 +3,11 @@
 #include "thin-provisioning/superblock.h"
 #include "persistent-data/file_utils.h"
 
+#include <sstream>
+
 using namespace thin_provisioning;
 using namespace superblock_detail;
+using namespace std;
 
 //----------------------------------------------------------------
 

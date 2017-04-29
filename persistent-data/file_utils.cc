@@ -5,16 +5,19 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <sstream>
 #include <unistd.h>
 
 using namespace base;
 using namespace bcache;
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
 persistent_data::block_address
-persistent_data::get_nr_blocks(string const &path, sector_t block_size)
+persistent_data::get_nr_blocks(std::string const &path, sector_t block_size)
 {
 	using namespace persistent_data;
 
@@ -54,7 +57,7 @@ persistent_data::get_nr_blocks(string const &path, sector_t block_size)
 }
 
 block_address
-persistent_data::get_nr_metadata_blocks(string const &path)
+persistent_data::get_nr_metadata_blocks(std::string const &path)
 {
 	return get_nr_blocks(path, MD_BLOCK_SIZE);
 }
@@ -64,17 +67,6 @@ persistent_data::open_bm(std::string const &dev_path, block_manager<>::mode m, b
 {
 	block_address nr_blocks = get_nr_metadata_blocks(dev_path);
 	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m, excl));
-}
-
-void
-persistent_data::check_file_exists(string const &file) {
-	struct stat info;
-	int r = ::stat(file.c_str(), &info);
-	if (r)
-		throw runtime_error("Couldn't stat file");
-
-	if (!S_ISREG(info.st_mode))
-		throw runtime_error("Not a regular file");
 }
 
 //----------------------------------------------------------------
