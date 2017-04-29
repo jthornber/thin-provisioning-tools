@@ -4,6 +4,8 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <linux/fs.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -105,16 +107,37 @@ file_utils::open_block_file(string const &path, off_t min_size, bool writeable, 
 	return open_file(path, flags);
 }
 
-size_t
+uint64_t
 file_utils::get_file_length(string const &file) {
 	struct stat info;
-	int r;
+	uint64_t nr_bytes;
 
-	r = ::stat(file.c_str(), &info);
+	int r = ::stat(file.c_str(), &info);
 	if (r)
 		throw runtime_error("Couldn't stat path");
 
-	return info.st_size;
+	if (S_ISREG(info.st_mode))
+		// It's okay to cast st_size to a uint64_t value.
+		// If LFS is enabled, st_size should not be negative for regular files.
+		nr_bytes = static_cast<uint64_t>(info.st_size);
+	else if (S_ISBLK(info.st_mode)) {
+		// To get the size of a block device we need to
+		// open it, and then make an ioctl call.
+		int fd = ::open(file.c_str(), O_RDONLY);
+		if (fd < 0)
+			throw runtime_error("couldn't open block device to ascertain size");
+
+		r = ::ioctl(fd, BLKGETSIZE64, &nr_bytes);
+		if (r) {
+			::close(fd);
+			throw runtime_error("ioctl BLKGETSIZE64 failed");
+		}
+		::close(fd);
+	} else
+		// FIXME: needs a better message
+		throw runtime_error("bad path");
+
+	return nr_bytes;
 }
 
 //----------------------------------------------------------------
