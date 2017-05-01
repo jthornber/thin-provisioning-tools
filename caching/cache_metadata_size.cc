@@ -151,6 +151,8 @@ cache_metadata_size_cmd::run(int argc, char **argv)
 {
 	flags fs;
 
+	memset(&fs, 0, sizeof(flags));
+
 	try {
 		switch (parse_command_line(argv[0], argc, argv, fs)) {
 		case FINISH:
