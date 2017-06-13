@@ -54,6 +54,9 @@ namespace thin_provisioning {
 			transaction_manager::ptr tm_;
 		};
 
+		// This value type is itself a tree containing mappings.
+		// Used when manipulating the top level of the mapping
+		// tree.
 		struct mtree_traits {
 			typedef base::le64 disk_type;
 			typedef uint64_t value_type;
@@ -136,9 +139,11 @@ namespace thin_provisioning {
 				mapping_tree_detail::damage_visitor &visitor);
 
 	void walk_mapping_tree(single_mapping_tree const &tree,
+			       uint64_t dev_id,
 			       mapping_tree_detail::mapping_visitor &mv,
 			       mapping_tree_detail::damage_visitor &dv);
 	void check_mapping_tree(single_mapping_tree const &tree,
+				uint64_t dev_id,
 				mapping_tree_detail::damage_visitor &visitor);
 }
 

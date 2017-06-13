@@ -93,3 +93,8 @@ Feature: cache_check
     And I run cache_restore with -i metadata.xml -o input --debug-override-metadata-version 12345
     When I run `cache_check input`
     Then it should fail
+
+  Scenario: Accepts --clear-needs-check-flag
+    Given valid cache metadata
+    When I run `cache_check --clear-needs-check-flag metadata.bin`
+    Then it should pass

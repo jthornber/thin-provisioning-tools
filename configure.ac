@@ -41,6 +41,19 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_INSTALL
+AC_DEFUN([AC_PROG_STRIP], [AC_CHECK_TOOL(STRIP, strip, :)])
+AC_PROG_STRIP
+AC_ARG_VAR(STRIP, [Command for discarding symbols from object files])
+
+################################################################
+dnl -- Check for large file support
+AC_SYS_LARGEFILE
+if test x$ac_cv_sys_file_offset_bits = x64; then
+    LFS_FLAGS+="-D_FILE_OFFSET_BITS=64"
+fi
+if test x$ac_cv_sys_large_files = x1; then
+    LFS_FLAGS+="-D_LARGE_FILES"
+fi
 
 ################################################################
 dnl -- Checks for functions.
@@ -125,6 +138,30 @@ AC_ARG_ENABLE(testing,
 AC_MSG_RESULT($TESTING)
 
 ################################################################################
+dnl -- Enable development tools
+AC_MSG_CHECKING(whenter to enable development tools)
+AC_ARG_ENABLE(dev-tools,
+	      AC_HELP_STRING(--enable-dev-tools, [enable development tools in the makefile]),
+	      DEVTOOLS=$enableval, DEVTOOLS=no)
+AC_MSG_RESULT($DEVTOOLS)
+
+################################################################################
+dnl -- Enable static libstdc++
+AC_MSG_CHECKING(whether to statically link libstdc++)
+AC_ARG_ENABLE(static_cxx,
+              AC_HELP_STRING(--enable-static-cxx, [enable static link of libstdc++]),
+              STATIC_CXX=$enableval, STATIC_CXX=no)
+AC_MSG_RESULT($STATIC_CXX)
+
+################################################################################
+dnl -- Enable static linking.
+AC_MSG_CHECKING(whether to statically link)
+AC_ARG_ENABLE(static,
+              AC_HELP_STRING(--enable-static, [enable static link]),
+              STATIC=$enableval, STATIC=no)
+AC_MSG_RESULT($STATIC)
+
+################################################################################
 dnl -- Check for getopt
 AC_CHECK_HEADERS(getopt.h, AC_DEFINE([HAVE_GETOPTLONG], 1, [Define to 1 if getopt_long is available.]))
 
@@ -144,18 +181,23 @@ VERSION_PATCHLEVEL=`echo "$VER" | $AWK -F '[[(.]]' '{print $3}'`
 AC_SUBST(CXXDEBUG_FLAG)
 AC_SUBST(CXXOPTIMISE_FLAG)
 AC_SUBST(CXX_STRERROR_FLAG)
+AC_SUBST(LFS_FLAGS)
 AC_SUBST(INSTALL)
 AC_SUBST(prefix)
 AC_SUBST(RELEASE_DATE)
 AC_SUBST(RELEASE_DATE)
 AC_SUBST(TESTING)
 AC_SUBST(THIN_PROVISIONING_TOOLS_VERSION)
+AC_SUBST(STATIC_CXX)
+AC_SUBST(DEVTOOLS)
+AC_SUBST(STATIC)
 
 ################################################################################
 dnl -- First and last lines should not contain files to generate in order to
 dnl -- keep utility scripts running properly
 AC_CONFIG_FILES([
 Makefile
+contrib/Makefile
 unit-tests/Makefile
 version.h
 ])

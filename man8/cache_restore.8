@@ -24,11 +24,14 @@ If restored to a metadata
 .I device
 , the metadata can be processed by the device-mapper target.
 
+This tool cannot be run on live metadata.
+
 .IP "\fB\-i, \-\-input\fP \fI{device|file}\fP"
 Input file or device with metadata.
 
 .IP "\fB\-o, \-\-output\fP \fI{device|file}\fP"
-Output file or device.
+Output file or device for repaired binary metadata.  If a file is used
+then it must be preallocated, and large enough to hold the metadata.
 
 .IP "\fB{\-\-debug-override-metadata-version}\fP \fI<integer>\fP"
 ONLY FOR DEBUGGING PURPOSES:

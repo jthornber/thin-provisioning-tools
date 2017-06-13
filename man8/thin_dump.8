@@ -24,18 +24,32 @@ in order to put it back onto a metadata
 (to process by the device-mapper target) or
 .I file.
 
-.IP "\fB\-f, \-\-format\fP \fI{xml|human_readable}\fP".
-Print output in XML or human readable format.
+This tool cannot be run on live metadata unless the \fB\-\-metadata\-snap\fP option is used.
+
+.IP "\fB\-f, \-\-format\fP \fI{xml|human_readable|custom}\fP".
+
+Print output in XML or human readable format.  Custom formats are
+supported via shared library plugins.  They should be specified as in
+this example:
+.sp
+.B thin_dump --format custom=mylib.so /dev/sda
 
 .IP "\fB\-r, \-\-repair\fP".
 Repair the metadata whilst dumping it.
 
-.IP "\fB\-m, \-\-metadata_snap\fP [block#]".
+.IP "\fB\-m, \-\-metadata\-snap\fP [block#]".
 Dump metadata snapshot created by device-mapper thin provisioning target.
 If block is not provided, access the default metadata snapshot created by
 the thin provisioning device-mapper target, else try the one at block#.
 See the thin provisioning target documentation on how to create or release
 a metadata snapshot and retrieve the block number from the kernel.
+
+.IP "\fB\-\-dev\-id\fP <dev-id>".
+Dump the specified device.  This option may be specified multiple
+times to select more than one thin device.
+
+.IP "\fB\-\-skip\-mappings".
+Do not dump the mappings.
 
 .IP "\fB\-h, \-\-help\fP".
 Print help and exit.

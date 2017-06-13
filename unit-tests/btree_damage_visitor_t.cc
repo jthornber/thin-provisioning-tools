@@ -76,29 +76,6 @@ namespace {
 		run<uint64_t> keys;
 	};
 
-	ostream &operator <<(ostream &out, node_info const &ni) {
-		out << "node_info [leaf = " << ni.leaf
-		    << ", depth " << ni.depth
-		    << ", path [";
-
-		bool first = true;
-		btree_detail::btree_path::const_iterator it;
-		for (it = ni.path.begin(); it != ni.path.end(); ++it) {
-			if (first)
-				first = false;
-			else
-				out << ", ";
-
-			out << *it;
-		}
-
-		out << "], b " << ni.b
-		    << ", keys " << ni.keys
-		    << "]";
-
-		return out;
-	}
-
 	bool is_leaf(node_info const &n) {
 		return n.leaf;
 	}

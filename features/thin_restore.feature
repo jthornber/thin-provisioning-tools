@@ -55,6 +55,18 @@ Feature: thin_restore
     No output file provided.
     """
 
+  Scenario: tiny output file
+    Given a tiny file
+    When I run thin_restore with -i metadata.xml -o tiny
+    Then it should fail with:
+    """
+    Output file too small.
+
+    The output file should either be a block device,
+    or an existing file.  The file needs to be large
+    enough to hold the metadata.
+    """
+
   Scenario: --quiet is accepted
     Given valid thin metadata
     When I run thin_restore with -i metadata.xml -o metadata.bin --quiet

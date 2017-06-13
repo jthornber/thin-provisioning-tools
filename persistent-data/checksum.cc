@@ -35,7 +35,7 @@ crc32c::append(void const *buffer, unsigned len)
 {
 	uint32_t const powers = 0x1EDC6F41;
 
-	boost::crc_basic<32> crc(powers, 0xffffffff, 0, true, true);
+	boost::crc_optimal<32, powers, 0xffffffff, 0, true, true> crc;
 	crc.process_bytes(buffer, len);
 	sum_ = crc.checksum();
 }

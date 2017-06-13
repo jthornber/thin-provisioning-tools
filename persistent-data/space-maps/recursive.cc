@@ -22,6 +22,7 @@
 #include <list>
 
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -176,6 +177,10 @@ namespace {
 
 		virtual void iterate(iterator &it) const {
 			sm_->iterate(it);
+		}
+
+		virtual void count_metadata(block_counter &bc) const {
+			sm_->count_metadata(bc);
 		}
 
 		virtual size_t root_size() const {

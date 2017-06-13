@@ -91,7 +91,8 @@ namespace caching {
 				mapping_array_damage::damage_visitor &dv);
 
 	void check_mapping_array(mapping_array const &array,
-				 mapping_array_damage::damage_visitor &visitor);
+				 mapping_array_damage::damage_visitor &visitor,
+				 unsigned metadata_version);
 }
 
 //----------------------------------------------------------------

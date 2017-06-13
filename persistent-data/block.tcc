@@ -19,86 +19,13 @@
 #include "block.h"
 
 #include "base/error_string.h"
-
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include "base/file_utils.h"
+#include "block-cache/io_engine.h"
 
 #include <boost/bind.hpp>
 #include <stdexcept>
-#include <sstream>
 
 //----------------------------------------------------------------
-
-// FIXME: give this namesace a name
-namespace {
-	using namespace std;
-
-	int const DEFAULT_MODE = 0666;
-	unsigned const SECTOR_SHIFT = 9;
-
-	int const OPEN_FLAGS = O_DIRECT;
-
-	// FIXME: introduce a new exception for this, or at least lift this
-	// to exception.h
-	void syscall_failed(char const *call) {
-		ostringstream out;
-		out << "syscall '" << call << "' failed: " << base::error_string(errno);;
-		throw runtime_error(out.str());
-	}
-
-	int open_file(string const &path, int flags) {
-		int fd = ::open(path.c_str(), OPEN_FLAGS | flags, DEFAULT_MODE);
-		if (fd < 0)
-			syscall_failed("open");
-
-		return fd;
-	}
-
-	bool file_exists(string const &path) {
-		struct ::stat info;
-
-		int r = ::stat(path.c_str(), &info);
-		if (r) {
-			if (errno == ENOENT)
-				return false;
-
-			syscall_failed("stat");
-			return false; // never get here
-
-		} else
-			return S_ISREG(info.st_mode) || S_ISBLK(info.st_mode);
-	}
-
-	int create_block_file(string const &path, off_t file_size) {
-		if (file_exists(path)) {
-			ostringstream out;
-			out << __FUNCTION__ << ": file '" << path << "' already exists";
-			throw runtime_error(out.str());
-		}
-
-		int fd = open_file(path, O_CREAT | O_RDWR);
-
-		int r = ::ftruncate(fd, file_size);
-		if (r < 0)
-			syscall_failed("ftruncate");
-
-		return fd;
-	}
-
-	int open_block_file(string const &path, off_t min_size, bool writeable) {
-		if (!file_exists(path)) {
-			ostringstream out;
-			out << __FUNCTION__ << ": file '" << path << "' doesn't exist";
-			throw runtime_error(out.str());
-		}
-
-		return open_file(path, writeable ? O_RDWR : O_RDONLY);
-	}
-};
 
 namespace persistent_data {
 	template <uint32_t BlockSize>
@@ -176,8 +103,10 @@ namespace persistent_data {
 	block_manager<BlockSize>::write_ref::~write_ref()
 	{
 		if (ref_count_) {
-			if (!*ref_count_)
-				throw std::runtime_error("write_ref ref_count going below zero");
+			if (!*ref_count_) {
+				std::cerr << "write_ref ref_count going below zero";
+				::exit(1);
+			}
 
 			(*ref_count_)--;
 		}
@@ -208,8 +137,10 @@ namespace persistent_data {
 	block_manager<BlockSize>::block_manager(std::string const &path,
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
-						mode m)
-		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m)),
+						mode m,
+						bool excl)
+		// FIXME: * BlockSize ?
+		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m, excl)),
 		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16),
 		  superblock_ref_count_(0)
 	{
@@ -217,17 +148,17 @@ namespace persistent_data {
 
 	template <uint32_t BlockSize>
 	int
-	block_manager<BlockSize>::open_or_create_block_file(string const &path, off_t file_size, mode m)
+	block_manager<BlockSize>::open_or_create_block_file(std::string const &path, off_t file_size, mode m, bool excl)
 	{
 		switch (m) {
 		case READ_ONLY:
-			return open_block_file(path, file_size, false);
+			return file_utils::open_block_file(path, file_size, false, excl);
 
 		case READ_WRITE:
-			return open_block_file(path, file_size, true);
+			return file_utils::open_block_file(path, file_size, true, excl);
 
 		case CREATE:
-			return create_block_file(path, file_size);
+			return file_utils::create_block_file(path, file_size);
 
 		default:
 			throw std::runtime_error("unsupported mode");

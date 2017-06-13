@@ -43,12 +43,16 @@ namespace {
 		void begin_superblock(string const &uuid,
 				      uint64_t time,
 				      uint64_t trans_id,
+				      boost::optional<uint32_t> flags,
+				      boost::optional<uint32_t> version,
 				      uint32_t data_block_size,
 				      uint64_t nr_data_blocks,
 				      boost::optional<uint64_t> metadata_snap) {
 			out_ << "begin superblock: \"" << uuid << "\""
 			     << ", " << time
 			     << ", " << trans_id
+			     << ", " << (flags ? *flags : 0)
+			     << ", " << (version ? *version : 1)
 			     << ", " << data_block_size
 			     << ", " << nr_data_blocks;
 			if (metadata_snap)

@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -91,7 +92,7 @@ bloom_filter::flush()
 }
 
 void
-bloom_filter::fill_probes(block_address b, vector<unsigned> &probes) const
+bloom_filter::fill_probes(block_address b, std::vector<unsigned> &probes) const
 {
 	uint32_t h1 = hash1(b) & mask_;
 	uint32_t h2 = hash2(b) & mask_;
@@ -105,7 +106,7 @@ bloom_filter::fill_probes(block_address b, vector<unsigned> &probes) const
 }
 
 void
-bloom_filter::print_debug(ostream &out)
+bloom_filter::print_debug(std::ostream &out)
 {
 	print_residency(out);
 
@@ -133,7 +134,7 @@ bloom_filter::print_debug(ostream &out)
 }
 
 void
-bloom_filter::print_residency(ostream &out)
+bloom_filter::print_residency(std::ostream &out)
 {
 	unsigned count = 0;
 	for (unsigned i = 0; i < bits_.get_nr_bits(); i++)

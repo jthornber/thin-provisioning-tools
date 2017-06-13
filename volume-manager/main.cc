@@ -1,5 +1,5 @@
 #include "device-mapper/ioctl_interface.h"
-#include "device-mapper/dm.h"
+//#include "device-mapper/dm.h"
 
 #include <boost/shared_ptr.hpp>
 #include <iostream>
@@ -10,7 +10,7 @@ using namespace std;
 
 //----------------------------------------------------------------
 
-
+#if 0
 namespace {
 
 	// Some ops are reversable.  If an undo fails we do not preserve atomicity.
@@ -190,7 +190,7 @@ namespace {
 	}
 #endif
 }
-
+#endif
 //----------------------------------------------------------------
 
 int main(int argc, char **argv)

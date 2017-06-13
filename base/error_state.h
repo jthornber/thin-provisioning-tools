@@ -11,6 +11,11 @@ namespace base {
 	};
 
 	error_state combine_errors(error_state lhs, error_state rhs);
+
+	inline error_state &operator <<(error_state &err, error_state rhs) {
+		err = combine_errors(err, rhs);
+		return err;
+	}
 }
 
 //----------------------------------------------------------------

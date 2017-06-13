@@ -60,8 +60,9 @@ invalid_mapping::visit(damage_visitor &v) const
 namespace {
 	class check_mapping_visitor : public mapping_visitor {
 	public:
-		check_mapping_visitor(damage_visitor &visitor)
-		: visitor_(visitor) {
+		check_mapping_visitor(damage_visitor &visitor, unsigned metadata_version)
+		: visitor_(visitor),
+		  allowed_flags_(metadata_version == 1 ? (M_VALID | M_DIRTY) : M_VALID) {
 		}
 
 		virtual void visit(block_address cblock, mapping const &m) {
@@ -90,12 +91,13 @@ namespace {
 			seen_oblocks_.insert(m.oblock_);
 		}
 
-		static bool unknown_flags(mapping const &m) {
-			return (m.flags_ & ~(M_VALID | M_DIRTY));
+		bool unknown_flags(mapping const &m) {
+			return m.flags_ & ~allowed_flags_;
 		}
 
 		damage_visitor &visitor_;
 		set<block_address> seen_oblocks_;
+		uint32_t allowed_flags_;
 	};
 
 	class ll_damage_visitor {
@@ -123,9 +125,9 @@ caching::walk_mapping_array(mapping_array const &array,
 }
 
 void
-caching::check_mapping_array(mapping_array const &array, damage_visitor &visitor)
+caching::check_mapping_array(mapping_array const &array, damage_visitor &visitor, unsigned metadata_version)
 {
-	check_mapping_visitor mv(visitor);
+	check_mapping_visitor mv(visitor, metadata_version);
 	walk_mapping_array(array, mv, visitor);
 }
 

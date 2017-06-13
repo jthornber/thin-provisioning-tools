@@ -40,6 +40,7 @@ Options:
   {-q|--quiet}
   {-h|--help}
   {-V|--version}
+  {--clear-needs-check-flag}
   {--super-block-only}
   {--skip-mappings}
   {--skip-hints}

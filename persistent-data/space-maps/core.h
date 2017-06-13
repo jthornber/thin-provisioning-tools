@@ -105,6 +105,9 @@ namespace persistent_data {
 			throw std::runtime_error("'extend' not implemented");
 		}
 
+		void count_metadata(block_counter &bc) const {
+		}
+
 		// FIXME: meaningless, but this class is only used for testing
 		size_t root_size() const {
 			return 0;

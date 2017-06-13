@@ -152,7 +152,7 @@ namespace {
 	int invalidate(string const &dev, string const &output, flags const &fs) {
 		try {
 			set<uint32_t> blocks;
-			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY);
+			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY, !fs.metadata_snapshot_);
 
 			if (fs.metadata_snapshot_) {
 				superblock sb = read_superblock(bm);
@@ -182,20 +182,28 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] --written-since <era> {device|file}\n"
-		    << "Options:\n"
-		    << "  {-h|--help}\n"
-		    << "  {-o <xml file>}\n"
-		    << "  {--metadata-snapshot}\n"
-		    << "  {-V|--version}" << endl;
-	}
 }
 
 //----------------------------------------------------------------
 
-int era_invalidate_main(int argc, char **argv)
+era_invalidate_cmd::era_invalidate_cmd()
+	: command("era_invalidate")
+{
+}
+
+void
+era_invalidate_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] --written-since <era> {device|file}\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-o <xml file>}\n"
+	    << "  {--metadata-snapshot}\n"
+	    << "  {-V|--version}" << endl;
+}
+
+int
+era_invalidate_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -222,7 +230,7 @@ int era_invalidate_main(int argc, char **argv)
 			break;
 
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'o':
@@ -234,26 +242,24 @@ int era_invalidate_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind) {
 		cerr << "No input file provided." << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	if (!fs.era_threshold_) {
 		cerr << "Please specify --written-since" << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return invalidate(argv[optind], output, fs);
 }
-
-base::command era::era_invalidate_cmd("era_invalidate", era_invalidate_main);
 
 //----------------------------------------------------------------

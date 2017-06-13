@@ -24,6 +24,7 @@
 #include "persistent-data/space-maps/careful_alloc.h"
 
 #include "persistent-data/data-structures/btree_damage_visitor.h"
+#include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/math_utils.h"
 #include "persistent-data/transaction_manager.h"
@@ -49,6 +50,15 @@ namespace {
 				throw checksum_error("bad block nr in space map bitmap");
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(raw);
+			crc32c sum(BITMAP_CSUM_XOR);
+			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			bitmap_header *data = reinterpret_cast<bitmap_header *>(raw);
 			data->blocknr = to_disk<base::le64, uint64_t>(location);
@@ -60,8 +70,6 @@ namespace {
 	};
 
 	//--------------------------------
-
-	uint64_t const INDEX_CSUM_XOR = 160478;
 
 	// FIXME: factor out the common code in these validators
 	struct index_block_validator : public bcache::validator {
@@ -76,6 +84,15 @@ namespace {
 				throw checksum_error("bad block nr in metadata index block");
 		}
 
+		virtual bool check_raw(void const *raw) const {
+			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
+			crc32c sum(INDEX_CSUM_XOR);
+			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
+				return false;
+			return true;
+		}
+
 		virtual void prepare(void *raw, block_address location) const {
 			metadata_index *mi = reinterpret_cast<metadata_index *>(raw);
 			mi->blocknr_ = to_disk<base::le64, uint64_t>(location);
@@ -85,11 +102,6 @@ namespace {
 			mi->csum_ = to_disk<base::le32>(sum.get_sum());
 		}
 	};
-
-	bcache::validator::ptr
-	index_validator() {
-		return bcache::validator::ptr(new index_block_validator());
-	}
 
 	//--------------------------------
 
@@ -223,6 +235,7 @@ namespace {
 	public:
 		typedef boost::shared_ptr<index_store> ptr;
 
+		virtual void count_metadata(block_counter &bc) const = 0;
 		virtual void resize(block_address nr_indexes) = 0;
 		virtual index_entry find_ie(block_address b) const = 0;
 		virtual void save_ie(block_address b, struct index_entry ie) = 0;
@@ -247,6 +260,7 @@ namespace {
 			  indexes_(indexes),
 			  nr_blocks_(0),
 			  nr_allocated_(0),
+			  search_start_(0),
 			  ref_counts_(tm_, ref_count_traits::ref_counter()) {
 		}
 
@@ -258,6 +272,7 @@ namespace {
 			  indexes_(indexes),
 			  nr_blocks_(root.nr_blocks_),
 			  nr_allocated_(root.nr_allocated_),
+			  search_start_(0),
 			  ref_counts_(tm_, root.ref_count_root_, ref_count_traits::ref_counter()) {
 		}
 
@@ -277,49 +292,90 @@ namespace {
 			return count;
 		}
 
-		void set_count(block_address b, ref_t c) {
-			ref_t old = get_count(b);
+		template <typename Mut>
+		void modify_count(block_address b, Mut const &m) {
+			check_block(b);
 
-			if (c == old)
-				return;
+			index_entry ie = indexes_->find_ie(b / ENTRIES_PER_BLOCK);
+			bitmap bm(tm_, ie, bitmap_validator_);
+
+			ref_t old = bm.lookup(b % ENTRIES_PER_BLOCK);
+			if (old == 3)
+				old = lookup_ref_count(b);
+			ref_t c = m(old);
 
 			if (c > 2) {
-				if (old < 3)
-					insert_bitmap(b, 3);
+				if (old < 3) {
+					bm.insert(b % ENTRIES_PER_BLOCK, 3);
+					indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
+				}
 				insert_ref_count(b, c);
 			} else {
 				if (old > 2)
 					remove_ref_count(b);
-				insert_bitmap(b, c);
+				bm.insert(b % ENTRIES_PER_BLOCK, c);
+				indexes_->save_ie(b / ENTRIES_PER_BLOCK, bm.get_ie());
 			}
 
 			if (old == 0)
 				nr_allocated_++;
-			else if (c == 0)
+			else if (c == 0) {
+				if (b < search_start_)
+					search_start_ = b;
 				nr_allocated_--;
+			}
+		}
+
+		struct override {
+			override(ref_t new_value)
+				: new_value_(new_value) {
+				}
+
+			ref_t operator()(ref_t old) const {
+				return new_value_;
+			}
+
+			ref_t new_value_;
+		};
+
+		void set_count(block_address b, ref_t c) {
+			override m(c);
+			modify_count(b, m);
 		}
 
 		void commit() {
 			indexes_->commit_ies();
 		}
 
+		static ref_t inc_mutator(ref_t c) {
+			return c + 1;
+		}
+
+		static ref_t dec_mutator(ref_t c) {
+			return c - 1;
+		}
+
 		void inc(block_address b) {
-			// FIXME: 2 get_counts
-			ref_t old = get_count(b);
-			set_count(b, old + 1);
+			if (b == search_start_)
+				search_start_++;
+
+			modify_count(b, inc_mutator);
 		}
 
 		void dec(block_address b) {
-			ref_t old = get_count(b);
-			set_count(b, old - 1);
+			modify_count(b, dec_mutator);
 		}
 
-		// FIXME: keep track of the lowest free block so we
-		// can start searching from a suitable place.
 		maybe_block find_free(span_iterator &it) {
 			for (maybe_span ms = it.first(); ms; ms = it.next()) {
 				block_address begin = ms->first;
 				block_address end = ms->second;
+
+				if (end < search_start_)
+					continue;
+
+				if (begin < search_start_)
+					begin = search_start_;
 
 				block_address begin_index = begin / ENTRIES_PER_BLOCK;
 				block_address end_index = div_up<block_address>(end, ENTRIES_PER_BLOCK);
@@ -334,6 +390,8 @@ namespace {
 					boost::optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 					if (maybe_b) {
 						block_address b = (index * ENTRIES_PER_BLOCK) + *maybe_b;
+						if (b)
+							search_start_ = b - 1;
 						return b;
 					}
 				}
@@ -404,6 +462,13 @@ namespace {
 				bitmap bm(tm_, ie, bitmap_validator_);
 				bm.iterate(i * ENTRIES_PER_BLOCK, hi, wrapper);
 			}
+		}
+
+		virtual void count_metadata(block_counter &bc) const {
+			indexes_->count_metadata(bc);
+
+			noop_value_counter<uint32_t> vc;
+			count_btree_blocks(ref_counts_, bc, vc);
 		}
 
 		virtual size_t root_size() const {
@@ -506,6 +571,7 @@ namespace {
 		index_store::ptr indexes_;
 		block_address nr_blocks_;
 		block_address nr_allocated_;
+		block_address search_start_;
 
 		btree<1, ref_count_traits> ref_counts_;
 	};
@@ -554,6 +620,29 @@ namespace {
 			: tm_(tm),
 			  bitmaps_(tm, root, index_entry_traits::ref_counter()) {
 		}
+
+		//--------------------------------
+
+		struct index_entry_counter {
+			index_entry_counter(block_counter &bc)
+			: bc_(bc) {
+			}
+
+			void visit(btree_detail::node_location const &loc, index_entry const &ie) {
+				if (ie.blocknr_ != 0)
+					bc_.inc(ie.blocknr_);
+			}
+
+		private:
+			block_counter &bc_;
+		};
+
+		virtual void count_metadata(block_counter &bc) const {
+			index_entry_counter vc(bc);
+			count_btree_blocks(bitmaps_, bc, vc);
+		}
+
+		//--------------------------------
 
 		virtual void resize(block_address nr_entries) {
 			// No op
@@ -611,6 +700,17 @@ namespace {
 			  bitmap_root_(root) {
 			resize(nr_indexes);
 			load_ies();
+		}
+
+		virtual void count_metadata(block_counter &bc) const {
+			bc.inc(bitmap_root_);
+
+			for (unsigned i = 0; i < entries_.size(); i++) {
+				block_address b = entries_[i].blocknr_;
+
+				if (b != 0)
+					bc.inc(b);
+			}
 		}
 
 		virtual void resize(block_address nr_indexes) {
@@ -688,7 +788,7 @@ persistent_data::create_disk_sm(transaction_manager &tm,
 }
 
 checked_space_map::ptr
-persistent_data::open_disk_sm(transaction_manager &tm, void *root)
+persistent_data::open_disk_sm(transaction_manager &tm, void const *root)
 {
 	sm_root_disk d;
 	sm_root v;
@@ -704,6 +804,11 @@ persistent_data::create_metadata_sm(transaction_manager &tm, block_address nr_bl
 {
 	index_store::ptr store(new metadata_index_store(tm));
 	checked_space_map::ptr sm(new sm_disk(store, tm));
+
+	if (nr_blocks > MAX_METADATA_BLOCKS) {
+		cerr << "truncating metadata device to " << MAX_METADATA_BLOCKS << " 4k blocks\n";
+		nr_blocks = MAX_METADATA_BLOCKS;
+	}
 	sm->extend(nr_blocks);
 	sm->commit();
 	return create_careful_alloc_sm(
@@ -711,7 +816,7 @@ persistent_data::create_metadata_sm(transaction_manager &tm, block_address nr_bl
 }
 
 checked_space_map::ptr
-persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
+persistent_data::open_metadata_sm(transaction_manager &tm, void const *root)
 {
 	sm_root_disk d;
 	sm_root v;
@@ -723,6 +828,27 @@ persistent_data::open_metadata_sm(transaction_manager &tm, void *root)
 	return create_careful_alloc_sm(
 		create_recursive_sm(
 			checked_space_map::ptr(new sm_disk(store, tm, v))));
+}
+
+bcache::validator::ptr
+persistent_data::bitmap_validator() {
+	return bcache::validator::ptr(new bitmap_block_validator());
+}
+
+bcache::validator::ptr
+persistent_data::index_validator() {
+	return bcache::validator::ptr(new index_block_validator());
+}
+
+block_address
+persistent_data::get_nr_blocks_in_data_sm(transaction_manager &tm, void *root)
+{
+	sm_root_disk d;
+	sm_root v;
+
+	::memcpy(&d, root, sizeof(d));
+	sm_root_traits::unpack(d, v);
+	return v.nr_blocks_;
 }
 
 //----------------------------------------------------------------

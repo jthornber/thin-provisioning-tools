@@ -35,6 +35,8 @@
 
 #include <search.h>
 
+using namespace thin_provisioning;
+
 /*----------------------------------------------------------------*/
 
 enum numeric_options { BLOCKSIZE, POOLSIZE, MAXTHINS, NUMERIC, OPT_END};
@@ -324,7 +326,7 @@ static const unsigned mappings_per_block(void)
 static void print_precision(struct global *g, double r, unsigned idx)
 {
 	bool full = g->options.n[NUMERIC] == NO_NUMBER;
-	double rtrunc = truncl(r);
+	double rtrunc = floor(r);
 
 	if (full)
 		printf("%s - ", g->prg);
@@ -362,7 +364,21 @@ static void print_estimated_result(struct global *g)
 	print_precision(g, r, g->options.unit_idx);
 }
 
-int thin_metadata_size_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_metadata_size_cmd::thin_metadata_size_cmd()
+	: command("thin_metadata_size")
+{
+}
+
+void
+thin_metadata_size_cmd::usage(std::ostream &out) const
+{
+	// FIXME: finish
+}
+
+int
+thin_metadata_size_cmd::run(int argc, char **argv)
 {
 	struct global *g = init_prg(*argv);
 
@@ -372,4 +388,4 @@ int thin_metadata_size_main(int argc, char **argv)
 	return 0; /* Doesn't get here... */
 }
 
-base::command thin_provisioning::thin_metadata_size_cmd("thin_metadata_size", thin_metadata_size_main);
+//----------------------------------------------------------------

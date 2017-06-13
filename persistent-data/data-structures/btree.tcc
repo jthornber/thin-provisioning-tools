@@ -21,8 +21,10 @@
 #include "persistent-data/errors.h"
 #include "persistent-data/checksum.h"
 #include "persistent-data/transaction_manager.h"
+#include "persistent-data/validators.h"
 
 #include <iostream>
+#include <sstream>
 
 //----------------------------------------------------------------
 
@@ -31,30 +33,6 @@ namespace {
 	using namespace persistent_data;
 	using namespace btree_detail;
 	using namespace std;
-
-	struct btree_node_validator : public bcache::validator {
-		virtual void check(void const *raw, block_address location) const {
-			disk_node const *data = reinterpret_cast<disk_node const *>(raw);
-			node_header const *n = &data->header;
-			crc32c sum(BTREE_CSUM_XOR);
-			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(n->csum))
-				throw checksum_error("bad checksum in btree node");
-
-			if (to_cpu<uint64_t>(n->blocknr) != location)
-				throw checksum_error("bad block nr in btree node");
-		}
-
-		virtual void prepare(void *raw, block_address location) const {
-			disk_node *data = reinterpret_cast<disk_node *>(raw);
-			node_header *n = &data->header;
-			n->blocknr = to_disk<base::le64, uint64_t>(location);
-
-			crc32c sum(BTREE_CSUM_XOR);
-			sum.append(&n->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
-			n->csum = to_disk<base::le32>(sum.get_sum());
-		}
-	};
 }
 
 //----------------------------------------------------------------
@@ -112,14 +90,22 @@ namespace persistent_data {
 	{
 		uint32_t flags = to_cpu<uint32_t>(raw_->header.flags);
 		if (flags & INTERNAL_NODE) {
-			if (flags & LEAF_NODE)
-				throw runtime_error("btree node is both internal and leaf");
+			if (flags & LEAF_NODE) {
+				ostringstream out;
+				out << "btree node is both internal and leaf"
+				    << " (block " << location_ << ")";
+				throw runtime_error(out.str());
+			}
 			return INTERNAL;
 
 		} else if (flags & LEAF_NODE)
 			return LEAF;
-		else
-			throw runtime_error("unknown node type");
+		else {
+			ostringstream out;
+			out << "unknown node type"
+			    << " (block " << location_ << ")";
+			throw runtime_error(out.str());
+		}
 	}
 
 	template <typename ValueTraits>
@@ -363,25 +349,39 @@ namespace persistent_data {
 	}
 
 	template <typename ValueTraits>
+	bool
+	node_ref<ValueTraits>::value_sizes_match() const {
+		return sizeof(typename ValueTraits::disk_type) == get_value_size();
+	}
+
+	template <typename ValueTraits>
+	std::string
+	node_ref<ValueTraits>::value_mismatch_string() const {
+		std::ostringstream out;
+		out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
+		    << ", but got " << get_value_size()
+		    << ".  This is not the btree you are looking for."
+		    << " (block " << location_ << ")" << std::endl;
+
+		return out.str();
+	}
+
+	template <typename ValueTraits>
 	void
 	node_ref<ValueTraits>::check_fits_within_block() const {
 		if (checked_)
 			return;
 
-		if (sizeof(typename ValueTraits::disk_type) != get_value_size()) {
-			std::ostringstream out;
-			out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
-			    << ", but got " << get_value_size()
-			    << ".  This is not the btree you are looking for." << std::endl;
-			throw std::runtime_error(out.str());
-		}
+		if (!value_sizes_match())
+			throw std::runtime_error(value_mismatch_string());
 
 		unsigned max = calc_max_entries();
 
 		if (max < get_nr_entries()) {
 			std::ostringstream out;
 			out << "Bad nr of elements: max per block = "
-			    << max << ", actual = " << get_nr_entries() << std::endl;
+			    << max << ", actual = " << get_nr_entries()
+			    << " (block " << location_ << ")" << std::endl;
 			throw std::runtime_error(out.str());
 		}
 
@@ -398,7 +398,7 @@ namespace persistent_data {
 		  destroy_(false),
 		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
-		  validator_(new btree_node_validator)
+		  validator_(create_btree_node_validator())
 	{
 		using namespace btree_detail;
 
@@ -432,7 +432,7 @@ namespace persistent_data {
 		  root_(root),
 		  internal_rc_(tm.get_sm()),
 		  rc_(rc),
-		  validator_(new btree_node_validator)
+		  validator_(create_btree_node_validator())
 	{
 	}
 
@@ -446,7 +446,8 @@ namespace persistent_data {
 		template <typename ValueTraits>
 		struct lower_bound_search {
 			static boost::optional<unsigned> search(btree_detail::node_ref<ValueTraits> n, uint64_t key) {
-				return n.lower_bound(key);
+				int i = n.lower_bound(key);
+				return (i < 0) ? boost::optional<unsigned>() : boost::optional<unsigned>(i);
 			}
 		};
 
@@ -498,7 +499,7 @@ namespace persistent_data {
 	}
 
 	template <unsigned Levels, typename ValueTraits>
-	void
+	bool
 	btree<Levels, ValueTraits>::
 	insert(key const &key,
 	       typename ValueTraits::value_type const &value)
@@ -531,6 +532,8 @@ namespace persistent_data {
 			n.set_value(index, value);
 
 		root_ = spine.get_root();
+
+		return need_insert;
 	}
 
 	template <unsigned Levels, typename ValueTraits>
@@ -595,9 +598,13 @@ namespace persistent_data {
 
 			}
 
-			mi = leaf.lower_bound(key);
-			if (!mi || *mi < 0)
-				return boost::optional<leaf_type>();
+			{
+				int lb = leaf.lower_bound(key);
+				if (lb < 0)
+					return boost::optional<leaf_type>();
+
+				mi = lb;
+			}
 
 			node_ref<block_traits> internal = spine.template get_node<block_traits>();
 			block = internal.value_at(*mi);

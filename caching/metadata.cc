@@ -3,6 +3,7 @@
 #include "persistent-data/space-maps/core.h"
 
 using namespace caching;
+namespace pd = persistent_data;
 
 //----------------------------------------------------------------
 
@@ -30,20 +31,21 @@ namespace {
 
 //----------------------------------------------------------------
 
-metadata::metadata(block_manager<>::ptr bm, open_type ot)
+metadata::metadata(block_manager<>::ptr bm, open_type ot, unsigned metadata_version)
 {
 	switch (ot) {
 	case CREATE:
-		create_metadata(bm);
-		break;
-
-	case OPEN:
-		open_metadata(bm);
+		create_metadata(bm, metadata_version);
 		break;
 
 	default:
 		throw runtime_error("unhandled open_type");
 	}
+}
+
+metadata::metadata(block_manager<>::ptr bm)
+{
+	open_metadata(bm);
 }
 
 void
@@ -65,7 +67,7 @@ metadata::setup_hint_array(size_t width)
 }
 
 void
-metadata::create_metadata(block_manager<>::ptr bm)
+metadata::create_metadata(block_manager<>::ptr bm, unsigned metadata_version)
 {
 	tm_ = open_tm(bm);
 
@@ -79,7 +81,10 @@ metadata::create_metadata(block_manager<>::ptr bm)
 	// We can't instantiate the hint array yet, since we don't know the
 	// hint width.
 
-	discard_bits_ = persistent_data::bitset::ptr(new persistent_data::bitset(*tm_));
+	discard_bits_ = pd::bitset::ptr(new pd::bitset(*tm_));
+
+	if (metadata_version >= 2)
+		dirty_bits_ = pd::bitset::ptr(new pd::bitset(*tm_));
 }
 
 void
@@ -100,8 +105,12 @@ metadata::open_metadata(block_manager<>::ptr bm)
 				       sb_.hint_root, sb_.cache_blocks));
 
 	if (sb_.discard_root)
-		discard_bits_ = persistent_data::bitset::ptr(
-			new persistent_data::bitset(*tm_, sb_.discard_root, sb_.discard_nr_blocks));
+		discard_bits_ = pd::bitset::ptr(
+			new pd::bitset(*tm_, sb_.discard_root, sb_.discard_nr_blocks));
+
+	if (sb_.version >= 2)
+		dirty_bits_ = pd::bitset::ptr(
+			new pd::bitset(*tm_, *sb_.dirty_root, sb_.cache_blocks));
 }
 
 void

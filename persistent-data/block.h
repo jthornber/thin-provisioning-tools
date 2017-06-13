@@ -52,7 +52,8 @@ namespace persistent_data {
 		block_manager(std::string const &path,
 			      block_address nr_blocks,
 			      unsigned max_concurrent_locks,
-			      mode m);
+			      mode m,
+			      bool excl = true);
 
 		class read_ref {
 		public:
@@ -134,7 +135,8 @@ namespace persistent_data {
 		bool is_locked(block_address b) const;
 
 	private:
-		int open_or_create_block_file(std::string const &path, off_t file_size, mode m);
+		int open_or_create_block_file(std::string const &path, off_t file_size,
+					      mode m, bool excl);
 		void check(block_address b) const;
 
 		int fd_;

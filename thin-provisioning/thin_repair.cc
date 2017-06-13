@@ -2,6 +2,8 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "base/output_file_requirements.h"
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
@@ -17,11 +19,17 @@ namespace {
 	int repair(string const &old_path, string const &new_path) {
 		try {
 			// block size gets updated by the restorer
-			metadata::ptr new_md(new metadata(new_path, metadata::CREATE, 128, 0));
+			block_manager<>::ptr new_bm = open_bm(new_path, block_manager<>::READ_WRITE);
+			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);
 
-			metadata::ptr old_md(new metadata(old_path));
-			metadata_dump(old_md, e, true);
+			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
+
+			metadata::ptr old_md(new metadata(old_bm, false));
+
+			dump_options opts;
+			opts.repair_ = true;
+			metadata_dump(old_md, e, opts);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
@@ -30,18 +38,28 @@ namespace {
 
 		return 0;
 	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}" << endl
-		    << "Options:" << endl
-		    << "  {-h|--help}" << endl
-		    << "  {-i|--input} <input metadata (binary format)>" << endl
-		    << "  {-o|--output} <output metadata (binary format)>" << endl
-		    << "  {-V|--version}" << endl;
-	}
 }
 
-int thin_repair_main(int argc, char **argv)
+//----------------------------------------------------------------
+
+thin_repair_cmd::thin_repair_cmd()
+	: command("thin_repair")
+{
+}
+
+void
+thin_repair_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] {device|file}" << endl
+	    << "Options:" << endl
+	    << "  {-h|--help}" << endl
+	    << "  {-i|--input} <input metadata (binary format)>" << endl
+	    << "  {-o|--output} <output metadata (binary format)>" << endl
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_repair_cmd::run(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
@@ -58,7 +76,7 @@ int thin_repair_main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'i':
@@ -74,26 +92,27 @@ int thin_repair_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (!input_path) {
 		cerr << "no input file provided" << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
-	if (!output_path) {
+	if (output_path)
+		check_output_file_requirements(*output_path);
+
+	else {
 		cerr << "no output file provided" << endl;
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 
 	return repair(*input_path, *output_path);
 }
-
-base::command thin_provisioning::thin_repair_cmd("thin_repair", thin_repair_main);
 
 //----------------------------------------------------------------

@@ -22,6 +22,7 @@
 #include "base/endian_utils.h"
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/data-structures/ref_counter.h"
+#include "persistent-data/data-structures/btree_disk_structures.h"
 
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
@@ -60,36 +61,6 @@ namespace persistent_data {
 	namespace btree_detail {
 		using namespace base;
 		using namespace std;
-
-		uint32_t const BTREE_CSUM_XOR = 121107;
-
-		//------------------------------------------------
-		// On disk data layout for btree nodes
-		enum node_flags {
-			INTERNAL_NODE = 1,
-			LEAF_NODE = 1 << 1
-		};
-
-		struct node_header {
-			le32 csum;
-			le32 flags;
-			le64 blocknr; /* which block this node is supposed to live in */
-
-			le32 nr_entries;
-			le32 max_entries;
-			le32 value_size;
-			le32 padding;
-		} __attribute__((packed));
-
-		struct disk_node {
-			struct node_header header;
-			le64 keys[0];
-		} __attribute__((packed));
-
-		enum node_type {
-			INTERNAL,
-			LEAF
-		};
 
 		//------------------------------------------------
 		// Class that acts as an interface over the raw little endian btree
@@ -160,6 +131,9 @@ namespace persistent_data {
 			disk_node const *raw() const {
 				return raw_;
 			}
+
+			bool value_sizes_match() const;
+			std::string value_mismatch_string() const;
 
 		private:
 			static unsigned calc_max_entries(void);
@@ -348,7 +322,7 @@ namespace persistent_data {
 		maybe_pair lookup_le(key const &key) const;
 		maybe_pair lookup_ge(key const &key) const;
 
-		void insert(key const &key, typename ValueTraits::value_type const &value);
+		bool insert(key const &key, typename ValueTraits::value_type const &value);
 		void remove(key const &key);
 
 		void set_root(block_address root);

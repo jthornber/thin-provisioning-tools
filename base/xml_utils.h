@@ -36,8 +36,7 @@ namespace xml_utils {
 		void parse(std::string const &backup_file, bool quiet);
 
 	private:
-		size_t get_file_length(string const &file) const;
-		auto_ptr<base::progress_monitor> create_monitor(bool quiet);
+		unique_ptr<base::progress_monitor> create_monitor(bool quiet);
 
 		XML_Parser parser_;
         };

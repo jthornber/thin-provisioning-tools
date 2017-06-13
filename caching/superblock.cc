@@ -45,6 +45,8 @@ namespace {
 		le32 write_misses;
 
 		le32 policy_version[CACHE_POLICY_VERSION_SIZE];
+
+		le64 dirty_root; // format 2 only
 	} __attribute__ ((packed));
 
 	struct superblock_traits {
@@ -57,7 +59,7 @@ namespace {
 
 	uint32_t const SUPERBLOCK_MAGIC = 06142003;
 	uint32_t const VERSION_BEGIN = 1;
-	uint32_t const VERSION_END = 2;
+	uint32_t const VERSION_END = 3;
 }
 
 //----------------------------------------------------------------
@@ -72,6 +74,11 @@ superblock_flags::superblock_flags(uint32_t bits)
 	if (bits & (1 << CLEAN_SHUTDOWN_BIT)) {
 		flags_.insert(CLEAN_SHUTDOWN);
 		bits &= ~(1 << CLEAN_SHUTDOWN_BIT);
+	}
+
+	if (bits & (1u << NEEDS_CHECK_BIT)) {
+		flags_.insert(NEEDS_CHECK);
+		bits &= ~(1u << NEEDS_CHECK_BIT);
 	}
 
 	unhandled_flags_ = bits;
@@ -102,6 +109,9 @@ superblock_flags::encode() const
 
 	if (get_flag(CLEAN_SHUTDOWN))
 		r = r | (1 << CLEAN_SHUTDOWN_BIT);
+
+	if (get_flag(NEEDS_CHECK))
+		r = r | (1u << NEEDS_CHECK_BIT);
 
 	return r;
 }
@@ -187,6 +197,9 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	core.read_misses = to_cpu<uint32_t>(disk.read_misses);
 	core.write_hits = to_cpu<uint32_t>(disk.write_hits);
 	core.write_misses = to_cpu<uint32_t>(disk.write_misses);
+
+	if (core.version >= 2)
+		core.dirty_root = to_cpu<uint64_t>(disk.dirty_root);
 }
 
 void
@@ -239,6 +252,9 @@ superblock_traits::pack(superblock const &sb, superblock_disk &disk)
 	disk.read_misses = to_disk<le32>(core.read_misses);
 	disk.write_hits = to_disk<le32>(core.write_hits);
 	disk.write_misses = to_disk<le32>(core.write_misses);
+
+	if (core.version >= 2)
+		disk.dirty_root = to_disk<le64>(*core.dirty_root);
 }
 
 //--------------------------------
@@ -282,6 +298,15 @@ namespace validator {
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
 				throw checksum_error("bad checksum in superblock");
+		}
+
+		virtual bool check_raw(void const *raw) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
+				return false;
+			return true;
 		}
 
 		virtual void prepare(void *raw, block_address location) const {

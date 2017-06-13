@@ -1,11 +1,18 @@
 #include <iostream>
 #include <getopt.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <linux/fs.h>
 #include <libgen.h>
+#include <fcntl.h>
 
 #undef BLOCK_SIZE
 
+#ifndef BLKDISCARD
+#define BLKDISCARD _IO(0x12,119)
+#endif
+
+#include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
 #include "metadata.h"
 #include "version.h"
@@ -17,17 +24,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	void confirm_pool_is_not_active() {
-		cout << "The pool must *not* be active when running this tool.\n"
-		     << "Do you wish to continue? [Y/N]\n"
-		     << endl;
-
-		string input;
-		cin >> input;
-		if (input != "Y")
-			exit(0);
-	}
-
 	class discard_emitter {
 	public:
 		discard_emitter(string const &data_dev, unsigned block_size, uint64_t nr_blocks)
@@ -44,6 +40,8 @@ namespace {
 
 			range[0] = block_to_byte(b);
 			range[1] = block_to_byte(e) - range[0];
+
+			cerr << "emitting discard for blocks (" << b << ", " << e << "]\n";
 
 			if (ioctl(fd_, BLKDISCARD, &range))
 				throw runtime_error("discard ioctl failed");
@@ -93,52 +91,59 @@ namespace {
 		unsigned block_size_;
 	};
 
-	class trim_visitor : public space_map_detail::visitor {
+	class trim_iterator : public space_map::iterator {
 	public:
-		trim_visitor(discard_emitter &e)
+		trim_iterator(discard_emitter &e)
 		: emitter_(e) {
 		}
 
-		virtual void visit(space_map_detail::missing_counts const &mc) {
-			throw std::runtime_error("corrupt metadata, please use thin_check for details");
+		virtual void operator() (block_address b, ref_t count) {
+			highest_ = b;
+
+			if (count) {
+				if (last_referenced_ && (b > *last_referenced_ + 1))
+					emitter_.emit(*last_referenced_ + 1, b);
+
+				last_referenced_ = b;
+			}
 		}
 
-		virtual void visit(block_address b, uint32_t count) {
-			if (last_visited_ && (b > *last_visited_ + 1))
-				emitter_.emit(*last_visited_ + 1, b);
+		void complete() {
+			if (last_referenced_) {
+				if (*last_referenced_ != *highest_)
+					emitter_.emit(*last_referenced_, *highest_ + 1ull);
 
-			last_visited_ = b;
+			} else if (highest_)
+				emitter_.emit(0ull, *highest_ + 1);
 		}
 
 	private:
 		discard_emitter &emitter_;
-		boost::optional<block_address> last_visited_;
+		boost::optional<block_address> last_referenced_;
+		boost::optional<block_address> highest_;
 	};
 
 	int trim(string const &metadata_dev, string const &data_dev) {
+		cerr << "in trim\n";
+
 		// We can trim any block that has zero count in the data
 		// space map.
-		metadata md(metadata_dev, 0);
+		block_manager<>::ptr bm = open_bm(metadata_dev, block_manager<>::READ_ONLY);
+		metadata md(bm);
 
-		if (!md.data_sm_->get_nr_free())
+		if (!md.data_sm_->get_nr_free()) {
+			cerr << "All data blocks allocated, nothing to discard\n";
 			return 0;
+		}
 
 		discard_emitter de(data_dev, md.sb_.data_block_size_,
 				   md.data_sm_->get_nr_blocks());
-		trim_visitor tv(de);
+		trim_iterator ti(de);
 
-		confirm_pool_is_not_active();
-		md.data_sm_->visit(tv);
+		md.data_sm_->iterate(ti);
+		ti.complete();
 
 		return 0;
-	}
-
-	void usage(ostream &out, string const &cmd) {
-		out << "Usage: " << cmd << " [options] {device|file}\n"
-		    << "Options:\n"
-		    << "  {--pool-inactive}\n"
-		    << "  {-h|--help}\n"
-		    << "  {-V|--version}" << endl;
 	}
 
 	struct flags {
@@ -149,7 +154,22 @@ namespace {
 
 //----------------------------------------------------------------
 
-int thin_trim_main(int argc, char **argv)
+thin_trim_cmd::thin_trim_cmd()
+	: command("thin_trim")
+{
+}
+
+void
+thin_trim_cmd::usage(std::ostream &out) const
+{
+	out << "Usage: " << get_name() << " [options] --metadata-dev {device|file} --data-dev {device|file}\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-V|--version}" << endl;
+}
+
+int
+thin_trim_cmd::run(int argc, char **argv)
 {
 	int c;
 	flags fs;
@@ -174,8 +194,12 @@ int thin_trim_main(int argc, char **argv)
 			fs.data_dev = optarg;
 			break;
 
+		case 2:
+			cerr << "--pool-inactive no longer required since we ensure the metadata device is opened exclusively.\n";
+			break;
+
 		case 'h':
-			usage(cout, basename(argv[0]));
+			usage(cout);
 			return 0;
 
 		case 'V':
@@ -183,13 +207,13 @@ int thin_trim_main(int argc, char **argv)
 			return 0;
 
 		default:
-			usage(cerr, basename(argv[0]));
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (!fs.metadata_dev || !fs.data_dev) {
-		usage(cerr, basename(argv[0]));
+		usage(cerr);
 		return 1;
 	}
 

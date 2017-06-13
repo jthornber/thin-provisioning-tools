@@ -59,21 +59,24 @@ namespace thin_provisioning {
 		typedef block_manager<>::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
-
-		// Deprecated: it would be better if we passed in an already
-		// constructed block_manager.
-		metadata(std::string const &dev_path, open_type ot,
-			 sector_t data_block_size = 128, // Only used if CREATE
-			 block_address nr_data_blocks = 0); // Only used if CREATE
-
-		metadata(std::string const &dev_path,
-			 block_address metadata_snap = 0);
-
-		// ... use these instead ...
 		metadata(block_manager<>::ptr bm, open_type ot,
 			 sector_t data_block_size = 128,
 			 block_address nr_data_blocks = 0); // Only used if CREATE
-		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+
+		// Ideally we'd like the metadata snap argument to be a
+		// boolean, and we'd read the snap location from the
+		// superblock.  But the command line interface for some of
+		// the tools allows the user to pass in a block, which
+		// they've retrieved from the pool status.  So we have to
+		// support 3 cases:
+		//
+		// i)   Read superblock
+		// ii)  Read the metadata snap as given in the superblock
+		// iii) Read the metadata snap given on command line, checking it matches superblock.
+		//
+		metadata(block_manager<>::ptr bm, bool read_space_maps = true); // (i)
+		metadata(block_manager<>::ptr,
+			 boost::optional<block_address> metadata_snap); // (ii) and (iii)
 
 		void commit();
 
@@ -86,6 +89,10 @@ namespace thin_provisioning {
 		device_tree::ptr details_;
 		dev_tree::ptr mappings_top_level_;
 		mapping_tree::ptr mappings_;
+
+	private:
+		void open_space_maps();
+		void open_btrees();
 	};
 }
 

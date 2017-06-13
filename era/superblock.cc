@@ -3,10 +3,13 @@
 #include "persistent-data/checksum.h"
 #include "persistent-data/errors.h"
 
+#include <sstream>
+
 using namespace base;
 using namespace era;
 using namespace superblock_damage;
 using namespace persistent_data;
+using namespace std;
 
 //----------------------------------------------------------------
 
@@ -217,6 +220,15 @@ namespace era_validator {
 			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
 			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
 				throw checksum_error("bad checksum in superblock");
+		}
+
+		virtual bool check_raw(void const *raw) const {
+			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(raw);
+			crc32c sum(SUPERBLOCK_CSUM_SEED);
+			sum.append(&sbd->flags, MD_BLOCK_SIZE - sizeof(uint32_t));
+			if (sum.get_sum() != to_cpu<uint32_t>(sbd->csum))
+				return false;
+			return true;
 		}
 
 		virtual void prepare(void *raw, block_address location) const {
