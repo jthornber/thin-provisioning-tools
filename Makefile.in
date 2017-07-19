@@ -107,10 +107,10 @@ SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
-	thin-provisioning/thin_trim.cc \
 	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
+	thin-provisioning/thin_trim.cc \
 	thin-provisioning/thin_ll_dump.cc \
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
@@ -249,8 +249,6 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
-	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
-	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/era_check
 	ln -s -f pdata_tools $(BINDIR)/era_dump
@@ -275,6 +273,8 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_invalidate.8 $(MANPATH)/man8
 ifeq ("@DEVTOOLS@", "yes")
+	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
+	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_ll_dump
 	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
 	ln -s -f pdata_tools $(BINDIR)/thin_generate_metadata
