@@ -267,7 +267,6 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
@@ -279,6 +278,7 @@ ifeq ("@DEVTOOLS@", "yes")
 	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
 	ln -s -f pdata_tools $(BINDIR)/thin_generate_metadata
 	ln -s -f pdata_tools $(BINDIR)/thin_scan
+	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 endif
 
 #	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
