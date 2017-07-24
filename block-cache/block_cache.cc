@@ -105,17 +105,14 @@ block_cache::complete_io(block &b, int result)
 {
 	b.error_ = result;
 	b.clear_flags(BF_IO_PENDING);
-	nr_io_pending_--;
 
 	if (b.error_) {
 		b.unlink();
 		errored_.push_back(b);
 
 	} else {
-		if (b.test_flags(BF_DIRTY)) {
+		if (b.test_flags(BF_DIRTY))
 			b.clear_flags(BF_DIRTY | BF_PREVIOUSLY_DIRTY);
-			nr_dirty_--;
-		}
 
 		b.unlink();
 		clean_.push_back(b);
@@ -135,7 +132,6 @@ block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc
 
 	assert(!b.test_flags(BF_IO_PENDING));
 	b.set_flags(BF_IO_PENDING);
-	nr_io_pending_++;
 	b.unlink();
 	io_pending_.push_back(b);
 
@@ -374,8 +370,6 @@ block_cache::calc_nr_buckets(unsigned nr_blocks)
 
 block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, size_t mem)
 	: nr_locked_(0),
-	  nr_dirty_(0),
-	  nr_io_pending_(0),
 	  read_hits_(0),
 	  read_misses_(0),
 	  write_zeroes_(0),
@@ -555,7 +549,7 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 void
 block_cache::preemptive_writeback()
 {
-	unsigned nr_available = nr_cache_blocks_ - (nr_dirty_ - nr_io_pending_);
+	unsigned nr_available = nr_cache_blocks_ - (dirty_.size() - io_pending_.size());
 	if (nr_available < (WRITEBACK_LOW_THRESHOLD_PERCENT * nr_cache_blocks_ / 100))
 		writeback((WRITEBACK_HIGH_THRESHOLD_PERCENT * nr_cache_blocks_ / 100) - nr_available);
 
@@ -575,7 +569,6 @@ block_cache::release(block_cache::block &b)
 		if (!b.test_flags(BF_PREVIOUSLY_DIRTY)) {
 			b.unlink();
 			dirty_.push_back(b);
-			nr_dirty_++;
 			b.set_flags(BF_PREVIOUSLY_DIRTY);
 		}
 

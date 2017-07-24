@@ -267,9 +267,7 @@ namespace bcache {
 		block_list clean_;
 
 		unsigned nr_locked_;
-		unsigned nr_dirty_;
 
-		unsigned nr_io_pending_;
 		block_list io_pending_;
 
 		typedef bi::member_hook<block,
