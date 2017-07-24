@@ -319,14 +319,13 @@ block_cache::new_block(block_address index)
 	block *b;
 
 	b = __alloc_block();
-	if (!b) {
-		if (clean_.empty()) {
+	while (!b && nr_locked_ < nr_cache_blocks_) {
+		b = find_unused_clean_block();
+		if (!b) {
 			if (io_pending_.empty())
 				writeback(16);
 			wait_io();
 		}
-
-		b = find_unused_clean_block();
 	}
 
 	if (b) {
