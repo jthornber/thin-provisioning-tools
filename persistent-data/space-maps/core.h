@@ -85,7 +85,7 @@ namespace persistent_data {
 				if (search_start_ >= ms->second)
 					continue;
 
-				for (block_address b = max(search_start_, ms->first); b < ms->second; b++) {
+				for (block_address b = std::max(search_start_, ms->first); b < ms->second; b++) {
 					if (b >= counts_.size())
 						throw std::runtime_error("block out of bounds");
 

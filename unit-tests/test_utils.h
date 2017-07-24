@@ -31,10 +31,10 @@ namespace test {
 	template <uint32_t BlockSize>
 	typename block_manager<BlockSize>::ptr
 	create_bm(block_address nr = 1024) {
-		string const path("./test.data");
+		std::string const path("./test.data");
 		int r = system("rm -f ./test.data");
 		if (r < 0)
-			throw runtime_error("couldn't rm -f ./test.data");
+			throw std::runtime_error("couldn't rm -f ./test.data");
 
 		return typename block_manager<BlockSize>::ptr(
 			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
@@ -121,9 +121,9 @@ namespace test {
 		std::string const &get_path() const;
 
 	private:
-		static string gen_path(string const &base);
+		static std::string gen_path(std::string const &base);
 
-		string path_;
+		std::string path_;
 	};
 
 	//--------------------------------

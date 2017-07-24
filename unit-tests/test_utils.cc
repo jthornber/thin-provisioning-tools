@@ -2,6 +2,10 @@
 
 #include "persistent-data/space-maps/core.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 using namespace persistent_data;
 using namespace std;
 using namespace test;

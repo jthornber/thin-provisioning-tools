@@ -83,11 +83,11 @@ namespace persistent_data {
 				out << "array_block::grow called with more than max_entries ("
 				    << nr << " > " << max_entries();
 
-				throw runtime_error(out.str());
+				throw std::runtime_error(out.str());
 			}
 
 			if (nr <= old_nr)
-				throw runtime_error("array_block grow method called with smaller size");
+				throw std::runtime_error("array_block grow method called with smaller size");
 
 			grow_(nr, default_value);
 		}
@@ -96,7 +96,7 @@ namespace persistent_data {
 			uint32_t old_nr = nr_entries();
 
 			if (nr >= old_nr)
-				throw runtime_error("array_block shrink called with larger size");
+				throw std::runtime_error("array_block shrink called with larger size");
 
 			shrink_(nr);
 		}
@@ -172,7 +172,7 @@ namespace persistent_data {
 
 		disk_type &element_at(unsigned int index) {
 			if (index >= nr_entries())
-				throw runtime_error("array_block index out of bounds");
+				throw std::runtime_error("array_block index out of bounds");
 
 			array_block_disk *a = get_header();
 			disk_type *elts = reinterpret_cast<disk_type *>(a + 1);
@@ -181,7 +181,7 @@ namespace persistent_data {
 
 		disk_type const &element_at(unsigned int index) const {
 			if (index >= nr_entries())
-				throw runtime_error("array_block index out of bounds");
+				throw std::runtime_error("array_block index out of bounds");
 
 			array_block_disk const *a = get_header();
 			disk_type const *elts = reinterpret_cast<disk_type const *>(a + 1);
