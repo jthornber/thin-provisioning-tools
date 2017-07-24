@@ -134,14 +134,21 @@ namespace persistent_data {
 	//----------------------------------------------------------------
 
 	template <uint32_t BlockSize>
+	uint64_t
+	block_manager<BlockSize>::choose_cache_size(block_address nr_blocks) const
+	{
+		uint64_t const DEFAULT_CACHE_SIZE = 1024 * 1024 * 16;
+		return std::min<uint64_t>(DEFAULT_CACHE_SIZE, BlockSize * nr_blocks);
+	}
+
+	template <uint32_t BlockSize>
 	block_manager<BlockSize>::block_manager(std::string const &path,
 						block_address nr_blocks,
 						unsigned max_concurrent_blocks,
 						mode m,
 						bool excl)
-		// FIXME: * BlockSize ?
 		: fd_(open_or_create_block_file(path, nr_blocks * BlockSize, m, excl)),
-		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, 1024u * 1024u * 16),
+		  bc_(fd_, BlockSize >> SECTOR_SHIFT, nr_blocks, choose_cache_size(nr_blocks)),
 		  superblock_ref_count_(0)
 	{
 	}
