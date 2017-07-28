@@ -7,7 +7,7 @@ end
 
 Given /^input without read permissions$/ do
   write_file(DEFAULT_INPUT, "\0" * 4096)
-  in_current_dir do
+	cd(".") do
     f = File.new(DEFAULT_INPUT)
     f.chmod(0000)
   end
@@ -18,7 +18,7 @@ Given(/^input file$/) do
 end
 
 Given(/^block (\d+) is zeroed$/) do |b|
-  in_current_dir do
+	cd(".") do
     File.open(DEFAULT_INPUT, 'w') do |f|
       f.seek(BLOCK_SIZE * b.to_i, IO::SEEK_SET)
       f.write("\0" * BLOCK_SIZE)
@@ -27,11 +27,11 @@ Given(/^block (\d+) is zeroed$/) do |b|
 end
 
 Then /^it should pass$/ do
-  assert_success(true)
+	expect(last_command_started).to be_successfully_executed
 end
 
 Then /^it should fail$/ do
-  assert_success(false)
+	expect(last_command_started).to_not be_successfully_executed
 end
 
 CACHE_USAGE =<<EOF
@@ -44,14 +44,15 @@ Options:
   {--super-block-only}
   {--skip-mappings}
   {--skip-hints}
+  {--skip-discards}
 EOF
 
 Then /^cache_usage to stdout$/ do
-  assert_partial_output(CACHE_USAGE, all_stdout)
+	expect(last_command_started).to have_output_on_stdout(CACHE_USAGE.chomp)
 end
 
 Then /^cache_usage to stderr$/ do
-  assert_partial_output(CACHE_USAGE, all_stderr)
+	expect(last_command_started).to have_output_on_stderr("No input file provided.\n" + CACHE_USAGE.chomp)
 end
 
 When(/^I run cache_check with (.*?)$/) do |opts|
@@ -79,7 +80,7 @@ When(/^I run cache_metadata_size$/) do
 end
 
 Given(/^valid cache metadata$/) do
-  in_current_dir do
+	cd(".") do
     system("cache_xml create --nr-cache-blocks uniform[1000..5000] --nr-mappings uniform[500..1000] > #{xml_file}")
     system("dd if=/dev/zero of=#{dev_file} bs=4k count=1024 > /dev/null")
   end
@@ -92,7 +93,7 @@ Then(/^cache dumps (\d+) and (\d+) should be identical$/) do |d1, d2|
 end
 
 Given(/^a small xml file$/) do
-  in_current_dir do
+	cd(".") do
     system("cache_xml create --nr-cache-blocks 3 --nr-mappings 3 --layout linear --dirty-percent 100 > #{xml_file}")
   end
 end

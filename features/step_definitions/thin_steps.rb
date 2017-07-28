@@ -42,13 +42,13 @@ When(/^I run thin_restore with (.*?)$/) do |opts|
 end
 
 Then /^it should give no output$/ do
-  ps = only_processes.last
+  ps = all_commands.last
   output = ps.stdout + ps.stderr
-  output.should == ""
+	expect(output).to eq("")
 end
 
 Then(/^it should pass with version$/) do
-  only_processes.last.stdout.chomp.should == tools_version
+  expect(all_commands.last.stdout.chomp).to eq(tools_version)
 end
 
 When(/^I dump$/) do
