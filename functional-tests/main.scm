@@ -1,4 +1,6 @@
-(import (fmt fmt))
+(import (fmt fmt)
+        (thin-xml)
+        (only (srfi s1 lists) drop-while))
 
 ;;;--------------------------------------------------------------------
 
@@ -30,16 +32,21 @@
                          info-lines)))
 
 ;;;--------------------------------------------------------------------
-;;; Run a sub process and capture it's output.
-;;; Ideally we'd use open-process-ports, but that loses us the exit code which
-;;; we need for testing.  So we use system, and redirect stderr and stdout to
-;;; temporary files, and subsequently read them in.  Messy, but fine for tests.
+
 (define temp-file
   (let ((counter 0))
    (lambda ()
-     (let ((path (cat (dsp "/tmp/thinp-functional-tests-") (pad-char #\0 (pad/left 4 (num counter))))))
-      (set! counter (+ counter 1))
-      (fmt #f path)))))
+     (let loop ()
+       (let ((path (fmt #f (cat (dsp "/tmp/thinp-functional-tests-")
+                                (pad-char #\0 (pad/left 4 (num counter)))))))
+         (set! counter (+ counter 1))
+         (if (file-exists? path) (loop) path))))))
+
+;; Creates a temporary file with the specified contents.
+(define (temp-file-containing contents)
+  (let ((path (temp-file)))
+   (with-output-to-file path (lambda () (put-string (current-output-port) contents)))
+   path))
 
 (define (slurp-file path)
   (define (slurp)
@@ -49,6 +56,12 @@
             (chomp output))))
 
   (with-input-from-file path slurp))
+
+;;;--------------------------------------------------------------------
+;;; Run a sub process and capture it's output.
+;;; Ideally we'd use open-process-ports, but that loses us the exit code which
+;;; we need for testing.  So we use system, and redirect stderr and stdout to
+;;; temporary files, and subsequently read them in.  Messy, but fine for tests.
 
 (define (build-command-line cmd-and-args)
   (apply fmt #f (map dsp (intersperse " " cmd-and-args))))
@@ -97,12 +110,14 @@
   (hashtable-set! scenarios sym s))
 
 (define (list-scenarios)
-  (vector->list (vector-sort-by string<? symbol->string (hashtable-keys scenarios))))
+  (vector->list
+        (vector-sort-by string<? symbol->string (hashtable-keys scenarios))))
 
 (define (describe-scenarios ss)
   (define (describe sym)
     (fmt #t
-         (columnar (dsp sym) (justify (scenario-desc (hashtable-ref scenarios sym #f))))
+         (columnar (dsp sym)
+                   (justify (scenario-desc (hashtable-ref scenarios sym #f))))
          nl))
 
   (for-each describe ss))
@@ -145,16 +160,6 @@
                (dsp ", ")
                (wrt str2)))))
 
-(scenario thin-check-v
-          "thin_check -V"
-          (let-values (((stdout stderr) (thin-check "-V")))
-                      (assert-equal tools-version stdout)))
-
-(scenario thin-check-version
-          "thin_check --version"
-          (let-values (((stdout stderr) (thin-check "--version")))
-                      (assert-equal tools-version stdout)))
-
 (define thin-check-help
   "Usage: thin_check [options] {device|file}
 Options:
@@ -166,26 +171,11 @@ Options:
   {--skip-mappings}
   {--super-block-only}")
 
-(scenario thin-check-h
-          "print help (-h)"
-          (let-values (((stdout stderr) (thin-check "-h")))
-                      (assert-equal thin-check-help stdout)))
-
-(scenario thin-check-help
-          "print help (--help)"
-          (let-values (((stdout stderr) (thin-check "--help")))
-                      (assert-equal thin-check-help stdout)))
-
-(scenario thin-bad-option
-          "Unrecognised option should cause failure"
-          (run-fail "thin_check --hedgehogs-only"))
-
 (define (current-metadata)
   "metadata.bin")
 
 (define (%with-valid-metadata thunk)
-  (let ((xml-file (temp-file)))
-   (run-ok "thinp_xml create --nr-thins uniform[4..9] --nr-mappings uniform[1000..10000] > " xml-file)
+  (let ((xml-file (temp-file-containing (fmt #f (generate-xml 10 1000)))))
    (run-ok "thin_restore" "-i" xml-file "-o" (current-metadata))
    (thunk)))
 
@@ -202,15 +192,63 @@ Options:
   (syntax-rules ()
     ((_ body ...) (%with-corrupt-metadata (lambda () body ...)))))
 
-(scenario thin-check-valid
+;;;-----------------------------------------------------------
+;;; Scenarios
+;;;-----------------------------------------------------------
+
+(scenario thin-check-v
+          "thin_check -V"
+          (let-values (((stdout stderr) (thin-check "-V")))
+                      (assert-equal tools-version stdout)))
+
+(scenario thin-check-version
+          "thin_check --version"
+          (let-values (((stdout stderr) (thin-check "--version")))
+                      (assert-equal tools-version stdout)))
+
+(scenario thin-check-h
+          "print help (-h)"
+          (let-values (((stdout stderr) (thin-check "-h")))
+                      (assert-equal thin-check-help stdout)))
+
+(scenario thin-check-help
+          "print help (--help)"
+          (let-values (((stdout stderr) (thin-check "--help")))
+                      (assert-equal thin-check-help stdout)))
+
+(scenario thin-bad-option
+          "Unrecognised option should cause failure"
+          (run-fail "thin_check --hedgehogs-only"))
+
+(scenario thin-check-superblock-only-valid
           "--super-block-only check passes on valid metadata"
           (with-valid-metadata
-            (thin_check "--super-block-only" (current-metadata))))
+            (thin-check "--super-block-only" (current-metadata))))
 
-(scenario thin-check-invalid
+(scenario thin-check-superblock-only-invalid
           "--super-block-only check fails with corrupt metadata"
           (with-corrupt-metadata
             (let-values (((stdout stderr) (run-fail "thin_check" "--super-block-only" (current-metadata))))
                         #t)))
+
+(scenario thin-check-skip-mappings-valid
+          "--skip-mappings check passes on valid metadata"
+          (with-valid-metadata
+            (thin-check "--skip-mappings" (current-metadata))))
+
+(scenario thin-check-ignore-non-fatal-errors
+          "--ignore-non-fatal-errors check passes on valid metadata"
+          (with-valid-metadata
+            (thin-check "--ignore-non-fatal-errors" (current-metadata))))
+
+(scenario thin-check-quiet
+          "--quiet should give no output"
+          (with-invalid-metadata
+            (run-fail "thin_check" "--quiet" (current-metadata))))
+
+(scenario thin-check-clear-needs-check-flag
+          "Accepts --clear-needs-check-flag"
+          (with-valid-metadata
+            (thin-check "--clear-needs-check-flag" (current-metadata))))
 
 ;;;--------------------------------------------------------------------
