@@ -1,5 +1,6 @@
 (import (fmt fmt)
         (thin-xml)
+        (srfi s8 receive)
         (only (srfi s1 lists) drop-while))
 
 ;;;--------------------------------------------------------------------
@@ -57,6 +58,9 @@
 
   (with-input-from-file path slurp))
 
+(define (temp-thin-xml)
+  (temp-file-containing (fmt #f (generate-xml 10 1000))))
+
 ;;;--------------------------------------------------------------------
 ;;; Run a sub process and capture it's output.
 ;;; Ideally we'd use open-process-ports, but that loses us the exit code which
@@ -82,7 +86,7 @@
                (slurp-file stderr-file))))))
 
 (define (run-with-exit-code pred cmd-and-args)
-  (let-values (((exit-code stdout stderr) (apply run cmd-and-args)))
+  (receive (exit-code stdout stderr) (apply run cmd-and-args)
               (if (pred exit-code)
                   (values stdout stderr)
                   (begin
@@ -150,8 +154,25 @@
 ;; FIXME: don't hard code this
 (define tools-version "0.7.0-rc6")
 
-(define (thin-check . flags)
-  (apply run-ok "thin_check" flags))
+(define (tool-name sym)
+  (define (to-underscore c)
+    (if (eq? #\- c) #\_ c))
+
+  (list->string (map to-underscore (string->list (symbol->string sym)))))
+
+(define-syntax define-tool
+  (syntax-rules ()
+    ((_ tool-sym) (define (tool-sym . flags)
+                    (apply run-ok (tool-name 'tool-sym) flags)))))
+
+;(define (thin-check . flags)
+  ;(apply run-ok "thin_check" flags))
+
+(define-tool thin-check)
+(define-tool thin-delta)
+(define-tool thin-dump)
+(define-tool thin-restore)
+(define-tool thin-rmap)
 
 (define (assert-equal str1 str2)
   (unless (equal? str1 str2)
@@ -160,16 +181,21 @@
                (dsp ", ")
                (wrt str2)))))
 
-(define thin-check-help
-  "Usage: thin_check [options] {device|file}
-Options:
-  {-q|--quiet}
-  {-h|--help}
-  {-V|--version}
-  {--clear-needs-check-flag}
-  {--ignore-non-fatal-errors}
-  {--skip-mappings}
-  {--super-block-only}")
+(define (assert-eof obj)
+  (unless (eof-object? obj)
+    (fail (fmt #f (dsp "object is not an #!eof: ") (dsp obj)))))
+
+(define (starts-with prefix str)
+  (and (>= (string-length str) (string-length prefix))
+       (equal? (substring str 0 (string-length prefix))
+               prefix)))
+
+(define (assert-starts-with prefix str)
+  (unless (starts-with prefix str)
+    (fail (fmt #f (dsp "string should begin with: ")
+               (wrt prefix)
+               (dsp ", ")
+               (wrt str)))))
 
 (define (current-metadata)
   "metadata.bin")
@@ -193,30 +219,41 @@ Options:
     ((_ body ...) (%with-corrupt-metadata (lambda () body ...)))))
 
 ;;;-----------------------------------------------------------
-;;; Scenarios
+;;; thin_check scenarios
 ;;;-----------------------------------------------------------
+
+(define thin-check-help
+  "Usage: thin_check [options] {device|file}
+Options:
+  {-q|--quiet}
+  {-h|--help}
+  {-V|--version}
+  {--clear-needs-check-flag}
+  {--ignore-non-fatal-errors}
+  {--skip-mappings}
+  {--super-block-only}")
 
 (scenario thin-check-v
           "thin_check -V"
-          (let-values (((stdout stderr) (thin-check "-V")))
-                      (assert-equal tools-version stdout)))
+          (receive (stdout _) (thin-check "-V")
+                   (assert-equal tools-version stdout)))
 
 (scenario thin-check-version
           "thin_check --version"
-          (let-values (((stdout stderr) (thin-check "--version")))
-                      (assert-equal tools-version stdout)))
+          (receive (stdout _) (thin-check "--version")
+                   (assert-equal tools-version stdout)))
 
 (scenario thin-check-h
           "print help (-h)"
-          (let-values (((stdout stderr) (thin-check "-h")))
-                      (assert-equal thin-check-help stdout)))
+          (receive (stdout _) (thin-check "-h")
+                   (assert-equal thin-check-help stdout)))
 
 (scenario thin-check-help
           "print help (--help)"
-          (let-values (((stdout stderr) (thin-check "--help")))
-                      (assert-equal thin-check-help stdout)))
+          (receive (stdout _) (thin-check "--help")
+                   (assert-equal thin-check-help stdout)))
 
-(scenario thin-bad-option
+(scenario thin-check-bad-option
           "Unrecognised option should cause failure"
           (run-fail "thin_check --hedgehogs-only"))
 
@@ -228,8 +265,7 @@ Options:
 (scenario thin-check-superblock-only-invalid
           "--super-block-only check fails with corrupt metadata"
           (with-corrupt-metadata
-            (let-values (((stdout stderr) (run-fail "thin_check" "--super-block-only" (current-metadata))))
-                        #t)))
+            (run-fail "thin_check --super-block-only" (current-metadata))))
 
 (scenario thin-check-skip-mappings-valid
           "--skip-mappings check passes on valid metadata"
@@ -243,12 +279,150 @@ Options:
 
 (scenario thin-check-quiet
           "--quiet should give no output"
-          (with-invalid-metadata
-            (run-fail "thin_check" "--quiet" (current-metadata))))
+          (with-valid-metadata
+            (receive (stdout stderr) (thin-check "--quiet" (current-metadata))
+                     (assert-eof stdout)
+                     (assert-eof stderr))))
 
 (scenario thin-check-clear-needs-check-flag
           "Accepts --clear-needs-check-flag"
           (with-valid-metadata
             (thin-check "--clear-needs-check-flag" (current-metadata))))
+
+;;;-----------------------------------------------------------
+;;; thin_restore scenarios
+;;;-----------------------------------------------------------
+
+(define thin-restore-help
+  "Usage: thin_restore [options]
+Options:
+  {-h|--help}
+  {-i|--input} <input xml file>
+  {-o|--output} <output device or file>
+  {-q|--quiet}
+  {-V|--version}")
+
+(scenario thin-restore-print-version-v
+          "print help (-V)"
+          (receive (stdout _) (thin-restore "-V")
+                   (assert-equal tools-version stdout)))
+
+(scenario thin-restore-print-version-long
+          "print help (--version)"
+          (receive (stdout _) (thin-restore "--version")
+                   (assert-equal tools-version stdout)))
+
+(scenario thin-restore-h
+          "print help (-h)"
+          (receive (stdout _) (thin-restore "-h")
+                   (assert-equal thin-restore-help stdout)))
+
+(scenario thin-restore-help
+          "print help (-h)"
+          (receive (stdout _) (thin-restore "--help")
+                   (assert-equal thin-restore-help stdout)))
+
+(scenario thin-restore-no-input-file
+          "forget to specify an input file"
+          (receive (_ stderr) (run-fail "thin_restore" "-o" (current-metadata))
+                   (assert-starts-with "No input file provided." stderr)))
+
+(scenario thin-restore-missing-input-file
+          "the input file can't be found"
+          (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" (current-metadata))
+                   (assert-starts-with "Couldn't stat file" stderr)))
+
+(scenario thin-restore-missing-output-file
+          "the input file can't be found"
+          (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" (current-metadata))
+                   (assert-starts-with "Couldn't stat file" stderr)))
+
+(define thin-restore-outfile-too-small-text
+  "Output file too small.
+
+The output file should either be a block device,
+or an existing file.  The file needs to be large
+enough to hold the metadata.")
+
+(scenario thin-restore-tiny-output-file
+          "Fails if the output file is too small."
+          (let ((outfile (temp-file))
+                (xml-file (temp-file-containing (fmt #f (generate-xml 10 1000)))))
+           (run-ok "dd if=/dev/zero" (fmt #f (dsp "of=") (dsp outfile)) "bs=4k count=1")
+           (receive (_ stderr) (run-fail "thin_restore" "-i" xml-file "-o" outfile)
+                    (assert-starts-with thin-restore-outfile-too-small-text stderr))))
+
+(scenario thin-restore-q
+          "thin_restore accepts -q"
+          (receive (stdout _) (thin-restore "-i" (temp-thin-xml) "-o" (current-metadata) "-q")
+                   (assert-eof stdout)))
+
+(scenario thin-restore-quiet
+          "thin_restore accepts --quiet"
+          (receive (stdout _) (thin-restore "-i" (temp-thin-xml) "-o" (current-metadata) "--quiet")
+                   (assert-eof stdout)))
+
+(scenario thin-dump-restore-is-noop
+          "thin_dump followed by thin_restore is a noop."
+          (with-valid-metadata
+            (receive (d1-stdout _) (thin-dump (current-metadata))
+                     (thin-restore "-i" (temp-file-containing d1-stdout) "-o" (current-metadata))
+                     (receive (d2-stdout _) (thin-dump (current-metadata))
+                              (assert-equal d1-stdout d2-stdout)))))
+
+;;;-----------------------------------------------------------
+;;; thin_rmap scenarios
+;;;-----------------------------------------------------------
+
+(scenario thin-rmap-v
+          "thin_rmap accepts -V"
+          (receive (stdout _) (thin-rmap "-V")
+                   (assert-equal tools-version stdout)))
+
+(scenario thin-rmap-version
+          "thin_rmap accepts --version"
+          (receive (stdout _) (thin-rmap "--version")
+                   (assert-equal tools-version stdout)))
+
+(define thin-rmap-help
+  "Usage: thin_rmap [options] {device|file}
+Options:
+  {-h|--help}
+  {-V|--version}
+  {--region <block range>}*
+Where:
+  <block range> is of the form <begin>..<one-past-the-end>
+  for example 5..45 denotes blocks 5 to 44 inclusive, but not block 45")
+
+(scenario thin-rmap-h
+          "thin_rmap accepts -h"
+          (receive (stdout _) (thin-rmap "-h")
+                   (assert-equal thin-rmap-help stdout)))
+
+(scenario thin-rmap-help
+          "thin_rmap accepts --help"
+          (receive (stdout _) (thin-rmap "--help")
+                   (assert-equal thin-rmap-help stdout)))
+
+(scenario thin-rmap-unrecognised-flag
+          "thin_rmap complains with bad flags."
+          (run-fail "thin_rmap --unleash-the-hedgehogs"))
+
+(scenario thin-rmap-valid-region-format-should-pass
+          "thin_rmap with a valid region format should pass."
+          (with-valid-metadata
+            (thin-rmap "--region 23..7890" (current-metadata))))
+
+(scenario thin-rmap-invalid-region-should-fail
+          "thin_rmap with an invalid region format should fail."
+          (for-each (lambda (pattern)
+                      (with-valid-metadata
+                        (run-fail "thin_rmap --region" pattern (current-metadata))))
+                    '("23,7890" "23..six" "found..7890" "89..88" "89..89" "89.." "" "89...99")))
+
+(scenario thin-rmap-multiple-regions-should-pass
+          "thin_rmap should handle multiple regions."
+          (with-valid-metadata
+            (thin-rmap "--region 1..23 --region 45..78" (current-metadata))))
 
 ;;;--------------------------------------------------------------------
