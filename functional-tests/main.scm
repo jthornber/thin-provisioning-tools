@@ -165,9 +165,6 @@
     ((_ tool-sym) (define (tool-sym . flags)
                     (apply run-ok (tool-name 'tool-sym) flags)))))
 
-;(define (thin-check . flags)
-  ;(apply run-ok "thin_check" flags))
-
 (define-tool thin-check)
 (define-tool thin-delta)
 (define-tool thin-dump)
@@ -201,9 +198,8 @@
   "metadata.bin")
 
 (define (%with-valid-metadata thunk)
-  (let ((xml-file (temp-file-containing (fmt #f (generate-xml 10 1000)))))
-   (run-ok "thin_restore" "-i" xml-file "-o" (current-metadata))
-   (thunk)))
+  (run-ok "thin_restore" "-i" (temp-thin-xml) "-o" (current-metadata))
+  (thunk))
 
 (define-syntax with-valid-metadata
   (syntax-rules ()
@@ -346,10 +342,9 @@ enough to hold the metadata.")
 
 (scenario thin-restore-tiny-output-file
           "Fails if the output file is too small."
-          (let ((outfile (temp-file))
-                (xml-file (temp-file-containing (fmt #f (generate-xml 10 1000)))))
+          (let ((outfile (temp-file)))
            (run-ok "dd if=/dev/zero" (fmt #f (dsp "of=") (dsp outfile)) "bs=4k count=1")
-           (receive (_ stderr) (run-fail "thin_restore" "-i" xml-file "-o" outfile)
+           (receive (_ stderr) (run-fail "thin_restore" "-i" (temp-thin-xml) "-o" outfile)
                     (assert-starts-with thin-restore-outfile-too-small-text stderr))))
 
 (scenario thin-restore-q
