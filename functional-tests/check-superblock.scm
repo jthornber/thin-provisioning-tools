@@ -37,14 +37,24 @@
            (make-error)
            (make-message-condition msg))))
 
-;;; Returns a 4k bytevector
+;;; Returns a boolean indicating success
+(define (read-exact! port offset len bv start)
+  (set-port-position! port offset)
+  (let ((nr (get-bytevector-n! port bv start len)))
+    (and (not (eof-object? nr))
+         (= len nr))))
+
+;;; Returns a 4k bytevector or #f
+(define (read-exact port offset len)
+  (let ((bv (make-bytevector len)))
+   (if (read-exact! port offset len bv 0) bv #f)))
+
 (define (read-block port b)
-  (set-port-position! port (* b metadata-block-size))
-  (let ((data (get-bytevector-n port metadata-block-size)))
-   (unless (and (not (eof-object? data))
-                (= metadata-block-size (bytevector-length data)))
-     (io-error (fmt #f (dsp "unable to read metadata block: ") (num b))))
-   data))
+  (or (read-exact port (* b metadata-block-size) metadata-block-size)
+      (io-error (fmt #f (dsp "Unable to read metadata block: ") (num b)))))
+
+;;; FIXME: implement a little block cache.
+
 
 ;;;;---------------------------------------------------
 ;;;; CRC32
@@ -86,12 +96,12 @@
       copy))))
 
 (define (size-type t)
-  (syntax->datum
-    (syntax-case t (le32 le64 bytes)
+  (syntax-case t (le32 le64 bytes)
                  (le32 #'4)
                  (le64 #'8)
-                 ((bytes count) #'count))))
+                 ((bytes count) #'count)))
 
+;;; FIXME: (bytes <count>) has to use a literal rather than a symbol.
 (define-syntax binary-format
   (lambda (x)
     (syntax-case x ()
@@ -101,8 +111,8 @@
                                   (if (null? types)
                                       '()
                                       (cons (list (car types) acc)
-                                            (f (+ acc (size-type (car types))) (cdr types)))))))
-                               #'(begin
+                                            (f (+ (syntax->datum (size-type (car types))) acc) (cdr types)))))))
+                               #`(begin
                                    (define-record-type name (fields field ...))
 
                                    (define (unpack-name bv offset)
