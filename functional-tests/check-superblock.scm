@@ -1,20 +1,21 @@
 (import
+  (binary-format)
   (block-io)
   (fmt fmt)
-  (matchable))
+  (matchable)
+  (rnrs))
 
 ;;;;---------------------------------------------------
 ;;;; Constants
 ;;;;---------------------------------------------------
 
 ;; FIXME: duplicate with main.scm
-(define (current-metadata)
-  "./metadata.bin")
+(define (current-metadata) "./metadata.bin")
 
-(define superblock-magic 27022010)
-(define superblock-salt 160774)
-(define uuid-size 16)
-(define space-map-root-size 128)
+(define $superblock-magic 27022010)
+(define $superblock-salt 160774)
+(define $uuid-size 16)
+(define $space-map-root-size 128)
 
 (binary-format (superblock pack-superblock unpack-superblock)
   (csum le32)
@@ -54,5 +55,5 @@
   (with-metadata (md (current-metadata))
                  (let ((superblock (read-block md 0)))
                   (fmt #t (dsp "checksum on disk: ") (dsp (bytevector-u32-ref superblock 0 (endianness little))) nl)
-                  (fmt #t (dsp "calculated checksum: ") (dsp (crc32-region superblock-salt superblock 4 4092)) nl)
+                  ;(fmt #t (dsp "calculated checksum: ") (dsp (crc32-region $superblock-salt superblock 4 4092)) nl)
                   (check-magic superblock))))

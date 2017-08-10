@@ -1,7 +1,12 @@
 (library
   (list-utils)
-  (export intersperse iterate accumulate)
+  (export tails intersperse iterate accumulate)
   (import (rnrs))
+
+  (define (tails xs)
+    (if (null? xs)
+        '()
+        (cons xs (tails (cdr xs)))))
 
   (define (intersperse sep xs)
     (cond

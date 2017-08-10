@@ -3,7 +3,8 @@
 
   (export btree-open
           btree-lookup
-          btree-each)
+          btree-each
+          le64-type)
 
   (import (block-io)
           (chezscheme)
@@ -68,16 +69,15 @@
   ;;; Performs a binary search looking for the key and returns the index of the
   ;;; lower bound.
   (define (lower-bound node header key)
-    (let ((nr-entries (node-header-nr-entries header)))
-     (let loop ((lo 0) (hi nr-entries))
-      (if (= 1 (- hi lo))
+    (let loop ((lo 0) (hi (node-header-nr-entries header)))
+      (if (<= (- hi lo) 1)
           lo
           (let* ((mid (+ lo (/ (- hi lo) 2)))
-                 (k (key-at mid)))
+                 (k (key-at node mid)))
             (cond
               ((= key k) mid)
               ((< k key) (loop mid hi))
-              (else (loop lo mid))))))))
+              (else (loop lo mid)))))))
 
   ;;;;----------------------------------------------
   ;;;; Lookup
