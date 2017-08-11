@@ -1,8 +1,19 @@
 (library
   (binary-format)
-  (export size-type binary-format le32 le64 bytes)
-  (import (rnrs)
+
+  (export unpack-type
+          size-type
+          binary-format
+          binary-format-names
+          le32
+          le64
+          bytes)
+
+  (import (chezscheme)
+          (fmt fmt)
           (list-utils))
+
+  ;;;-----------------------------------------
 
   (define-syntax size-type
     (syntax-rules (le32 le64 bytes)
@@ -23,23 +34,66 @@
         (bytevector-copy! bv offset copy 0 count)
         copy))))
 
-  (define-syntax binary-format
+#|
+(define-syntax ordered-funcall
+  (lambda (form)
+    (let ((form^ (cdr (syntax->list form))))
+     (let ((gens (map (lambda (_) (datum->syntax #'* (gensym "t"))) form^)))
+      #`(let* #,(map list gens form^)
+         #,gens)))))
+|#
+
+(define-syntax ordered-funcall
+  (lambda (x)
+    (syntax-case x ()
+       ((k f v ...)
+        (with-syntax
+          ([(t ...) (map (lambda (_)
+                           (datum->syntax #'k (gensym)))
+                         #'(v ...))])
+          #'(let* ([t v] ...)
+              (f t ...)))))))
+
+  (define-syntax binary-format-names
     (syntax-rules ()
-      ((_ (name pack-name unpack-name) (field type) ...)
+      ((_ (name pack-name unpack-name size-name) (field type) ...)
        (begin
          (define-record-type name (fields field ...))
 
-       (define (unpack-name bv offset)
-         (let ((offset offset))
+         (define size-name
+           (+ (size-type type) ...))
 
-          (define (inc-offset n v)
-            (set! offset (+ offset n))
-            v)
+         (define (unpack-name bv offset)
+           (let ((offset offset))
 
-          ((record-constructor (record-constructor-descriptor name))
-           (inc-offset (size-type type) (unpack-type bv offset type)) ...)))))))
+            (define (inc-offset n v)
+              (set! offset (+ offset n))
+              v)
 
-  ;;; since le32, le64 and bytes are used as auxiliary keywords, we must export
+            (ordered-funcall
+              (record-constructor (record-constructor-descriptor name))
+              (inc-offset (size-type type) (unpack-type bv offset type)) ...)))))))
+
+  (define-syntax binary-format
+    (lambda (x)
+      ;;; FIXME: we don't need multiple args
+      (define (gen-id template-id . args)
+        (datum->syntax template-id
+          (string->symbol
+            (apply string-append
+                   (map (lambda (x)
+                          (if (string? x)
+                              x
+                              (symbol->string (syntax->datum x))))
+                        args)))))
+      (syntax-case x ()
+                   ((_ name field ...)
+                    (with-syntax ((pack-name (gen-id #'name #'name "-pack"))
+                                  (unpack-name (gen-id #'name #'name "-unpack"))
+                                  (size-name (gen-id #'name #'name "-size")))
+                                 #'(binary-format-names (name pack-name unpack-name size-name) field ...))))))
+
+  ;;; Since le32, le64 and bytes are used as auxiliary keywords, we must export
   ;;; definitions of them as well.
   ;;; FIXME: use a macro to remove duplication
   (define-syntax le32
