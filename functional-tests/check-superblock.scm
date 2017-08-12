@@ -73,11 +73,12 @@
                  (let ((sb (superblock-unpack (read-block md 0) 0)))
                   (let ((mappings (mapping-tree-open md (superblock-data-mapping-root sb))))
                    (mapping-tree-each mappings
-                                      (lambda (dev-id vblock pblock)
+                                      (lambda (dev-id vblock pblock time)
                                         (fmt #t
                                              (dsp "thin dev ") (num dev-id)
                                              (dsp ", vblock ") (num vblock)
                                              (dsp ", pblock ") (num pblock)
+                                             (dsp ", time ") (num time)
                                              nl)))))))
 
 (define (check-superblock)

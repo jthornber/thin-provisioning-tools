@@ -57,10 +57,10 @@
                        (unpack-type bv offset le64))))
 
   (define (internal-node? header)
-    (bitwise-bit-set? 0 (node-header-flags header)))
+    (bitwise-bit-set? (node-header-flags header) 0))
 
   (define (leaf-node? header)
-    (bitwise-bit-set? 1 (node-header-flags header)))
+    (bitwise-bit-set? (node-header-flags header) 1))
 
   (define (key-at node index)
     (unpack-type node (key-offset index) le64))

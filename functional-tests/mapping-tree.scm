@@ -7,7 +7,8 @@
 
   (import (btree)
           (chezscheme)
-          (binary-format))
+          (binary-format)
+          (srfi s8 receive))
 
   (define-record-type mapping-tree (fields dev-tree))
 
@@ -22,13 +23,20 @@
          default
          (btree-lookup (btree-open le64-type (btree-dev dev-tree) root2) vblock default))))
 
-  ;;; Visits every entry in the mapping tree calling (fn dev-id vblock mapping).
+  ;; (values <block> <time>)
+  (define time-mask (- (fxsll 1 24) 1))
+
+  (define (unpack-block-time bt)
+    (values (fxsrl bt 24) (fxlogand bt time-mask)))
+
+  ;;; Visits every entry in the mapping tree calling (fn dev-id vblock pblock time).
   (define (mapping-tree-each mtree fn)
     (let ((dev-tree (mapping-tree-dev-tree mtree)))
 
      (define (visit-dev dev-id mapping-root)
        (btree-each (btree-open le64-type (btree-dev dev-tree) mapping-root)
                    (lambda (vblock mapping)
-                     (fn dev-id vblock mapping))))
+                     (receive (block time) (unpack-block-time mapping)
+                              (fn dev-id vblock block time)))))
 
      (btree-each dev-tree visit-dev))))

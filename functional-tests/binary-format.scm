@@ -43,16 +43,16 @@
          #,gens)))))
 |#
 
-(define-syntax ordered-funcall
-  (lambda (x)
-    (syntax-case x ()
-       ((k f v ...)
-        (with-syntax
-          ([(t ...) (map (lambda (_)
-                           (datum->syntax #'k (gensym)))
-                         #'(v ...))])
-          #'(let* ([t v] ...)
-              (f t ...)))))))
+  (define-syntax ordered-funcall
+    (lambda (x)
+      (syntax-case x ()
+        ((k f v ...)
+         (with-syntax
+           ([(t ...) (map (lambda (_)
+                            (datum->syntax #'k (gensym)))
+                          #'(v ...))])
+           #'(let* ([t v] ...)
+               (f t ...)))))))
 
   (define-syntax binary-format-names
     (syntax-rules ()
