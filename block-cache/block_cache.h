@@ -223,7 +223,7 @@ namespace bcache {
 		void wait_io();
 		void unlink_block(block &b);
 		void link_block(block &b);
-		void hit(block &b);
+		void relink(block &b);
 		void wait_all();
 		void wait_specific(block &b);
 		unsigned writeback(unsigned count);
@@ -242,8 +242,8 @@ namespace bcache {
 		void release(block_cache::block &block);
 		void check_index(block_address index) const;
 
-		void inc_hit_counter(unsigned flags);
-		void inc_miss_counter(unsigned flags);
+		void hit(block &b, unsigned flags);
+		void miss(unsigned flags);
 
 		//--------------------------------
 

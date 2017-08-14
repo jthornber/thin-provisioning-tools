@@ -229,7 +229,7 @@ block_cache::link_block(block &b)
 }
 
 void
-block_cache::hit(block &b)
+block_cache::relink(block &b)
 {
 	unlink_block(b);
 	link_block(b);
@@ -453,16 +453,18 @@ block_cache::zero_block(block &b)
 }
 
 void
-block_cache::inc_hit_counter(unsigned flags)
+block_cache::hit(block &b, unsigned flags)
 {
 	if (flags & (GF_ZERO | GF_DIRTY))
 		write_hits_++;
 	else
 		read_hits_++;
+
+	relink(b);
 }
 
 void
-block_cache::inc_miss_counter(unsigned flags)
+block_cache::miss(unsigned flags)
 {
 	if (flags & (GF_ZERO | GF_DIRTY))
 		write_misses_++;
@@ -488,13 +490,11 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 			throw std::runtime_error(out.str());
 		}
 
-		// FIXME: confusing names, hit, then explicit inc of hit/miss counter.
-		hit(*b);
 		if (b->test_flags(BF_IO_PENDING)) {
-			inc_miss_counter(flags);
+			miss(flags);
 			wait_specific(*b);
 		} else
-			inc_hit_counter(flags);
+			hit(*b, flags);
 
 		unlink_block(*b);
 
@@ -511,7 +511,7 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 		b->v_ = v;
 
 	} else {
-		inc_miss_counter(flags);
+		miss(flags);
 
 		b = new_block(index);
 		if (b) {
