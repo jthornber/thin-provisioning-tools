@@ -252,7 +252,7 @@ block_cache::wait_specific(block &b)
 unsigned
 block_cache::writeback(unsigned count)
 {
-	unsigned actual = 0, dirty_length = 0;
+	unsigned actual = 0;
 
 	// issue_write unlinks b, which invalidates the iteration, so we
 	// keep track of the next element before removing.
@@ -261,7 +261,6 @@ block_cache::writeback(unsigned count)
 	while (it != dirty_.end()) {
 		next = it;
 		++next;
-		dirty_length++;
 
 		if (actual == count)
 			break;
