@@ -233,6 +233,13 @@ TEST(BlockTests, concurrent_read_locks)
 	bm->read_lock(0);
 }
 
+TEST(BlockTests, no_concurrent_read_and_write_locks)
+{
+	bm4096::ptr bm = create_bm<4096>();
+	bm4096::write_ref wr = bm->write_lock(0);
+	ASSERT_THROW(bm->read_lock(0), runtime_error);
+}
+
 TEST(BlockTests, read_then_write)
 {
 	bm4096::ptr bm = create_bm<4096>();
