@@ -266,6 +266,9 @@ namespace bcache {
 		block_list dirty_;
 		block_list clean_;
 
+		// Because the block_list type doesn't have a constant time
+		// size() method, we have to manually keep track of the list
+		// sizes (tedious and error prone).
 		unsigned nr_locked_;
 		unsigned nr_dirty_;
 
