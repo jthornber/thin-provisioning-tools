@@ -265,13 +265,11 @@ block_cache::writeback(unsigned count)
 		if (actual == count)
 			break;
 
-		// The block may be on the dirty list from a prior
-		// acquisition.
-		if (it->ref_count_)
-			continue;
-
-		issue_write(*it);
-		actual++;
+		// We can't writeback anything that's still in use.
+		if (!it->ref_count_) {
+			issue_write(*it);
+			actual++;
+		}
 
 		it = next;
 	}
