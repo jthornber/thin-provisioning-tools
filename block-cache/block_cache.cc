@@ -521,7 +521,9 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 				issue_read(*b);
 				wait_specific(*b);
 				v->check(b->data_, b->index_);
-				unlink_block(*b);   // FIXME: what if it's on the error list?
+
+				// we know the block is clean and unerrored.
+				unlink_block(*b);
 			}
 
 			b->v_ = v;
