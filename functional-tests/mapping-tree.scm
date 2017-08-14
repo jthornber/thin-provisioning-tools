@@ -7,7 +7,6 @@
 
   (import (btree)
           (chezscheme)
-          (binary-format)
           (srfi s8 receive))
 
   (define-record-type mapping-tree (fields dev-tree))
@@ -15,6 +14,13 @@
   (define (mapping-tree-open dev root)
     (make-mapping-tree (btree-open le64-type dev root)))
 
+  ;; (values <block> <time>)
+  (define time-mask (- (fxsll 1 24) 1))
+
+  (define (unpack-block-time bt)
+    (values (fxsrl bt 24) (fxlogand bt time-mask)))
+
+  ;; FIXME: unpack the block time
   (define (mapping-tree-lookup mtree dev-id vblock default)
     (let* ((unique (gensym))
            (dev-tree (mapping-tree-dev-tree mtree))
@@ -22,12 +28,6 @@
      (if (eq? unique root2)
          default
          (btree-lookup (btree-open le64-type (btree-dev dev-tree) root2) vblock default))))
-
-  ;; (values <block> <time>)
-  (define time-mask (- (fxsll 1 24) 1))
-
-  (define (unpack-block-time bt)
-    (values (fxsrl bt 24) (fxlogand bt time-mask)))
 
   ;;; Visits every entry in the mapping tree calling (fn dev-id vblock pblock time).
   (define (mapping-tree-each mtree fn)

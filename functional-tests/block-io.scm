@@ -22,11 +22,12 @@
 
   (define-syntax with-metadata
     (syntax-rules ()
-      ((_ (port path) body ...) (let ((port (open-metadata path)))
-                                 (dynamic-wind
-                                   (lambda () #f)
-                                   (lambda () body ...)
-                                   (lambda () (close-port port)))))))
+      ((_ (port path) body ...)
+       (let ((port (open-metadata path)))
+        (dynamic-wind
+          (lambda () #f)
+          (lambda () body ...)
+          (lambda () (close-port port)))))))
 
   ;; FIXME: return our own condition?
   (define (io-error msg)

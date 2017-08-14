@@ -89,20 +89,15 @@
     (let ((dev (btree-dev tree))
           (vt (btree-value-type tree)))
 
-      (define (lookup root fail-k)
-        (let loop ((root root))
-         (let* ((node (read-block dev root))
-                (header (node-header-unpack node 0))
-                (index (lower-bound node header key)))
-           (if (internal-node? header)
-               (loop (value-at header node index le64-type))
-               (if (= key (key-at node index))
-                   (value-at header node index vt)
-                   (fail-k default))))))
-
-      (call/cc
-        (lambda (fail-k)
-          (lookup (btree-root tree) fail-k)))))
+      (let loop ((root (btree-root tree)))
+       (let* ((node (read-block dev root))
+              (header (node-header-unpack node 0))
+              (index (lower-bound node header key)))
+         (if (internal-node? header)
+             (loop (value-at header node index le64-type))
+             (if (= key (key-at node index))
+                 (value-at header node index vt)
+                 default))))))
 
   ;;;;----------------------------------------------
   ;;;; Walking the btree
