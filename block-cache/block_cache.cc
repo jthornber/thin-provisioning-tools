@@ -106,19 +106,15 @@ block_cache::complete_io(block &b, int result)
 	b.error_ = result;
 	b.clear_flags(BF_IO_PENDING);
 	nr_io_pending_--;
+	b.unlink();  // b is on the io_pending list
 
-	if (b.error_) {
-		b.unlink();
+	if (b.error_)
 		errored_.push_back(b);
 
-	} else {
-		if (b.test_flags(BF_DIRTY)) {
-			b.clear_flags(BF_DIRTY | BF_PREVIOUSLY_DIRTY);
-			nr_dirty_--;
-		}
-
-		b.unlink();
-		clean_.push_back(b);
+	else {
+		if (b.test_flags(BF_DIRTY))
+			b.clear_flags(BF_DIRTY);
+		link_block(b);
 	}
 }
 
@@ -136,7 +132,7 @@ block_cache::issue_low_level(block &b, enum io_iocb_cmd opcode, const char *desc
 	assert(!b.test_flags(BF_IO_PENDING));
 	b.set_flags(BF_IO_PENDING);
 	nr_io_pending_++;
-	b.unlink();
+	unlink_block(b);
 	io_pending_.push_back(b);
 
 	b.control_block_.aio_lio_opcode = opcode;
@@ -212,24 +208,31 @@ block_cache::wait_io()
  * Clean/dirty list management
  *--------------------------------------------------------------*/
 
-/*
- * We're using lru lists atm, but I think it would be worth
- * experimenting with a multiqueue approach.
- */
-block_cache::block_list &
-block_cache::__categorise(block &b)
+// Always use these two methods to ensure nr_dirty_ is correct.
+void
+block_cache::unlink_block(block &b)
 {
-	if (b.error_)
-		return errored_;
+	if (b.test_flags(BF_DIRTY))
+		nr_dirty_--;
 
-	return b.test_flags(BF_DIRTY) ? dirty_ : clean_;
+	b.unlink();
+}
+
+void
+block_cache::link_block(block &b)
+{
+	if (b.test_flags(BF_DIRTY)) {
+		dirty_.push_back(b);
+		nr_dirty_++;
+	} else
+		clean_.push_back(b);
 }
 
 void
 block_cache::hit(block &b)
 {
-	b.unlink();
-	__categorise(b).push_back(b);
+	unlink_block(b);
+	link_block(b);
 }
 
 /*----------------------------------------------------------------
@@ -299,12 +302,11 @@ block_cache::block *
 block_cache::find_unused_clean_block()
 {
 	for (block &b : clean_) {
-		if (b.ref_count_)
-			continue;
-
-		b.unlink_set();
-		b.unlink();
-		return &b;
+		if (!b.ref_count_) {
+			unlink_block(b);
+			b.unlink_set();
+			return &b;
+		}
 	}
 
 	return NULL;
@@ -472,31 +474,46 @@ block_cache::block *
 block_cache::lookup_or_read_block(block_address index, unsigned flags,
 				  validator::ptr v)
 {
+	block *b = NULL;
 	auto it = block_set_.find(index, cmp_index());
 
 	if (it != block_set_.end()) {
-		if (it->test_flags(BF_IO_PENDING)) {
+		b = &(*it);
+
+		// FIXME: this is insufficient.  We need to also catch a read
+		// lock of a write locked block.  Ref count needs to distinguish.
+		if (b->ref_count_ && (flags & (GF_DIRTY | GF_ZERO))) {
+			std::ostringstream out;
+			out << "attempt to write lock block " << index << " concurrently";
+			throw std::runtime_error(out.str());
+		}
+
+		// FIXME: confusing names, hit, then explicit inc of hit/miss counter.
+		hit(*b);
+		if (b->test_flags(BF_IO_PENDING)) {
 			inc_miss_counter(flags);
-			wait_specific(*it);
+			wait_specific(*b);
 		} else
 			inc_hit_counter(flags);
+
+		unlink_block(*b);
 
 		if (flags & GF_ZERO)
 			zero_block(*it);
 		else {
-			if (it->v_.get() != v.get()) {
-				if (it->test_flags(BF_DIRTY))
-					it->v_->prepare(it->data_, it->index_);
-				v->check(it->data_, it->index_);
+			// has the validator changed?
+			if (b->v_.get() != v.get()) {
+				if (b->test_flags(BF_DIRTY))
+					b->v_->prepare(b->data_, b->index_);
+				v->check(b->data_, b->index_);
 			}
 		}
-		it->v_ = v;
-		return &(*it);
+		b->v_ = v;
 
 	} else {
 		inc_miss_counter(flags);
 
-		block *b = new_block(index);
+		b = new_block(index);
 		if (b) {
 			if (flags & GF_ZERO)
 				zero_block(*b);
@@ -504,13 +521,26 @@ block_cache::lookup_or_read_block(block_address index, unsigned flags,
 				issue_read(*b);
 				wait_specific(*b);
 				v->check(b->data_, b->index_);
+				unlink_block(*b);   // FIXME: what if it's on the error list?
 			}
 
 			b->v_ = v;
 		}
-
-		return (!b || b->error_) ? NULL : b;
 	}
+
+	if (b && !b->error_) {
+		if (flags & GF_BARRIER)
+			b->set_flags(BF_FLUSH);
+
+		if (flags & (GF_DIRTY | GF_ZERO))
+			b->set_flags(BF_DIRTY);
+
+		link_block(*b);
+		return b;
+	}
+
+	return NULL;
+
 }
 
 block_cache::block &
@@ -519,27 +549,10 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 	check_index(index);
 
 	block *b = lookup_or_read_block(index, flags, v);
-
 	if (b) {
-		if (b->ref_count_ && (flags & (GF_DIRTY | GF_ZERO))) {
-			std::ostringstream out;
-			out << "attempt to write lock block " << index << " concurrently";
-			throw std::runtime_error(out.str());
-		}
-
-		// FIXME: this gets called even for new blocks
-		hit(*b);
-
 		if (!b->ref_count_)
 			nr_locked_++;
-
 		b->ref_count_++;
-
-		if (flags & GF_BARRIER)
-			b->set_flags(BF_FLUSH);
-
-		if (flags & GF_DIRTY)
-			b->set_flags(BF_DIRTY);
 
 		return *b;
 	}
@@ -552,10 +565,24 @@ block_cache::get(block_address index, unsigned flags, validator::ptr v)
 void
 block_cache::preemptive_writeback()
 {
+	// FIXME: this ignores those blocks that are in the error state.  Track
+	// nr_clean instead?
 	unsigned nr_available = nr_cache_blocks_ - (nr_dirty_ - nr_io_pending_);
 	if (nr_available < (WRITEBACK_LOW_THRESHOLD_PERCENT * nr_cache_blocks_ / 100))
 		writeback((WRITEBACK_HIGH_THRESHOLD_PERCENT * nr_cache_blocks_ / 100) - nr_available);
 
+}
+
+bool
+block_cache::maybe_flush(block &b)
+{
+	if (b.test_flags(BF_FLUSH)) {
+		flush();
+		b.clear_flags(BF_FLUSH);
+		return true;
+	}
+
+	return false;
 }
 
 void
@@ -565,24 +592,11 @@ block_cache::release(block_cache::block &b)
 
 	nr_locked_--;
 
-	if (b.test_flags(BF_FLUSH))
-		flush();
-
 	if (b.test_flags(BF_DIRTY)) {
-		if (!b.test_flags(BF_PREVIOUSLY_DIRTY)) {
-			b.unlink();
-			dirty_.push_back(b);
-			nr_dirty_++;
-			b.set_flags(BF_PREVIOUSLY_DIRTY);
-		}
-
-		if (b.test_flags(BF_FLUSH))
-			flush();
-		else
+		if (!maybe_flush(b))
 			preemptive_writeback();
-
-		b.clear_flags(BF_FLUSH);
-	}
+	} else
+		maybe_flush(b);
 }
 
 int

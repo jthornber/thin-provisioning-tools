@@ -51,7 +51,6 @@ namespace bcache {
 			BF_IO_PENDING = (1 << 0),
 			BF_DIRTY = (1 << 1),
 			BF_FLUSH = (1 << 2),
-			BF_PREVIOUSLY_DIRTY = (1 << 3)
 		};
 
 		class block : private boost::noncopyable {
@@ -222,7 +221,8 @@ namespace bcache {
 		void issue_read(block &b);
 		void issue_write(block &b);
 		void wait_io();
-		block_list &__categorise(block &b);
+		void unlink_block(block &b);
+		void link_block(block &b);
 		void hit(block &b);
 		void wait_all();
 		void wait_specific(block &b);
@@ -238,6 +238,7 @@ namespace bcache {
 		void exit_free_list();
 
 		void preemptive_writeback();
+		bool maybe_flush(block_cache::block &b);
 		void release(block_cache::block &block);
 		void check_index(block_address index) const;
 
