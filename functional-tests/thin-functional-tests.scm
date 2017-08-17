@@ -75,8 +75,7 @@
 
   ;; We have to export something that forces all the initialisation expressions
   ;; to run.
-  (define (register-thin-tests)
-    (fmt #t "registered tests"))
+  (define (register-thin-tests) #t)
 
   ;;;-----------------------------------------------------------
   ;;; thin_check scenarios
