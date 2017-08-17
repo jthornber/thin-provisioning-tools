@@ -3,22 +3,11 @@
   (export generate-xml)
   (import (rnrs)
           (list-utils)
+          (generators)
           (xml)
           (fmt fmt)
           (only (srfi s1 lists) iota)
           (srfi s27 random-bits))
-
-  ;;;----------------------------------------
-
-  (define (make-const-generator n)
-    (lambda () n))
-
-  (define (make-uniform-generator low hi)
-    (assert (<= low hi))
-
-    (let ((range (- hi low)))
-     (lambda ()
-      (+ low (random-integer range)))))
 
   (define (div-down n d)
     (floor (/ n d)))
@@ -30,9 +19,9 @@
                    (creation-time . 0)
                    (snap-time . 0))
          (tag 'range_mapping `((origin-begin . 0)
-                         (data-begin . ,data-offset)
-                         (length . ,nr-mappings)
-                         (time . 1)))))
+                               (data-begin . ,data-offset)
+                               (length . ,nr-mappings)
+                               (time . 1)))))
 
   (define (generate-xml max-thins max-mappings)
     (let ((nr-thins ((make-uniform-generator 1 max-thins)))
