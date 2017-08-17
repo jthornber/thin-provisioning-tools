@@ -27,20 +27,12 @@
   (import
     (chezscheme)
     (fmt fmt)
+    (list-utils)
     (thin-xml)
     (srfi s8 receive)
     (only (srfi s1 lists) drop-while))
 
   ;;;--------------------------------------------------------------------
-
-  ;;; FIXME: there must be an equivalent of this in srfi 1
-  (define (intersperse sep xs)
-    (cond
-      ((null? xs) '())
-      ((null? (cdr xs)) xs)
-      (else (cons (car xs)
-                  (cons sep
-                        (intersperse sep (cdr xs)))))))
 
   (define (vector-sort-by cmp key-fn v)
     (define (compare x y)
@@ -137,28 +129,59 @@
 
   (define-record-type scenario (fields desc thunk))
 
-  (define scenarios (make-eq-hashtable))
+  (define scenarios
+    (make-hashtable equal-hash equal?))
 
-  (define (add-scenario sym s)
-    (hashtable-set! scenarios sym s))
+  (define (add-scenario syms s)
+    (hashtable-set! scenarios syms s))
+
+  (define (fmt-keys prev-keys keys)
+    (define (fmt-keys% n keys)
+      (if (null? keys)
+          fmt-null
+          (cat (space-to n) (dsp (car keys)) (if (null? (cdr keys)) fmt-null nl)
+               (fmt-keys% (+ n 2) (cdr keys)))))
+
+    (let loop ((n 0)
+               (keys keys)
+               (prev-keys prev-keys))
+      (if (and (not (null? keys))
+               (not (null? prev-keys))
+               (eq? (car keys) (car prev-keys)))
+          (loop (+ n 2) (cdr keys) (cdr prev-keys))
+          (begin
+            (if (zero? n)
+              (cat nl (fmt-keys% n keys))
+              (fmt-keys% n keys))))))
 
   (define (list-scenarios)
+    (define (fmt-keys ks)
+      (fmt #f (dsp ks)))
+
     (vector->list
-      (vector-sort-by string<? symbol->string (hashtable-keys scenarios))))
+      (vector-sort-by string<? fmt-keys (hashtable-keys scenarios))))
 
-  (define (describe-scenarios ss)
-    (define (describe sym)
+  (define (fmt-scenarios keys fn)
+    (define (describe prev-keys keys)
       (fmt #t
-           (columnar (dsp sym)
-                     (justify (scenario-desc (hashtable-ref scenarios sym #f))))
-           nl))
+           (cat (fmt-keys prev-keys keys)
+                (pad-char #\.
+                          (space-to 40)
+                          (fn keys))
+                nl)))
 
-    (for-each describe ss))
+    (for-each describe (cons '() (reverse (cdr (reverse keys)))) keys))
+
+  (define (describe-scenarios keys)
+    (fmt-scenarios keys
+                   (lambda (keys)
+                     (scenario-desc
+                       (hashtable-ref scenarios keys #f)))))
 
   (define-syntax define-scenario
     (syntax-rules ()
-      ((_ sym desc body ...)
-       (add-scenario 'sym
+      ((_ syms desc body ...)
+       (add-scenario 'syms
                      (make-scenario desc
                                     (lambda ()
                                       body ...))))))
@@ -168,14 +191,18 @@
              (make-error)
              (make-message-condition msg))))
 
-  (define (run-scenario sym)
-    (let ((s (hashtable-ref scenarios sym #f)))
-     (display sym)
+  (define (run-scenario syms)
+    (let ((s (hashtable-ref scenarios syms #f)))
+     (display syms)
      (display " ... ")
      ((scenario-thunk s))
      (display "pass")
      (newline)))
 
   (define (run-scenarios ss)
-    (for-each run-scenario ss)))
+    (fmt-scenarios ss
+                   (lambda (keys)
+                     (let ((s (hashtable-ref scenarios keys #f)))
+                      ((scenario-thunk s))
+                      (dsp "pass"))))))
 
