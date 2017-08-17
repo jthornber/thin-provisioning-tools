@@ -11,53 +11,19 @@
     (srfi s8 receive)
     (only (srfi s1 lists) drop-while))
 
-  ;; FIXME: don't hard code this
-  (define tools-version "0.7.0-rc6")
-
-  (define (tool-name sym)
-    (define (to-underscore c)
-      (if (eq? #\- c) #\_ c))
-
-    (list->string (map to-underscore (string->list (symbol->string sym)))))
-
-  (define-syntax define-tool
-    (syntax-rules ()
-      ((_ tool-sym) (define (tool-sym . flags)
-                      (apply run-ok (tool-name 'tool-sym) flags)))))
-
   (define-tool thin-check)
   (define-tool thin-delta)
   (define-tool thin-dump)
   (define-tool thin-restore)
   (define-tool thin-rmap)
 
-  (define (assert-equal str1 str2)
-    (unless (equal? str1 str2)
-      (fail (fmt #f (dsp "values differ: ")
-                 (wrt str1)
-                 (dsp ", ")
-                 (wrt str2)))))
-
-  (define (assert-eof obj)
-    (unless (eof-object? obj)
-      (fail (fmt #f (dsp "object is not an #!eof: ") (dsp obj)))))
-
-  (define (starts-with prefix str)
-    (and (>= (string-length str) (string-length prefix))
-         (equal? (substring str 0 (string-length prefix))
-                 prefix)))
-
-  (define (assert-starts-with prefix str)
-    (unless (starts-with prefix str)
-      (fail (fmt #f (dsp "string should begin with: ")
-                 (wrt prefix)
-                 (dsp ", ")
-                 (wrt str)))))
-
   (define (current-metadata) "metadata.bin")
 
+  (define (temp-thin-xml)
+    (temp-file-containing (fmt #f (generate-xml 10 1000))))
+
   (define (%with-valid-metadata thunk)
-    (run-ok "thin_restore" "-i" (temp-thin-xml) "-o" (current-metadata))
+    (thin-restore "-i" (temp-thin-xml) "-o" (current-metadata))
     (thunk))
 
   (define-syntax with-valid-metadata
@@ -76,10 +42,6 @@
   ;; We have to export something that forces all the initialisation expressions
   ;; to run.
   (define (register-thin-tests) #t)
-
-  ;;;-----------------------------------------------------------
-  ;;; thin_check scenarios
-  ;;;-----------------------------------------------------------
 
   (define thin-check-help
     "Usage: thin_check [options] {device|file}
@@ -117,6 +79,10 @@ Options:
 Where:
   <block range> is of the form <begin>..<one-past-the-end>
   for example 5..45 denotes blocks 5 to 44 inclusive, but not block 45")
+
+  ;;;-----------------------------------------------------------
+  ;;; thin_check scenarios
+  ;;;-----------------------------------------------------------
 
   (define-scenario (thin-check v)
                    "thin_check -V"

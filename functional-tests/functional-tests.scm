@@ -7,7 +7,6 @@
     temp-file
     temp-file-containing
     slurp-file
-    temp-thin-xml
 
     run
     run-with-exit-code
@@ -22,7 +21,14 @@
     define-scenario
     fail
     run-scenario
-    run-scenarios)
+    run-scenarios
+
+    tools-version
+    define-tool
+
+    assert-equal
+    assert-eof
+    assert-starts-with)
 
   (import
     (chezscheme)
@@ -78,9 +84,6 @@
            (chomp output))))
 
     (with-input-from-file path slurp))
-
-  (define (temp-thin-xml)
-    (temp-file-containing (fmt #f (generate-xml 10 1000))))
 
   ;;;--------------------------------------------------------------------
   ;;; Run a sub process and capture it's output.
@@ -204,5 +207,47 @@
                    (lambda (keys)
                      (let ((s (hashtable-ref scenarios keys #f)))
                       ((scenario-thunk s))
-                      (dsp "pass"))))))
+                      (dsp "pass")))))
+
+  ;;-----------------------------------------------
+
+  ;; FIXME: don't hard code this
+  (define tools-version "0.7.0-rc6")
+
+  (define (tool-name sym)
+    (define (to-underscore c)
+      (if (eq? #\- c) #\_ c))
+
+    (list->string (map to-underscore (string->list (symbol->string sym)))))
+
+  (define-syntax define-tool
+    (syntax-rules ()
+      ((_ tool-sym) (define (tool-sym . flags)
+                      (apply run-ok (tool-name 'tool-sym) flags)))))
+
+  (define (assert-equal str1 str2)
+    (unless (equal? str1 str2)
+      (fail (fmt #f (dsp "values differ: ")
+                 (wrt str1)
+                 (dsp ", ")
+                 (wrt str2)))))
+
+  (define (assert-eof obj)
+    (unless (eof-object? obj)
+      (fail (fmt #f (dsp "object is not an #!eof: ") (dsp obj)))))
+
+  (define (starts-with prefix str)
+    (and (>= (string-length str) (string-length prefix))
+         (equal? (substring str 0 (string-length prefix))
+                 prefix)))
+
+  (define (assert-starts-with prefix str)
+    (unless (starts-with prefix str)
+      (fail (fmt #f (dsp "string should begin with: ")
+                 (wrt prefix)
+                 (dsp ", ")
+                 (wrt str)))))
+
+
+  )
 
