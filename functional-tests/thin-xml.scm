@@ -6,8 +6,7 @@
           (generators)
           (xml)
           (fmt fmt)
-          (only (srfi s1 lists) iota)
-          (srfi s27 random-bits))
+          (only (srfi s1 lists) iota))
 
   (define (div-down n d)
     (floor (/ n d)))
