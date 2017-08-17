@@ -1,8 +1,9 @@
 (library
   (thin-xml)
-  (export generate-xml to-attribute-name)
+  (export generate-xml)
   (import (rnrs)
           (list-utils)
+          (xml)
           (fmt fmt)
           (only (srfi s1 lists) iota)
           (srfi s27 random-bits))
@@ -18,58 +19,6 @@
     (let ((range (- hi low)))
      (lambda ()
       (+ low (random-integer range)))))
-
-  ;;;----------------------------------------
-
-  (define (dquote doc)
-    (cat (dsp #\") doc (dsp #\")))
-
-  (define (to-attribute-name sym)
-    (define (to-underscore c)
-      (if (eq? #\- c) #\_ c))
-
-    (list->string (map to-underscore (string->list (symbol->string sym)))))
-
-  (define (attribute dotted-pair)
-    (let ((key (to-attribute-name (car dotted-pair)))
-          (val (cdr dotted-pair)))
-      (cat (dsp key)
-           (dsp "=")
-           (dquote ((if (string? val) dsp wrt) val)))))
-
-  (define (%open-tag sym attrs end)
-    (cat (dsp "<")
-         (dsp sym)
-         (dsp " ")
-         (apply cat (intersperse (dsp " ")
-                                 (map attribute attrs)))
-         (dsp end)))
-
-  (define (open-tag sym attrs)
-    (%open-tag sym attrs ">"))
-
-  (define (simple-tag sym attrs)
-    (%open-tag sym attrs "/>"))
-
-  (define (close-tag sym)
-    (cat (dsp "</")
-         (dsp sym)
-         (dsp ">")))
-
-  (define (tag sym attrs . body)
-    (if (null? body)
-        (simple-tag sym attrs)
-        (begin
-          (cat (open-tag sym attrs)
-               nl
-               (apply cat body)
-               nl
-               (close-tag sym)))))
-
-  (define (vcat docs)
-    (apply cat (intersperse nl docs)))
-
-  ;;;----------------------------------------
 
   (define (div-down n d)
     (floor (/ n d)))
