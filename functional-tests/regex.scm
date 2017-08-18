@@ -1,13 +1,15 @@
 (library
   (regex)
   (export lit
-          cat
+          seq
           alt
           opt
           star
           plus
-          compile-rx)
+          compile-rx
+          match-rx)
   (import (chezscheme)
+          (fmt fmt)
           (loops)
           (matchable))
 
@@ -17,7 +19,7 @@
 
   ;; Rather than parsing a string we'll use expressions.
   ;; (lit <string>)
-  ;; (cat rx1 rx2)
+  ;; (seq rx1 rx2)
   ;; (alt rx1 rx2)
   ;; (opt rx)
   ;; (star rx)
@@ -48,7 +50,7 @@
   (define (lit str)
     (map char-instr (string->list str)))
 
-  (define (cat rx1 rx2)
+  (define (seq rx1 rx2)
     (append rx1 rx2))
 
   (define (alt rx1 rx2)
@@ -146,4 +148,68 @@
   ;; the current threads.  Note there cannot be more threads than instructions,
   ;; so a bundle is represented as a bitvector the same length as the
   ;; instructions.  Threads are run in lock step, all taking the same input.
+
+  (define-record-type thread-set (fields (mutable stack) (mutable seen)))
+
+  (define (mk-thread-set count)
+    (make-thread-set '() (make-vector count #f)))
+
+  (define (add-thread! ts i)
+    (unless (vector-ref (thread-set-seen ts) i)
+      (vector-set! (thread-set-seen ts) i #t)
+      (thread-set-stack-set! ts (cons i (thread-set-stack ts)))))
+
+  (define (pop-thread! ts)
+    (if (null? (thread-set-stack ts))
+        #f
+        (let ((t (car (thread-set-stack ts))))
+         (thread-set-stack-set! ts (cdr (thread-set-stack ts)))
+         t)))
+
+  (define (no-threads? ts)
+    (null? (thread-set-stack ts)))
+
+  (define (any-matches? ts code)
+    (call/cc
+      (lambda (k)
+        (while (i (pop-thread! ts))
+               (if (match-instr? (vector-ref code i))
+                   (k #t)))
+        #f)))
+
+  (define (mk-init-thread-set count)
+    (let ((ts (mk-thread-set count)))
+     (add-thread! ts 0)
+     ts))
+
+  (define (match-rx code txt)
+    (fmt #t (dsp "running ") (pretty code) nl)
+    (call/cc
+      (lambda (k)
+        (let ((code-len (vector-length code)))
+         (let loop ((threads (mk-init-thread-set code-len))
+                    (input (string->list txt)))
+           (if (null? input)
+               (any-matches? threads code)
+               (let ((in-c (car input))
+                     (next-threads (mk-thread-set code-len)))
+                 (fmt #t (dsp "processing: ") (wrt in-c) nl)
+                 (while (i (pop-thread! threads))
+                        (match (vector-ref code i)
+                               (('match) (k #t))
+
+                               (('char c)
+                                (when (eq? c in-c)
+                                  (add-thread! next-threads (+ 1 i))))
+
+                               (('jmp l) (add-thread! threads l))
+
+                               (('split l1 l2)
+                                (begin
+                                  (add-thread! threads l1)
+                                  (add-thread! threads l2)))))
+                 (if (no-threads? next-threads)
+                     #f
+                     (loop next-threads (cdr input))))))))))
+
   )
