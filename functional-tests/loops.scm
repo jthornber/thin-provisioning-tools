@@ -1,6 +1,6 @@
 (library
   (loops)
-  (export upto)
+  (export upto while)
   (import (rnrs))
 
   (define-syntax upto
@@ -9,5 +9,15 @@
        (let loop ((var 0))
          (when (< var count)
              (begin body ...)
-             (loop (+ 1 var))))))))
+             (loop (+ 1 var)))))))
+
+  (define-syntax while
+    (syntax-rules ()
+      ((_ (var exp) body ...)
+       (let loop ((var exp))
+         (when var
+           (begin body ...)
+           (loop exp))))))
+
+  )
 
