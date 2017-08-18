@@ -156,6 +156,10 @@
   (define (mk-thread-set count)
     (make-thread-set '() (make-vector count #f)))
 
+  (define (clear-thread-set! ts)
+    (thread-set-stack-set! ts '())
+    (vector-fill! (thread-set-seen ts) #f))
+
   (define (add-thread! ts i)
     (unless (vector-ref (thread-set-seen ts) i)
       (vector-set! (thread-set-seen ts) i #t)
@@ -184,34 +188,45 @@
      (add-thread! ts 0)
      ts))
 
+  (define-syntax string-iter
+    (syntax-rules ()
+      ((_ (var str) body ...)
+       (string-for-each (lambda (var) body ...) str))))
+
   (define (match-rx code txt)
     (fmt #t (dsp "running ") (pretty code) nl)
     (call/cc
       (lambda (k)
         (let ((code-len (vector-length code)))
-         (let loop ((threads (mk-init-thread-set code-len))
-                    (input (string->list txt)))
-           (if (null? input)
-               (any-matches? threads code)
-               (let ((in-c (car input))
-                     (next-threads (mk-thread-set code-len)))
-                 (fmt #t (dsp "processing: ") (wrt in-c) nl)
-                 (while (i (pop-thread! threads))
-                        (match (vector-ref code i)
-                               (('match) (k #t))
+         (let ((threads (mk-thread-set code-len))
+               (next-threads (mk-thread-set code-len)))
 
-                               (('char c)
-                                (when (eq? c in-c)
-                                  (add-thread! next-threads (+ 1 i))))
+           (define (swap-ts)
+             (let ((tmp threads))
+              (set! threads next-threads)
+              (clear-thread-set! tmp)
+              (set! next-threads tmp)))
 
-                               (('jmp l) (add-thread! threads l))
+           (add-thread! threads 0)
+           (string-iter (in-c txt)
+                        (fmt #t (dsp "processing: ") (wrt in-c) nl)
+                        (while (i (pop-thread! threads))
+                               (match (vector-ref code i)
+                                      (('match) (k #t))
 
-                               (('split l1 l2)
-                                (begin
-                                  (add-thread! threads l1)
-                                  (add-thread! threads l2)))))
-                 (if (no-threads? next-threads)
-                     #f
-                     (loop next-threads (cdr input))))))))))
+                                      (('char c)
+                                       (when (char=? c in-c)
+                                         (add-thread! next-threads (+ 1 i))))
+
+                                      (('jmp l) (add-thread! threads l))
+
+                                      (('split l1 l2)
+                                       (begin
+                                         (add-thread! threads l1)
+                                         (add-thread! threads l2)))))
+                        (if (no-threads? next-threads)
+                            (k #f)
+                            (swap-ts)))
+           (any-matches? threads code))))))
 
   )
