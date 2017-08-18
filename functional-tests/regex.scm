@@ -209,40 +209,49 @@
         (define (compile-instr instr)
           (match instr
                  (('match)
-                  (lambda (in-c pc k) (k #t)))
+                  (lambda (in-c pc) 'match))
 
                  (('char c)
-                  (lambda (in-c pc k)
+                  (lambda (in-c pc)
                     (when (char=? c in-c)
                       (add-thread! next-threads (+ 1 pc)))))
 
                  (('jmp l)
-                  (lambda (in-c pc k)
+                  (lambda (in-c pc)
                     (add-thread! threads l)))
 
                  (('split l1 l2)
-                  (lambda (in-c pc k)
+                  (lambda (in-c pc)
                     (add-thread! threads l1)
                     (add-thread! threads l2)))))
 
         ;; compile to thunks to avoid calling match in the loop.
         (let ((code (vector-copy code)))
+
+         (define (step in-c)
+           (let loop ((pc (pop-thread! threads)))
+            (if pc
+                (if (eq? 'match ((vector-ref code pc) in-c pc))
+                    'match
+                    (loop (pop-thread! threads)))
+                #f)))
+
          (upto (n code-len)
                (vector-set! code n (compile-instr (vector-ref code n))))
 
          (lambda (txt)
-           (call/cc
-             (lambda (k)
-               (add-thread! threads 0)
-               (string-iter (in-c txt)
-                            ; (fmt #t (dsp "processing: ") (wrt in-c) nl)
-                            (while (pc (pop-thread! threads))
-                                   ((vector-ref code pc) in-c pc k))
-                            (if (no-threads? next-threads)
-                                (k #f)
-                                (begin
-                                  (swap threads next-threads)
-                                  (clear-thread-set! next-threads))))
-               (any-matches? threads code)))))))))
+           (add-thread! threads 0)
+           (let ((txt-len (string-length txt)))
+             (let c-loop ((c-index 0))
+              (if (< c-index txt-len)
+                  (if (eq? 'match (step (string-ref txt c-index)))
+                      #t
+                      (if (no-threads? next-threads)
+                          #f
+                          (begin
+                            (swap threads next-threads)
+                            (clear-thread-set! next-threads)
+                            (c-loop (+ 1 c-index)))))
+                  (any-matches? threads code))))))))))
 
   )
