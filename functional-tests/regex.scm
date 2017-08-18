@@ -193,6 +193,13 @@
       ((_ (var str) body ...)
        (string-for-each (lambda (var) body ...) str))))
 
+  (define-syntax swap
+    (syntax-rules ()
+      ((_ x y)
+       (let ((tmp x))
+        (set! x y)
+        (set! y tmp)))))
+
   (define (match-rx code txt)
     (fmt #t (dsp "running ") (pretty code) nl)
     (call/cc
@@ -200,12 +207,6 @@
         (let ((code-len (vector-length code)))
          (let ((threads (mk-thread-set code-len))
                (next-threads (mk-thread-set code-len)))
-
-           (define (swap-ts)
-             (let ((tmp threads))
-              (set! threads next-threads)
-              (clear-thread-set! tmp)
-              (set! next-threads tmp)))
 
            (add-thread! threads 0)
            (string-iter (in-c txt)
@@ -226,7 +227,9 @@
                                          (add-thread! threads l2)))))
                         (if (no-threads? next-threads)
                             (k #f)
-                            (swap-ts)))
+                            (begin
+                              (swap threads next-threads)
+                              (clear-thread-set! next-threads))))
            (any-matches? threads code))))))
 
   )
