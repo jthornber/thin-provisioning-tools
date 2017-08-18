@@ -201,35 +201,47 @@
         (set! y tmp)))))
 
   (define (match-rx code txt)
-    (fmt #t (dsp "running ") (pretty code) nl)
+    ; (fmt #t (dsp "running ") (pretty code) nl)
     (call/cc
       (lambda (k)
         (let ((code-len (vector-length code)))
          (let ((threads (mk-thread-set code-len))
                (next-threads (mk-thread-set code-len)))
 
-           (add-thread! threads 0)
-           (string-iter (in-c txt)
-                        (fmt #t (dsp "processing: ") (wrt in-c) nl)
-                        (while (i (pop-thread! threads))
-                               (match (vector-ref code i)
-                                      (('match) (k #t))
+           (define (compile-instr instr)
+             (match instr
+                    (('match)
+                     (lambda (_ pc) (k #t)))
 
-                                      (('char c)
-                                       (when (char=? c in-c)
-                                         (add-thread! next-threads (+ 1 i))))
+                    (('char c)
+                     (lambda (in-c pc)
+                       (when (char=? c in-c)
+                         (add-thread! next-threads (+ 1 pc)))))
 
-                                      (('jmp l) (add-thread! threads l))
+                    (('jmp l)
+                     (lambda (in-c pc)
+                       (add-thread! threads l)))
 
-                                      (('split l1 l2)
-                                       (begin
-                                         (add-thread! threads l1)
-                                         (add-thread! threads l2)))))
-                        (if (no-threads? next-threads)
-                            (k #f)
-                            (begin
-                              (swap threads next-threads)
-                              (clear-thread-set! next-threads))))
+                    (('split l1 l2)
+                     (lambda (in-c pc)
+                       (add-thread! threads l1)
+                       (add-thread! threads l2)))))
+
+           ;; compile to thunks to avoid calling match in the loop.
+           (let ((code (vector-copy code)))
+            (upto (n code-len)
+                  (vector-set! code n (compile-instr (vector-ref code n))))
+
+            (add-thread! threads 0)
+            (string-iter (in-c txt)
+                         ; (fmt #t (dsp "processing: ") (wrt in-c) nl)
+                         (while (pc (pop-thread! threads))
+                                ((vector-ref code pc) in-c pc))
+                         (if (no-threads? next-threads)
+                             (k #f)
+                             (begin
+                               (swap threads next-threads)
+                               (clear-thread-set! next-threads)))))
            (any-matches? threads code))))))
 
   )
