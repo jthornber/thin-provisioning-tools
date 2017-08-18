@@ -6,6 +6,7 @@
           opt
           star
           plus
+          get-thread-count
           compile-rx)
   (import (chezscheme)
           (fmt fmt)
@@ -150,29 +151,36 @@
   ;; so a bundle is represented as a bitvector the same length as the
   ;; instructions.  Threads are run in lock step, all taking the same input.
 
-  (define-record-type thread-set (fields (mutable stack) (mutable seen)))
+  (define-record-type thread-set (fields (mutable size) (mutable stack) (mutable seen)))
 
   (define (mk-thread-set count)
-    (make-thread-set '() (make-vector count #f)))
+    (make-thread-set 0 (make-vector count) (make-vector count #f)))
 
   (define (clear-thread-set! ts)
-    (thread-set-stack-set! ts '())
+    (thread-set-size-set! ts 0)
     (vector-fill! (thread-set-seen ts) #f))
+
+  (define thread-count 0)
+  (define (get-thread-count)
+    thread-count)
 
   (define (add-thread! ts i)
     (unless (vector-ref (thread-set-seen ts) i)
+      ;(fmt #t (dsp "adding thread ") (num i) nl)
+      (set! thread-count (+ 1 thread-count))
       (vector-set! (thread-set-seen ts) i #t)
-      (thread-set-stack-set! ts (cons i (thread-set-stack ts)))))
+      (vector-set! (thread-set-stack ts) (thread-set-size ts) i)
+      (thread-set-size-set! ts (+ 1 (thread-set-size ts)))))
 
   (define (pop-thread! ts)
-    (if (null? (thread-set-stack ts))
+    (if (zero? (thread-set-size ts))
         #f
-        (let ((t (car (thread-set-stack ts))))
-         (thread-set-stack-set! ts (cdr (thread-set-stack ts)))
-         t)))
+        (begin
+          (thread-set-size-set! ts (- (thread-set-size ts) 1))
+          (vector-ref (thread-set-stack ts) (thread-set-size ts)))))
 
   (define (no-threads? ts)
-    (null? (thread-set-stack ts)))
+    (zero? (thread-set-size ts)))
 
   (define (any-matches? ts code)
     (call/cc
@@ -182,16 +190,6 @@
                    (k #t)))
         #f)))
 
-  (define (mk-init-thread-set count)
-    (let ((ts (mk-thread-set count)))
-     (add-thread! ts 0)
-     ts))
-
-  (define-syntax string-iter
-    (syntax-rules ()
-      ((_ (var str) body ...)
-       (string-for-each (lambda (var) body ...) str))))
-
   (define-syntax swap
     (syntax-rules ()
       ((_ x y)
@@ -200,8 +198,8 @@
         (set! y tmp)))))
 
   (define (compile-rx rx)
-    ; (fmt #t (dsp "running ") (pretty code) nl)
     (let ((code (compile-rx% rx)))
+     ;(fmt #t (dsp "running ") (pretty code) nl)
      (let ((code-len (vector-length code)))
       (let ((threads (mk-thread-set code-len))
             (next-threads (mk-thread-set code-len)))
