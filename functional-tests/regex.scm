@@ -72,12 +72,14 @@
 
   (define (star rx)
     (let ((head (gensym))
+          (body (gensym))
           (tail (gensym)))
-      (cons (split-instr head tail)
-            (label-code head
-                        (append-instr rx
-                                      (jmp-instr head)
-                                      (label-instr tail))))))
+      (label-code head
+                  (cons (split-instr body tail)
+                        (label-code body
+                                    (append-instr rx
+                                                  (jmp-instr head)
+                                                  (label-instr tail)))))))
 
   (define (plus rx)
     (let ((head (gensym))
