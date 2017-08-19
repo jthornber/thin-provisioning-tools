@@ -6,7 +6,6 @@
           opt
           star
           plus
-          get-thread-count
           compile-rx)
   (import (chezscheme)
           (fmt fmt)
@@ -146,46 +145,43 @@
        (list->vector
          (remove-labels rx (label-locations rx))))))
 
-  ;; A 'thread' consists of an index into the instructions.  A 'bundle' holds
-  ;; the current threads.  Note there cannot be more threads than instructions,
-  ;; so a bundle is represented as a bitvector the same length as the
-  ;; instructions.  Threads are run in lock step, all taking the same input.
+  ;; A 'thread' consists of an index into the instructions.  A 'yarn holds the
+  ;; current threads.  Note there cannot be more threads than instructions, so
+  ;; a yarn is represented as a vector the same length as the instructions.
+  ;; Threads are run in lock step, all taking the same input.
 
-  (define-record-type thread-set (fields (mutable size) (mutable stack) (mutable seen)))
+  (define-record-type yarn
+                      (fields (mutable size)
+                              (mutable stack)
+                              (mutable seen)))
 
-  (define (mk-thread-set count)
-    (make-thread-set 0 (make-vector count) (make-vector count #f)))
+  (define (mk-yarn count)
+    (make-yarn 0 (make-vector count) (make-vector count #f)))
 
-  (define (clear-thread-set! ts)
-    (thread-set-size-set! ts 0)
-    (vector-fill! (thread-set-seen ts) #f))
+  (define (clear-yarn! y)
+    (yarn-size-set! y 0)
+    (vector-fill! (yarn-seen y) #f))
 
-  (define thread-count 0)
-  (define (get-thread-count)
-    thread-count)
+  (define (add-thread! y i)
+    (unless (vector-ref (yarn-seen y) i)
+      (vector-set! (yarn-seen y) i #t)
+      (vector-set! (yarn-stack y) (yarn-size y) i)
+      (yarn-size-set! y (+ 1 (yarn-size y)))))
 
-  (define (add-thread! ts i)
-    (unless (vector-ref (thread-set-seen ts) i)
-      ;(fmt #t (dsp "adding thread ") (num i) nl)
-      (set! thread-count (+ 1 thread-count))
-      (vector-set! (thread-set-seen ts) i #t)
-      (vector-set! (thread-set-stack ts) (thread-set-size ts) i)
-      (thread-set-size-set! ts (+ 1 (thread-set-size ts)))))
-
-  (define (pop-thread! ts)
-    (if (zero? (thread-set-size ts))
+  (define (pop-thread! y)
+    (if (zero? (yarn-size y))
         #f
         (begin
-          (thread-set-size-set! ts (- (thread-set-size ts) 1))
-          (vector-ref (thread-set-stack ts) (thread-set-size ts)))))
+          (yarn-size-set! y (- (yarn-size y) 1))
+          (vector-ref (yarn-stack y) (yarn-size y)))))
 
-  (define (no-threads? ts)
-    (zero? (thread-set-size ts)))
+  (define (no-threads? y)
+    (zero? (yarn-size y)))
 
-  (define (any-matches? ts code)
+  (define (any-matches? y code)
     (call/cc
       (lambda (k)
-        (while (i (pop-thread! ts))
+        (while (i (pop-thread! y))
                (if (match-instr? (vector-ref code i))
                    (k #t)))
         #f)))
@@ -201,8 +197,8 @@
     (let ((code (compile-rx% rx)))
      ;(fmt #t (dsp "running ") (pretty code) nl)
      (let ((code-len (vector-length code)))
-      (let ((threads (mk-thread-set code-len))
-            (next-threads (mk-thread-set code-len)))
+      (let ((threads (mk-yarn code-len))
+            (next-threads (mk-yarn code-len)))
 
         (define (compile-instr instr)
           (match instr
@@ -248,7 +244,7 @@
                           #f
                           (begin
                             (swap threads next-threads)
-                            (clear-thread-set! next-threads)
+                            (clear-yarn! next-threads)
                             (c-loop (+ 1 c-index)))))
                   (any-matches? threads code))))))))))
 
