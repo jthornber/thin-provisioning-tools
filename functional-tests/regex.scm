@@ -149,7 +149,6 @@
   ;; current threads.  Note there cannot be more threads than instructions, so
   ;; a yarn is represented as a vector the same length as the instructions.
   ;; Threads are run in lock step, all taking the same input.
-
   (define-record-type yarn
                       (fields (mutable size)
                               (mutable stack)
@@ -219,7 +218,7 @@
                     (add-thread! threads l1)
                     (add-thread! threads l2)))))
 
-        ;; compile to thunks to avoid calling match in the loop.
+        ;; compile to closures to avoid calling match in the loop.
         (let ((code (vector-copy code)))
 
          (define (step in-c)
@@ -248,4 +247,28 @@
                             (c-loop (+ 1 c-index)))))
                   (any-matches? threads code))))))))))
 
+  ;;;--------------------------------------------------------
+  ;;; Parser
+
+  ;; <RE>    ::=     <union> | <simple-RE>
+  ;; <union>     ::= <RE> "|" <simple-RE>
+  ;; <simple-RE>     ::=     <concatenation> | <basic-RE>
+  ;; <concatenation>     ::= <simple-RE> <basic-RE>
+  ;; <basic-RE>  ::= <star> | <plus> | <elementary-RE>
+  ;; <star>  ::= <elementary-RE> "*"
+  ;; <plus>  ::= <elementary-RE> "+"
+  ;; <elementary-RE>     ::= <group> | <any> | <eos> | <char> | <set>
+  ;; <group>     ::=     "(" <RE> ")"
+  ;; <any>   ::=     "."
+  ;; <eos>   ::=     "$"
+  ;; <char>  ::=     any non metacharacter | "\" metacharacter
+  ;; <set>   ::=     <positive-set> | <negative-set>
+  ;; <positive-set>  ::=     "[" <set-items> "]"
+  ;; <negative-set>  ::=     "[^" <set-items> "]"
+  ;; <set-items>     ::=     <set-item> | <set-item> <set-items>
+  ;; <set-items>     ::=     <range> | <char>
+  ;; <range>     ::=     <char> "-" <char>
+
+  ;; I don't care about parse performance so we'll use a simple recursive
+  ;; decent parser.
   )
