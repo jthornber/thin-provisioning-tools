@@ -125,21 +125,30 @@
                  (instr (loop (+ 1 pc) (cdr code) (cons instr acc)))))))
 
   (define (optimise-jumps! code)
-    (upto (n (vector-length code))
-          (match (vector-ref code n)
-                 (('jmp l)
-                  (when (match-instr? (vector-ref code l))
-                    (vector-set! code n (match-instr))))
+    (define (single-pass)
+      (let ((changed #f))
+       (upto (n (vector-length code))
+             (match (vector-ref code n)
+                    (('jmp l)
+                     (when (match-instr? (vector-ref code l))
+                       (set! changed #t)
+                       (vector-set! code n (match-instr))))
 
-                 (('split l1 l2)
-                  (when (or (match-instr? (vector-ref code l1))
-                            (match-instr? (vector-ref code l2)))
-                    (vector-set! code n (match-instr))))
+                    (('split l1 l2)
+                     (when (or (match-instr? (vector-ref code l1))
+                               (match-instr? (vector-ref code l2)))
+                       (set! changed #t)
+                       (vector-set! code n (match-instr))))
 
-                 (_ _)))
+                    (_ _)))
+       changed))
+
+    (let loop ()
+     (when (single-pass)
+       (loop)))
     code)
 
-  (define (compile-rx% rx)
+  (define (compile-to-symbols rx)
     (let ((rx (append-instr rx (match-instr))))
      (optimise-jumps!
        (list->vector
@@ -177,14 +186,6 @@
   (define (no-threads? y)
     (zero? (yarn-size y)))
 
-  (define (any-matches? y code)
-    (call/cc
-      (lambda (k)
-        (while (i (pop-thread! y))
-               (if (match-instr? (vector-ref code i))
-                   (k #t)))
-        #f)))
-
   (define-syntax swap
     (syntax-rules ()
       ((_ x y)
@@ -193,59 +194,58 @@
         (set! y tmp)))))
 
   (define (compile-rx rx)
-    (let ((code (compile-rx% rx)))
-     ;(fmt #t (dsp "running ") (pretty code) nl)
-     (let ((code-len (vector-length code)))
-      (let ((threads (mk-yarn code-len))
-            (next-threads (mk-yarn code-len)))
+    (let* ((sym-code (compile-to-symbols rx))
+           (code-len (vector-length sym-code))
+           (threads (mk-yarn code-len))
+           (next-threads (mk-yarn code-len))
+           (code #f))
 
-        (define (compile-instr instr)
-          (match instr
-                 (('match)
-                  (lambda (in-c pc) 'match))
+      (define (compile-instr instr)
+        (match instr
+               (('match)
+                (lambda (in-c pc) 'match))
 
-                 (('char c)
-                  (lambda (in-c pc)
-                    (when (char=? c in-c)
-                      (add-thread! next-threads (+ 1 pc)))))
+               (('char c)
+                (lambda (in-c pc)
+                  ;; use eq? because in-c isn't always a char
+                  (when (eq? c in-c)
+                    (add-thread! next-threads (+ 1 pc)))))
 
-                 (('jmp l)
-                  (lambda (in-c pc)
-                    (add-thread! threads l)))
+               (('jmp l)
+                (lambda (in-c pc)
+                  (add-thread! threads l)))
 
-                 (('split l1 l2)
-                  (lambda (in-c pc)
-                    (add-thread! threads l1)
-                    (add-thread! threads l2)))))
+               (('split l1 l2)
+                (lambda (in-c pc)
+                  (add-thread! threads l1)
+                  (add-thread! threads l2)))))
 
-        ;; compile to closures to avoid calling match in the loop.
-        (let ((code (vector-copy code)))
+      (define (step in-c)
+        (let loop ((pc (pop-thread! threads)))
+         (and pc
+              (if (eq? 'match ((vector-ref code pc) in-c pc))
+                  'match
+                  (loop (pop-thread! threads))))))
 
-         (define (step in-c)
-           (let loop ((pc (pop-thread! threads)))
-            (if pc
-                (if (eq? 'match ((vector-ref code pc) in-c pc))
-                    'match
-                    (loop (pop-thread! threads)))
-                #f)))
+      ;(fmt #t (dsp "running ") (pretty code) nl)
 
-         (upto (n code-len)
-               (vector-set! code n (compile-instr (vector-ref code n))))
+      ;; compile to closures to avoid calling match in the loop.
+      (upto (n code-len)
+            (set! code (vector-map compile-instr sym-code)))
 
-         (lambda (txt)
-           (add-thread! threads 0)
-           (let ((txt-len (string-length txt)))
-             (let c-loop ((c-index 0))
-              (if (< c-index txt-len)
-                  (if (eq? 'match (step (string-ref txt c-index)))
-                      #t
-                      (if (no-threads? next-threads)
-                          #f
-                          (begin
-                            (swap threads next-threads)
-                            (clear-yarn! next-threads)
-                            (c-loop (+ 1 c-index)))))
-                  (any-matches? threads code))))))))))
+      (lambda (txt)
+        (add-thread! threads 0)
+        (let ((txt-len (string-length txt)))
+         (let c-loop ((c-index 0))
+           (when (< c-index txt-len)
+             (if (eq? 'match (step (string-ref txt c-index)))
+                 #t
+                 (if (no-threads? next-threads)
+                     #f
+                     (begin
+                       (swap threads next-threads)
+                       (clear-yarn! next-threads)
+                       (c-loop (+ 1 c-index)))))))))))
 
   ;;;--------------------------------------------------------
   ;;; Parser
