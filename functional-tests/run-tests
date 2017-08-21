@@ -1,3 +1,5 @@
+#! /usr/bin/scheme-script
+
 (import (rnrs)
         (fmt fmt)
         (functional-tests)
