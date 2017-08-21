@@ -35,18 +35,32 @@
            (list->string cs)))
        (split-list (string->list str) sep)))
 
-(define (mk-filter pattern)
+(define (mk-single-filter pattern)
   (let ((prefix (string->syms pattern #\/)))
    (lambda (keys)
     (begins-with prefix keys))))
+
+(define (mk-filter patterns)
+  (if (null? patterns)
+      ; accept everything if no patterns
+      (lambda (_) #t)
+
+      ; Otherwise accept tests that pass a pattern
+      (let ((filters (map mk-single-filter patterns)))
+       (fold-left (lambda (fn-a fn-b)
+                    (lambda (keys)
+                      (or (fn-a keys)
+                          (fn-b keys))))
+                  (car filters)
+                  (cdr filters)))))
 
 ;;------------------------------------------------
 
 (register-thin-tests)
 (register-cache-tests)
 
-(if (run-scenarios (filter (mk-filter (car (cdr (command-line))))
-                           (list-scenarios)))
+(let ((pred (mk-filter (cdr (command-line)))))
+ (if (run-scenarios (filter pred (list-scenarios)))
     (exit)
-    (exit #f))
+    (exit #f)))
 
