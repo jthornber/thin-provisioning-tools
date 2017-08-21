@@ -222,6 +222,7 @@
               (thunk)
               #t)))))
 
+  ;; Returns #t if all tests pass.
   (define (run-scenarios ss)
     (let ((pass 0)
           (fail 0)
@@ -250,7 +251,8 @@
                        (cat (dsp ", ")
                             (num fail)
                             (dsp " failures.")))
-                   nl))))
+                   nl))
+      (zero? fail)))
 
   ;;-----------------------------------------------
 

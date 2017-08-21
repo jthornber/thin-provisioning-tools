@@ -5,5 +5,8 @@
 
 (register-thin-tests)
 (register-cache-tests)
-(run-scenarios (list-scenarios))
+
+(if (run-scenarios (list-scenarios))
+    (exit)
+    (exit #f))
 
