@@ -35,6 +35,7 @@
     (fmt fmt)
     (list-utils)
     (thin-xml)
+    (utils)
     (srfi s8 receive)
     (only (srfi s1 lists) drop-while))
 
@@ -165,13 +166,18 @@
       (vector-sort-by string<? fmt-keys (hashtable-keys scenarios))))
 
   (define (fmt-scenarios keys fn)
+    (define (flush)
+      (flush-output-port (current-output-port)))
+
     (define (describe prev-keys keys)
       (fmt #t
            (cat (fmt-keys prev-keys keys)
-                (pad-char #\.
-                          (space-to 40)
-                          (fn keys))
-                nl)))
+                (dsp #\space)
+                (pad-char #\. (space-to 38))
+                (dsp #\space)))
+      (flush)
+      (fmt #t (cat (fn keys) nl))
+      (flush))
 
     (for-each describe (cons '() (reverse (cdr (reverse keys)))) keys))
 
@@ -202,12 +208,49 @@
      (display "pass")
      (newline)))
 
+  ;; Returns #f if an error was raised, otherwise #t (the values from thunk are
+  ;; discarded).
+  (define (try thunk)
+    (call/cc
+      (lambda (k)
+        (with-exception-handler
+          (lambda (x)
+            (if (error? x)
+                (k #f)
+                (raise x)))
+            (lambda ()
+              (thunk)
+              #t)))))
+
   (define (run-scenarios ss)
-    (fmt-scenarios ss
-                   (lambda (keys)
-                     (let ((s (hashtable-ref scenarios keys #f)))
-                      ((scenario-thunk s))
-                      (dsp "pass")))))
+    (let ((pass 0)
+          (fail 0)
+          (fail-keys '()))
+
+      (fmt-scenarios ss
+                     (lambda (keys)
+                       (let ((s (hashtable-ref scenarios keys #f)))
+                        (if (try (scenario-thunk s))
+                            (begin (inc! pass)
+                                   (dsp "pass"))
+                            (begin (inc! fail)
+                                   (set! fail-keys (cons keys fail-keys))
+                                   (dsp "FAIL"))))))
+      (fmt #t nl (dsp "There were failures:") nl)
+      (fmt-scenarios fail-keys
+                     (lambda (_)
+                       (dsp "FAIL")))
+      (fmt #t (cat nl
+                   (num pass)
+                   (dsp "/")
+                   (num (+ pass fail))
+                   (dsp " tests passed")
+                   (if (zero? fail)
+                       (dsp #\.)
+                       (cat (dsp ", ")
+                            (num fail)
+                            (dsp " failures.")))
+                   nl))))
 
   ;;-----------------------------------------------
 
