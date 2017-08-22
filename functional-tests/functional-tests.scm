@@ -236,11 +236,11 @@
                                    (dsp "pass"))
                             (begin (inc! fail)
                                    (set! fail-keys (cons keys fail-keys))
-                                   (dsp "FAIL"))))))
+                                   (dsp "fail"))))))
       (fmt #t nl (dsp "There were failures:") nl)
       (fmt-scenarios fail-keys
                      (lambda (_)
-                       (dsp "FAIL")))
+                       (dsp "fail")))
       (fmt #t (cat nl
                    (num pass)
                    (dsp "/")
