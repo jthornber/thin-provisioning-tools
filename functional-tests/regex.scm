@@ -367,13 +367,11 @@
 
   ;; rx := simple-rx ("|" simple-rx)*
   (define (rx)
-    (define (combine rs)
-      (fold-left alt (car rs) (cdr rs)))
-
-    (p:parse-m (p:<- r (simple-rx))
-               (p:<- rest (p:many* (p:>> (p:lit "|")
-                                         (simple-rx))))
-               (p:pure (combine (cons r rest)))))
+    (p:lift2 (lambda (r rs)
+               (fold-left alt r rs))
+             (simple-rx)
+             (p:many* (p:>> (p:lit "|")
+                            (simple-rx)))))
 
   ;;-----------------------------------------------------------------------
   ;; The top level routine, parses the regex string and compiles it into a
