@@ -1,15 +1,11 @@
 (library
   (regex)
-  (export lit
-          seq
-          alt
-          opt
-          star
-          plus
-          compile-rx)
+  (export regex)
   (import (chezscheme)
           (fmt fmt)
           (loops)
+          (prefix (parser-combinators) p:)
+          (srfi s8 receive)
           (matchable))
 
   ;; Simple regex library, because it's friday and I'm bored.
@@ -25,18 +21,15 @@
   ;; (plus rx)
   ;;
   ;; The expressions get compiled into a vector of vm instructions.
-  ;; (char c)
+  ;; (char pred) ; where fn :: char -> bool
   ;; (match)
   ;; (jmp x)
   ;; (split x y)
 
-  ;; instructions are closures that manipulate the thread
-
-  ;; FIXME: slow
   (define (append-instr code . i) (append code i))
   (define (label-instr l) `(label ,l))
   (define (jmp-instr l) `(jmp ,l))
-  (define (char-instr c) `(char ,c))
+  (define (char-instr fn) `(char ,fn))
   (define (split-instr l1 l2) `(split ,l1 ,l2))
   (define (match-instr) '(match))
   (define (match-instr? instr) (equal? '(match) instr))
@@ -47,7 +40,11 @@
   ;; Compiles to a list of labelled instructions that can later be flattened
   ;; into a linear sequence.
   (define (lit str)
-    (map char-instr (string->list str)))
+    (map (lambda (c1)
+           (char-instr
+             (lambda (c2)
+               (char=? c1 c2))))
+         (string->list str)))
 
   (define (seq rx1 rx2)
     (append rx1 rx2))
@@ -193,6 +190,9 @@
         (set! x y)
         (set! y tmp)))))
 
+  ;; FIXME: hack
+  (define end-of-string #\x0)
+
   (define (compile-rx rx)
     (let* ((sym-code (compile-to-symbols rx))
            (code-len (vector-length sym-code))
@@ -205,10 +205,10 @@
                (('match)
                 (lambda (in-c pc) 'match))
 
-               (('char c)
+               (('char fn)
                 (lambda (in-c pc)
                   ;; use eq? because in-c isn't always a char
-                  (when (eq? c in-c)
+                  (when (fn in-c)
                     (add-thread! next-threads (+ 1 pc)))))
 
                (('jmp l)
@@ -237,38 +237,150 @@
         (add-thread! threads 0)
         (let ((txt-len (string-length txt)))
          (let c-loop ((c-index 0))
-           (when (< c-index txt-len)
-             (if (eq? 'match (step (string-ref txt c-index)))
-                 #t
-                 (if (no-threads? next-threads)
-                     #f
-                     (begin
-                       (swap threads next-threads)
-                       (clear-yarn! next-threads)
-                       (c-loop (+ 1 c-index)))))))))))
+          (if (< c-index txt-len)
+              ;; FIXME: make step return a bool
+              (if (eq? 'match (step (string-ref txt c-index)))
+                  #t
+                  (if (no-threads? next-threads)
+                      #f
+                      (begin
+                        (swap threads next-threads)
+                        (clear-yarn! next-threads)
+                        (c-loop (+ 1 c-index)))))
+              (eq? 'match (step end-of-string))))))))
 
   ;;;--------------------------------------------------------
   ;;; Parser
 
-  ;; <RE>    ::=     <union> | <simple-RE>
-  ;; <union>     ::= <RE> "|" <simple-RE>
-  ;; <simple-RE>     ::=     <concatenation> | <basic-RE>
-  ;; <concatenation>     ::= <simple-RE> <basic-RE>
-  ;; <basic-RE>  ::= <star> | <plus> | <elementary-RE>
-  ;; <star>  ::= <elementary-RE> "*"
-  ;; <plus>  ::= <elementary-RE> "+"
-  ;; <elementary-RE>     ::= <group> | <any> | <eos> | <char> | <set>
-  ;; <group>     ::=     "(" <RE> ")"
-  ;; <any>   ::=     "."
-  ;; <eos>   ::=     "$"
-  ;; <char>  ::=     any non metacharacter | "\" metacharacter
-  ;; <set>   ::=     <positive-set> | <negative-set>
-  ;; <positive-set>  ::=     "[" <set-items> "]"
-  ;; <negative-set>  ::=     "[^" <set-items> "]"
-  ;; <set-items>     ::=     <set-item> | <set-item> <set-items>
-  ;; <set-items>     ::=     <range> | <char>
-  ;; <range>     ::=     <char> "-" <char>
+  ;; FIXME: ^ and ? aren't in the grammar, and eos/$ isn't wired up
 
-  ;; I don't care about parse performance so we'll use a simple recursive
-  ;; decent parser.
-  )
+  (define raw-char
+    (let ((meta-chars (string->list "\\^$*+?[]()|")))
+     (define (not-meta c)
+       (not (member c meta-chars)))
+
+     (p:alt (p:parse-m (p:<- c (p:accept-char not-meta))
+                       (p:pure c))
+            (p:>> (p:lit "\\")
+                  (p:accept-char (lambda (c) #t))))))
+
+  (define (bracket before after ma)
+    (p:>> before (p:<* ma after)))
+
+  (define (negate fn)
+    (lambda (c)
+      (not (fn c))))
+
+  ;;-----------------------------------------------------------
+  ;; Low level char combinators.  These build char predicates.
+
+  ;; char-rx := any non metacharacter | "\" metacharacter
+  ;; builds a predicate that accepts the char
+  (define char-rx
+    (p:parse-m (p:<- c1 raw-char)
+               (p:pure (lambda (c2)
+                         (char=? c1 c2)))))
+
+  ;; range := char-rx "-" char-rx
+  (define range
+    (p:parse-m (p:<- c1 raw-char)
+               (p:lit "-")
+               (p:<- c2 raw-char)
+               (p:pure (lambda (c)
+                         (char<=? c1 c c2)))))
+
+  ;; set-items := range | char-rx
+  (define set-item (p:alt range char-rx))
+
+  (define (or-preds preds)
+    (lambda (c)
+      (let loop ((preds preds))
+       (if (null? preds)
+           #f
+           (or ((car preds) c)
+               (loop (cdr preds)))))))
+
+  ;; set-items := set-item+
+  (define set-items
+    (p:lift or-preds (p:many+ set-item)))
+
+  ;; negative-set := "[^" set-items "]"
+  (define negative-set
+    (bracket (p:lit "[^")
+             (p:lit "]")
+             (p:lift negate set-items)))
+
+  ;; positive-set := "[" set-items "]"
+  (define positive-set
+    (bracket (p:lit "[")
+             (p:lit "]")
+             set-items))
+
+  ;; set := positive-set | negative-set
+  (define set (p:alt positive-set negative-set))
+
+  ;; eos := "$"
+  ;; FIXME: ???
+  (define eos (p:lit "$"))
+
+  ;; any := "."
+  (define any (p:>> (p:lit ".") (p:pure (lambda (_) #t))))
+
+  ;;-----------------------------------------------------------
+  ;; Higher level combinators, these build a symbolic rx
+
+  ;; The definitions start being mutually recursive from here on in, so we make
+  ;; them thunks to defer evaluation.
+
+  ;; group := "(" rx ")"
+  (define (group)
+    (fmt #t (dsp "group") nl)
+    (bracket (p:lit "(")
+             (p:lit ")")
+             (rx)))
+
+  ;; elementary-rx := group | any | eos | char-rx | set
+  ;; FIXME: put eos and group back in
+  (define (elementary-rx)
+    (p:lift (lambda (fn)
+              (list (char-instr fn)))
+            (p:one-of any char-rx set)))
+
+  ;; plus-rx := elementary-rx "+"
+  (define (plus-rx)
+    (p:lift plus (p:<* (elementary-rx) (p:lit "+"))))
+
+  ;; star-rx := elementary-rx "*"
+  (define (star-rx)
+    (p:lift star (p:<* (elementary-rx) (p:lit "*"))))
+
+  ;; basic-rx := star-rx | plus-rx | elementary-rx
+  (define (basic-rx)
+    (p:one-of (star-rx) (plus-rx) (elementary-rx)))
+
+  ;; simple-rx := basic-rx+
+  (define (simple-rx)
+    (define (combine rs)
+      (fold-left seq (car rs) (cdr rs)))
+
+    (p:lift combine (p:many+ (basic-rx))))
+
+  ;; rx := simple-rx ("|" simple-rx)*
+  (define (rx)
+    (define (combine rs)
+      (fold-left alt (car rs) (cdr rs)))
+
+    (p:parse-m (p:<- r (simple-rx))
+               (p:<- rest (p:many* (p:>> (p:lit "|")
+                                         (simple-rx))))
+               (p:pure (combine (cons r rest)))))
+
+  ;;-----------------------------------------------------------------------
+  ;; The top level routine, parses the regex string and compiles it into a
+  ;; matcher, or returns false if the parse failed.
+  ;; regex :: string -> (matcher <string>)
+  (define (regex str)
+    (receive (v st) (p:parse (rx) str)
+             (if (p:success? st)
+                 (compile-rx v)
+                 #f))))
