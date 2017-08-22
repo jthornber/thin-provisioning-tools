@@ -2,8 +2,10 @@
 
 (import (rnrs)
         (fmt fmt)
+        (list-utils)
         (functional-tests)
         (cache-functional-tests)
+        (parser-combinators)
         (only (srfi s1 lists) break)
         (srfi s8 receive)
         (thin-functional-tests))
@@ -54,13 +56,61 @@
                   (car filters)
                   (cdr filters)))))
 
+(define (exec-help)
+  (fmt (current-error-port)
+       (dsp "here's some helpful help\n")))
+
+(define (exec-run args)
+  (fmt #t (dsp "args = ") (pretty args))
+
+  (let ((pred (mk-filter args)))
+   (if (run-scenarios (filter pred (list-scenarios)))
+       (exit)
+       (exit #f))))
+
+;;------------------------------------------------
+;; Command line parser
+
+(define (switch str)
+  (>> (lit "--") (lit str)))
+
+(define whitespace
+  (many+ (charset " \t\n")))
+
+(define (whitespace-delim ma)
+  (>> (opt whitespace)
+      (<* ma (opt whitespace))))
+
+(define not-switch
+  (parse-m (<- c (neg-charset "- \t"))
+           (<- cs (many* (neg-charset " \t")))
+           (pure (list->string (cons c cs)))))
+
+(define command-line-parser
+  (alt (>> (switch "help") (pure exec-help))
+       (parse-m (switch "run")
+                (<- args (many* (whitespace-delim not-switch)))
+                (pure (lambda ()
+                        (exec-run args))))))
+
+(define (bad-command-line)
+  (fmt (current-error-port) (dsp "bad command line\n")))
+
+;; (<string>) -> thunk
+(define (parse-command-line)
+  (let ((args (cdr (command-line))))
+    (receive (v st)
+             (parse command-line-parser
+                    (apply string-append
+                           (intersperse " "
+                                        (cdr (command-line)))))
+             (if (success? st)
+                 v
+                 bad-command-line))))
+
 ;;------------------------------------------------
 
 (register-thin-tests)
 (register-cache-tests)
-
-(let ((pred (mk-filter (cdr (command-line)))))
- (if (run-scenarios (filter pred (list-scenarios)))
-    (exit)
-    (exit #f)))
+((parse-command-line))
 
