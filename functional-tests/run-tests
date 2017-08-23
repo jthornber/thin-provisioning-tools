@@ -76,8 +76,6 @@
        (dsp "here's some helpful help\n")))
 
 (define (exec-run args)
-  (fmt #t (dsp "args = ") (pretty args))
-
   (let ((pred (mk-filter args)))
    (if (run-scenarios (filter pred (list-scenarios)))
        (exit)
