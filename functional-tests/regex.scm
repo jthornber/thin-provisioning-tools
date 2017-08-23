@@ -6,7 +6,8 @@
           (loops)
           (prefix (parser-combinators) p:)
           (srfi s8 receive)
-          (matchable))
+          (matchable)
+          (utils))
 
   ;; Simple regex library, because it's friday and I'm bored.
   ;; Playing with the ideas in: https://swtch.com/~rsc/regexp/regexp2.html
@@ -183,13 +184,6 @@
   (define (no-threads? y)
     (zero? (yarn-size y)))
 
-  (define-syntax swap
-    (syntax-rules ()
-      ((_ x y)
-       (let ((tmp x))
-        (set! x y)
-        (set! y tmp)))))
-
   ;; FIXME: hack
   (define end-of-string #\x0)
 
@@ -244,7 +238,7 @@
                   (if (no-threads? next-threads)
                       #f
                       (begin
-                        (swap threads next-threads)
+                        (swap! threads next-threads)
                         (clear-yarn! next-threads)
                         (c-loop (+ 1 c-index)))))
               (eq? 'match (step end-of-string))))))))
