@@ -13,6 +13,7 @@
 
 ;;------------------------------------------------
 
+;; Returns #t if the xs list matches prefix
 (define (begins-with prefix xs)
   (cond
     ((null? prefix) #t)
