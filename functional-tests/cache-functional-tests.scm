@@ -5,6 +5,7 @@
           (functional-tests)
           (cache-xml)
           (fmt fmt)
+          (temp-file)
           (srfi s8 receive))
 
   (define-tool cache-check)
