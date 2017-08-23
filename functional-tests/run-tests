@@ -7,6 +7,7 @@
         (cache-functional-tests)
         (parser-combinators)
         (only (srfi s1 lists) break)
+        (regex)
         (srfi s8 receive)
         (thin-functional-tests))
 
@@ -37,10 +38,24 @@
            (list->string cs)))
        (split-list (string->list str) sep)))
 
-(define (mk-single-filter pattern)
+(define (mk-string-matcher pattern)
   (let ((prefix (string->syms pattern #\/)))
    (lambda (keys)
     (begins-with prefix keys))))
+
+(define (mk-regex-matcher pattern)
+  (let ((rx (regex pattern)))
+    (lambda (keys)
+      (rx (apply string-append
+                 (intersperse "/"
+                              (map symbol->string keys)))))))
+
+;; If the filter begins with 're:' then we make a regex matcher, otherwise
+;; we use a simple string matcher.
+(define (mk-single-matcher pattern)
+  (if (string=? (substring pattern 0 3) "re:")
+      (mk-regex-matcher (substring pattern 3 (string-length pattern)))
+      (mk-string-matcher pattern)))
 
 (define (mk-filter patterns)
   (if (null? patterns)
@@ -48,7 +63,7 @@
       (lambda (_) #t)
 
       ; Otherwise accept tests that pass a pattern
-      (let ((filters (map mk-single-filter patterns)))
+      (let ((filters (map mk-single-matcher patterns)))
        (fold-left (lambda (fn-a fn-b)
                     (lambda (keys)
                       (or (fn-a keys)
