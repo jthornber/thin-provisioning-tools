@@ -9,6 +9,7 @@
         (only (srfi s1 lists) break)
         (regex)
         (srfi s8 receive)
+	(temp-file)
         (thin-functional-tests))
 
 ;;------------------------------------------------
@@ -85,9 +86,6 @@
 ;;------------------------------------------------
 ;; Command line parser
 
-(define (switch str)
-  (>> (lit "--") (lit str)))
-
 (define whitespace
   (many+ (charset " \t\n")))
 
@@ -95,17 +93,34 @@
   (>> (opt whitespace)
       (<* ma (opt whitespace))))
 
+(define (switch str)
+  (whitespace-delim (>> (lit "--") (lit str))))
+
 (define not-switch
-  (parse-m (<- c (neg-charset "- \t"))
-           (<- cs (many* (neg-charset " \t")))
-           (pure (list->string (cons c cs)))))
+  (whitespace-delim
+   (parse-m (<- c (neg-charset "- \t"))
+    (<- cs (many* (neg-charset " \t")))
+    (pure (list->string (cons c cs))))))
+
+(define (maybe ma)
+ (alt (>> ma (pure #t))
+  (pure #f)))
+
+(define help-command-line
+ (>> (switch "help") (pure exec-help)))
+
+(define run-command-line
+ (parse-m
+  (switch "run")
+  (<- dunlink (maybe (switch "disable-unlink")))
+  (<- args (many* not-switch))
+  (pure (lambda ()
+	 (if dunlink
+	  (disable-unlink (exec-run args))
+	  (exec-run args))))))
 
 (define command-line-parser
-  (alt (>> (switch "help") (pure exec-help))
-       (parse-m (switch "run")
-                (<- args (many* (whitespace-delim not-switch)))
-                (pure (lambda ()
-                        (exec-run args))))))
+ (one-of help-command-line run-command-line))
 
 (define (bad-command-line)
   (fmt (current-error-port) (dsp "bad command line\n")))
@@ -116,8 +131,7 @@
     (receive (v st)
              (parse command-line-parser
                     (apply string-append
-                           (intersperse " "
-                                        (cdr (command-line)))))
+                           (intersperse " " (cdr (command-line)))))
              (if (success? st)
                  v
                  bad-command-line))))
@@ -126,5 +140,6 @@
 
 (register-thin-tests)
 (register-cache-tests)
-((parse-command-line))
+(with-dir "test-output"
+ ((parse-command-line)))
 

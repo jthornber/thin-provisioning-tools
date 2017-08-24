@@ -15,12 +15,18 @@
 
   (define (current-metadata) "metadata.bin")
 
-  (define (temp-cache-xml)
-    (temp-file-containing (fmt #f (generate-xml 512 1024 128))))
+  (define cwd "/tmp")
+
+  (define-syntax with-cache-xml
+    (syntax-rules ()
+      ((_ (v) b1 b2 ...)
+       (with-temp-file-containing ((v (fmt #f (generate-xml 512 1024 128))))
+         b1 b2 ...))))
 
   (define (%with-valid-metadata thunk)
-    (cache-restore "-i" (temp-cache-xml) "-o" (current-metadata))
-    (thunk))
+    (with-cache-xml (xml)
+      (cache-restore "-i" xml "-o" (current-metadata))
+      (thunk)))
 
   (define-syntax with-valid-metadata
     (syntax-rules ()
@@ -109,6 +115,7 @@ Options:
                      (receive (_ stderr) (run-fail "cache_check" (current-metadata))
                               (assert-starts-with "syscall 'open' failed: Permission denied" stderr))))
   |#
+
   (define-scenario (cache-check fails-with-corrupt-metadata)
                    "Fail with corrupt superblock"
                    (with-corrupt-metadata
@@ -120,4 +127,27 @@ Options:
                      (receive (stdout stderr) (run-fail "cache_check" "-q" (current-metadata))
                               (assert-eof stdout)
                               (assert-eof stderr))))
+
+  (define-scenario (cache-check failing-quiet)
+                   "Fail quietly with --quiet"
+                   (with-corrupt-metadata
+                     (receive (stdout stderr) (run-fail "cache_check" "--quiet" (current-metadata))
+                              (assert-eof stdout)
+                              (assert-eof stderr))))
+
+  (define-scenario (cache-check valid-metadata-passes)
+                   "A valid metadata area passes"
+                   (with-valid-metadata
+                     (cache-check (current-metadata))))
+
+  (define-scenario (cache-check deliberately-fail)
+                   "remove me"
+                   (fail (dsp "bad bad bad")))
+
+  (define-scenario (cache-check bad-metadata-version)
+                   "Invalid metadata version fails"
+                   (with-cache-xml (xml)
+                     (cache-restore "-i" xml "-o" (current-metadata)
+                                    "--debug-override-metadata-version" "12345")
+                     (run-fail "cache_check" (current-metadata))))
 )

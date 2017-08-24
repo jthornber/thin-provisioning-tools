@@ -79,20 +79,21 @@
   (define (build-command-line cmd-and-args)
     (apply fmt #f (map dsp (intersperse " " cmd-and-args))))
 
+  (define cwd "/tmp")
+
   (define (run . cmd-and-args)
-    (let ((stdout-file (temp-file))
-          (stderr-file (temp-file)))
-      (let ((cmd (fmt #f
-                      (dsp (build-command-line cmd-and-args))
-                      (dsp " > ")
-                      (dsp stdout-file)
-                      (dsp " 2> ")
-                      (dsp stderr-file))))
-        (info (dsp "cmd: ") (dsp cmd))
-        (let ((exit-code (system cmd)))
-         (values exit-code
-                 (slurp-file stdout-file)
-                 (slurp-file stderr-file))))))
+    (with-temp-file (stdout-file stderr-file)
+                    (let ((cmd (fmt #f
+                                    (dsp (build-command-line cmd-and-args))
+                                    (dsp " > ")
+                                    (dsp stdout-file)
+                                    (dsp " 2> ")
+                                    (dsp stderr-file))))
+                      (info (dsp "cmd: ") (dsp cmd))
+                      (let ((exit-code (system cmd)))
+                       (values exit-code
+                               (slurp-file stdout-file)
+                               (slurp-file stderr-file))))))
 
   (define (run-with-exit-code pred cmd-and-args)
     (receive (exit-code stdout stderr) (apply run cmd-and-args)
@@ -171,13 +172,19 @@
                      (scenario-desc
                        (hashtable-ref scenarios keys #f)))))
 
+  (define (test-dir cwd keys)
+    (apply string-append cwd "/"
+           (intersperse "/" (map symbol->string keys))))
+
   (define-syntax define-scenario
-    (syntax-rules ()
-      ((_ syms desc body ...)
-       (add-scenario 'syms
-                     (make-scenario desc
-                                    (lambda ()
-                                      body ...))))))
+    (lambda (x)
+      (syntax-case x ()
+                   ((k keys desc b1 b2 ...)
+                    #'(add-scenario 'keys
+                                    (make-scenario desc
+                                                   (lambda ()
+                                                     (with-dir (test-dir "." 'keys)
+                                                               b1 b2 ...))))))))
 
   (define (fail msg)
     (raise (condition
