@@ -2,8 +2,7 @@
   (utils)
   (export inc!
           dec!
-          swap!
-          fluid-let)
+          swap!)
   (import (rnrs))
 
   (define-syntax inc!
@@ -22,16 +21,4 @@
        (let ((tmp x))
         (set! x y)
         (set! y tmp)))))
-
-  (define-syntax fluid-let
-    (syntax-rules ()
-      ((_ ((x e)) b1 b2 ...)
-       (let ((y e))
-        (let ((swap (lambda ()
-                      (let ((t x))
-                       (set! x y)
-                       (set! y t)))))
-          (dynamic-wind swap (lambda ()
-                               b1 b2 ...)
-                        swap))))))
   )
