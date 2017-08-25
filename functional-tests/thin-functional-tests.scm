@@ -143,10 +143,10 @@
                         (assert-starts-with "Couldn't stat file" stderr))))
 
    (define-scenario (thin-restore missing-output-file)
-                    "the input file can't be found"
-                    (with-temp-file-sized ((md (meg 4)))
-                      (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" md)
-                        (assert-starts-with "Couldn't stat file" stderr))))
+                    "the output file can't be found"
+                    (with-thin-xml (xml)
+                      (receive (_ stderr) (run-fail "thin_restore -i " xml)
+                        (assert-starts-with "No output file provided." stderr))))
 
    (define-scenario (thin-restore tiny-output-file)
                     "Fails if the output file is too small."

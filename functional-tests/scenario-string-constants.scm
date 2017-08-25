@@ -7,6 +7,9 @@
           thin-rmap-help
 
           cache-check-help
+          cache-restore-help
+          cache-restore-outfile-too-small-text
+          cache-dump-help
           )
 
   (import (rnrs))
@@ -62,4 +65,31 @@ Options:
   {--skip-hints}
   {--skip-discards}")
 
+  (define cache-restore-help
+    "Usage: cache_restore [options]
+Options:
+  {-h|--help}
+  {-i|--input} <input xml file>
+  {-o|--output} <output device or file>
+  {-q|--quiet}
+  {--metadata-version} <1 or 2>
+  {-V|--version}
+
+  {--debug-override-metadata-version} <integer>
+  {--omit-clean-shutdown}")
+
+  (define cache-restore-outfile-too-small-text
+    "Output file too small.
+
+The output file should either be a block device,
+or an existing file.  The file needs to be large
+enough to hold the metadata.")
+
+  (define cache-dump-help
+    "Usage: cache_dump [options] {device|file}
+Options:
+  {-h|--help}
+  {-o <xml file>}
+  {-V|--version}
+  {--repair}")
 )
