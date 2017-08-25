@@ -30,7 +30,8 @@
     (fmt log-port
          (dsp (symbol->string level))
          (dsp ": ")
-         (apply cat (intersperse (dsp " ") doc))))
+         (apply cat (intersperse (dsp " ") doc))
+         nl))
 
   (define-syntax define-level
     (syntax-rules ()
