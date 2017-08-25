@@ -4,7 +4,10 @@
   (export thin-check-help
           thin-restore-outfile-too-small-text
           thin-restore-help
-          thin-rmap-help)
+          thin-rmap-help
+
+          cache-check-help
+          )
 
   (import (rnrs))
 
@@ -46,4 +49,17 @@ Options:
 Where:
   <block range> is of the form <begin>..<one-past-the-end>
   for example 5..45 denotes blocks 5 to 44 inclusive, but not block 45")
+
+  (define cache-check-help
+    "Usage: cache_check [options] {device|file}
+Options:
+  {-q|--quiet}
+  {-h|--help}
+  {-V|--version}
+  {--clear-needs-check-flag}
+  {--super-block-only}
+  {--skip-mappings}
+  {--skip-hints}
+  {--skip-discards}")
+
 )

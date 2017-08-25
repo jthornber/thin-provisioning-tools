@@ -2,10 +2,12 @@
   (cache-functional-tests)
   (export register-cache-tests)
   (import (chezscheme)
+          (disk-units)
           (functional-tests)
           (cache-xml)
           (fmt fmt)
           (process)
+          (scenario-string-constants)
           (temp-file)
           (srfi s8 receive))
 
@@ -14,51 +16,30 @@
   (define-tool cache-restore)
   (define-tool cache-metadata-size)
 
-  (define (current-metadata) "metadata.bin")
-
-  (define cwd "/tmp")
-
   (define-syntax with-cache-xml
     (syntax-rules ()
       ((_ (v) b1 b2 ...)
        (with-temp-file-containing ((v (fmt #f (generate-xml 512 1024 128))))
          b1 b2 ...))))
 
-  (define (%with-valid-metadata thunk)
-    (with-cache-xml (xml)
-      (cache-restore "-i" xml "-o" (current-metadata))
-      (thunk)))
-
   (define-syntax with-valid-metadata
     (syntax-rules ()
-      ((_ body ...)
-       (%with-valid-metadata (lambda () body ...)))))
+      ((_ (md) b1 b2 ...)
+       (with-temp-file-sized ((md (meg 4)))
+         (with-cache-xml (xml)
+           (cache-restore "-i" xml "-o" md)
+           b1 b2 ...)))))
 
   ;;; It would be nice if the metadata was at least similar to valid data.
-  (define (%with-corrupt-metadata thunk)
-    (run-ok "dd if=/dev/zero" (fmt #f "of=" (current-metadata)) "bs=64M count=1")
-    (thunk))
-
   (define-syntax with-corrupt-metadata
     (syntax-rules ()
-      ((_ body ...) (%with-corrupt-metadata (lambda () body ...)))))
-
+      ((_ (md) b1 b2 ...)
+       (with-temp-file-sized ((md (meg 4)))
+         b1 b2 ...))))
 
   ;; We have to export something that forces all the initialisation expressions
   ;; to run.
   (define (register-cache-tests) #t)
-
-  (define cache-check-help
-    "Usage: cache_check [options] {device|file}
-Options:
-  {-q|--quiet}
-  {-h|--help}
-  {-V|--version}
-  {--clear-needs-check-flag}
-  {--super-block-only}
-  {--skip-mappings}
-  {--skip-hints}
-  {--skip-discards}")
 
   ;;;-----------------------------------------------------------
   ;;; cache_check scenarios
@@ -119,27 +100,27 @@ Options:
 
   (define-scenario (cache-check fails-with-corrupt-metadata)
                    "Fail with corrupt superblock"
-                   (with-corrupt-metadata
-                     (run-fail "cache_check" (current-metadata))))
+                   (with-corrupt-metadata (md)
+                     (run-fail "cache_check" md)))
 
   (define-scenario (cache-check failing-q)
                    "Fail quietly with -q"
-                   (with-corrupt-metadata
-                     (receive (stdout stderr) (run-fail "cache_check" "-q" (current-metadata))
+                   (with-corrupt-metadata (md)
+                     (receive (stdout stderr) (run-fail "cache_check" "-q" md)
                               (assert-eof stdout)
                               (assert-eof stderr))))
 
   (define-scenario (cache-check failing-quiet)
                    "Fail quietly with --quiet"
-                   (with-corrupt-metadata
-                     (receive (stdout stderr) (run-fail "cache_check" "--quiet" (current-metadata))
+                   (with-corrupt-metadata (md)
+                     (receive (stdout stderr) (run-fail "cache_check" "--quiet" md)
                               (assert-eof stdout)
                               (assert-eof stderr))))
 
   (define-scenario (cache-check valid-metadata-passes)
                    "A valid metadata area passes"
-                   (with-valid-metadata
-                     (cache-check (current-metadata))))
+                   (with-valid-metadata (md)
+                     (cache-check md)))
 
   (define-scenario (cache-check deliberately-fail)
                    "remove me"
@@ -148,7 +129,7 @@ Options:
   (define-scenario (cache-check bad-metadata-version)
                    "Invalid metadata version fails"
                    (with-cache-xml (xml)
-                     (cache-restore "-i" xml "-o" (current-metadata)
-                                    "--debug-override-metadata-version" "12345")
-                     (run-fail "cache_check" (current-metadata))))
+                     (with-temp-file-sized ((md (meg 4)))
+                       (cache-restore "-i" xml "-o" md "--debug-override-metadata-version" "12345")
+                     (run-fail "cache_check" md))))
 )
