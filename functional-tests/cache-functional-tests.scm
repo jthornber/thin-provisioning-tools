@@ -5,6 +5,7 @@
           (functional-tests)
           (cache-xml)
           (fmt fmt)
+          (process)
           (temp-file)
           (srfi s8 receive))
 

@@ -2,14 +2,7 @@
   (functional-tests)
 
   (export
-    info
-
     slurp-file
-
-    run
-    run-with-exit-code
-    run-ok
-    run-fail
 
     scenario
     scenarios
@@ -32,11 +25,12 @@
     (chezscheme)
     (fmt fmt)
     (list-utils)
+    (logging)
+    (process)
     (temp-file)
     (thin-xml)
     (utils)
-    (srfi s8 receive)
-    (only (srfi s1 lists) drop-while))
+    (srfi s8 receive))
 
   ;;;--------------------------------------------------------------------
 
@@ -45,74 +39,6 @@
       (cmp (key-fn x) (key-fn y)))
 
     (vector-sort compare v))
-
-  (define (chomp line)
-    (list->string
-      (reverse
-        (drop-while char-whitespace?
-                    (reverse (string->list line))))))
-
-  ;; FIXME: write a decent log library
-  (define info-lines '())
-
-  (define (info . args)
-    (set! info-lines (cons (apply fmt #f args)
-                           info-lines)))
-
-  ;;;--------------------------------------------------------------------
-
-  (define (slurp-file path)
-    (define (slurp)
-      (let ((output (get-string-all (current-input-port))))
-       (if (eof-object? output)
-           output
-           (chomp output))))
-
-    (with-input-from-file path slurp))
-
-  ;;;--------------------------------------------------------------------
-  ;;; Run a sub process and capture it's output.
-  ;;; Ideally we'd use open-process-ports, but that loses us the exit code which
-  ;;; we need for testing.  So we use system, and redirect stderr and stdout to
-  ;;; temporary files, and subsequently read them in.  Messy, but fine for tests.
-
-  (define (build-command-line cmd-and-args)
-    (apply fmt #f (map dsp (intersperse " " cmd-and-args))))
-
-  (define cwd "/tmp")
-
-  (define (run . cmd-and-args)
-    (with-temp-file (stdout-file stderr-file)
-                    (let ((cmd (fmt #f
-                                    (dsp (build-command-line cmd-and-args))
-                                    (dsp " > ")
-                                    (dsp stdout-file)
-                                    (dsp " 2> ")
-                                    (dsp stderr-file))))
-                      (info (dsp "cmd: ") (dsp cmd))
-                      (let ((exit-code (system cmd)))
-                       (values exit-code
-                               (slurp-file stdout-file)
-                               (slurp-file stderr-file))))))
-
-  (define (run-with-exit-code pred cmd-and-args)
-    (receive (exit-code stdout stderr) (apply run cmd-and-args)
-             (if (pred exit-code)
-                 (values stdout stderr)
-                 (begin
-                   (info (fmt #f (dsp "stdout: ") stdout))
-                   (info (fmt #f (dsp "stderr: ") stderr))
-                   (fail (fmt #f (dsp "unexpected exit code (")
-                              (num exit-code)
-                              (dsp ")")))))))
-
-  (define (run-ok . cmd-and-args)
-    (run-with-exit-code zero? cmd-and-args))
-
-  (define (run-fail . cmd-and-args)
-    (define (not-zero? x) (not (zero? x)))
-
-    (run-with-exit-code not-zero? cmd-and-args))
 
   ;;;--------------------------------------------------------------------
 
@@ -179,12 +105,17 @@
   (define-syntax define-scenario
     (lambda (x)
       (syntax-case x ()
-                   ((k keys desc b1 b2 ...)
-                    #'(add-scenario 'keys
-                                    (make-scenario desc
-                                                   (lambda ()
-                                                     (with-dir (test-dir "." 'keys)
-                                                               b1 b2 ...))))))))
+        ((k keys desc b1 b2 ...)
+            #'(add-scenario 'keys
+                (make-scenario desc
+                  (lambda ()
+                    (with-dir (test-dir "." 'keys)
+                      (with-log-port (open-file-output-port
+                                       (string-append (working-directory) "/log.txt")
+                                       (file-options no-fail)
+                                       (buffer-mode line)
+                                       (native-transcoder))
+                        b1 b2 ...)))))))))
 
   (define (fail msg)
     (raise (condition

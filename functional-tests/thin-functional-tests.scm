@@ -7,6 +7,7 @@
     (chezscheme)
     (fmt fmt)
     (functional-tests)
+    (process)
     (temp-file)
     (thin-xml)
     (srfi s8 receive)

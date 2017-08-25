@@ -2,8 +2,11 @@
   (utils)
   (export inc!
           dec!
-          swap!)
-  (import (rnrs))
+          swap!
+          slurp-file
+          chomp)
+  (import (chezscheme)
+          (only (srfi s1 lists) drop-while))
 
   (define-syntax inc!
     (syntax-rules ()
@@ -21,4 +24,20 @@
        (let ((tmp x))
         (set! x y)
         (set! y tmp)))))
+
+  (define (slurp-file path)
+    (define (slurp)
+      (let ((output (get-string-all (current-input-port))))
+       (if (eof-object? output)
+           output
+           (chomp output))))
+
+    (with-input-from-file path slurp))
+
+  (define (chomp line)
+    (list->string
+      (reverse
+        (drop-while char-whitespace?
+                    (reverse (string->list line))))))
+
   )
