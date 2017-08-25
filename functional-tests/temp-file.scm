@@ -7,8 +7,10 @@
     with-dir
     with-temp-file-thunk
     with-temp-file-containing-thunk
+    with-temp-file-sized-thunk
     with-temp-file
     with-temp-file-containing
+    with-temp-file-sized
     disable-unlink)
 
   (import (chezscheme)
@@ -86,6 +88,26 @@
           txt (lambda (v txt)
                 (with-temp-file-containing (rest ...)
                                            b1 b2 ...))))))
+
+   (define (with-temp-file-sized-thunk size fn)
+     (with-temp-file-thunk
+       (lambda (path)
+         (let ((cmd (fmt #f (dsp "fallocate -l ") (wrt size) (dsp " ") (dsp path))))
+          (system cmd)
+          (fn path)))))
+
+   (define-syntax with-temp-file-sized
+     (syntax-rules ()
+       ((_ ((v size)) b1 b2 ...)
+        (with-temp-file-sized-thunk
+          size
+          (lambda (v)
+            b1 b2 ...)))
+
+       ((_ ((v size) rest ...) b1 b2 ...)
+        (with-temp-file-sized-thunk
+          size (lambda (v)
+                 (with-temp-file-sized (rest ...) b1 b2 ...))))))
 
    ;;-------------------------
 
