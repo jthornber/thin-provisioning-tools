@@ -5,6 +5,7 @@
 
   (import
     (chezscheme)
+    (disk-units)
     (fmt fmt)
     (functional-tests)
     (process)
@@ -19,10 +20,6 @@
   (define-tool thin-dump)
   (define-tool thin-restore)
   (define-tool thin-rmap)
-
-  ;; FIXME: start a disk units library
-  (define (meg n)
-    (* 1024 1024 n))
 
   (define-syntax with-thin-xml
     (syntax-rules ()
