@@ -52,7 +52,7 @@ namespace {
 			in_writeset_ = true;
 			era_ = era;
 
-			bits_.reset(new bitset(*md_.tm_));
+			bits_.reset(new persistent_data::bitset(*md_.tm_));
 			bits_->grow(nr_bits, false);
 		}
 
