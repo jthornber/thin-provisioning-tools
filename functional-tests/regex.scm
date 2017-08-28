@@ -320,59 +320,71 @@
   ;; any := "."
   (define any (p:>> (p:lit ".") (p:pure (lambda (_) #t))))
 
+  (define (combine rs)
+	  (fold-left seq (car rs) (cdr rs)))
+
   ;;-----------------------------------------------------------
   ;; Higher level combinators, these build a symbolic rx
 
-  ;; The definitions start being mutually recursive from here on in, so we make
-  ;; them thunks to defer evaluation.
+  ;; FIXME: move a hotpatch form to (utils)
+  (define rx
+   (let ((this (lambda xs #f)))
+    (lambda args
+     (if (and (= (length args) 2)
+	  (eq? (car args) 'hotpatch))
+	(set! this (cadr args))
+	(apply this args)))))
 
   ;; group := "(" rx ")"
-  (define (group)
-    (fmt #t (dsp "group") nl)
+  (define group
     (bracket (p:lit "(")
              (p:lit ")")
-             (rx)))
+             rx))
 
   ;; elementary-rx := group | any | eos | char-rx | set
   ;; FIXME: put eos and group back in
-  (define (elementary-rx)
-    (p:lift (lambda (fn)
-              (list (char-instr fn)))
-            (p:one-of any char-rx set)))
+  (define elementary-rx
+    (p:alt (p:lift (lambda (fn)
+                     (list (char-instr fn)))
+                   (p:one-of any char-rx set))
+           group))
 
   ;; plus-rx := elementary-rx "+"
-  (define (plus-rx)
-    (p:lift plus (p:<* (elementary-rx) (p:lit "+"))))
+  (define plus-rx
+    (p:lift plus (p:<* elementary-rx (p:lit "+"))))
 
   ;; star-rx := elementary-rx "*"
-  (define (star-rx)
-    (p:lift star (p:<* (elementary-rx) (p:lit "*"))))
+  (define star-rx
+    (p:lift star (p:<* elementary-rx (p:lit "*"))))
 
   ;; basic-rx := star-rx | plus-rx | elementary-rx
-  (define (basic-rx)
-    (p:one-of (star-rx) (plus-rx) (elementary-rx)))
+  (define basic-rx
+    (p:one-of star-rx plus-rx elementary-rx))
 
   ;; simple-rx := basic-rx+
-  (define (simple-rx)
-    (define (combine rs)
-      (fold-left seq (car rs) (cdr rs)))
-
-    (p:lift combine (p:many+ (basic-rx))))
-
-  ;; rx := simple-rx ("|" simple-rx)*
-  (define (rx)
-    (p:lift2 (lambda (r rs)
-               (fold-left alt r rs))
-             (simple-rx)
-             (p:many* (p:>> (p:lit "|")
-                            (simple-rx)))))
+  (define simple-rx
+    (p:lift combine (p:many+ basic-rx)))
 
   ;;-----------------------------------------------------------------------
   ;; The top level routine, parses the regex string and compiles it into a
   ;; matcher, or returns false if the parse failed.
   ;; regex :: string -> (matcher <string>)
-  (define (regex str)
-    (receive (v st) (p:parse (rx) str)
-             (if (p:success? st)
-                 (compile-rx v)
-                 #f))))
+  ;; FIXME: it's tempting to return a function that raises if there's a parse error.
+  (define regex
+   (let ((patched #f))
+    (lambda (str)
+     (unless patched
+	     (set! patched #t)
+	     ;; rx := simple-rx ("|" simple-rx)*
+	     (rx 'hotpatch
+		 (p:lift2 (lambda (r rs)
+				  (fold-left alt r rs))
+			  simple-rx
+			  (p:many* (p:>> (p:lit "|") simple-rx)))))
+
+     (receive (v st) (p:parse rx str)
+	      (if (p:success? st)
+		  (compile-rx v)
+		  #f))))))
+
+
