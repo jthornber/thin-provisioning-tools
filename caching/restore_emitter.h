@@ -7,9 +7,15 @@
 //----------------------------------------------------------------
 
 namespace caching {
+
+	enum shutdown_type {
+		CLEAN_SHUTDOWN,
+		NO_CLEAN_SHUTDOWN
+	};
+
 	emitter::ptr create_restore_emitter(metadata::ptr md,
 					    unsigned metadata_version,
-					    bool clean_shutdown = true);
+					    shutdown_type st = CLEAN_SHUTDOWN);
 }
 
 //----------------------------------------------------------------

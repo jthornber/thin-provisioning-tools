@@ -60,8 +60,9 @@ namespace {
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
-			emitter::ptr restorer = create_restore_emitter(md, fs.clean_shutdown,
-								       fs.metadata_version);
+			emitter::ptr restorer = create_restore_emitter(md,
+								       fs.metadata_version,
+								       fs.clean_shutdown ? CLEAN_SHUTDOWN : NO_CLEAN_SHUTDOWN);
 
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);

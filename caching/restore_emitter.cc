@@ -115,9 +115,9 @@ namespace {
 
 emitter::ptr
 caching::create_restore_emitter(metadata::ptr md, unsigned metadata_version,
-				bool clean_shutdown)
+				shutdown_type st)
 {
-	return emitter::ptr(new restorer(md, clean_shutdown, metadata_version));
+	return emitter::ptr(new restorer(md, st == CLEAN_SHUTDOWN, metadata_version));
 }
 
 //----------------------------------------------------------------
