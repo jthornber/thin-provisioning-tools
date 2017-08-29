@@ -52,7 +52,7 @@
   ;;;-----------------------------------------------------------
 
   (define-scenario (cache-check v)
-                   "cache_check -V"
+		   "cache_check -V"
                    (receive (stdout _) (cache-check "-V")
                             (assert-equal tools-version stdout)))
 
@@ -74,8 +74,8 @@
   (define-scenario (cache-check must-specify-metadata)
                    "Metadata file must be specified"
                    (receive (_ stderr) (run-fail "cache_check")
-                            (assert-equal
-                              (string-append "No input file provided.\n"
+			    (assert-equal
+			      (string-append "No input file provided.\n"
                                              cache-check-help)
                               stderr)))
 
@@ -125,10 +125,6 @@
                    "A valid metadata area passes"
                    (with-valid-metadata (md)
                      (cache-check md)))
-
-  (define-scenario (cache-check deliberately-fail)
-                   "remove me"
-                   (fail (dsp "bad bad bad")))
 
   (define-scenario (cache-check bad-metadata-version)
                    "Invalid metadata version fails"
