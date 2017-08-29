@@ -19,13 +19,13 @@
   (define-syntax with-cache-xml
     (syntax-rules ()
       ((_ (v) b1 b2 ...)
-       (with-temp-file-containing ((v (fmt #f (generate-xml 512 1024 128))))
+       (with-temp-file-containing ((v "cache.xml" (fmt #f (generate-xml 512 1024 128))))
          b1 b2 ...))))
 
   (define-syntax with-valid-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (meg 4)))
          (with-cache-xml (xml)
            (cache-restore "-i" xml "-o" md)
            b1 b2 ...)))))
@@ -34,13 +34,13 @@
   (define-syntax with-corrupt-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (meg 4)))
          b1 b2 ...))))
 
   (define-syntax with-empty-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (meg 4)))
                             b1 b2 ...))))
 
   ;; We have to export something that forces all the initialisation expressions
@@ -177,7 +177,7 @@
 
    (define-scenario (cache-restore tiny-output-file)
                     "Fails if the output file is too small."
-                    (with-temp-file-sized ((md (* 1024 4)))
+                    (with-temp-file-sized ((md "cache.bin" (* 1024 4)))
                       (with-cache-xml (xml)
                         (receive (_ stderr) (run-fail "cache_restore" "-i" xml "-o" md)
                           (assert-starts-with cache-restore-outfile-too-small-text stderr)))))
@@ -250,7 +250,7 @@
                     "cache_dump followed by cache_restore is a noop."
                     (with-valid-metadata (md)
                       (receive (d1-stdout _) (cache-dump md)
-                        (with-temp-file-containing ((xml d1-stdout))
+                        (with-temp-file-containing ((xml "cache.xml" d1-stdout))
                           (cache-restore "-i" xml "-o" md)
                           (receive (d2-stdout _) (cache-dump md)
                             (assert-equal d1-stdout d2-stdout))))))

@@ -14,7 +14,9 @@
     disable-unlink)
 
   (import (chezscheme)
-          (fmt fmt))
+          (fmt fmt)
+          (srfi s8 receive)
+          (only (srfi s1 lists) span))
 
   ;; FIXME: global var!  Not thread safe.
   (define working-dir "/tmp")
@@ -40,38 +42,41 @@
                       (auto-unlink-file path
                                    (thunk)))))
 
-   (define temp-filename
-     (let ((counter 0))
-      (lambda ()
-        (let loop ()
-         (let ((path (fmt #f (cat (dsp working-dir) (dsp "/tmp-")
-                                  (pad-char #\0 (pad/left 4 (num counter)))))))
-           (set! counter (+ counter 1))
-           (if (file-exists? path)
-               (loop)
-               path))))))
+  (define temp-filename
+    (lambda (filename)
+      (let ((counter 0))
+       (let loop ()
+        (let ((path (fmt #f (cat (dsp working-dir)
+                                 (dsp "/")
+                                 (pad-char #\0 (pad/left 4 (num counter)))
+                                 (dsp "-")
+                                 (dsp filename)))))
+          (set! counter (+ counter 1))
+          (if (file-exists? path)
+              (loop)
+              path))))))
 
    ;; fn takes the path
-   (define (with-temp-file-thunk fn)
-     (let ((path (temp-filename)))
+   (define (with-temp-file-thunk filename fn)
+     (let ((path (temp-filename filename)))
       (auto-unlink-file path
         (lambda () (fn path)))))
 
    (define-syntax with-temp-file
      (syntax-rules ()
-       ((_ (v) b1 b2 ...)
-        (with-temp-file-thunk
+       ((_ ((v f)) b1 b2 ...)
+        (with-temp-file-thunk f
           (lambda (v)
             b1 b2 ...)))
 
-       ((_ (v1 v2 ...) b1 b2 ...)
-        (with-temp-file-thunk
+       ((_ ((v1 f1) v2 ...) b1 b2 ...)
+        (with-temp-file-thunk f1
           (lambda (v1)
             (with-temp-file (v2 ...) b1 b2 ...))))))
 
    ;; Creates a temporary file with the specified contents.
-   (define (with-temp-file-containing-thunk contents fn)
-     (with-temp-file-thunk
+   (define (with-temp-file-containing-thunk filename contents fn)
+     (with-temp-file-thunk filename
        (lambda (path)
          (with-output-to-file path (lambda ()
                                      (put-string (current-output-port) contents)))
@@ -79,18 +84,18 @@
 
    (define-syntax with-temp-file-containing
      (syntax-rules ()
-       ((_ ((v txt)) b1 b2 ...)
-        (with-temp-file-containing-thunk
+       ((_ ((v f txt)) b1 b2 ...)
+        (with-temp-file-containing-thunk f
           txt (lambda (v) b1 b2 ...)))
 
-       ((_ ((v txt) rest ...) b1 b2 ...)
-        (with-temp-file-containing-thunk
-          txt (lambda (v txt)
+       ((_ ((v f txt) rest ...) b1 b2 ...)
+        (with-temp-file-containing-thunk f
+          txt (lambda (v)
                 (with-temp-file-containing (rest ...)
                                            b1 b2 ...))))))
 
-   (define (with-temp-file-sized-thunk size fn)
-     (with-temp-file-thunk
+   (define (with-temp-file-sized-thunk filename size fn)
+     (with-temp-file-thunk filename
        (lambda (path)
          (let ((cmd (fmt #f (dsp "fallocate -l ") (wrt size) (dsp " ") (dsp path))))
           (system cmd)
@@ -98,14 +103,14 @@
 
    (define-syntax with-temp-file-sized
      (syntax-rules ()
-       ((_ ((v size)) b1 b2 ...)
-        (with-temp-file-sized-thunk
+       ((_ ((v f size)) b1 b2 ...)
+        (with-temp-file-sized-thunk f
           size
           (lambda (v)
             b1 b2 ...)))
 
-       ((_ ((v size) rest ...) b1 b2 ...)
-        (with-temp-file-sized-thunk
+       ((_ ((v f size) rest ...) b1 b2 ...)
+        (with-temp-file-sized-thunk f
           size (lambda (v)
                  (with-temp-file-sized (rest ...) b1 b2 ...))))))
 

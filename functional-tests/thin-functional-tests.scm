@@ -24,13 +24,13 @@
   (define-syntax with-thin-xml
     (syntax-rules ()
       ((_ (v) b1 b2 ...)
-       (with-temp-file-containing ((v (fmt #f (generate-xml 10 1000))))
+       (with-temp-file-containing ((v "thin.xml" (fmt #f (generate-xml 10 1000))))
                                   b1 b2 ...))))
 
   (define-syntax with-valid-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md (meg 4)))
+       (with-temp-file-sized ((md "thin.bin" (meg 4)))
          (with-thin-xml (xml)
            (thin-restore "-i" xml "-o" md)
            b1 b2 ...)))))
@@ -39,7 +39,7 @@
   (define-syntax with-corrupt-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md (meg 4)))
+       (with-temp-file-sized ((md "thin.bin" (meg 4)))
          b1 b2 ...))))
 
   ;; We have to export something that forces all the initialisation expressions
@@ -132,13 +132,13 @@
 
    (define-scenario (thin-restore no-input-file)
                     "forget to specify an input file"
-                    (with-temp-file-sized ((md (meg 4)))
+                    (with-temp-file-sized ((md "thin.bin" (meg 4)))
                       (receive (_ stderr) (run-fail "thin_restore" "-o" md)
                         (assert-starts-with "No input file provided." stderr))))
 
    (define-scenario (thin-restore missing-input-file)
                     "the input file can't be found"
-                    (with-temp-file-sized ((md (meg 4)))
+                    (with-temp-file-sized ((md "thin.bin" (meg 4)))
                       (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" md)
                         (assert-starts-with "Couldn't stat file" stderr))))
 
@@ -150,21 +150,21 @@
 
    (define-scenario (thin-restore tiny-output-file)
                     "Fails if the output file is too small."
-                    (with-temp-file-sized ((md (* 1024 4)))
+                    (with-temp-file-sized ((md "thin.bin" (* 1024 4)))
                       (with-thin-xml (xml)
                         (receive (_ stderr) (run-fail "thin_restore" "-i" xml "-o" md)
                           (assert-starts-with thin-restore-outfile-too-small-text stderr)))))
 
    (define-scenario (thin-restore q)
                     "thin_restore accepts -q"
-                    (with-temp-file-sized ((md (meg 4)))
+                    (with-temp-file-sized ((md "thin.bin" (meg 4)))
                       (with-thin-xml (xml)
                         (receive (stdout _) (thin-restore "-i" xml "-o" md "-q")
                           (assert-eof stdout)))))
 
    (define-scenario (thin-restore quiet)
                     "thin_restore accepts --quiet"
-                    (with-temp-file-sized ((md (meg 4)))
+                    (with-temp-file-sized ((md "thin.bin" (meg 4)))
                       (with-thin-xml (xml)
                         (receive (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
                           (assert-eof stdout)))))
@@ -173,7 +173,7 @@
                     "thin_dump followed by thin_restore is a noop."
                     (with-valid-metadata (md)
                       (receive (d1-stdout _) (thin-dump md)
-                        (with-temp-file-containing ((xml d1-stdout))
+                        (with-temp-file-containing ((xml "thin.xml" d1-stdout))
                           (thin-restore "-i" xml "-o" md)
                           (receive (d2-stdout _) (thin-dump md)
                             (assert-equal d1-stdout d2-stdout))))))

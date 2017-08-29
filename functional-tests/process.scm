@@ -28,7 +28,8 @@
     (apply fmt #f (map dsp (intersperse " " cmd-and-args))))
 
   (define (run . cmd-and-args)
-    (with-temp-file (stdout-file stderr-file)
+    (with-temp-file ((stdout-file "stdout")
+                     (stderr-file "stderr"))
       (let* ((short-cmd (build-command-line cmd-and-args))
              (cmd (fmt #f (dsp (build-command-line cmd-and-args))
                        (dsp " > ")
