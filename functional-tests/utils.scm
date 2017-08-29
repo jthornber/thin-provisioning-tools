@@ -4,7 +4,11 @@
           dec!
           swap!
           slurp-file
-          chomp)
+          chomp
+          hotpatch-sym
+          indirect-lambda
+          set-lambda!)
+
   (import (chezscheme)
           (only (srfi s1 lists) drop-while))
 
@@ -39,5 +43,20 @@
       (reverse
         (drop-while char-whitespace?
                     (reverse (string->list line))))))
+
+  (define hotpatch-sym (gensym))
+
+  (define-syntax indirect-lambda
+    (syntax-rules ()
+      ((_ params b1 b2 ...)
+      (let ((this (lambda params b1 b2 ...)))
+        (lambda args
+          (if (and (= (length args) 2)
+                   (eq? (car args) hotpatch-sym))
+              (set! this (cadr args))
+              (apply this args)))))))
+
+  (define (set-lambda! fn new-fn)
+    (fn hotpatch-sym new-fn))
 
   )
