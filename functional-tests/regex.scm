@@ -326,6 +326,14 @@
   ;;-----------------------------------------------------------
   ;; Higher level combinators, these build a symbolic rx
 
+  ;; There's mutual recursion here which would send the combinators into an
+  ;; infinite loop whilst they are being built (not during parsing).  So we hot
+  ;; patch rx, making it available for construction, and then redefine it on
+  ;; first use.
+  (define rx
+    (indirect-lambda ()
+     (p:error-m "rx not bound")))
+
   ;; group := "(" rx ")"
   (define group
     (bracket (p:lit "(")
@@ -355,14 +363,6 @@
   ;; simple-rx := basic-rx+
   (define simple-rx
     (p:lift combine (p:many+ basic-rx)))
-
-  ;; There's mutual recursion here which would send the combinators into an
-  ;; infinite loop whilst they are being built (not during parsing).  So we hot
-  ;; patch rx, making it available for construction, and then redefine it on
-  ;; first use.
-  (define rx
-    (indirect-lambda ()
-     (p:error-m "rx not bound")))
 
   ;; rx := simple-rx ("|" simple-rx)*
   (define hotpatch-rx
