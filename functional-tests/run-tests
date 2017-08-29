@@ -83,6 +83,10 @@
        (exit)
        (exit #f))))
 
+(define (exec-list args)
+  (let ((pred (mk-filter args)))
+   (describe-scenarios (filter pred (list-scenarios)))))
+
 ;;------------------------------------------------
 ;; Command line parser
 
@@ -92,6 +96,9 @@
 (define (whitespace-delim ma)
   (>> (opt whitespace)
       (<* ma (opt whitespace))))
+
+(define (cmd-word str)
+  (whitespace-delim (lit str)))
 
 (define (switch str)
   (whitespace-delim (>> (lit "--") (lit str))))
@@ -107,11 +114,11 @@
   (pure #f)))
 
 (define help-command-line
- (>> (switch "help") (pure exec-help)))
+ (>> (cmd-word "help") (pure exec-help)))
 
 (define run-command-line
  (parse-m
-  (switch "run")
+  (cmd-word "run")
   (<- dunlink (maybe (switch "disable-unlink")))
   (<- args (many* not-switch))
   (pure (lambda ()
@@ -119,8 +126,16 @@
 	  (disable-unlink (exec-run args))
 	  (exec-run args))))))
 
+(define list-command-line
+  (parse-m
+    (cmd-word "list")
+    (<- args (many* not-switch))
+    (pure (lambda () (exec-list args)))))
+
 (define command-line-parser
- (one-of help-command-line run-command-line))
+ (one-of help-command-line
+         run-command-line
+         list-command-line))
 
 (define (bad-command-line)
   (fmt (current-error-port) (dsp "bad command line\n")))
