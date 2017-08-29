@@ -180,7 +180,7 @@
   ;;-----------------------------------------------
 
   ;; FIXME: don't hard code this
-  (define tools-version "0.7.0-rc6")
+  (define tools-version "0.7.1")
 
   (define (tool-name sym)
     (define (to-underscore c)
