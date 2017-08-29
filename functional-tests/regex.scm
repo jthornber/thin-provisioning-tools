@@ -326,15 +326,6 @@
   ;;-----------------------------------------------------------
   ;; Higher level combinators, these build a symbolic rx
 
-  ;; FIXME: move a hotpatch form to (utils)
-  (define rx
-   (let ((this (lambda xs #f)))
-    (lambda args
-     (if (and (= (length args) 2)
-	  (eq? (car args) 'hotpatch))
-	(set! this (cadr args))
-	(apply this args)))))
-
   ;; group := "(" rx ")"
   (define group
     (bracket (p:lit "(")
@@ -365,26 +356,36 @@
   (define simple-rx
     (p:lift combine (p:many+ basic-rx)))
 
+  ;; There's mutual recursion here which would send the combinators into an
+  ;; infinite loop whilst they are being built (not during parsing).  So we hot
+  ;; patch rx, making it available for construction, and then redefine it on
+  ;; first use.
+  (define rx
+    (indirect-lambda ()
+     (p:error-m "rx not bound")))
+
+  ;; rx := simple-rx ("|" simple-rx)*
+  (define hotpatch-rx
+    (let ((patched #f))
+     (lambda ()
+       (unless patched
+         (set! patched #t)
+         (set-lambda! rx
+                      (p:lift2 (lambda (r rs)
+                                 (fold-left alt r rs))
+                               simple-rx
+                               (p:many* (p:>> (p:lit "|") simple-rx))))))))
+
   ;;-----------------------------------------------------------------------
   ;; The top level routine, parses the regex string and compiles it into a
   ;; matcher, or returns false if the parse failed.
   ;; regex :: string -> (matcher <string>)
   ;; FIXME: it's tempting to return a function that raises if there's a parse error.
-  (define regex
-   (let ((patched #f))
-    (lambda (str)
-     (unless patched
-	     (set! patched #t)
-	     ;; rx := simple-rx ("|" simple-rx)*
-	     (rx 'hotpatch
-		 (p:lift2 (lambda (r rs)
-				  (fold-left alt r rs))
-			  simple-rx
-			  (p:many* (p:>> (p:lit "|") simple-rx)))))
-
+  (define (regex str)
+     (hotpatch-rx)
      (receive (v st) (p:parse rx str)
 	      (if (p:success? st)
 		  (compile-rx v)
-		  #f))))))
+		  #f))))
 
 
