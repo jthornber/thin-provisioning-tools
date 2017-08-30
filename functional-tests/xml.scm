@@ -26,7 +26,7 @@
 
   (define (%open-tag sym attrs end)
     (cat (dsp "<")
-         (dsp sym)
+         (dsp (to-attribute-name sym))
          (dsp " ")
          (apply cat (intersperse (dsp " ")
                                  (map attribute attrs)))
@@ -40,7 +40,7 @@
 
   (define (close-tag sym)
     (cat (dsp "</")
-         (dsp sym)
+         (dsp (to-attribute-name sym))
          (dsp ">")))
 
   (define (tag sym attrs . body)
