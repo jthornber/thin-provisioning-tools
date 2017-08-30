@@ -1,8 +1,8 @@
 Introduction
 ============
 
-A suite of tools for manipulating the metadata of the dm-thin
-device-mapper target.
+A suite of tools for manipulating the metadata of the dm-thin, dm-cache and
+dm-era device-mapper targets.
 
 Requirements
 ============
@@ -108,29 +108,25 @@ Alternatively you may want to run a subset of the tests:
 Functional tests
 ----------------
 
-These top level tests are implemented using the
-[cucumber](http://cukes.info/) tool.  They check the user interface of
-the tools (eg, command line switches are accepted and effective).
+A bunch of high level tests are implemented in the functional-tests directory.
+These tests are written in Scheme.  To run them you'll need to install
+chezscheme (http://www.scheme.com/).  In addition they make use of the
+thunderchez (https://github.com/ovenpasta/thunderchez) library.
 
-I've provided a Gemfile, so installing this should be easy:
+Make sure the tools that you wish to test are in your PATH, and the thunderchez
+directory is in the CHEZSCHEMELIBDIRS environment variable.
 
-- Install Ruby 1.9.x.  I recommend doing this via RVM.
-- Make sure _bundler_ is installed:
+Then,
 
-      gem install bundler
+	cd funtional-tests
+	./run-tests run
 
-- Install dependencies (including _cucumber_ and _thinp\_xml_)
+Other command are help and list.
 
-      bundle
-
-Once you've done this you can run the tests with a simple:
-
-    cucumber
-
-Or specific tests with:
-
-    cucumber features/thin_restore -n 'print help'
-
+The test framework places temporary files under /tmp/test-output/.  By default
+the tests tody up after themselves, just leaving a log file for each test.  You
+can turn this off by using the --disable-unlink flag if you want all the
+artifacts left.
 
 Dump Metadata
 =============
