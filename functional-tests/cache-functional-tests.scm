@@ -254,4 +254,77 @@
                           (cache-restore "-i" xml "-o" md)
                           (receive (d2-stdout _) (cache-dump md)
                             (assert-equal d1-stdout d2-stdout))))))
-)
+
+  ;;;-----------------------------------------------------------
+  ;;; cache_metadata_size scenarios
+  ;;;-----------------------------------------------------------
+
+  (define-scenario (cache-metadata-size v)
+                   "cache_metadata_size -V"
+                   (receive (stdout _) (cache-metadata-size "-V")
+                            (assert-equal tools-version stdout)))
+
+  (define-scenario (cache-metadata-size version)
+                   "cache_metadata_size --version"
+                   (receive (stdout _) (cache-metadata-size "--version")
+                            (assert-equal tools-version stdout)))
+
+  (define-scenario (cache-metadata-size h)
+                   "cache_metadata_size -h"
+                   (receive (stdout _) (cache-metadata-size "-h")
+                            (assert-equal cache-metadata-size-help stdout)))
+
+  (define-scenario (cache-metadata-size help)
+                   "cache_metadata_size --help"
+                   (receive (stdout _) (cache-metadata-size "--help")
+                            (assert-equal cache-metadata-size-help stdout)))
+
+  (define-scenario (cache-metadata-size no-args)
+                   "No arguments specified causes fail"
+                   (receive (_ stderr) (run-fail "cache_metadata_size")
+                            (assert-equal "Please specify either --device-size and --block-size, or --nr-blocks."
+                                          stderr)))
+
+  (define-scenario (cache-metadata-size device-size-only)
+                   "Just --device-size causes fail"
+                   (receive (_ stderr) (run-fail "cache_metadata_size --device-size" (meg 100))
+                            (assert-equal "If you specify --device-size you must also give --block-size."
+                                          stderr)))
+
+  (define-scenario (cache-metadata-size block-size-only)
+                   "Just --block-size causes fail"
+                   (receive (_ stderr) (run-fail "cache_metadata_size --block-size" 128)
+                            (assert-equal "If you specify --block-size you must also give --device-size."
+                                          stderr)))
+
+  (define-scenario (cache-metadata-size conradictory-info-fails)
+                   "Contradictory info causes fail"
+                   (receive (_ stderr) (run-fail "cache_metadata_size --device-size 102400 --block-size 1000 --nr-blocks 6")
+                            (assert-equal "Contradictory arguments given, --nr-blocks doesn't match the --device-size and --block-size."
+                                          stderr)))
+
+  (define-scenario (cache-metadata-size all-args-agree)
+                   "All args agreeing succeeds"
+                   (receive (stdout stderr) (cache-metadata-size "--device-size" 102400 "--block-size" 100 "--nr-blocks" 1024)
+                            (assert-equal "8248 sectors" stdout)
+                            (assert-eof stderr)))
+
+  (define-scenario (cache-metadata-size nr-blocks-alone)
+                   "Just --nr-blocks succeeds"
+                   (receive (stdout stderr) (cache-metadata-size "--nr-blocks" 1024)
+                            (assert-equal "8248 sectors" stdout)
+                            (assert-eof stderr)))
+
+  (define-scenario (cache-metadata-size dev-size-and-block-size-succeeds)
+                   "Specifying --device-size with --block-size succeeds"
+                   (receive (stdout stderr) (cache-metadata-size "--device-size" 102400 "--block-size" 100)
+                            (assert-equal "8248 sectors" stdout)
+                            (assert-eof stderr)))
+
+  (define-scenario (cache-metadata-size big-config)
+                   "A big configuration succeeds"
+                   (receive (stdout stderr) (cache-metadata-size "--nr-blocks 67108864")
+                            (assert-equal "3678208 sectors" stdout)
+                            (assert-eof stderr)))
+  
+  )

@@ -10,6 +10,7 @@
           cache-restore-help
           cache-restore-outfile-too-small-text
           cache-dump-help
+          cache-metadata-size-help
           )
 
   (import (rnrs))
@@ -92,4 +93,16 @@ Options:
   {-o <xml file>}
   {-V|--version}
   {--repair}")
+
+  (define cache-metadata-size-help
+    "Usage: cache_metadata_size [options]
+Options:
+  {-h|--help}
+  {-V|--version}
+  {--block-size <sectors>}
+  {--device-size <sectors>}
+  {--nr-blocks <natural>}
+
+These all relate to the size of the fast device (eg, SSD), rather
+than the whole cached device.")
 )
