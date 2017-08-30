@@ -5,6 +5,7 @@
         (list-utils)
         (functional-tests)
         (cache-functional-tests)
+        (era-functional-tests)
         (parser-combinators)
         (only (srfi s1 lists) break)
         (regex)
@@ -155,6 +156,8 @@
 
 (register-thin-tests)
 (register-cache-tests)
+(register-era-tests)
+
 (with-dir "test-output"
  ((parse-command-line)))
 

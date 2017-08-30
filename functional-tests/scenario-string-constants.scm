@@ -12,6 +12,8 @@
           cache-restore-outfile-too-small-text
           cache-dump-help
           cache-metadata-size-help
+
+          era-check-help
           )
 
   (import (rnrs))
@@ -117,4 +119,11 @@ Options:
 These all relate to the size of the fast device (eg, SSD), rather
 than the whole cached device.")
 
+  (define era-check-help
+    "Usage: era_check [options] {device|file}
+Options:
+  {-q|--quiet}
+  {-h|--help}
+  {-V|--version}
+  {--super-block-only}")
 )
