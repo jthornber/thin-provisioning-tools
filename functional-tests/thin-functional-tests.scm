@@ -227,5 +227,48 @@
    (define-scenario (thin-rmap multiple-regions-should-pass)
                     "thin_rmap should handle multiple regions."
                     (with-valid-metadata (md)
-                      (thin-rmap "--region 1..23 --region 45..78" md))))
+                      (thin-rmap "--region 1..23 --region 45..78" md)))
 
+   ;;;-----------------------------------------------------------
+   ;;; thin_delta scenarios
+   ;;;-----------------------------------------------------------
+   (define-scenario (thin-delta v)
+                    "thin_delta accepts -V"
+                    (receive (stdout _) (thin-delta "-V")
+                             (assert-equal tools-version stdout)))
+
+   (define-scenario (thin-delta version)
+                    "thin_delta accepts --version"
+                    (receive (stdout _) (thin-delta "--version")
+                             (assert-equal tools-version stdout)))
+
+   (define-scenario (thin-delta h)
+                    "thin_delta accepts -h"
+                    (receive (stdout _) (thin-delta "-h")
+                             (assert-equal thin-delta-help stdout)))
+
+   (define-scenario (thin-delta help)
+                    "thin_delta accepts --help"
+                    (receive (stdout _) (thin-delta "--help")
+                             (assert-equal thin-delta-help stdout)))
+
+   (define-scenario (thin-delta unrecognised-option)
+                    "Unrecognised option should cause failure"
+                    (run-fail "thin_delta --unleash-the-hedgehogs"))
+
+   (define-scenario (thin-delta snap1-unspecified)
+                    "Fails without --snap1 fails"
+                    (receive (_ stderr) (run-fail "thin_delta --snap2 45 foo")
+                             (assert-starts-with "--snap1 not specified." stderr)))
+
+   (define-scenario (thin-delta snap2-unspecified)
+                    "Fails without --snap2 fails"
+                    (receive (_ stderr) (run-fail "thin_delta --snap1 45 foo")
+                             (assert-starts-with "--snap2 not specified." stderr)))
+
+   (define-scenario (thin-delta device-unspecified)
+                    "Fails if no device given"
+                    (receive (_ stderr) (run-fail "thin_delta --snap1 45 --snap2 46")
+                             (assert-starts-with "No input device provided." stderr)))
+
+)

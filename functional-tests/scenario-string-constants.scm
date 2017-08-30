@@ -5,6 +5,7 @@
           thin-restore-outfile-too-small-text
           thin-restore-help
           thin-rmap-help
+          thin-delta-help
 
           cache-check-help
           cache-restore-help
@@ -53,6 +54,16 @@ Options:
 Where:
   <block range> is of the form <begin>..<one-past-the-end>
   for example 5..45 denotes blocks 5 to 44 inclusive, but not block 45")
+
+  (define thin-delta-help
+    "Usage: thin_delta [options] <device or file>
+Options:
+  {--thin1, --snap1}
+  {--thin2, --snap2}
+  {-m, --metadata-snap} [block#]
+  {--verbose}
+  {-h|--help}
+  {-V|--version}")
 
   (define cache-check-help
     "Usage: cache_check [options] {device|file}
@@ -105,4 +116,5 @@ Options:
 
 These all relate to the size of the fast device (eg, SSD), rather
 than the whole cached device.")
+
 )
