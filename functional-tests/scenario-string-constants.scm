@@ -14,6 +14,7 @@
           cache-metadata-size-help
 
           era-check-help
+          era-restore-help
           )
 
   (import (rnrs))
@@ -126,4 +127,13 @@ Options:
   {-h|--help}
   {-V|--version}
   {--super-block-only}")
+
+  (define era-restore-help
+    "Usage: era_restore [options]
+Options:
+  {-h|--help}
+  {-i|--input} <input xml file>
+  {-o|--output} <output device or file>
+  {-q|--quiet}
+  {-V|--version}")
 )
