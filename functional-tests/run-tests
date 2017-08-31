@@ -76,7 +76,20 @@
 
 (define (exec-help)
   (fmt (current-error-port)
-       (dsp "here's some helpful help\n")))
+       "Usage:" nl
+       "  run-tests help" nl
+       "  run-tests list <pattern>*" nl
+       "  run-tests run [--disable-unlink] <pattern>*" nl nl
+       (justify
+         (string-append
+           "Patterns are used to select tests.  There are two forms a pattern can take; "
+           "either a literal such as 'cache-check/bad-option', or a regular expression (prefix with 're:')."))
+       nl
+       "eg," nl
+       "    run-tests run cache-check/bad-option" nl
+       "    run-tests run re:help" nl
+       "    run-tests run cache-check thin-check re:.*missing.*file" nl
+       ))
 
 (define (exec-run args)
   (let ((pred (mk-filter args)))
