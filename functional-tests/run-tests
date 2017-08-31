@@ -152,7 +152,9 @@
          list-command-line))
 
 (define (bad-command-line)
-  (fmt (current-error-port) (dsp "bad command line\n")))
+  (fmt (current-error-port) (dsp "bad command line\n"))
+  (exec-help)
+  (exit 1))
 
 ;; (<string>) -> thunk
 (define (parse-command-line)
