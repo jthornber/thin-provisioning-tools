@@ -7,7 +7,8 @@
           chomp
           hotpatch-sym
           indirect-lambda
-          set-lambda!)
+          set-lambda!
+          dlambda)
 
   (import (chezscheme)
           (only (srfi s1 lists) drop-while))
@@ -59,4 +60,11 @@
   (define (set-lambda! fn new-fn)
     (fn hotpatch-sym new-fn))
 
+  (define-syntax dlambda
+    (syntax-rules ()
+      ((_ (name params b1 b2 ...) ...)
+       (lambda (m . args)
+               (apply (case m
+                            [(name) (lambda params b1 b2 ...)] ...)
+                      args)))))
   )
