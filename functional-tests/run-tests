@@ -1,9 +1,11 @@
 #! /usr/bin/scheme-script
 
 (import (rnrs)
+        (only (chezscheme) load-shared-object)
         (fmt fmt)
         (list-utils)
         (functional-tests)
+	(bcache bcache-tests)
         (cache-functional-tests)
         (era-functional-tests)
         (parser-combinators)
@@ -169,9 +171,12 @@
 
 ;;------------------------------------------------
 
+(load-shared-object "./bcache/bcache.so")
+
 (register-thin-tests)
 (register-cache-tests)
 (register-era-tests)
+(register-bcache-tests)
 
 (with-dir "test-output"
  ((parse-command-line)))
