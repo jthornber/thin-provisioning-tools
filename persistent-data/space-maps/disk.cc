@@ -120,12 +120,7 @@ namespace {
 
 		ref_t lookup(unsigned b) const {
 			read_ref rr = tm_.read_lock(ie_.blocknr_, validator_);
-			void const *bits = bitmap_data(rr);
-			ref_t b1 = test_bit_le(bits, b * 2);
-			ref_t b2 = test_bit_le(bits, b * 2 + 1);
-			ref_t result = b2 ? 1 : 0;
-			result |= b1 ? 2 : 0;
-			return result;
+			return __lookup_raw(bitmap_data(rr), b);
 		}
 
 		void insert(unsigned b, ref_t n) {
@@ -158,8 +153,10 @@ namespace {
 		}
 
 		boost::optional<unsigned> find_free(unsigned begin, unsigned end) {
+			read_ref rr = tm_.read_lock(ie_.blocknr_, validator_);
+			void const *bits = bitmap_data(rr);
 			for (unsigned i = max(begin, ie_.none_free_before_); i < end; i++)
-				if (lookup(i) == 0)
+				if (__lookup_raw(bits, i) == 0)
 					return boost::optional<unsigned>(i);
 
 			return boost::optional<unsigned>();
@@ -191,6 +188,14 @@ namespace {
 		void const *bitmap_data(transaction_manager::read_ref &rr) const {
 			bitmap_header const *h = reinterpret_cast<bitmap_header const *>(rr.data());
 			return h + 1;
+		}
+
+		ref_t __lookup_raw(void const *bits, unsigned b) const {
+			ref_t b1 = test_bit_le(bits, b * 2);
+			ref_t b2 = test_bit_le(bits, b * 2 + 1);
+			ref_t result = b2 ? 1 : 0;
+			result |= b1 ? 2 : 0;
+			return result;
 		}
 
 		transaction_manager &tm_;
