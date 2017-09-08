@@ -34,5 +34,37 @@
       (with-bcache (cache md 16)
         (with-block (b cache 0 (get-flags))
                     #f))))
+
+  (define-scenario (bcache write-ref)
+    "get a write-ref on a block"
+    (with-empty-metadata (md 16)
+      (with-bcache (cache md 16)
+        (with-block (b cache 0 (get-flags dirty))
+                    #f))))
+
+  (define-scenario (bcache zero-ref)
+    "get a write-ref on a block"
+    (with-empty-metadata (md 16)
+      (with-bcache (cache md 16)
+        (with-block (b cache 0 (get-flags zero))
+                    #f))))
+
+  (define-scenario (bcache multiple-refs-to-same-block)
+    "the same block can be held multiple times"
+    (with-empty-metadata (md 16)
+      (with-bcache (cache md 16)
+        (with-block (b cache 0 (get-flags))
+                    (with-block (b cache 0 (get-flags))
+                                (with-block (b cache 0 (get-flags))
+                                            #f))))))
+
+  (define-scenario (bcache multiple-blocks)
+    "multiple blocks can be held at once"
+    (with-empty-metadata (md 16)
+      (with-bcache (cache md 16)
+        (with-block (b cache 0 (get-flags))
+                    (with-block (b cache 1 (get-flags))
+                                (with-block (b cache 2 (get-flags))
+                                            #f))))))
   )
 

@@ -707,7 +707,8 @@ struct bcache *bcache_simple(const char *path, unsigned nr_cache_blocks)
 	}
 
 	s = info.st_size;
-	cache = bcache_create(fd, MD_BLOCK_SIZE >> SECTOR_SHIFT, s / MD_BLOCK_SIZE, nr_cache_blocks);
+	cache = bcache_create(fd, MD_BLOCK_SIZE >> SECTOR_SHIFT,
+			      s / MD_BLOCK_SIZE, nr_cache_blocks);
 	if (!cache)
 		close(fd);
 
