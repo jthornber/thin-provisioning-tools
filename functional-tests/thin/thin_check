@@ -1,11 +1,10 @@
 (import
-  (binary-format)
-  (block-io)
+  (bcache block-manager)
   (btree)
   (fmt fmt)
   (matchable)
   (mapping-tree)
-  (rnrs))
+  (chezscheme))
 
 ;;;;---------------------------------------------------
 ;;;; Constants
@@ -19,26 +18,29 @@
 (define $uuid-size 16)
 (define $space-map-root-size 128)
 
-(binary-format superblock
-  (csum le32)
-  (flags le32)
-  (block-nr le64)
-  (uuid (bytes $uuid-size))
-  (magic le64)
-  (version le32)
-  (time le32)
-  (trans-id le64)
-  (metadata-snap le64)
-  (data-space-map-root (bytes $space-map-root-size))
-  (metadata-space-map-root (bytes $space-map-root-size))
-  (data-mapping-root le64)
-  (device-details-root le64)
-  (data-block-size le32)
-  (metadata-block-size le32)
-  (metadata-nr-blocks le64)
-  (compat-flags le32)
-  (compat-ro-flags le32)
-  (incompat-flags le32))
+(define-ftype Superblock
+  (packed
+    (endian little
+      (struct
+        (csum unsigned-32)
+        (flags unsigned-32)
+        (block-nr unsigned-64)
+        (uuid (bytes $uuid-size))
+        (magic unsigned-32)
+        (version unsigned-32)
+        (time unsigned-32)
+        (trans-id unsigned-64)
+        (metadata-snap unsigned-64)
+        (data-space-map-root (bytes $space-map-root-size))
+        (metadata-space-map-root (bytes $space-map-root-size))
+        (data-mapping-root unsigned-64)
+        (device-details-root unsigned-64)
+        (data-block-size unsigned-32)
+        (metadata-block-size unsigned-32)
+        (metadata-nr-blocks unsigned-64)
+        (compat-flags unsigned-32)
+        (compat-ro-flags unsigned-32)
+        (incompat-flags unsigned-32)))))
 
 ;;;;---------------------------------------------------
 ;;;; Top level
