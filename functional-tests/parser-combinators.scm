@@ -322,10 +322,11 @@
     (>> (lit str) (pure sym)))
   |#
 
-  (define (eof s)
-    (if (zero? (string-length s))
-        (values #t #t "")
-        (error-m (dsp "eof expected no input (but there was)"))))
+  (define eof
+    (lambda (st)
+      (if (zero? (string-length (st-input st)))
+        (values #t st)
+        (error-m (dsp "eof expected no input (but there was)")))))
 
   ;;----------------------------------------------------------------
   ;; Imperative notation for when the combinators are cumbersome
