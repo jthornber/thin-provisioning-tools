@@ -171,8 +171,6 @@
 
 ;;------------------------------------------------
 
-(load-shared-object "./bcache/bcache.so")
-
 (register-thin-tests)
 (register-cache-tests)
 (register-era-tests)
