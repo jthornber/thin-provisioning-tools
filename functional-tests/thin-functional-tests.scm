@@ -12,8 +12,7 @@
     (scenario-string-constants)
     (temp-file)
     (thin-xml)
-    (srfi s8 receive)
-    (only (srfi s1 lists) drop-while))
+    (srfi s8 receive))
 
   (define-tool thin-check)
   (define-tool thin-delta)

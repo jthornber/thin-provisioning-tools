@@ -2,7 +2,6 @@
   (persistent-data btree)
 
   (export btree-value-type
-          btree-bcache
           btree-root
           btree-open
           btree-lookup
@@ -89,10 +88,10 @@
   |#
 
   (define-record-type btree
-    (fields value-type bcache root))
+    (fields value-type root))
 
-  (define (btree-open vt bcache root)
-    (make-btree vt bcache root))
+  (define (btree-open vt root)
+    (make-btree vt root))
 
   ;;; (ftype-pointer BTreeNodeHeader) -> bool
   (define (internal-node? header)
@@ -122,54 +121,51 @@
   ;;;; Lookup
   ;;;;----------------------------------------------
 
-  (define (btree-lookup tree key default)
-    (let ((cache (btree-bcache tree))
-          (vt (btree-value-type tree)))
-         (with-spine (sp 1)
-           (let loop ((root (btree-root tree)))
-            (spine-step sp (b (get-block cache root (get-flags)))
-              (let* ((header (block->header b))
-                     (keys (block->keys b))
-                     (vals (block->values b vt))
-                     (index (lower-bound b header key)))
-                    (if (internal-node? header)
-                        (loop (value-at le64-vt vals index))
-                        (if (= key (key-at keys index))
-                            (value-at vt vals index)
-                            default))))))))
+  (define (btree-lookup tree sp key default)
+    (let ((vt (btree-value-type tree)))
+
+     (let loop ((root (btree-root tree)))
+      (spine-step sp (b root (get-flags))
+        (let* ((header (block->header b))
+               (keys (block->keys b))
+               (vals (block->values b vt))
+               (index (lower-bound b header key)))
+              (if (internal-node? header)
+                  (loop (value-at le64-vt vals index))
+                  (if (= key (key-at keys index))
+                      (value-at vt vals index)
+                      default)))))))
 
   ;;;;----------------------------------------------
   ;;;; Walking the btree
   ;;;;----------------------------------------------
 
   ;;; Calls (fn key value) on every entry of the btree.
-  (define (btree-each tree fn)
-    (let ((vt (btree-value-type tree))
-          (cache (btree-bcache tree)))
+  (define (btree-each tree sp fn)
+    (let ((vt (btree-value-type tree)))
 
-         (with-spine (sp 1)
-           (define (visit-leaf nr-entries keys vals)
+     (define (visit-leaf nr-entries keys vals)
              (let loop ((index 0))
               (when (< index nr-entries)
                     (fn (key-at keys index) (vt 'ref vals index))
                     (loop (+ 1 index)))))
 
-           (define (visit-internal nr-entries keys vals)
+     (define (visit-internal nr-entries keys vals)
              (let loop ((index 0))
               (when (< index nr-entries)
                     (visit-node (le64-vt 'ref vals index))
                     (loop (+ 1 index)))))
 
-           (define (visit-node root)
-             (spine-step sp (b (get-block cache root (get-flags)))
-               (let* ((header (block->header b))
-                      (nr-entries (ftype-ref BTreeNodeHeader (nr-entries) header))
-                      (keys (block->keys b))
-                      (vals (block->values b vt)))
-                     ((if (internal-node? header)
-                          visit-internal
-                          visit-leaf) nr-entries keys vals))))
+     (define (visit-node root)
+             (spine-step sp (b root (get-flags))
+                         (let* ((header (block->header b))
+                                (nr-entries (ftype-ref BTreeNodeHeader (nr-entries) header))
+                                (keys (block->keys b))
+                                (vals (block->values b vt)))
+                               ((if (internal-node? header)
+                                    visit-internal
+                                    visit-leaf) nr-entries keys vals))))
 
-           (visit-node (btree-root tree)))))
-  )
+     (visit-node (btree-root tree))))
+)
 

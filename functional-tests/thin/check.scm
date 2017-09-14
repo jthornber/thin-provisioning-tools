@@ -43,14 +43,15 @@
 (define super-block-only #f)
 
 (define (dump-dev-tree cache root)
- (btree-each (btree-open device-details-vt cache root)
-             (lambda (k v)
-	      (fmt #t
-                   "dev-id: " k "\n"
-                   "  mapped blocks: " (ftype-ref ThinDeviceDetails (mapped-blocks) v) "\n"
-                   "  transaction id: " (ftype-ref ThinDeviceDetails (transaction-id) v) "\n"
-                   "  creation time: " (ftype-ref ThinDeviceDetails (creation-time) v) "\n"
-                   "  snapshotted time: " (ftype-ref ThinDeviceDetails (snapshotted-time) v) "\n"))))
+  (with-spine (sp cache 1)
+    (btree-each (btree-open device-details-vt root) sp
+      (lambda (k v)
+        (fmt #t
+             "dev-id: " k "\n"
+             "  mapped blocks: " (ftype-ref ThinDeviceDetails (mapped-blocks) v) "\n"
+             "  transaction id: " (ftype-ref ThinDeviceDetails (transaction-id) v) "\n"
+             "  creation time: " (ftype-ref ThinDeviceDetails (creation-time) v) "\n"
+             "  snapshotted time: " (ftype-ref ThinDeviceDetails (snapshotted-time) v) "\n")))))
 
 (define-enumeration thin-check-element
   (quiet

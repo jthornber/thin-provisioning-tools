@@ -4,7 +4,9 @@
   (export ThinSuperblock
           ThinDeviceDetails)
 
-  (import (chezscheme))
+  (import (chezscheme)
+          (bcache block-manager)
+          (persistent-data btree))
 
   (define $superblock-magic 27022010)
   (define $superblock-salt 160774)

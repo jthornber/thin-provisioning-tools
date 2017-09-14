@@ -113,11 +113,11 @@
   ;;; Spine
   ;;;--------------------------------------------------------
   (define-record-type spine
-    (fields (mutable max) (mutable entries))
+    (fields (immutable cache) (mutable max) (mutable entries))
     (protocol
       (lambda (new)
-        (lambda (max)
-          (new max '())))))
+        (lambda (cache max)
+          (new cache max '())))))
 
   (define (spine-exit sp)
     (for-each release-block (spine-entries sp)))
@@ -126,13 +126,14 @@
     (let ((rs (reverse xs)))
       (values (car xs) (reverse (cdr xs)))))
 
-  (define (spine-step% sp b)
-    (if (> (length (spine-entries sp))
-           (spine-max sp))
-        (receive (oldest-b es) (pop-last (spine-entries sp))
-          (release-block oldest-b)
-          (spine-entries-set! sp (cons b es)))
-        (spine-entries-set! sp (cons b (spine-entries sp)))))
+  (define (spine-step% sp index flags)
+    (let ((b (get-block (spine-cache sp) index flags)))
+         (if (> (length (spine-entries sp))
+                (spine-max sp))
+             (receive (oldest-b es) (pop-last (spine-entries sp))
+               (release-block oldest-b)
+               (spine-entries-set! sp (cons b es)))
+             (spine-entries-set! sp (cons b (spine-entries sp))))))
 
   (define (spine-current sp)
     (car (spine-entries sp)))
@@ -142,8 +143,8 @@
 
   (define-syntax with-spine
     (syntax-rules ()
-      ((_ (sp max) b1 b2 ...)
-       (let ((sp (make-spine max)))
+      ((_ (sp cache max) b1 b2 ...)
+       (let ((sp (make-spine cache max)))
         (dynamic-wind
           (lambda () #f)
           (lambda () b1 b2 ...)
@@ -151,9 +152,9 @@
 
   (define-syntax spine-step
     (syntax-rules ()
-      ((_ sp (b expr) b1 b2 ...)
+      ((_ sp (b index flags) b1 b2 ...)
        (begin
-         (spine-step% sp expr)
+         (spine-step% sp index flags)
          (let ((b (spine-current sp)))
           b1 b2 ...)))))
 )
