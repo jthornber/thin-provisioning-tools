@@ -11,9 +11,17 @@
           flush-cache
           get-flags
           prefetch-block
-          with-block)
+          with-block
+          spine
+          spine-exit
+          spine-step
+          spine-current
+          spine-parent
+          with-spine)
+
   (import (chezscheme)
           (fmt fmt)
+          (srfi s8 receive)
           (utils))
 
   (define __ (load-shared-object "./bcache/bcache.so"))
@@ -100,4 +108,52 @@
           (lambda () #f)
           (lambda () b1 b2 ...)
           (lambda () (release-block b)))))))
+
+  ;;;--------------------------------------------------------
+  ;;; Spine
+  ;;;--------------------------------------------------------
+  (define-record-type spine
+    (fields (mutable max) (mutable entries))
+    (protocol
+      (lambda (new)
+        (lambda (max)
+          (new max '())))))
+
+  (define (spine-exit sp)
+    (for-each release-block (spine-entries sp)))
+
+  (define (pop-last xs)
+    (let ((rs (reverse xs)))
+      (values (car xs) (reverse (cdr xs)))))
+
+  (define (spine-step% sp b)
+    (if (> (length (spine-entries sp))
+           (spine-max sp))
+        (receive (oldest-b es) (pop-last (spine-entries sp))
+          (release-block oldest-b)
+          (spine-entries-set! sp (cons b es)))
+        (spine-entries-set! sp (cons b (spine-entries sp)))))
+
+  (define (spine-current sp)
+    (car (spine-entries sp)))
+
+  (define (spine-parent sp)
+    (cadr (spine-entries sp)))
+
+  (define-syntax with-spine
+    (syntax-rules ()
+      ((_ (sp max) b1 b2 ...)
+       (let ((sp (make-spine max)))
+        (dynamic-wind
+          (lambda () #f)
+          (lambda () b1 b2 ...)
+          (lambda () (spine-exit sp)))))))
+
+  (define-syntax spine-step
+    (syntax-rules ()
+      ((_ sp (b expr) b1 b2 ...)
+       (begin
+         (spine-step% sp expr)
+         (let ((b (spine-current sp)))
+          b1 b2 ...)))))
 )
