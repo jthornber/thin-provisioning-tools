@@ -61,6 +61,7 @@ namespace {
 TEST_F(BTreeCounterTests, count_empty_tree)
 {
 	tree_.reset(new btree<1, uint64_traits>(tm_, rc_));
+	tm_.get_bm()->flush();
 	check_nr_metadata_blocks_is_ge(1);
 }
 
@@ -73,6 +74,7 @@ TEST_F(BTreeCounterTests, count_populated_tree)
 		tree_->insert(key, 0ull);
 	}
 
+	tm_.get_bm()->flush();
 	check_nr_metadata_blocks_is_ge(40);
 }
 
