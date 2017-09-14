@@ -1,11 +1,11 @@
 (library
-  (mapping-tree)
+  (thin mapping-tree)
 
   (export mapping-tree-open
           mapping-tree-lookup
           mapping-tree-each)
 
-  (import (btree)
+  (import (persistent-data btree)
           (chezscheme)
           (srfi s8 receive))
 
@@ -35,8 +35,8 @@
 
      (define (visit-dev dev-id mapping-root)
        (btree-each (btree-open le64-vt (btree-bcache dev-tree) mapping-root)
-                   (lambda (vblock mapping)
-                     (receive (block time) (unpack-block-time mapping)
-                              (fn dev-id vblock block time)))))
+         (lambda (vblock mapping)
+           (receive (block time) (unpack-block-time mapping)
+             (fn dev-id vblock block time)))))
 
      (btree-each dev-tree visit-dev))))

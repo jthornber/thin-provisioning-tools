@@ -1,8 +1,8 @@
 (library
  (thin check)
 
- (export thin-check
-         thin-check-flags)
+ (export thin-dump
+         thin-dump-flags)
 
  (import
    (bcache block-manager)
@@ -15,32 +15,6 @@
    (thin metadata)
    (thin mapping-tree)
    (chezscheme))
-
-;;;;---------------------------------------------------
-;;;; Constants
-;;;;---------------------------------------------------
-
-;; FIXME: duplicate with main.scm
-(define (current-metadata) "./metadata.bin")
-
-(define $superblock-magic 27022010)
-(define $superblock-salt 160774)
-(define $uuid-size 16)
-(define $space-map-root-size 128)
-
-(define-compound-value-type device-details-vt ThinDeviceDetails)
-
-(define (block->superblock b)
- (make-ftype-pointer ThinSuperblock (block-data b)))
-
-;;;------------------------------------------------
-;;; Fluid vars for the switches
-
-(define quiet #f)
-(define clear-needs-check-flag #f)
-(define ignore-non-fatal-errors #f)
-(define skip-mappings #f)
-(define super-block-only #f)
 
 (define (dump-dev-tree cache root)
  (btree-each (btree-open device-details-vt cache root)
@@ -61,22 +35,13 @@
   thin-check-flags)
 
 (define (thin-check metadata-path flags)
- (define (member? s)
-   (enum-set-member? s flags))
-
- (fluid-let ((quiet (member? 'quiet))
-	     (clear-needs-check-flag (member? 'clear-needs-check-flag))
-	     (ignore-non-fatal-errors (member? 'ignore-non-fatal-errors))
-	     (skip-mappings (member? 'skip-mappings))
-	     (super-block-only (member? 'super-block-only)))
-
-  (fmt (current-output-port)
-   "quiet: " quiet "\n"
-   "clear-needs-check-flag: " clear-needs-check-flag "\n"
-   "ignore-non-fatal-errors: " ignore-non-fatal-errors "\n"
-   "skip-mappings: " skip-mappings "\n"
-   "super-block-only: " super-block-only "\n"
-   "input-file: " metadata-path "\n")
+ (tag 'superblock `((uuid . "<not implemented yet>")
+                    (time . )
+                    (transaction . 1)
+                    (flags . 0)
+                    (version . 2)
+                    (data-block-size . 128)
+                    (nr-data-blocks . ,(apply + nr-mappings)))
 
   (with-bcache (cache metadata-path 1024)
    (with-block (b cache 0 (get-flags))

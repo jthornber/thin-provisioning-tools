@@ -1,5 +1,5 @@
 (library
-  (thin-xml)
+  (thin xml)
   (export generate-xml)
   (import (rnrs)
           (list-utils)
