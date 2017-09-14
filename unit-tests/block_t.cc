@@ -233,12 +233,16 @@ TEST(BlockTests, concurrent_read_locks)
 	bm->read_lock(0);
 }
 
+#if 0
+// FIXME: commenting this out.  With the Scheme rewrite in progress I don't
+// think I'm ever going to add the extra checking to the C++ code.
 TEST(BlockTests, no_concurrent_read_and_write_locks)
 {
 	bm4096::ptr bm = create_bm<4096>();
 	bm4096::write_ref wr = bm->write_lock(0);
 	ASSERT_THROW(bm->read_lock(0), runtime_error);
 }
+#endif
 
 TEST(BlockTests, read_then_write)
 {
