@@ -28,7 +28,6 @@
     (logging)
     (process)
     (temp-file)
-    (thin-xml)
     (utils)
     (srfi s8 receive))
 

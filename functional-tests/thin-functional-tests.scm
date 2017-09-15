@@ -11,7 +11,7 @@
     (process)
     (scenario-string-constants)
     (temp-file)
-    (thin-xml)
+    (thin xml)
     (srfi s8 receive))
 
   (define-tool thin-check)
@@ -253,7 +253,9 @@
 
   (define-scenario (thin-delta unrecognised-option)
     "Unrecognised option should cause failure"
-    (run-fail "thin_delta --unleash-the-hedgehogs"))
+    (with-valid-metadata (md)
+      (receive (stdout stderr) (run-fail "thin_delta --unleash-the-hedgehogs")
+        (assert-starts-with "thin_delta: unrecognized option '--unleash-the-hedgehogs" stderr))))
 
   (define-scenario (thin-delta snap1-unspecified)
     "Fails without --snap1 fails"

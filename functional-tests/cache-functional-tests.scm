@@ -326,5 +326,4 @@
     (receive (stdout stderr) (cache-metadata-size "--nr-blocks 67108864")
       (assert-equal "3678208 sectors" stdout)
       (assert-eof stderr)))
-
-  )
+)
