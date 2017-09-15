@@ -158,7 +158,7 @@
                             (begin (inc! fail)
                                    (set! fail-keys (cons keys fail-keys))
                                    (dsp "fail"))))))
-      (unless (zero? fail)
+      (unless (or (zero? fail) (zero? pass))
         (fmt #t nl (dsp "There were failures:") nl)
         (fmt-scenarios fail-keys
                        (lambda (_)
