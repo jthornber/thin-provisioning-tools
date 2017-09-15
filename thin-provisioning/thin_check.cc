@@ -24,6 +24,7 @@
 
 #include "base/application.h"
 #include "base/error_state.h"
+#include "base/file_utils.h"
 #include "base/nested_output.h"
 #include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/space-maps/core.h"
@@ -201,12 +202,24 @@ namespace {
 		return err;
 	}
 
-	error_state metadata_check(string const &path, flags fs) {
-		block_manager<>::ptr bm = open_bm(path);
+	void check_for_xml(block_manager<>::ptr bm, nested_output &out) {
+		block_manager<>::read_ref b = bm->read_lock(superblock_detail::SUPERBLOCK_LOCATION);
+		if (!strncmp(reinterpret_cast<const char *>(b.data()), "<superblock", 10))
+			out << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
+	}
 
+	error_state metadata_check(string const &path, flags fs) {
 		nested_output out(cerr, 2);
 		if (fs.quiet)
 			out.disable();
+
+		if (file_utils::get_file_length(path) < persistent_data::MD_BLOCK_SIZE) {
+			out << "Metadata device/file too small.  Is this binary metadata?"
+			    << end_message();
+			return FATAL;
+		}
+
+		block_manager<>::ptr bm = open_bm(path);
 
 		superblock_reporter sb_rep(out);
 		devices_reporter dev_rep(out);
@@ -218,8 +231,10 @@ namespace {
 			check_superblock(bm, sb_rep);
 		}
 
-		if (sb_rep.get_error() == FATAL)
+		if (sb_rep.get_error() == FATAL) {
+			check_for_xml(bm, out);
 			return FATAL;
+		}
 
 		superblock_detail::superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm);

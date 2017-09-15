@@ -19,7 +19,8 @@
 
     assert-equal
     assert-eof
-    assert-starts-with)
+    assert-starts-with
+    assert-matches)
 
   (import
     (chezscheme)
@@ -27,6 +28,7 @@
     (list-utils)
     (logging)
     (process)
+    (regex)
     (temp-file)
     (utils)
     (srfi s8 receive))
@@ -215,6 +217,9 @@
                  (dsp ", ")
                  (wrt str)))))
 
+  (define (assert-matches pattern str)
+          (unless ((regex pattern) str)
+                  (fail (fmt #f "string should match: " pattern ", " str))))
 
   )
 

@@ -111,6 +111,19 @@
     (with-valid-metadata (md)
       (thin-check "--clear-needs-check-flag" md)))
 
+  (define-scenario (thin-check tiny-metadata)
+    "Prints helpful message in case XML metadata given"
+    (with-thin-xml (xml)
+      (receive (_ stderr) (run-fail "thin_check" xml)
+        (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
+
+  (define-scenario (thin-check spot-accidental-xml-data)
+    "Prints helpful message if XML metadata given"
+    (with-thin-xml (xml)
+      (system (fmt #f "man bash >> " xml))
+      (receive (_ stderr) (run-fail "thin_check" xml)
+        (assert-matches ".*This looks like XML.  thin_check only checks the binary metadata format." stderr))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_restore scenarios
   ;;;-----------------------------------------------------------
