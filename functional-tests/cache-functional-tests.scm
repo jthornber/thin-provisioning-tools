@@ -204,7 +204,6 @@
           (assert-eof stdout)
           (assert-eof stderr)))))
 
-  ;; Failing due to a genuine bug in cache_restore
   (define-scenario (cache-restore override-metadata-version)
     "we can set any metadata version"
     (with-empty-metadata (md)
