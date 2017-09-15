@@ -662,7 +662,8 @@ thin_delta_cmd::run(int argc, char **argv)
 		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
 		{ "metadata-snap", optional_argument, NULL, 'm' },
-		{ "verbose", no_argument, NULL, 4 }
+		{ "verbose", no_argument, NULL, 4 },
+		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
