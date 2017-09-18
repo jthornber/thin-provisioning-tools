@@ -1,9 +1,9 @@
-.TH CACHE_RESTORE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
+.TH ERA_RESTORE 8 "Thin Provisioning Tools" "Red Hat, Inc." \" -*- nroff -*-
 .SH NAME
-cache_restore \- restore cache metadata file to device or file
+era_restore \- restore era metadata file to device or file
 
 .SH SYNOPSIS
-.B cache_restore
+.B era_restore
 .RB [ options ]
 .RB -i
 .I {device|file}
@@ -11,10 +11,10 @@ cache_restore \- restore cache metadata file to device or file
 .I {device|file}
 
 .SH DESCRIPTION
-.B cache_restore
-restores cache metadata created by the respective
+.B era_restore
+restores era metadata created by the respective
 device-mapper target dumped into an XML formatted (see
-.BR cache_dump(8) )
+.BR era_dump(8) )
 .I file
 , which optionally can be preprocessed before the restore to another
 .I device
@@ -33,9 +33,6 @@ Input file or device with metadata.
 Output file or device for repaired binary metadata.  If a file is used
 then it must be preallocated, and large enough to hold the metadata.
 
-.IP "\fB\-\-metadata\-version\fP \fI{1|2}\fP"
-Choose metadata version.
-
 .IP "\fB\-q, \-\-quiet\fP"
 Don't print any output.  Check the exit code to test for success.
 
@@ -45,32 +42,21 @@ Print help and exit.
 .IP "\fB\-V, \-\-version\fP"
 Output version information and exit.
 
-.IP "\fB\-\-debug-override-metadata-version\fP \fI<integer>\fP"
-ONLY FOR DEBUGGING PURPOSES:
-.br
-override the version stored in the metadata.
-
-.IP "\fB\-\-omit\-clean\-shutdown\fP"
-ONLY FOR DEBUGGING PURPOSES:
-.br
-Don't set the clean shutdown flag.
-
 .SH EXAMPLE
-Restores the XML formatted cache metadata on file
+Restores the XML formatted era metadata on file
 .B metadata
 to logical volume /dev/vg/metadata for further processing by the
 respective device-mapper target:
 .sp
-.B cache_restore -i metadata -o /dev/vg/metadata
+.B era_restore -i metadata -o /dev/vg/metadata
 
 .SH DIAGNOSTICS
-.B cache_restore
+.B era_restore
 returns an exit code of 0 for success or 1 for error.
 
 .SH SEE ALSO
-.B cache_dump(8)
-.B cache_check(8)
-.B cache_repair(8)
+.B era_dump(8)
+.B era_check(8)
 
 .SH AUTHOR
 Joe Thornber <ejt@redhat.com>

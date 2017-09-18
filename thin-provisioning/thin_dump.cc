@@ -123,6 +123,7 @@ thin_dump_cmd::usage(std::ostream &out) const
 	    << "  {-m|--metadata-snap} [block#]\n"
 	    << "  {-o <xml file>}\n"
 	    << "  {--dev-id} <dev-id>\n"
+	    << "  {--skip-mappings}\n"
 	    << "  {-V|--version}" << endl;
 }
 

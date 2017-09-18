@@ -107,10 +107,10 @@ SOURCE=\
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
+	thin-provisioning/thin_trim.cc \
 	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
-	thin-provisioning/thin_trim.cc \
 	thin-provisioning/thin_ll_dump.cc \
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
@@ -250,6 +250,7 @@ install: bin/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
+	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/era_check
 	ln -s -f pdata_tools $(BINDIR)/era_dump
 	ln -s -f pdata_tools $(BINDIR)/era_invalidate
@@ -257,6 +258,7 @@ install: bin/pdata_tools
 	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/cache_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/cache_writeback.8 $(MANPATH)/man8
@@ -270,15 +272,15 @@ install: bin/pdata_tools
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_invalidate.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 ifeq ("@DEVTOOLS@", "yes")
 	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
-	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/thin_ll_dump
 	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
 	ln -s -f pdata_tools $(BINDIR)/thin_generate_metadata
 	ln -s -f pdata_tools $(BINDIR)/thin_scan
-	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 endif
 
 #	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8

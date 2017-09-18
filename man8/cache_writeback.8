@@ -32,10 +32,17 @@ Slow device being cached.
 .IP "\fB\-\-fast\-device\fP \fI{device|file}\fP"
 Fast device containing the data that needs to be written back.
 
-.IP "\fB\-\-skip\-metadata\-update\fP"
+.IP "\fB\-\-no\-metadata\-update\fP"
 Do not update the metadata to clear the dirty flags for written back
 data.  You may not want to do this if you're decommissioning the
 cache.
+
+.IP "\fB\-\-buffer\-size\-meg \fI{size}\fP"
+Specify the size for the metadata cache.  Defaults to 16 Gig, a larger size may
+improve performance.
+
+.IP "\fB\-\-list\-failed\-blocks\fP
+List any blocks that failed the writeback process.
 
 .IP "\fB\-h, \-\-help\fP"
 Print help and exit.

@@ -141,7 +141,8 @@ cache_metadata_size_cmd::usage(ostream &out) const
 	    << "  {-V|--version}" << endl
 	    << "  {--block-size <sectors>}" << endl
 	    << "  {--device-size <sectors>}" << endl
-	    << "  {--nr-blocks <natural>}" << endl << endl
+	    << "  {--nr-blocks <natural>}" << endl
+	    << "  {--max-hint-width <nr bytes>}" << endl << endl
 	    << "These all relate to the size of the fast device (eg, SSD), rather" << endl
 	    << "than the whole cached device." << endl;
 }
@@ -164,7 +165,7 @@ cache_metadata_size_cmd::run(int argc, char **argv)
 		cout << calc_size(nr_blocks, fs.max_hint_width) << " sectors" << endl;
 
 	} catch (std::exception const &e) {
-		cerr << e.what();
+		cerr << e.what() << "\n";
 		return 1;
 	}
 

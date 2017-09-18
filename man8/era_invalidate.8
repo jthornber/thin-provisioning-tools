@@ -25,6 +25,12 @@ Write output to a file rather than
 .B stdout
 .
 
+.IP "\fB\-\-metadata\-snapshot\fP"
+Use the metadata snapshot rather than the current superblock.
+
+.IP "\fB\-\-written-since {era}\fP"
+Blocks written since the given era will be listed.
+
 .SH EXAMPLE
 List the blocks that may have been written since the beginning of era
 13 on the metadata device /dev/vg/metadata.

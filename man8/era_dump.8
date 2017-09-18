@@ -25,7 +25,7 @@ in order to put it back onto a metadata
 
 This tool cannot be run on live metadata.
 
-.IP "\fB\-r, \-\-repair\fP".
+.IP "\fB\-\-repair\fP".
 Repair the metadata whilst dumping it.
 
 .IP "\fB\-h, \-\-help\fP".
@@ -38,6 +38,9 @@ Output version information and exit.
 Fold any unprocessed write sets into the final era array.  You
 probably want to do this if you're intending to process the results as
 it simplifies the XML.
+
+.IP "\fB-o \fI{xml file}\fP"
+Specify a file for the output rather than writing to stdout.
 
 .SH EXAMPLES
 Dumps era metadata on logical volume /dev/vg/metadata
