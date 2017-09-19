@@ -180,6 +180,12 @@ thin_rmap_cmd::run(int argc, char **argv)
 		exit(1);
 	}
 
+	if (!regions.size()) {
+		cerr << "No regions provided." << endl;
+		usage(cerr);
+		exit(1);
+	}
+
 	return rmap(argv[optind], regions);
 }
 
