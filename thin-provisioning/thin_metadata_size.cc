@@ -215,7 +215,7 @@ static void help(struct global *g)
 static void version(struct global *g)
 {
 	printf("%s\n", THIN_PROVISIONING_TOOLS_VERSION);
-	exit_prg(g, 1);
+	exit_prg(g, 0);
 }
 
 static void check_unit(struct global *g, char *arg)
