@@ -193,7 +193,7 @@ else
 TEST_INCLUDES=
 endif
 
-.SUFFIXES: .d
+.SUFFIXES: .d .txt .8
 
 %.o: %.cc
 	@echo "    [CXX] $<"
@@ -202,6 +202,10 @@ endif
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
+
+%.8: %.txt bin/txt2man
+	@echo "    [txt2man] $<"
+	$(V) bin/txt2man -p -t $(basename $(notdir $<)) $< > $@
 
 #----------------------------------------------------------------
 
@@ -232,7 +236,36 @@ clean:
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
 
-install: bin/pdata_tools
+TOOLS:=\
+	cache_check \
+	cache_dump \
+	cache_metadata_size \
+	cache_repair \
+	cache_restore \
+	cache_writeback \
+	thin_check \
+	thin_delta \
+	thin_dump \
+	thin_ls \
+	thin_repair \
+	thin_restore \
+	thin_rmap \
+	thin_metadata_size \
+	thin_trim \
+	era_check \
+	era_dump \
+	era_invalidate \
+	era_restore \
+ifeq ("@DEVTOOLS", "yes")
+	thin_show_duplicates \
+	thin_ll_dump \
+	thin_generate_metadata \
+	thin_scan
+endif
+
+MANPAGES:=$(patsubst %,man8/%.8,$(TOOLS))
+
+install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
 	$(STRIP) $(BINDIR)/pdata_tools
