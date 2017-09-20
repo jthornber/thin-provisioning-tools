@@ -7,14 +7,14 @@ SYNOPSIS
 DESCRIPTION
   cache_repair reads binary cache metadata created by the respective
   device-mapper target from one device or file, repairs it and writes it to
-  another device or file.  If written to a metadata device, the metadata can
+  another device or file. If written to a metadata device, the metadata can
   be processed by the device-mapper target.
 
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   -i, --input {device|file}	Input file or device containing binary metadata.
   -o, --output {device|file}	Output file or device for repaired binary metadata.
 

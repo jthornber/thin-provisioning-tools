@@ -11,9 +11,9 @@ DESCRIPTION
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
-  -q, --quiet	Suppress output messages, return only exit code.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -q, --quiet		Suppress output messages, return only exit code.
   --super-block-only	Only check the superblock is present.
 
 EXAMPLE

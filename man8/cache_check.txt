@@ -11,9 +11,9 @@ DESCRIPTION
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -q, --quiet	Suppress output messages, return only exit code.
-  -h, --help	Print help and exit.
-  -V, --version	Output version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Output version information and exit.
+  -q, --quiet		Suppress output messages, return only exit code.
   --super-block-only	Only check the superblock.
   --skip-hints		Skip checking of the policy hint values metadata.
   --skip-discards	Skip checking of the discard bits in the metadata.

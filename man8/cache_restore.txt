@@ -14,9 +14,9 @@ DESCRIPTION
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
-  -q, --quiet	Don't print any output.  Check the exit code to test for success.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -q, --quiet		Don't print any output.  Check the exit code to test for success.
   -i, --input {xml file}	Input xml.
   -o, --output {device|file}	Output file or device for restored binary metadata.
 
@@ -30,7 +30,7 @@ DEBUGGING OPTIONS
   --omit-clean-shutdown		Don't set the clean shutdown flag.
 
 EXAMPLE
-  Restores the XML formatted cache metadata on file .B metadata to logical
+  Restores the XML formatted cache metadata on file metadata to logical
   volume /dev/vg/metadata for further processing by the respective
   device-mapper target:
 

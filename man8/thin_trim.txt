@@ -10,8 +10,8 @@ DESCRIPTION
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   --pool-inactive	Indicates you are aware the pool should be inactive.
 
     Suppresses a warning message and prompt.

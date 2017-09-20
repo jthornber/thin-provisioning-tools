@@ -255,13 +255,7 @@ TOOLS:=\
 	era_check \
 	era_dump \
 	era_invalidate \
-	era_restore \
-ifeq ("@DEVTOOLS", "yes")
-	thin_show_duplicates \
-	thin_ll_dump \
-	thin_generate_metadata \
-	thin_scan
-endif
+	era_restore
 
 MANPAGES:=$(patsubst %,man8/%.8,$(TOOLS))
 

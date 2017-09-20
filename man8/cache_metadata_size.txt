@@ -21,6 +21,7 @@ OPTIONS
 
 EXAMPLE
     $ cache_metadata_size --nr-blocks 10240
+
     $ cache_metadata_size --block-size 128 --device-size 1024000
 
 SEE ALSO

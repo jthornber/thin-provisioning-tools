@@ -8,36 +8,36 @@ DESCRIPTION
   thin_metadata_size calculates the size of the thin provisioning metadata
   based on the block size of the thin provisioned devices, the size of the thin
   provisioning pool and the maximum number of all thin provisioned devices and
-  snapshots.  Because thin provisioning pools are holding widely variable
+  snapshots. Because thin provisioning pools are holding widely variable
   contents, this tool is needed to provide sensible initial default size.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   -b, --block-size {BLOCKSIZE[bskKmMgGtTpPeEzZyY]}	Set block size.
 
     Block size of thin provisioned devices in units of bytes, sectors,
-    kibibytes, kilobytes, ... respectively.  Default is in sectors without a
-    block size unit specifier.  Size/number option arguments can be followed by
+    kibibytes, kilobytes, ... respectively. Default is in sectors without a
+    block size unit specifier. Size/number option arguments can be followed by
     unit specifiers in short one character and long form (eg. -b1m or
     -b1mebibytes).
 
   -s, --pool-size {POOLSIZE[bskKmMgGtTpPeEzZyY]}	Set pool size.
 
     Thin provisioning pool size in units of bytes, sectors, kibibytes,
-    kilobytes, ... respectively.  Default is in sectors without a pool size
+    kilobytes, ... respectively. Default is in sectors without a pool size
     unit specifier.
 
   -m, --max-thins {count[bskKmMgGtTpPeEzZyY]}	Set max thins.
 
-    Maximum sum of all thin provisioned devices and snapshots.  Unit identifier
+    Maximum sum of all thin provisioned devices and snapshots. Unit identifier
     supported to allow for convenient entry of large quantities, eg. 1000000 =
-    1M.  Default is absolute quantity without a number unit specifier.
+    1M. Default is absolute quantity without a number unit specifier.
 
   -u, --unit {bskKmMgGtTpPeEzZyY}
 
     Output unit specifier in units of bytes, sectors, kibibytes, kilobytes, ...
-    respectively.  Default is in sectors without an output unit specifier.
+    respectively. Default is in sectors without an output unit specifier.
 
   -n, --numeric-only {short|long}	Limit output to just the size number.
 

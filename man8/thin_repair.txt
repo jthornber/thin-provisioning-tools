@@ -7,14 +7,14 @@ SYNOPSIS
 DESCRIPTION
   thin_repair reads binary thin provisioning metadata created by the respective
   device-mapper target from one device or file, repairs it and writes it
-  to different device or file.  If written to a metadata device, the metadata
+  to different device or file. If written to a metadata device, the metadata
   can be processed by the device-mapper target.
 
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   -i, --input {device|file}	Input file or device with binary data.
   -o, --output {device|file}	Output file or device for binary data.
 

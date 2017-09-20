@@ -17,8 +17,8 @@ DESCRIPTION
   option is used.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   -f, --format {xml|human_readable|custom}	Choose output format.
 
     Custom formats are supported via shared library plugins.  They should be
@@ -26,7 +26,7 @@ OPTIONS
 
       $ thin_dump --format custom=mylib.so /dev/sda
 
-  -r, --repair	Repair the metadata whilst dumping it.
+  -r, --repair		Repair the metadata whilst dumping it.
   -m, --metadata-snap {block nr}	Dump metadata snapshot.
 
     If block is not provided, access the default metadata snapshot created by
@@ -62,7 +62,7 @@ DIAGNOSTICS
   thin_dump returns an exit code of 0 for success or 1 for error.
 
 SEE ALSO
-  thin_check(8) .B thin_repair(8) .B thin_restore(8) .B thin_rmap(8) .B thin_metadata_size(8)
+  thin_check(8), thin_repair(8), thin_restore(8), thin_rmap(8), thin_metadata_size(8)
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>, Heinz Mauelshagen <HeinzM@RedHat.com>

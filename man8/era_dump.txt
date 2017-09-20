@@ -7,17 +7,17 @@ SYNOPSIS
 DESCRIPTION
   era_dump dumps binary era metadata created by the device-mapper era target on
   a device or file to standard output for analysis or postprocessing in
-  XML format.  XML formated metadata can be fed into era_restore (see
+  XML format. XML formated metadata can be fed into era_restore (see
   era_restore(8)) in order to put it back onto a metadata device (to process by
   the device-mapper target) or file.
 
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
-  --repair	Repair the metadata whilst dumping it.
-  --logical	Fold any unprocessed write sets into the final era array.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  --repair		Repair the metadata whilst dumping it.
+  --logical		Fold any unprocessed write sets into the final era array.
 
     You probably want to do this if you're intending to process the results as
     it simplifies the XML.

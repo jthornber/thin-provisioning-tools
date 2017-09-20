@@ -12,8 +12,8 @@ DESCRIPTION
   used.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   -o {output file}	Write output to a file rather than stdout.
   --metadata-snapshot	Use the metadata snapshot rather than the current superblock.
   --written-since	Blocks written since the given era will be listed.

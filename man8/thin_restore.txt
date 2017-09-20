@@ -8,15 +8,15 @@ DESCRIPTION
   thin_restore restores thin provisioning metadata created by the respective
   device-mapper target dumped into an XML formatted (see thin_dump(8)) file,
   which optionally can be preprocessed before the restore to another device or
-  file.  If restored to a metadata device, the metadata can be processed by the
+  file. If restored to a metadata device, the metadata can be processed by the
   device-mapper target.
 
   This tool cannot be run on live metadata.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
-  -q, --quiet	Suppress output messages, return only exit code.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -q, --quiet		Suppress output messages, return only exit code.
   -i, --input {xml file}	Input file containing XML metadata.
   -o, --output {device|file}	Output file or device for restored binary metadata.
 

@@ -6,20 +6,20 @@ SYNOPSIS
 
 DESCRIPTION
   cache_writeback is an offline tool that writes back dirty data to the data
-  device (origin).  Intended for use in recovery scenarios when the SSD is
+  device (origin). Intended for use in recovery scenarios when the SSD is
   giving IO errors.
 
   This tool cannot be run on a live cache.
 
 OPTIONS
-  -h, --help	Print help and exit.
-  -V, --version	Print version information and exit.
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
   --metadata-device {device|file}	Location of cache metadata.
   --origin-device {device|file}		Slow device being cached.
   --fast-device {device|file}		Fast device containing the data that needs to be written back.
   --no-metadata-update			Do not update the metadata to clear the dirty flags.
 
-  You may want to use this flag if you're decommissioning the cache.
+    You may want to use this flag if you're decommissioning the cache.
 
   --buffer-size-meg {size}		Specify the size for the metadata cache.
 
