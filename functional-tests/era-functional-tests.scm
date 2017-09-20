@@ -170,7 +170,7 @@
       (with-empty-metadata (md)
         (receive (stdout stderr) (run-fail "era_restore" "--quiet" "-i" bad-xml "-o" md)
           (assert-eof stdout)
-          (assert-eof stderr)))))
+          (assert-starts-with "Couldn't stat file" stderr)))))
 
   (define-scenario (era-restore q-fail)
     "No output with --q(failing)"
@@ -178,7 +178,7 @@
       (with-empty-metadata (md)
         (receive (stdout stderr) (run-fail "era_restore" "-q" "-i" bad-xml "-o" md)
           (assert-eof stdout)
-          (assert-eof stderr)))))
+          (assert-starts-with "Couldn't stat file" stderr)))))
 
   (define-scenario (era-dump restore-is-noop)
     "era_dump followed by era_restore is a noop."

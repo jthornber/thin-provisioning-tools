@@ -109,13 +109,14 @@ Options:
   {--repair}")
 
   (define cache-metadata-size-help
-    "Usage: cache_metadata_size [options]
+          "Usage: cache_metadata_size [options]
 Options:
   {-h|--help}
   {-V|--version}
   {--block-size <sectors>}
   {--device-size <sectors>}
   {--nr-blocks <natural>}
+  {--max-hint-width <nr bytes>}
 
 These all relate to the size of the fast device (eg, SSD), rather
 than the whole cached device.")

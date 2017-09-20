@@ -49,16 +49,18 @@
              (if (pred exit-code)
                  (values stdout stderr)
                  (begin
-                   (info (fmt #f (dsp "stdout: ") stdout))
-                   (info (fmt #f (dsp "stderr: ") stderr))
-                   (fail (fmt #f (dsp "unexpected exit code (")
-                              (num exit-code)
-                              (dsp ")")))))))
+                   (let ((msg (fmt #f "unexpected exit code (" exit-code ")")))
+                    (info msg)
+                    (fail msg))))))
 
   (define (run-ok . cmd-and-args)
     (run-with-exit-code zero? cmd-and-args))
 
+  ;; Exit code 139 is a segfault, which is not acceptable
   (define (run-fail . cmd-and-args)
-    (define (not-zero? x) (not (zero? x)))
+          (define (fails? x) (not
+                               (or (= 139 x)
+                                   (zero? x))))
 
-    (run-with-exit-code not-zero? cmd-and-args)))
+    (run-with-exit-code fails? cmd-and-args)))
+
