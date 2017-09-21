@@ -25,6 +25,11 @@ OPTIONS
     errors for a long time is not advised, you really should be using
     thin_repair to fix them.
 
+  --clear-needs-check-flag	Clears the 'needs_check' flag in the superblock.
+
+    The kernel may set a flag to force the pool to be checked before it's next
+    activated.  Set this switch to clear the flag if the check is successful.
+
 EXAMPLE
   Analyses thin provisioning metadata on logical volume /dev/vg/metadata:
 
