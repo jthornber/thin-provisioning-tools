@@ -27,7 +27,7 @@ DIAGNOSTICS
   era_check returns an exit code of 0 for success or 1 for error.
 
 SEE ALSO
-  era_dump(8), era_repair(8), era_restore(8), era_invalidate(8)
+  era_dump(8), era_restore(8), era_invalidate(8)
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>

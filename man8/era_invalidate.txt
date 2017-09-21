@@ -31,7 +31,7 @@ DIAGNOSTICS
   metadata corruption).
 
 SEE ALSO
-  era_check(8), era_dump(8), era_repair(8), era_restore(8)
+  era_check(8), era_dump(8), era_restore(8)
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>
