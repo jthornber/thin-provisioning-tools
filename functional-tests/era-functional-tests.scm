@@ -180,6 +180,14 @@
           (assert-eof stdout)
           (assert-starts-with "Couldn't stat file" stderr)))))
 
+  ;;;-----------------------------------------------------------
+  ;;; era_dump scenarios
+  ;;;-----------------------------------------------------------
+  (define-scenario (era-dump small-input-file)
+    "Fails with small input file"
+    (with-temp-file-sized ((md "era.bin" 512))
+      (run-fail "era_dump" md)))
+
   (define-scenario (era-dump restore-is-noop)
     "era_dump followed by era_restore is a noop."
     (with-valid-metadata (md)

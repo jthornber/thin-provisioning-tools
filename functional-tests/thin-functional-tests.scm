@@ -187,6 +187,15 @@
         (receive (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
           (assert-eof stdout)))))
 
+  ;;;-----------------------------------------------------------
+  ;;; thin_dump scenarios
+  ;;;-----------------------------------------------------------
+
+  (define-scenario (thin-dump small-input-file)
+    "Fails with small input file"
+    (with-temp-file-sized ((md "thin.bin" 512))
+      (run-fail "thin_dump" md)))
+
   (define-scenario (thin-dump restore-is-noop)
     "thin_dump followed by thin_restore is a noop."
     (with-valid-metadata (md)

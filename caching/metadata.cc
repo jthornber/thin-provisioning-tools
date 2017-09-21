@@ -13,7 +13,11 @@ namespace {
 	// FIXME: duplication
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
+		auto nr_blocks = bm->get_nr_blocks();
+		if (!nr_blocks)
+			throw runtime_error("Metadata is not large enough for superblock.");
+
+		space_map::ptr sm(new core_map(nr_blocks));
 		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;

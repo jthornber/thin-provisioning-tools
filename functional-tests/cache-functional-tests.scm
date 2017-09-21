@@ -245,6 +245,11 @@
     (receive (stdout stderr) (run-fail "cache_dump")
       (assert-starts-with "No input file provided." stderr)))
 
+  (define-scenario (cache-dump small-input-file)
+    "Fails with small input file"
+    (with-temp-file-sized ((md "cache.bin" 512))
+      (run-fail "cache_dump" md)))
+
   (define-scenario (cache-dump restore-is-noop)
     "cache_dump followed by cache_restore is a noop."
     (with-valid-metadata (md)
