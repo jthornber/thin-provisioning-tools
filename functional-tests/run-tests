@@ -7,6 +7,7 @@
         (functional-tests)
 	(bcache bcache-tests)
         (cache-functional-tests)
+        (device-mapper dm-tests)
         (era-functional-tests)
         (parser-combinators)
         (only (srfi s1 lists) break)
@@ -179,6 +180,7 @@
 (register-cache-tests)
 (register-era-tests)
 (register-bcache-tests)
+(register-dm-tests)
 
 (with-dir "test-output"
  ((parse-command-line)))
