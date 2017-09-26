@@ -55,10 +55,14 @@
                  (intersperse "/"
                               (map symbol->string keys)))))))
 
+(define (string-prefix? p str)
+  (and (>= (string-length str) (string-length p))
+       (string=? p (substring str 0 (string-length p)))))
+
 ;; If the filter begins with 're:' then we make a regex matcher, otherwise
 ;; we use a simple string matcher.
 (define (mk-single-matcher pattern)
-  (if (string=? (substring pattern 0 3) "re:")
+  (if (string-prefix? "re:" pattern)
       (mk-regex-matcher (substring pattern 3 (string-length pattern)))
       (mk-string-matcher pattern)))
 
