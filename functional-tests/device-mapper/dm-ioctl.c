@@ -144,6 +144,7 @@ static int dlb_append(struct dev_list_builder *dlb,
 	if (!dl)
 		return -ENOMEM;
 
+	dl->next = NULL;
 	dl->major = major;
 	dl->minor = minor;
 	dl->name = strdup(name);
@@ -266,8 +267,8 @@ int dm_list_devices(struct dm_interface *dmi, struct dev_list **devs)
 		if (!ctl)
 			return -ENOMEM;
 	}
-	free_ctl(ctl);
 
+	free_ctl(ctl);
 	return r;
 }
 
