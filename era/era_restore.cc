@@ -1,5 +1,6 @@
 #include "version.h"
 
+#include "base/file_utils.h"
 #include "base/output_file_requirements.h"
 #include "era/commands.h"
 #include "era/metadata.h"
@@ -33,14 +34,19 @@ namespace {
 	};
 
 	int restore(flags const &fs, bool quiet) {
+		bool metadata_touched = false;
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
+			file_utils::check_file_exists(*fs.output);
+			metadata_touched = true;
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(*md);
 
 			parse_xml(*fs.input, restorer, fs.quiet);
 
 		} catch (std::exception &e) {
+			if (metadata_touched)
+				file_utils::zero_superblock(*fs.output);
 			cerr << e.what() << endl;
 			return 1;
 		}

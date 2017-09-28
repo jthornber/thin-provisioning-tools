@@ -14,6 +14,7 @@ namespace file_utils {
 	int create_block_file(std::string const &path, off_t file_size);
 	int open_block_file(std::string const &path, off_t min_size, bool writeable, bool excl = true);
 	uint64_t get_file_length(std::string const &file);
+	void zero_superblock(std::string const &path);
 }
 
 //----------------------------------------------------------------

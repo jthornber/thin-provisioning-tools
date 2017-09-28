@@ -57,15 +57,19 @@ namespace {
 	}
 
 	int restore(flags const &fs) {
+		bool metadata_touched = false;
+
 		try {
 			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
+
+			check_file_exists(*fs.input);
+			ifstream in(fs.input->c_str(), ifstream::in);
+
+			metadata_touched = true;
 			metadata::ptr md(new metadata(bm, metadata::CREATE));
 			emitter::ptr restorer = create_restore_emitter(md,
 								       fs.metadata_version,
 								       fs.clean_shutdown ? CLEAN_SHUTDOWN : NO_CLEAN_SHUTDOWN);
-
-			check_file_exists(*fs.input);
-			ifstream in(fs.input->c_str(), ifstream::in);
 
 			unique_ptr<progress_monitor> monitor = create_monitor(fs.quiet);
 			parse_xml(in, restorer, get_file_length(*fs.input), *monitor);
@@ -74,6 +78,8 @@ namespace {
 				override_version(md, fs);
 
 		} catch (std::exception &e) {
+			if (metadata_touched)
+				zero_superblock(*fs.output);
 			cerr << e.what() << endl;
 			return 1;
 		}

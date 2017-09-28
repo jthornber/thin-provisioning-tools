@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 //----------------------------------------------------------------
 
@@ -138,6 +139,18 @@ file_utils::get_file_length(string const &file) {
 		throw runtime_error("bad path");
 
 	return nr_bytes;
+}
+
+void
+file_utils::zero_superblock(std::string const &path)
+{
+	unsigned const SUPERBLOCK_SIZE = 4096;
+	char buffer[SUPERBLOCK_SIZE];
+	int fd = open_block_file(path, SUPERBLOCK_SIZE, true, true);
+
+	memset(buffer, 0, SUPERBLOCK_SIZE);
+	if (::write(fd, buffer, SUPERBLOCK_SIZE) != SUPERBLOCK_SIZE)
+		throw runtime_error("couldn't zero superblock");
 }
 
 //----------------------------------------------------------------
