@@ -5,6 +5,7 @@
 
   (import
     (chezscheme)
+    (bcache block-manager)
     (disk-units)
     (fmt fmt)
     (functional-tests)
@@ -158,7 +159,15 @@
     "the input file can't be found"
     (with-empty-metadata (md)
       (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" md)
+        (assert-superblock-untouched md)
         (assert-starts-with "Couldn't stat file" stderr))))
+
+  (define-scenario (thin-restore garbage-input-file)
+    "the input file is just zeroes"
+    (with-empty-metadata (md)
+      (with-temp-file-sized ((xml "thin.xml" 4096))
+        (receive (_ stderr) (run-fail "thin_restore -i " xml "-o" md)
+          (assert-superblock-untouched md)))))
 
   (define-scenario (thin-restore missing-output-file)
     "the output file can't be found"

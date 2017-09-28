@@ -20,10 +20,12 @@
     assert-equal
     assert-eof
     assert-starts-with
-    assert-matches)
+    assert-matches
+    assert-superblock-untouched)
 
   (import
     (chezscheme)
+    (bcache block-manager)
     (fmt fmt)
     (list-utils)
     (logging)
@@ -220,6 +222,21 @@
   (define (assert-matches pattern str)
           (unless ((regex pattern) str)
                   (fail (fmt #f "string should match: " pattern ", " str))))
+
+  (define (all-zeroes? ptr count)
+    (let ((u8-ptr (make-ftype-pointer unsigned-8 ptr)))
+     (let loop ((i 0))
+      (if (= count i)
+          #t
+          (if (zero? (ftype-ref unsigned-8 () u8-ptr i))
+              (loop (+ i 1))
+              #f)))))
+
+  (define (assert-superblock-untouched md)
+    (with-bcache (cache md 1)
+      (with-block (b cache 0 (get-flags))
+        (unless (all-zeroes? (block-data b) 4096)
+                (fail "superblock contains non-zero data")))))
 
   )
 

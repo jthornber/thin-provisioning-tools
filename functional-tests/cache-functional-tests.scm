@@ -167,7 +167,15 @@
     "the input file can't be found"
     (with-empty-metadata (md)
       (receive (_ stderr) (run-fail "cache_restore -i no-such-file -o" md)
+        (assert-superblock-untouched md)
         (assert-starts-with "Couldn't stat file" stderr))))
+
+  (define-scenario (cache-restore garbage-input-file)
+    "the input file is just zeroes"
+    (with-empty-metadata (md)
+      (with-temp-file-sized ((xml "cache.xml" 4096))
+        (receive (_ stderr) (run-fail "cache_restore -i " xml "-o" md)
+          (assert-superblock-untouched md)))))
 
   (define-scenario (cache-restore missing-output-file)
     "the output file can't be found"

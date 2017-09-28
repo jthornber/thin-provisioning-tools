@@ -97,9 +97,8 @@
    (define (with-temp-file-sized-thunk filename size fn)
      (with-temp-file-thunk filename
        (lambda (path)
-         (let ((cmd (fmt #f (dsp "fallocate -l ") (wrt size) (dsp " ") (dsp path))))
-          (system cmd)
-          (fn path)))))
+         (system (fmt #f "fallocate -l " (wrt size) " " path))
+         (fn path))))
 
    (define-syntax with-temp-file-sized
      (syntax-rules ()

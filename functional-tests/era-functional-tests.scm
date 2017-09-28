@@ -136,6 +136,20 @@
       (receive (_ stderr) (run-fail "era_restore" "-o" md)
         (assert-starts-with "No input file provided." stderr))))
 
+  (define-scenario (era-restore missing-input-file)
+    "the input file can't be found"
+    (with-empty-metadata (md)
+      (receive (_ stderr) (run-fail "era_restore -i no-such-file -o" md)
+        (assert-superblock-untouched md)
+        (assert-starts-with "Couldn't stat file" stderr))))
+
+  (define-scenario (era-restore garbage-input-file)
+    "the input file is just zeroes"
+    (with-empty-metadata (md)
+      (with-temp-file-sized ((xml "era.xml" 4096))
+        (receive (_ stderr) (run-fail "era_restore -i " xml "-o" md)
+          (assert-superblock-untouched md)))))
+
   (define-scenario (era-restore output-unspecified)
     "Fails if no metadata dev specified"
     (with-era-xml (xml)
