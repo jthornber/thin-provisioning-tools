@@ -20,6 +20,7 @@
   (define-tool thin-dump)
   (define-tool thin-restore)
   (define-tool thin-rmap)
+  (define-tool thin-repair)
 
   (define-syntax with-thin-xml
     (syntax-rules ()
@@ -303,4 +304,13 @@
     (receive (_ stderr) (run-fail "thin_delta --snap1 45 --snap2 46")
       (assert-starts-with "No input device provided." stderr)))
 
+  ;;;-----------------------------------------------------------
+  ;;; thin_repair scenarios
+  ;;;-----------------------------------------------------------
+  (define-scenario (thin-repair dont-repair-xml)
+    "Fails gracefully if run on XML rather than metadata"
+    (with-thin-xml (xml)
+      (with-empty-metadata (md)
+        (receive (_ stderr) (run-fail "thin_repair -i " xml "-o" md)
+          #t))))
   )
