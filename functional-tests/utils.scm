@@ -1,14 +1,16 @@
 (library
   (utils)
-  (export inc!
-          dec!
+  (export inc! dec!
+
           swap!
           slurp-file
           chomp
           hotpatch-sym
           indirect-lambda
           set-lambda!
-          dlambda)
+          dlambda
+
+          all? some? none?)
 
   (import (chezscheme)
           (only (srfi s1 lists) drop-while))
@@ -67,4 +69,24 @@
                (apply (case m
                             [(name) (lambda params b1 b2 ...)] ...)
                       args)))))
+
+  ;; FIXME: why aren't these in core scheme? what do people use instead?
+  (define (all? pred xs)
+    (let loop ((xs xs))
+     (if (null? xs)
+         #t
+         (if (pred (car xs))
+             (loop (cdr xs))
+             #f))))
+
+  (define (some? pred xs)
+    (let loop ((xs xs))
+     (if (null? xs)
+         #f
+         (if (pred (car xs))
+             #t
+             (loop (cdr xs))))))
+
+  (define (none? pred xs)
+    (not (all? pred xs)))
   )
