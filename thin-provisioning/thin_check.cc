@@ -20,6 +20,9 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
+
 #include "version.h"
 
 #include "base/application.h"
@@ -168,6 +171,7 @@ namespace {
 		bool ignore_non_fatal_errors;
 
 		bool quiet;
+		boost::optional<block_address> override_mapping_root;
 		bool clear_needs_check_flag_on_success;
 	};
 
@@ -206,6 +210,11 @@ namespace {
 		block_manager<>::read_ref b = bm->read_lock(superblock_detail::SUPERBLOCK_LOCATION);
 		if (!strncmp(reinterpret_cast<const char *>(b.data()), "<superblock", 10))
 			out << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
+	}
+
+	block_address mapping_root(superblock_detail::superblock const &sb, flags const &fs)
+	{
+		return fs.override_mapping_root ? *fs.override_mapping_root : sb.data_mapping_root_;
 	}
 
 	error_state metadata_check(string const &path, flags fs) {
@@ -253,7 +262,7 @@ namespace {
 			out << "examining top level of mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				dev_tree dtree(*tm, sb.data_mapping_root_,
+				dev_tree dtree(*tm, mapping_root(sb, fs),
 					       mapping_tree_detail::mtree_traits::ref_counter(tm));
 				check_mapping_tree(dtree, mapping_rep);
 			}
@@ -262,7 +271,7 @@ namespace {
 			out << "examining mapping tree" << end_message();
 			{
 				nested_output::nest _ = out.push();
-				mapping_tree mtree(*tm, sb.data_mapping_root_,
+				mapping_tree mtree(*tm, mapping_root(sb, fs),
 						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
 				check_mapping_tree(mtree, mapping_rep);
 			}
@@ -332,6 +341,7 @@ thin_check_cmd::usage(std::ostream &out) const
 	    << "  {-q|--quiet}" << endl
 	    << "  {-h|--help}" << endl
 	    << "  {-V|--version}" << endl
+	    << "  {--override-mapping-root}" << endl
 	    << "  {--clear-needs-check-flag}" << endl
 	    << "  {--ignore-non-fatal-errors}" << endl
 	    << "  {--skip-mappings}" << endl
@@ -353,6 +363,7 @@ thin_check_cmd::run(int argc, char **argv)
 		{ "skip-mappings", no_argument, NULL, 2},
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
 		{ "clear-needs-check-flag", no_argument, NULL, 4 },
+		{ "override-mapping-root", required_argument, NULL, 5},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -390,6 +401,11 @@ thin_check_cmd::run(int argc, char **argv)
 		case 4:
 			// clear needs-check flag
 			fs.clear_needs_check_flag_on_success = true;
+			break;
+
+		case 5:
+			// override-mapping-root
+			fs.override_mapping_root = boost::lexical_cast<uint64_t>(optarg);
 			break;
 
 		default:

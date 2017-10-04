@@ -33,6 +33,12 @@ OPTIONS
     is needed to fix any issues. After thin_repair succeeded, you may run
     thin_check again.
 
+  --override-mapping-root <block>	Specify a mapping root to use.
+
+    Don't use this.  This overrides what's specified in the superblock.  Only
+    use this if you really understand the metadata format and are trying to
+    recover damaged metadata.
+
 EXAMPLE
   Analyses thin provisioning metadata on logical volume /dev/vg/metadata:
 
