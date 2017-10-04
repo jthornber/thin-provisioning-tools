@@ -1,7 +1,8 @@
 (library
   (persistent-data btree)
 
-  (export btree-value-type
+  (export btree-node-salt
+          btree-value-type
           btree-root
           btree-open
           btree-lookup
@@ -10,12 +11,23 @@
 
           define-value-type
           define-compound-value-type
-          BTreeNodeHeader)
+
+          BTreeNodeHeader
+          leaf-node?
+          internal-node?
+          block->header
+          block->values
+          block->keys
+          key-at
+          value-at
+          )
 
   (import (bcache block-manager)
           (chezscheme)
           (list-utils)
           (utils))
+
+  (define btree-node-salt 121107)
 
   (define-ftype BTreeNodeHeader
     (packed
