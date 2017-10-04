@@ -17,9 +17,11 @@
           spine-step
           spine-current
           spine-parent
-          with-spine)
+          with-spine
+          checksum-block)
 
   (import (chezscheme)
+          (crc32c checksum)
           (fmt fmt)
           (srfi s8 receive)
           (utils))
@@ -157,4 +159,14 @@
          (spine-step% sp index flags)
          (let ((b (spine-current sp)))
           b1 b2 ...)))))
+
+  ;;;--------------------------------------------------------
+  ;;; Checksumming
+  ;;;--------------------------------------------------------
+  (define md-block-size 4096)
+
+  (define (checksum-block b offset salt)
+    (let ((ptr (make-ftype-pointer unsigned-8
+                 (+ (block-data b) offset))))
+      (bitwise-xor salt (crc32c #xffffffff ptr (- md-block-size offset)))))
 )
