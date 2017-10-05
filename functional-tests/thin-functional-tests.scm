@@ -114,9 +114,9 @@
       (thin-check "--clear-needs-check-flag" md)))
 
   (define-scenario (thin-check tiny-metadata)
-    "Prints helpful message in case XML metadata given"
-    (with-thin-xml (xml)
-      (receive (_ stderr) (run-fail "thin_check" xml)
+    "Prints helpful message in case tiny metadata given"
+    (with-temp-file-sized ((md "thin.bin" 1024))
+      (receive (_ stderr) (run-fail "thin_check" md)
         (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
 
   (define-scenario (thin-check spot-accidental-xml-data)
