@@ -365,7 +365,7 @@ caching::check_superblock(superblock const &sb,
 
 	if (sb.magic != SUPERBLOCK_MAGIC) {
 		ostringstream msg;
-		msg << "magic in incorrect: " << sb.magic;
+		msg << "magic is incorrect: " << sb.magic;
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 
