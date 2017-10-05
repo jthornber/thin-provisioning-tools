@@ -22,11 +22,12 @@
   ;; These long string constants really confuse vim and mess up Paredit mode.
   ;; So moving into a separate file.
   (define thin-check-help
-    "Usage: thin_check [options] {device|file}
+          "Usage: thin_check [options] {device|file}
 Options:
   {-q|--quiet}
   {-h|--help}
   {-V|--version}
+  {--override-mapping-root}
   {--clear-needs-check-flag}
   {--ignore-non-fatal-errors}
   {--skip-mappings}
