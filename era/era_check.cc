@@ -162,15 +162,6 @@ namespace {
 
 	//--------------------------------
 
-	transaction_manager::ptr open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
-	//--------------------------------
-
 	struct flags {
 		flags()
 			: superblock_only_(false),
@@ -211,7 +202,7 @@ namespace {
 			return FATAL;
 
 		superblock sb = read_superblock(bm);
-		transaction_manager::ptr tm = open_tm(bm);
+		transaction_manager::ptr tm = open_tm(bm, SUPERBLOCK_LOCATION);
 
 		writeset_tree_reporter wt_rep(out);
 		{

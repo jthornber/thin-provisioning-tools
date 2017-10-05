@@ -35,6 +35,7 @@
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/rmap_visitor.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/variable_chunk_stream.h"
@@ -56,21 +57,6 @@ using namespace thin_provisioning;
 namespace {
 	bool factor_of(block_address f, block_address n) {
 		return (n % f) == 0;
-	}
-
-	block_manager<>::ptr
-	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_blocks(path);
-		block_manager<>::mode m = block_manager<>::READ_ONLY;
-		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
-	}
-
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
 	}
 
 	uint64_t parse_int(string const &str, string const &desc) {
@@ -222,7 +208,8 @@ namespace {
 
 	int show_dups_pool(flags const &fs) {
 		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
-		transaction_manager::ptr tm = open_tm(bm);
+		transaction_manager::ptr tm =
+			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 		superblock_detail::superblock sb = read_superblock(bm);
 		block_address block_size = sb.data_block_size_ * 512;
 		block_address nr_blocks = get_nr_blocks(fs.data_dev, block_size);

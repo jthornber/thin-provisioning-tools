@@ -80,16 +80,6 @@ namespace local {
 
 	//--------------------------------
 
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
-	//--------------------------------
-
 	struct mapping {
 		mapping()
 			: vbegin_(0),

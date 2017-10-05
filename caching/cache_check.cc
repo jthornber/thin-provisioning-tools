@@ -171,15 +171,6 @@ namespace {
 
 	//--------------------------------
 
-	transaction_manager::ptr open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
-	//--------------------------------
-
 	struct flags {
 		flags()
 			: check_mappings_(true),
@@ -242,7 +233,7 @@ namespace {
 			return FATAL;
 
 		superblock sb = read_superblock(bm);
-		transaction_manager::ptr tm = open_tm(bm);
+		transaction_manager::ptr tm = open_tm(bm, SUPERBLOCK_LOCATION);
 
 		needs_check_set = sb.flags.get_flag(superblock_flags::NEEDS_CHECK);
 

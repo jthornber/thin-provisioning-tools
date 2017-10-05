@@ -37,18 +37,6 @@
 using namespace thin_provisioning;
 using namespace persistent_data;
 
-//----------------------------------------------------------------
-
-namespace {
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-}
-
 //---------------------------------------------------------------------------
 
 namespace {
@@ -212,7 +200,8 @@ namespace {
 		if (f.device_details_root_)
 			sb.device_details_root_ = *f.device_details_root_;
 
-		transaction_manager::ptr tm = open_tm(bm);
+		transaction_manager::ptr tm =
+			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 
 		indented_stream out(output);
 

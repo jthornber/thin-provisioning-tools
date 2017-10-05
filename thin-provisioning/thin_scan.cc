@@ -94,14 +94,6 @@ namespace {
 
 		return true;
 	}
-
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
 }
 
 namespace {
@@ -243,7 +235,7 @@ namespace {
 		checked_space_map::ptr metadata_sm;
 		try {
 			superblock_detail::superblock sb = read_superblock(bm);
-			tm = open_tm(bm);
+			tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 			metadata_sm = open_metadata_sm(*tm, &sb.metadata_space_map_root_);
 			tm->set_sm(metadata_sm);
 		} catch (std::exception &e) {

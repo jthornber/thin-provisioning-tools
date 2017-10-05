@@ -2,6 +2,7 @@
 #define THIN_FILE_UTILS_H
 
 #include "persistent-data/block.h"
+#include "persistent-data/transaction_manager.h"
 
 #include <string>
 
@@ -14,6 +15,11 @@ namespace persistent_data {
 
 	block_manager<>::ptr open_bm(std::string const &dev_path,
 				     block_manager<>::mode m, bool excl = true);
+
+	block_manager<>::ptr open_bm(std::string const &path);
+	transaction_manager::ptr open_tm(block_manager<>::ptr bm,
+					 block_address superblock_location);
+
 }
 
 //----------------------------------------------------------------

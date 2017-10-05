@@ -13,6 +13,7 @@
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/rmap_visitor.h"
 
 using namespace std;
@@ -21,23 +22,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	block_manager<>::ptr
-	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_metadata_blocks(path);
-		block_manager<>::mode m = block_manager<>::READ_ONLY;
-		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
-	}
-
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
-	//--------------------------------
-
 	using namespace mapping_tree_detail;
 
 	typedef rmap_visitor::region region;
@@ -73,7 +57,8 @@ namespace {
 				rv.add_data_region(*it);
 
 			block_manager<>::ptr bm = open_bm(path);
-			transaction_manager::ptr tm = open_tm(bm);
+			transaction_manager::ptr tm =
+				open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 
 			superblock_detail::superblock sb = read_superblock(bm);
 			mapping_tree mtree(*tm, sb.data_mapping_root_,

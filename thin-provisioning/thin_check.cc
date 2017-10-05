@@ -33,6 +33,7 @@
 #include "persistent-data/space-maps/core.h"
 #include "persistent-data/space-maps/disk.h"
 #include "persistent-data/file_utils.h"
+#include "thin-provisioning/metadata.h"
 #include "thin-provisioning/device_tree.h"
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/metadata_counter.h"
@@ -46,23 +47,6 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	block_manager<>::ptr
-	open_bm(string const &path) {
-		block_address nr_blocks = get_nr_metadata_blocks(path);
-		block_manager<>::mode m = block_manager<>::READ_ONLY;
-		return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
-	}
-
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		space_map::ptr sm(new core_map(bm->get_nr_blocks()));
-		sm->inc(superblock_detail::SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
-	//--------------------------------
-
 	class superblock_reporter : public superblock_detail::damage_visitor {
 	public:
 		superblock_reporter(nested_output &out)
@@ -246,7 +230,8 @@ namespace {
 		}
 
 		superblock_detail::superblock sb = read_superblock(bm);
-		transaction_manager::ptr tm = open_tm(bm);
+		transaction_manager::ptr tm =
+			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 
 		if (fs.check_device_tree) {
 			out << "examining devices tree" << end_message();

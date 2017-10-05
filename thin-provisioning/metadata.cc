@@ -38,20 +38,6 @@ using namespace thin_provisioning;
 namespace {
 	using namespace superblock_detail;
 
-	unsigned const METADATA_CACHE_SIZE = 1024;
-
-	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
-		auto nr_blocks = bm->get_nr_blocks();
-		if (!nr_blocks)
-			throw runtime_error("Metadata is not large enough for superblock.");
-
-		space_map::ptr sm(new core_map(nr_blocks));
-		sm->inc(SUPERBLOCK_LOCATION);
-		transaction_manager::ptr tm(new transaction_manager(bm, sm));
-		return tm;
-	}
-
 	void
 	copy_space_maps(space_map::ptr lhs, space_map::ptr rhs) {
 		for (block_address b = 0; b < rhs->get_nr_blocks(); b++) {
@@ -70,7 +56,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 {
 	switch (ot) {
 	case OPEN:
-		tm_ = open_tm(bm);
+		tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 		sb_ = read_superblock(tm_->get_bm());
 
 		if (sb_.version_ != 1)
@@ -89,7 +75,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		break;
 
 	case CREATE:
-		tm_ = open_tm(bm);
+		tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 		space_map::ptr core = tm_->get_sm();
 		metadata_sm_ = create_metadata_sm(*tm_, tm_->get_bm()->get_nr_blocks());
 		copy_space_maps(metadata_sm_, core);
@@ -118,7 +104,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 
 metadata::metadata(block_manager<>::ptr bm, bool read_space_maps)
 {
-	tm_ = open_tm(bm);
+	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 	sb_ = read_superblock(tm_->get_bm(), SUPERBLOCK_LOCATION);
 
 	if (read_space_maps)
@@ -130,7 +116,7 @@ metadata::metadata(block_manager<>::ptr bm, bool read_space_maps)
 metadata::metadata(block_manager<>::ptr bm,
 		   boost::optional<block_address> metadata_snap)
 {
-	tm_ = open_tm(bm);
+	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 
 	superblock_detail::superblock actual_sb = read_superblock(bm, SUPERBLOCK_LOCATION);
 
