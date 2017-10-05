@@ -14,6 +14,7 @@
 
 #include "base/error_state.h"
 #include "base/error_string.h"
+#include "base/file_utils.h"
 #include "base/nested_output.h"
 #include "era/commands.h"
 #include "era/writeset_tree.h"
@@ -185,10 +186,18 @@ namespace {
 		return info;
 	}
 
-	error_state metadata_check(block_manager<>::ptr bm, flags const &fs) {
+	error_state metadata_check(string const &path, flags const &fs) {
 		nested_output out(cerr, 2);
 		if (fs.quiet_)
 			out.disable();
+
+		if (file_utils::get_file_length(path) < persistent_data::MD_BLOCK_SIZE) {
+			out << "Metadata device/file too small.  Is this binary metadata?"
+			    << end_message();
+			return FATAL;
+		}
+
+		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
 
 		superblock_reporter sb_rep(out);
 
@@ -198,8 +207,11 @@ namespace {
 			check_superblock(bm, bm->get_nr_blocks(), sb_rep);
 		}
 
-		if (sb_rep.get_error() == FATAL)
+		if (sb_rep.get_error() == FATAL) {
+			if (check_for_xml(bm))
+				out << "This looks like XML.  era_check only checks the binary metadata format." << end_message();
 			return FATAL;
+		}
 
 		superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm = open_tm(bm, SUPERBLOCK_LOCATION);
@@ -233,8 +245,7 @@ namespace {
 			throw runtime_error(msg.str());
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
-		err = metadata_check(bm, fs);
+		err = metadata_check(path, fs);
 
 		return err == NO_ERROR ? 0 : 1;
 	}

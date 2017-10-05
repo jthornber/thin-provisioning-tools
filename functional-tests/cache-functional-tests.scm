@@ -133,12 +133,18 @@
         (cache-restore "-i" xml "-o" md "--debug-override-metadata-version" "12345")
         (run-fail "cache_check" md))))
 
-  (define-scenario (cache-check dont-repair-xml)
-    "Fails gracefully if run on XML rather than metadata"
+  (define-scenario (cache-check tiny-metadata)
+    "Prints helpful message in case XML metadata given"
     (with-cache-xml (xml)
-      (with-empty-metadata (md)
-        (receive (_ stderr) (run-fail "cache_check " xml)
-          #t))))
+      (receive (_ stderr) (run-fail "cache_check" xml)
+        (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
+
+  (define-scenario (cache-check spot-accidental-xml-data)
+    "Prints helpful message if XML metadata given"
+    (with-cache-xml (xml)
+      (system (fmt #f "man bash >> " xml))
+      (receive (_ stderr) (run-fail "cache_check" xml)
+        (assert-matches ".*This looks like XML.  cache_check only checks the binary metadata format." stderr))))
 
   ;;;-----------------------------------------------------------
   ;;; cache_restore scenarios

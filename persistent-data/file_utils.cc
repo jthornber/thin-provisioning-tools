@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sstream>
 #include <unistd.h>
 
@@ -16,6 +17,14 @@ using namespace persistent_data;
 using namespace std;
 
 //----------------------------------------------------------------
+
+bool
+persistent_data::check_for_xml(block_manager<>::ptr bm) {
+	block_manager<>::read_ref b = bm->read_lock(0);
+	const char *data = reinterpret_cast<const char *>(b.data());
+	return (!strncmp(data, "<superblock", 11) || !strncmp(data, "<?xml", 5)
+	                       || !strncmp(data, "<!DOCTYPE", 9));
+}
 
 persistent_data::block_address
 persistent_data::get_nr_blocks(std::string const &path, sector_t block_size)
