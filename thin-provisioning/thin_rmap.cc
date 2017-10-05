@@ -46,7 +46,7 @@ namespace {
 	class damage_visitor {
 	public:
 		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
-			throw std::runtime_error("damage in mapping tree, please run thin_check");
+			throw std::runtime_error("Damage in mapping tree, please run thin_check.\n");
 		}
 	};
 
