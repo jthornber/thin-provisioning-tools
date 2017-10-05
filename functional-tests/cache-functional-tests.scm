@@ -133,6 +133,13 @@
         (cache-restore "-i" xml "-o" md "--debug-override-metadata-version" "12345")
         (run-fail "cache_check" md))))
 
+  (define-scenario (cache-check dont-repair-xml)
+    "Fails gracefully if run on XML rather than metadata"
+    (with-cache-xml (xml)
+      (with-empty-metadata (md)
+        (receive (_ stderr) (run-fail "cache_check " xml)
+          #t))))
+
   ;;;-----------------------------------------------------------
   ;;; cache_restore scenarios
   ;;;-----------------------------------------------------------

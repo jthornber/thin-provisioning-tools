@@ -260,6 +260,12 @@
     (with-valid-metadata (md)
       (thin-rmap "--region 1..23 --region 45..78" md)))
 
+  (define-scenario (thin-rmap handles-junk-input)
+    "Fail gracefully if given nonsense"
+    (with-thin-xml (xml)
+      (receive (_ stderr) (run-fail "thin_rmap --region 0..-1" xml)
+          #t)))
+
   ;;;-----------------------------------------------------------
   ;;; thin_delta scenarios
   ;;;-----------------------------------------------------------
