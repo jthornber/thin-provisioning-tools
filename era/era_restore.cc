@@ -45,9 +45,12 @@ namespace {
 			parse_xml(*fs.input, restorer, fs.quiet);
 
 		} catch (std::exception &e) {
-			if (metadata_touched)
-				file_utils::zero_superblock(*fs.output);
 			cerr << e.what() << endl;
+			if (metadata_touched)
+				try {
+					file_utils::zero_superblock(*fs.output);
+				} catch (...) {
+				}
 			return 1;
 		}
 
