@@ -190,12 +190,6 @@ namespace {
 		return err;
 	}
 
-	void check_for_xml(block_manager<>::ptr bm, nested_output &out) {
-		block_manager<>::read_ref b = bm->read_lock(superblock_detail::SUPERBLOCK_LOCATION);
-		if (!strncmp(reinterpret_cast<const char *>(b.data()), "<superblock", 10))
-			out << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
-	}
-
 	block_address mapping_root(superblock_detail::superblock const &sb, flags const &fs)
 	{
 		return fs.override_mapping_root ? *fs.override_mapping_root : sb.data_mapping_root_;
@@ -225,7 +219,8 @@ namespace {
 		}
 
 		if (sb_rep.get_error() == FATAL) {
-			check_for_xml(bm, out);
+			if (check_for_xml(bm))
+				out << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
 			return FATAL;
 		}
 

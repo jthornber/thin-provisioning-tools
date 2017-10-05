@@ -10,6 +10,7 @@
 
 // FIXME: move to a different unit
 namespace persistent_data {
+	bool check_for_xml(block_manager<>::ptr bm);
 	persistent_data::block_address get_nr_blocks(std::string const &path, sector_t block_size = MD_BLOCK_SIZE);
 	block_address get_nr_metadata_blocks(std::string const &path);
 
