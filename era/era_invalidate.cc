@@ -199,7 +199,6 @@ era_invalidate_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}\n"
 	    << "  {-o <xml file>}\n"
 	    << "  {--metadata-snapshot}\n"
-	    << "  {--written-since}\n"
 	    << "  {-V|--version}" << endl;
 }
 
