@@ -93,7 +93,8 @@
       (fmt #t (cat (fn keys) nl))
       (flush))
 
-    (for-each describe (cons '() (reverse (cdr (reverse keys)))) keys))
+    (unless (null? keys)
+        (for-each describe (cons '() (reverse (cdr (reverse keys)))) keys)))
 
   (define (describe-scenarios keys)
     (fmt-scenarios keys
