@@ -183,7 +183,7 @@
   ;;-----------------------------------------------
 
   ;; FIXME: don't hard code this
-  (define tools-version "0.7.2")
+  (define tools-version "0.7.3")
 
   (define (tool-name sym)
     (define (to-underscore c)
