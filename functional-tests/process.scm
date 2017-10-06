@@ -6,6 +6,7 @@
           run-fail)
 
   (import (chezscheme)
+          (fail)
           (fmt fmt)
           (logging)
           (list-utils)
@@ -18,11 +19,6 @@
   ;;; Ideally we'd use open-process-ports, but that loses us the exit code which
   ;;; we need for testing.  So we use system, and redirect stderr and stdout to
   ;;; temporary files, and subsequently read them in.  Messy, but fine for tests.
-
-  (define (fail msg)
-    (raise (condition
-             (make-error)
-             (make-message-condition msg))))
 
   (define (build-command-line cmd-and-args)
     (apply fmt #f (map dsp (intersperse " " cmd-and-args))))

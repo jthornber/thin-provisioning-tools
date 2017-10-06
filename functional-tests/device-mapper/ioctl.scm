@@ -194,11 +194,15 @@
             (map foreign-free acc)
             (loop (ftype-ref Target (next) t) (cons t acc)))))
 
+  ;; targets should be dlambdas with 'size, 'type and 'format methods
   (define (load-table dm name targets)
     (define load
       (foreign-procedure "dm_load" ((* DMIoctlInterface) string (* Target)) int))
 
-    (let* ((ctargets (build-c-targets targets))
+    (define (dlambda->target t)
+      (make-target (t 'size) (t 'type) (t 'format)))
+
+    (let* ((ctargets (build-c-targets (map dlambda->target targets)))
            (r (load dm name ctargets)))
       (free-c-targets ctargets)
       (unless (zero? r)
