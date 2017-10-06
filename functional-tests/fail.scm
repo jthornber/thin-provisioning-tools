@@ -1,5 +1,7 @@
 (library
   (fail)
+  (export fail)
+  (import (chezscheme))
 
   (define (fail msg)
     (raise (condition
