@@ -332,6 +332,7 @@ era::check_superblock(persistent_data::block_manager<>::ptr bm,
 
 	try {
 		sb = read_superblock(bm, SUPERBLOCK_LOCATION);
+		check_superblock(sb, nr_metadata_blocks, visitor);
 
 	} catch (std::exception const &e) {
 
@@ -341,8 +342,6 @@ era::check_superblock(persistent_data::block_manager<>::ptr bm,
 
 		visitor.visit(superblock_corrupt(e.what()));
 	}
-
-	check_superblock(sb, nr_metadata_blocks, visitor);
 }
 
 

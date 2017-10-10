@@ -134,9 +134,9 @@
         (run-fail "cache_check" md))))
 
   (define-scenario (cache-check tiny-metadata)
-    "Prints helpful message in case XML metadata given"
-    (with-cache-xml (xml)
-      (receive (_ stderr) (run-fail "cache_check" xml)
+    "Prints helpful message in case tiny metadata given"
+    (with-temp-file-sized ((md "cache.bin" 1024))
+      (receive (_ stderr) (run-fail "cache_check" md)
         (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
 
   (define-scenario (cache-check spot-accidental-xml-data)

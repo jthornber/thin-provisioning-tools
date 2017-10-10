@@ -1,3 +1,76 @@
+v0.7.4
+======
+
+- Update this file ;)
+
+v0.7.3
+======
+
+- Improve error messages if XML given as input to tools that expect metadata.
+  There seems to be some confusion between XML and the metadata.
+
+- Add --override-mapping-root debug option to thin_dump.  This can be useful
+  when investigating damaged metadata.
+
+- More functional tests.
+
+v0.7.2
+======
+
+- Fix segfault in restore tools when given a tiny metadata file (< 4k).
+
+- Lots more work on the functional tests.
+
+- Fix a couple of unit test regressions
+
+- Man page updates.
+
+- Rewrite man pages in a text format.  Simpler than writing directly in nroff.
+
+v0.7.1
+======
+
+- Fix a few bugs in block_cache.
+
+- Ditch Ruby/Cucumber for the functional tests.  Now written in Scheme.
+
+- Be more aggressive about flushing dirty blocks from the block cache.  Very
+  little performance impact.
+
+- Optimisations in space_map_disk (small performance improvement for restore
+  tools).
+
+v0.7.0
+======
+
+- switch to C++11.  This may cause problems with v. old versions of g++.
+
+- support cache metadata format 2
+
+- support custom emitter plugins for thin_dump.
+
+- thin_dump --dev-id; allows the user to dump just the devices they're
+  interested in.
+
+- cache_writeback; Use for offline decommission of a cache.
+
+- thin_scan/thin_ll_dump/restore dev tools.
+
+- --enable-dev-tools configure option.  Use this for the extra tools.
+
+- thin_delta, various bug fixes.
+
+- various changes to the block cache.
+
+- thin_show_duplicates; a development only tool that scans block devices to
+  calculate the level of data duplication.  Uses either fixed block sizes or
+  context sensitive.
+
+v0.6.3
+======
+
+- Improve error messages if output file doesn't exist or is tiny.
+
 v0.6.2
 ======
 

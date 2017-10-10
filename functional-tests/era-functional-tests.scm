@@ -108,9 +108,9 @@
         (assert-eof stderr))))
 
   (define-scenario (era-check tiny-metadata)
-    "Prints helpful message in case XML metadata given"
-    (with-era-xml (xml)
-      (receive (_ stderr) (run-fail "era_check" xml)
+    "Prints helpful message in case tiny metadata given"
+    (with-temp-file-sized ((md "era.bin" 1024))
+      (receive (_ stderr) (run-fail "era_check" md)
         (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
 
   (define-scenario (era-check spot-accidental-xml-data)
