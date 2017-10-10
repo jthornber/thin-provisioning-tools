@@ -190,7 +190,11 @@
     (define (to-underscore c)
       (if (eq? #\- c) #\_ c))
 
-    (list->string (map to-underscore (string->list (symbol->string sym)))))
+    (string-append "../bin/"
+                   (list->string
+                     (map to-underscore
+                          (string->list
+                            (symbol->string sym))))))
 
   (define-syntax define-tool
     (syntax-rules ()
