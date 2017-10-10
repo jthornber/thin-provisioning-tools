@@ -16,7 +16,7 @@
           (srfi s8 receive)
           (utils))
 
-  (define __ (load-shared-object "./device-mapper/dm-ioctl.so"))
+  (define __ (load-shared-object "../lib/libft.so"))
 
   (define (fail msg)
     (raise

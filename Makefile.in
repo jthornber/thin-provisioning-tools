@@ -22,7 +22,7 @@ PROGRAMS=\
 	bin/pdata_tools
 
 .PHONY: all
-all: $(PROGRAMS)
+all: $(PROGRAMS) lib/libft.so
 
 SOURCE=\
 	base/output_file_requirements.cc \
@@ -231,7 +231,7 @@ clean:
 	find . -name \*.o -delete
 	find . -name \*.gmo -delete
 	find . -name \*.d -delete
-	$(RM) $(TEST_PROGRAMS) $(PROGRAMS) $(GMOCK_OBJECTS) lib/*.a
+	$(RM) $(TEST_PROGRAMS) $(PROGRAMS) $(GMOCK_OBJECTS) lib/*.a lib/*.so
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
@@ -319,12 +319,22 @@ include contrib/Makefile
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
 
-.PHONEY: features
+LIBFT_SOURCE=\
+	ft-lib/bcache.c \
+	ft-lib/crc32c.c \
+	ft-lib/dm-ioctl.c
 
-features: pdata_tools
-	cucumber --no-color --format progress
+LIBFT_OBJECTS=$(subst .c,.o,$(LIBFT_SOURCE))
 
-test: features unit-test
+lib/libft.so: $(LIBFT_OBJECTS)
+	gcc -shared -o $@ $+ -laio
+
+.PHONEY: functional-test unit-test
+
+functional-test: bin/pdata_tools lib/libft.so
+	cd functional-tests && ./run-tests run
+
+test: functional-test unit-test
 endif
 
 -include $(DEPEND_FILES)

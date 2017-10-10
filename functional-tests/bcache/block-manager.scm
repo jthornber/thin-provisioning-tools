@@ -26,7 +26,7 @@
           (srfi s8 receive)
           (utils))
 
-  (define __ (load-shared-object "./bcache/bcache.so"))
+  (define __ (load-shared-object "../lib/libft.so"))
 
   (define bcache-simple
     (foreign-procedure "bcache_simple" (string unsigned) ptr))
