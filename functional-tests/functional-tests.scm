@@ -183,8 +183,11 @@
 
   ;;-----------------------------------------------
 
-  ;; FIXME: don't hard code this
-  (define tools-version "0.7.3")
+  (define tools-version
+          (chomp
+            (with-input-from-file "../VERSION"
+                                  (lambda ()
+                                    (get-line (current-input-port))))))
 
   (define (tool-name sym)
     (define (to-underscore c)
