@@ -139,7 +139,7 @@ AC_MSG_RESULT($TESTING)
 
 ################################################################################
 dnl -- Enable development tools
-AC_MSG_CHECKING(whenter to enable development tools)
+AC_MSG_CHECKING(whether to enable development tools)
 AC_ARG_ENABLE(dev-tools,
 	      AC_HELP_STRING(--enable-dev-tools, [enable development tools in the makefile]),
 	      DEVTOOLS=$enableval, DEVTOOLS=no)
