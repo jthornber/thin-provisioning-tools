@@ -33,7 +33,7 @@
       ((_ (md) b1 b2 ...)
        (with-temp-file-sized ((md "thin.bin" (meg 4)))
          (with-thin-xml (xml)
-           (thin-restore "-i" xml "-o" md)
+           (run-ok (thin-restore "-i" xml "-o" md))
            b1 b2 ...)))))
 
   ;;; It would be nice if the metadata was at least similar to valid data.
@@ -59,71 +59,71 @@
 
   (define-scenario (thin-check v)
     "thin_check -V"
-    (receive (stdout _) (thin-check "-V")
+    (run-ok-rcv (stdout _) (thin-check "-V")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-check version)
     "thin_check --version"
-    (receive (stdout _) (thin-check "--version")
+    (run-ok-rcv (stdout _) (thin-check "--version")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-check h)
     "print help (-h)"
-    (receive (stdout _) (thin-check "-h")
+    (run-ok-rcv (stdout _) (thin-check "-h")
       (assert-equal thin-check-help stdout)))
 
   (define-scenario (thin-check help)
     "print help (--help)"
-    (receive (stdout _) (thin-check "--help")
+    (run-ok-rcv (stdout _) (thin-check "--help")
       (assert-equal thin-check-help stdout)))
 
   (define-scenario (thin-check bad-option)
     "Unrecognised option should cause failure"
-    (run-fail "thin_check --hedgehogs-only"))
+    (run-fail (thin-check "--hedgehogs-only")))
 
   (define-scenario (thin-check superblock-only-valid)
     "--super-block-only check passes on valid metadata"
     (with-valid-metadata (md)
-      (thin-check "--super-block-only" md)))
+      (run-ok (thin-check "--super-block-only" md))))
 
   (define-scenario (thin-check superblock-only-invalid)
     "--super-block-only check fails with corrupt metadata"
     (with-corrupt-metadata (md)
-      (run-fail "thin_check --super-block-only" md)))
+      (run-fail (thin-check "--super-block-only" md))))
 
   (define-scenario (thin-check skip-mappings-valid)
     "--skip-mappings check passes on valid metadata"
     (with-valid-metadata (md)
-      (thin-check "--skip-mappings" md)))
+      (run-ok (thin-check "--skip-mappings" md))))
 
   (define-scenario (thin-check ignore-non-fatal-errors)
     "--ignore-non-fatal-errors check passes on valid metadata"
     (with-valid-metadata (md)
-      (thin-check "--ignore-non-fatal-errors" md)))
+      (run-ok (thin-check "--ignore-non-fatal-errors" md))))
 
   (define-scenario (thin-check quiet)
     "--quiet should give no output"
     (with-valid-metadata (md)
-      (receive (stdout stderr) (thin-check "--quiet" md)
+      (run-ok-rcv (stdout stderr) (thin-check "--quiet" md)
         (assert-eof stdout)
         (assert-eof stderr))))
 
   (define-scenario (thin-check clear-needs-check-flag)
     "Accepts --clear-needs-check-flag"
     (with-valid-metadata (md)
-      (thin-check "--clear-needs-check-flag" md)))
+      (run-ok (thin-check "--clear-needs-check-flag" md))))
 
   (define-scenario (thin-check tiny-metadata)
     "Prints helpful message in case tiny metadata given"
     (with-temp-file-sized ((md "thin.bin" 1024))
-      (receive (_ stderr) (run-fail "thin_check" md)
+      (run-fail-rcv (_ stderr) (thin-check md)
         (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
 
   (define-scenario (thin-check spot-accidental-xml-data)
     "Prints helpful message if XML metadata given"
     (with-thin-xml (xml)
       (system (fmt #f "man bash >> " xml))
-      (receive (_ stderr) (run-fail "thin_check" xml)
+      (run-fail-rcv (_ stderr) (thin-check xml)
         (assert-matches ".*This looks like XML.  thin_check only checks the binary metadata format." stderr))))
 
   ;;;-----------------------------------------------------------
@@ -132,34 +132,34 @@
 
   (define-scenario (thin-restore print-version-v)
     "print help (-V)"
-    (receive (stdout _) (thin-restore "-V")
+    (run-ok-rcv (stdout _) (thin-restore "-V")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-restore print-version-long)
     "print help (--version)"
-    (receive (stdout _) (thin-restore "--version")
+    (run-ok-rcv (stdout _) (thin-restore "--version")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-restore h)
     "print help (-h)"
-    (receive (stdout _) (thin-restore "-h")
+    (run-ok-rcv (stdout _) (thin-restore "-h")
       (assert-equal thin-restore-help stdout)))
 
   (define-scenario (thin-restore help)
     "print help (-h)"
-    (receive (stdout _) (thin-restore "--help")
+    (run-ok-rcv (stdout _) (thin-restore "--help")
       (assert-equal thin-restore-help stdout)))
 
   (define-scenario (thin-restore no-input-file)
     "forget to specify an input file"
     (with-empty-metadata (md)
-      (receive (_ stderr) (run-fail "thin_restore" "-o" md)
+      (run-fail-rcv (_ stderr) (thin-restore "-o" md)
         (assert-starts-with "No input file provided." stderr))))
 
   (define-scenario (thin-restore missing-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
-      (receive (_ stderr) (run-fail "thin_restore -i no-such-file -o" md)
+      (run-fail-rcv (_ stderr) (thin-restore "-i no-such-file -o" md)
         (assert-superblock-untouched md)
         (assert-starts-with "Couldn't stat file" stderr))))
 
@@ -167,34 +167,34 @@
     "the input file is just zeroes"
     (with-empty-metadata (md)
       (with-temp-file-sized ((xml "thin.xml" 4096))
-        (receive (_ stderr) (run-fail "thin_restore -i " xml "-o" md)
+        (run-fail-rcv (_ stderr) (thin-restore "-i " xml "-o" md)
           (assert-superblock-untouched md)))))
 
   (define-scenario (thin-restore missing-output-file)
     "the output file can't be found"
     (with-thin-xml (xml)
-      (receive (_ stderr) (run-fail "thin_restore -i " xml)
+      (run-fail-rcv (_ stderr) (thin-restore "-i " xml)
         (assert-starts-with "No output file provided." stderr))))
 
   (define-scenario (thin-restore tiny-output-file)
     "Fails if the output file is too small."
     (with-temp-file-sized ((md "thin.bin" 4096))
       (with-thin-xml (xml)
-        (receive (_ stderr) (run-fail "thin_restore" "-i" xml "-o" md)
+        (run-fail-rcv (_ stderr) (thin-restore "-i" xml "-o" md)
           (assert-starts-with thin-restore-outfile-too-small-text stderr)))))
 
   (define-scenario (thin-restore q)
     "thin_restore accepts -q"
     (with-empty-metadata (md)
       (with-thin-xml (xml)
-        (receive (stdout _) (thin-restore "-i" xml "-o" md "-q")
+        (run-ok-rcv (stdout _) (thin-restore "-i" xml "-o" md "-q")
           (assert-eof stdout)))))
 
   (define-scenario (thin-restore quiet)
     "thin_restore accepts --quiet"
     (with-empty-metadata (md)
       (with-thin-xml (xml)
-        (receive (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
+        (run-ok-rcv (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
           (assert-eof stdout)))))
 
   ;;;-----------------------------------------------------------
@@ -204,15 +204,15 @@
   (define-scenario (thin-dump small-input-file)
     "Fails with small input file"
     (with-temp-file-sized ((md "thin.bin" 512))
-      (run-fail "thin_dump" md)))
+      (run-fail (thin-dump md))))
 
   (define-scenario (thin-dump restore-is-noop)
     "thin_dump followed by thin_restore is a noop."
     (with-valid-metadata (md)
-      (receive (d1-stdout _) (thin-dump md)
+      (run-ok-rcv (d1-stdout _) (thin-dump md)
         (with-temp-file-containing ((xml "thin.xml" d1-stdout))
-          (thin-restore "-i" xml "-o" md)
-          (receive (d2-stdout _) (thin-dump md)
+          (run-ok (thin-restore "-i" xml "-o" md))
+          (run-ok-rcv (d2-stdout _) (thin-dump md)
             (assert-equal d1-stdout d2-stdout))))))
 
   ;;;-----------------------------------------------------------
@@ -221,49 +221,50 @@
 
   (define-scenario (thin-rmap v)
     "thin_rmap accepts -V"
-    (receive (stdout _) (thin-rmap "-V")
+    (run-ok-rcv (stdout _) (thin-rmap "-V")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-rmap version)
     "thin_rmap accepts --version"
-    (receive (stdout _) (thin-rmap "--version")
+    (run-ok-rcv (stdout _) (thin-rmap "--version")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-rmap h)
     "thin_rmap accepts -h"
-    (receive (stdout _) (thin-rmap "-h")
+    (run-ok-rcv (stdout _) (thin-rmap "-h")
       (assert-equal thin-rmap-help stdout)))
 
   (define-scenario (thin-rmap help)
     "thin_rmap accepts --help"
-    (receive (stdout _) (thin-rmap "--help")
+    (run-ok-rcv (stdout _) (thin-rmap "--help")
       (assert-equal thin-rmap-help stdout)))
 
   (define-scenario (thin-rmap unrecognised-flag)
     "thin_rmap complains with bad flags."
-    (run-fail "thin_rmap --unleash-the-hedgehogs"))
+    (run-fail (thin-rmap "--unleash-the-hedgehogs")))
 
   (define-scenario (thin-rmap valid-region-format-should-pass)
     "thin_rmap with a valid region format should pass."
     (with-valid-metadata (md)
-      (thin-rmap "--region 23..7890" md)))
+      (run-ok
+        (thin-rmap "--region 23..7890" md))))
 
   (define-scenario (thin-rmap invalid-region-should-fail)
     "thin_rmap with an invalid region format should fail."
     (for-each (lambda (pattern)
                       (with-valid-metadata (md)
-                        (run-fail "thin_rmap --region" pattern md)))
+                        (run-fail (thin-rmap "--region" pattern md))))
               '("23,7890" "23..six" "found..7890" "89..88" "89..89" "89.." "" "89...99")))
 
   (define-scenario (thin-rmap multiple-regions-should-pass)
     "thin_rmap should handle multiple regions."
     (with-valid-metadata (md)
-      (thin-rmap "--region 1..23 --region 45..78" md)))
+      (run-ok (thin-rmap "--region 1..23 --region 45..78" md))))
 
   (define-scenario (thin-rmap handles-junk-input)
     "Fail gracefully if given nonsense"
     (with-thin-xml (xml)
-      (receive (_ stderr) (run-fail "thin_rmap --region 0..-1" xml)
+      (run-fail-rcv (_ stderr) (thin-rmap "--region 0..-1" xml)
           #t)))
 
   ;;;-----------------------------------------------------------
@@ -271,43 +272,43 @@
   ;;;-----------------------------------------------------------
   (define-scenario (thin-delta v)
     "thin_delta accepts -V"
-    (receive (stdout _) (thin-delta "-V")
+    (run-ok-rcv (stdout _) (thin-delta "-V")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-delta version)
     "thin_delta accepts --version"
-    (receive (stdout _) (thin-delta "--version")
+    (run-ok-rcv (stdout _) (thin-delta "--version")
       (assert-equal tools-version stdout)))
 
   (define-scenario (thin-delta h)
     "thin_delta accepts -h"
-    (receive (stdout _) (thin-delta "-h")
+    (run-ok-rcv (stdout _) (thin-delta "-h")
       (assert-equal thin-delta-help stdout)))
 
   (define-scenario (thin-delta help)
     "thin_delta accepts --help"
-    (receive (stdout _) (thin-delta "--help")
+    (run-ok-rcv (stdout _) (thin-delta "--help")
       (assert-equal thin-delta-help stdout)))
 
   (define-scenario (thin-delta unrecognised-option)
     "Unrecognised option should cause failure"
     (with-valid-metadata (md)
-      (receive (stdout stderr) (run-fail "thin_delta --unleash-the-hedgehogs")
-        (assert-starts-with "thin_delta: unrecognized option '--unleash-the-hedgehogs" stderr))))
+      (run-fail-rcv (stdout stderr) (thin-delta "--unleash-the-hedgehogs")
+        (assert-matches ".*thin_delta: unrecognized option '--unleash-the-hedgehogs" stderr))))
 
   (define-scenario (thin-delta snap1-unspecified)
     "Fails without --snap1 fails"
-    (receive (_ stderr) (run-fail "thin_delta --snap2 45 foo")
+    (run-fail-rcv (_ stderr) (thin-delta "--snap2 45 foo")
       (assert-starts-with "--snap1 not specified." stderr)))
 
   (define-scenario (thin-delta snap2-unspecified)
     "Fails without --snap2 fails"
-    (receive (_ stderr) (run-fail "thin_delta --snap1 45 foo")
+    (run-fail-rcv (_ stderr) (thin-delta "--snap1 45 foo")
       (assert-starts-with "--snap2 not specified." stderr)))
 
   (define-scenario (thin-delta device-unspecified)
     "Fails if no device given"
-    (receive (_ stderr) (run-fail "thin_delta --snap1 45 --snap2 46")
+    (run-fail-rcv (_ stderr) (thin-delta "--snap1 45 --snap2 46")
       (assert-starts-with "No input device provided." stderr)))
 
   ;;;-----------------------------------------------------------
@@ -317,6 +318,6 @@
     "Fails gracefully if run on XML rather than metadata"
     (with-thin-xml (xml)
       (with-empty-metadata (md)
-        (receive (_ stderr) (run-fail "thin_repair -i " xml "-o" md)
+        (run-fail-rcv (_ stderr) (thin-repair "-i" xml "-o" md)
           #t))))
   )

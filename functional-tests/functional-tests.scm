@@ -189,7 +189,10 @@
                                   (lambda ()
                                     (get-line (current-input-port))))))
 
-  (define (tool-name sym)
+  ;;-----------------------------------------------
+  ;; A 'tool' is a function that builds up a command line.  This can then be
+  ;; passed to the functions in the (process) library.
+  (define (tool-path sym)
     (define (to-underscore c)
       (if (eq? #\- c) #\_ c))
 
@@ -201,8 +204,10 @@
 
   (define-syntax define-tool
     (syntax-rules ()
-      ((_ tool-sym) (define (tool-sym . flags)
-                      (apply run-ok (tool-name 'tool-sym) flags)))))
+      ((_ sym) (define sym
+                 (let ((path (tool-path 'sym)))
+                  (lambda args
+                    (build-command-line (cons path args))))))))
 
   (define (assert-equal str1 str2)
     (unless (equal? str1 str2)

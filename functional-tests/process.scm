@@ -1,9 +1,12 @@
 (library
   (process)
 
-  (export run
+  (export build-command-line
+          run
           run-ok
-          run-fail)
+          run-fail
+          run-ok-rcv
+          run-fail-rcv)
 
   (import (chezscheme)
           (fail)
@@ -58,5 +61,18 @@
                                (or (= 139 x)
                                    (zero? x))))
 
-    (run-with-exit-code fails? cmd-and-args)))
+    (run-with-exit-code fails? cmd-and-args))
+
+  (define-syntax run-ok-rcv
+    (syntax-rules ()
+      ((_ (stdout stderr) cmd b1 b2 ...)
+       (receive (stdout stderr) (run-ok cmd)
+                b1 b2 ...))))
+
+  (define-syntax run-fail-rcv
+    (syntax-rules ()
+      ((_ (stdout stderr) cmd b1 b2 ...)
+       (receive (stdout stderr) (run-fail cmd)
+                b1 b2 ...))))
+  )
 
