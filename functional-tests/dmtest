@@ -1,0 +1,12 @@
+#! /usr/bin/scheme-script
+
+(import (rnrs)
+        (test-runner)
+	(bcache bcache-tests)
+	(device-mapper dm-tests))
+
+(register-bcache-tests)
+(register-dm-tests)
+
+(run-tests)
+
