@@ -3,13 +3,41 @@
 
   (export dm-open
           dm-close
+          with-dm-thunk
           with-dm
 
+          dm-version
           get-version
           remove-all
           list-devices
 
-          create-device)
+          create-device
+
+          target
+          make-target
+          target-len
+          target-type
+          target-args
+
+          load-table
+          remove-device
+          with-empty-device
+          with-device
+          with-devices
+          suspend-device
+          resume-device
+          clear-device
+
+          pause-device
+          pause-device-thunk
+
+          device-details
+          device-details-name
+          device-details-major
+          device-details-minor
+
+          get-status
+          get-table)
 
   (import (chezscheme)
           (fmt fmt)
@@ -28,6 +56,8 @@
     (struct
       (fd int)))
 
+  (define-record-type dm-device (fields (mutable name)))
+
   (define open% (foreign-procedure "dm_open" () (* DMIoctlInterface)))
 
   (define (dm-open)
@@ -39,18 +69,27 @@
   (define dm-close
     (foreign-procedure "dm_close" ((* DMIoctlInterface)) void))
 
+  (define dm-interface #f)
+
+  (define (current-dm-interface)
+    (if dm-interface
+        dm-interface
+        (fail "no dm interface")))
+
+  (define (with-dm-thunk thunk)
+    (fluid-let ((dm-interface (dm-open)))
+      (dynamic-wind
+        (lambda () #f)
+        thunk
+        (lambda () (dm-close dm-interface)))))
+
   (define-syntax with-dm
     (syntax-rules ()
-      ((_ (name) b1 b2 ...)
-       (let ((name (dm-open)))
-        (dynamic-wind
-          (lambda () #f)
-          (lambda () b1 b2 ...)
-          (lambda () (dm-close name)))))))
+      ((_ b1 b2 ...) (with-dm-thunk (lambda () b1 b2 ...)))))
 
   (define-record-type dm-version (fields major minor patch))
 
-  (define (get-version dm)
+  (define (get-version)
     (define get
       (foreign-procedure "dm_version" ((* DMIoctlInterface)
                                        (* unsigned-32)
@@ -67,7 +106,7 @@
     (let ((major (alloc-u32))
           (minor (alloc-u32))
           (patch (alloc-u32)))
-      (if (zero? (get dm major minor patch))
+      (if (zero? (get (current-dm-interface) major minor patch))
           (let ((r (make-dm-version (deref-u32 major)
                                     (deref-u32 minor)
                                     (deref-u32 patch))))
@@ -77,11 +116,11 @@
             r)
           (fail "couldn't get dm version"))))
 
-  (define (remove-all dm)
+  (define (remove-all)
     (define do-it
       (foreign-procedure "dm_remove_all" ((* DMIoctlInterface)) int))
 
-    (let ((r (do-it dm)))
+    (let ((r (do-it (current-dm-interface))))
      (unless (zero? r)
        (fail "remove-all failed"))))
 
@@ -109,24 +148,26 @@
     (let* ((len (string-length str))
            (cstr (make-ftype-pointer unsigned-8
                   (foreign-alloc (+ 1 len)))))
+      ;; FIXME: ugly; use for-each
       (let loop ((i 0))
        (if (= i len)
            (begin
              (ftype-set! unsigned-8 () cstr i 0)
              cstr)
-           (ftype-set! unsigned-8 () cstr i (string-ref str i))))))
+           (begin
+             (ftype-set! unsigned-8 () cstr i (char->integer (string-ref str i)))
+             (loop (+ i 1)))))))
 
   ;;; FIXME: put a dynamic wind in to ensure the dev list gets freed
-  (define (list-devices dm)
+  (define (list-devices)
     (define list-devs
       (foreign-procedure "dm_list_devices" ((* DMIoctlInterface) (* DevListPtr)) int))
 
     (let ((pp (make-ftype-pointer DevListPtr
                 (foreign-alloc (ftype-sizeof DevListPtr)))))
-      (if (zero? (list-devs dm pp))
+      (if (zero? (list-devs (current-dm-interface) pp))
           (let loop ((dl (ftype-ref DevListPtr () pp))
                      (acc '()))
-            ;(fmt #t "dl: " dl ", acc: " acc)
             (if (ftype-pointer-null? dl)
                 acc
                 (loop (ftype-ref DevList (next) dl)
@@ -137,21 +178,22 @@
                             acc))))
           (fail "dm_list_devices ioctl failed"))))
 
-  (define (create-device dm name uuid)
+  (define (create-device name uuid)
     (define create
       (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string) int))
 
-    (unless (zero? (create dm name uuid))
-      (fail "create-device failed")))
+    (if (zero? (create (current-dm-interface) name uuid))
+        (make-dm-device name)
+        (fail "create-device failed")))
 
   (define-syntax define-dev-cmd
     (syntax-rules ()
       ((_ nm proc)
-       (define (nm dm name)
+       (define (nm dev)
          (define fn
            (foreign-procedure proc ((* DMIoctlInterface) string) int))
 
-         (unless (zero? (fn dm name))
+         (unless (zero? (fn (current-dm-interface) (dm-device-name dev)))
            (fail (string-append proc " failed")))))))
 
   (define-dev-cmd remove-device "dm_remove_device")
@@ -167,8 +209,12 @@
       (args (* unsigned-8))))
 
   (define-ftype TargetPtr (* Target))
+  (define-ftype TargetPtrPtr (* TargetPtr))
+
   (define-record-type target
-    (fields (mutable len) (mutable type) (mutable args)))
+    (fields (mutable len)
+            (mutable type)
+            (mutable args)))
 
   (define (build-c-target next len type args)
     (let ((t (make-ftype-pointer Target
@@ -177,34 +223,118 @@
       (ftype-set! Target (next) t next)
       (ftype-set! Target (len) t len)
       (ftype-set! Target (type) t (string->cstring type))
-      (ftype-set! Target (args) t (string->cstring args))))
+      (ftype-set! Target (args) t (string->cstring args))
+      t))
 
   (define (build-c-targets targets)
-    (let loop ((t targets)
+    (let loop ((targets (reverse targets))
                (tail (make-ftype-pointer Target 0)))
-      (if (null? t)
+      (if (null? targets)
           tail
-          (loop (cdr targets)
-                (build-c-target tail (target-len t) (target-type t) (target-args t))))))
+          (let ((t (car targets)))
+           (loop (cdr targets)
+                 (build-c-target tail
+                                 (target-len t)
+                                 (target-type t)
+                                 (target-args t)))))))
+
+  #|
+  (define (free-c-target t)
+    (foreign-free (ftype-ref Target (type) t))
+    (foreign-free (ftype-ref Target (args) t))
+    (foreign-free t))
+  |#
+  (define (free-c-target t)
+    #f)
 
   (define (free-c-targets t)
     (let loop ((t t)
                (acc '()))
         (if (ftype-pointer-null? t)
-            (map foreign-free acc)
+            (map free-c-target acc)
             (loop (ftype-ref Target (next) t) (cons t acc)))))
 
-  ;; targets should be dlambdas with 'size, 'type and 'format methods
-  (define (load-table dm name targets)
+  (define-syntax ensure-free-ctargets
+    (syntax-rules ()
+      ((_ ctargets b1 b2 ...)
+       (dynamic-wind
+         (lambda () #f)
+         (lambda () b1 b2 ...)
+         (lambda ()
+           (free-c-targets ctargets))))))
+
+  (define (load-table dev targets)
     (define load
       (foreign-procedure "dm_load" ((* DMIoctlInterface) string (* Target)) int))
 
-    (define (dlambda->target t)
-      (make-target (t 'size) (t 'type) (t 'format)))
+    (let* ((ctargets (build-c-targets targets)))
+     (ensure-free-ctargets ctargets
+       (unless (zero? (load (current-dm-interface) (dm-device-name dev) ctargets))
+         (fail "dm_load failed")))))
 
-    (let* ((ctargets (build-c-targets (map dlambda->target targets)))
-           (r (load dm name ctargets)))
-      (free-c-targets ctargets)
-      (unless (zero? r)
-          (fail "dm_load failed"))))
+  (define-syntax with-empty-device
+    (syntax-rules ()
+      ((_ (var name uuid) b1 b2 ...)
+       (let ((var (create-device name uuid)))
+        (dynamic-wind
+          (lambda () #f)
+          (lambda () b1 b2 ...)
+          (lambda () (remove-device var)))))))
+
+  (define-syntax with-device
+    (syntax-rules ()
+      ((_ (var name uuid table) b1 b2 ...)
+       (with-empty-device (var name uuid)
+         (load-table var table)
+         (resume-device var)
+         b1 b2 ...))))
+
+  (define-syntax with-devices
+    (syntax-rules ()
+      ((_ (dev) b1 b2 ...)
+       (with-device dev b1 b2 ...))
+
+      ((_ (dev rest ...) b1 b2 ...)
+       (with-device dev
+         (with-devices (rest ...) b1 b2 ...)))))
+
+  (define (pause-device-thunk dev thunk)
+    (suspend-device dev)
+    (thunk)
+    (resume-device dev))
+
+  (define-syntax pause-device
+    (syntax-rules ()
+      ((_ dev b1 b2 ...)
+       (pause-device-thunk dev (lambda () b1 b2 ...)))))
+
+  (define (do-status dev c-fn op-name)
+    (let ((tpp (make-ftype-pointer TargetPtr
+                 (foreign-alloc (ftype-sizeof TargetPtrPtr)))))
+      (if (zero? (c-fn (current-dm-interface) (dm-device-name dev) tpp))
+          (let ((tp (ftype-ref TargetPtr () tpp)))
+            (ensure-free-ctargets tp
+              (let loop ((tp tp)
+                         (acc '()))
+                (if (ftype-pointer-null? tp)
+                    (reverse acc)
+                    (loop (ftype-ref Target (next) tp)
+                          (cons (make-target
+                                  (ftype-ref Target (len) tp)
+                                  (cstring->string (ftype-ref Target (type) tp))
+                                  (cstring->string (ftype-ref Target (args) tp)))
+                                acc))))))
+          (fail (fmt #f op-name " ioctl failed")))))
+
+  (define (get-status dev)
+    (define get-status
+      (foreign-procedure "dm_status" ((* DMIoctlInterface) string (* TargetPtr)) int))
+
+    (do-status dev get-status "dm_status"))
+
+  (define (get-table dev)
+    (define get-status
+      (foreign-procedure "dm_table" ((* DMIoctlInterface) string (* TargetPtr)) int))
+
+    (do-status dev get-status "dm_table"))
 )

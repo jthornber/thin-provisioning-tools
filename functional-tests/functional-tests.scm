@@ -21,7 +21,11 @@
     assert-eof
     assert-starts-with
     assert-matches
-    assert-superblock-untouched)
+    assert-superblock-untouched
+    assert-member?
+    assert-raises-thunk
+    assert-raises
+    assert-every)
 
   (import
     (chezscheme)
@@ -33,6 +37,7 @@
     (regex)
     (temp-file)
     (utils)
+    (only (srfi s1 lists) every)
     (srfi s8 receive))
 
   ;;;--------------------------------------------------------------------
@@ -251,5 +256,30 @@
         (unless (all-zeroes? (block-data b) 4096)
                 (fail "superblock contains non-zero data")))))
 
+  (define (assert-member? x xs)
+    (unless (member x xs)
+      (fail (fmt #f "expected " (wrt x) "to be a member of " (wrt xs)))))
+
+  (define (assert-raises-thunk thunk)
+    (call/cc
+      (lambda (k)
+        (with-exception-handler
+          (lambda (x)
+            (if (error? x)
+                (k #f)
+                (raise x)))
+          thunk)
+        (fail "expected an exception to be raised"))))
+
+  (define-syntax assert-raises
+    (syntax-rules ()
+      ((_ b1 b2 ...)
+       (assert-raises-thunk
+         (lambda ()
+           b1 b2 ...)))))
+
+  (define (assert-every pred . args)
+    (unless (apply every pred args)
+      (fail "assert-every failed")))
   )
 

@@ -302,13 +302,14 @@ static int dev_cmd(struct dm_interface *dmi, const char *name, int request, unsi
 {
 	int r;
 	struct dm_ioctl *ctl = alloc_ctl(0);
+
 	ctl->flags = flags;
 	r = copy_name(ctl, name);
 	if (r) {
 		free_ctl(ctl);
 		return -ENOMEM;
 	}
-	r = ioctl(dmi->fd, request);
+	r = ioctl(dmi->fd, request, ctl);
 	free_ctl(ctl);
 
 	return r;
@@ -372,7 +373,16 @@ static int tb_append(struct target_builder *tb, uint64_t len, char *type, char *
 	t->next = NULL;
 	t->len = len;
 	t->type = strdup(type);
+	if (!t->type) {
+		free(t);
+		return -ENOMEM;
+	}
 	t->args = strdup(args);
+	if (!t->args) {
+		free(t->type);
+		free(t);
+		return -ENOMEM;
+	}
 
 	if (tb->head) {
 		tb->tail->next = t;
@@ -412,6 +422,7 @@ static int prep_load(struct dm_ioctl *ctl, size_t payload_size,
 	uint64_t current_sector = 0;
 	struct dm_target_spec *spec;
 
+	ctl->target_count = 0;
 	spec = payload(ctl);
 
 	while (t) {
@@ -423,22 +434,24 @@ static int prep_load(struct dm_ioctl *ctl, size_t payload_size,
 		if (r)
 			return r;
 
-		r = copy_string((char *) spec + 1, t->args, payload_size);
+		r = copy_string((char *) (spec + 1), t->args, payload_size);
 		if (r)
 			return r;
 
 		spec->next = sizeof(*spec) + round_up(strlen(t->args) + 1, 8);
 		payload_size -= spec->next;
+
 		spec = (struct dm_target_spec *) (((char *) spec) + spec->next);
 
+		ctl->target_count++;
 		t = t->next;
 	}
 
-	return true;
+	return 0;
 }
 
 int dm_load(struct dm_interface *dmi, const char *name,
-	    struct target *targets)
+		struct target *targets)
 {
 	int r;
 	size_t payload_size = calc_load_payload(targets);
@@ -495,11 +508,12 @@ static int unpack_status(struct dm_ioctl *ctl, struct target **result)
 	unsigned i;
 	struct target_builder tb;
 	struct dm_target_spec *spec = payload(ctl);
+	char *spec_start = (char *) spec;
 
 	tb_init(&tb);
 	for (i = 0; i < ctl->target_count; i++) {
 		tb_append(&tb, spec->length, spec->target_type, (char *) (spec + 1));
-		spec = (struct dm_target_spec *) (((char *) spec) + spec->next);
+		spec = (struct dm_target_spec *) (spec_start + spec->next);
 	}
 
 	*result = tb_get(&tb);
@@ -526,6 +540,9 @@ retry:
 
 		goto retry;
 	}
+
+	if (r)
+		return r;
 
 	r = unpack_status(ctl, targets);
 	free_ctl(ctl);

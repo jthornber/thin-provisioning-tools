@@ -1,22 +1,150 @@
 (library
   (device-mapper dm-tests)
-  (export register-dm-tests)
+  (export register-dm-tests make-allocator)
   (import (device-mapper ioctl)
           (chezscheme)
           (functional-tests)
           (fmt fmt)
+          (list-utils)
           (process)
+          (srfi s27 random-bits)
           (temp-file))
-  
+
   ;; We have to export something that forces all the initialisation expressions
   ;; to run.
   (define (register-dm-tests) #t)
+
+  ;; Hard coded, get these from the command line
+  (define test-dev "/dev/vda")
+  (define test-dev-size 209715200)
+
+  (define (linear dev begin end)
+    (make-target (- end begin)
+                 "linear"
+                 (fmt #f dev " " begin)))
+
+  (define (make-allocator dev dev-len)
+    (let ((offset 0))
+      (lambda (len)
+        (let ((b offset)
+              (e (+ offset len)))
+          (if (> e dev-len)
+              (fail "not enough space for allocation")
+              (begin
+                (set! offset e)
+                (linear dev b e)))))))
+
+  (define-syntax with-test-allocator
+    (syntax-rules ()
+      ((_ (var) b1 b2 ...)
+       (let ((var (make-allocator test-dev test-dev-size)))
+         b1 b2 ...))))
+
+  (define (linear-table allocator nr-targets)
+    (let loop ((nr-targets nr-targets)
+               (acc '()))
+      (if (zero? nr-targets)
+          (reverse acc)
+          (loop (- nr-targets 1)
+                (cons (allocator (* 8 (random-integer 1024)))
+                      acc)))))
+
+  (define (similar-targets t1 t2)
+    (and (equal? (target-type t1)
+                 (target-type t2))
+         (equal? (target-len t1)
+                 (target-len t2))))
 
   ;;;-----------------------------------------------------------
   ;;; scenarios
   ;;;-----------------------------------------------------------
   (define-scenario (dm create-interface)
-                   "create and destroy an ioctl interface object"
-                   (with-dm (dm) #t))
+    "create and destroy an ioctl interface object"
+    (with-dm #t))
 
+  (define-scenario (dm create-device)
+    "create and destroy a device"
+    (with-dm
+      (with-empty-device (dev "foo" "uuidd")
+        #t)))
+
+  (define-scenario (dm duplicate-name-fails)
+    "You can't create two devices with the same name"
+    (with-dm
+      (with-empty-device (dev1 "foo" "uuid1")
+        (assert-raises
+          (with-empty-device (dev2 "foo" "uuid2") #t)))))
+
+  (define-scenario (dm duplicate-uuid-fails)
+    "You can't create two devices with the same uuid"
+    (with-dm
+      (with-empty-device (dev1 "foo" "uuid")
+        (assert-raises
+          (with-empty-device (dev2 "bar" "uuid") #t)))))
+
+  (define-scenario (dm load-single-target)
+    "You can load a single target table"
+    (with-dm
+      (with-empty-device (dev "foo" "uuid")
+        ;; FIXME: export contructor for linear targets
+        (load-table dev (list (linear test-dev 0 102400))))))
+
+  (define-scenario (dm load-many-targets)
+    "You can load a large target table"
+    (with-dm
+      (with-test-allocator (pv)
+        (with-empty-device (dev "foo" "uuid")
+          (load-table dev (linear-table pv 32))))))
+
+  (define-scenario (dm resume-works)
+    "You can resume a new target with a table"
+    (with-dm
+      (with-test-allocator (pv)
+        (with-empty-device (dev "foo" "uuid")
+          (load-table dev (linear-table pv 8))
+          (resume-device dev)))))
+
+  (define-scenario (dm suspend-resume-cycle)
+    "You can pause a device."
+    (with-dm
+      (with-test-allocator (pv)
+        (with-device (dev "foo" "uuid" (linear-table pv 8))
+          (suspend-device dev)
+          (resume-device dev)))))
+
+  (define-scenario (dm reload-table)
+    "You can reload a table"
+    (with-dm
+      (with-test-allocator (pv)
+        (with-device (dev "foo" "uuid" (linear-table pv 16))
+          (pause-device dev
+            (load-table dev (linear-table pv 8)))))))
+
+  (define-scenario (dm list-devices)
+    "list-devices works"
+    (with-dm
+      (with-test-allocator (pv)
+        (with-devices ((dev1 "foo" "uuid" (linear-table pv 4))
+                       (dev2 "bar" "uuid2" (linear-table pv 4)))
+          (let ((names (map device-details-name (list-devices))))
+            (assert-member? "foo" names)
+            (assert-member? "bar" names))))))
+
+  (define-scenario (dm get-status)
+    "get-status works"
+    (with-dm
+      (with-test-allocator (pv)
+        (let ((table (linear-table pv 4)))
+          (with-device (dev "foo" "uuid" table)
+            (let ((status (get-status dev)))
+              (assert-every similar-targets table status)))))))
+
+  (define-scenario (dm get-table)
+    "get-table works"
+    (with-dm
+      (with-test-allocator (pv)
+        (let ((table (linear-table pv 4)))
+          (with-device (dev "foo" "uuid" table)
+            (let ((table-out (get-table dev)))
+              (assert-every similar-targets table table-out)))))))
   )
