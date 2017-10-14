@@ -21,8 +21,13 @@ V=@
 PROGRAMS=\
 	bin/pdata_tools
 
+ifeq ("@TESTING@", "yes")
+TESTLIBS=\
+	lib/libft.so
+endif
+
 .PHONY: all
-all: $(PROGRAMS) lib/libft.so
+all: $(PROGRAMS) $(TESTLIBS)
 
 SOURCE=\
 	base/output_file_requirements.cc \
