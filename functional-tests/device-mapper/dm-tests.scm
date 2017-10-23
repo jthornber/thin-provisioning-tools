@@ -55,6 +55,14 @@
          (equal? (target-len t1)
                  (target-len t2))))
 
+  (define-syntax define-dm-scenario
+    (syntax-rules ()
+      ((_ path (pv) desc b1 b2 ...)
+       (define-scenario path desc
+         (with-dm
+           (with-test-allocator (pv)
+             b1 b2 ...))))))
+
   ;;;-----------------------------------------------------------
   ;;; scenarios
   ;;;-----------------------------------------------------------
@@ -89,62 +97,48 @@
         ;; FIXME: export contructor for linear targets
         (load-table dev (list (linear test-dev 0 102400))))))
 
-  (define-scenario (dm load-many-targets)
+  (define-dm-scenario (dm load-many-targets) (pv)
     "You can load a large target table"
-    (with-dm
-      (with-test-allocator (pv)
-        (with-empty-device (dev "foo" "uuid")
-          (load-table dev (linear-table pv 32))))))
+    (with-empty-device (dev "foo" "uuid")
+      (load-table dev (linear-table pv 32))))
 
-  (define-scenario (dm resume-works)
+  (define-dm-scenario (dm resume-works) (pv)
     "You can resume a new target with a table"
-    (with-dm
-      (with-test-allocator (pv)
-        (with-empty-device (dev "foo" "uuid")
-          (load-table dev (linear-table pv 8))
-          (resume-device dev)))))
+    (with-empty-device (dev "foo" "uuid")
+      (load-table dev (linear-table pv 8))
+      (resume-device dev)))
 
-  (define-scenario (dm suspend-resume-cycle)
+  (define-dm-scenario (dm suspend-resume-cycle) (pv)
     "You can pause a device."
-    (with-dm
-      (with-test-allocator (pv)
-        (with-device (dev "foo" "uuid" (linear-table pv 8))
-          (suspend-device dev)
-          (resume-device dev)))))
+    (with-device (dev "foo" "uuid" (linear-table pv 8))
+      (suspend-device dev)
+      (resume-device dev)))
 
-  (define-scenario (dm reload-table)
+  (define-dm-scenario (dm reload-table) (pv)
     "You can reload a table"
-    (with-dm
-      (with-test-allocator (pv)
-        (with-device (dev "foo" "uuid" (linear-table pv 16))
-          (pause-device dev
-            (load-table dev (linear-table pv 8)))))))
+    (with-device (dev "foo" "uuid" (linear-table pv 16))
+      (pause-device dev
+        (load-table dev (linear-table pv 8)))))
 
-  (define-scenario (dm list-devices)
+  (define-dm-scenario (dm list-devices) (pv)
     "list-devices works"
-    (with-dm
-      (with-test-allocator (pv)
-        (with-devices ((dev1 "foo" "uuid" (linear-table pv 4))
-                       (dev2 "bar" "uuid2" (linear-table pv 4)))
-          (let ((names (map device-details-name (list-devices))))
-            (assert-member? "foo" names)
-            (assert-member? "bar" names))))))
+    (with-devices ((dev1 "foo" "uuid" (linear-table pv 4))
+                   (dev2 "bar" "uuid2" (linear-table pv 4)))
+      (let ((names (map device-details-name (list-devices))))
+       (assert-member? "foo" names)
+       (assert-member? "bar" names))))
 
-  (define-scenario (dm get-status)
+  (define-dm-scenario (dm get-status) (pv)
     "get-status works"
-    (with-dm
-      (with-test-allocator (pv)
-        (let ((table (linear-table pv 4)))
-          (with-device (dev "foo" "uuid" table)
-            (let ((status (get-status dev)))
-              (assert-every similar-targets table status)))))))
+    (let ((table (linear-table pv 4)))
+      (with-device (dev "foo" "uuid" table)
+        (let ((status (get-status dev)))
+         (assert-every similar-targets table status)))))
 
-  (define-scenario (dm get-table)
+  (define-dm-scenario (dm get-table) (pv)
     "get-table works"
-    (with-dm
-      (with-test-allocator (pv)
-        (let ((table (linear-table pv 4)))
-          (with-device (dev "foo" "uuid" table)
-            (let ((table-out (get-table dev)))
-              (assert-every similar-targets table table-out)))))))
+    (let ((table (linear-table pv 4)))
+      (with-device (dev "foo" "uuid" table)
+        (let ((table-out (get-table dev)))
+          (assert-every similar-targets table table-out)))))
   )
