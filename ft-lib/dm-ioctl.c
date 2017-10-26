@@ -304,6 +304,9 @@ static int dev_cmd(struct dm_interface *dmi, const char *name, int request, unsi
 	int r;
 	struct dm_ioctl *ctl = alloc_ctl(0);
 
+	if (!ctl)
+		return -ENOMEM;
+
 	ctl->flags = flags;
 	r = copy_name(ctl, name);
 	if (r) {
@@ -400,8 +403,6 @@ static struct target *tb_get(struct target_builder *tb)
 }
 
 //----------------------------------------------------------------
-// FIXME: provide some way of freeing a target list.
-// FIXME: check the result from alloc_ctl is always being checked.
 
 static size_t calc_load_payload(struct target *t)
 {
