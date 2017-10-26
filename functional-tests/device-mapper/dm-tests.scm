@@ -18,10 +18,14 @@
   (define test-dev "/dev/vda")
   (define test-dev-size 209715200)
 
-  (define (linear dev begin end)
-    (make-target (- end begin)
+  (define-record-type segment (fields (mutable dev)
+                                      (mutable start)
+                                      (mutable end)))
+
+  (define (linear seg)
+    (make-target (- (segment-end seg) (segment-start seg))
                  "linear"
-                 (fmt #f dev " " begin)))
+                 (fmt #f (segment-dev seg) " " (segment-start seg))))
 
   (define (make-allocator dev dev-len)
     (let ((offset 0))
@@ -32,7 +36,7 @@
               (fail "not enough space for allocation")
               (begin
                 (set! offset e)
-                (linear dev b e)))))))
+                (linear (make-segment dev b e))))))))
 
   (define-syntax with-test-allocator
     (syntax-rules ()
@@ -95,7 +99,7 @@
     (with-dm
       (with-empty-device (dev "foo" "uuid")
         ;; FIXME: export contructor for linear targets
-        (load-table dev (list (linear test-dev 0 102400))))))
+        (load-table dev (list (linear (make-segment test-dev 0 102400)))))))
 
   (define-dm-scenario (dm load-many-targets) (pv)
     "You can load a large target table"
