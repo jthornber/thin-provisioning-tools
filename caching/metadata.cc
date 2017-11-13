@@ -128,6 +128,10 @@ void
 metadata::commit_mappings()
 {
 	sb_.mapping_root = mappings_->get_root();
+	if (sb_.version >= 2) {
+		dirty_bits_->flush();
+		sb_.dirty_root = dirty_bits_->get_root();
+	}
 }
 
 void
