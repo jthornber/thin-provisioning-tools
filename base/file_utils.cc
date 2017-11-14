@@ -151,6 +151,8 @@ file_utils::zero_superblock(std::string const &path)
 	memset(buffer, 0, SUPERBLOCK_SIZE);
 	if (::write(fd, buffer, SUPERBLOCK_SIZE) != SUPERBLOCK_SIZE)
 		throw runtime_error("couldn't zero superblock");
+
+	::close(fd);
 }
 
 //----------------------------------------------------------------
