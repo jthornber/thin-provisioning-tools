@@ -24,7 +24,7 @@
   (define $space-map-root-size 128)
 
   (define (block->superblock b)
-          (make-ftype-pointer ThinSuperblock (block-data b)))
+    (make-ftype-pointer ThinSuperblock (block-data b)))
 
   (define-ftype ThinSuperblock
     (packed
