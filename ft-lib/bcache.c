@@ -444,8 +444,10 @@ static void exit_free_list(struct bcache *cache)
 
 static struct block *alloc_block(struct bcache *cache)
 {
-	struct block *b = container_of(list_pop(&cache->free), struct block, list);
-	return b;
+	if (list_empty(&cache->free))
+		return NULL;
+
+	return container_of(list_pop(&cache->free), struct block, list);
 }
 
 /*----------------------------------------------------------------
