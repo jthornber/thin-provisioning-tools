@@ -7,6 +7,7 @@
           btree-open
           btree-lookup
           btree-each
+          btree-each-and-count
           le64-vt
 
           define-value-type
@@ -149,35 +150,46 @@
                       default)))))))
 
   ;;;;----------------------------------------------
-  ;;;; Walking the btree
+  ;;; Walk btree, counting metadata references
+  ;;;   (inc-fn <block>)
+  ;;;   (fn key value)
   ;;;;----------------------------------------------
-
-  ;;; Calls (fn key value) on every entry of the btree.
-  (define (btree-each tree sp fn)
+  (define (btree-each-and-count tree cache fn inc-fn)
     (let ((vt (btree-value-type tree)))
 
      (define (visit-leaf nr-entries keys vals)
-             (let loop ((index 0))
-              (when (< index nr-entries)
-                    (fn (key-at keys index) (vt 'ref vals index))
-                    (loop (+ 1 index)))))
+       (let loop ((index 0))
+        (when (< index nr-entries)
+              (fn (key-at keys index) (vt 'ref vals index))
+              (loop (+ 1 index)))))
 
      (define (visit-internal nr-entries keys vals)
-             (let loop ((index 0))
-              (when (< index nr-entries)
-                    (visit-node (le64-vt 'ref vals index))
-                    (loop (+ 1 index)))))
+       (let loop ((index 0))
+        (when (< index nr-entries)
+              (visit-node (le64-vt 'ref vals index))
+              (loop (+ 1 index)))))
 
-     (define (visit-node root)
-             (spine-step sp (b root (get-flags))
-                         (let* ((header (block->header b))
-                                (nr-entries (ftype-ref BTreeNodeHeader (nr-entries) header))
-                                (keys (block->keys b))
-                                (vals (block->values b vt)))
-                               ((if (internal-node? header)
-                                    visit-internal
-                                    visit-leaf) nr-entries keys vals))))
+     (define (select-visitor header)
+       (if (internal-node? header)
+           visit-internal
+           visit-leaf))
+
+     (define (visit-node bi)
+       (with-block (b cache bi (get-flags))
+         (let* ((header (block->header b))
+                (nr-entries (ftype-ref BTreeNodeHeader (nr-entries) header))
+                (keys (block->keys b))
+                (vals (block->values b vt)))
+               (inc-fn bi)
+               ((select-visitor header) nr-entries keys vals))))
 
      (visit-node (btree-root tree))))
+
+  ;;; Calls (fn key value) on every entry of the btree.
+  (define (btree-each tree cache fn)
+    (define (noop bi) 'nil)
+
+    (btree-each-and-count tree cache fn noop))
 )
+
 
