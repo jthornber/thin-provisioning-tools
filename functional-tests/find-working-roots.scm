@@ -25,6 +25,7 @@
 
 (define metadata "../customer-metadata-full.bin")
 
+;; FIXME: aren't we returning a reference to a cache page and then dropping the lock?
 (define (read-superblock cache)
   (with-block (b cache 0 (get-flags))
     (block->superblock b)))
