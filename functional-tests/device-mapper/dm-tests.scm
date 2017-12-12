@@ -101,8 +101,9 @@
   (define (build-args-string . args)
     (fmt #f (fmt-join dsp args (dsp " "))))
 
-  (define (pool-table md-dev data-dev data-size block-size opts)
-    (let ((opts-str (expand-thin-options opts)))
+  (define (pool-table md-dev data-dev block-size opts)
+    (let ((opts-str (expand-thin-options opts))
+          (data-size (sectors (get-dev-size (dm-device-path data-dev)))))
       (list
         (make-target (to-sectors data-size) "thin-pool"
           (apply build-args-string
@@ -149,41 +150,43 @@
                                 ("filename" ,(dm-device-path dev))))
                    (run-ok (fmt #f "fio " fio-input))))
 
-  (define (with-pool-fn fast-allocator slow-allocator size block-size fn)
-    (let ((metadata-table (list (fast-allocator (meg 32))))
-          (data-table (list (slow-allocator size))))
-         (with-devices ((md (generate-dev-name) "" metadata-table)
-                        (data (generate-dev-name) "" data-table))
-           (zero-dev md (kilo 4))
-           (let ((ptable (pool-table md data size block-size (thin-pool-options))))
-            (with-device (pool (generate-dev-name) "" ptable)
-                         (fn pool))))))
-
-  (define-syntax with-pool
-    (syntax-rules ()
-      ((_ (pool md-allocator data-allocator size block-size) b1 b2 ...)
-       (with-pool-fn md-allocator
-                     data-allocator
-                     size
-                     block-size
-                     (lambda (pool) b1 b2 ...)))))
-
-  (define-syntax define-thin-scenario
-    (syntax-rules ()
-      ((_ path (pool size) desc b1 b2 ...)
-       (define-dm-scenario path desc
-         (with-pool-fn (mk-fast-allocator)
-                       (mk-slow-allocator)
-                       size
-                       (kilo 64)
-                       (lambda (pool) b1 b2 ...))))))
-
   (define generate-dev-name
     (let ((nr 0))
      (lambda ()
        (let ((name (fmt #f "test-dev-" nr)))
         (set! nr (+ nr 1))
         name))))
+
+  (define (with-pool-fn md-table data-table block-size fn)
+    (with-devices ((md (generate-dev-name) "" md-table)
+                   (data (generate-dev-name) "" data-table))
+      (zero-dev md (kilo 4))
+      (let ((ptable (pool-table md data block-size (thin-pool-options))))
+       (with-device (pool (generate-dev-name) "" ptable)
+                    (fn pool)))))
+
+  (define-syntax with-pool
+    (syntax-rules ()
+      ((_ (pool md-table data-table block-size) b1 b2 ...)
+       (with-pool-fn md-table
+                     data-table
+                     block-size
+                     (lambda (pool) b1 b2 ...)))))
+
+  (define (default-md-table)
+    (list ((mk-fast-allocator) (meg 32))))
+
+  (define (default-data-table size)
+    (list ((mk-slow-allocator) size)))
+
+  (define-syntax define-thin-scenario
+    (syntax-rules ()
+      ((_ path (pool size) desc b1 b2 ...)
+       (define-dm-scenario path desc
+         (with-pool-fn (list ((mk-fast-allocator) (meg 32)))
+                       (list ((mk-slow-allocator) size))
+                       (kilo 64)
+                       (lambda (pool) b1 b2 ...))))))
 
   (define (thin-table pool id size)
     (list
@@ -342,7 +345,9 @@
   (define-dm-scenario (thin create huge-block-size)
     "huge block sizes are possible"
     (let ((size (sectors 524288)))
-     (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) size)
+     (with-pool (pool (default-md-table)
+                      (default-data-table size)
+                      (kilo 64))
        (with-new-thin (thin pool 0 size)
                       (rand-write-and-verify thin)))))
 
@@ -350,41 +355,55 @@
   (define-dm-scenario (thin create non-power-2-block-size-fails)
     "The block size must be a power of 2"
     (assert-raises
-      (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (kilo 57))
+      (with-pool (pool (default-md-table)
+                       (default-data-table (gig 10))
+                       (kilo 57))
                  #t)))
 
   (define-dm-scenario (thin create tiny-block-size-fails)
     "The block size must be at least 64k"
     (assert-raises
-      (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (kilo 32))
+      (with-pool (pool (default-md-table)
+                       (default-data-table (gig 10))
+                       (kilo 32))
                  #t)))
 
   (define-dm-scenario (thin create too-large-block-size-fails)
     "The block size must be less than 2^21 sectors"
     (assert-raises
-      (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (sectors (expt 2 22)))
+      (with-pool (pool (default-md-table)
+                       (default-data-table (gig 10))
+                       (sectors (expt 2 22)))
                  #t)))
 
   (define-dm-scenario (thin create largest-block-size-succeeds)
     "The block size 2^21 sectors should work"
-    (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (sectors (expt 2 21)))
+    (with-pool (pool (default-md-table)
+                     (default-data-table (gig 10))
+                     (sectors (expt 2 21)))
                #t))
 
   (define-dm-scenario (thin create too-large-thin-dev-fails)
     "The thin-id must be less 2^24"
-    (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (kilo 64))
+    (with-pool (pool (default-md-table)
+                     (default-data-table (gig 10))
+                     (kilo 64))
       (assert-raises
         (create-thin pool (expt 2 24)))))
 
   (define-dm-scenario (thin create largest-thin-dev-succeeds)
     "The thin-id must be less 2^24"
-    (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (kilo 64))
+    (with-pool (pool (default-md-table)
+                     (default-data-table (gig 10))
+                     (kilo 64))
       (create-thin pool (- (expt 2 24) 1))))
 
-;;  (define-dm-scenario (thin create too-small-metadata-fails)
-;;    "16k metadata is way too small"
-;;    (assert-raises
-;;      (with-pool (pool (mk-fast-allocator) (mk-slow-allocator) (gig 10) (kilo 64))
-;;                 )))
+  (define-dm-scenario (thin create too-small-metadata-fails)
+    "16k metadata is way too small"
+    (assert-raises
+      (with-pool (pool (list ((mk-fast-allocator) (kilo 16)))
+                       (default-data-table (gig 10))
+                       (kilo 64))
+                 #t)))
 )
 
