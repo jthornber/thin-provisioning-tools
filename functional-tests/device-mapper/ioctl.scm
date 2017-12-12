@@ -6,6 +6,10 @@
           with-dm-thunk
           with-dm
 
+          dm-device
+          dm-device-name
+          dm-device-path
+
           dm-version
           get-version
           remove-all
@@ -21,7 +25,9 @@
 
           load-table
           remove-device
+          with-empty-device-fn
           with-empty-device
+          with-device-fn
           with-device
           with-devices
           suspend-device
@@ -37,7 +43,9 @@
           device-details-minor
 
           get-status
-          get-table)
+          get-table
+
+          message)
 
   (import (chezscheme)
           (fmt fmt)
@@ -57,6 +65,9 @@
       (fd int)))
 
   (define-record-type dm-device (fields (mutable name)))
+
+  (define (dm-device-path d)
+    (fmt #f (dsp "/dev/mapper/") (dsp (dm-device-name d))))
 
   (define open% (foreign-procedure "dm_open" () (* DMIoctlInterface)))
 
@@ -272,22 +283,29 @@
        (unless (zero? (load (current-dm-interface) (dm-device-name dev) ctargets))
          (fail "dm_load failed")))))
 
+  (define (with-empty-device-fn name uuid fn)
+    (let ((v (create-device name uuid)))
+     (dynamic-wind
+             (lambda () #f)
+             (lambda () (fn v))
+             (lambda () (remove-device v)))))
+
   (define-syntax with-empty-device
     (syntax-rules ()
       ((_ (var name uuid) b1 b2 ...)
-       (let ((var (create-device name uuid)))
-        (dynamic-wind
-          (lambda () #f)
-          (lambda () b1 b2 ...)
-          (lambda () (remove-device var)))))))
+       (with-empty-device-fn name uuid (lambda (var) b1 b2 ...)))))
+
+  (define (with-device-fn name uuid table fn)
+    (with-empty-device-fn name uuid
+                          (lambda (v)
+                            (load-table v table)
+                            (resume-device v)
+                            (fn v))))
 
   (define-syntax with-device
     (syntax-rules ()
       ((_ (var name uuid table) b1 b2 ...)
-       (with-empty-device (var name uuid)
-         (load-table var table)
-         (resume-device var)
-         b1 b2 ...))))
+       (with-device-fn name uuid table (lambda (var) b1 b2 ...)))))
 
   (define-syntax with-devices
     (syntax-rules ()
@@ -337,4 +355,11 @@
       (foreign-procedure "dm_table" ((* DMIoctlInterface) string (* TargetPtr)) int))
 
     (do-status dev get-status "dm_table"))
+
+  (define (message dev sector msg)
+    (define c-message
+      (foreign-procedure "dm_message" ((* DMIoctlInterface) string unsigned-64 string) int))
+
+    (unless (zero? (c-message (current-dm-interface) (dm-device-name dev) sector msg))
+      (fail (fmt #f "message ioctl failed"))))
 )

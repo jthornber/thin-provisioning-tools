@@ -25,7 +25,7 @@
   (define-syntax with-valid-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md "cache.bin" (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (to-bytes (meg 4))))
          (with-cache-xml (xml)
            (run-ok (cache-restore "-i" xml "-o" md))
            b1 b2 ...)))))
@@ -34,13 +34,13 @@
   (define-syntax with-corrupt-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md "cache.bin" (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (to-bytes (meg 4))))
          b1 b2 ...))))
 
   (define-syntax with-empty-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
-       (with-temp-file-sized ((md "cache.bin" (meg 4)))
+       (with-temp-file-sized ((md "cache.bin" (to-bytes (meg 4))))
                             b1 b2 ...))))
 
   ;; We have to export something that forces all the initialisation expressions
@@ -315,7 +315,7 @@
 
   (define-scenario (cache-metadata-size device-size-only)
     "Just --device-size causes fail"
-    (run-fail-rcv (_ stderr) (cache-metadata-size "--device-size" (meg 100))
+    (run-fail-rcv (_ stderr) (cache-metadata-size "--device-size" (to-bytes (meg 100)))
       (assert-equal "If you specify --device-size you must also give --block-size."
                     stderr)))
 
