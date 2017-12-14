@@ -440,18 +440,19 @@
   ;;;-----------------------------------------------------------
   ;;; Thin scenarios
   ;;;-----------------------------------------------------------
-  (define-dm-scenario (thin create-pool)
+  ;; FIXME: I think these 3 can go
+  (define-dm-scenario (thin misc create-pool)
     "create a pool"
     (with-default-pool (pool)
       #t))
 
-  (define-dm-scenario (thin create-thin)
+  (define-dm-scenario (thin misc create-thin)
     "create a thin volume larger than the pool"
     (with-default-pool (pool)
       (with-new-thin (thin pool 0 (gig 100))
                      #t)))
 
-  (define-dm-scenario (thin zero-thin)
+  (define-dm-scenario (thin misc zero-thin)
     "zero a 1 gig thin device"
     (with-default-pool (pool)
       (let ((thin-size (gig 1)))
@@ -498,14 +499,24 @@
        (with-new-thin (thin pool 0 size)
                       (rand-write-and-verify thin)))))
 
-  ;; FIXME: I thought we supported this?
-  (define-dm-scenario (thin create non-power-2-block-size-fails)
-    "The block size must be a power of 2"
-    (assert-raises
-      (with-pool (pool (default-md-table)
-                       (default-data-table (gig 10))
-                       (kilo 57))
-                 #t)))
+  (define-dm-scenario (thin create bs-multiple-of-64k-good)
+    "The block size must be a multiple of 64k - good examples"
+    (map (lambda (bs)
+           (with-pool (pool (default-md-table)
+                            (default-data-table (gig 10))
+                            (kilo bs))
+                      #t))
+         '(64 128 192 512 1024)))
+
+  (define-dm-scenario (thin create bs-multiple-of-64k-bad)
+    "The block size must be a multiple of 64k - bad examples"
+    (map (lambda (bs)
+           (assert-raises
+             (with-pool (pool (default-md-table)
+                              (default-data-table (gig 10))
+                              (kilo bs))
+                        #t)))
+         '(65 96)))
 
   (define-dm-scenario (thin create tiny-block-size-fails)
     "The block size must be at least 64k"
