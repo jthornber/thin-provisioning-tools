@@ -9,6 +9,7 @@
           (fmt fmt)
           (list-utils)
           (loops)
+          (prefix (parser-combinators) p:)
           (process)
           (srfi s27 random-bits)
           (temp-file)
@@ -19,6 +20,7 @@
   (define (register-dm-tests) #t)
 
   ;; FIXME: use memoisation to avoid running blockdev so much
+  ;; FIXME: return a disk-size, and take a dm-device
   (define (get-dev-size dev)
     (run-ok-rcv (stdout stderr) (fmt #f "blockdev --getsz " dev)
                 (string->number (chomp stdout))))
@@ -113,14 +115,21 @@
                  80 ;; low water mark
                  (length opts-str) opts-str)))))
 
-  ;; FIXME: move somewhere else, and do IO in bigger blocks
-  (define (zero-dev dev size)
-    (define (dd . args)
-      (build-command-line (cons "dd" args)))
+  (define (dd-cmd . args)
+    (build-command-line (cons "dd" args)))
 
-    (run-ok (dd "if=/dev/zero"
-                (string-append "of=" (dm-device-path dev))
-                "bs=512" (fmt #f "count=" (to-sectors size)))))
+  ;; FIXME: move somewhere else, and do IO in bigger blocks
+  (define zero-dev
+    (case-lambda
+      ((dev)
+       (zero-dev dev
+                 (sectors
+                   (get-dev-size
+                     (dm-device-path dev)))))
+      ((dev size)
+       (run-ok (dd-cmd "if=/dev/zero"
+                       (string-append "of=" (dm-device-path dev))
+                       "bs=512" (fmt #f "count=" (to-sectors size)))))))
 
   ;; The contents should be
   (define (with-ini-file-fn section contents fn)
@@ -173,6 +182,14 @@
                      block-size
                      (lambda (pool) b1 b2 ...)))))
 
+  (define-syntax with-default-pool
+    (syntax-rules ()
+      ((_ (pool) b1 b2 ...)
+       (with-pool (pool (default-md-table)
+                        (default-data-table (gig 10))
+                        (kilo 64))
+                  b1 b2 ...))))
+
   (define (default-md-table)
     (list ((mk-fast-allocator) (meg 32))))
 
@@ -198,6 +215,9 @@
   (define (create-snap pool new-id origin-id)
     (message pool 0 (fmt #f "create_snap " new-id " " origin-id)))
 
+  (define (delete-thin pool id)
+    (message pool 0 (fmt #f "delete " id)))
+
   (define (with-thin-fn pool id size fn)
     (with-device-fn (generate-dev-name) "" (thin-table pool id size) fn))
 
@@ -215,6 +235,135 @@
       ((_ (thin pool id size) b1 b2 ...)
        (with-new-thin-fn pool id size (lambda (thin)
                                         b1 b2 ...)))))
+
+  ;;;-----------------------------------------------------------
+  ;;; Pool status
+  ;;;-----------------------------------------------------------
+  (define-record-type pool-status
+    (fields (mutable transaction-id)
+            (mutable used-metadata)
+            (mutable total-metadata)
+            (mutable used-data)
+            (mutable total-data)
+            (mutable held-root)          ; (bool . root?)
+            (mutable needs-check)        ; bool
+            (mutable discard)            ; bool
+            (mutable discard-passdown)   ; bool
+            (mutable block-zeroing)      ; bool
+            (mutable io-mode)            ; 'out-of-data-space, 'ro, 'rw
+            (mutable no-space-behaviour) ; 'error, 'queue
+            (mutable fail)               ; bool
+            ))
+
+  (define (default-pool-status)
+    (make-pool-status 0  ; trans id
+                      0  ; used md
+                      0  ; total md
+                      0  ; used data
+                      0  ; total data
+                      (cons #f 0)  ; held root
+                      #f  ; need check
+                      #t  ; discard
+                      #t  ; discard passdown
+                      #t  ; block zeroing
+                      'rw  ; io-mode
+                      'queue  ; no space behaviour
+                      #f  ; fail
+                      ))
+
+  (define digit (p:charset "0123456789"))
+
+  (define number
+    (p:lift (lambda (cs)
+              (string->number
+                (apply string cs)))
+            (p:many+ digit)))
+
+  (define held-root
+    (p:alt
+      (p:>> (p:lit "-")
+            (p:pure (cons #f 0)))
+      (p:parse-m (p:<- root number)
+                 (p:pure (cons #t root)))))
+
+  (define space
+    (p:many+ (p:charset " \t")))
+
+  (define slash
+    (p:lit "/"))
+
+  ;; The options parser returns a function that mutates the status.
+  (define-syntax opt-mut
+    (syntax-rules ()
+      ((_ (status txt) b1 b2 ...)
+       (p:>> (p:lit txt)
+             (p:pure (lambda (status) b1 b2 ...))))))
+
+  (define pool-option
+    (p:one-of
+      (opt-mut (status "skip_block_zeroing")
+        (pool-status-block-zeroing-set! status #f))
+
+      (opt-mut (status "ignore_discard")
+        (pool-status-discard-set! status #f))
+
+      (opt-mut (status "no_discard_passdown")
+        (pool-status-discard-passdown-set! status #f))
+
+      (opt-mut (status "discard_passdown")
+        (pool-status-discard-passdown-set! status #t))
+
+      (opt-mut (status "out_of_data_space")
+        (pool-status-io-mode-set! status 'out-of-data-space))
+
+      (opt-mut (status "ro")
+        (pool-status-io-mode-set! status 'ro))
+
+      (opt-mut (status "rw")
+        (pool-status-io-mode-set! status 'rw))
+
+      (opt-mut (status "error_if_no_space")
+        (pool-status-no-space-behaviour-set! status 'error))
+
+      (opt-mut (status "queue_if_no_space")
+        (pool-status-no-space-behaviour-set! status 'queue))))
+
+  (define needs-check
+    (p:one-of
+      (p:>> (p:lit "needs_check")
+            (p:pure #t))
+      (p:pure #f)))
+
+  (define (parse-pool-status txt)
+    (p:parse-m (p:<- transaction-id number)
+               space
+               (p:<- used-metadata number)
+               slash
+               (p:<- total-metadata number)
+               space
+               (p:<- used-data number)
+               slash
+               (p:<- total-data number)
+               space
+               (p:<- metadata-snap held-root)
+               space
+               (p:<- options (p:many* (p:<* pool-option space)))
+               (p:<- check needs-check)
+
+               (let ((status (default-pool-status)))
+                (pool-status-transaction-id-set! status transaction-id)
+                (pool-status-used-metadata-set! status used-metadata)
+                (pool-status-total-metadata-set! status total-metadata)
+                (pool-status-used-data-set! status used-data)
+                (pool-status-total-data-set! status total-data)
+                (pool-status-held-root-set! status metadata-snap)
+                (pool-status-needs-check-set! status check)
+                (for-each (lambda (mut) (mut status)) options)
+                (p:pure status))))
+
+  (define (get-pool-status pool)
+    (p:parse-value parse-pool-status
+      (get-status pool)))
 
   ;;;-----------------------------------------------------------
   ;;; Fundamental dm scenarios
@@ -279,7 +428,7 @@
     (let ((pv (mk-fast-allocator)))
      (with-devices ((dev1 "foo" "uuid" (linear-table pv 4))
                     (dev2 "bar" "uuid2" (linear-table pv 4)))
-                   (let ((names (map device-details-name (list-devices))))
+                   (let ((names (map dm-device-name (list-devices))))
                     (assert-member? "foo" names)
                     (assert-member? "bar" names)))))
 
@@ -385,17 +534,13 @@
 
   (define-dm-scenario (thin create too-large-thin-dev-fails)
     "The thin-id must be less 2^24"
-    (with-pool (pool (default-md-table)
-                     (default-data-table (gig 10))
-                     (kilo 64))
+    (with-default-pool (pool)
       (assert-raises
         (create-thin pool (expt 2 24)))))
 
   (define-dm-scenario (thin create largest-thin-dev-succeeds)
     "The thin-id must be less 2^24"
-    (with-pool (pool (default-md-table)
-                     (default-data-table (gig 10))
-                     (kilo 64))
+    (with-default-pool (pool)
       (create-thin pool (- (expt 2 24) 1))))
 
   (define-dm-scenario (thin create too-small-metadata-fails)
@@ -405,5 +550,56 @@
                        (default-data-table (gig 10))
                        (kilo 64))
                  #t)))
+
+  ;;;-----------------------------------------------------------
+  ;;; Thin deletion scenarios
+  ;;;-----------------------------------------------------------
+  (define-dm-scenario (thin delete create-delete-cycle)
+    "Create and delete a thin 1000 times"
+    (with-default-pool (pool)
+      (upto (n 1000)
+            (create-thin pool 0)
+            (delete-thin pool 0))))
+
+  (define-dm-scenario (thin delete create-delete-many)
+    "Create and delete 1000 thins"
+    (with-default-pool (pool)
+      (upto (n 1000)
+            (create-thin pool n))
+      (upto (n 1000)
+            (delete-thin pool n))))
+
+  (define-dm-scenario (thin delete rolling-create-delete)
+    "Create and delete 1000 thins"
+    (with-default-pool (pool)
+      (upto (n 1000)
+            (create-thin pool n))
+      (upto (n 1000)
+            (delete-thin pool n)
+            (create-thin pool n))))
+
+  (define-dm-scenario (thin delete unknown-id)
+    "Fails if the thin id is unknown"
+    (with-default-pool (pool)
+      (upto (n 100)
+            (create-thin pool (* n 100)))
+      (assert-raises
+        (delete-thin pool 57))))
+
+  (define-dm-scenario (thin delete active-device-fails)
+    "You can't delete an active device"
+    (with-default-pool (pool)
+      (with-new-thin (thin pool 0 (gig 1))
+        (assert-raises
+          (delete-thin pool 0)))))
+
+  #|
+  (define-dm-scenario (thin delete recover-space)
+    "Deleting a thin recovers data space"
+    (with-default-pool (pool)
+      (with-new-thin (thin pool 0 (gig 1))
+        ;(zero-dev thin)
+        (fmt #t (get-pool-status pool)))))
+  |#
 )
 

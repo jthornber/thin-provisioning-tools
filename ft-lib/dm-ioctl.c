@@ -1,4 +1,5 @@
 #include <linux/dm-ioctl.h>
+#include <linux/kdev_t.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -239,7 +240,7 @@ static bool list_devices(struct dm_interface *dmi, struct dm_ioctl *ctl,
 
 	if (nl->dev) {
 		for (;;) {
-			dlb_append(&dlb, major(nl->dev), minor(nl->dev), nl->name);
+			dlb_append(&dlb, MAJOR(nl->dev), MINOR(nl->dev), nl->name);
 
 			if (!nl->next)
 				break;
@@ -273,7 +274,9 @@ int dm_list_devices(struct dm_interface *dmi, struct dev_list **devs)
 	return r;
 }
 
-int dm_create_device(struct dm_interface *dmi, const char *name, const char *uuid)
+// Obviously major and minor are only valid if successful.
+int dm_create_device(struct dm_interface *dmi, const char *name, const char *uuid,
+		     uint32_t *major_result, uint32_t *minor_result)
 {
 	int r;
 	struct dm_ioctl *ctl = alloc_ctl(0);
@@ -294,8 +297,11 @@ int dm_create_device(struct dm_interface *dmi, const char *name, const char *uui
 	}
 
 	r = ioctl(dmi->fd, DM_DEV_CREATE, ctl);
+	if (!r) {
+		*major_result = MAJOR(ctl->dev);
+		*minor_result = MINOR(ctl->dev);
+	}
 	free_ctl(ctl);
-
 	return r;
 }
 

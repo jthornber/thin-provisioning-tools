@@ -9,6 +9,8 @@
           dm-device
           dm-device-name
           dm-device-path
+          dm-device-minor
+          dm-device-major
 
           dm-version
           get-version
@@ -37,11 +39,6 @@
           pause-device
           pause-device-thunk
 
-          device-details
-          device-details-name
-          device-details-major
-          device-details-minor
-
           get-status
           get-table
 
@@ -64,10 +61,10 @@
     (struct
       (fd int)))
 
-  (define-record-type dm-device (fields (mutable name)))
+  (define-record-type dm-device (fields name major minor))
 
   (define (dm-device-path d)
-    (fmt #f (dsp "/dev/mapper/") (dsp (dm-device-name d))))
+    (fmt #f (dsp "/dev/dm-") (dsp (dm-device-minor d))))
 
   (define open% (foreign-procedure "dm_open" () (* DMIoctlInterface)))
 
@@ -100,6 +97,17 @@
 
   (define-record-type dm-version (fields major minor patch))
 
+  (define (alloc-u32)
+    (make-ftype-pointer unsigned-32
+                        (foreign-alloc (ftype-sizeof unsigned-32))))
+
+  (define (deref-u32 p)
+    (ftype-ref unsigned-32 () p))
+
+  (define (free-u32 p)
+    (foreign-free (ftype-pointer-address p)))
+
+  ;; FIXME: make a with-u32s macro
   (define (get-version)
     (define get
       (foreign-procedure "dm_version" ((* DMIoctlInterface)
@@ -107,25 +115,22 @@
                                        (* unsigned-32)
                                        (* unsigned-32)) int))
 
-    (define (alloc-u32)
-      (make-ftype-pointer unsigned-32
-        (foreign-alloc (ftype-sizeof unsigned-32))))
-
-    (define (deref-u32 p)
-      (ftype-ref unsigned-32 () p))
-
     (let ((major (alloc-u32))
           (minor (alloc-u32))
           (patch (alloc-u32)))
-      (if (zero? (get (current-dm-interface) major minor patch))
-          (let ((r (make-dm-version (deref-u32 major)
-                                    (deref-u32 minor)
-                                    (deref-u32 patch))))
-            (foreign-free (ftype-pointer-address major))
-            (foreign-free (ftype-pointer-address minor))
-            (foreign-free (ftype-pointer-address patch))
-            r)
-          (fail "couldn't get dm version"))))
+         (dynamic-wind
+           (lambda () #f)
+           (lambda ()
+             (if (zero? (get (current-dm-interface) major minor patch))
+                 (let ((r (make-dm-version (deref-u32 major)
+                                           (deref-u32 minor)
+                                           (deref-u32 patch))))
+                      r)
+                 (fail "couldn't get dm version")))
+           (lambda ()
+             (free-u32 major)
+             (free-u32 minor)
+             (free-u32 patch)))))
 
   (define (remove-all)
     (define do-it
@@ -143,9 +148,6 @@
                   (name (* unsigned-8))))
 
   (define-ftype DevListPtr (* DevList))
-
-  (define-record-type device-details
-    (fields name major minor))
 
   (define (cstring->string str)
     (let loop ((i 0)
@@ -182,7 +184,7 @@
             (if (ftype-pointer-null? dl)
                 acc
                 (loop (ftype-ref DevList (next) dl)
-                      (cons (make-device-details
+                      (cons (make-dm-device
                               (cstring->string (ftype-ref DevList (name) dl))
                               (ftype-ref DevList (major) dl)
                               (ftype-ref DevList (minor) dl))
@@ -191,11 +193,19 @@
 
   (define (create-device name uuid)
     (define create
-      (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string) int))
+      (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string (* unsigned-32) (* unsigned-32)) int))
 
-    (if (zero? (create (current-dm-interface) name uuid))
-        (make-dm-device name)
-        (fail "create-device failed")))
+    (let* ((major (alloc-u32))
+           (minor (alloc-u32)))
+          (dynamic-wind
+            (lambda () #f)
+            (lambda ()
+              (if (zero? (create (current-dm-interface) name uuid major minor))
+                  (make-dm-device name (deref-u32 major) (deref-u32 minor))
+                  (fail "create-device failed")))
+            (lambda ()
+              (free-u32 major)
+              (free-u32 minor)))))
 
   (define-syntax define-dev-cmd
     (syntax-rules ()
