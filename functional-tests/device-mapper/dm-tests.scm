@@ -196,15 +196,6 @@
   (define (default-data-table size)
     (list ((mk-slow-allocator) size)))
 
-  (define-syntax define-thin-scenario
-    (syntax-rules ()
-      ((_ path (pool size) desc b1 b2 ...)
-       (define-dm-scenario path desc
-         (with-pool-fn (list ((mk-fast-allocator) (meg 32)))
-                       (list ((mk-slow-allocator) size))
-                       (kilo 64)
-                       (lambda (pool) b1 b2 ...))))))
-
   (define (thin-table pool id size)
     (list
       (make-target (to-sectors size) "thin" (build-args-string (dm-device-path pool) id))))
@@ -449,47 +440,54 @@
   ;;;-----------------------------------------------------------
   ;;; Thin scenarios
   ;;;-----------------------------------------------------------
-  (define-thin-scenario (thin create-pool) (pool (gig 10))
+  (define-dm-scenario (thin create-pool)
     "create a pool"
-    #t)
+    (with-default-pool (pool)
+      #t))
 
-  (define-thin-scenario (thin create-thin) (pool (gig 10))
+  (define-dm-scenario (thin create-thin)
     "create a thin volume larger than the pool"
-    (with-new-thin (thin pool 0 (gig 100))
-                   #t))
+    (with-default-pool (pool)
+      (with-new-thin (thin pool 0 (gig 100))
+                     #t)))
 
-  (define-thin-scenario (thin zero-thin) (pool (gig 10))
+  (define-dm-scenario (thin zero-thin)
     "zero a 1 gig thin device"
-    (let ((thin-size (gig 1)))
-     (with-new-thin (thin pool 0 thin-size)
-       (zero-dev thin thin-size))))
+    (with-default-pool (pool)
+      (let ((thin-size (gig 1)))
+       (with-new-thin (thin pool 0 thin-size)
+         (zero-dev thin thin-size)))))
 
   ;;;-----------------------------------------------------------
   ;;; Thin creation scenarios
   ;;;-----------------------------------------------------------
-  (define-thin-scenario (thin create lots-of-thins) (pool (gig 10))
+  (define-dm-scenario (thin create lots-of-thins)
     "create lots of empty thin volumes"
-    (upto (n 1000) (create-thin pool n)))
+    (with-default-pool (pool)
+      (upto (n 1000) (create-thin pool n))))
 
-  (define-thin-scenario (thin create lots-of-snaps) (pool (gig 10))
+  (define-dm-scenario (thin create lots-of-snaps)
     "create lots of snapshots of a single volume"
-    (create-thin pool 0)
-    (upto (n 999)
-          (create-snap pool (+ n 1) 0)))
+    (with-default-pool (pool)
+      (create-thin pool 0)
+      (upto (n 999)
+            (create-snap pool (+ n 1) 0))))
 
-  (define-thin-scenario (thin create lots-of-recursive-snaps) (pool (gig 10))
+  (define-dm-scenario (thin create lots-of-recursive-snaps)
     "create lots of recursive snapshots"
-    (create-thin pool 0)
-    (upto (n 999)
-          (create-snap pool (+ n 1) n)))
+    (with-default-pool (pool)
+      (create-thin pool 0)
+      (upto (n 999)
+            (create-snap pool (+ n 1) n))))
 
-  (define-thin-scenario (thin create activate-thin-while-pool-suspended-fails) (pool (gig 10))
+  (define-dm-scenario (thin create activate-thin-while-pool-suspended-fails)
     "you can't activate a thin device while the pool is suspended"
-    (create-thin pool 0)
-    (pause-device pool
-      (assert-raises
-        (with-thin (thin pool 0 (gig 1))
-          (fail "activate shouldn't work")))))
+    (with-default-pool (pool)
+      (create-thin pool 0)
+      (pause-device pool
+        (assert-raises
+          (with-thin (thin pool 0 (gig 1))
+                     #t)))))
 
   (define-dm-scenario (thin create huge-block-size)
     "huge block sizes are possible"
