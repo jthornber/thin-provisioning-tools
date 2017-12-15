@@ -501,22 +501,22 @@
 
   (define-dm-scenario (thin create bs-multiple-of-64k-good)
     "The block size must be a multiple of 64k - good examples"
-    (map (lambda (bs)
-           (with-pool (pool (default-md-table)
-                            (default-data-table (gig 10))
-                            (kilo bs))
-                      #t))
-         '(64 128 192 512 1024)))
+    (for-each (lambda (bs)
+                (with-pool (pool (default-md-table)
+                                 (default-data-table (gig 10))
+                                 (kilo bs))
+                           #t))
+              '(64 128 192 512 1024)))
 
   (define-dm-scenario (thin create bs-multiple-of-64k-bad)
     "The block size must be a multiple of 64k - bad examples"
-    (map (lambda (bs)
-           (assert-raises
-             (with-pool (pool (default-md-table)
-                              (default-data-table (gig 10))
-                              (kilo bs))
-                        #t)))
-         '(65 96)))
+    (for-each (lambda (bs)
+                (assert-raises
+                  (with-pool (pool (default-md-table)
+                                   (default-data-table (gig 10))
+                                   (kilo bs))
+                             #t)))
+              '(65 96)))
 
   (define-dm-scenario (thin create tiny-block-size-fails)
     "The block size must be at least 64k"
