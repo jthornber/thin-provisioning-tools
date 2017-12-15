@@ -111,6 +111,15 @@
     (apply string-append cwd "/"
            (intersperse "/" (map symbol->string keys))))
 
+  (define (log-exceptions thunk)
+    (with-exception-handler
+      (lambda (x)
+        (let-values (((txt-port get) (open-string-output-port)))
+          (display-condition x txt-port)
+          (log-error (get)))
+        (raise x))
+      thunk))
+
   (define-syntax define-scenario
     (lambda (x)
       (syntax-case x ()
@@ -124,7 +133,7 @@
                                        (file-options no-fail)
                                        (buffer-mode line)
                                        (native-transcoder))
-                        b1 b2 ...)))))))))
+                        (log-exceptions (lambda () b1 b2 ...)))))))))))
 
   (define (fail msg)
     (raise (condition
@@ -149,9 +158,9 @@
             (if (error? x)
                 (k #f)
                 (raise x)))
-            (lambda ()
-              (thunk)
-              #t)))))
+          (lambda ()
+            (thunk)
+            #t)))))
 
   ;; Returns #t if all tests pass.
   (define (run-scenarios ss)
