@@ -1,5 +1,6 @@
 #include <linux/dm-ioctl.h>
 #include <linux/kdev_t.h>
+#include <linux/fs.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -593,6 +594,20 @@ int dm_message(struct dm_interface *dmi, const char *name, uint64_t sector,
 	r = ioctl(dmi->fd, DM_TARGET_MSG, ctl);
 	free_ctl(ctl);
 
+	return r;
+}
+
+int get_dev_size(const char *path, uint64_t *sectors)
+{
+	int r, fd;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return -EINVAL;
+
+	r = ioctl(fd, BLKGETSIZE64, sectors);
+	(*sectors) /= 512;
+	close(fd);
 	return r;
 }
 

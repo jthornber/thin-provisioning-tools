@@ -42,9 +42,12 @@
           get-status
           get-table
 
-          message)
+          message
+
+          get-dev-size)
 
   (import (chezscheme)
+          (disk-units)
           (fmt fmt)
           (srfi s8 receive)
           (utils))
@@ -107,7 +110,24 @@
   (define (free-u32 p)
     (foreign-free (ftype-pointer-address p)))
 
-  ;; FIXME: make a with-u32s macro
+  (define-syntax with-u32
+    (syntax-rules ()
+      ((_ (v) b1 b2 ...)
+       (let ((v (alloc-u32)))
+        (dynamic-wind
+          (lambda () #f)
+          (lambda () b1 b2 ...)
+          (lambda () (free-u32 v)))))))
+
+  (define-syntax with-u32s
+    (syntax-rules ()
+      ((_ (v) b1 b2 ...)
+       (with-u32 (v) b1 b2 ...))
+
+      ((_ (v rest ...) b1 b2 ...)
+       (with-u32 (v)
+         (with-u32s (rest ...) b1 b2 ...)))))
+
   (define (get-version)
     (define get
       (foreign-procedure "dm_version" ((* DMIoctlInterface)
@@ -115,22 +135,13 @@
                                        (* unsigned-32)
                                        (* unsigned-32)) int))
 
-    (let ((major (alloc-u32))
-          (minor (alloc-u32))
-          (patch (alloc-u32)))
-         (dynamic-wind
-           (lambda () #f)
-           (lambda ()
-             (if (zero? (get (current-dm-interface) major minor patch))
-                 (let ((r (make-dm-version (deref-u32 major)
-                                           (deref-u32 minor)
-                                           (deref-u32 patch))))
-                      r)
-                 (fail "couldn't get dm version")))
-           (lambda ()
-             (free-u32 major)
-             (free-u32 minor)
-             (free-u32 patch)))))
+    (with-u32s (major minor patch)
+      (if (zero? (get (current-dm-interface) major minor patch))
+          (let ((r (make-dm-version (deref-u32 major)
+                                    (deref-u32 minor)
+                                    (deref-u32 patch))))
+               r)
+          (fail "couldn't get dm version"))))
 
   (define (remove-all)
     (define do-it
@@ -195,18 +206,11 @@
     (define create
       (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string (* unsigned-32) (* unsigned-32)) int))
 
-    (let* ((major (alloc-u32))
-           (minor (alloc-u32)))
-          (dynamic-wind
-            (lambda () #f)
-            (lambda ()
-              (let ((r (create (current-dm-interface) name uuid major minor)))
-               (if (zero? r)
-                   (make-dm-device name (deref-u32 major) (deref-u32 minor))
-                   (fail (fmt #f "create-device failed with error code " r)))))
-            (lambda ()
-              (free-u32 major)
-              (free-u32 minor)))))
+    (with-u32s (major minor)
+      (let ((r (create (current-dm-interface) name uuid major minor)))
+       (if (zero? r)
+           (make-dm-device name (deref-u32 major) (deref-u32 minor))
+           (fail (fmt #f "create-device failed with error code " r))))))
 
   (define-syntax define-dev-cmd
     (syntax-rules ()
@@ -373,4 +377,18 @@
 
     (unless (zero? (c-message (current-dm-interface) (dm-device-name dev) sector msg))
       (fail (fmt #f "message ioctl failed"))))
-)
+
+  ;; Works with either a raw path, or a dm-device.  Returns a disk-size.
+  (define (get-dev-size dev)
+    (define c-get-size
+      (foreign-procedure "get_dev_size" (string (* unsigned-64)) int))
+
+    (let* ((path (if (string? dev) dev (dm-device-path dev)))
+           (size (make-ftype-pointer unsigned-64 (foreign-alloc (ftype-sizeof unsigned-64))))
+           (r (c-get-size path size)))
+          (let ((result (ftype-ref unsigned-64 () size)))
+           (foreign-free (ftype-pointer-address size))
+           (if (zero? r)
+               (sectors result)
+               (fail (fmt #f "get-dev-size failed: " r))))))
+  )

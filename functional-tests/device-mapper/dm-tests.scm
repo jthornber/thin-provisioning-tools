@@ -19,24 +19,18 @@
   ;; to run.
   (define (register-dm-tests) #t)
 
-  ;; FIXME: use memoisation to avoid running blockdev so much
-  ;; FIXME: return a disk-size, and take a dm-device
-  (define (get-dev-size dev)
-    (run-ok-rcv (stdout stderr) (fmt #f "blockdev --getsz " dev)
-                (string->number (chomp stdout))))
-
   ;; Hard coded, get these from the command line
   (define fast-dev "/dev/vda")
   (define mk-fast-allocator
     (let ((size (get-dev-size fast-dev)))
      (lambda ()
-       (make-allocator fast-dev size))))
+       (make-allocator fast-dev (to-sectors size)))))
 
   (define slow-dev "/dev/vdb")
   (define mk-slow-allocator
     (let ((size (get-dev-size slow-dev)))
      (lambda ()
-       (make-allocator slow-dev size))))
+       (make-allocator slow-dev (to-sectors size)))))
 
   (define-record-type segment (fields (mutable dev)
                                       (mutable start)
@@ -105,7 +99,7 @@
 
   (define (pool-table md-dev data-dev block-size opts)
     (let ((opts-str (expand-thin-options opts))
-          (data-size (sectors (get-dev-size (dm-device-path data-dev)))))
+          (data-size (get-dev-size (dm-device-path data-dev))))
       (list
         (make-target (to-sectors data-size) "thin-pool"
           (apply build-args-string
@@ -123,9 +117,8 @@
     (case-lambda
       ((dev)
        (zero-dev dev
-                 (sectors
-                   (get-dev-size
-                     (dm-device-path dev)))))
+                 (get-dev-size
+                   (dm-device-path dev))))
       ((dev size)
        (run-ok (dd-cmd "if=/dev/zero"
                        (string-append "of=" (dm-device-path dev))
