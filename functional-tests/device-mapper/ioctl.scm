@@ -200,9 +200,10 @@
           (dynamic-wind
             (lambda () #f)
             (lambda ()
-              (if (zero? (create (current-dm-interface) name uuid major minor))
-                  (make-dm-device name (deref-u32 major) (deref-u32 minor))
-                  (fail "create-device failed")))
+              (let ((r (create (current-dm-interface) name uuid major minor)))
+               (if (zero? r)
+                   (make-dm-device name (deref-u32 major) (deref-u32 minor))
+                   (fail (fmt #f "create-device failed with error code " r)))))
             (lambda ()
               (free-u32 major)
               (free-u32 minor)))))
