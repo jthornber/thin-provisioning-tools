@@ -92,7 +92,7 @@
       (fmt #t
            (cat (fmt-keys prev-keys keys)
                 (dsp #\space)
-                (pad-char #\. (space-to 38))
+                (pad-char #\. (space-to 60))
                 (dsp #\space)))
       (flush)
       (fmt #t (cat (fn keys) nl))
