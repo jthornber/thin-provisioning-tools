@@ -255,6 +255,23 @@
                       #f  ; fail
                       ))
 
+  (define (fmt-pool-status status)
+    (if (pool-status-fail status)
+        "pool failed"
+        (cat "transaction-id: " (pool-status-transaction-id status) ", "
+             (pool-status-used-metadata status) "/" (pool-status-total-metadata status) " metadata, "
+             (pool-status-used-data status) "/" (pool-status-total-data status) " data, "
+             (let ((hr (pool-status-held-root status)))
+              (if (car hr)
+                  (cat "held root: " (cdr hr) ", ")
+                  ""))
+             (if (pool-status-needs-check status) "needs-check, " "")
+             (if (pool-status-discard status) "discard, " "")
+             (if (pool-status-discard-passdown status) "discard-passdown, " "")
+             (if (pool-status-block-zeroing status) "block-zero, " "")
+             "io-mode: " (pool-status-io-mode status) ", "
+             "no-space-behaviour: " (pool-status-no-space-behaviour status) ", ")))
+
   (define digit (p:charset "0123456789"))
 
   (define number
@@ -318,7 +335,7 @@
             (p:pure #t))
       (p:pure #f)))
 
-  (define (parse-pool-status txt)
+  (define parse-pool-status
     (p:parse-m (p:<- transaction-id number)
                space
                (p:<- used-metadata number)
@@ -347,7 +364,14 @@
 
   (define (get-pool-status pool)
     (p:parse-value parse-pool-status
-      (get-status pool)))
+      (target-args (car (get-status pool)))))
+
+  ;; FIXME: we could get the block size by querying the pool table
+  (define (assert-pool-used-data pool block-size expected-size)
+    (let ((status (get-pool-status pool)))
+     (assert-equal (pool-status-used-data status)
+                   (/ (to-sectors expected-size)
+                      (to-sectors block-size)))))
 
   ;;;-----------------------------------------------------------
   ;;; Fundamental dm scenarios
@@ -595,13 +619,15 @@
         (assert-raises
           (delete-thin pool 0)))))
 
-  #|
   (define-dm-scenario (thin delete recover-space)
     "Deleting a thin recovers data space"
-    (with-default-pool (pool)
-      (with-new-thin (thin pool 0 (gig 1))
-        ;(zero-dev thin)
-        (fmt #t (get-pool-status pool)))))
-  |#
-)
+    (let ((thin-size (gig 1)))
+     (with-default-pool (pool)
+       (with-new-thin (thin pool 0 thin-size)
+         (assert-pool-used-data pool (kilo 64) (sectors 0))
+         (zero-dev thin))
+       (assert-pool-used-data pool (kilo 64) thin-size)
+       (delete-thin pool 0)
+       (assert-pool-used-data pool (kilo 64) (sectors 0)))))
+  )
 
