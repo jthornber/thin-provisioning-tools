@@ -590,24 +590,23 @@
                        (kilo 64))
                  #t)))
 
-  ;; Chasing a bug in btree_split_beneath()
+  ;; Chasing a bug in btree_split_beneath().  This triggers when a value
+  ;; smaller than the rest of the tree is inserted and the
+  ;; btree_split_beneath() path is taken.  The newly inserted key will not be
+  ;; present.  Once another low key is inserted that doesn't take the split
+  ;; beneath path the missing value reappears.
   (define-dm-scenario (thin create devices-in-reverse-order)
     "Keep adding a key that's lower than what's in the tree."
     (with-pool (pool (default-md-table (gig 1))
                      (default-data-table)
                      (kilo 64))
-      (let ((count 10000))
+      (let ((count 300))
        (let loop ((n count))
         (unless (zero? n)
                 (info "creating thin " n)
                 (create-thin pool n)
-                (loop (- n 2))))
-       ;; Check they're all still there
-       (let loop ((n count))
-        (unless (zero? n)
-                (info "deleting thin " n)
-                (delete-thin pool n)
-                (loop (- n 2)))))))
+                (with-thin (thin pool n (gig 1)) #t) ; activate to check it's there
+                (loop (- n 1)))))))
 
   ;;;-----------------------------------------------------------
   ;;; Thin deletion scenarios
