@@ -49,6 +49,7 @@
   (import (chezscheme)
           (disk-units)
           (fmt fmt)
+          (logging)
           (srfi s8 receive)
           (utils))
 
@@ -293,6 +294,7 @@
     (define load
       (foreign-procedure "dm_load" ((* DMIoctlInterface) string (* Target)) int))
 
+    (info dev " <- " targets)
     (let* ((ctargets (build-c-targets targets)))
      (ensure-free-ctargets ctargets
        (unless (zero? (load (current-dm-interface) (dm-device-name dev) ctargets))

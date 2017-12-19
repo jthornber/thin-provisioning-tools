@@ -8,6 +8,7 @@
           (functional-tests)
           (fmt fmt)
           (list-utils)
+          (logging)
           (loops)
           (prefix (parser-combinators) p:)
           (process)
@@ -121,6 +122,7 @@
                    (dm-device-path dev))))
       ((dev size)
        (run-ok (dd-cmd "if=/dev/zero"
+                       "oflag=direct"
                        (string-append "of=" (dm-device-path dev))
                        "bs=512" (fmt #f "count=" (to-sectors size)))))))
 
@@ -159,11 +161,11 @@
         (set! nr (+ nr 1))
         name))))
 
-  (define (with-pool-fn md-table data-table block-size fn)
+  (define (with-pool-fn md-table data-table block-size opts fn)
     (with-devices ((md (generate-dev-name) "" md-table)
                    (data (generate-dev-name) "" data-table))
       (zero-dev md (kilo 4))
-      (let ((ptable (pool-table md data block-size (thin-pool-options))))
+      (let ((ptable (pool-table md data block-size opts)))
        (with-device (pool (generate-dev-name) "" ptable)
                     (fn pool)))))
 
@@ -173,6 +175,13 @@
        (with-pool-fn md-table
                      data-table
                      block-size
+                     (thin-pool-options)
+                     (lambda (pool) b1 b2 ...)))
+      ((_ (pool md-table data-table block-size opts) b1 b2 ...)
+       (with-pool-fn md-table
+                     data-table
+                     block-size
+                     opts
                      (lambda (pool) b1 b2 ...)))))
 
   (define-syntax with-default-pool
@@ -183,11 +192,15 @@
                         (kilo 64))
                   b1 b2 ...))))
 
-  (define (default-md-table)
-    (list ((mk-fast-allocator) (meg 32))))
+  (define default-md-table
+    (case-lambda
+      (() (default-md-table (meg 32)))
+      ((size) (list ((mk-fast-allocator) size)))))
 
-  (define (default-data-table size)
-    (list ((mk-slow-allocator) size)))
+  (define default-data-table
+    (case-lambda
+      (() (default-data-table (gig 10)))
+      ((size) (list ((mk-slow-allocator) size)))))
 
   (define (thin-table pool id size)
     (list
@@ -270,7 +283,7 @@
              (if (pool-status-discard-passdown status) "discard-passdown, " "")
              (if (pool-status-block-zeroing status) "block-zero, " "")
              "io-mode: " (pool-status-io-mode status) ", "
-             "no-space-behaviour: " (pool-status-no-space-behaviour status) ", ")))
+             "no-space-behaviour: " (pool-status-no-space-behaviour status))))
 
   (define digit (p:charset "0123456789"))
 
@@ -577,6 +590,25 @@
                        (kilo 64))
                  #t)))
 
+  ;; Chasing a bug in btree_split_beneath()
+  (define-dm-scenario (thin create devices-in-reverse-order)
+    "Keep adding a key that's lower than what's in the tree."
+    (with-pool (pool (default-md-table (gig 1))
+                     (default-data-table)
+                     (kilo 64))
+      (let ((count 10000))
+       (let loop ((n count))
+        (unless (zero? n)
+                (info "creating thin " n)
+                (create-thin pool n)
+                (loop (- n 2))))
+       ;; Check they're all still there
+       (let loop ((n count))
+        (unless (zero? n)
+                (info "deleting thin " n)
+                (delete-thin pool n)
+                (loop (- n 2)))))))
+
   ;;;-----------------------------------------------------------
   ;;; Thin deletion scenarios
   ;;;-----------------------------------------------------------
@@ -629,5 +661,19 @@
        (assert-pool-used-data pool (kilo 64) thin-size)
        (delete-thin pool 0)
        (assert-pool-used-data pool (kilo 64) (sectors 0)))))
+
+  (define-dm-scenario (thin delete after-no-space)
+    "You can delete after the pool has run out of data space"
+     (with-pool (pool (default-md-table)
+                      (default-data-table (meg 128))
+                      (kilo 64)
+                      (thin-pool-options error-if-no-space skip-block-zeroing))
+       (with-new-thin (thin pool 0 (gig 1))
+         ;;(assert-raises (zero-dev thin)))
+         (zero-dev thin))
+       (fmt #t (fmt-pool-status (get-pool-status pool)))
+       (assert-pool-used-data pool (kilo 64) (meg 128))
+       (delete-thin pool 0)
+       (assert-pool-used-data pool (kilo 64) (sectors 0))))
   )
 
