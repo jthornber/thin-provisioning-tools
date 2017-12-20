@@ -599,9 +599,8 @@
     "Keep adding a key that's lower than any in the tree."
     (with-default-pool (pool)
       (from-to (n 300 0 -1)
-        (unless (zero? n)
-          (create-thin pool n)
-          (with-thin (thin pool n (gig 1)) #t))))) ; activate to check it's there
+        (create-thin pool n)
+        (with-thin (thin pool n (gig 1)) #t)))) ; activate to check it's there
 
   ;;;-----------------------------------------------------------
   ;;; Thin deletion scenarios
