@@ -596,17 +596,12 @@
   ;; present.  Once another low key is inserted that doesn't take the split
   ;; beneath path the missing value reappears.
   (define-dm-scenario (thin create devices-in-reverse-order)
-    "Keep adding a key that's lower than what's in the tree."
-    (with-pool (pool (default-md-table (gig 1))
-                     (default-data-table)
-                     (kilo 64))
-      (let ((count 300))
-       (let loop ((n count))
+    "Keep adding a key that's lower than any in the tree."
+    (with-default-pool (pool)
+      (from-to (n 300 0 -1)
         (unless (zero? n)
-                (info "creating thin " n)
-                (create-thin pool n)
-                (with-thin (thin pool n (gig 1)) #t) ; activate to check it's there
-                (loop (- n 1)))))))
+          (create-thin pool n)
+          (with-thin (thin pool n (gig 1)) #t))))) ; activate to check it's there
 
   ;;;-----------------------------------------------------------
   ;;; Thin deletion scenarios
