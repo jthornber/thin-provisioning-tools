@@ -1,4 +1,6 @@
 #include <linux/dm-ioctl.h>
+#include <linux/kdev_t.h>
+#include <linux/fs.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -239,7 +241,7 @@ static bool list_devices(struct dm_interface *dmi, struct dm_ioctl *ctl,
 
 	if (nl->dev) {
 		for (;;) {
-			dlb_append(&dlb, major(nl->dev), minor(nl->dev), nl->name);
+			dlb_append(&dlb, MAJOR(nl->dev), MINOR(nl->dev), nl->name);
 
 			if (!nl->next)
 				break;
@@ -273,7 +275,9 @@ int dm_list_devices(struct dm_interface *dmi, struct dev_list **devs)
 	return r;
 }
 
-int dm_create_device(struct dm_interface *dmi, const char *name, const char *uuid)
+// Obviously major and minor are only valid if successful.
+int dm_create_device(struct dm_interface *dmi, const char *name, const char *uuid,
+		     uint32_t *major_result, uint32_t *minor_result)
 {
 	int r;
 	struct dm_ioctl *ctl = alloc_ctl(0);
@@ -294,8 +298,11 @@ int dm_create_device(struct dm_interface *dmi, const char *name, const char *uui
 	}
 
 	r = ioctl(dmi->fd, DM_DEV_CREATE, ctl);
+	if (!r) {
+		*major_result = MAJOR(ctl->dev);
+		*minor_result = MINOR(ctl->dev);
+	}
 	free_ctl(ctl);
-
 	return r;
 }
 
@@ -303,6 +310,9 @@ static int dev_cmd(struct dm_interface *dmi, const char *name, int request, unsi
 {
 	int r;
 	struct dm_ioctl *ctl = alloc_ctl(0);
+
+	if (!ctl)
+		return -ENOMEM;
 
 	ctl->flags = flags;
 	r = copy_name(ctl, name);
@@ -400,8 +410,6 @@ static struct target *tb_get(struct target_builder *tb)
 }
 
 //----------------------------------------------------------------
-// FIXME: provide some way of freeing a target list.
-// FIXME: check the result from alloc_ctl is always being checked.
 
 static size_t calc_load_payload(struct target *t)
 {
@@ -586,6 +594,20 @@ int dm_message(struct dm_interface *dmi, const char *name, uint64_t sector,
 	r = ioctl(dmi->fd, DM_TARGET_MSG, ctl);
 	free_ctl(ctl);
 
+	return r;
+}
+
+int get_dev_size(const char *path, uint64_t *sectors)
+{
+	int r, fd;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return -EINVAL;
+
+	r = ioctl(fd, BLKGETSIZE64, sectors);
+	(*sectors) /= 512;
+	close(fd);
 	return r;
 }
 

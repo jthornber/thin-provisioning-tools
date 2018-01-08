@@ -6,6 +6,12 @@
           with-dm-thunk
           with-dm
 
+          dm-device
+          dm-device-name
+          dm-device-path
+          dm-device-minor
+          dm-device-major
+
           dm-version
           get-version
           remove-all
@@ -21,7 +27,9 @@
 
           load-table
           remove-device
+          with-empty-device-fn
           with-empty-device
+          with-device-fn
           with-device
           with-devices
           suspend-device
@@ -31,16 +39,17 @@
           pause-device
           pause-device-thunk
 
-          device-details
-          device-details-name
-          device-details-major
-          device-details-minor
-
           get-status
-          get-table)
+          get-table
+
+          message
+
+          get-dev-size)
 
   (import (chezscheme)
+          (disk-units)
           (fmt fmt)
+          (logging)
           (srfi s8 receive)
           (utils))
 
@@ -56,7 +65,10 @@
     (struct
       (fd int)))
 
-  (define-record-type dm-device (fields (mutable name)))
+  (define-record-type dm-device (fields name major minor))
+
+  (define (dm-device-path d)
+    (fmt #f (dsp "/dev/dm-") (dsp (dm-device-minor d))))
 
   (define open% (foreign-procedure "dm_open" () (* DMIoctlInterface)))
 
@@ -89,6 +101,34 @@
 
   (define-record-type dm-version (fields major minor patch))
 
+  (define (alloc-u32)
+    (make-ftype-pointer unsigned-32
+                        (foreign-alloc (ftype-sizeof unsigned-32))))
+
+  (define (deref-u32 p)
+    (ftype-ref unsigned-32 () p))
+
+  (define (free-u32 p)
+    (foreign-free (ftype-pointer-address p)))
+
+  (define-syntax with-u32
+    (syntax-rules ()
+      ((_ (v) b1 b2 ...)
+       (let ((v (alloc-u32)))
+        (dynamic-wind
+          (lambda () #f)
+          (lambda () b1 b2 ...)
+          (lambda () (free-u32 v)))))))
+
+  (define-syntax with-u32s
+    (syntax-rules ()
+      ((_ (v) b1 b2 ...)
+       (with-u32 (v) b1 b2 ...))
+
+      ((_ (v rest ...) b1 b2 ...)
+       (with-u32 (v)
+         (with-u32s (rest ...) b1 b2 ...)))))
+
   (define (get-version)
     (define get
       (foreign-procedure "dm_version" ((* DMIoctlInterface)
@@ -96,24 +136,12 @@
                                        (* unsigned-32)
                                        (* unsigned-32)) int))
 
-    (define (alloc-u32)
-      (make-ftype-pointer unsigned-32
-        (foreign-alloc (ftype-sizeof unsigned-32))))
-
-    (define (deref-u32 p)
-      (ftype-ref unsigned-32 () p))
-
-    (let ((major (alloc-u32))
-          (minor (alloc-u32))
-          (patch (alloc-u32)))
+    (with-u32s (major minor patch)
       (if (zero? (get (current-dm-interface) major minor patch))
           (let ((r (make-dm-version (deref-u32 major)
                                     (deref-u32 minor)
                                     (deref-u32 patch))))
-            (foreign-free (ftype-pointer-address major))
-            (foreign-free (ftype-pointer-address minor))
-            (foreign-free (ftype-pointer-address patch))
-            r)
+               r)
           (fail "couldn't get dm version"))))
 
   (define (remove-all)
@@ -132,9 +160,6 @@
                   (name (* unsigned-8))))
 
   (define-ftype DevListPtr (* DevList))
-
-  (define-record-type device-details
-    (fields name major minor))
 
   (define (cstring->string str)
     (let loop ((i 0)
@@ -171,7 +196,7 @@
             (if (ftype-pointer-null? dl)
                 acc
                 (loop (ftype-ref DevList (next) dl)
-                      (cons (make-device-details
+                      (cons (make-dm-device
                               (cstring->string (ftype-ref DevList (name) dl))
                               (ftype-ref DevList (major) dl)
                               (ftype-ref DevList (minor) dl))
@@ -180,11 +205,13 @@
 
   (define (create-device name uuid)
     (define create
-      (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string) int))
+      (foreign-procedure "dm_create_device" ((* DMIoctlInterface) string string (* unsigned-32) (* unsigned-32)) int))
 
-    (if (zero? (create (current-dm-interface) name uuid))
-        (make-dm-device name)
-        (fail "create-device failed")))
+    (with-u32s (major minor)
+      (let ((r (create (current-dm-interface) name uuid major minor)))
+       (if (zero? r)
+           (make-dm-device name (deref-u32 major) (deref-u32 minor))
+           (fail (fmt #f "create-device failed with error code " r))))))
 
   (define-syntax define-dev-cmd
     (syntax-rules ()
@@ -267,27 +294,35 @@
     (define load
       (foreign-procedure "dm_load" ((* DMIoctlInterface) string (* Target)) int))
 
+    (info dev " <- " targets)
     (let* ((ctargets (build-c-targets targets)))
      (ensure-free-ctargets ctargets
        (unless (zero? (load (current-dm-interface) (dm-device-name dev) ctargets))
          (fail "dm_load failed")))))
 
+  (define (with-empty-device-fn name uuid fn)
+    (let ((v (create-device name uuid)))
+     (dynamic-wind
+             (lambda () #f)
+             (lambda () (fn v))
+             (lambda () (remove-device v)))))
+
   (define-syntax with-empty-device
     (syntax-rules ()
       ((_ (var name uuid) b1 b2 ...)
-       (let ((var (create-device name uuid)))
-        (dynamic-wind
-          (lambda () #f)
-          (lambda () b1 b2 ...)
-          (lambda () (remove-device var)))))))
+       (with-empty-device-fn name uuid (lambda (var) b1 b2 ...)))))
+
+  (define (with-device-fn name uuid table fn)
+    (with-empty-device-fn name uuid
+                          (lambda (v)
+                            (load-table v table)
+                            (resume-device v)
+                            (fn v))))
 
   (define-syntax with-device
     (syntax-rules ()
       ((_ (var name uuid table) b1 b2 ...)
-       (with-empty-device (var name uuid)
-         (load-table var table)
-         (resume-device var)
-         b1 b2 ...))))
+       (with-device-fn name uuid table (lambda (var) b1 b2 ...)))))
 
   (define-syntax with-devices
     (syntax-rules ()
@@ -337,4 +372,25 @@
       (foreign-procedure "dm_table" ((* DMIoctlInterface) string (* TargetPtr)) int))
 
     (do-status dev get-status "dm_table"))
-)
+
+  (define (message dev sector msg)
+    (define c-message
+      (foreign-procedure "dm_message" ((* DMIoctlInterface) string unsigned-64 string) int))
+
+    (unless (zero? (c-message (current-dm-interface) (dm-device-name dev) sector msg))
+      (fail (fmt #f "message ioctl failed"))))
+
+  ;; Works with either a raw path, or a dm-device.  Returns a disk-size.
+  (define (get-dev-size dev)
+    (define c-get-size
+      (foreign-procedure "get_dev_size" (string (* unsigned-64)) int))
+
+    (let* ((path (if (string? dev) dev (dm-device-path dev)))
+           (size (make-ftype-pointer unsigned-64 (foreign-alloc (ftype-sizeof unsigned-64))))
+           (r (c-get-size path size)))
+          (let ((result (ftype-ref unsigned-64 () size)))
+           (foreign-free (ftype-pointer-address size))
+           (if (zero? r)
+               (sectors result)
+               (fail (fmt #f "get-dev-size failed: " r))))))
+  )
