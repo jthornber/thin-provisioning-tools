@@ -10,6 +10,7 @@
           mapping-tree-each
           unpack-block-time
 
+          device-details-vt
           device-tree-lookup
           device-tree-each)
 
@@ -77,25 +78,24 @@
 
   ;;; Visits every entry in the mapping tree calling (fn dev-id vblock pblock time).
   (define (mapping-tree-each cache root fn)
-          (with-spine (sp cache 1)
-            (let ((dev-tree (btree-open le64-vt root)))
+      (let ((dev-tree (btree-open le64-vt root)))
 
-             (define (visit-dev dev-id mapping-root)
-                     (btree-each (btree-open le64-vt mapping-root)
-                                 (lambda (vblock mapping)
-                                   (receive (block time) (unpack-block-time mapping)
-                                     (fn dev-id vblock block time)))))
+       (define (visit-dev dev-id mapping-root)
+               (btree-each (btree-open le64-vt mapping-root)
+                           cache
+                           (lambda (vblock mapping)
+                             (receive (block time) (unpack-block-time mapping)
+                               (fn dev-id vblock block time)))))
 
-             (btree-each dev-tree sp visit-dev))))
+       (btree-each dev-tree cache visit-dev)))
 
   (define-compound-value-type device-details-vt ThinDeviceDetails)
 
   (define (device-tree-lookup cache root dev-id default)
-          (with-spine (sp cache 1)
-            (btree-lookup (btree-open device-details-vt root) sp dev-id default)))
+    (with-spine (sp cache 1)
+      (btree-lookup (btree-open device-details-vt root) sp dev-id default)))
 
   (define (device-tree-each cache root fn)
-          (with-spine (sp cache 1)
-            (btree-each (btree-open device-details-vt root) sp fn)))
+    (btree-each (btree-open device-details-vt root) cache fn))
   )
 
