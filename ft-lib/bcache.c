@@ -51,6 +51,9 @@ static inline struct list_head *list_pop(struct list_head *head)
 {
 	struct list_head *l;
 
+	if (head->next == head)
+		raise("list is empty\n");
+
 	l = head->next;
 	list_del(l);
 	return l;
