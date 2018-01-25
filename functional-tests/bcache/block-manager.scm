@@ -28,11 +28,20 @@
 
   (define __ (load-shared-object "../lib/libft.so"))
 
+  (define-record-type bcache (fields ptr))
+
+  (define (wrap ptr) (make-bcache ptr))
+  (define (unwrap c) (bcache-ptr c))
+
   (define bcache-simple
-    (foreign-procedure "bcache_simple" (string unsigned) ptr))
+    (let ((fn (foreign-procedure "bcache_simple" (string unsigned) ptr)))
+     (lambda (path mem)
+       (wrap (fn path mem)))))
 
   (define bcache-destroy
-    (foreign-procedure "bcache_destroy" (ptr) void))
+    (let ((fn (foreign-procedure "bcache_destroy" (ptr) void)))
+     (lambda (c)
+       (fn (unwrap c)))))
 
   (define-syntax with-bcache
     (syntax-rules ()
@@ -44,10 +53,14 @@
           (lambda () (bcache-destroy name)))))))
 
   (define get-nr-blocks
-    (foreign-procedure "get_nr_blocks" (ptr) unsigned-64))
+    (let ((fn (foreign-procedure "get_nr_blocks" (ptr) unsigned-64)))
+     (lambda (c)
+       (fn (unwrap c)))))
 
   (define get-nr-locked
-    (foreign-procedure "get_nr_locked" (ptr) unsigned-64))
+    (let ((fn (foreign-procedure "get_nr_locked" (ptr) unsigned-64)))
+     (lambda (c)
+       (fn (unwrap c)))))
 
   (define-enumeration get-flag-element
     (zero dirty barrier) get-flags)
@@ -84,7 +97,7 @@
   (define (get-block cache index flags)
     (define getb (foreign-procedure "get_block" (ptr unsigned-64 unsigned) (* Block)))
 
-    (let ((b (getb cache index (build-flags flags))))
+    (let ((b (getb (unwrap cache) index (build-flags flags))))
      (if (ftype-pointer-null? b)
          (fail (fmt #f "unable to get block " index))
          b)))
@@ -95,12 +108,14 @@
   (define (flush-cache cache)
     (define flush (foreign-procedure "flush_cache" (ptr) int))
 
-    (let ((r (flush cache)))
+    (let ((r (flush (unwrap cache))))
      (when (< 0 r)
            (fail "flush_cache failed"))))
 
   (define prefetch-block
-    (foreign-procedure "prefetch_block" (ptr unsigned-64) void))
+    (let ((fn (foreign-procedure "prefetch_block" (ptr unsigned-64) void)))
+     (lambda (c b)
+       (fn (unwrap c) b))))
 
   (define-syntax with-block
     (syntax-rules ()
