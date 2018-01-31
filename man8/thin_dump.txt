@@ -27,7 +27,7 @@ OPTIONS
       $ thin_dump --format custom=mylib.so /dev/sda
 
   -r, --repair		Repair the metadata whilst dumping it.
-  -m, --metadata-snap {block nr}	Dump metadata snapshot.
+  -m, --metadata-snap{=<block nr>}	Dump metadata snapshot.
 
     If block is not provided, access the default metadata snapshot created by
     the thin provisioning device-mapper target, else try the one at block nr.
