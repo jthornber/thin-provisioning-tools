@@ -18,6 +18,7 @@ There are more requirements for testing, detailed below.
 Building
 ========
 
+    autoconf
     ./configure
     make
     sudo make install
