@@ -96,7 +96,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		sb_.device_details_root_ = details_->get_root();
 		sb_.data_block_size_ = data_block_size;
 		sb_.metadata_block_size_ = MD_BLOCK_SIZE >> SECTOR_SHIFT;
-		sb_.metadata_nr_blocks_ = tm_->get_bm()->get_nr_blocks();
+		sb_.metadata_nr_blocks_ = metadata_sm_->get_nr_blocks();
 
 		break;
 	}
