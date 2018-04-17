@@ -56,7 +56,7 @@ namespace {
 			     << ", " << data_block_size
 			     << ", " << nr_data_blocks;
 			if (metadata_snap)
-				out_ << ", " << metadata_snap;
+				out_ << ", " << *metadata_snap;
 
 			out_ << endl;
 		}
