@@ -18,6 +18,7 @@ There are more requirements for testing, detailed below.
 Building
 ========
 
+    autoconf
     ./configure
     make
     sudo make install
@@ -67,7 +68,7 @@ Alternatively you can go via the xml format (perhaps you want to
 inspect the repaired metadata before restoring).
 
     thin_dump --repair /dev/mapper/my_metadata > repaired.xml
-    thinp_restore -i repaired.xml -o /dev/mapper/my_metadata
+    thin_restore -i repaired.xml -o /dev/mapper/my_metadata
 
 Development
 ===========
