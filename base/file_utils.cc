@@ -144,9 +144,13 @@ file_utils::get_file_length(string const &file) {
 void
 file_utils::zero_superblock(std::string const &path)
 {
+	char *buffer;
 	unsigned const SUPERBLOCK_SIZE = 4096;
-	char buffer[SUPERBLOCK_SIZE];
 	int fd = open_block_file(path, SUPERBLOCK_SIZE, true, true);
+
+	buffer = reinterpret_cast<char *>(aligned_alloc(SUPERBLOCK_SIZE, SUPERBLOCK_SIZE));
+	if (!buffer)
+        	throw runtime_error("out of memory");
 
 	memset(buffer, 0, SUPERBLOCK_SIZE);
 	if (::write(fd, buffer, SUPERBLOCK_SIZE) != SUPERBLOCK_SIZE)
