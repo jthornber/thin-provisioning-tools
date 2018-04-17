@@ -33,6 +33,8 @@
 using namespace base;
 using namespace thin_provisioning;
 
+#define METADATA_VERSION 2
+
 //----------------------------------------------------------------
 
 namespace {
@@ -59,7 +61,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 		sb_ = read_superblock(tm_->get_bm());
 
-		if (sb_.version_ != 1)
+		if (sb_.version_ < METADATA_VERSION)
 			throw runtime_error("unknown metadata version");
 
 		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root_);
@@ -91,7 +93,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 
 		::memset(&sb_, 0, sizeof(sb_));
 		sb_.magic_ = SUPERBLOCK_MAGIC;
-		sb_.version_ = 1;
+		sb_.version_ = METADATA_VERSION;
 		sb_.data_mapping_root_ = mappings_->get_root();
 		sb_.device_details_root_ = details_->get_root();
 		sb_.data_block_size_ = data_block_size;
