@@ -1,6 +1,7 @@
 (library
   (disk-units)
-  (export bytes
+  (export disk-size?
+	  bytes
           sectors
           kilo
           meg

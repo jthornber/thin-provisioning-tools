@@ -14,6 +14,7 @@
     disable-unlink)
 
   (import (chezscheme)
+	  (disk-units)
           (fmt fmt)
           (srfi s8 receive)
           (only (srfi s1 lists) span))
@@ -94,10 +95,15 @@
                 (with-temp-file-containing (rest ...)
                                            b1 b2 ...))))))
 
+   (define (safe-to-bytes maybe-size)
+      (if (disk-size? maybe-size)
+	  (to-bytes maybe-size)
+	  maybe-size))
+
    (define (with-temp-file-sized-thunk filename size fn)
      (with-temp-file-thunk filename
        (lambda (path)
-         (system (fmt #f "fallocate -l " (wrt size) " " path))
+         (system (fmt #f "fallocate -l " (wrt (safe-to-bytes size)) " " path))
          (fn path))))
 
    (define-syntax with-temp-file-sized
