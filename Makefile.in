@@ -208,6 +208,14 @@ endif
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
+%.o: %.c
+	@echo "    [CXX] $<"
+	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
+	@echo "    [DEP] $<"
+	$(V) $(CC) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CFLAGS) $< > $*.$$$$; \
+	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
+	$(RM) $*.$$$$
+
 %.8: %.txt bin/txt2man
 	@echo "    [txt2man] $<"
 	$(V) bin/txt2man -p -t $(basename $(notdir $<)) $< > $@
@@ -332,7 +340,8 @@ LIBFT_SOURCE=\
 LIBFT_OBJECTS=$(subst .c,.o,$(LIBFT_SOURCE))
 
 lib/libft.so: $(LIBFT_OBJECTS)
-	gcc -shared -o $@ $+ -laio
+	@echo "    [LD]" $@
+	$(V) gcc -shared -o $@ $+ -laio
 
 .PHONEY: functional-test unit-test
 
