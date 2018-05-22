@@ -10,13 +10,17 @@
 #include <libaio.h>
 #include <vector>
 
+#include <limits.h>
+#ifndef PAGE_SIZE
+#define PAGE_SIZE sysconf(_SC_PAGE_SIZE)
+#endif
+
 //----------------------------------------------------------------
 
 namespace bcache {
 	using sector_t = uint64_t;
 
 	unsigned const SECTOR_SHIFT = 9;
-	unsigned const PAGE_SIZE = 4096;
 
 	// Virtual base class to aid unit testing
 	class io_engine {
