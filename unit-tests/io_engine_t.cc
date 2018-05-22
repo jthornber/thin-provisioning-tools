@@ -23,6 +23,10 @@
 
 
 #include <fcntl.h>
+#include <limits.h>
+#ifndef PAGE_SIZE
+#define PAGE_SIZE sysconf(_SC_PAGE_SIZE)
+#endif
 
 using namespace boost;
 using namespace std;
@@ -33,7 +37,6 @@ using namespace testing;
 
 namespace {
 	unsigned const MAX_IO = 64;
-	unsigned const PAGE_SIZE = 4096;
 
 	class IOEngineTests : public Test {
 	public:
