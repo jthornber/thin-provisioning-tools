@@ -68,10 +68,10 @@ namespace {
 		}
 
 		virtual void dec(block_address b) {
-			sm_->dec(b);
-
-			if (!sm_->get_count(b))
+			if (sm_->get_count(b) == 1)
 				mark_freed(b);
+
+			sm_->dec(b);
 		}
 
 		virtual maybe_block find_free(span_iterator &it) {
