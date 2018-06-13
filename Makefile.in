@@ -210,7 +210,7 @@ endif
 	$(RM) $*.$$$$
 
 %.o: %.c
-	@echo "    [CXX] $<"
+	@echo "    [CC] $<"
 	@mkdir -p $(dir $@)
 	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
