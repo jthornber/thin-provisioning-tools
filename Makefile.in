@@ -29,6 +29,8 @@ endif
 .PHONY: all
 all: $(PROGRAMS) $(TESTLIBS)
 
+include contrib/Makefile
+
 SOURCE=\
 	base/output_file_requirements.cc \
 	base/application.cc \
@@ -140,10 +142,8 @@ CXX:=@CXX@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 
-# FIXME EMITTERS += $(PLUGIN_LIBS) doesn't work, probably because it's empty at
-# the time of use?
 ifeq ("@STATIC@", "yes")
-EMITTERS += contrib/*.a
+EMITTERS += $(PLUGIN_LIBS)
 endif
 
 TOP_DIR:=@top_srcdir@
@@ -326,8 +326,6 @@ endif
 #	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
 
 .PHONY: install
-
-include contrib/Makefile
 
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile
