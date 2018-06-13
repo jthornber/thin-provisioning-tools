@@ -26,7 +26,7 @@ namespace {
 
 			superblock &sb = md_->sb_;
 			sb.version = metadata_version_;
-			strncpy((char *) sb.policy_name, policy.c_str(), sizeof(sb.policy_name));
+			strncpy((char *) sb.policy_name, policy.c_str(), sizeof(sb.policy_name) - 1);
 			memset(sb.policy_version, 0, sizeof(sb.policy_version)); // FIXME: should come from xml
 			sb.policy_hint_size = hint_width;
 			md_->setup_hint_array(hint_width);
