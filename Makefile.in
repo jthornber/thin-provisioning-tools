@@ -202,6 +202,7 @@ endif
 
 %.o: %.cc
 	@echo "    [CXX] $<"
+	@mkdir -p $(dir $@)
 	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
@@ -210,6 +211,7 @@ endif
 
 %.o: %.c
 	@echo "    [CXX] $<"
+	@mkdir -p $(dir $@)
 	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
 	@echo "    [DEP] $<"
 	$(V) $(CC) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CFLAGS) $< > $*.$$$$; \
@@ -218,16 +220,19 @@ endif
 
 %.8: %.txt bin/txt2man
 	@echo "    [txt2man] $<"
+	@mkdir -p $(dir $@)
 	$(V) bin/txt2man -p -t $(basename $(notdir $<)) $< > $@
 
 #----------------------------------------------------------------
 
 lib/libpdata.a: $(OBJECTS) $(EMITTERS)
 	@echo "    [AR]  $<"
+	@mkdir -p $(dir $@)
 	$(V)ar -rv $@ $(OBJECTS) $(EMITTERS) > /dev/null 2>&1
 
 bin/pdata_tools: $(OBJECTS) $(EMITTERS)
 	@echo "    [LD]  $@"
+	@mkdir -p $(dir $@)
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
 #----------------------------------------------------------------

@@ -35,6 +35,7 @@ GMOCK_DEPS=\
 
 lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [CXX] gtest"
+	@mkdir -p lib
 	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googletest -c $(GMOCK_DIR)/googletest/src/gtest-all.cc
 	@echo "    [CXX] gmock"
 	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googlemock -c $(GMOCK_DIR)/googlemock/src/gmock-all.cc
@@ -78,6 +79,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 %.gmo: %.cc
 	@echo "    [CXX] $<"
+	@mkdir -p $(dir $@)
 	$(V) $(CXX) -c $(TEST_INCLUDES) $(CPPFLAGS) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) -o $@ $<
 	@echo "    [DEP] $<"
 	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(TEST_INCLUDES) $(CPPFLAGS) $(GMOCK_INCLUDES) $(CXXFLAGS) $(GMOCK_FLAGS) $< > $*.$$$$; \
@@ -86,6 +88,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 
 unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"
+	@mkdir -p $(dir $@)
 	$(V)g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
 .PHONY: unit-test
