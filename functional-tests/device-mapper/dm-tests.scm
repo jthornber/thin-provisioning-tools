@@ -668,5 +668,18 @@
        (assert-pool-used-data pool (kilo 64) (meg 128))
        (delete-thin pool 0)
        (assert-pool-used-data pool (kilo 64) (sectors 0))))
+
+  (define-dm-scenario (thin discard recover-space)
+    "Discarding blocks frees up space"
+    (let ((data-size (meg 128)))
+     (with-pool (pool (default-md-table)
+                      (default-data-table data-size)
+                      (kilo 64)
+                      (thin-pool-options error-if-no-space skip-block-zeroing))
+       (with-new-thin (thin pool 0 data-size)
+         (zero-dev thin)
+         (discard (dm-device-path thin) 0 (to-sectors data-size))
+         (assert-pool-used-data pool (kilo 64) (sectors 0))))))
+
   )
 
