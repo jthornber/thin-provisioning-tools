@@ -44,7 +44,8 @@
 
           message
 
-          get-dev-size)
+          get-dev-size
+          discard)
 
   (import (chezscheme)
           (disk-units)
@@ -393,4 +394,10 @@
            (if (zero? r)
                (sectors result)
                (fail (fmt #f "get-dev-size failed: " r))))))
-  )
+
+  (define (discard dev sb se)
+    (define c-discard
+      (foreign-procedure "discard" (string unsigned-64 unsigned-64) int))
+    (unless (zero? (c-discard dev sb se))
+            (fail (fmt #f "discard ioctl failed"))))
+)

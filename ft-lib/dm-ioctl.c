@@ -487,8 +487,6 @@ int dm_load(struct dm_interface *dmi, const char *name,
 	return r;
 }
 
-//----------------------------------------------------------------
-// returns false if control buffer too small.
 static bool get_status(struct dm_interface *dmi, struct dm_ioctl *ctl,
 		       const char *name, unsigned flags,
 		       int *result)
@@ -608,6 +606,26 @@ int get_dev_size(const char *path, uint64_t *sectors)
 	r = ioctl(fd, BLKGETSIZE64, sectors);
 	(*sectors) /= 512;
 	close(fd);
+	return r;
+}
+
+int discard(const char *path, uint64_t sector_b, uint64_t sector_e)
+{
+	int r, fd;
+	uint64_t payload[2];
+
+	fd = open(path, O_RDWR);
+	if (fd < 0) {
+        	fprintf(stderr, "couldn't open %s", path);
+		return -EINVAL;
+	}
+
+	payload[0] = sector_b;
+	payload[1] = sector_e;
+
+	r = ioctl(fd, BLKDISCARD, payload);
+	close(fd);
+
 	return r;
 }
 
