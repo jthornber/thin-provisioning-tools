@@ -17,6 +17,10 @@
 
 //----------------------------------------------------------------
 
+// Musl defines
+#ifdef PAGE_SIZE
+#undef PAGE_SIZE
+#endif
 namespace bcache {
 	using sector_t = uint64_t;
 
