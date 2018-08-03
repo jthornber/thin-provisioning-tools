@@ -35,6 +35,13 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
+	bool check_flags(uint32_t flags) {
+		flags &= 0x3;
+		if (flags == INTERNAL_NODE || flags == LEAF_NODE)
+			return true;
+		return false;
+	}
+
 	// extracted from btree_damage_visitor.h
 	template <typename node>
 	bool check_block_nr(node const &n) {
@@ -97,67 +104,64 @@ namespace {
 }
 
 namespace {
-	// FIXME: deprecated conversion from string constant to ‘char*’
-	char const* metadata_block_type_name[] = {
-		"unknown",
-		"zero",
-		"superblock",
-		"btree_internal",
-		"btree_leaf",
-		"btree_unknown",
-		"index_block",
-		"bitmap_block"
-	};
+	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
+	uint32_t const BITMAP_CSUM_XOR = 240779;
+	uint32_t const INDEX_CSUM_XOR = 160478;
+	uint32_t const BTREE_CSUM_XOR = 121107;
 
 	enum metadata_block_type {
 		UNKNOWN = 0,
 		ZERO,
 		SUPERBLOCK,
-		BTREE_INTERNAL,
-		BTREE_LEAF,
-		BTREE_UNKNOWN,
 		INDEX_BLOCK,
-		BITMAP_BLOCK
+		BITMAP_BLOCK,
+		BTREE_NODE
 	};
 
-	struct block_range {
+	// For UNKNOWN and ZERO
+	class block_range {
+	public:
 		block_range()
-			: begin_(0), end_(0),
-			  type_(UNKNOWN), ref_count_(-1),
-			  value_size_(0), is_valid_(false)
-		{
+			: begin_(0),
+			  end_(0),
+			  type_(UNKNOWN),
+			  is_valid_(false),
+			  ref_count_(-1) {
 		}
 
 		block_range(block_range const &rhs)
-			: begin_(rhs.begin_), end_(rhs.end_),
-			  blocknr_begin_(rhs.blocknr_begin_),
-			  type_(rhs.type_), ref_count_(rhs.ref_count_),
-			  value_size_(rhs.value_size_), is_valid_(rhs.is_valid_)
-		{
+			: begin_(rhs.begin_),
+			  end_(rhs.end_),
+			  type_(rhs.type_),
+			  is_valid_(rhs.is_valid_),
+			  ref_count_(rhs.ref_count_) {
 		}
 
-		uint64_t size() const {
+		virtual ~block_range() {}
+
+		virtual void reset(int type,
+				   typename block_manager<>::read_ref &rr,
+				   int64_t ref_count) {
+			begin_ = rr.get_location();
+			end_ = begin_ + 1;
+			type_ = type;
+			ref_count_ = ref_count;
+			is_valid_ = false;
+		}
+
+		virtual std::unique_ptr<block_range> clone() const {
+			return std::unique_ptr<block_range>(new block_range(*this));
+		}
+
+		inline uint64_t size() const {
 			return (end_ > begin_) ? (end_ - begin_) : 0;
 		}
 
 		// returns true if r is left or right-adjacent
 		bool is_adjacent_to(block_range const &r) const {
-			block_range const &lhs = begin_ < r.begin_ ? *this : r;
-			block_range const &rhs = begin_ < r.begin_ ? r : *this;
-
-			if (size() && r.size() &&
-			    rhs.begin_ == lhs.end_ &&
-			    ((!blocknr_begin_ && !r.blocknr_begin_) ||
-			     (blocknr_begin_ && r.blocknr_begin_ &&
-			      *rhs.blocknr_begin_ >= *lhs.blocknr_begin_ &&
-			      (*rhs.blocknr_begin_ - *lhs.blocknr_begin_ == rhs.begin_ - lhs.begin_))) &&
-			    type_ == r.type_ &&
-			    ref_count_ == r.ref_count_ &&
-			    value_size_ == r.value_size_ &&
-			    is_valid_ == r.is_valid_)
-				return true;
-
-			return false;
+			if (begin_ < r.begin_)
+				return is_adjacent_to_(r);
+			return r.is_adjacent_to_(*this);
 		}
 
 		bool concat(block_range const &r) {
@@ -168,160 +172,391 @@ namespace {
 			return true;
 		}
 
-		uint64_t begin_;
-		uint64_t end_; // one-pass-the-end
-		boost::optional<uint64_t> blocknr_begin_;
-		metadata_block_type type_;
-		int64_t ref_count_; // ref_count in metadata space map
-		size_t value_size_; // btree node only
-		bool is_valid_;
-	};
-
-	void output_block_range(block_range const &r, std::ostream &out) {
-		if (!r.size())
-			return;
-
-		if (r.end_ - r.begin_ > 1) {
-			out << "<range_block type=\"" << metadata_block_type_name[r.type_]
-			    << "\" location_begin=\"" << r.begin_;
-			if (r.blocknr_begin_)
-			    out << "\" blocknr_begin=\"" << *r.blocknr_begin_;
-			out << "\" length=\"" << r.end_ - r.begin_
-			    << "\" ref_count=\"" << r.ref_count_
-			    << "\" is_valid=\"" << r.is_valid_;
-		} else {
-			out << "<single_block type=\"" << metadata_block_type_name[r.type_]
-			    << "\" location=\"" << r.begin_;
-			if (r.blocknr_begin_)
-			    out << "\" blocknr=\"" << *r.blocknr_begin_;
-			out << "\" ref_count=\"" << r.ref_count_
-			    << "\" is_valid=\"" << r.is_valid_;
+		virtual char const *type_name() const {
+			switch (type_) {
+			case ZERO:
+				return "zero";
+			default:
+				return "unknown";
+			}
 		}
 
-		if (r.type_ == BTREE_INTERNAL || r.type_ == BTREE_LEAF || r.type_ == BTREE_UNKNOWN) {
-			out << "\" value_size=\"" << r.value_size_ << "\"/>" << endl;
-		} else
-			out << "\"/>" << endl;
+		virtual void print(std::ostream &out) const {
+			uint64_t s = size();
+
+			if (s > 1) {
+				out << "<range_block type=\"" << type_name()
+				    << "\" location_begin=\"" << begin_
+				    << "\" length=\"" << s
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\"/>";
+			} else if (s == 1) {
+				out << "<single_block type=\"" << type_name()
+				    << "\" location=\"" << begin_
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\"/>";
+			}
+		}
+
+		friend ostream &operator<<(std::ostream &out, block_range const &r);
+
+	protected:
+		// return true is rhs is right-adjacent
+		virtual bool is_adjacent_to_(block_range const &rhs) const {
+			if (type_ != rhs.type_)
+				return false;
+
+			if (rhs.begin_ != end_)
+				return false;
+
+			if (ref_count_ != rhs.ref_count_ ||
+			    is_valid_ != rhs.is_valid_)
+				return false;
+
+			return true;
+		}
+
+		uint64_t begin_;
+		uint64_t end_; // one-pass-the-end. end_ == begin_ indicates an empty range.
+		int type_;
+		bool is_valid_;
+		int64_t ref_count_; // ref_count in metadata space map
+	};
+
+	// For SUPERBLOCK, INDEX_BLOCK and BITMAP_BLOCK
+	class meta_block_range: public block_range {
+	public:
+		meta_block_range()
+			: block_range(),
+			  blocknr_begin_(0) {
+		}
+
+		meta_block_range(meta_block_range const &rhs)
+			: block_range(rhs),
+			  blocknr_begin_(rhs.blocknr_begin_) {
+		}
+
+		virtual void reset(int type,
+				   typename block_manager<>::read_ref &rr,
+				   int64_t ref_count) {
+			using namespace persistent_data;
+			using namespace sm_disk_detail;
+			using namespace superblock_detail;
+
+			begin_ = rr.get_location();
+			end_ = begin_ + 1;
+			type_ = type;
+			ref_count_ = ref_count;
+
+			switch (type) {
+			case SUPERBLOCK:
+				blocknr_begin_ = to_cpu<uint64_t>(reinterpret_cast<superblock_disk const *>(rr.data())->blocknr_);
+				break;
+			case BITMAP_BLOCK:
+				blocknr_begin_ = to_cpu<uint64_t>(reinterpret_cast<bitmap_header const *>(rr.data())->blocknr);
+				break;
+			case INDEX_BLOCK:
+				blocknr_begin_ = to_cpu<uint64_t>(reinterpret_cast<metadata_index const *>(rr.data())->blocknr_);
+				break;
+			default:
+				blocknr_begin_ = 0;
+			}
+
+			is_valid_ = (blocknr_begin_ == begin_) ? true : false;
+		}
+
+		virtual std::unique_ptr<block_range> clone() const {
+			return std::unique_ptr<block_range>(new meta_block_range(*this));
+		}
+
+		virtual char const *type_name() const {
+			switch (type_) {
+			case SUPERBLOCK:
+				return "superblock";
+			case INDEX_BLOCK:
+				return "index_block";
+			case BITMAP_BLOCK:
+				return "bitmap_block";
+			default:
+				return "unknown";
+			}
+		}
+
+		virtual void print(std::ostream &out) const {
+			uint64_t s = size();
+
+			if (s > 1) {
+				out << "<range_block type=\"" << type_name()
+				    << "\" location_begin=\"" << begin_
+				    << "\" blocknr_begin=\"" << blocknr_begin_
+				    << "\" length=\"" << s
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\"/>";
+			} else if (s == 1) {
+				out << "<single_block type=\"" << type_name()
+				    << "\" location=\"" << begin_
+				    << "\" blocknr=\"" << blocknr_begin_
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\"/>";
+			}
+		}
+
+	protected:
+		virtual bool is_adjacent_to_(block_range const &rhs) const {
+			if (!block_range::is_adjacent_to_(rhs))
+				return false;
+			meta_block_range const &r = dynamic_cast<meta_block_range const &>(rhs);
+			if (r.blocknr_begin_ < blocknr_begin_)
+				return false;
+			if (r.blocknr_begin_ - blocknr_begin_ != r.begin_ - begin_)
+				return false;
+			return true;
+		}
+
+		block_address blocknr_begin_; // block number in header
+	};
+
+	// For BTREE_NODE
+	class btree_block_range: public meta_block_range {
+	public:
+		btree_block_range()
+			: meta_block_range(),
+			  flags_(0),
+			  value_size_(0) {
+		}
+
+		btree_block_range(btree_block_range const &rhs)
+			: meta_block_range(rhs),
+			  flags_(rhs.flags_),
+			  value_size_(rhs.value_size_) {
+		}
+
+		virtual void reset(int type,
+				   typename block_manager<>::read_ref &rr,
+				   int64_t ref_count) {
+			node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
+
+			begin_ = rr.get_location();
+			end_ = begin_ + 1;
+			type_ = type;
+			ref_count_ = ref_count;
+			blocknr_begin_ = n.get_block_nr();
+			flags_ = to_cpu<uint32_t>(n.raw()->header.flags);
+			value_size_ = n.get_value_size();
+
+			if (check_flags(flags_) &&
+			    check_block_nr(n) &&
+			    check_max_entries(n) &&
+			    check_nr_entries(n, true) &&
+			    check_ordered_keys(n))
+				is_valid_ = true;
+			else
+				is_valid_ = false;
+		}
+
+		virtual std::unique_ptr<block_range> clone() const {
+			return std::unique_ptr<block_range>(new btree_block_range(*this));
+		}
+
+		virtual char const *type_name() const {
+			if ((flags_ & INTERNAL_NODE) && !(flags_ & LEAF_NODE))
+				return "btree_internal";
+			else if (flags_ & LEAF_NODE)
+				return "btree_leaf";
+			else
+				return "btree_unknown";
+		};
+
+		virtual void print(std::ostream &out) const {
+			uint64_t s = size();
+
+			if (s > 1) {
+				out << "<range_block type=\"" << type_name()
+				    << "\" location_begin=\"" << begin_
+				    << "\" blocknr_begin=\"" << blocknr_begin_
+				    << "\" length=\"" << s
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\" value_size=\"" << value_size_
+				    << "\"/>";
+			} else if (s == 1) {
+				out << "<single_block type=\"" << type_name()
+				    << "\" location=\"" << begin_
+				    << "\" blocknr=\"" << blocknr_begin_
+				    << "\" ref_count=\"" << ref_count_
+				    << "\" is_valid=\"" << is_valid_
+				    << "\" value_size=\"" << value_size_
+				    << "\"/>";
+			}
+		}
+
+	protected:
+		virtual bool is_adjacent_to_(block_range const &rhs) const {
+			if (!meta_block_range::is_adjacent_to_(rhs))
+				return false;
+			btree_block_range const &r = dynamic_cast<btree_block_range const &>(rhs);
+			if ((flags_ & 0x3) != (r.flags_ & 0x3))
+				return false;
+			if (value_size_ != r.value_size_)
+				return false;
+			return true;
+		}
+
+		uint32_t flags_;
+		size_t value_size_;
+	};
+
+	ostream &operator<<(std::ostream &out, block_range const &r) {
+		r.print(out);
+		return out;
 	}
 
 	//-------------------------------------------------------------------
 
+	class range_factory {
+	public:
+		virtual ~range_factory() {}
+
+		block_range const &convert_to_range(block_manager<>::read_ref rr, int64_t ref_count) {
+			if (!memcmp(rr.data(), zeros_.data(), MD_BLOCK_SIZE)) {
+				br_.reset(ZERO, rr, ref_count);
+				return br_;
+			}
+
+			uint32_t const *cksum = reinterpret_cast<uint32_t const*>(rr.data());
+			base::crc32c sum(*cksum);
+			sum.append(cksum + 1, MD_BLOCK_SIZE - sizeof(uint32_t));
+
+			switch (sum.get_sum()) {
+			case SUPERBLOCK_CSUM_SEED:
+				mbr_.reset(SUPERBLOCK, rr, ref_count);
+				return mbr_;
+			case INDEX_CSUM_XOR:
+				mbr_.reset(INDEX_BLOCK, rr, ref_count);
+				return mbr_;
+			case BITMAP_CSUM_XOR:
+				mbr_.reset(BITMAP_BLOCK, rr, ref_count);
+				return mbr_;
+			case BTREE_CSUM_XOR:
+				bbr_.reset(BTREE_NODE, rr, ref_count);
+				return bbr_;
+			default:
+				br_.reset(UNKNOWN, rr, ref_count);
+				return br_;
+			}
+		}
+
+	private:
+		static const std::vector<char> zeros_;
+
+		// for internal caching only
+		block_range br_;
+		meta_block_range mbr_;
+		btree_block_range bbr_;
+	};
+
+	const std::vector<char> range_factory::zeros_(MD_BLOCK_SIZE, 0);
+
+	class metadata_scanner {
+	public:
+		metadata_scanner(block_manager<>::ptr bm, uint64_t scan_begin, uint64_t scan_end)
+			: bm_(bm),
+			  scan_begin_(scan_begin),
+			  scan_end_(scan_end),
+			  index_(scan_begin) {
+			if (scan_end_ <= scan_begin_)
+				throw std::runtime_error("badly formed region (end <= begin)");
+
+			// try to open metadata space-map (it's okay to fail)
+			try {
+				superblock_detail::superblock sb = read_superblock(bm);
+				tm_ = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+				metadata_sm_ = open_metadata_sm(*tm_, &sb.metadata_space_map_root_);
+				tm_->set_sm(metadata_sm_);
+			} catch (std::exception &e) {
+				cerr << e.what() << endl;
+			}
+
+			// prefetch the first block
+			block_range const &r = read_block(index_++);
+			run_range_ = r.clone();
+		}
+
+		virtual ~metadata_scanner() {}
+
+		std::unique_ptr<block_range> get_range() {
+			std::unique_ptr<block_range> ret;
+
+			while (index_ < scan_end_) {
+				block_range const &r = read_block(index_++);
+
+				if (!run_range_->concat(r)) {
+					ret = std::move(run_range_);
+					run_range_ = r.clone();
+					break;
+				}
+			}
+			if (!ret) { // for the last run (index_ == scan_end_)
+				ret = std::move(run_range_);
+				run_range_.reset();
+			}
+			return ret;
+		}
+
+	private:
+		block_range const &read_block(block_address b) {
+			block_manager<>::read_ref rr = bm_->read_lock(b);
+			int64_t ref_count;
+			try {
+				ref_count = metadata_sm_ ? static_cast<int64_t>(metadata_sm_->get_count(b)) : -1;
+			} catch (std::exception &e) {
+				ref_count = -1;
+			}
+			return factory_.convert_to_range(rr, ref_count);
+		}
+
+		// note: space_map does not take the ownership of transaction_manager,
+		// so the transaction_manager must live in the same scope of space_map.
+		block_manager<>::ptr bm_;
+		transaction_manager::ptr tm_;
+		checked_space_map::ptr metadata_sm_;
+
+		uint64_t scan_begin_;
+		uint64_t scan_end_;
+		uint64_t index_;
+		std::unique_ptr<block_range> run_range_;
+
+		range_factory factory_;
+	};
+
+	//-------------------------------------------------------------------
+
 	struct flags {
-		flags() {
+		flags(): exclusive_(true) {
 		}
 
 		boost::optional<block_address> scan_begin_;
 		boost::optional<block_address> scan_end_;
+		bool exclusive_;
 	};
 
 	int scan_metadata_(string const &input,
 			   std::ostream &out,
 			   flags const &f) {
-		using namespace persistent_data;
-		using namespace thin_provisioning;
-		using namespace sm_disk_detail;
-
 		block_manager<>::ptr bm;
-		bm = open_bm(input, block_manager<>::READ_ONLY);
-
+		bm = open_bm(input, block_manager<>::READ_ONLY, f.exclusive_);
 		block_address scan_begin = f.scan_begin_ ? *f.scan_begin_ : 0;
 		block_address scan_end = f.scan_end_ ? *f.scan_end_ : bm->get_nr_blocks();
 
-		const std::vector<char> zeros(MD_BLOCK_SIZE, 0);
-
-		// try to open metadata space-map (it's okay to fail)
-		// note: transaction_manager and space_map must be in the same scope
-		transaction_manager::ptr tm;
-		checked_space_map::ptr metadata_sm;
-		try {
-			superblock_detail::superblock sb = read_superblock(bm);
-			tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
-			metadata_sm = open_metadata_sm(*tm, &sb.metadata_space_map_root_);
-			tm->set_sm(metadata_sm);
-		} catch (std::exception &e) {
-			cerr << e.what() << endl;
+		metadata_scanner scanner(bm, scan_begin, scan_end);
+		std::unique_ptr<block_range> r;
+		while ((r = scanner.get_range())) {
+			out << *r << std::endl;
 		}
-
-		block_range curr_range;
-		block_range run_range;
-
-		bcache::validator::ptr sv = superblock_validator();
-		bcache::validator::ptr nv = create_btree_node_validator();
-		bcache::validator::ptr iv = index_validator();
-		bcache::validator::ptr bv = bitmap_validator();
-
-		for (block_address b = scan_begin; b < scan_end; ++b) {
-			block_manager<>::read_ref rr = bm->read_lock(b);
-
-			curr_range.begin_ = b;
-			curr_range.end_ = b + 1;
-			curr_range.blocknr_begin_ = boost::none;
-			curr_range.type_ = UNKNOWN;
-			curr_range.is_valid_ = false;
-
-			if (!memcmp(rr.data(), zeros.data(), MD_BLOCK_SIZE))
-				curr_range.type_ = ZERO;
-
-			if (curr_range.type_ == UNKNOWN && sv->check_raw(rr.data())) {
-				curr_range.type_ = SUPERBLOCK;
-				curr_range.is_valid_ = true;
-			}
-
-			if (curr_range.type_ == UNKNOWN && nv->check_raw(rr.data())) {
-				// note: check_raw() doesn't check node_header::blocknr_
-				node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
-				uint32_t flags = to_cpu<uint32_t>(n.raw()->header.flags);
-				if ((flags & INTERNAL_NODE) && !(flags & LEAF_NODE))
-					curr_range.type_ = BTREE_INTERNAL;
-				else if (flags & LEAF_NODE)
-					curr_range.type_ = BTREE_LEAF;
-				else
-					curr_range.type_ = BTREE_UNKNOWN;
-
-				if (curr_range.type_ != BTREE_UNKNOWN &&
-				    check_block_nr(n) &&
-				    check_max_entries(n) &&
-				    check_nr_entries(n, true) &&
-				    check_ordered_keys(n))
-					curr_range.is_valid_ = true;
-				else
-					curr_range.is_valid_ = false;
-
-				curr_range.blocknr_begin_ = n.get_block_nr();
-				curr_range.value_size_ = n.get_value_size();
-			}
-
-			if (curr_range.type_ == UNKNOWN && bv->check_raw(rr.data())) {
-				curr_range.type_ = BITMAP_BLOCK;
-				bitmap_header const *data = reinterpret_cast<bitmap_header const *>(rr.data());
-				curr_range.blocknr_begin_ = to_cpu<uint64_t>(data->blocknr);
-				curr_range.is_valid_ = (to_cpu<uint64_t>(data->blocknr) == b) ? true : false;
-			}
-
-			if (curr_range.type_ == UNKNOWN && iv->check_raw(rr.data())) {
-				curr_range.type_ = INDEX_BLOCK;
-				metadata_index const *mi = reinterpret_cast<metadata_index const *>(rr.data());
-				curr_range.blocknr_begin_ = to_cpu<uint64_t>(mi->blocknr_);
-				curr_range.is_valid_ = (to_cpu<uint64_t>(mi->blocknr_) == b) ? true : false;
-			}
-
-			try {
-				curr_range.ref_count_ = metadata_sm ?
-							static_cast<int64_t>(metadata_sm->get_count(b)) : -1;
-			} catch (std::exception &e) {
-				curr_range.ref_count_ = -1;
-			}
-
-			// store the current block
-			if (!run_range.concat(curr_range)) {
-				output_block_range(run_range, out);
-				run_range = curr_range;
-			}
-		}
-
-		// output the last run
-		output_block_range(run_range, out);
-
 		return 0;
 	}
 
@@ -351,12 +586,12 @@ thin_scan_cmd::thin_scan_cmd()
 
 void
 thin_scan_cmd::usage(std::ostream &out) const {
-	out << "Usage: " << get_name() << " [options] {device|file}" << endl
-	    << "Options:" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-o|--output} <xml file>" << endl
-	    << "  {--begin} <block#>" << endl
-	    << "  {--end} <block#>" << endl
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-o|--output} <xml file>\n"
+	    << "  {--begin} <block#>\n"
+	    << "  {--end} <block#>\n"
 	    << "  {-V|--version}" << endl;
 }
 
