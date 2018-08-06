@@ -1,11 +1,13 @@
 PLUGIN_LIBS= \
 	contrib/thin_sexp_emitter.a \
 	contrib/tmakatos_emitter.a \
+	contrib/tmakatos_mappings_emitter.a \
 	contrib/ewheeler_emitter.a
 
 PLUGINS=\
 	contrib/thin_sexp_emitter.so \
 	contrib/tmakatos_emitter.so \
+	contrib/tmakatos_mappings_emitter.so \
 	contrib/ewheeler_emitter.so
 
 contrib: $(PLUGINS) $(PLUGIN_LIBS)
