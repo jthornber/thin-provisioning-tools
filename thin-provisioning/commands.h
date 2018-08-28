@@ -116,6 +116,13 @@ namespace thin_provisioning {
 		virtual void usage(std::ostream &out) const;
 		virtual int run(int argc, char **argv);
 	};
+
+	class thin_journal_cmd : public base::command {
+	public:
+		thin_journal_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
 #endif
 
 	void register_thin_commands(base::application &app);
