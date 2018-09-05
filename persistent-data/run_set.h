@@ -64,13 +64,13 @@ namespace base {
 
 			typename rset::const_iterator it = runs_.lower_bound(run<T>(v));
 
-			if (it->begin_ == v)
+			if (it != runs_.end() && it->begin_ == v)
 				return true;
 
-			it--;
-
-			if (it != runs_.end())
+			if (it != runs_.begin()) {
+				it--;
 				return it->contains(v);
+			}
 
 			return false;
 		}
