@@ -27,8 +27,8 @@
 
 namespace thin_provisioning {
 	uint32_t const JOURNAL_BLOCK_SIZE = 256 * 1024;
-	uint32_t const JOURNAL_NR_CHUNKS = 32;
-	uint32_t const JOURNAL_CHUNK_SIZE = 4096 / JOURNAL_NR_CHUNKS;
+	uint32_t const JOURNAL_CHUNK_SIZE = 32;
+	uint32_t const JOURNAL_NR_CHUNKS = (4096 / JOURNAL_CHUNK_SIZE);
 
 	class byte_stream {
 	public:
@@ -57,6 +57,17 @@ namespace thin_provisioning {
 		virtual void visit(journal_visitor &v) const = 0;
 
 		bool success_;
+	};
+
+	struct open_journal_msg : public journal_msg {
+		open_journal_msg(uint64_t nr_metadata_blocks);
+		virtual void visit(journal_visitor &v) const;
+		uint64_t nr_metadata_blocks_;
+	};
+
+	struct close_journal_msg : public journal_msg {
+		close_journal_msg();
+		virtual void visit(journal_visitor &v) const;
 	};
 
 	struct block_msg : public journal_msg {
@@ -148,6 +159,8 @@ namespace thin_provisioning {
 			msg.visit(*this);
 		}
 
+		virtual void visit(open_journal_msg const &msg) = 0;
+		virtual void visit(close_journal_msg const &msg) = 0;
 		virtual void visit(read_lock_msg const &msg) = 0;
 		virtual void visit(write_lock_msg const &msg) = 0;
 		virtual void visit(zero_lock_msg const &msg) = 0;
@@ -163,7 +176,10 @@ namespace thin_provisioning {
 	};
 
 	enum msg_type {
-		MT_READ_LOCK = 0,
+		MT_OPEN_JOURNAL,
+		MT_CLOSE_JOURNAL,
+
+		MT_READ_LOCK,
 		MT_WRITE_LOCK,
 		MT_ZERO_LOCK,
 		MT_TRY_READ_LOCK,
@@ -175,7 +191,6 @@ namespace thin_provisioning {
 		MT_PREFETCH,
 		MT_SET_READ_ONLY,
 		MT_SET_READ_WRITE,
-		MT_END_OF_JOURNAL,
 	};
 
 	class journal {

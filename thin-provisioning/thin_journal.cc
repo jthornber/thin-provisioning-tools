@@ -38,17 +38,22 @@ byte_stream::read_bytes(uint8_t *b, uint8_t *e)
 {
 	while (b != e)
 		b += read_some_(b, e);
+
+	assert(b == e);
 }
 
 void
 byte_stream::next_block_()
 {
 	current_block_++;
+	cursor_ = 0;
 }
 
 size_t
 byte_stream::read_some_(uint8_t *b, uint8_t *e)
 {
+	assert(cursor_ <= JOURNAL_BLOCK_SIZE);
+
 	if (cursor_ == JOURNAL_BLOCK_SIZE)
 		next_block_();
 
@@ -67,6 +72,29 @@ byte_stream::read_some_(uint8_t *b, uint8_t *e)
 journal_msg::journal_msg(bool success)
 	: success_(success)
 {
+}
+
+open_journal_msg::open_journal_msg(uint64_t nr_metadata_blocks)
+	: journal_msg(true),
+	  nr_metadata_blocks_(nr_metadata_blocks)
+{
+}
+
+void
+open_journal_msg::visit(journal_visitor &v) const
+{
+	v.visit(*this);
+}
+
+close_journal_msg::close_journal_msg()
+	: journal_msg(true)
+{
+}
+
+void
+close_journal_msg::visit(journal_visitor &v) const
+{
+	v.visit(*this);
 }
 
 block_msg::block_msg(bool success, uint64_t index) 
@@ -228,9 +256,18 @@ journal::read_one_(struct journal_visitor &v)
 	uint8_t header = read_<uint8_t>();
 	uint8_t t = header >> 1;
 	uint8_t success = header & 0x1;
-	uint64_t index;
+	uint64_t index, nr_blocks;
 
 	switch (static_cast<msg_type>(t)) {
+	case MT_OPEN_JOURNAL:
+		nr_blocks = read_<uint64_t>();
+		v.visit(open_journal_msg(nr_blocks));
+                break;
+
+	case MT_CLOSE_JOURNAL:
+                v.visit(close_journal_msg());
+		return false;
+
 	case MT_READ_LOCK:
 		index = read_<uint64_t>();
 		v.visit(read_lock_msg(success, index));
@@ -273,6 +310,7 @@ journal::read_one_(struct journal_visitor &v)
 		break;
 
 	case MT_FLUSH_AND_UNLOCK: {
+		cerr << "reading flush_and_unlock msg\n";
 		index = read_<uint64_t>();
 		auto deltas = read_deltas_();
                 v.visit(flush_and_unlock_msg(success, index, deltas));
@@ -291,9 +329,6 @@ journal::read_one_(struct journal_visitor &v)
 	case MT_SET_READ_WRITE:
                 v.visit(set_read_write_msg());
 		break;
-
-	case MT_END_OF_JOURNAL:
-		return false;
 	}
 
 	return true;
@@ -302,14 +337,16 @@ journal::read_one_(struct journal_visitor &v)
 bool
 journal::read_delta_(delta_list &ds)
 {
-	uint8_t chunk = read_<uint8_t>();
+	uint16_t chunk = read_<uint16_t>();
 
-	if (chunk == 0xff)
+	if (chunk == 0xffff)
 		return false;
+
+	assert(chunk < JOURNAL_NR_CHUNKS);
 
 	auto bytes = vector<uint8_t>(JOURNAL_CHUNK_SIZE, 0);
 	in_.read_bytes(bytes.data(), bytes.data() + JOURNAL_CHUNK_SIZE);
-	ds.push_back(delta(chunk, bytes));
+	ds.push_back(delta(chunk * JOURNAL_CHUNK_SIZE, bytes));
 
 	return true;
 }

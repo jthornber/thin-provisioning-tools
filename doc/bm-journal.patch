@@ -1,0 +1,1505 @@
+commit 6cb3772bdb92399319eb463e658ce62b692c669a
+Author: Joe Thornber <ejt@redhat.com>
+Date:   Mon Sep 24 14:48:16 2018 +0100
+
+    [bm journal] Journalling version of block manager.
+    
+    Can be used to confirm we're crash proof with the thin_journal_check tool.
+
+diff --git a/drivers/md/dm-cache-metadata.c b/drivers/md/dm-cache-metadata.c
+index 69dddeab124c..f7b11f270846 100644
+--- a/drivers/md/dm-cache-metadata.c
++++ b/drivers/md/dm-cache-metadata.c
+@@ -106,6 +106,8 @@ struct dm_cache_metadata {
+ 
+ 	unsigned version;
+ 	struct block_device *bdev;
++	struct block_device *journal_dev;
++
+ 	struct dm_block_manager *bm;
+ 	struct dm_space_map *metadata_sm;
+ 	struct dm_transaction_manager *tm;
+@@ -281,7 +283,7 @@ static int __superblock_all_zeroes(struct dm_block_manager *bm, bool *result)
+ 		}
+ 	}
+ 
+-	dm_bm_unlock(b);
++	dm_bm_unlock(bm, b);
+ 
+ 	return 0;
+ }
+@@ -504,12 +506,12 @@ static int __open_metadata(struct dm_cache_metadata *cmd)
+ 	dm_disk_bitset_init(cmd->tm, &cmd->discard_info);
+ 	sb_flags = le32_to_cpu(disk_super->flags);
+ 	cmd->clean_when_opened = test_bit(CLEAN_SHUTDOWN, &sb_flags);
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(cmd->bm, sblock);
+ 
+ 	return 0;
+ 
+ bad:
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(cmd->bm, sblock);
+ 	return r;
+ }
+ 
+@@ -533,8 +535,9 @@ static int __create_persistent_data_objects(struct dm_cache_metadata *cmd,
+ 					    bool may_format_device)
+ {
+ 	int r;
+-	cmd->bm = dm_block_manager_create(cmd->bdev, DM_CACHE_METADATA_BLOCK_SIZE << SECTOR_SHIFT,
+-					  CACHE_MAX_CONCURRENT_LOCKS);
++	cmd->bm = dm_block_manager_create_with_journal(cmd->bdev,
++                                          DM_CACHE_METADATA_BLOCK_SIZE << SECTOR_SHIFT,
++					  CACHE_MAX_CONCURRENT_LOCKS, cmd->journal_dev);
+ 	if (IS_ERR(cmd->bm)) {
+ 		DMERR("could not create block manager");
+ 		return PTR_ERR(cmd->bm);
+@@ -621,9 +624,8 @@ static int __begin_transaction_flags(struct dm_cache_metadata *cmd,
+ 	disk_super = dm_block_data(sblock);
+ 	update_flags(disk_super, mutator);
+ 	read_superblock_fields(cmd, disk_super);
+-	dm_bm_unlock(sblock);
+ 
+-	return dm_bm_flush(cmd->bm);
++	return dm_bm_flush_and_unlock(cmd->bm, sblock);
+ }
+ 
+ static int __begin_transaction(struct dm_cache_metadata *cmd)
+@@ -642,7 +644,7 @@ static int __begin_transaction(struct dm_cache_metadata *cmd)
+ 
+ 	disk_super = dm_block_data(sblock);
+ 	read_superblock_fields(cmd, disk_super);
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(cmd->bm, sblock);
+ 
+ 	return 0;
+ }
+@@ -1775,7 +1777,7 @@ int dm_cache_metadata_set_needs_check(struct dm_cache_metadata *cmd)
+ 	disk_super = dm_block_data(sblock);
+ 	disk_super->flags = cpu_to_le32(cmd->flags);
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(cmd->bm, sblock);
+ 
+ out:
+ 	WRITE_UNLOCK(cmd);
+diff --git a/drivers/md/dm-era-target.c b/drivers/md/dm-era-target.c
+index 8e48920a3ffa..4aad158a58e8 100644
+--- a/drivers/md/dm-era-target.c
++++ b/drivers/md/dm-era-target.c
+@@ -342,7 +342,7 @@ static int superblock_all_zeroes(struct dm_block_manager *bm, bool *result)
+ 		}
+ 	}
+ 
+-	dm_bm_unlock(b);
++	dm_bm_unlock(bm, b);
+ 
+ 	return 0;
+ }
+@@ -583,12 +583,12 @@ static int open_metadata(struct era_metadata *md)
+ 	md->metadata_snap = le64_to_cpu(disk->metadata_snap);
+ 	md->archived_writesets = true;
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(md->bm, sblock);
+ 
+ 	return 0;
+ 
+ bad:
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(md->bm, sblock);
+ 	return r;
+ }
+ 
+diff --git a/drivers/md/dm-thin-metadata.c b/drivers/md/dm-thin-metadata.c
+index 72142021b5c9..8420b67b0e51 100644
+--- a/drivers/md/dm-thin-metadata.c
++++ b/drivers/md/dm-thin-metadata.c
+@@ -146,6 +146,8 @@ struct dm_pool_metadata {
+ 	struct hlist_node hash;
+ 
+ 	struct block_device *bdev;
++	struct block_device *journal_dev;
++
+ 	struct dm_block_manager *bm;
+ 	struct dm_space_map *metadata_sm;
+ 	struct dm_space_map *data_sm;
+@@ -399,7 +401,7 @@ static int __superblock_all_zeroes(struct dm_block_manager *bm, int *result)
+ 		}
+ 	}
+ 
+-	dm_bm_unlock(b);
++	dm_bm_unlock(bm, b);
+ 
+ 	return 0;
+ }
+@@ -655,7 +657,7 @@ static int __open_metadata(struct dm_pool_metadata *pmd)
+ 	}
+ 
+ 	__setup_btree_details(pmd);
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 
+ 	return 0;
+ 
+@@ -665,7 +667,7 @@ static int __open_metadata(struct dm_pool_metadata *pmd)
+ 	dm_tm_destroy(pmd->tm);
+ 	dm_sm_destroy(pmd->metadata_sm);
+ bad_unlock_sblock:
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 
+ 	return r;
+ }
+@@ -688,8 +690,18 @@ static int __create_persistent_data_objects(struct dm_pool_metadata *pmd, bool f
+ {
+ 	int r;
+ 
+-	pmd->bm = dm_block_manager_create(pmd->bdev, THIN_METADATA_BLOCK_SIZE << SECTOR_SHIFT,
+-					  THIN_MAX_CONCURRENT_LOCKS);
++	pr_alert("pmd->journal_dev = %p\n", pmd->journal_dev);
++	if (pmd->journal_dev)
++		pmd->bm = dm_block_manager_create_with_journal(
++				  pmd->bdev,
++			          THIN_METADATA_BLOCK_SIZE << SECTOR_SHIFT,
++				  THIN_MAX_CONCURRENT_LOCKS,
++				  pmd->journal_dev);
++	else
++		pmd->bm = dm_block_manager_create(pmd->bdev,
++                                                  THIN_METADATA_BLOCK_SIZE << SECTOR_SHIFT,
++                                                  THIN_MAX_CONCURRENT_LOCKS);
++
+ 	if (IS_ERR(pmd->bm)) {
+ 		DMERR("could not create block manager");
+ 		return PTR_ERR(pmd->bm);
+@@ -734,7 +746,7 @@ static int __begin_transaction(struct dm_pool_metadata *pmd)
+ 	pmd->flags = le32_to_cpu(disk_super->flags);
+ 	pmd->data_block_size = le32_to_cpu(disk_super->data_block_size);
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 	return 0;
+ }
+ 
+@@ -818,7 +830,8 @@ static int __commit_transaction(struct dm_pool_metadata *pmd)
+ 
+ struct dm_pool_metadata *dm_pool_metadata_open(struct block_device *bdev,
+ 					       sector_t data_block_size,
+-					       bool format_device)
++					       bool format_device,
++                                               struct block_device *journal)
+ {
+ 	int r;
+ 	struct dm_pool_metadata *pmd;
+@@ -834,6 +847,7 @@ struct dm_pool_metadata *dm_pool_metadata_open(struct block_device *bdev,
+ 	INIT_LIST_HEAD(&pmd->thin_devices);
+ 	pmd->fail_io = false;
+ 	pmd->bdev = bdev;
++	pmd->journal_dev = journal;
+ 	pmd->data_block_size = data_block_size;
+ 
+ 	r = __create_persistent_data_objects(pmd, format_device);
+@@ -1253,7 +1267,7 @@ static int __reserve_metadata_snap(struct dm_pool_metadata *pmd)
+ 
+ 	disk_super = dm_block_data(sblock);
+ 	disk_super->held_root = cpu_to_le64(held_root);
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 	return 0;
+ }
+ 
+@@ -1284,7 +1298,7 @@ static int __release_metadata_snap(struct dm_pool_metadata *pmd)
+ 	held_root = le64_to_cpu(disk_super->held_root);
+ 	disk_super->held_root = cpu_to_le64(0);
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 
+ 	if (!held_root) {
+ 		DMWARN("No pool metadata snapshot found: nothing to release.");
+@@ -1332,7 +1346,7 @@ static int __get_metadata_snap(struct dm_pool_metadata *pmd,
+ 	disk_super = dm_block_data(sblock);
+ 	*result = le64_to_cpu(disk_super->held_root);
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ 
+ 	return 0;
+ }
+@@ -1790,6 +1804,10 @@ int dm_pool_abort_metadata(struct dm_pool_metadata *pmd)
+ 
+ 	__set_abort_with_changes_flags(pmd);
+ 	__destroy_persistent_data_objects(pmd);
++
++	// FIXME: hack to avoid writing code for reopening the journal
++	BUG();
++
+ 	r = __create_persistent_data_objects(pmd, false);
+ 	if (r)
+ 		pmd->fail_io = true;
+@@ -1985,7 +2003,7 @@ int dm_pool_metadata_set_needs_check(struct dm_pool_metadata *pmd)
+ 	disk_super = dm_block_data(sblock);
+ 	disk_super->flags = cpu_to_le32(pmd->flags);
+ 
+-	dm_bm_unlock(sblock);
++	dm_bm_unlock(pmd->bm, sblock);
+ out:
+ 	up_write(&pmd->root_lock);
+ 	return r;
+diff --git a/drivers/md/dm-thin-metadata.h b/drivers/md/dm-thin-metadata.h
+index 35e954ea20a9..6bd01c74e925 100644
+--- a/drivers/md/dm-thin-metadata.h
++++ b/drivers/md/dm-thin-metadata.h
+@@ -43,7 +43,8 @@ typedef uint64_t dm_thin_id;
+  */
+ struct dm_pool_metadata *dm_pool_metadata_open(struct block_device *bdev,
+ 					       sector_t data_block_size,
+-					       bool format_device);
++					       bool format_device,
++                                               struct block_device *journal);
+ 
+ int dm_pool_metadata_close(struct dm_pool_metadata *pmd);
+ 
+diff --git a/drivers/md/dm-thin.c b/drivers/md/dm-thin.c
+index 7bd60a150f8f..66f03447a05e 100644
+--- a/drivers/md/dm-thin.c
++++ b/drivers/md/dm-thin.c
+@@ -8,6 +8,7 @@
+ #include "dm-bio-prison-v1.h"
+ #include "dm.h"
+ 
++#include <linux/ctype.h>
+ #include <linux/device-mapper.h>
+ #include <linux/dm-io.h>
+ #include <linux/dm-kcopyd.h>
+@@ -34,6 +35,10 @@
+ 
+ static unsigned no_space_timeout_secs = NO_SPACE_TIMEOUT_SECS;
+ 
++static char *journal_name = NULL;
++module_param_named(block_manager_journal, journal_name, charp, S_IRUGO | S_IWUSR);
++MODULE_PARM_DESC(block_manager_journal, "Device to recieve the block manager journal (used for debugging)");
++
+ DECLARE_DM_KCOPYD_THROTTLE_WITH_MODULE_PARM(snapshot_copy_throttle,
+ 		"A percentage of time allocated for copy on write");
+ 
+@@ -287,6 +292,7 @@ struct pool_c {
+ 	struct pool *pool;
+ 	struct dm_dev *data_dev;
+ 	struct dm_dev *metadata_dev;
++	struct dm_dev *journal_dev;
+ 	struct dm_target_callbacks callbacks;
+ 
+ 	dm_block_t low_water_blocks;
+@@ -2839,6 +2845,7 @@ static struct kmem_cache *_new_mapping_cache;
+ 
+ static struct pool *pool_create(struct mapped_device *pool_md,
+ 				struct block_device *metadata_dev,
++                                struct block_device *journal_dev,
+ 				unsigned long block_size,
+ 				int read_only, char **error)
+ {
+@@ -2848,7 +2855,8 @@ static struct pool *pool_create(struct mapped_device *pool_md,
+ 	struct dm_pool_metadata *pmd;
+ 	bool format_device = read_only ? false : true;
+ 
+-	pmd = dm_pool_metadata_open(metadata_dev, block_size, format_device);
++	pr_alert("passing journal_dev = %p\n", journal_dev);
++	pmd = dm_pool_metadata_open(metadata_dev, block_size, format_device, journal_dev);
+ 	if (IS_ERR(pmd)) {
+ 		*error = "Error creating metadata object";
+ 		return (struct pool *)pmd;
+@@ -2986,6 +2994,7 @@ static void __pool_dec(struct pool *pool)
+ 
+ static struct pool *__pool_find(struct mapped_device *pool_md,
+ 				struct block_device *metadata_dev,
++                                struct block_device *journal_dev,
+ 				unsigned long block_size, int read_only,
+ 				char **error, int *created)
+ {
+@@ -3008,7 +3017,7 @@ static struct pool *__pool_find(struct mapped_device *pool_md,
+ 			__pool_inc(pool);
+ 
+ 		} else {
+-			pool = pool_create(pool_md, metadata_dev, block_size, read_only, error);
++			pool = pool_create(pool_md, metadata_dev, journal_dev, block_size, read_only, error);
+ 			*created = 1;
+ 		}
+ 	}
+@@ -3029,6 +3038,7 @@ static void pool_dtr(struct dm_target *ti)
+ 	__pool_dec(pt->pool);
+ 	dm_put_device(ti, pt->metadata_dev);
+ 	dm_put_device(ti, pt->data_dev);
++	dm_put_device(ti, pt->journal_dev);
+ 	kfree(pt);
+ 
+ 	mutex_unlock(&dm_thin_pool_table.mutex);
+@@ -3145,6 +3155,14 @@ static dm_block_t calc_metadata_threshold(struct pool_c *pt)
+ 	return min((dm_block_t)1024ULL /* 4M */, quarter);
+ }
+ 
++static void normalise_journal_name_(const char *name, char *buffer, size_t len)
++{
++	while (*name && !isspace(*name) && --len)
++		*buffer++ = *name++;
++
++	*buffer = '\0';
++}
++
+ /*
+  * thin-pool <metadata dev> <data dev>
+  *	     <data block size (sectors)>
+@@ -3169,6 +3187,7 @@ static int pool_ctr(struct dm_target *ti, unsigned argc, char **argv)
+ 	unsigned long block_size;
+ 	dm_block_t low_water_blocks;
+ 	struct dm_dev *metadata_dev;
++	struct dm_dev *journal_dev = NULL;
+ 	fmode_t metadata_mode;
+ 
+ 	/*
+@@ -3230,7 +3249,21 @@ static int pool_ctr(struct dm_target *ti, unsigned argc, char **argv)
+ 		goto out;
+ 	}
+ 
+-	pool = __pool_find(dm_table_get_md(ti->table), metadata_dev->bdev,
++	if (journal_name) {
++		char buffer[64];
++		normalise_journal_name_(journal_name, buffer, sizeof(buffer));
++		if (buffer[0]) {
++			r = dm_get_device(ti, buffer, FMODE_READ | FMODE_WRITE, &journal_dev);
++			if (r) {
++				pr_alert("couldn't open journal device '%s'", buffer);
++				journal_dev = NULL;
++			} else {
++				pr_alert("opened journal device '%s'", buffer);
++			}
++		}
++	}
++
++	pool = __pool_find(dm_table_get_md(ti->table), metadata_dev->bdev, journal_dev ? journal_dev->bdev : NULL,
+ 			   block_size, pf.mode == PM_READ_ONLY, &ti->error, &pool_created);
+ 	if (IS_ERR(pool)) {
+ 		r = PTR_ERR(pool);
+@@ -3253,6 +3286,7 @@ static int pool_ctr(struct dm_target *ti, unsigned argc, char **argv)
+ 	pt->ti = ti;
+ 	pt->metadata_dev = metadata_dev;
+ 	pt->data_dev = data_dev;
++	pt->journal_dev = journal_dev;
+ 	pt->low_water_blocks = low_water_blocks;
+ 	pt->adjusted_pf = pt->requested_pf = pf;
+ 	ti->num_flush_bios = 1;
+@@ -4400,6 +4434,7 @@ module_exit(dm_thin_exit);
+ module_param_named(no_space_timeout, no_space_timeout_secs, uint, S_IRUGO | S_IWUSR);
+ MODULE_PARM_DESC(no_space_timeout, "Out of data space queue IO timeout in seconds");
+ 
++
+ MODULE_DESCRIPTION(DM_NAME " thin provisioning target");
+ MODULE_AUTHOR("Joe Thornber <dm-devel@redhat.com>");
+ MODULE_LICENSE("GPL");
+diff --git a/drivers/md/persistent-data/dm-block-manager.c b/drivers/md/persistent-data/dm-block-manager.c
+index 492a3f8ac119..b1f773cb037f 100644
+--- a/drivers/md/persistent-data/dm-block-manager.c
++++ b/drivers/md/persistent-data/dm-block-manager.c
+@@ -291,6 +291,7 @@ static int bl_down_write(struct block_lock *lock)
+ static void bl_up_write(struct block_lock *lock)
+ {
+ 	spin_lock(&lock->lock);
++	BUG_ON(lock->count != -1);
+ 	__del_holder(lock, current);
+ 	lock->count = 0;
+ 	if (!list_empty(&lock->waiters))
+@@ -343,13 +344,16 @@ void *dm_block_data(struct dm_block *b)
+ }
+ EXPORT_SYMBOL_GPL(dm_block_data);
+ 
++// FIXME: test to see if it's worth reducing this
++#define CHECKSUM_SIZE 32
++#define NR_CHECKSUMS (4096 / CHECKSUM_SIZE)
++
+ struct buffer_aux {
+ 	struct dm_block_validator *validator;
++	struct block_lock lock;
+ 	int write_locked;
+ 
+-#ifdef CONFIG_DM_DEBUG_BLOCK_MANAGER_LOCKING
+-	struct block_lock lock;
+-#endif
++	uint32_t checksums[NR_CHECKSUMS];
+ };
+ 
+ static void dm_block_manager_alloc_callback(struct dm_buffer *buf)
+@@ -368,69 +372,43 @@ static void dm_block_manager_write_callback(struct dm_buffer *buf)
+ 	}
+ }
+ 
+-/*----------------------------------------------------------------
+- * Public interface
+- *--------------------------------------------------------------*/
+-struct dm_block_manager {
++/*--------------------------------------------------------------*/
++
++struct block_manager {
++	struct dm_block_manager bm;
+ 	struct dm_bufio_client *bufio;
+ 	bool read_only:1;
+ };
+ 
+-struct dm_block_manager *dm_block_manager_create(struct block_device *bdev,
+-						 unsigned block_size,
+-						 unsigned max_held_per_thread)
+-{
+-	int r;
+-	struct dm_block_manager *bm;
+-
+-	bm = kmalloc(sizeof(*bm), GFP_KERNEL);
+-	if (!bm) {
+-		r = -ENOMEM;
+-		goto bad;
+-	}
+-
+-	bm->bufio = dm_bufio_client_create(bdev, block_size, max_held_per_thread,
+-					   sizeof(struct buffer_aux),
+-					   dm_block_manager_alloc_callback,
+-					   dm_block_manager_write_callback);
+-	if (IS_ERR(bm->bufio)) {
+-		r = PTR_ERR(bm->bufio);
+-		kfree(bm);
+-		goto bad;
+-	}
+-
+-	bm->read_only = false;
+-
+-	return bm;
++#define DECLARE_BM struct block_manager *bm = container_of(dbm, struct block_manager, bm)
+ 
+-bad:
+-	return ERR_PTR(r);
+-}
+-EXPORT_SYMBOL_GPL(dm_block_manager_create);
+-
+-void dm_block_manager_destroy(struct dm_block_manager *bm)
++static void _destroy(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
++
+ 	dm_bufio_client_destroy(bm->bufio);
+ 	kfree(bm);
+ }
+-EXPORT_SYMBOL_GPL(dm_block_manager_destroy);
+ 
+-unsigned dm_bm_block_size(struct dm_block_manager *bm)
++static unsigned _block_size(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
+ 	return dm_bufio_get_block_size(bm->bufio);
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_block_size);
+ 
+-dm_block_t dm_bm_nr_blocks(struct dm_block_manager *bm)
++static dm_block_t _nr_blocks(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
+ 	return dm_bufio_get_device_size(bm->bufio);
+ }
+ 
+-static int dm_bm_validate_buffer(struct dm_block_manager *bm,
+-				 struct dm_buffer *buf,
+-				 struct buffer_aux *aux,
+-				 struct dm_block_validator *v)
++static int _validate_buffer(struct dm_block_manager *dbm,
++			    struct dm_buffer *buf,
++			    struct buffer_aux *aux,
++			    struct dm_block_validator *v)
+ {
++	DECLARE_BM;
++
+ 	if (unlikely(!aux->validator)) {
+ 		int r;
+ 		if (!v)
+@@ -453,10 +431,18 @@ static int dm_bm_validate_buffer(struct dm_block_manager *bm,
+ 
+ 	return 0;
+ }
+-int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
+-		    struct dm_block_validator *v,
+-		    struct dm_block **result)
++
++static void _prefetch(struct dm_block_manager *dbm, dm_block_t b)
+ {
++	DECLARE_BM;
++	dm_bufio_prefetch(bm->bufio, b, 1);
++}
++
++static int _read_lock(struct dm_block_manager *dbm, dm_block_t b,
++		      struct dm_block_validator *v,
++		      struct dm_block **result)
++{
++	DECLARE_BM;
+ 	struct buffer_aux *aux;
+ 	void *p;
+ 	int r;
+@@ -475,7 +461,7 @@ int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
+ 
+ 	aux->write_locked = 0;
+ 
+-	r = dm_bm_validate_buffer(bm, to_buffer(*result), aux, v);
++	r = dm_bm_validate_buffer(dbm, to_buffer(*result), aux, v);
+ 	if (unlikely(r)) {
+ 		bl_up_read(&aux->lock);
+ 		dm_bufio_release(to_buffer(*result));
+@@ -484,12 +470,12 @@ int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_read_lock);
+ 
+-int dm_bm_write_lock(struct dm_block_manager *bm,
+-		     dm_block_t b, struct dm_block_validator *v,
+-		     struct dm_block **result)
++static int _write_lock(struct dm_block_manager *dbm,
++		       dm_block_t b, struct dm_block_validator *v,
++		       struct dm_block **result)
+ {
++	DECLARE_BM;
+ 	struct buffer_aux *aux;
+ 	void *p;
+ 	int r;
+@@ -511,7 +497,7 @@ int dm_bm_write_lock(struct dm_block_manager *bm,
+ 
+ 	aux->write_locked = 1;
+ 
+-	r = dm_bm_validate_buffer(bm, to_buffer(*result), aux, v);
++	r = dm_bm_validate_buffer(dbm, to_buffer(*result), aux, v);
+ 	if (unlikely(r)) {
+ 		bl_up_write(&aux->lock);
+ 		dm_bufio_release(to_buffer(*result));
+@@ -520,12 +506,12 @@ int dm_bm_write_lock(struct dm_block_manager *bm,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_write_lock);
+ 
+-int dm_bm_read_try_lock(struct dm_block_manager *bm,
+-			dm_block_t b, struct dm_block_validator *v,
+-			struct dm_block **result)
++static int _read_try_lock(struct dm_block_manager *dbm,
++			  dm_block_t b, struct dm_block_validator *v,
++			  struct dm_block **result)
+ {
++	DECLARE_BM;
+ 	struct buffer_aux *aux;
+ 	void *p;
+ 	int r;
+@@ -545,7 +531,7 @@ int dm_bm_read_try_lock(struct dm_block_manager *bm,
+ 	}
+ 	aux->write_locked = 0;
+ 
+-	r = dm_bm_validate_buffer(bm, to_buffer(*result), aux, v);
++	r = dm_bm_validate_buffer(dbm, to_buffer(*result), aux, v);
+ 	if (unlikely(r)) {
+ 		bl_up_read(&aux->lock);
+ 		dm_bufio_release(to_buffer(*result));
+@@ -555,10 +541,11 @@ int dm_bm_read_try_lock(struct dm_block_manager *bm,
+ 	return 0;
+ }
+ 
+-int dm_bm_write_lock_zero(struct dm_block_manager *bm,
+-			  dm_block_t b, struct dm_block_validator *v,
+-			  struct dm_block **result)
++static int _write_lock_zero(struct dm_block_manager *dbm,
++			    dm_block_t b, struct dm_block_validator *v,
++			    struct dm_block **result)
+ {
++	DECLARE_BM;
+ 	int r;
+ 	struct buffer_aux *aux;
+ 	void *p;
+@@ -570,7 +557,7 @@ int dm_bm_write_lock_zero(struct dm_block_manager *bm,
+ 	if (unlikely(IS_ERR(p)))
+ 		return PTR_ERR(p);
+ 
+-	memset(p, 0, dm_bm_block_size(bm));
++	memset(p, 0, dm_bm_block_size(dbm));
+ 
+ 	aux = dm_bufio_get_aux_data(to_buffer(*result));
+ 	r = bl_down_write(&aux->lock);
+@@ -584,9 +571,8 @@ int dm_bm_write_lock_zero(struct dm_block_manager *bm,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_write_lock_zero);
+ 
+-void dm_bm_unlock(struct dm_block *b)
++static void _unlock(struct dm_block_manager *bm, struct dm_block *b)
+ {
+ 	struct buffer_aux *aux;
+ 	aux = dm_bufio_get_aux_data(to_buffer(b));
+@@ -599,39 +585,579 @@ void dm_bm_unlock(struct dm_block *b)
+ 
+ 	dm_bufio_release(to_buffer(b));
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_unlock);
+ 
+-int dm_bm_flush(struct dm_block_manager *bm)
++static int _flush(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
++
+ 	if (bm->read_only)
+ 		return -EPERM;
+ 
+ 	return dm_bufio_write_dirty_buffers(bm->bufio);
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_flush);
+ 
+-void dm_bm_prefetch(struct dm_block_manager *bm, dm_block_t b)
++static int _flush_and_unlock(struct dm_block_manager *dbm,
++			     struct dm_block *superblock)
+ {
+-	dm_bufio_prefetch(bm->bufio, b, 1);
++	DECLARE_BM;
++	int r;
++
++	if (bm->read_only)
++		return -EPERM;
++
++	r = dm_bufio_write_dirty_buffers(bm->bufio);
++	if (unlikely(r)) {
++		dm_bm_unlock(dbm, superblock);
++		return r;
++	}
++
++	dm_bm_unlock(dbm, superblock);
++
++	return dm_bufio_write_dirty_buffers(bm->bufio);
+ }
+ 
+-bool dm_bm_is_read_only(struct dm_block_manager *bm)
++static bool _is_read_only(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
+ 	return bm->read_only;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_is_read_only);
+ 
+-void dm_bm_set_read_only(struct dm_block_manager *bm)
++static void _set_read_only(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
+ 	bm->read_only = true;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_set_read_only);
+ 
+-void dm_bm_set_read_write(struct dm_block_manager *bm)
++static void _set_read_write(struct dm_block_manager *dbm)
+ {
++	DECLARE_BM;
+ 	bm->read_only = false;
+ }
+-EXPORT_SYMBOL_GPL(dm_bm_set_read_write);
++#undef DECLARE_BM
++
++static void _check_bm_filled_out(struct dm_block_manager *dbm)
++{
++	BUG_ON(!dbm->destroy);
++	BUG_ON(!dbm->block_size);
++	BUG_ON(!dbm->nr_blocks);
++	BUG_ON(!dbm->validate_buffer);
++	BUG_ON(!dbm->prefetch);
++	BUG_ON(!dbm->read_lock_);
++	BUG_ON(!dbm->write_lock_);
++	BUG_ON(!dbm->read_try_lock_);
++	BUG_ON(!dbm->write_lock_zero);
++	BUG_ON(!dbm->unlock);
++	BUG_ON(!dbm->flush);
++	BUG_ON(!dbm->flush_and_unlock);
++	BUG_ON(!dbm->is_read_only);
++	BUG_ON(!dbm->set_read_only);
++	BUG_ON(!dbm->set_read_write);
++}
++
++struct dm_block_manager *dm_block_manager_create(struct block_device *bdev,
++						 unsigned block_size,
++						 unsigned max_held_per_thread)
++{
++	int r;
++	struct block_manager *bm;
++
++	bm = kmalloc(sizeof(*bm), GFP_KERNEL);
++	if (!bm) {
++		r = -ENOMEM;
++		goto bad;
++	}
++
++	bm->bm.destroy = _destroy;
++	bm->bm.block_size = _block_size;
++	bm->bm.nr_blocks = _nr_blocks;
++	bm->bm.validate_buffer = _validate_buffer;
++	bm->bm.prefetch = _prefetch;
++	bm->bm.read_lock_ = _read_lock;
++	bm->bm.write_lock_ = _write_lock;
++	bm->bm.read_try_lock_ = _read_try_lock;
++	bm->bm.write_lock_zero = _write_lock_zero;
++	bm->bm.unlock = _unlock;
++	bm->bm.flush = _flush;
++	bm->bm.flush_and_unlock = _flush_and_unlock;
++	bm->bm.is_read_only = _is_read_only;
++	bm->bm.set_read_only = _set_read_only;
++	bm->bm.set_read_write = _set_read_write;
++
++        bm->bufio = dm_bufio_client_create(bdev, block_size, max_held_per_thread,
++                                           sizeof(struct buffer_aux),
++                                           dm_block_manager_alloc_callback,
++                                           dm_block_manager_write_callback);
++
++	if (IS_ERR(bm->bufio)) {
++		r = PTR_ERR(bm->bufio);
++		kfree(bm);
++		goto bad;
++	}
++
++	bm->read_only = false;
++
++	_check_bm_filled_out(&bm->bm);
++
++	pr_alert("created real at %p\n", &bm->bm);
++	return &bm->bm;
++
++bad:
++	return ERR_PTR(r);
++}
++EXPORT_SYMBOL_GPL(dm_block_manager_create);
++
++/*----------------------------------------------------------------*/
++
++enum msg_type {
++	MT_OPEN_JOURNAL,
++	MT_CLOSE_JOURNAL,
++
++	MT_READ_LOCK,
++	MT_WRITE_LOCK,
++	MT_ZERO_LOCK,
++	MT_TRY_READ_LOCK,
++	MT_UNLOCK,
++	MT_VERIFY,
++	MT_PREPARE,
++	MT_FLUSH,
++	MT_FLUSH_AND_UNLOCK,
++	MT_PREFETCH,
++	MT_SET_READ_ONLY,
++	MT_SET_READ_WRITE,
++};
++
++struct byte_stream {
++	spinlock_t lock;
++	struct block_device *dev;
++	struct dm_bufio_client *cache;
++
++	uint64_t block_index;
++	struct dm_buffer *current_buffer;
++	void *current_data;
++	uint8_t *out_begin;
++	uint8_t *out_end;
++};
++
++#define JOURNAL_BLOCK_SIZE (1024 * 1024 * 1024)
++
++// We just BUG if there's an error; this is developement code.
++static void _prep_block(struct byte_stream *bs, uint64_t block)
++{
++	bs->current_data = dm_bufio_new(bs->cache, block, &bs->current_buffer);
++	BUG_ON(!bs->current_data);
++	bs->out_begin = bs->current_data;
++	bs->out_end = bs->current_data + JOURNAL_BLOCK_SIZE;
++}
++
++static void _commit_block(struct byte_stream *bs)
++{
++	dm_bufio_mark_buffer_dirty(bs->current_buffer);
++	dm_bufio_release(bs->current_buffer);
++}
++
++static struct byte_stream *_bs_open(struct block_device *dev)
++{
++	struct byte_stream *bs = kzalloc(sizeof(*bs), GFP_KERNEL);
++
++	if (!bs)
++		return NULL;
++
++	spin_lock_init(&bs->lock);
++	bs->dev = dev;
++	bs->cache = dm_bufio_client_create(dev, JOURNAL_BLOCK_SIZE,
++		       			   2, 0, NULL, NULL);
++	if (!bs->cache) {
++		kfree(bs);
++		return NULL;
++	}
++
++	_prep_block(bs, 0);
++	
++	return bs;
++}
++
++static void _bs_close(struct byte_stream *bs)
++{
++	_commit_block(bs);
++	dm_bufio_client_destroy(bs->cache);
++	kfree(bs);
++}
++
++static size_t _cpy_bytes(struct byte_stream *bs, uint8_t *b, uint8_t *e)
++{
++	size_t len = min(e - b, bs->out_end - bs->out_begin);
++	memcpy(bs->out_begin, b, len);
++	bs->out_begin += len;
++	return len;
++}
++
++static bool _no_space(struct byte_stream *bs)
++{
++	return bs->out_begin == bs->out_end;
++}
++
++static void _push_bytes(struct byte_stream *bs, uint8_t *b, uint8_t *e)
++{
++	while (b != e) {
++		if (_no_space(bs)) {
++			pr_alert("push_bytes: out of space\n");
++			_commit_block(bs);
++			_prep_block(bs, bs->block_index + 1);
++			pr_alert("done");
++		}
++
++		b += _cpy_bytes(bs, b, e);
++	}
++}
++
++static void _push_u8(struct byte_stream *bs, uint8_t v)
++{
++	return _push_bytes(bs, &v, &v + 1);
++}
++
++static void _push_u16(struct byte_stream *bs, uint16_t v)
++{
++	return _push_bytes(bs, (uint8_t *) &v, (uint8_t *) (&v + 1));
++}
++
++static void _push_u64(struct byte_stream *bs, uint64_t v)
++{
++	return _push_bytes(bs, (uint8_t *) &v, (uint8_t *) (&v + 1));
++}
++
++static void _push_msg(struct byte_stream *bs, enum msg_type t, int err)
++{
++	uint8_t b = t << 1;
++	b |= err ? 0 : 1;
++	_push_u8(bs, b);
++}
++
++/*----------------------------------------------------------------*/
++
++static u32 _cs_chunk(const void *data, unsigned chunk)
++{
++	return crc32c(0, data + (chunk * CHECKSUM_SIZE), CHECKSUM_SIZE);
++}
++
++static void _calc_checksums(struct dm_block *b)
++{
++	unsigned i;
++	const void *data = dm_block_data(b);
++	struct buffer_aux *aux = dm_bufio_get_aux_data((struct dm_buffer *) b);
++
++	for (i = 0; i < NR_CHECKSUMS; i++)
++		aux->checksums[i] = _cs_chunk(data, i);
++}
++
++static void _write_delta(struct byte_stream *bs, struct dm_block *b, unsigned chunk)
++{
++	uint8_t *begin = dm_block_data(b) + (chunk * CHECKSUM_SIZE);
++	uint8_t *end = begin + CHECKSUM_SIZE;
++
++	_push_u16(bs, chunk);
++	_push_bytes(bs, begin, end);
++}
++
++static void _terminate_deltas(struct byte_stream *bs)
++{
++	BUG_ON(NR_CHECKSUMS > 0xff);
++	_push_u16(bs, 0xffff);
++}
++
++static void _push_deltas(struct byte_stream *bs, struct dm_block *b)
++{
++	unsigned i;
++	uint32_t sum;
++	const void *data = dm_block_data(b);
++	struct buffer_aux *aux = dm_bufio_get_aux_data((struct dm_buffer *) b);
++
++	if (aux->write_locked)
++		for (i = 0; i < NR_CHECKSUMS; i++) {
++			sum = _cs_chunk(data, i);
++			if (sum != aux->checksums[i])
++				_write_delta(bs, b, i);
++		}
++
++	_terminate_deltas(bs);
++}
++
++/*----------------------------------------------------------------*/
++
++struct journal_bm {
++	struct dm_block_manager bm;
++	struct dm_block_manager *inner;
++	struct byte_stream *out;
++};
++
++#define DECLARE_BM struct journal_bm *bm = container_of(dbm, struct journal_bm, bm)
++
++static void _j_destroy(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++	_push_msg(bm->out, MT_CLOSE_JOURNAL, true);
++	_bs_close(bm->out);
++	bm->inner->destroy(bm->inner);
++	kfree(bm);
++}
++
++static unsigned _j_block_size(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++	return bm->inner->block_size(bm->inner);
++}
++
++static dm_block_t _j_nr_blocks(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++	return bm->inner->nr_blocks(bm->inner);
++}
++
++static int _j_validate_buffer(struct dm_block_manager *dbm,
++			    struct dm_buffer *buf,
++			    struct buffer_aux *aux,
++			    struct dm_block_validator *v)
++{
++	int r; 
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->validate_buffer(bm->inner, buf, aux, v);
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_VERIFY, r);
++	_push_u64(bm->out, dm_bufio_get_block_number(buf));
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return r;
++}
++
++static void _j_prefetch(struct dm_block_manager *dbm, dm_block_t b)
++{
++	DECLARE_BM;
++	bm->inner->prefetch(bm->inner, b);
++}
++
++static int _j_read_lock(struct dm_block_manager *dbm, dm_block_t b,
++		        struct dm_block_validator *v,
++		        struct dm_block **result)
++{
++	int r;
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->read_lock_(bm->inner, b, v, result);
++
++	// No need to calculate checksums for a read lock
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_READ_LOCK, r);
++	_push_u64(bm->out, b);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return r;
++}
++
++static int _j_write_lock(struct dm_block_manager *dbm,
++		         dm_block_t b, struct dm_block_validator *v,
++		         struct dm_block **result)
++{
++	int r;
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->write_lock_(bm->inner, b, v, result);
++	if (!r)
++		_calc_checksums(*result);
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_WRITE_LOCK, r);
++	_push_u64(bm->out, b);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return r;
++}
++
++static int _j_read_try_lock(struct dm_block_manager *dbm,
++			    dm_block_t b, struct dm_block_validator *v,
++			    struct dm_block **result)
++{
++	int r;
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->read_try_lock_(bm->inner, b, v, result);
++
++	// try_read_lock is called from request context, so we mustn't trigger io.
++	// FIXME: work out a way to journal this!
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_TRY_READ_LOCK, r);
++	_push_u64(bm->out, b);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return r;
++}
++
++static int _j_write_lock_zero(struct dm_block_manager *dbm,
++			      dm_block_t b, struct dm_block_validator *v,
++			      struct dm_block **result)
++{
++	int r;
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->write_lock_zero(bm->inner, b, v, result);
++	if (!r)
++		_calc_checksums(*result);
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_ZERO_LOCK, r);
++	_push_u64(bm->out, b);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return r;
++}
++
++static void _j_unlock(struct dm_block_manager *dbm, struct dm_block *b)
++{
++	DECLARE_BM;
++	unsigned long flags;
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_UNLOCK, 0);
++	_push_u64(bm->out, dm_block_location(b));
++	_push_deltas(bm->out, b);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	bm->inner->unlock(bm->inner, b);
++}
++
++static int _j_flush(struct dm_block_manager *dbm)
++{
++	int r;
++	DECLARE_BM;
++	unsigned long flags;
++
++	r = bm->inner->flush(bm->inner);
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_FLUSH, r);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++	return r;
++}
++
++static int _j_flush_and_unlock(struct dm_block_manager *dbm,
++			       struct dm_block *superblock)
++{
++	DECLARE_BM;
++	unsigned long flags;
++
++	pr_alert("flush_and_unlock\n");
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_FLUSH_AND_UNLOCK, 0);
++	_push_u64(bm->out, dm_block_location(superblock));
++	_push_deltas(bm->out, superblock);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++
++	return bm->inner->flush_and_unlock(bm->inner, superblock);
++}
++
++static bool _j_is_read_only(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++
++	return bm->inner->is_read_only(bm->inner);
++}
++
++static void _j_set_read_only(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++	unsigned long flags;
++
++	bm->inner->set_read_only(bm->inner);
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_SET_READ_ONLY, true);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++}
++
++static void _j_set_read_write(struct dm_block_manager *dbm)
++{
++	DECLARE_BM;
++	unsigned long flags;
++
++	bm->inner->set_read_write(bm->inner);
++
++	spin_lock_irqsave(&bm->out->lock, flags);
++	_push_msg(bm->out, MT_SET_READ_WRITE, true);
++	spin_unlock_irqrestore(&bm->out->lock, flags);
++}
++
++#undef DECLARE_BM
++
++static bool _unformatted_journal(struct byte_stream *bs)
++{
++	// The journal is unformatted if the first sector (512 bytes) is zeroed.
++	uint8_t buffer[64];
++
++	for (i = 0; i < 8; i++) {
++		_bs_
++	}
++
++	_bs_rewrind(bs);
++}
++
++struct dm_block_manager *dm_block_manager_create_with_journal(struct block_device *bdev,
++                                                              unsigned block_size,
++							      unsigned max_held_per_thread,
++							      struct block_device *jdev)
++{
++	struct journal_bm *jbm;
++	struct dm_block_manager *inner = dm_block_manager_create(bdev, block_size, max_held_per_thread);
++
++	if (IS_ERR(inner))
++		return inner;
++
++	jbm = kmalloc(sizeof(*jbm), GFP_KERNEL);
++	if (!jbm) {
++		inner->destroy(inner);
++		return ERR_PTR(-ENOMEM);
++	}
++
++	jbm->out = _bs_open(jdev);
++	if (!jbm->out) {
++		inner->destroy(inner);
++		kfree(jbm);
++		return ERR_PTR(-ENOMEM);
++	}
++
++	jbm->bm.destroy = _j_destroy;
++	jbm->bm.block_size = _j_block_size;
++	jbm->bm.nr_blocks = _j_nr_blocks;
++	jbm->bm.validate_buffer = _j_validate_buffer;
++	jbm->bm.prefetch = _j_prefetch;
++	jbm->bm.read_lock_ = _j_read_lock;
++	jbm->bm.write_lock_ = _j_write_lock;
++	jbm->bm.read_try_lock_ = _j_read_try_lock;
++	jbm->bm.write_lock_zero = _j_write_lock_zero;
++	jbm->bm.unlock = _j_unlock;
++	jbm->bm.flush = _j_flush;
++	jbm->bm.flush_and_unlock = _j_flush_and_unlock;
++	jbm->bm.is_read_only = _j_is_read_only;
++	jbm->bm.set_read_only = _j_set_read_only;
++	jbm->bm.set_read_write = _j_set_read_write;
++
++	_check_bm_filled_out(&jbm->bm);
++
++	jbm->inner = inner;
++
++	pr_alert("journalling block manager created\n");
++
++	_push_msg(jbm->out, MT_OPEN_JOURNAL, 0);
++	_push_u64(jbm->out, dm_bm_nr_blocks(inner));
++
++	return &jbm->bm;
++}
++EXPORT_SYMBOL_GPL(dm_block_manager_create_with_journal);
++
++/*----------------------------------------------------------------*/
+ 
+ u32 dm_bm_checksum(const void *data, size_t len, u32 init_xor)
+ {
+@@ -645,4 +1171,5 @@ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Joe Thornber <dm-devel@redhat.com>");
+ MODULE_DESCRIPTION("Immutable metadata library for dm");
+ 
++
+ /*----------------------------------------------------------------*/
+diff --git a/drivers/md/persistent-data/dm-block-manager.h b/drivers/md/persistent-data/dm-block-manager.h
+index e728937f376a..adb55f6aceac 100644
+--- a/drivers/md/persistent-data/dm-block-manager.h
++++ b/drivers/md/persistent-data/dm-block-manager.h
+@@ -23,23 +23,8 @@ void *dm_block_data(struct dm_block *b);
+ 
+ /*----------------------------------------------------------------*/
+ 
+-/*
+- * @name should be a unique identifier for the block manager, no longer
+- * than 32 chars.
+- *
+- * @max_held_per_thread should be the maximum number of locks, read or
+- * write, that an individual thread holds at any one time.
+- */
+-struct dm_block_manager;
+-struct dm_block_manager *dm_block_manager_create(
+-	struct block_device *bdev, unsigned block_size,
+-	unsigned max_held_per_thread);
+-void dm_block_manager_destroy(struct dm_block_manager *bm);
+-
+-unsigned dm_bm_block_size(struct dm_block_manager *bm);
+-dm_block_t dm_bm_nr_blocks(struct dm_block_manager *bm);
+-
+-/*----------------------------------------------------------------*/
++struct dm_buffer;
++struct buffer_aux;
+ 
+ /*
+  * The validator allows the caller to verify newly-read data and modify
+@@ -57,44 +42,141 @@ struct dm_block_validator {
+ 	int (*check)(struct dm_block_validator *v, struct dm_block *b, size_t block_size);
+ };
+ 
++struct dm_block_manager {
++	void (*destroy)(struct dm_block_manager *bm);
++	unsigned (*block_size)(struct dm_block_manager *bm);
++	dm_block_t (*nr_blocks)(struct dm_block_manager *bm);
++	int (*validate_buffer)(struct dm_block_manager *bm,
++			       struct dm_buffer *buf,
++			       struct buffer_aux *aux,
++			       struct dm_block_validator *v);
++	void (*prefetch)(struct dm_block_manager *bm, dm_block_t b);
++	int (*read_lock_)(struct dm_block_manager *bm, dm_block_t b,
++			 struct dm_block_validator *v,
++			 struct dm_block **result);
++	int (*write_lock_)(struct dm_block_manager *bm,
++			  dm_block_t b, struct dm_block_validator *v,
++			  struct dm_block **result);
++	int (*read_try_lock_)(struct dm_block_manager *bm,
++			     dm_block_t b, struct dm_block_validator *v,
++			     struct dm_block **result);
++	int (*write_lock_zero)(struct dm_block_manager *bm,
++			       dm_block_t b, struct dm_block_validator *v,
++			       struct dm_block **result);
++	void (*unlock)(struct dm_block_manager *bm, struct dm_block *b);
++	int (*flush)(struct dm_block_manager *bm);
++	int (*flush_and_unlock)(struct dm_block_manager *bm,
++				struct dm_block *superblock);
++	bool (*is_read_only)(struct dm_block_manager *bm);
++	void (*set_read_only)(struct dm_block_manager *bm);
++	void (*set_read_write)(struct dm_block_manager *bm);
++};
++
++/*
++ * @name should be a unique identifier for the block manager, no longer
++ * than 32 chars.
++ *
++ * @max_held_per_thread should be the maximum number of locks, read or
++ * write, that an individual thread holds at any one time.
++ */
++
++struct dm_block_manager *dm_block_manager_create(
++	struct block_device *bdev, unsigned block_size,
++	unsigned max_held_per_thread);
++
++struct dm_block_manager *dm_block_manager_create_with_journal(
++	struct block_device *bdev, unsigned block_size,
++	unsigned max_held_per_thread,
++	struct block_device *jdev);
++
+ /*----------------------------------------------------------------*/
+ 
++static inline void dm_block_manager_destroy(struct dm_block_manager *bm)
++{
++	bm->destroy(bm);
++}
++
++static inline unsigned dm_bm_block_size(struct dm_block_manager *bm)
++{
++	return bm->block_size(bm);
++}
++
++static inline dm_block_t dm_bm_nr_blocks(struct dm_block_manager *bm)
++{
++	return bm->nr_blocks(bm);
++}
++
++/*----------------------------------------------------------------*/
++
++static inline int dm_bm_validate_buffer(struct dm_block_manager *bm,
++				        struct dm_buffer *buf,
++				        struct buffer_aux *aux,
++				        struct dm_block_validator *v)
++{
++	return bm->validate_buffer(bm, buf, aux, v);
++}
++
+ /*
+  * You can have multiple concurrent readers or a single writer holding a
+  * block lock.
+  */
+ 
++static inline void dm_bm_prefetch(struct dm_block_manager *bm, dm_block_t b)
++{
++	bm->prefetch(bm, b);
++}
++
+ /*
+  * dm_bm_lock() locks a block and returns through @result a pointer to
+  * memory that holds a copy of that block.  If you have write-locked the
+  * block then any changes you make to memory pointed to by @result will be
+  * written back to the disk sometime after dm_bm_unlock is called.
+  */
+-int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
+-		    struct dm_block_validator *v,
+-		    struct dm_block **result);
+-
+-int dm_bm_write_lock(struct dm_block_manager *bm, dm_block_t b,
+-		     struct dm_block_validator *v,
+-		     struct dm_block **result);
++static inline int dm_bm_read_lock(struct dm_block_manager *bm, dm_block_t b,
++		    		  struct dm_block_validator *v,
++		    		  struct dm_block **result)
++{
++	return bm->read_lock_(bm, b, v, result);
++}
++
++static inline int dm_bm_write_lock(struct dm_block_manager *bm, dm_block_t b,
++		     		   struct dm_block_validator *v,
++		     		   struct dm_block **result)
++{
++	return bm->write_lock_(bm, b, v, result);
++}
+ 
+ /*
+  * The *_try_lock variants return -EWOULDBLOCK if the block isn't
+  * available immediately.
+  */
+-int dm_bm_read_try_lock(struct dm_block_manager *bm, dm_block_t b,
+-			struct dm_block_validator *v,
+-			struct dm_block **result);
++static inline int dm_bm_read_try_lock(struct dm_block_manager *bm, dm_block_t b,
++				      struct dm_block_validator *v,
++				      struct dm_block **result)
++{
++	return bm->read_try_lock_(bm, b, v, result);
++}
+ 
+ /*
+  * Use dm_bm_write_lock_zero() when you know you're going to
+  * overwrite the block completely.  It saves a disk read.
+  */
+-int dm_bm_write_lock_zero(struct dm_block_manager *bm, dm_block_t b,
+-			  struct dm_block_validator *v,
+-			  struct dm_block **result);
+-
+-void dm_bm_unlock(struct dm_block *b);
++static inline int dm_bm_write_lock_zero(struct dm_block_manager *bm, dm_block_t b,
++			  		struct dm_block_validator *v,
++			  		struct dm_block **result)
++{
++	return bm->write_lock_zero(bm, b, v, result);
++}
++
++static inline void dm_bm_unlock(struct dm_block_manager *bm, struct dm_block *b)
++{
++	bm->unlock(bm, b);
++}
++
++static inline int dm_bm_flush(struct dm_block_manager *bm)
++{
++	return bm->flush(bm);
++}
+ 
+ /*
+  * It's a common idiom to have a superblock that should be committed last.
+@@ -105,12 +187,11 @@ void dm_bm_unlock(struct dm_block *b);
+  *
+  * This method always blocks.
+  */
+-int dm_bm_flush(struct dm_block_manager *bm);
+-
+-/*
+- * Request data is prefetched into the cache.
+- */
+-void dm_bm_prefetch(struct dm_block_manager *bm, dm_block_t b);
++static inline int dm_bm_flush_and_unlock(struct dm_block_manager *bm,
++			   		 struct dm_block *superblock)
++{
++	return bm->flush_and_unlock(bm, superblock);
++}
+ 
+ /*
+  * Switches the bm to a read only mode.  Once read-only mode
+@@ -123,9 +204,20 @@ void dm_bm_prefetch(struct dm_block_manager *bm, dm_block_t b);
+  * Additionally you should not use dm_bm_unlock_move, however no error will
+  * be returned if you do.
+  */
+-bool dm_bm_is_read_only(struct dm_block_manager *bm);
+-void dm_bm_set_read_only(struct dm_block_manager *bm);
+-void dm_bm_set_read_write(struct dm_block_manager *bm);
++static inline void dm_bm_set_read_only(struct dm_block_manager *bm)
++{
++	return bm->set_read_only(bm);
++}
++
++static inline bool dm_bm_is_read_only(struct dm_block_manager *bm)
++{
++	return bm->is_read_only(bm);
++}
++
++static inline void dm_bm_set_read_write(struct dm_block_manager *bm)
++{
++	bm->set_read_write(bm);
++}
+ 
+ u32 dm_bm_checksum(const void *data, size_t len, u32 init_xor);
+ 
+diff --git a/drivers/md/persistent-data/dm-transaction-manager.c b/drivers/md/persistent-data/dm-transaction-manager.c
+index abe2c5dd0993..5b447efdc2fb 100644
+--- a/drivers/md/persistent-data/dm-transaction-manager.c
++++ b/drivers/md/persistent-data/dm-transaction-manager.c
+@@ -225,7 +225,7 @@ int dm_tm_commit(struct dm_transaction_manager *tm, struct dm_block *root)
+ 		return -EWOULDBLOCK;
+ 
+ 	wipe_shadow_table(tm);
+-	dm_bm_unlock(root);
++	dm_bm_unlock(tm->bm, root);
+ 
+ 	return dm_bm_flush(tm->bm);
+ }
+@@ -289,14 +289,14 @@ static int __shadow_block(struct dm_transaction_manager *tm, dm_block_t orig,
+ 	 */
+ 	r = dm_bm_write_lock_zero(tm->bm, new, v, result);
+ 	if (r) {
+-		dm_bm_unlock(orig_block);
++		dm_bm_unlock(tm->bm, orig_block);
+ 		return r;
+ 	}
+ 
+ 	memcpy(dm_block_data(*result), dm_block_data(orig_block),
+ 	       dm_bm_block_size(tm->bm));
+ 
+-	dm_bm_unlock(orig_block);
++	dm_bm_unlock(tm->bm, orig_block);
+ 	return r;
+ }
+ 
+@@ -344,7 +344,10 @@ EXPORT_SYMBOL_GPL(dm_tm_read_lock);
+ 
+ void dm_tm_unlock(struct dm_transaction_manager *tm, struct dm_block *b)
+ {
+-	dm_bm_unlock(b);
++	if (tm->is_clone)
++		tm = tm->real;
++
++	dm_bm_unlock(tm->bm, b);
+ }
+ EXPORT_SYMBOL_GPL(dm_tm_unlock);
+ 
