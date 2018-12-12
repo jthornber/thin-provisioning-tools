@@ -20,7 +20,7 @@
           (only (srfi s1 lists) span))
 
   ;; FIXME: global var!  Not thread safe.
-  (define working-dir "/tmp")
+  (define working-dir ".")
 
   (define (working-directory) working-dir)
 

@@ -124,7 +124,7 @@ Then,
 
 Other command are help and list.
 
-The test framework places temporary files under /tmp/test-output/.  By default
+The test framework places temporary files under ./test-output/.  By default
 the tests tidy up after themselves, just leaving a log file for each test.  You
 can turn this off by using the --disable-unlink flag if you want all the
 artifacts left.
