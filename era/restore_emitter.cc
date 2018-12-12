@@ -28,8 +28,6 @@ namespace {
 			sb.nr_blocks = nr_blocks;
 			sb.current_era = current_era;
 
-			nr_blocks = nr_blocks;
-
 			md_.era_array_->grow(nr_blocks, 0);
 
 			in_superblock_ = true;
