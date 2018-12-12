@@ -195,6 +195,13 @@ namespace {
 		return fs.override_mapping_root ? *fs.override_mapping_root : sb.data_mapping_root_;
 	}
 
+	void print_info(superblock_detail::superblock const &sb,
+                        transaction_manager::ptr tm)
+	{
+		cout << "TRANSACTION_ID=" << sb.trans_id_ << "\n";
+		cout << "METADATA_FREE_BLOCKS=" << tm->get_sm()->get_nr_free() << "\n";
+	}
+
 	error_state metadata_check(string const &path, flags fs) {
 		nested_output out(cerr, 2);
 		if (fs.quiet)
@@ -227,6 +234,9 @@ namespace {
 		superblock_detail::superblock sb = read_superblock(bm);
 		transaction_manager::ptr tm =
 			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+
+		if (!fs.quiet)
+			print_info(sb, tm);
 
 		if (fs.check_device_tree) {
 			out << "examining devices tree" << end_message();

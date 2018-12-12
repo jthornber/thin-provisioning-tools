@@ -118,6 +118,8 @@ SOURCE=\
 	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
+	thin-provisioning/thin_journal.cc \
+	thin-provisioning/thin_journal_check.cc \
 	thin-provisioning/thin_ll_dump.cc \
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \

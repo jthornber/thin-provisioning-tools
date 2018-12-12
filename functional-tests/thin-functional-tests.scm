@@ -126,6 +126,13 @@
       (run-fail-rcv (_ stderr) (thin-check xml)
         (assert-matches ".*This looks like XML.  thin_check only checks the binary metadata format." stderr))))
 
+  (define-scenario (thin-check info-fields)
+    "Outputs info fields"
+    (with-valid-metadata (md)
+      (run-ok-rcv (stdout stderr) (thin-check md)
+        (assert-matches ".*TRANSACTION_ID=[0-9]+.*" stdout)
+	(assert-matches ".*METADATA_FREE_BLOCKS=[0-9]+.*" stdout))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_restore scenarios
   ;;;-----------------------------------------------------------

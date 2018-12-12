@@ -8,7 +8,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <libaio.h>
 #include <unistd.h>
 #include <linux/fs.h>
