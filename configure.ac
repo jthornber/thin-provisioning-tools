@@ -112,7 +112,18 @@ AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug], [enable debugging]),
 AC_MSG_RESULT($DEBUG)
 
 if test x$DEBUG = xyes; then
-        CXXDEBUG_FLAG=-g
+        CXXDEBUG_FLAG+=" -g"
+fi
+
+################################################################################
+dnl -- Enable gprof
+AC_MSG_CHECKING(whether to enable gprof)
+AC_ARG_ENABLE(gprof, AC_HELP_STRING([--enable-gprof], [enable gprof]),
+              GPROF=$enableval, GPROF=no)
+AC_MSG_RESULT($GPROF)
+
+if test x$GPROF = xyes; then
+        CXXDEBUG_FLAG+=" -pg"
 fi
 
 ################################################################################
