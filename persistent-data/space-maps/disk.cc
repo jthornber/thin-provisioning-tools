@@ -390,7 +390,8 @@ namespace {
 
 					bitmap bm(tm_, ie, bitmap_validator_);
 					unsigned bit_begin = (index == begin_index) ? (begin % ENTRIES_PER_BLOCK) : 0;
-					unsigned bit_end = (index == end_index - 1) ? (end % ENTRIES_PER_BLOCK) : ENTRIES_PER_BLOCK;
+					unsigned bit_end = (index == end_index - 1) ?
+							   (end - ENTRIES_PER_BLOCK * index) : ENTRIES_PER_BLOCK;
 
 					boost::optional<unsigned> maybe_b = bm.find_free(bit_begin, bit_end);
 					if (maybe_b) {
