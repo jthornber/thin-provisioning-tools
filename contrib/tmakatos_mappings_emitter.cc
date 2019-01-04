@@ -90,3 +90,12 @@ namespace tmakatos_mappings_emitter {
 		range_map(origin_block, data_block, 0, 1);
 	}
 }
+
+//----------------------------------------------------------------
+
+extern "C" {
+	emitter::ptr create_emitter(ostream &out) {
+		return emitter::ptr(new tmakatos_mappings_emitter::binary_emitter(out));
+	}
+}
+//----------------------------------------------------------------
