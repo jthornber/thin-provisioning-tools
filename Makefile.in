@@ -231,7 +231,7 @@ clean:
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
 
-contrib/install:
+contrib/install: contrib
 	$(INSTALL_PROGRAM) $(PLUGINS) $(LIBDIR)
 
 install: bin/pdata_tools
