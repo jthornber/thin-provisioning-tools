@@ -18,19 +18,22 @@
 ;;;     node though, can't be used to differentiate).
 (define (thin-check metadata root)
   (let ((exit-code (system
-                     (fmt #f "../bin/thin_check --skip-mappings --override-mapping-root "
+                     (fmt #f "../bin/thin_check --override-mapping-root "
                           root " " metadata " > /dev/null 2>&1"))))
        (fmt #t "exit-code: " (wrt exit-code) ", ")
        (zero? exit-code)))
 
-(define metadata "../customer-metadata-full.bin")
+;(define metadata "../metadataoriginal")
+;(define nr-metadata-blocks 262144)
+
+(define metadata "/home/ejt/work/RedHat/rhel7-vm/dmtest/metadata.bin")
+(define nr-metadata-blocks 32768)
 
 ;; FIXME: aren't we returning a reference to a cache page and then dropping the lock?
 (define (read-superblock cache)
   (with-block (b cache 0 (get-flags))
     (block->superblock b)))
 
-(define nr-metadata-blocks 8192)
 
 (define (in-metadata-bounds? i)
   (< i nr-metadata-blocks))
@@ -87,6 +90,11 @@
        (< (ftype-ref BTreeNodeHeader (nr-entries) hdr)
           (/ (ftype-ref BTreeNodeHeader (max-entries) hdr) 3))))
 
+(define (details-leaf? b hdr)
+  (and (leaf-node? hdr)
+       (= (ftype-sizeof ThinDeviceDetails)
+          (ftype-ref BTreeNodeHeader (value-size) hdr))))
+
 (define (classify-node b hdr)
   (fold-left append '()
     (map (lambda (pair)
@@ -95,7 +103,8 @@
                '()))
          `((,internal? internal)
            (,bottom-level-leaf? bottom-level-leaf)
-           (,top-level-leaf? top-level-leaf)))))
+           (,top-level-leaf? top-level-leaf)
+           (,details-leaf? details-leaf)))))
 
 (define (checksum-btree-node b)
   (checksum-block b (ftype-sizeof unsigned-32) btree-node-salt))
@@ -120,6 +129,7 @@
 
 (define (dump-device-details cache)
   (let ((sb (read-superblock cache)))
+   (fmt #t sb)
    (device-tree-each cache (ftype-ref ThinSuperblock (device-details-root) sb)
      (lambda (dev-id dd)
        (fmt #t "dev-id: " dev-id "\n"
@@ -139,14 +149,16 @@
 ;; An interesting node has more than one class.
 (define (filter-interesting-blocks classes)
   (filter (lambda (xs)
-            (> (length xs) 1))
+            (>= (length xs) 1))
           classes))
 
+(define (fmt-list xs)
+  (for-each (lambda (x) (fmt #t x nl)) xs))
+
 (with-bcache (cache metadata (* 16 1024))
-  (dump-device-details cache)
   (let ((classes (classify-nodes cache))
         (rmap (make-eq-hashtable)))
-   (fmt #t (filter-interesting-blocks classes))))
+   (fmt-list (filter-interesting-blocks classes))))
 
 #|
 (with-bcache (cache metadata (* 16 1024))
@@ -159,7 +171,7 @@
 #|
 (let loop ((i 0)
            (successes '()))
- (if (> i 8192)
+ (if (> i nr-metadata-blocks)
      (fmt #t "successes: " (wrt successes) "\n")
      ;; add --ignore-non-fatal-errors flag
      (if (thin-check "../customer-metadata-full.bin" i)
@@ -169,4 +181,4 @@
          (begin
            (fmt #t "fail: " i "\n")
            (loop (+ i 1) successes)))))
-|# 
+|#

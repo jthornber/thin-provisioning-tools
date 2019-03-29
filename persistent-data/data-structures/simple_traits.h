@@ -1,6 +1,9 @@
 #ifndef PERSISTENT_DATA_DATA_STRUCTURES_SIMPLE_TRAITS_H
 #define PERSISTENT_DATA_DATA_STRUCTURES_SIMPLE_TRAITS_H
 
+#include "base/endian_utils.h"
+#include "persistent-data/data-structures/btree.h"
+
 //----------------------------------------------------------------
 
 namespace persistent_data {

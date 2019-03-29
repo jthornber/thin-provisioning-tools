@@ -30,6 +30,8 @@
 #include "thin-provisioning/commands.h"
 #include "version.h"
 
+using namespace boost;
+using namespace std;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
@@ -463,11 +465,13 @@ namespace {
 
 	class metadata_scanner {
 	public:
-		metadata_scanner(block_manager<>::ptr bm, uint64_t scan_begin, uint64_t scan_end)
+		metadata_scanner(block_manager<>::ptr bm, uint64_t scan_begin, uint64_t scan_end,
+                                 bool check_for_strings)
 			: bm_(bm),
 			  scan_begin_(scan_begin),
 			  scan_end_(scan_end),
-			  index_(scan_begin) {
+			  index_(scan_begin),
+			  check_for_strings_(check_for_strings) {
 			if (scan_end_ <= scan_begin_)
 				throw std::runtime_error("badly formed region (end <= begin)");
 
@@ -485,8 +489,6 @@ namespace {
 			block_range const &r = read_block(index_++);
 			run_range_ = r.clone();
 		}
-
-		virtual ~metadata_scanner() {}
 
 		std::unique_ptr<block_range> get_range() {
 			std::unique_ptr<block_range> ret;
@@ -507,7 +509,44 @@ namespace {
 			return ret;
 		}
 
+		map<block_address, vector<string>> const &get_strings() const {
+			return strings_;
+		}
+
 	private:
+		bool interesting_char(char c)
+		{
+			return isalnum(c) || ispunct(c);
+		}
+
+		unsigned printable_len(const char *b, const char *e)
+		{
+			const char *p = b;
+
+			while (p != e && interesting_char(*p))
+				p++;
+
+			return p - b;
+		}
+
+		// asci text within our metadata is a sure sign of corruption.
+		optional<vector<string> >
+		scan_strings(block_manager<>::read_ref rr)
+		{
+			vector<string> r;
+			const char *data = reinterpret_cast<const char *>(rr.data()), *end = data + MD_BLOCK_SIZE;
+
+			while (data < end) {
+				auto len = printable_len(data, end);
+				if (len >= 4)
+					r.push_back(string(data, data + len));
+
+				data += len + 1;
+			}
+
+			return r.size() ? optional<vector<string>>(r) : optional<vector<string>>();
+		}
+
 		block_range const &read_block(block_address b) {
 			block_manager<>::read_ref rr = bm_->read_lock(b);
 			int64_t ref_count;
@@ -516,6 +555,14 @@ namespace {
 			} catch (std::exception &e) {
 				ref_count = -1;
 			}
+
+			if (check_for_strings_) {
+				auto ss = scan_strings(rr);
+				if (ss) {
+					strings_.insert(make_pair(b, *ss));
+				}
+			}
+
 			return factory_.convert_to_range(rr, ref_count);
 		}
 
@@ -531,17 +578,24 @@ namespace {
 		std::unique_ptr<block_range> run_range_;
 
 		range_factory factory_;
+
+		bool check_for_strings_;
+		map<block_address, vector<string>> strings_;
 	};
 
 	//-------------------------------------------------------------------
 
 	struct flags {
-		flags(): exclusive_(true) {
+		flags()
+		: exclusive_(true),
+		  examine_corruption_(false)
+		{
 		}
 
 		boost::optional<block_address> scan_begin_;
 		boost::optional<block_address> scan_end_;
 		bool exclusive_;
+		bool examine_corruption_;
 	};
 
 	int scan_metadata_(string const &input,
@@ -552,11 +606,26 @@ namespace {
 		block_address scan_begin = f.scan_begin_ ? *f.scan_begin_ : 0;
 		block_address scan_end = f.scan_end_ ? *f.scan_end_ : bm->get_nr_blocks();
 
-		metadata_scanner scanner(bm, scan_begin, scan_end);
+		metadata_scanner scanner(bm, scan_begin, scan_end, f.examine_corruption_);
 		std::unique_ptr<block_range> r;
 		while ((r = scanner.get_range())) {
 			out << *r << std::endl;
 		}
+
+		if (f.examine_corruption_) {
+			auto ss = scanner.get_strings();
+
+			for (auto const &ps : ss) {
+				out << ps.first << ": ";
+
+				unsigned total = 0;
+				for (auto const &s : ps.second)
+					total += s.length();
+
+				out << total << " bytes of text\n";
+			}
+		}
+
 		return 0;
 	}
 
@@ -592,6 +661,7 @@ thin_scan_cmd::usage(std::ostream &out) const {
 	    << "  {-o|--output} <xml file>\n"
 	    << "  {--begin} <block#>\n"
 	    << "  {--end} <block#>\n"
+	    << "  {--examine-corruption}\n"
 	    << "  {-V|--version}" << endl;
 }
 
@@ -605,6 +675,7 @@ thin_scan_cmd::run(int argc, char **argv)
 		{ "version", no_argument, NULL, 'V'},
 		{ "begin", required_argument, NULL, 1},
 		{ "end", required_argument, NULL, 2},
+		{ "examine-corruption", no_argument, NULL, 3 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 	boost::optional<string> output;
@@ -641,6 +712,10 @@ thin_scan_cmd::run(int argc, char **argv)
 				cerr << e.what() << endl;
 				return 1;
 			}
+			break;
+
+		case 3:
+			f.examine_corruption_ = true;
 			break;
 
 		default:

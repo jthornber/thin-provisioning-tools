@@ -52,7 +52,7 @@ namespace {
 
 	metadata::ptr open_metadata(string const &path, struct flags &flags) {
 		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY, !flags.use_metadata_snap);
-		metadata::ptr md(flags.use_metadata_snap ? new metadata(bm, flags.snap_location) : new metadata(bm));
+		metadata::ptr md(flags.use_metadata_snap ? new metadata(bm, flags.snap_location) : new metadata(bm, false));
 
 		return md;
 	}
