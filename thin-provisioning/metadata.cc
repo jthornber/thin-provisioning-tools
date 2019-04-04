@@ -71,7 +71,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_,
 							    device_tree_detail::device_details_traits::ref_counter()));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
-								 mapping_tree_detail::mtree_ref_counter(tm_)));
+								 mapping_tree_detail::mtree_ref_counter(*tm_)));
 		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
 							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 		break;
@@ -89,7 +89,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 		mappings_ = mapping_tree::ptr(new mapping_tree(*tm_,
 							       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 		mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, mappings_->get_root(),
-								 mapping_tree_detail::mtree_ref_counter(tm_)));
+								 mapping_tree_detail::mtree_ref_counter(*tm_)));
 
 		::memset(&sb_, 0, sizeof(sb_));
 		sb_.magic_ = SUPERBLOCK_MAGIC;
@@ -164,7 +164,7 @@ void metadata::open_btrees()
 	details_ = device_tree::ptr(new device_tree(*tm_, sb_.device_details_root_,
 						    device_tree_detail::device_details_traits::ref_counter()));
 	mappings_top_level_ = dev_tree::ptr(new dev_tree(*tm_, sb_.data_mapping_root_,
-							 mapping_tree_detail::mtree_ref_counter(tm_)));
+							 mapping_tree_detail::mtree_ref_counter(*tm_)));
 	mappings_ = mapping_tree::ptr(new mapping_tree(*tm_, sb_.data_mapping_root_,
 						       mapping_tree_detail::block_time_ref_counter(data_sm_)));
 }

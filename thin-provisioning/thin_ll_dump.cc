@@ -215,7 +215,7 @@ namespace {
 		// output the top-level data mapping tree
 		ll_mapping_tree_emitter ll_mte(tm->get_bm(), out);
 		dev_tree dtree(*tm, sb.data_mapping_root_,
-			       mapping_tree_detail::mtree_traits::ref_counter(tm));
+			       mapping_tree_detail::mtree_traits::ref_counter(*tm));
 		noop_damage_visitor noop_dv;
 		btree_visit_values(dtree, ll_mte, noop_dv);
 

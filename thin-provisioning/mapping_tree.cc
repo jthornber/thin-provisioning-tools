@@ -64,7 +64,7 @@ namespace thin_provisioning {
 
 		//--------------------------------
 
-		mtree_ref_counter::mtree_ref_counter(transaction_manager::ptr tm)
+		mtree_ref_counter::mtree_ref_counter(transaction_manager &tm)
 			: tm_(tm)
 		{
 		}

@@ -253,7 +253,7 @@ namespace {
 			{
 				nested_output::nest _ = out.push();
 				dev_tree dtree(*tm, mapping_root(sb, fs),
-					       mapping_tree_detail::mtree_traits::ref_counter(tm));
+					       mapping_tree_detail::mtree_traits::ref_counter(*tm));
 				check_mapping_tree(dtree, mapping_rep);
 			}
 

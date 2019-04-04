@@ -45,13 +45,13 @@ namespace thin_provisioning {
 
 		class mtree_ref_counter {
 		public:
-			mtree_ref_counter(transaction_manager::ptr tm);
+			mtree_ref_counter(transaction_manager &tm);
 
 			void inc(block_address b);
 			void dec(block_address b);
 
 		private:
-			transaction_manager::ptr tm_;
+			transaction_manager &tm_;
 		};
 
 		// This value type is itself a tree containing mappings.
