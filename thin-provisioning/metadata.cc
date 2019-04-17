@@ -134,6 +134,13 @@ metadata::metadata(block_manager<>::ptr bm,
 	open_btrees();
 }
 
+metadata::metadata(block_manager<>::ptr bm, superblock_detail::superblock const &sb)
+{
+	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
+	sb_ = sb;
+	open_btrees();
+}
+
 void
 metadata::commit()
 {

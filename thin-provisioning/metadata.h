@@ -78,6 +78,9 @@ namespace thin_provisioning {
 		metadata(block_manager<>::ptr,
 			 boost::optional<block_address> metadata_snap); // (ii) and (iii)
 
+		// This is used by repair, when we rebuild the superblock
+		metadata(block_manager<>::ptr bm, superblock_detail::superblock const &sb);
+
 		void commit();
 
 
