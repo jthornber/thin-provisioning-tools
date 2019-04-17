@@ -19,6 +19,8 @@
 #include "thin-provisioning/emitter.h"
 #include "thin-provisioning/metadata_dumper.h"
 #include "thin-provisioning/mapping_tree.h"
+#include "persistent-data/data-structures/simple_traits.h"
+#include "persistent-data/file_utils.h"
 
 #include <map>
 #include <vector>
@@ -26,349 +28,7 @@
 using namespace persistent_data;
 using namespace thin_provisioning;
 
-//----------------------------------------------------------------
-
-// We only need to examine the mapping tree, and device details tree.
-// The space maps can be inferred.
-
-// Repair process:
-// - We only trigger the repair process if there's damage when walking from
-//   the roots given in the superblock.
-// - If there is damage, then we try and find the most recent roots with the
-//   least corruption.  We're seeing cases where just the superblock has been
-//   trashed so finding the best roots is essential, and sadly non trivial.
-
-// Finding roots:
-// This is about classifying and summarising btree nodes.  The use of a btree
-// node may not be obvious when inspecting it in isolation.  But more information
-// may be gleaned by examining child and sibling nodes.
-// 
-// So the process is:
-// - scan every metadata block, summarising it's potential uses.
-// - repeatedly iterate those summaries until we can glean no more useful information.
-// - sort candidate roots, choose best
-
-// Summary information:
-// - btree; mapping top level, mapping bottom level, device tree (more than one possible)
-// - node type; internal or leaf
-// - age; for mapping trees we can infer a minimum age from the block/time
-//   values.  In addition two similar leaf nodes can be compared by looking
-//   at the block/time for _specific_ blocks.  This means we can define an ordering
-//   on the ages, but not equality.
-// - Device details can be aged based on the last_snapshot_time field.
-
-// Iteration of summary info:
-// - constraints propagate both up and down the trees.  eg, node 'a' may
-//   be ambiguous (all internal nodes are ambigous).  If we find that all it's
-//   children are device details trees, then we infer that this is too and lose
-//   the ambiguity.  Now if it has a sibling we can infer on this too.
-// - Some characteristics only propagate upwards.  eg, age.  So we need two monoids
-//   for summary info (up and down).
-
-namespace {
-	using namespace std;
-	using namespace boost;
-	using namespace persistent_data::btree_detail;
-	using namespace thin_provisioning::device_tree_detail;
-
-	enum btree_type_bit {
-		TOP_LEVEL,
-		BOTTOM_LEVEL,
-		DEVICE_DETAILS
-	};
-
-	struct node_info {
-		node_info()
-			: types(0),
-			  b(0),
-			  values(0),
-			  orphan(true),
-			  is_leaf(true),
-			  key_low(0),
-			  key_high(0),
-			  age(0) {
-		}
-
-		void add_type(btree_type_bit b) {
-			types = types | (1 << b);
-		}
-
-		void clear_type(btree_type_bit b) {
-			types = types & ~(1 << b);
-		}
-
-		bool has_type(btree_type_bit b) const {
-			return types & (1 << b);
-		}
-
-		// Indicate corruption by having no fields set
-		unsigned types;
-
-		// common
-		block_address b;
-		unsigned values;
-		bool orphan;
-		bool is_leaf;
-		uint64_t key_low;
-		uint64_t key_high;
-		set<uint32_t> devices;
-		uint32_t age;
-	};
-
-	using info_map = map<block_address, node_info>;
-
-	bool is_btree_node(block_manager<> &bm, block_address b) {
-		auto v = create_btree_node_validator();
-		auto rr = bm.read_lock(b);
-
-		return v->check_raw(rr.data());
-	}
-
-	uint32_t get_dd_age(device_details const &dd) {
-		return max(dd.creation_time_, dd.snapshotted_time_);
-	}
-
-	void scan_initial_infos(block_manager<> &bm, info_map &result) {
-		for (block_address b = 0; b < bm.get_nr_blocks(); b++) {
-			if (!is_btree_node(bm, b))
-				continue;
-
-			node_info info;
-			info.b = b;
-
-			auto rr = bm.read_lock(b);
-			auto hdr = reinterpret_cast<node_header const *>(rr.data());
-
-			auto flags = to_cpu<uint32_t>(hdr->flags);
-			if (flags & INTERNAL_NODE) {
-				info.is_leaf = false;
-				info.add_type(TOP_LEVEL);
-				info.add_type(BOTTOM_LEVEL);
-				info.add_type(DEVICE_DETAILS);
-			} else {
-				info.is_leaf = true;
-				auto vsize = to_cpu<uint32_t>(hdr->value_size); 
-				info.values = to_cpu<uint32_t>(hdr->nr_entries);
-
-				if (vsize == sizeof(device_details_traits::disk_type)) {
-					info.add_type(DEVICE_DETAILS);
-
-					auto n = to_node<device_details_traits>(rr);
-					if (n.get_nr_entries()) {
-						info.key_low = n.key_at(0);
-						info.key_high = n.key_at(n.get_nr_entries() - 1);
-					}
-
-					for (unsigned i = 0; i < n.get_nr_entries(); i++)
-						info.age = max(info.age, get_dd_age(n.value_at(i)));
-
-				} else if (vsize == sizeof(uint64_t)) {
-					info.add_type(BOTTOM_LEVEL);
-
-					// This can only be a top level leaf if all the values are
-					// blocks on the metadata device.
-					auto is_top_level = true;
-					auto n = to_node<block_traits>(rr);
-
-					if (n.get_nr_entries()) {
-						info.key_low = n.key_at(0);
-						info.key_high = n.key_at(n.get_nr_entries() - 1);
-					}
-
-					for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-						if (n.value_at(i) >= bm.get_nr_blocks()) {
-							is_top_level = false;
-							break;
-						}
-					}
-
-					if (is_top_level)
-						info.add_type(TOP_LEVEL);
-				} else
-					continue;
-			}
-
-			result.insert(make_pair(b, info));
-		}
-	}
-
-	bool merge_types(node_info &parent, node_info const &child, btree_type_bit b) {
-		if (parent.has_type(b) && !child.has_type(b)) {
-			parent.clear_type(b);
-			return true;
-		}
-
-		return false;
-	}
-
-	// return true if something changed
-	bool merge_from_below(node_info &parent, node_info const &child) {
-		bool changed = false;
-
-		changed = merge_types(parent, child, TOP_LEVEL) ||
-			merge_types(parent, child, BOTTOM_LEVEL) ||
-			merge_types(parent, child, DEVICE_DETAILS);
-
-		return changed;
-	}
-
-	void fail(node_info &n) {
-		n.types = 0;
-	}
-
-	bool failed(node_info const &n) {
-		return n.types == 0;
-	}
-
-	bool iterate_infos_(block_manager<> &bm, info_map &infos) {
-		bool changed = false;
-
-		for (auto &p : infos) {
-			auto &parent = p.second;
-
-			if (parent.is_leaf)
-				continue;
-
-			// values refer to blocks, so we should have infos for them.
-			auto rr = bm.read_lock(p.first);
-			auto n = to_node<block_traits>(rr);
-			uint64_t key_low = 0;
-			unsigned values = 0;
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				auto it = infos.find(n.value_at(i));
-
-				if (it == infos.end()) {
-					fail(parent);
-					break;
-				}
-
-				auto &child = it->second;
-
-				// we use the keys to help decide if this is a valid child
-				if (child.key_low <= key_low) {
-					fail(parent);
-					break;
-
-				} else
-					key_low = child.key_high;
-
-
-				changed = merge_from_below(parent, child) || changed;
-
-				if (parent.has_type(DEVICE_DETAILS) && child.age > parent.age) {
-					changed = true;
-					parent.age = child.age;
-				}
-
-				values += child.values;
-			}
-
-			// We don't clear the orphan flags until we know the parent is good
-			if (!failed(parent)) {
-				parent.values = values;
-
-				for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-					auto it = infos.find(n.value_at(i));
-
-					if (it == infos.end())
-						throw runtime_error("no child info, but it was there a moment ago");
-
-					auto &child = it->second;
-					child.orphan = false;
-				}
-			}
-		}
-
-		return changed;
-	}
-
-	void iterate_infos(block_manager<> &bm, info_map &infos) {
-		while (iterate_infos_(bm, infos))
-			;
-	}
-
-	bool trees_are_compatible(node_info const &mapping, node_info const &devices) {
-		for (auto thin_id : mapping.devices)
-			if (devices.devices.find(thin_id) == devices.devices.end())
-				return false;
-
-		return true;
-	}
-
-	bool cmp_mapping_info(node_info const &lhs, node_info const &rhs) {
-		return lhs.age > rhs.age;
-	}
-
-	bool has_type(node_info const &i, unsigned bit) {
-		return i.types & (1 << bit);
-	}
-
-	vector<node_info>
-	extract_mapping_candidates(info_map const &infos) {
-		vector<node_info> results;
-
-		for (auto const &p : infos)
-			if (p.second.orphan && has_type(p.second, TOP_LEVEL))
-				results.push_back(p.second);
-
-		//sort(results.begin(), results.end(), cmp_mapping_info);
-
-		return results;
-	}
-
-	bool cmp_device_info(node_info const &lhs, node_info const &rhs) {
-		// FIXME: finish
-		return false;
-		//return lhs.dd_age > rhs.dd_age;
-	}
-
-	vector<node_info>
-	extract_device_candidates(info_map const &infos) {
-		vector<node_info> results;
-
-		for (auto const &p : infos)
-			if (p.second.orphan && has_type(p.second, DEVICE_DETAILS))
-				results.push_back(p.second);
-
-		sort(results.begin(), results.end(), cmp_device_info);
-
-		return results;
-	}
-
-	// Returns <mapping root>, <dev details root>
-	//pair<block_address, block_address>
-	void
-	find_best_roots(block_manager<> &bm) {
-		info_map infos;
-
-		scan_initial_infos(bm, infos);
-		iterate_infos(bm, infos);
-
-		// These will be sorted into best first order
-		vector<node_info> mapping_candidates = extract_mapping_candidates(infos);
-		vector<node_info> device_candidates = extract_device_candidates(infos);
-
-		cerr << "mapping candidates (" << mapping_candidates.size() << "):\n";
-		for (auto const &i : mapping_candidates)
-			cerr << i.b << ", tree size = " << i.values << ", age = " << i.age << "\n";
-
-		cerr << "\ndevice candidates (" << device_candidates.size() << "):\n";
-		for (auto const &i : device_candidates)
-			cerr << i.b << ", tree size = " << i.values << ", age = " << i.age << "\n";
-
-#if 0
-		// Choose the best mapping tree, and then the best device tree
-		// that is compatible.
-		for (auto &m : mapping_candidates)
-			for (auto &d : device_candidates)
-				if (trees_are_compatible(m, d))
-					return make_pair(m.b, d.b);
-#endif
-
-//		throw runtime_error("no compatible mapping/device trees");
-	}
-}
+#define SHOW_WORKING 0
 
 //----------------------------------------------------------------
 
@@ -453,6 +113,479 @@ namespace {
 		dd_map dd_;
 	};
 
+	struct d_thin_id_extractor : public device_tree_detail::device_visitor {
+		void visit(block_address dev_id, device_tree_detail::device_details const &dd) {
+			dd_.insert(dev_id);
+		}
+
+		set<uint32_t> dd_;
+	};
+
+	set<uint32_t>
+	get_dev_ids(transaction_manager &tm, block_address root) {
+		d_thin_id_extractor de;
+		fatal_details_damage dv;
+		auto tree = device_tree(tm, root, device_tree_detail::device_details_traits::ref_counter());
+		walk_device_tree(tree, de, dv);
+		return de.dd_;
+	}
+
+	struct m_thin_id_extractor : public mapping_tree_detail::device_visitor {
+		void visit(btree_path const &path, block_address dtree_root) {
+			dd_.insert(path[0]);
+		}
+
+		set<uint32_t> dd_;
+	};
+	
+	set<uint32_t>
+	get_map_ids(transaction_manager &tm, block_address root) {
+		m_thin_id_extractor me;
+		fatal_mapping_damage mv;
+		auto tree = dev_tree(tm, root, mapping_tree_detail::mtree_traits::ref_counter(tm));
+		walk_mapping_tree(tree, me, mv);
+		return me.dd_;
+	}
+}
+
+// We only need to examine the mapping tree, and device details tree.
+// The space maps can be inferred.
+
+// Repair process:
+// - We only trigger the repair process if there's damage when walking from
+//   the roots given in the superblock.
+// - If there is damage, then we try and find the most recent roots with the
+//   least corruption.  We're seeing cases where just the superblock has been
+//   trashed so finding the best roots is essential, and sadly non trivial.
+
+// Finding roots:
+// This is about classifying and summarising btree nodes.  The use of a btree
+// node may not be obvious when inspecting it in isolation.  But more information
+// may be gleaned by examining child and sibling nodes.
+// 
+// So the process is:
+// - scan every metadata block, summarising it's potential uses.
+// - repeatedly iterate those summaries until we can glean no more useful information.
+// - sort candidate roots, choose best
+
+// Summary information:
+// - btree; mapping top level, mapping bottom level, device tree (more than one possible)
+// - node type; internal or leaf
+// - age; for mapping trees we can infer a minimum age from the block/time
+//   values.  In addition two similar leaf nodes can be compared by looking
+//   at the block/time for _specific_ blocks.  This means we can define an ordering
+//   on the ages, but not equality.
+// - Device details can be aged based on the last_snapshot_time field.
+
+// Iteration of summary info:
+// - constraints propagate both up and down the trees.  eg, node 'a' may
+//   be ambiguous (all internal nodes are ambigous).  If we find that all it's
+//   children are device details trees, then we infer that this is too and lose
+//   the ambiguity.  Now if it has a sibling we can infer on this too.
+// - Some characteristics only propagate upwards.  eg, age.  So we need two monoids
+//   for summary info (up and down).
+
+namespace {
+	using namespace std;
+	using namespace boost;
+	using namespace persistent_data::btree_detail;
+	using namespace thin_provisioning::device_tree_detail;
+
+	enum btree_type {
+		TOP_LEVEL,
+		BOTTOM_LEVEL,
+		DEVICE_DETAILS
+	};
+
+	struct node_info {
+		node_info()
+			: valid(true),
+			  type(TOP_LEVEL),
+			  b(0),
+			  values(0),
+			  key_low(0),
+			  key_high(0),
+			  age(0),
+			  nr_mappings(0) {
+		}
+
+		bool valid;
+		btree_type type;
+
+		block_address b;
+		unsigned values;
+		uint64_t key_low;
+		uint64_t key_high;
+		//set<uint32_t> devices;
+		uint32_t age;
+		map<uint32_t, uint32_t> time_counts;
+		unsigned nr_mappings;
+	};
+
+#if SHOW_WORKING
+	ostream &operator <<(ostream &out, node_info const &n) {
+		out << "b=" << n.b << ", valid=" << n.valid << ", type=" << n.type << ", values=" << n.values;
+		out << ", nr_mapped=" << n.nr_mappings;
+		for (auto const &p : n.time_counts)
+			out << ", t" << p.first << "=" << p.second;
+		return out;
+	}
+#endif
+
+	bool cmp_time_counts(pair<node_info, node_info> const &lhs_pair,
+                             pair<node_info, node_info> const &rhs_pair) {
+	        auto const &lhs = lhs_pair.first.time_counts;
+	        auto const &rhs = rhs_pair.first.time_counts;
+
+	        for (auto lhs_it = lhs.crbegin(); lhs_it != lhs.crend(); lhs_it++) {
+		        for (auto rhs_it = rhs.crbegin(); rhs_it != rhs.crend(); rhs_it++) {
+			        if (lhs_it->first > rhs_it->first)
+				        return true;
+
+			        else if (rhs_it->first > lhs_it->first)
+				        return false;
+
+				else if (lhs_it->second > rhs_it->second)
+					return true;
+
+				else if (rhs_it->second > lhs_it->second)
+					return false;
+		        }
+	        }
+
+	        return true;
+        }
+
+	class gatherer {
+	public:
+		gatherer(block_manager<> &bm)
+			: bm_(bm),
+			  referenced_(bm.get_nr_blocks(), false),
+			  examined_(bm.get_nr_blocks(), false) {
+		}
+
+		optional<pair<block_address, block_address>>
+		find_best_roots(transaction_manager &tm) {
+			vector<node_info> mapping_roots;
+			vector<node_info> device_roots;
+
+			auto nr_blocks = bm_.get_nr_blocks();
+			for (block_address b = 0; b < nr_blocks; b++)
+				get_info(b);
+
+			for (block_address b = 0; b < nr_blocks; b++) {
+				if (referenced(b))
+					continue;
+
+				auto info = get_info(b);
+
+				if (info.valid) {
+					if (info.type == TOP_LEVEL)
+						mapping_roots.push_back(info);
+
+					else if (info.type == DEVICE_DETAILS)
+						device_roots.push_back(info);
+				}
+			}
+
+#if SHOW_WORKING
+			cerr << "mapping candidates (" << mapping_roots.size() << "):\n";
+			for (auto const &i : mapping_roots)
+				cerr << i << "\n";
+
+			cerr << "\ndevice candidates (" << device_roots.size() << "):\n";
+			for (auto const &i : device_roots)
+				cerr << i << "\n";
+#endif
+
+			auto pairs = find_compatible_roots(tm, device_roots, mapping_roots);
+
+#if SHOW_WORKING
+			for (auto const &p : pairs)
+				cerr << "(" << p.first << ", " << p.second << ")\n";
+#endif
+
+			if (pairs.size())
+				return pairs[0];
+			else
+				return optional<pair<block_address, block_address>>();
+		}
+
+	private:
+		bool set_eq(set<uint32_t> const &lhs, set<uint32_t> const &rhs) {
+			for (auto v : lhs)
+				if (!rhs.count(v))
+					return false;
+
+			return true;
+		}
+
+		vector<pair<block_address, block_address> >
+		find_compatible_roots(transaction_manager &tm,
+                                      vector<node_info> const &device_roots,
+                                      vector<node_info> const &mapping_roots) {
+			vector<pair<node_info, node_info>> pairs;
+			set<block_address> d_roots;
+			set<block_address> m_roots;
+
+			// construct pairs that have the same number of entries
+			for (auto const &di : device_roots)
+				for (auto const &mi : mapping_roots)
+					if (di.values == mi.values && di.nr_mappings == mi.nr_mappings) {
+						pairs.push_back(make_pair(di, mi));
+						d_roots.insert(di.b);
+						m_roots.insert(mi.b);
+					}
+
+			sort(pairs.begin(), pairs.end(), cmp_time_counts);
+
+			map<block_address, set<uint32_t>> ds;
+			for (auto b : d_roots)
+				ds.insert(make_pair(b, get_dev_ids(tm, b)));
+
+			map<block_address, set<uint32_t>> ms;
+			for (auto b : m_roots)
+				ms.insert(make_pair(b, get_map_ids(tm, b)));
+
+			// now we check that the thin_ids are identical
+			vector<pair<block_address, block_address>> filtered;
+			for (auto const &p : pairs) {
+				auto lhs = ds.find(p.first.b);
+				if (lhs == ds.end())
+					continue;
+
+				auto rhs = ms.find(p.second.b);
+				if (rhs == ms.end())
+					continue;
+
+				filtered.push_back(make_pair(p.first.b, p.second.b));
+			}
+
+
+			return filtered;
+		}
+
+		void mark_referenced(block_address b) {
+			referenced_[b] = true;
+		}
+
+		bool referenced(block_address b) const {
+			return referenced_[b];
+		}
+
+		bool is_btree_node(block_address b) {
+			auto v = create_btree_node_validator();
+			auto rr = bm_.read_lock(b);
+
+			return v->check_raw(rr.data());
+		}
+
+		// The bottom layer has the block time encoded in it, with the time
+		// in the bottom 24 bits.  This means every block/time apart from block 0
+		// will result in a value that's outside the range of the metadata device.
+		bool is_top_level(node_ref<uint64_traits> &n) {
+			auto nr_metadata_blocks = bm_.get_nr_blocks();
+
+			for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				if (n.value_at(i) >= nr_metadata_blocks)
+					return false;
+
+			return true;
+		}
+
+		uint32_t get_dd_age(device_details const &dd) {
+			return max(dd.creation_time_, dd.snapshotted_time_);
+		}
+
+		void fail(node_info &n, const char *reason) {
+			// cerr << n.b << " failed: " << reason << "\n";
+			n.valid = false;
+		}
+
+		bool failed(node_info const &n) {
+			return !n.valid;
+		}
+
+		void inc_time_count(map<uint32_t, uint32_t> &counts, uint32_t time) {
+			auto it = counts.find(time);
+			if (it == counts.end()) {
+				counts.insert(make_pair(time, 1));
+			} else
+				it->second++;
+		}
+
+		void merge_time_counts(map<uint32_t, uint32_t> &lhs, map<uint32_t, uint32_t> const &rhs) {
+			for (auto const &p : rhs) {
+				auto it = lhs.find(p.first);
+				if (it == lhs.end())
+					lhs.insert(p);
+				else
+					it->second += p.second;
+			}
+		}
+
+		node_info get_internal_info(block_manager<>::read_ref &rr) {
+			node_info info;
+			info.b = rr.get_location();
+			 
+			// values refer to blocks, so we should have infos for them.
+			auto n = to_node<block_traits>(rr);
+			uint64_t key_low = 0;
+			unsigned values = 0;
+
+			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+				auto child = get_info(n.value_at(i));
+				if (failed(child)) {
+					fail(info, "child failed");
+					break;
+				}
+
+				if (!i)
+					info.type = child.type;
+
+				else if (info.type != child.type) {
+					fail(info, "mismatch types");
+					break;
+				}
+
+				// we use the keys to help decide if this is a valid child
+				if (key_low && child.key_low <= key_low) {
+					fail(info, "bad keys");
+					break;
+
+				} else
+					key_low = child.key_high;
+
+				values += child.values;
+				merge_time_counts(info.time_counts, child.time_counts);
+				info.age = max(info.age, child.age);
+				info.nr_mappings += child.nr_mappings;
+			}
+
+			// We don't clear the orphan flags until we know the parent is good
+			if (!failed(info)) {
+				info.values = values;
+
+				for (unsigned i = 0; i < n.get_nr_entries(); i++)
+					mark_referenced(n.value_at(i));
+			}
+
+			return info;
+		}
+
+		node_info get_leaf_info(block_manager<>::read_ref &rr, node_header const &hdr) {
+			node_info info;
+			info.b = rr.get_location();
+
+			auto vsize = to_cpu<uint32_t>(hdr.value_size); 
+			info.values = to_cpu<uint32_t>(hdr.nr_entries);
+
+			if (vsize == sizeof(device_details_traits::disk_type)) {
+				auto n = to_node<device_details_traits>(rr);
+				info.type = DEVICE_DETAILS;
+
+				if (n.get_nr_entries()) {
+					info.key_low = n.key_at(0);
+					info.key_high = n.key_at(n.get_nr_entries() - 1);
+				}
+
+				for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+					info.age = max(info.age, get_dd_age(n.value_at(i)));
+					info.nr_mappings += n.value_at(i).mapped_blocks_;
+				}
+
+			} else if (vsize == sizeof(uint64_t)) {
+				auto n = to_node<uint64_traits>(rr);
+
+				if (n.get_nr_entries()) {
+					info.key_low = n.key_at(0);
+					info.key_high = n.key_at(n.get_nr_entries() - 1);
+				}
+
+				if (is_top_level(n)) {
+					info.type = TOP_LEVEL;
+
+					for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+						node_info child = get_info(n.value_at(i));
+						if (!child.valid || (child.type != BOTTOM_LEVEL)) {
+							fail(info, "child not bottom level");
+							return info;
+						}
+
+						info.age = max(info.age, child.age);
+						merge_time_counts(info.time_counts, child.time_counts);
+						info.nr_mappings += child.nr_mappings;
+					}
+
+					for (unsigned i = 0; i < n.get_nr_entries(); i++)
+						mark_referenced(n.value_at(i));
+
+				} else {
+					auto n = to_node<mapping_tree_detail::block_traits>(rr);
+					info.type = BOTTOM_LEVEL;
+
+					for (unsigned i = 0; i < n.get_nr_entries(); i++) {
+						auto bt = n.value_at(i);
+						inc_time_count(info.time_counts, bt.time_);
+						info.age = max(info.age, bt.time_);
+					}
+
+					info.nr_mappings = n.get_nr_entries();
+				}
+			}
+
+			return info;
+		}
+
+		node_info get_info_(block_address b) {
+			if (!is_btree_node(b)) {
+				node_info info;
+				info.b = b;
+				fail(info, "not btree node");
+				return info;
+			}
+
+			auto rr = bm_.read_lock(b);
+			auto hdr = reinterpret_cast<node_header const *>(rr.data());
+
+			auto flags = to_cpu<uint32_t>(hdr->flags);
+			if (flags & INTERNAL_NODE)
+				return get_internal_info(rr);
+			else
+				return get_leaf_info(rr, *hdr);
+		}
+
+		node_info get_info(block_address b) {
+			if (examined_[b]) {
+				auto it = infos_.find(b);
+				if (it == infos_.end()) {
+					node_info info;
+					info.b = b;
+					fail(info, "unknown");
+					return info;
+				}
+
+				return it->second;
+			} else {
+				node_info info = get_info_(b);
+				examined_[b] = true;
+				if (!failed(info))
+					infos_.insert(make_pair(b, info));
+
+				return info;
+			}
+		}
+
+		block_manager<> &bm_;
+		vector<bool> referenced_;
+		vector<bool> examined_;
+		map<block_address, node_info> infos_;
+	};
+}
+
+//----------------------------------------------------------------
+
+namespace {
 	class mapping_emitter : public mapping_tree_detail::mapping_visitor {
 	public:
 		mapping_emitter(emitter::ptr e)
@@ -551,7 +684,7 @@ namespace {
 				}
 				e_->end_device();
 
-			} else if (!opts_.repair_) {
+			} else {
 				ostringstream msg;
 				msg << "mappings present for device " << dev_id
 				    << ", but it isn't present in device tree";
@@ -593,10 +726,8 @@ namespace {
 void
 thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options const &opts)
 {
-	find_best_roots(*md->tm_->get_bm());
-
 	details_extractor de(opts);
-	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(opts.repair_));
+	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(false));
 	walk_device_tree(*md->details_, de, *dd_policy);
 
 	e->begin_superblock("", md->sb_.time_,
@@ -608,8 +739,67 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 			    boost::optional<block_address>());
 
 	{
-		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(opts.repair_));
-		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(opts.repair_));
+		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
+		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
+		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
+	}
+
+	e->end_superblock();
+}
+
+void
+thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
+{
+	// We assume the superblock is wrong, and find the best roots
+	// for ourselves.  We've had a few cases where people have
+	// activated a pool on multiple hosts at once, which results in
+	// the superblock being over written.
+
+
+	gatherer g(*bm);
+	auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+	auto p = g.find_best_roots(*tm);
+
+	metadata::ptr md;
+
+	if (p) {
+		// We found good roots, so we fill out our own superblock,
+		// with some help from the old sb.
+		 
+		// FIXME: what happens if the superblock can't be read?
+		// catch and fill out defaults?  what should the data_block_size be?
+		auto sb = read_superblock(*bm);
+
+		sb.metadata_snap_ = 0;
+
+		sb.device_details_root_ = p->first;
+		sb.data_mapping_root_ = p->second;
+		sb.metadata_nr_blocks_ = bm->get_nr_blocks();
+
+		md.reset(new metadata(bm, sb));
+
+	} else {
+		// We couldn't find any good roots, so we'll fall back to using the
+		// on disk superblock.
+		md.reset(new metadata(bm, false));
+	}
+
+	dump_options opts;
+	details_extractor de(opts);
+	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(false));
+	walk_device_tree(*md->details_, de, *dd_policy);
+
+	e->begin_superblock("", md->sb_.time_,
+			    md->sb_.trans_id_,
+			    md->sb_.flags_,
+			    md->sb_.version_,
+			    md->sb_.data_block_size_,
+			    get_nr_blocks(md),
+			    boost::optional<block_address>());
+
+	{
+		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
+		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 

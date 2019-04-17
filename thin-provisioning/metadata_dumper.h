@@ -31,8 +31,7 @@ namespace thin_provisioning {
 	class dump_options {
 	public:
 		dump_options()
-			: repair_(false),
-			  skip_mappings_(false) {
+			: skip_mappings_(false) {
 		}
 
 		bool selected_dev(uint64_t dev_id) const {
@@ -46,11 +45,11 @@ namespace thin_provisioning {
 			dev_filter_->insert(dev_id);
 		}
 
-		bool repair_;
 		bool skip_mappings_;
 
 		using dev_set = std::set<uint64_t>;
 		using maybe_dev_set = boost::optional<dev_set>;
+
 		maybe_dev_set dev_filter_;
 	};
 
@@ -58,6 +57,13 @@ namespace thin_provisioning {
 	// the dumper to do it's best to recover info.  If not set, any
 	// corruption encountered will cause an exception to be thrown.
 	void metadata_dump(metadata::ptr md, emitter::ptr e, dump_options const &opts);
+
+	// We have to provide a different interface for repairing, since
+	// the superblock itself may be corrupt, so we wont be able
+	// to create the metadata object.
+	void metadata_repair(block_manager<>::ptr bm, emitter::ptr e);
+
+	// Only used by ll_restore, so we leave the repair arg
 	void metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root);
 }
 

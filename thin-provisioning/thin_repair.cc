@@ -22,14 +22,8 @@ namespace {
 			block_manager<>::ptr new_bm = open_bm(new_path, block_manager<>::READ_WRITE);
 			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);
-
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
-
-			metadata::ptr old_md(new metadata(old_bm, false));
-
-			dump_options opts;
-			opts.repair_ = true;
-			metadata_dump(old_md, e, opts);
+			metadata_repair(old_bm, e);
 
 		} catch (std::exception &e) {
 			cerr << e.what() << endl;
