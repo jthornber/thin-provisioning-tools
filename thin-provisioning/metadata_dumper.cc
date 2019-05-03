@@ -798,7 +798,7 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 			    boost::optional<block_address>());
 
 	{
-		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
+		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
 		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
