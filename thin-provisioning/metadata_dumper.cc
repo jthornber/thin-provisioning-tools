@@ -741,6 +741,63 @@ namespace {
 			// metadata snap, we really don't know
 			return 0ull;
 	}
+
+	void
+	metadata_repair_(block_manager<>::ptr bm, emitter::ptr e)
+	{
+		// We assume the superblock is wrong, and find the best roots
+		// for ourselves.  We've had a few cases where people have
+		// activated a pool on multiple hosts at once, which results in
+		// the superblock being over written.
+		gatherer g(*bm);
+		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+		auto p = g.find_best_roots(*tm);
+
+		metadata::ptr md;
+
+		if (p) {
+			// We found good roots, so we fill out our own superblock,
+			// with some help from the old sb.
+
+			// FIXME: what happens if the superblock can't be read?
+			// catch and fill out defaults?  what should the data_block_size be?
+			auto sb = read_superblock(*bm);
+
+			sb.metadata_snap_ = 0;
+
+			sb.device_details_root_ = p->first;
+			sb.data_mapping_root_ = p->second;
+			sb.metadata_nr_blocks_ = bm->get_nr_blocks();
+
+			md.reset(new metadata(bm, sb));
+
+		} else {
+			// We couldn't find any good roots, so we'll fall back to using the
+			// on disk superblock.
+			md.reset(new metadata(bm, false));
+		}
+
+		dump_options opts;
+		details_extractor de(opts);
+		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
+		walk_device_tree(*md->details_, de, *dd_policy);
+
+		e->begin_superblock("", md->sb_.time_,
+				    md->sb_.trans_id_,
+				    md->sb_.flags_,
+				    md->sb_.version_,
+				    md->sb_.data_block_size_,
+				    get_nr_blocks(md),
+				    boost::optional<block_address>());
+
+		{
+			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
+			mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
+			walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
+		}
+
+		e->end_superblock();
+	}
 }
 
 //----------------------------------------------------------------
@@ -772,58 +829,17 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 void
 thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 {
-	// We assume the superblock is wrong, and find the best roots
-	// for ourselves.  We've had a few cases where people have
-	// activated a pool on multiple hosts at once, which results in
-	// the superblock being over written.
-	gatherer g(*bm);
+	auto sb = read_superblock(*bm);
 	auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
-	auto p = g.find_best_roots(*tm);
 
-	metadata::ptr md;
-
-	if (p) {
-		// We found good roots, so we fill out our own superblock,
-		// with some help from the old sb.
-		 
-		// FIXME: what happens if the superblock can't be read?
-		// catch and fill out defaults?  what should the data_block_size be?
-		auto sb = read_superblock(*bm);
-
-		sb.metadata_snap_ = 0;
-
-		sb.device_details_root_ = p->first;
-		sb.data_mapping_root_ = p->second;
-		sb.metadata_nr_blocks_ = bm->get_nr_blocks();
-
-		md.reset(new metadata(bm, sb));
-
-	} else {
-		// We couldn't find any good roots, so we'll fall back to using the
-		// on disk superblock.
-		md.reset(new metadata(bm, false));
-	}
-
-	dump_options opts;
-	details_extractor de(opts);
-	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
-	walk_device_tree(*md->details_, de, *dd_policy);
-
-	e->begin_superblock("", md->sb_.time_,
-			    md->sb_.trans_id_,
-			    md->sb_.flags_,
-			    md->sb_.version_,
-			    md->sb_.data_block_size_,
-			    get_nr_blocks(md),
-			    boost::optional<block_address>());
-
-	{
-		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
-		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
-		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
-	}
-
-	e->end_superblock();
+	if (get_dev_ids(*tm, sb.device_details_root_) && get_map_ids(*tm, sb.data_mapping_root_)) {
+		// The roots in the superblock look ok (perhaps the corruption was in the
+		// space maps).  Just dump the metadata skipping repair.
+		dump_options opts;
+		auto md = metadata::ptr(new metadata(bm, false));
+		metadata_dump(md, e, opts);
+	} else
+		metadata_repair_(bm, e);
 }
 
 //----------------------------------------------------------------
