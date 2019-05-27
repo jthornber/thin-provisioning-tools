@@ -754,8 +754,6 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 	// for ourselves.  We've had a few cases where people have
 	// activated a pool on multiple hosts at once, which results in
 	// the superblock being over written.
-
-
 	gatherer g(*bm);
 	auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 	auto p = g.find_best_roots(*tm);
@@ -786,7 +784,7 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 
 	dump_options opts;
 	details_extractor de(opts);
-	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(false));
+	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
 	walk_device_tree(*md->details_, de, *dd_policy);
 
 	e->begin_superblock("", md->sb_.time_,
@@ -799,7 +797,7 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
-		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
+		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
