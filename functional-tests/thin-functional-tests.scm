@@ -222,6 +222,12 @@
           (run-ok-rcv (d2-stdout _) (thin-dump md)
             (assert-equal d1-stdout d2-stdout))))))
 
+  (define-scenario (thin-dump no-stderr)
+    "thin_dump of clean data does not output error messages to stderr"
+    (with-valid-metadata (md)
+      (run-ok-rcv (stdout stderr) (thin-dump md)
+        (assert-eof stderr))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_rmap scenarios
   ;;;-----------------------------------------------------------
