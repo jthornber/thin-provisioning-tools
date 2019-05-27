@@ -25,6 +25,7 @@
 #include <map>
 #include <vector>
 
+using namespace boost;
 using namespace persistent_data;
 using namespace thin_provisioning;
 
@@ -121,12 +122,19 @@ namespace {
 		set<uint32_t> dd_;
 	};
 
-	set<uint32_t>
+	// See comment on get_map_ids
+	optional<set<uint32_t> >
 	get_dev_ids(transaction_manager &tm, block_address root) {
 		d_thin_id_extractor de;
 		fatal_details_damage dv;
 		auto tree = device_tree(tm, root, device_tree_detail::device_details_traits::ref_counter());
-		walk_device_tree(tree, de, dv);
+
+		try {
+			walk_device_tree(tree, de, dv);
+		} catch (...) {
+			return optional<set<uint32_t>>();
+		}
+
 		return de.dd_;
 	}
 
@@ -137,13 +145,21 @@ namespace {
 
 		set<uint32_t> dd_;
 	};
-	
-	set<uint32_t>
+
+	// The walk will do more sanity checks than we did when scanning the metadata, so
+	// it's possible that it will fail and throw a metadata damage exception.
+	optional<set<uint32_t> >
 	get_map_ids(transaction_manager &tm, block_address root) {
 		m_thin_id_extractor me;
 		fatal_mapping_damage mv;
 		auto tree = dev_tree(tm, root, mapping_tree_detail::mtree_traits::ref_counter(tm));
-		walk_mapping_tree(tree, me, mv);
+
+		try {
+			walk_mapping_tree(tree, me, mv);
+		} catch (...) {
+			return optional<set<uint32_t>>();
+		}
+
 		return me.dd_;
 	}
 }
@@ -340,12 +356,18 @@ namespace {
 			sort(pairs.begin(), pairs.end(), cmp_time_counts);
 
 			map<block_address, set<uint32_t>> ds;
-			for (auto b : d_roots)
-				ds.insert(make_pair(b, get_dev_ids(tm, b)));
+			for (auto b : d_roots) {
+				auto maybe_ids = get_dev_ids(tm, b);
+				if (maybe_ids)
+					ds.insert(make_pair(b, *maybe_ids));
+			}
 
 			map<block_address, set<uint32_t>> ms;
-			for (auto b : m_roots)
-				ms.insert(make_pair(b, get_map_ids(tm, b)));
+			for (auto b : m_roots) {
+				auto maybe_ids = get_map_ids(tm, b);
+				if (maybe_ids)
+					ms.insert(make_pair(b, *maybe_ids));
+			}
 
 			// now we check that the thin_ids are identical
 			vector<pair<block_address, block_address>> filtered;
