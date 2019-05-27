@@ -144,8 +144,9 @@ namespace {
 				if (!b)
 					break;
 
-				if (b)
+				if (b) {
 					ASSERT_TRUE(*b != *mb);
+				}
 			}
 		}
 

@@ -159,13 +159,15 @@ TEST_F(ArrayTests, grow)
 		create_array(0, 123);
 
 		for (unsigned i = 1; i < chunks.size(); i++) {
-			if (i > 1)
+			if (i > 1) {
 				ASSERT_THAT(get(chunks[i - 1] - 1), Eq(i - 1));
+			}
 
 			a_->grow(chunks[i], i);
 
-			if (i > 1)
+			if (i > 1) {
 				ASSERT_THAT(get(chunks[i - 1] - 1), Eq(i - 1));
+			}
 
 			for (unsigned j = chunks[i - 1]; j < chunks[i]; j++)
 				ASSERT_THAT(get(j), Eq(i));
