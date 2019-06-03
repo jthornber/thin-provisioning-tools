@@ -16,11 +16,12 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include "thin-provisioning/emitter.h"
-#include "thin-provisioning/metadata_dumper.h"
-#include "thin-provisioning/mapping_tree.h"
 #include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/file_utils.h"
+#include "persistent-data/space-maps/noop.h"
+#include "thin-provisioning/emitter.h"
+#include "thin-provisioning/mapping_tree.h"
+#include "thin-provisioning/metadata_dumper.h"
 
 #include <map>
 #include <vector>
@@ -670,12 +671,12 @@ namespace {
 	class mapping_tree_emit_visitor : public mapping_tree_detail::device_visitor {
 	public:
 		mapping_tree_emit_visitor(dump_options const &opts,
-				     metadata::ptr md,
-				     emitter::ptr e,
-				     dd_map const &dd,
-				     mapping_tree_detail::damage_visitor::ptr damage_policy)
+					  transaction_manager &tm,
+					  emitter::ptr e,
+					  dd_map const &dd,
+					  mapping_tree_detail::damage_visitor::ptr damage_policy)
 			: opts_(opts),
-			  md_(md),
+			  tm_(tm),
 			  e_(e),
 			  dd_(dd),
 			  damage_policy_(damage_policy) {
@@ -717,29 +718,57 @@ namespace {
 	private:
 		void emit_mappings(uint64_t dev_id, block_address subtree_root) {
 			mapping_emit_visitor me(e_);
-			single_mapping_tree tree(*md_->tm_, subtree_root,
-						 mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
+
+			// Since we're not mutating the btrees we don't need a real space map
+			noop_map::ptr sm(new noop_map);
+			single_mapping_tree tree(tm_, subtree_root, mapping_tree_detail::block_time_ref_counter(sm));
 			walk_mapping_tree(tree, dev_id, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
 		}
 
 		dump_options const &opts_;
-		metadata::ptr md_;
+		transaction_manager &tm_;
 		emitter::ptr e_;
 		dd_map const &dd_;
 		mapping_tree_detail::damage_visitor::ptr damage_policy_;
 	};
 
-	block_address get_nr_blocks(metadata::ptr md) {
-		if (md->data_sm_)
-			return md->data_sm_->get_nr_blocks();
+	block_address get_nr_blocks(metadata &md) {
+		if (md.data_sm_)
+			return md.data_sm_->get_nr_blocks();
 
-		else if (md->sb_.blocknr_ == superblock_detail::SUPERBLOCK_LOCATION)
+		else if (md.sb_.blocknr_ == superblock_detail::SUPERBLOCK_LOCATION)
 			// grab from the root structure of the space map
-			return get_nr_blocks_in_data_sm(*md->tm_, &md->sb_.data_space_map_root_);
+			return get_nr_blocks_in_data_sm(*md.tm_, &md.sb_.data_space_map_root_);
 
 		else
 			// metadata snap, we really don't know
 			return 0ull;
+	}
+
+	void
+	do_repair_(block_manager<>::ptr bm, superblock_detail::superblock const &sb, emitter::ptr e)
+	{
+		metadata md(bm, sb);
+		dump_options opts;
+		details_extractor de(opts);
+		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
+		walk_device_tree(*md.details_, de, *dd_policy);
+
+		e->begin_superblock("", sb.time_,
+				    sb.trans_id_,
+				    sb.flags_,
+				    sb.version_,
+				    sb.data_block_size_,
+				    get_nr_blocks(md),
+				    boost::optional<block_address>());
+
+		{
+			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
+			mapping_tree_emit_visitor mte(opts, *md.tm_, e, de.get_details(), mapping_damage_policy(true));
+			walk_mapping_tree(*md.mappings_top_level_, mte, *md_policy);
+		}
+
+		e->end_superblock();
 	}
 
 	void
@@ -752,51 +781,16 @@ namespace {
 		gatherer g(*bm);
 		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 		auto p = g.find_best_roots(*tm);
-
-		metadata::ptr md;
+		auto sb = read_superblock(*bm);
 
 		if (p) {
-			// We found good roots, so we fill out our own superblock,
-			// with some help from the old sb.
-
-			// FIXME: what happens if the superblock can't be read?
-			// catch and fill out defaults?  what should the data_block_size be?
-			auto sb = read_superblock(*bm);
-
 			sb.metadata_snap_ = 0;
-
 			sb.device_details_root_ = p->first;
 			sb.data_mapping_root_ = p->second;
 			sb.metadata_nr_blocks_ = bm->get_nr_blocks();
-
-			md.reset(new metadata(bm, sb));
-
-		} else {
-			// We couldn't find any good roots, so we'll fall back to using the
-			// on disk superblock.
-			md.reset(new metadata(bm, false));
 		}
 
-		dump_options opts;
-		details_extractor de(opts);
-		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
-		walk_device_tree(*md->details_, de, *dd_policy);
-
-		e->begin_superblock("", md->sb_.time_,
-				    md->sb_.trans_id_,
-				    md->sb_.flags_,
-				    md->sb_.version_,
-				    md->sb_.data_block_size_,
-				    get_nr_blocks(md),
-				    boost::optional<block_address>());
-
-		{
-			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
-			mapping_tree_emit_visitor mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
-			walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
-		}
-
-		e->end_superblock();
+		do_repair_(bm, sb, e);
 	}
 }
 
@@ -814,12 +808,12 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 			    md->sb_.flags_,
 			    md->sb_.version_,
 			    md->sb_.data_block_size_,
-			    get_nr_blocks(md),
+			    get_nr_blocks(*md),
 			    boost::optional<block_address>());
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
-		mapping_tree_emit_visitor mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
+		mapping_tree_emit_visitor mte(opts, *md->tm_, e, de.get_details(), mapping_damage_policy(false));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
@@ -834,10 +828,9 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 
 	if (get_dev_ids(*tm, sb.device_details_root_) && get_map_ids(*tm, sb.data_mapping_root_)) {
 		// The roots in the superblock look ok (perhaps the corruption was in the
-		// space maps).  Just dump the metadata skipping repair.
-		dump_options opts;
-		auto md = metadata::ptr(new metadata(bm, false));
-		metadata_dump(md, e, opts);
+		// space maps).
+		auto sb = read_superblock(bm);
+		do_repair_(bm, sb, e);
 	} else
 		metadata_repair_(bm, e);
 }
