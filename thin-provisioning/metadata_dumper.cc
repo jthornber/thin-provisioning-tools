@@ -608,14 +608,14 @@ namespace {
 //----------------------------------------------------------------
 
 namespace {
-	class mapping_emitter : public mapping_tree_detail::mapping_visitor {
+	class mapping_emit_visitor : public mapping_tree_detail::mapping_visitor {
 	public:
-		mapping_emitter(emitter::ptr e)
+		mapping_emit_visitor(emitter::ptr e)
 			: e_(e),
 			  in_range_(false) {
 		}
 
-		~mapping_emitter() {
+		~mapping_emit_visitor() {
 			end_mapping();
 		}
 
@@ -667,9 +667,9 @@ namespace {
 		bool in_range_;
 	};
 
-	class mapping_tree_emitter : public mapping_tree_detail::device_visitor {
+	class mapping_tree_emit_visitor : public mapping_tree_detail::device_visitor {
 	public:
-		mapping_tree_emitter(dump_options const &opts,
+		mapping_tree_emit_visitor(dump_options const &opts,
 				     metadata::ptr md,
 				     emitter::ptr e,
 				     dd_map const &dd,
@@ -716,7 +716,7 @@ namespace {
 
 	private:
 		void emit_mappings(uint64_t dev_id, block_address subtree_root) {
-			mapping_emitter me(e_);
+			mapping_emit_visitor me(e_);
 			single_mapping_tree tree(*md_->tm_, subtree_root,
 						 mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
 			walk_mapping_tree(tree, dev_id, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
@@ -792,7 +792,7 @@ namespace {
 
 		{
 			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
-			mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
+			mapping_tree_emit_visitor mte(opts, md, e, de.get_details(), mapping_damage_policy(true));
 			walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 		}
 
@@ -819,7 +819,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
-		mapping_tree_emitter mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
+		mapping_tree_emit_visitor mte(opts, md, e, de.get_details(), mapping_damage_policy(false));
 		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
 	}
 
@@ -846,7 +846,7 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
 
 void
 thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root) {
-	mapping_emitter me(e);
+	mapping_emit_visitor me(e);
 	single_mapping_tree tree(*md->tm_, subtree_root,
 				 mapping_tree_detail::block_time_ref_counter(md->data_sm_));
 	// FIXME: pass the current device id instead of zero
