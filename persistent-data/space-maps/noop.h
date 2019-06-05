@@ -61,7 +61,7 @@ namespace persistent_data {
 
 		maybe_block find_free(span_iterator &it) {
 			fail();
-			return 0;
+			return boost::optional<block_address>(0);
 		}
 
 		bool count_possibly_greater_than_one(block_address b) const {
