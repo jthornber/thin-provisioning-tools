@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "base/file_utils.h"
 #include "base/output_file_requirements.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
@@ -17,15 +18,20 @@ using namespace thin_provisioning;
 
 namespace {
 	int repair(string const &old_path, string const &new_path) {
+		bool metadata_touched = false;
 		try {
 			// block size gets updated by the restorer
 			block_manager<>::ptr new_bm = open_bm(new_path, block_manager<>::READ_WRITE);
+			file_utils::check_file_exists(old_path);
+			metadata_touched = true;
 			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
 			metadata_repair(old_bm, e);
 
 		} catch (std::exception &e) {
+			if (metadata_touched)
+				file_utils::zero_superblock(new_path);
 			cerr << e.what() << endl;
 			return 1;
 		}
@@ -101,7 +107,7 @@ thin_repair_cmd::run(int argc, char **argv)
 		check_output_file_requirements(*output_path);
 
 	else {
-		cerr << "no output file provided" << endl;
+		cerr << "No output file provided." << endl;
 		usage(cerr);
 		return 1;
 	}

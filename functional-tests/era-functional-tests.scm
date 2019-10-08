@@ -153,7 +153,7 @@
     "the input file can't be found"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (era-restore "-i no-such-file -o" md)
-        (assert-superblock-untouched md)
+        (assert-superblock-all-zeroes md)
         (assert-starts-with "Couldn't stat file" stderr))))
 
   (define-scenario (era-restore garbage-input-file)
@@ -161,7 +161,7 @@
     (with-empty-metadata (md)
       (with-temp-file-sized ((xml "era.xml" 4096))
         (run-fail-rcv (_ stderr) (era-restore "-i " xml "-o" md)
-          (assert-superblock-untouched md)))))
+          (assert-superblock-all-zeroes md)))))
 
   (define-scenario (era-restore output-unspecified)
     "Fails if no metadata dev specified"

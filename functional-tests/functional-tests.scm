@@ -21,7 +21,7 @@
     assert-eof
     assert-starts-with
     assert-matches
-    assert-superblock-untouched
+    assert-superblock-all-zeroes
     assert-member?
     assert-raises-thunk
     assert-raises
@@ -259,7 +259,7 @@
               (loop (+ i 1))
               #f)))))
 
-  (define (assert-superblock-untouched md)
+  (define (assert-superblock-all-zeroes md)
     (with-bcache (cache md 1)
       (with-block (b cache 0 (get-flags))
         (unless (all-zeroes? (block-data b) 4096)

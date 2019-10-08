@@ -37,10 +37,12 @@
            b1 b2 ...)))))
 
   ;;; It would be nice if the metadata was at least similar to valid data.
+  ;;; Here I'm just using the start of the ls binary as 'random' data.
   (define-syntax with-corrupt-metadata
     (syntax-rules ()
       ((_ (md) b1 b2 ...)
        (with-temp-file-sized ((md "thin.bin" (meg 4)))
+         (system (fmt #f "dd if=/usr/bin/ls of=" md " bs=4096 > /dev/null 2>&1"))
          b1 b2 ...))))
 
   (define-syntax with-empty-metadata
@@ -167,7 +169,7 @@
     "the input file can't be found"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-restore "-i no-such-file -o" md)
-        (assert-superblock-untouched md)
+        (assert-superblock-all-zeroes md)
         (assert-starts-with "Couldn't stat file" stderr))))
 
   (define-scenario (thin-restore garbage-input-file)
@@ -175,7 +177,7 @@
     (with-empty-metadata (md)
       (with-temp-file-sized ((xml "thin.xml" 4096))
         (run-fail-rcv (_ stderr) (thin-restore "-i " xml "-o" md)
-          (assert-superblock-untouched md)))))
+          (assert-superblock-all-zeroes md)))))
 
   (define-scenario (thin-restore missing-output-file)
     "the output file can't be found"
@@ -333,4 +335,25 @@
       (with-empty-metadata (md)
         (run-fail-rcv (_ stderr) (thin-repair "-i" xml "-o" md)
           #t))))
+
+  (define-scenario (thin-repair missing-input-file)
+    "the input file can't be found"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-repair "-i no-such-file -o" md)
+        (assert-superblock-all-zeroes md)
+        (assert-starts-with "Couldn't stat file" stderr))))
+
+  (define-scenario (thin-repair garbage-input-file)
+    "the input file is just zeroes"
+    (with-empty-metadata (md1)
+      (with-corrupt-metadata (md2)
+        (run-fail-rcv (_ stderr) (thin-repair "-i " md1 "-o" md2)
+          (assert-superblock-all-zeroes md2)))))
+
+  (define-scenario (thin-repair missing-output-file)
+    "the output file can't be found"
+    (with-thin-xml (xml)
+      (run-fail-rcv (_ stderr) (thin-repair "-i " xml)
+        (assert-starts-with "No output file provided." stderr))))
+
   )

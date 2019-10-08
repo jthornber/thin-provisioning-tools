@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <libgen.h>
 
+#include "base/file_utils.h"
 #include "base/output_file_requirements.h"
 #include "caching/commands.h"
 #include "caching/metadata.h"
@@ -29,12 +30,17 @@ namespace {
 	}
 
 	int repair(string const &old_path, string const &new_path) {
+		bool metadata_touched = false;
 		try {
+			file_utils::check_file_exists(new_path);
+			metadata_touched = true;
 			metadata_dump(open_metadata_for_read(old_path),
 				      output_emitter(new_path),
 				      true);
 
 		} catch (std::exception &e) {
+			if (metadata_touched)
+				file_utils::zero_superblock(new_path);
 			cerr << e.what() << endl;
 			return 1;
 		}
@@ -110,7 +116,7 @@ cache_repair_cmd::run(int argc, char **argv)
 		check_output_file_requirements(*output_path);
 
 	else {
-		cerr << "no output file provided" << endl;
+		cerr << "No output file provided." << endl;
 		usage(cerr);
 		return 1;
 	}
