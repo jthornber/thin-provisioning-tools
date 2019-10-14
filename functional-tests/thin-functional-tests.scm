@@ -257,6 +257,27 @@
       (run-ok-rcv (stdout stderr) (thin-dump md)
         (assert-eof stderr))))
 
+  (define-scenario (thin-dump override transaction-id)
+    "thin_dump obeys the --transaction-id override"
+    (with-valid-metadata (md)
+      (run-ok-rcv (stdout stderr) (thin-dump "--transaction-id 2345" md)
+        (assert-eof stderr)
+        (assert-matches ".*transaction=\"2345\"" stdout))))
+
+  (define-scenario (thin-dump override data-block-size)
+    "thin_dump obeys the --data-block-size override"
+    (with-valid-metadata (md)
+      (run-ok-rcv (stdout stderr) (thin-dump "--data-block-size 8192" md)
+        (assert-eof stderr)
+        (assert-matches ".*data_block_size=\"8192\"" stdout))))
+
+  (define-scenario (thin-dump override nr-data-blocks)
+    "thin_dump obeys the --nr-data-blocks override"
+    (with-valid-metadata (md)
+      (run-ok-rcv (stdout stderr) (thin-dump "--nr-data-blocks 234500" md)
+        (assert-eof stderr)
+        (assert-matches ".*nr_data_blocks=\"234500\"" stdout))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_rmap scenarios
   ;;;-----------------------------------------------------------
