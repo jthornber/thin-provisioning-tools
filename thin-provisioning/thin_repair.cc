@@ -6,6 +6,7 @@
 #include "base/output_file_requirements.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/commands.h"
+#include "thin-provisioning/override_emitter.h"
 #include "human_readable_format.h"
 #include "metadata_dumper.h"
 #include "metadata.h"
@@ -17,7 +18,7 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int repair(string const &old_path, string const &new_path, restore_options const &ropts) {
+	int repair(string const &old_path, string const &new_path, override_options const &opts) {
 		bool metadata_touched = false;
 		try {
 			// block size gets updated by the restorer
@@ -25,7 +26,8 @@ namespace {
 			file_utils::check_file_exists(old_path, false);
 			metadata_touched = true;
 			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
-			emitter::ptr e = create_restore_emitter(new_md, ropts);
+			emitter::ptr inner = create_restore_emitter(new_md);
+			emitter::ptr e = create_override_emitter(inner, opts);
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
 			metadata_repair(old_bm, e);
 
@@ -66,7 +68,7 @@ thin_repair_cmd::run(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
-	restore_options ropts;
+	override_options opts;
 	const char shortopts[] = "hi:o:V";
 
 	const struct option longopts[] = {
@@ -95,15 +97,15 @@ thin_repair_cmd::run(int argc, char **argv)
 			break;
 
 		case 1:
-			ropts.transaction_id_ = parse_uint64(optarg, "transaction id");
+			opts.transaction_id_ = parse_uint64(optarg, "transaction id");
 			break;
 
 		case 2:
-			ropts.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
+			opts.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
 			break;
 
 		case 3:
-			ropts.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
+			opts.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
 			break;
 
 		case 'V':
@@ -131,7 +133,7 @@ thin_repair_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return repair(*input_path, *output_path, ropts);
+	return repair(*input_path, *output_path, opts);
 }
 
 //----------------------------------------------------------------

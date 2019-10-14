@@ -1,4 +1,4 @@
-// Copyright (C) 2011 Red Hat, Inc. All rights reserved.
+// Copyright (C) 2019 Red Hat, Inc. All rights reserved.
 //
 // This file is part of the thin-provisioning-tools source.
 //
@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef RESTORE_EMITTER_H
-#define RESTORE_EMITTER_H
+#ifndef TP_OVERRIDE_EMITTER_H
+#define TP_OVERRIDE_EMITTER_H
 
 #include "emitter.h"
 #include "metadata.h"
@@ -27,7 +27,25 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	emitter::ptr create_restore_emitter(metadata::ptr md);
+	struct override_options {
+		uint64_t get_transaction_id(uint64_t dflt) const {
+			return transaction_id_ ? *transaction_id_ : dflt;
+		}
+
+		uint32_t get_data_block_size(uint32_t dflt) const {
+			return data_block_size_ ? *data_block_size_ : dflt;
+		}
+
+		uint64_t get_nr_data_blocks(uint64_t dflt) const {
+			return nr_data_blocks_ ? *nr_data_blocks_ : dflt;
+		}
+
+		boost::optional<uint64_t> transaction_id_;
+		boost::optional<uint32_t> data_block_size_;
+		boost::optional<uint64_t> nr_data_blocks_;
+	};
+
+	emitter::ptr create_override_emitter(emitter::ptr inner, override_options const &opts);
 }
 
 //----------------------------------------------------------------

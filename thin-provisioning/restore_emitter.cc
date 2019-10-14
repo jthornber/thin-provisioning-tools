@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "thin-provisioning/override_emitter.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock.h"
 
@@ -29,9 +30,8 @@ namespace {
 
 	class restorer : public emitter {
 	public:
-		restorer(metadata::ptr md, restore_options const &opts)
+		restorer(metadata::ptr md)
 			: md_(md),
-			  opts_(opts),
 			  in_superblock_(false),
 			  nr_data_blocks_(),
 			  empty_mapping_(new_mapping_tree()) {
@@ -56,12 +56,12 @@ namespace {
 			memset(&sb.uuid_, 0, sizeof(sb.uuid_));
 			memcpy(&sb.uuid_, uuid.c_str(), std::min(sizeof(sb.uuid_), uuid.length()));
 			sb.time_ = time;
-			sb.trans_id_ = opts_.get_transaction_id(trans_id);
+			sb.trans_id_ = trans_id;
 			sb.flags_ = flags ? *flags : 0;
 			sb.version_ = version ? *version : 1;
-			sb.data_block_size_ = opts_.get_data_block_size(data_block_size);
+			sb.data_block_size_ = data_block_size;
 			sb.metadata_snap_ = metadata_snap ? *metadata_snap : 0;
-			md_->data_sm_->extend(opts_.get_nr_data_blocks(nr_data_blocks));
+			md_->data_sm_->extend(nr_data_blocks);
 		}
 
 		virtual void end_superblock() {
@@ -156,7 +156,7 @@ namespace {
 		}
 
 		metadata::ptr md_;
-		restore_options opts_;
+		override_options opts_;
 
 		bool in_superblock_;
 		block_address nr_data_blocks_;
@@ -170,9 +170,9 @@ namespace {
 //----------------------------------------------------------------
 
 emitter::ptr
-thin_provisioning::create_restore_emitter(metadata::ptr md, restore_options const &opts)
+thin_provisioning::create_restore_emitter(metadata::ptr md)
 {
-	return emitter::ptr(new restorer(md, opts));
+	return emitter::ptr(new restorer(md));
 }
 
 //----------------------------------------------------------------

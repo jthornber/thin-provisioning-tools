@@ -23,6 +23,7 @@
 #include "thin-provisioning/emitter.h"
 #include "thin-provisioning/human_readable_format.h"
 #include "thin-provisioning/metadata.h"
+#include "thin-provisioning/override_emitter.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/xml_format.h"
 #include "version.h"
@@ -44,7 +45,7 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	int restore(string const &backup_file, string const &dev, bool quiet, restore_options const &opts) {
+	int restore(string const &backup_file, string const &dev, bool quiet, override_options const &opts) {
 		bool metadata_touched = false;
 		try {
 			// The block size gets updated by the restorer.
@@ -52,7 +53,8 @@ namespace {
 			file_utils::check_file_exists(backup_file);
 			metadata_touched = true;
 			metadata::ptr md(new metadata(bm, metadata::CREATE, 128, 0));
-			emitter::ptr restorer = create_restore_emitter(md, opts);
+			emitter::ptr inner = create_restore_emitter(md);
+			emitter::ptr restorer = create_override_emitter(inner, opts);
 
 			parse_xml(backup_file, restorer, quiet);
 
@@ -96,7 +98,7 @@ thin_restore_cmd::run(int argc, char **argv)
 	const char *shortopts = "hi:o:qV";
 	string input, output;
 	bool quiet = false;
-	restore_options opts;
+	override_options opts;
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
