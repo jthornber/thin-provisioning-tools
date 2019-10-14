@@ -22,7 +22,7 @@ namespace {
 		try {
 			// block size gets updated by the restorer
 			block_manager<>::ptr new_bm = open_bm(new_path, block_manager<>::READ_WRITE);
-			file_utils::check_file_exists(old_path);
+			file_utils::check_file_exists(old_path, false);
 			metadata_touched = true;
 			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
 			emitter::ptr e = create_restore_emitter(new_md);

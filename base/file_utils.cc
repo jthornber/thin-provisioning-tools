@@ -66,13 +66,13 @@ file_utils::file_exists(string const &path) {
 }
 
 void
-file_utils::check_file_exists(string const &file) {
+file_utils::check_file_exists(string const &file, bool must_be_regular_file) {
 	struct stat info;
 	int r = ::stat(file.c_str(), &info);
 	if (r)
 		throw runtime_error("Couldn't stat file");
 
-	if (!S_ISREG(info.st_mode))
+	if (must_be_regular_file && !S_ISREG(info.st_mode))
 		throw runtime_error("Not a regular file");
 }
 

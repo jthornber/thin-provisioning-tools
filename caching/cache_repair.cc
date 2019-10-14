@@ -32,7 +32,7 @@ namespace {
 	int repair(string const &old_path, string const &new_path) {
 		bool metadata_touched = false;
 		try {
-			file_utils::check_file_exists(new_path);
+			file_utils::check_file_exists(new_path, false);
 			metadata_touched = true;
 			metadata_dump(open_metadata_for_read(old_path),
 				      output_emitter(new_path),
