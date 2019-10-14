@@ -56,6 +56,8 @@ thin_repair_cmd::usage(std::ostream &out) const
 	    << "  {-i|--input} <input metadata (binary format)>" << endl
 	    << "  {-o|--output} <output metadata (binary format)>" << endl
 	    << "  {--transaction-id} <natural>" << endl
+	    << "  {--data-block-size} <natural>" << endl
+	    << "  {--nr-data-blocks} <natural>" << endl
 	    << "  {-V|--version}" << endl;
 }
 
@@ -72,6 +74,8 @@ thin_repair_cmd::run(int argc, char **argv)
 		{ "input", required_argument, NULL, 'i'},
 		{ "output", required_argument, NULL, 'o'},
 		{ "transaction-id", required_argument, NULL, 1},
+		{ "data-block-size", required_argument, NULL, 2},
+		{ "nr-data-blocks", required_argument, NULL, 3},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -92,6 +96,14 @@ thin_repair_cmd::run(int argc, char **argv)
 
 		case 1:
 			ropts.transaction_id_ = parse_uint64(optarg, "transaction id");
+			break;
+
+		case 2:
+			ropts.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
+			break;
+
+		case 3:
+			ropts.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
 			break;
 
 		case 'V':

@@ -32,7 +32,17 @@ namespace thin_provisioning {
 			return transaction_id_ ? *transaction_id_ : dflt;
 		}
 
+		uint32_t get_data_block_size(uint32_t dflt) const {
+			return data_block_size_ ? *data_block_size_ : dflt;
+		}
+
+		uint64_t get_nr_data_blocks(uint64_t dflt) const {
+			return nr_data_blocks_ ? *nr_data_blocks_ : dflt;
+		}
+
 		boost::optional<uint64_t> transaction_id_;
+		boost::optional<uint32_t> data_block_size_;
+		boost::optional<uint64_t> nr_data_blocks_;
 	};
 
 	emitter::ptr create_restore_emitter(metadata::ptr md, restore_options const &opts);

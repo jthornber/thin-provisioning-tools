@@ -83,6 +83,8 @@ thin_restore_cmd::usage(std::ostream &out) const
 	    << "  {-i|--input} <input xml file>" << endl
 	    << "  {-o|--output} <output device or file>" << endl
 	    << "  {--transaction-id} <natural>" << endl
+	    << "  {--data-block-size} <natural>" << endl
+	    << "  {--nr-data-blocks} <natural>" << endl
 	    << "  {-q|--quiet}" << endl
 	    << "  {-V|--version}" << endl;
 }
@@ -101,6 +103,8 @@ thin_restore_cmd::run(int argc, char **argv)
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
 		{ "transaction-id", required_argument, NULL, 1},
+		{ "data-block-size", required_argument, NULL, 2},
+		{ "nr-data-blocks", required_argument, NULL, 3},
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -121,7 +125,15 @@ thin_restore_cmd::run(int argc, char **argv)
 			break;
 
 		case 1:
-			opts.transaction_id_ = parse_uint64(optarg, "transaction_id");
+			opts.transaction_id_ = parse_uint64(optarg, "transaction id");
+			break;
+
+		case 2:
+			opts.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
+			break;
+
+		case 3:
+			opts.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
 			break;
 
 		case 'q':

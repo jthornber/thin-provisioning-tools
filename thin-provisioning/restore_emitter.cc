@@ -59,9 +59,9 @@ namespace {
 			sb.trans_id_ = opts_.get_transaction_id(trans_id);
 			sb.flags_ = flags ? *flags : 0;
 			sb.version_ = version ? *version : 1;
-			sb.data_block_size_ = data_block_size;
+			sb.data_block_size_ = opts_.get_data_block_size(data_block_size);
 			sb.metadata_snap_ = metadata_snap ? *metadata_snap : 0;
-			md_->data_sm_->extend(nr_data_blocks);
+			md_->data_sm_->extend(opts_.get_nr_data_blocks(nr_data_blocks));
 		}
 
 		virtual void end_superblock() {
