@@ -17,7 +17,7 @@ using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	int repair(string const &old_path, string const &new_path) {
+	int repair(string const &old_path, string const &new_path, restore_options const &ropts) {
 		bool metadata_touched = false;
 		try {
 			// block size gets updated by the restorer
@@ -25,7 +25,7 @@ namespace {
 			file_utils::check_file_exists(old_path, false);
 			metadata_touched = true;
 			metadata::ptr new_md(new metadata(new_bm, metadata::CREATE, 128, 0));
-			emitter::ptr e = create_restore_emitter(new_md);
+			emitter::ptr e = create_restore_emitter(new_md, ropts);
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
 			metadata_repair(old_bm, e);
 
@@ -55,6 +55,7 @@ thin_repair_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}" << endl
 	    << "  {-i|--input} <input metadata (binary format)>" << endl
 	    << "  {-o|--output} <output metadata (binary format)>" << endl
+	    << "  {--transaction-id} <natural>" << endl
 	    << "  {-V|--version}" << endl;
 }
 
@@ -63,12 +64,14 @@ thin_repair_cmd::run(int argc, char **argv)
 {
 	int c;
 	boost::optional<string> input_path, output_path;
+	restore_options ropts;
 	const char shortopts[] = "hi:o:V";
 
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i'},
 		{ "output", required_argument, NULL, 'o'},
+		{ "transaction-id", required_argument, NULL, 1},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -85,6 +88,10 @@ thin_repair_cmd::run(int argc, char **argv)
 
 		case 'o':
 			output_path = optarg;
+			break;
+
+		case 1:
+			ropts.transaction_id_ = parse_uint64(optarg, "transaction id");
 			break;
 
 		case 'V':
@@ -112,7 +119,7 @@ thin_repair_cmd::run(int argc, char **argv)
 		return 1;
 	}
 
-	return repair(*input_path, *output_path);
+	return repair(*input_path, *output_path, ropts);
 }
 
 //----------------------------------------------------------------

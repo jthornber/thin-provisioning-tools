@@ -44,7 +44,7 @@ using namespace thin_provisioning;
 //----------------------------------------------------------------
 
 namespace {
-	int restore(string const &backup_file, string const &dev, bool quiet) {
+	int restore(string const &backup_file, string const &dev, bool quiet, restore_options const &opts) {
 		bool metadata_touched = false;
 		try {
 			// The block size gets updated by the restorer.
@@ -52,7 +52,7 @@ namespace {
 			file_utils::check_file_exists(backup_file);
 			metadata_touched = true;
 			metadata::ptr md(new metadata(bm, metadata::CREATE, 128, 0));
-			emitter::ptr restorer = create_restore_emitter(md);
+			emitter::ptr restorer = create_restore_emitter(md, opts);
 
 			parse_xml(backup_file, restorer, quiet);
 
@@ -82,6 +82,7 @@ thin_restore_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}" << endl
 	    << "  {-i|--input} <input xml file>" << endl
 	    << "  {-o|--output} <output device or file>" << endl
+	    << "  {--transaction-id} <natural>" << endl
 	    << "  {-q|--quiet}" << endl
 	    << "  {-V|--version}" << endl;
 }
@@ -93,10 +94,13 @@ thin_restore_cmd::run(int argc, char **argv)
 	const char *shortopts = "hi:o:qV";
 	string input, output;
 	bool quiet = false;
+	restore_options opts;
+
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "input", required_argument, NULL, 'i' },
 		{ "output", required_argument, NULL, 'o'},
+		{ "transaction-id", required_argument, NULL, 1},
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -114,6 +118,10 @@ thin_restore_cmd::run(int argc, char **argv)
 
 		case 'o':
 			output = optarg;
+			break;
+
+		case 1:
+			opts.transaction_id_ = parse_uint64(optarg, "transaction_id");
 			break;
 
 		case 'q':
@@ -148,7 +156,7 @@ thin_restore_cmd::run(int argc, char **argv)
 	} else
 		check_output_file_requirements(output);
 
-	return restore(input, output, quiet);
+	return restore(input, output, quiet, opts);
 }
 
 //----------------------------------------------------------------

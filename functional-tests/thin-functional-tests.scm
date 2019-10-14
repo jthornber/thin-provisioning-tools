@@ -206,6 +206,15 @@
         (run-ok-rcv (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
           (assert-eof stdout)))))
 
+  (define-scenario (thin-restore override transaction-id)
+    "thin_restore obeys the --transaction-id override"
+    (with-empty-metadata (md)
+      (with-thin-xml (xml)
+        (run-ok-rcv (stdout stderr) (thin-restore "--transaction-id 2345" "-i" xml "-o" md)
+          (assert-eof stderr))
+        (run-ok-rcv (stdout stderr) (thin-dump md)
+          (assert-matches ".*transaction=\"2345\"" stdout)))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_dump scenarios
   ;;;-----------------------------------------------------------
@@ -356,4 +365,12 @@
       (run-fail-rcv (_ stderr) (thin-repair "-i " xml)
         (assert-starts-with "No output file provided." stderr))))
 
+  (define-scenario (thin-repair override transaction-id)
+    "thin_repair obeys the --transaction-id override"
+    (with-valid-metadata (md1)
+      (with-empty-metadata (md2)
+        (run-ok-rcv (stdout stderr) (thin-repair "--transaction-id 2345" "-i" md1 "-o" md2)
+          (assert-eof stderr))
+        (run-ok-rcv (stdout stderr) (thin-dump md2)
+          (assert-matches ".*transaction=\"2345\"" stdout)))))
   )

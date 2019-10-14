@@ -22,10 +22,20 @@
 #include "emitter.h"
 #include "metadata.h"
 
+#include <boost/optional.hpp>
+
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	emitter::ptr create_restore_emitter(metadata::ptr md);
+	struct restore_options {
+		uint64_t get_transaction_id(uint64_t dflt) const {
+			return transaction_id_ ? *transaction_id_ : dflt;
+		}
+
+		boost::optional<uint64_t> transaction_id_;
+	};
+
+	emitter::ptr create_restore_emitter(metadata::ptr md, restore_options const &opts);
 }
 
 //----------------------------------------------------------------

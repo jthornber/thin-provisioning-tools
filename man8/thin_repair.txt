@@ -21,6 +21,8 @@ OPTIONS
     If a file is used for output, then it must be preallocated, and large
     enough to hold the metadata.
 
+  --transaction-id {natural}	Override the transaction id given in the input xml.
+
 EXAMPLE
 
   Reads the binary thin provisioning metadata from file metadata, repairs
