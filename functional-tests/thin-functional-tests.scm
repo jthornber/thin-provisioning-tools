@@ -278,6 +278,17 @@
         (assert-eof stderr)
         (assert-matches ".*nr_data_blocks=\"234500\"" stdout))))
 
+  (define-scenario (thin-dump repair superblock)
+    "thin_dump can restore a missing superblock"
+    (with-valid-metadata (md)
+      (run-ok-rcv (expected-xml stderr) (thin-dump "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" md)
+        (system (string-append "dd if=/dev/zero of=" md " bs=4K count=1 > /dev/null 2>&1"))
+        (run-ok-rcv (repaired-xml stderr) (thin-dump "--repair" "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" md)
+          (assert-eof stderr)
+          (assert-equal expected-xml repaired-xml)))))
+
+  ;; fixme: check we have overrides if superblock is corrupt
+
   ;;;-----------------------------------------------------------
   ;;; thin_rmap scenarios
   ;;;-----------------------------------------------------------
