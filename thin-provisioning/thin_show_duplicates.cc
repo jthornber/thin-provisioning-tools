@@ -40,7 +40,7 @@
 #include "thin-provisioning/superblock.h"
 #include "thin-provisioning/variable_chunk_stream.h"
 
-#include <boost/uuid/sha1.hpp>
+#include <boost/compute/detail/sha1.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <deque>
