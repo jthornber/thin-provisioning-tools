@@ -29,7 +29,7 @@ namespace {
 			emitter::ptr inner = create_restore_emitter(new_md);
 			emitter::ptr e = create_override_emitter(inner, opts);
 			block_manager<>::ptr old_bm = open_bm(old_path, block_manager<>::READ_ONLY);
-			metadata_repair(old_bm, e);
+			metadata_repair(old_bm, e, opts);
 
 		} catch (std::exception &e) {
 			if (metadata_touched)

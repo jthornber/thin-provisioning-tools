@@ -51,6 +51,16 @@
        (with-temp-file-sized ((md "thin.bin" (meg 4)))
                              b1 b2 ...))))
 
+  (define (damage-superblock md)
+    (system (string-append "dd if=/dev/zero of=" md " bs=4K count=1 conv=notrunc > /dev/null 2>&1")))
+
+  (define-syntax with-damaged-superblock
+    (syntax-rules ()
+      ((_ (md) b1 b2 ...)
+       (with-valid-metadata (md)
+         (damage-superblock md)
+         b1 b2 ...))))
+
   ;; We have to export something that forces all the initialisation expressions
   ;; to run.
   (define (register-thin-tests) #t)
@@ -278,16 +288,32 @@
         (assert-eof stderr)
         (assert-matches ".*nr_data_blocks=\"234500\"" stdout))))
 
-  (define-scenario (thin-dump repair superblock)
+  (define-scenario (thin-dump repair-superblock succeeds)
     "thin_dump can restore a missing superblock"
     (with-valid-metadata (md)
       (run-ok-rcv (expected-xml stderr) (thin-dump "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" md)
-        (system (string-append "dd if=/dev/zero of=" md " bs=4K count=1 > /dev/null 2>&1"))
+        (damage-superblock md)
         (run-ok-rcv (repaired-xml stderr) (thin-dump "--repair" "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" md)
           (assert-eof stderr)
           (assert-equal expected-xml repaired-xml)))))
 
-  ;; fixme: check we have overrides if superblock is corrupt
+  (define-scenario (thin-dump repair-superblock missing-transaction-id)
+    "--transaction-id is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md)
+      (run-fail-rcv (_ stderr) (thin-dump "--repair" "--data-block-size=128" "--nr-data-blocks=4096000" md)
+        (assert-matches ".*transaction id.*" stderr))))
+
+  (define-scenario (thin-dump repair-superblock missing-data-block-size)
+    "--data-block-size is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md)
+      (run-fail-rcv (_ stderr) (thin-dump "--repair" "--transaction-id=5" "--nr-data-blocks=4096000" md)
+        (assert-matches ".*data block size.*" stderr))))
+
+  (define-scenario (thin-dump repair-superblock missing-nr-data-blocks)
+    "--nr-data-blocks is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md)
+      (run-fail-rcv (_ stderr) (thin-dump "--repair" "--transaction-id=5" "--data-block-size=128" md)
+        (assert-matches ".*nr data blocks.*" stderr))))
 
   ;;;-----------------------------------------------------------
   ;;; thin_rmap scenarios
@@ -441,4 +467,37 @@
           (assert-eof stderr))
         (run-ok-rcv (stdout stderr) (thin-dump md2)
           (assert-matches ".*nr_data_blocks=\"234500\"" stdout)))))
+
+  (define-scenario (thin-repair superblock succeeds)
+    "thin_repair can restore a missing superblock"
+    (with-valid-metadata (md1)
+      (run-ok-rcv (expected-xml stderr) (thin-dump "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" md1)
+        (damage-superblock md1)
+        (with-empty-metadata (md2)
+          (run-ok-rcv (_ stderr) (thin-repair "--transaction-id=5" "--data-block-size=128" "--nr-data-blocks=4096000" "-i" md1 "-o" md2)
+            (assert-eof stderr))
+          (run-ok-rcv (repaired-xml stderr) (thin-dump md2)
+            (assert-eof stderr)
+            (assert-equal expected-xml repaired-xml))))))
+
+  (define-scenario (thin-repair superblock missing-transaction-id)
+    "--transaction-id is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md1)
+      (with-empty-metadata (md2)
+        (run-fail-rcv (_ stderr) (thin-repair "--data-block-size=128" "--nr-data-blocks=4096000" "-i" md1 "-o" md2)
+          (assert-matches ".*transaction id.*" stderr)))))
+
+  (define-scenario (thin-repair superblock missing-data-block-size)
+    "--data-block-size is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md1)
+      (with-empty-metadata (md2)
+        (run-fail-rcv (_ stderr) (thin-repair "--transaction-id=5" "--nr-data-blocks=4096000" "-i" md1 "-o" md2)
+          (assert-matches ".*data block size.*" stderr)))))
+
+  (define-scenario (thin-repair superblock missing-nr-data-blocks)
+    "--nr-data-blocks is mandatory if the superblock is damaged"
+    (with-damaged-superblock (md1)
+      (with-empty-metadata (md2)
+        (run-fail-rcv (_ stderr) (thin-repair "--transaction-id=5" "--data-block-size=128" "-i" md1 "-o" md2)
+          (assert-matches ".*nr data blocks.*" stderr)))))
   )

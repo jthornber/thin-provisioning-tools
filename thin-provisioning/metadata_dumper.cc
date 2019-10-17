@@ -23,6 +23,7 @@
 #include "thin-provisioning/mapping_tree.h"
 #include "thin-provisioning/metadata_dumper.h"
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -281,7 +282,13 @@ namespace {
 			  examined_(bm.get_nr_blocks(), false) {
 		}
 
-		optional<pair<block_address, block_address>>
+		struct roots {
+			block_address mapping_root;
+			block_address detail_root;
+			uint32_t time;
+		};
+
+		optional<roots>
 		find_best_roots(transaction_manager &tm) {
 			vector<node_info> mapping_roots;
 			vector<node_info> device_roots;
@@ -297,11 +304,13 @@ namespace {
 				auto info = get_info(b);
 
 				if (info.valid) {
-					if (info.type == TOP_LEVEL)
+					if (info.type == TOP_LEVEL) {
 						mapping_roots.push_back(info);
+					}
 
-					else if (info.type == DEVICE_DETAILS)
+					else if (info.type == DEVICE_DETAILS) {
 						device_roots.push_back(info);
+					}
 				}
 			}
 
@@ -323,12 +332,27 @@ namespace {
 #endif
 
 			if (pairs.size())
-				return pairs[0];
+				return mk_roots(pairs[0]);
 			else
-				return optional<pair<block_address, block_address>>();
+				return optional<roots>();
 		}
 
 	private:
+		uint32_t get_time(block_address b) const {
+			auto i = lookup_info(b);
+			return i ? i->age : 0;
+		}
+
+		roots mk_roots(pair<block_address, block_address> const &p) {
+			roots r;
+
+			r.mapping_root = p.second;
+			r.detail_root = p.first;
+			r.time = max<block_address>(get_time(p.first), get_time(p.second));
+
+			return r;
+		}
+
 		bool set_eq(set<uint32_t> const &lhs, set<uint32_t> const &rhs) {
 			for (auto v : lhs)
 				if (!rhs.count(v))
@@ -599,6 +623,14 @@ namespace {
 			}
 		}
 
+		optional<node_info> lookup_info(block_address b) const {
+			auto it = infos_.find(b);
+			if (it == infos_.end())
+				return optional<node_info>();
+
+			return optional<node_info>(it->second);
+		}
+
 		block_manager<> &bm_;
 		vector<bool> referenced_;
 		vector<bool> examined_;
@@ -746,7 +778,8 @@ namespace {
 	}
 
 	void
-	do_repair_(block_manager<>::ptr bm, superblock_detail::superblock const &sb, emitter::ptr e)
+	emit_trees_(block_manager<>::ptr bm, superblock_detail::superblock const &sb,
+                    emitter::ptr e, override_options const &ropts)
 	{
 		metadata md(bm, sb);
 		dump_options opts;
@@ -772,7 +805,7 @@ namespace {
 	}
 
 	void
-	metadata_repair_(block_manager<>::ptr bm, emitter::ptr e)
+	find_better_roots_(block_manager<>::ptr bm, superblock_detail::superblock &sb)
 	{
 		// We assume the superblock is wrong, and find the best roots
 		// for ourselves.  We've had a few cases where people have
@@ -781,16 +814,64 @@ namespace {
 		gatherer g(*bm);
 		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 		auto p = g.find_best_roots(*tm);
-		auto sb = read_superblock(*bm);
 
 		if (p) {
 			sb.metadata_snap_ = 0;
-			sb.device_details_root_ = p->first;
-			sb.data_mapping_root_ = p->second;
+			sb.time_ = p->time;
+			sb.device_details_root_ = p->detail_root;
+			sb.data_mapping_root_ = p->mapping_root;
 			sb.metadata_nr_blocks_ = bm->get_nr_blocks();
 		}
+	}
 
-		do_repair_(bm, sb, e);
+
+
+	superblock_detail::superblock
+	recreate_superblock(override_options const &opts)
+	{
+		superblock_detail::superblock sb;
+		memset(&sb, 0, sizeof(sb));
+
+		// FIXME: we need to get this by walking both the mapping and device trees.
+		sb.time_ = 100000;
+
+
+		sb.trans_id_ = opts.get_transaction_id();
+		sb.version_ = superblock_detail::METADATA_VERSION;
+		sb.data_block_size_ = opts.get_data_block_size();
+
+		// Check that this has been overridden.
+		opts.get_nr_data_blocks();
+
+		return sb;
+	}
+
+	optional<superblock_detail::superblock>
+	maybe_read_superblock(block_manager<>::ptr bm)
+	{
+		try {
+			auto sb = read_superblock(bm);
+			return optional<superblock_detail::superblock>(sb);
+		} catch (...) {
+		}
+
+		return optional<superblock_detail::superblock>();
+	}
+
+	void
+	metadata_repair_(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
+	{
+		auto msb = maybe_read_superblock(bm);
+		if (!msb)
+			msb = recreate_superblock(opts);
+
+		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+
+		if (!get_dev_ids(*tm, msb->device_details_root_) ||
+	            !get_map_ids(*tm, msb->data_mapping_root_))
+			find_better_roots_(bm, *msb);
+
+		emit_trees_(bm, *msb, e, opts);
 	}
 }
 
@@ -821,18 +902,17 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 }
 
 void
-thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e)
+thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
 {
-	auto sb = read_superblock(*bm);
-	auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+	try {
+		metadata_repair_(bm, e, opts);
 
-	if (get_dev_ids(*tm, sb.device_details_root_) && get_map_ids(*tm, sb.data_mapping_root_)) {
-		// The roots in the superblock look ok (perhaps the corruption was in the
-		// space maps).
-		auto sb = read_superblock(bm);
-		do_repair_(bm, sb, e);
-	} else
-		metadata_repair_(bm, e);
+	} catch (override_error const &e) {
+		ostringstream out;
+		out << "The following field needs to be provided on the command line due to corruption in the superblock: "
+		    << e.what();
+		throw runtime_error(out.str());
+	}
 }
 
 //----------------------------------------------------------------

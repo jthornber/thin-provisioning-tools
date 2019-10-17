@@ -51,7 +51,6 @@ namespace {
 		bool repair;
 		bool use_metadata_snap;
 		optional<block_address> snap_location;
-		override_options or_opts;
 	};
 
 	metadata::ptr open_metadata(string const &path, struct flags &flags) {
@@ -89,11 +88,11 @@ namespace {
 	int dump_(string const &path, ostream &out, struct flags &flags) {
 		try {
 			emitter::ptr inner = create_emitter(flags.format, out);
-			emitter::ptr e = create_override_emitter(inner, flags.or_opts);
+			emitter::ptr e = create_override_emitter(inner, flags.opts.overrides_);
 
 			if (flags.repair) {
 				auto bm = open_bm(path, block_manager<>::READ_ONLY, true);
-				metadata_repair(bm, e);
+				metadata_repair(bm, e, flags.opts.overrides_);
 			} else {
 				metadata::ptr md = open_metadata(path, flags);
 				metadata_dump(md, e, flags.opts);
@@ -212,15 +211,15 @@ thin_dump_cmd::run(int argc, char **argv)
 			break;
 
 		case 3:
-			flags.or_opts.transaction_id_ = parse_uint64(optarg, "transaction id");
+			flags.opts.overrides_.transaction_id_ = parse_uint64(optarg, "transaction id");
 			break;
 
 		case 4:
-			flags.or_opts.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
+			flags.opts.overrides_.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
 			break;
 
 		case 5:
-			flags.or_opts.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
+			flags.opts.overrides_.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
 			break;
 
 		case 'V':
