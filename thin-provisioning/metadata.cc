@@ -33,8 +33,6 @@
 using namespace base;
 using namespace thin_provisioning;
 
-#define METADATA_VERSION 2
-
 //----------------------------------------------------------------
 
 namespace {
