@@ -19,8 +19,9 @@
 #ifndef METADATA_DUMPER_H
 #define METADATA_DUMPER_H
 
-#include "emitter.h"
-#include "metadata.h"
+#include "thin-provisioning/emitter.h"
+#include "thin-provisioning/metadata.h"
+#include "thin-provisioning/override_emitter.h"
 
 #include <boost/optional.hpp>
 #include <set>
@@ -46,6 +47,8 @@ namespace thin_provisioning {
 		}
 
 		bool skip_mappings_;
+                override_options overrides_;
+
 
 		using dev_set = std::set<uint64_t>;
 		using maybe_dev_set = boost::optional<dev_set>;
@@ -58,10 +61,10 @@ namespace thin_provisioning {
 	// corruption encountered will cause an exception to be thrown.
 	void metadata_dump(metadata::ptr md, emitter::ptr e, dump_options const &opts);
 
-	// We have to provide a different interface for repairing, since
-	// the superblock itself may be corrupt, so we wont be able
-	// to create the metadata object.
-	void metadata_repair(block_manager<>::ptr bm, emitter::ptr e);
+        // We have to provide a different interface for repairing, since
+        // the superblock itself may be corrupt, so we wont be able
+        // to create the metadata object.
+        void metadata_repair(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts);
 
 	// Only used by ll_restore, so we leave the repair arg
 	void metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root);

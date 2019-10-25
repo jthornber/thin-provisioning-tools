@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "thin-provisioning/override_emitter.h"
 #include "thin-provisioning/restore_emitter.h"
 #include "thin-provisioning/superblock.h"
 
@@ -155,6 +156,8 @@ namespace {
 		}
 
 		metadata::ptr md_;
+                override_options opts_;
+
 		bool in_superblock_;
 		block_address nr_data_blocks_;
 		boost::optional<uint32_t> current_device_;

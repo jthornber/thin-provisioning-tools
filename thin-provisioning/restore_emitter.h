@@ -22,6 +22,8 @@
 #include "emitter.h"
 #include "metadata.h"
 
+#include <boost/optional.hpp>
+
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
