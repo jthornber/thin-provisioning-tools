@@ -46,6 +46,9 @@ Options:
   {-h|--help}
   {-i|--input} <input xml file>
   {-o|--output} <output device or file>
+  {--transaction-id} <natural>
+  {--data-block-size} <natural>
+  {--nr-data-blocks} <natural>
   {-q|--quiet}
   {-V|--version}")
 

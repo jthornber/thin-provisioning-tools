@@ -156,7 +156,7 @@ namespace {
 		}
 
 		metadata::ptr md_;
-                override_options opts_;
+		override_options opts_;
 
 		bool in_superblock_;
 		block_address nr_data_blocks_;

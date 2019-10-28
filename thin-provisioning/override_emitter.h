@@ -28,56 +28,57 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-        struct override_error : public std::runtime_error {
-                override_error(std::string const &str)
-                        : std::runtime_error(str) {
-                        }
-        };
+	struct override_error : public std::runtime_error {
+		override_error(std::string const &str)
+			: std::runtime_error(str) {
+			}
+	};
 
-        struct override_options {
-                uint64_t get_transaction_id() const {
-                        if (!transaction_id_)
-                                bad_override_("transaction id");
+	struct override_options {
+		uint64_t get_transaction_id() const {
+			if (!transaction_id_)
+				bad_override_("transaction id");
 
-                        return *transaction_id_;
-                }
+			return *transaction_id_;
+		}
 
-                uint64_t get_transaction_id(uint64_t dflt) const {
-                        return transaction_id_ ? *transaction_id_ : dflt;
-                }
+		uint64_t get_transaction_id(uint64_t dflt) const {
+			return transaction_id_ ? *transaction_id_ : dflt;
+		}
 
-                uint32_t get_data_block_size() const {
-                        if (!data_block_size_)
-                                bad_override_("data block size");
+		uint32_t get_data_block_size() const {
+			if (!data_block_size_)
+				bad_override_("data block size");
 
-                        return *data_block_size_;
-                }
-                uint32_t get_data_block_size(uint32_t dflt) const {
-                        return data_block_size_ ? *data_block_size_ : dflt;
-                }
+			return *data_block_size_;
+		}
 
-                uint64_t get_nr_data_blocks() const {
-                        if (!nr_data_blocks_)
-                                bad_override_("nr data blocks");
+		uint32_t get_data_block_size(uint32_t dflt) const {
+			return data_block_size_ ? *data_block_size_ : dflt;
+		}
 
-                        return *nr_data_blocks_;
-                }
+		uint64_t get_nr_data_blocks() const {
+			if (!nr_data_blocks_)
+				bad_override_("nr data blocks");
 
-                uint64_t get_nr_data_blocks(uint64_t dflt) const {
-                        return nr_data_blocks_ ? *nr_data_blocks_ : dflt;
-                }
+			return *nr_data_blocks_;
+		}
 
-                boost::optional<uint64_t> transaction_id_;
-                boost::optional<uint32_t> data_block_size_;
-                boost::optional<uint64_t> nr_data_blocks_;
+		uint64_t get_nr_data_blocks(uint64_t dflt) const {
+			return nr_data_blocks_ ? *nr_data_blocks_ : dflt;
+		}
 
-        private:
-                void bad_override_(std::string const &field) const {
-                        throw override_error(field);
-                }
-        };
+		boost::optional<uint64_t> transaction_id_;
+		boost::optional<uint32_t> data_block_size_;
+		boost::optional<uint64_t> nr_data_blocks_;
 
-        emitter::ptr create_override_emitter(emitter::ptr inner, override_options const &opts);
+	private:
+		void bad_override_(std::string const &field) const {
+			throw override_error(field);
+		}
+	};
+
+	emitter::ptr create_override_emitter(emitter::ptr inner, override_options const &opts);
 }
 
 //----------------------------------------------------------------

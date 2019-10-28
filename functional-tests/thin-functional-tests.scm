@@ -216,6 +216,33 @@
         (run-ok-rcv (stdout _) (thin-restore "-i" xml "-o" md "--quiet")
           (assert-eof stdout)))))
 
+  (define-scenario (thin-restore override transaction-id)
+    "thin_restore obeys the --transaction-id override"
+    (with-empty-metadata (md)
+      (with-thin-xml (xml)
+        (run-ok-rcv (stdout stderr) (thin-restore "--transaction-id 2345" "-i" xml "-o" md)
+          (assert-eof stderr))
+        (run-ok-rcv (stdout stderr) (thin-dump md)
+          (assert-matches ".*transaction=\"2345\"" stdout)))))
+
+  (define-scenario (thin-restore override data-block-size)
+    "thin_restore obeys the --data-block-size override"
+    (with-empty-metadata (md)
+      (with-thin-xml (xml)
+        (run-ok-rcv (stdout stderr) (thin-restore "--data-block-size 8192" "-i" xml "-o" md)
+          (assert-eof stderr))
+        (run-ok-rcv (stdout stderr) (thin-dump md)
+          (assert-matches ".*data_block_size=\"8192\"" stdout)))))
+
+  (define-scenario (thin-restore override nr-data-blocks)
+    "thin_restore obeys the --nr-data-blocks override"
+    (with-empty-metadata (md)
+      (with-thin-xml (xml)
+        (run-ok-rcv (stdout stderr) (thin-restore "--nr-data-blocks 234500" "-i" xml "-o" md)
+          (assert-eof stderr))
+        (run-ok-rcv (stdout stderr) (thin-dump md)
+          (assert-matches ".*nr_data_blocks=\"234500\"" stdout)))))
+
   ;;;-----------------------------------------------------------
   ;;; thin_dump scenarios
   ;;;-----------------------------------------------------------

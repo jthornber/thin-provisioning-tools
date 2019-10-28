@@ -276,20 +276,19 @@ namespace {
 
 	class gatherer {
 	public:
-                gatherer(block_manager<> &bm)
-                        : bm_(bm),
-                          referenced_(bm.get_nr_blocks(), false),
-                          examined_(bm.get_nr_blocks(), false) {
-                }
+		gatherer(block_manager<> &bm)
+			: bm_(bm),
+			  referenced_(bm.get_nr_blocks(), false),
+			  examined_(bm.get_nr_blocks(), false) {
+		}
 
-                struct roots {
-                        block_address mapping_root;
-                        block_address detail_root;
-                        uint32_t time;
-                };
+		struct roots {
+			block_address mapping_root;
+			block_address detail_root;
+			uint32_t time;
+		};
 
-                optional<roots>
-
+		optional<roots>
 		find_best_roots(transaction_manager &tm) {
 			vector<node_info> mapping_roots;
 			vector<node_info> device_roots;
@@ -304,16 +303,16 @@ namespace {
 
 				auto info = get_info(b);
 
-                                if (info.valid) {
-                                        if (info.type == TOP_LEVEL) {
-                                                mapping_roots.push_back(info);
-                                        }
+				if (info.valid) {
+					if (info.type == TOP_LEVEL) {
+						mapping_roots.push_back(info);
+					}
 
-                                        else if (info.type == DEVICE_DETAILS) {
-                                                device_roots.push_back(info);
-                                        }
-                                }
-                        }
+					else if (info.type == DEVICE_DETAILS) {
+						device_roots.push_back(info);
+					}
+				}
+			}
 
 #if SHOW_WORKING
 			cerr << "mapping candidates (" << mapping_roots.size() << "):\n";
@@ -332,27 +331,27 @@ namespace {
 				cerr << "(" << p.first << ", " << p.second << ")\n";
 #endif
 
-                        if (pairs.size())
-                                return mk_roots(pairs[0]);
-                        else
-                                return optional<roots>();
-                }
+			if (pairs.size())
+				return mk_roots(pairs[0]);
+			else
+				return optional<roots>();
+		}
 
 	private:
-                uint32_t get_time(block_address b) const {
-                        auto i = lookup_info(b);
-                        return i ? i->age : 0;
-                }
+		uint32_t get_time(block_address b) const {
+			auto i = lookup_info(b);
+			return i ? i->age : 0;
+		}
 
-                roots mk_roots(pair<block_address, block_address> const &p) {
-                        roots r;
+		roots mk_roots(pair<block_address, block_address> const &p) {
+			roots r;
 
-                        r.mapping_root = p.second;
-                        r.detail_root = p.first;
-                        r.time = max<block_address>(get_time(p.first), get_time(p.second));
+			r.mapping_root = p.second;
+			r.detail_root = p.first;
+			r.time = max<block_address>(get_time(p.first), get_time(p.second));
 
-                        return r;
-                }
+			return r;
+		}
 
 		bool set_eq(set<uint32_t> const &lhs, set<uint32_t> const &rhs) {
 			for (auto v : lhs)
@@ -624,14 +623,13 @@ namespace {
 			}
 		}
 
-                optional<node_info> lookup_info(block_address b) const {
-                        auto it = infos_.find(b);
-                        if (it == infos_.end())
-                                return optional<node_info>();
+		optional<node_info> lookup_info(block_address b) const {
+			auto it = infos_.find(b);
+			if (it == infos_.end())
+				return optional<node_info>();
 
-                        return optional<node_info>(it->second);
-                }
-
+			return optional<node_info>(it->second);
+		}
 
 		block_manager<> &bm_;
 		vector<bool> referenced_;
@@ -779,102 +777,102 @@ namespace {
 			return 0ull;
 	}
 
-
-        void
-        emit_trees_(block_manager<>::ptr bm, superblock_detail::superblock const &sb,
+	void
+	emit_trees_(block_manager<>::ptr bm, superblock_detail::superblock const &sb,
                     emitter::ptr e, override_options const &ropts)
-        {
-                metadata md(bm, sb);
-                dump_options opts;
-                details_extractor de(opts);
-                device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
-                walk_device_tree(*md.details_, de, *dd_policy);
+	{
+		metadata md(bm, sb);
+		dump_options opts;
+		details_extractor de(opts);
+		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
+		walk_device_tree(*md.details_, de, *dd_policy);
 
-                e->begin_superblock("", sb.time_,
-                                    sb.trans_id_,
-                                    sb.flags_,
-                                    sb.version_,
-                                    sb.data_block_size_,
-                                    get_nr_blocks(md),
-                                    boost::optional<block_address>());
+		e->begin_superblock("", sb.time_,
+				    sb.trans_id_,
+				    sb.flags_,
+				    sb.version_,
+				    sb.data_block_size_,
+				    get_nr_blocks(md),
+				    boost::optional<block_address>());
 
-                {
-                        mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
-                        mapping_tree_emit_visitor mte(opts, *md.tm_, e, de.get_details(), mapping_damage_policy(true));
-                        walk_mapping_tree(*md.mappings_top_level_, mte, *md_policy);
-                }
+		{
+			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
+			mapping_tree_emit_visitor mte(opts, *md.tm_, e, de.get_details(), mapping_damage_policy(true));
+			walk_mapping_tree(*md.mappings_top_level_, mte, *md_policy);
+		}
 
-                e->end_superblock();
-        }
+		e->end_superblock();
+	}
 
-        void
-        find_better_roots_(block_manager<>::ptr bm, superblock_detail::superblock &sb)
-        {
-                // We assume the superblock is wrong, and find the best roots
-                // for ourselves.  We've had a few cases where people have
-                // activated a pool on multiple hosts at once, which results in
-                // the superblock being over written.
-                gatherer g(*bm);
-                auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
-                auto p = g.find_best_roots(*tm);
+	void
+	find_better_roots_(block_manager<>::ptr bm, superblock_detail::superblock &sb)
+	{
+		// We assume the superblock is wrong, and find the best roots
+		// for ourselves.  We've had a few cases where people have
+		// activated a pool on multiple hosts at once, which results in
+		// the superblock being over written.
+		gatherer g(*bm);
+		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+		auto p = g.find_best_roots(*tm);
 
-                if (p) {
-                        sb.metadata_snap_ = 0;
-                        sb.time_ = p->time;
-                        sb.device_details_root_ = p->detail_root;
-                        sb.data_mapping_root_ = p->mapping_root;
-                        sb.metadata_nr_blocks_ = bm->get_nr_blocks();
-                }
-        }
-
-        superblock_detail::superblock
-        recreate_superblock(override_options const &opts)
-        {
-                superblock_detail::superblock sb;
-                memset(&sb, 0, sizeof(sb));
-
-                // FIXME: we need to get this by walking both the mapping and device trees.
-                sb.time_ = 100000;
+		if (p) {
+			sb.metadata_snap_ = 0;
+			sb.time_ = p->time;
+			sb.device_details_root_ = p->detail_root;
+			sb.data_mapping_root_ = p->mapping_root;
+			sb.metadata_nr_blocks_ = bm->get_nr_blocks();
+		}
+	}
 
 
-                sb.trans_id_ = opts.get_transaction_id();
-                sb.version_ = superblock_detail::METADATA_VERSION;
-                sb.data_block_size_ = opts.get_data_block_size();
 
-                // Check that this has been overridden.
-                opts.get_nr_data_blocks();
+	superblock_detail::superblock
+	recreate_superblock(override_options const &opts)
+	{
+		superblock_detail::superblock sb;
+		memset(&sb, 0, sizeof(sb));
 
-                return sb;
-        }
+		// FIXME: we need to get this by walking both the mapping and device trees.
+		sb.time_ = 100000;
 
-        optional<superblock_detail::superblock>
-        maybe_read_superblock(block_manager<>::ptr bm)
-        {
-                try {
-                        auto sb = read_superblock(bm);
-                        return optional<superblock_detail::superblock>(sb);
-                } catch (...) {
-                }
 
-                return optional<superblock_detail::superblock>();
-        }
+		sb.trans_id_ = opts.get_transaction_id();
+		sb.version_ = superblock_detail::METADATA_VERSION;
+		sb.data_block_size_ = opts.get_data_block_size();
 
-        void
-        metadata_repair_(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
-        {
-                auto msb = maybe_read_superblock(bm);
-                if (!msb)
-                        msb = recreate_superblock(opts);
+		// Check that this has been overridden.
+		opts.get_nr_data_blocks();
 
-                auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+		return sb;
+	}
 
-                if (!get_dev_ids(*tm, msb->device_details_root_) ||
-                    !get_map_ids(*tm, msb->data_mapping_root_))
-                        find_better_roots_(bm, *msb);
+	optional<superblock_detail::superblock>
+	maybe_read_superblock(block_manager<>::ptr bm)
+	{
+		try {
+			auto sb = read_superblock(bm);
+			return optional<superblock_detail::superblock>(sb);
+		} catch (...) {
+		}
 
-                emit_trees_(bm, *msb, e, opts);
-        }
+		return optional<superblock_detail::superblock>();
+	}
 
+	void
+	metadata_repair_(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
+	{
+		auto msb = maybe_read_superblock(bm);
+		if (!msb)
+			msb = recreate_superblock(opts);
+
+		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
+
+		if (!get_dev_ids(*tm, msb->device_details_root_) ||
+	            !get_map_ids(*tm, msb->data_mapping_root_))
+			find_better_roots_(bm, *msb);
+
+		emit_trees_(bm, *msb, e, opts);
+	}
 }
 
 //----------------------------------------------------------------
@@ -906,15 +904,15 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 void
 thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
 {
-        try {
-                metadata_repair_(bm, e, opts);
+	try {
+		metadata_repair_(bm, e, opts);
 
-        } catch (override_error const &e) {
-                ostringstream out;
-                out << "The following field needs to be provided on the command line due to corruption in the superblock: "
-                    << e.what();
-                throw runtime_error(out.str());
-        }
+	} catch (override_error const &e) {
+		ostringstream out;
+		out << "The following field needs to be provided on the command line due to corruption in the superblock: "
+		    << e.what();
+		throw runtime_error(out.str());
+	}
 }
 
 //----------------------------------------------------------------

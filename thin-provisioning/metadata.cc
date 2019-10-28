@@ -33,7 +33,6 @@
 using namespace base;
 using namespace thin_provisioning;
 
-
 //----------------------------------------------------------------
 
 namespace {

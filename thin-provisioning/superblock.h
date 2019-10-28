@@ -97,8 +97,7 @@ namespace thin_provisioning {
 
 		block_address const SUPERBLOCK_LOCATION = 0;
 		uint32_t const SUPERBLOCK_MAGIC = 27022010;
-                uint32_t const METADATA_VERSION = 2;
-
+		uint32_t const METADATA_VERSION = 2;
 
 		//--------------------------------
 

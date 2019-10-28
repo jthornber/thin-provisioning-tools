@@ -26,6 +26,7 @@
 #include "thin-provisioning/human_readable_format.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_dumper.h"
+#include "thin-provisioning/override_emitter.h"
 #include "thin-provisioning/shared_library_emitter.h"
 #include "thin-provisioning/xml_format.h"
 #include "version.h"
@@ -84,35 +85,34 @@ namespace {
 		return e;
 	}
 
-        int dump_(string const &path, ostream &out, struct flags &flags) {
-                try {
-                        emitter::ptr inner = create_emitter(flags.format, out);
-                        emitter::ptr e = create_override_emitter(inner, flags.opts.overrides_);
+	int dump_(string const &path, ostream &out, struct flags &flags) {
+		try {
+			emitter::ptr inner = create_emitter(flags.format, out);
+			emitter::ptr e = create_override_emitter(inner, flags.opts.overrides_);
 
-                        if (flags.repair) {
-                                auto bm = open_bm(path, block_manager<>::READ_ONLY, true);
-                                metadata_repair(bm, e, flags.opts.overrides_);
-                        } else {
-                                metadata::ptr md = open_metadata(path, flags);
-                                metadata_dump(md, e, flags.opts);
-                        }
+			if (flags.repair) {
+				auto bm = open_bm(path, block_manager<>::READ_ONLY, true);
+				metadata_repair(bm, e, flags.opts.overrides_);
+			} else {
+				metadata::ptr md = open_metadata(path, flags);
+				metadata_dump(md, e, flags.opts);
+			}
 
-                } catch (std::exception &e) {
-                        cerr << e.what() << endl;
-                        return 1;
-                }
+		} catch (std::exception &e) {
+			cerr << e.what() << endl;
+			return 1;
+		}
 
-                return 0;
-        }
+		return 0;
+	}
 
-        int dump(string const &path, char const *output, struct flags &flags) {
-                if (output) {
-                        ofstream out(output);
-                        return dump_(path, out, flags);
-                } else
-                        return dump_(path, cout, flags);
-        }
-
+	int dump(string const &path, char const *output, struct flags &flags) {
+		if (output) {
+			ofstream out(output);
+			return dump_(path, out, flags);
+		} else
+			return dump_(path, cout, flags);
+	}
 }
 
 //----------------------------------------------------------------
@@ -156,6 +156,9 @@ thin_dump_cmd::run(int argc, char **argv)
 		{ "repair", no_argument, NULL, 'r'},
 		{ "dev-id", required_argument, NULL, 1 },
 		{ "skip-mappings", no_argument, NULL, 2 },
+		{ "transaction-id", required_argument, NULL, 3 },
+		{ "data-block-size", required_argument, NULL, 4 },
+		{ "nr-data-blocks", required_argument, NULL, 5 },
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -207,17 +210,17 @@ thin_dump_cmd::run(int argc, char **argv)
 			flags.opts.skip_mappings_ = true;
 			break;
 
-                case 3:
-                        flags.opts.overrides_.transaction_id_ = parse_uint64(optarg, "transaction id");
-                        break;
+		case 3:
+			flags.opts.overrides_.transaction_id_ = parse_uint64(optarg, "transaction id");
+			break;
 
-                case 4:
-                        flags.opts.overrides_.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
-                        break;
+		case 4:
+			flags.opts.overrides_.data_block_size_ = static_cast<uint32_t>(parse_uint64(optarg, "data block size"));
+			break;
 
-                case 5:
-                        flags.opts.overrides_.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
-                        break;
+		case 5:
+			flags.opts.overrides_.nr_data_blocks_ = parse_uint64(optarg, "nr data blocks");
+			break;
 
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;

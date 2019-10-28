@@ -21,8 +21,8 @@ OPTIONS
     If a file is used for output, then it must be preallocated, and large
     enough to hold the metadata.
 
-  --transaction-id {natural}    Override the transaction id given in the input xml.
-  --data-block-size {natural}   Override the data block size given in the input xml.
+  --transaction-id {natural}	Override the transaction id given in the input xml.
+  --data-block-size {natural}	Override the data block size given in the input xml.
   --nr-data-blocks {natural}    Override the nr data blocks given in the input xml.
 
 EXAMPLE
