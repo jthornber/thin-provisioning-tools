@@ -80,6 +80,7 @@ SOURCE=\
 	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/bloom_filter.cc \
 	persistent-data/data-structures/btree.cc \
+	persistent-data/data-structures/btree_damage_visitor.cc \
 	persistent-data/data-structures/btree_node_checker.cc \
 	persistent-data/error_set.cc \
 	persistent-data/file_utils.cc \
