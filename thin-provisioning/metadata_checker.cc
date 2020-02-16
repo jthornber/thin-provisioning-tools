@@ -16,423 +16,348 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/nested_output.h"
 #include "persistent-data/file_utils.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
+#include "thin-provisioning/metadata_counter.h"
+#include "thin-provisioning/superblock.h"
 
 using namespace persistent_data;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
-#if 0
-void
-metadata_damage::set_message(std::string const &message)
-{
-	message_ = message;
-}
-
-std::string const &
-metadata_damage::get_message() const
-{
-	return message_;
-}
-
-//--------------------------------
-
-void
-super_block_corruption::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-super_block_corruption::operator ==(super_block_corruption const &rhs) const
-{
-	return true;
-}
-
-//--------------------------------
-
-missing_device_details::missing_device_details(range64 missing)
-	: missing_(missing)
-{
-}
-
-void
-missing_device_details::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-missing_device_details::operator ==(missing_device_details const &rhs) const
-{
-	return missing_ == rhs.missing_;
-}
-
-//--------------------------------
-
-missing_devices::missing_devices(range64 missing)
-	: missing_(missing)
-{
-}
-
-void
-missing_devices::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-missing_devices::operator ==(missing_devices const &rhs) const
-{
-	return missing_ == rhs.missing_;
-}
-
-//--------------------------------
-
-missing_mappings::missing_mappings(uint64_t dev, range64 missing)
-	: dev_(dev),
-	  missing_(missing)
-{
-}
-
-void
-missing_mappings::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-missing_mappings::operator ==(missing_mappings const &rhs) const
-{
-	return dev_ == rhs.dev_ && missing_ == rhs.missing_;
-}
-
-//--------------------------------
-
-bad_metadata_ref_count::bad_metadata_ref_count(block_address b,
-					       ref_t actual,
-					       ref_t expected)
-	: b_(b),
-	  actual_(actual),
-	  expected_(expected)
-{
-}
-
-void
-bad_metadata_ref_count::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-bad_metadata_ref_count::operator ==(bad_metadata_ref_count const &rhs) const
-{
-	return b_ == rhs.b_ && actual_ == rhs.actual_ && expected_ == rhs.expected_;
-}
-
-//--------------------------------
-
-bad_data_ref_count::bad_data_ref_count(block_address b,
-				       ref_t actual,
-				       ref_t expected)
-	: b_(b),
-	  actual_(actual),
-	  expected_(expected)
-{
-}
-
-void
-bad_data_ref_count::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-bad_data_ref_count::operator ==(bad_data_ref_count const &rhs) const
-{
-	return b_ == rhs.b_ && actual_ == rhs.actual_ && expected_ == rhs.expected_;
-}
-
-//--------------------------------
-
-missing_metadata_ref_counts::missing_metadata_ref_counts(range64 missing)
-	: missing_(missing)
-{
-}
-
-void
-missing_metadata_ref_counts::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-missing_metadata_ref_counts::operator ==(missing_metadata_ref_counts const &rhs) const
-{
-	return missing_ == rhs.missing_;
-}
-
-//--------------------------------
-
-missing_data_ref_counts::missing_data_ref_counts(range64 missing)
-	: missing_(missing)
-{
-}
-
-void
-missing_data_ref_counts::visit(metadata_damage_visitor &visitor) const
-{
-	visitor.visit(*this);
-}
-
-bool
-missing_data_ref_counts::operator ==(missing_data_ref_counts const &rhs) const
-{
-	return missing_ == rhs.missing_;
-}
-
-//--------------------------------
-
-void
-metadata_damage_visitor::visit(metadata_damage const &damage)
-{
-	damage.visit(*this);
-}
-
-//--------------------------------
-
-checker::checker(block_manager::ptr bm)
-	: bm_(bm)
-{
-}
-
-//----------------------------------------------------------------
-
-#if 0
-
 
 namespace {
-	// As well as the standard btree checks, we build up a set of what
-	// devices having mappings defined, which can later be cross
-	// referenced with the details tree.  A separate block_counter is
-	// used to later verify the data space map.
-	class mapping_validator : public btree<2, block_traits>::visitor {
+	class superblock_reporter : public superblock_detail::damage_visitor {
 	public:
-		typedef boost::shared_ptr<mapping_validator> ptr;
-		typedef btree_checker<2, block_traits> checker;
-
-		mapping_validator(block_counter &metadata_counter, block_counter &data_counter)
-			: checker_(metadata_counter),
-			  data_counter_(data_counter)
-		{
+		superblock_reporter(nested_output &out)
+		: out_(out),
+		  err_(NO_ERROR) {
 		}
 
-		bool visit_internal(unsigned level,
-				    bool sub_root,
-				    optional<uint64_t> key,
-				    btree_detail::node_ref<uint64_traits> const &n) {
-			return checker_.visit_internal(level, sub_root, key, n);
+		virtual void visit(superblock_detail::superblock_corruption const &d) {
+			out_ << "superblock is corrupt" << end_message();
+			{
+				nested_output::nest _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+			err_ << FATAL;
 		}
 
-		bool visit_internal_leaf(unsigned level,
-					 bool sub_root,
-					 optional<uint64_t> key,
-					 btree_detail::node_ref<uint64_traits> const &n) {
-
-			bool r = checker_.visit_internal_leaf(level, sub_root, key, n);
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++)
-				devices_.insert(n.key_at(i));
-
-			return r;
-		}
-
-		bool visit_leaf(unsigned level,
-				bool sub_root,
-				optional<uint64_t> key,
-				btree_detail::node_ref<block_traits> const &n) {
-			bool r = checker_.visit_leaf(level, sub_root, key, n);
-
-			if (r)
-				for (unsigned i = 0; i < n.get_nr_entries(); i++)
-					data_counter_.inc(n.value_at(i).block_);
-
-			return r;
-		}
-
-		set<uint64_t> const &get_devices() const {
-			return devices_;
+		base::error_state get_error() const {
+			return err_;
 		}
 
 	private:
-	        checker checker_;
-		block_counter &data_counter_;
-		set<uint64_t> devices_;
+		nested_output &out_;
+		error_state err_;
 	};
 
-	struct check_count : public space_map::iterator {
-		check_count(string const &desc, block_counter const &expected)
-			: bad_(false),
-			  expected_(expected),
-			  errors_(new error_set(desc)) {
+	//--------------------------------
+
+	class devices_reporter : public device_tree_detail::damage_visitor {
+	public:
+		devices_reporter(nested_output &out)
+		: out_(out),
+		  err_(NO_ERROR) {
 		}
 
-		virtual void operator() (block_address b, ref_t actual) {
-			ref_t expected = expected_.get_count(b);
-
-			if (actual != expected) {
-				ostringstream out;
-				out << b << ": was " << actual
-				    << ", expected " << expected;
-				errors_->add_child(out.str());
-				bad_ = true;
+		virtual void visit(device_tree_detail::missing_devices const &d) {
+			out_ << "missing devices: " << d.keys_ << end_message();
+			{
+				nested_output::nest _ = out_.push();
+				out_ << d.desc_ << end_message();
 			}
+
+			err_ << FATAL;
 		}
 
-		bool bad_;
-		block_counter const &expected_;
-		error_set::ptr errors_;
+		error_state get_error() const {
+			return err_;
+		}
+
+	private:
+		nested_output &out_;
+		error_state err_;
 	};
 
-	optional<error_set::ptr>
-	check_ref_counts(string const &desc, block_counter const &counts,
-			 space_map::ptr sm) {
+	//--------------------------------
 
-		check_count checker(desc, counts);
-		sm->iterate(checker);
-		return checker.bad_ ? optional<error_set::ptr>(checker.errors_) : optional<error_set::ptr>();
+	class mapping_reporter : public mapping_tree_detail::damage_visitor {
+	public:
+		mapping_reporter(nested_output &out)
+		: out_(out),
+		  err_(NO_ERROR) {
+		}
+
+		virtual void visit(mapping_tree_detail::missing_devices const &d) {
+			out_ << "missing all mappings for devices: " << d.keys_ << end_message();
+			{
+				nested_output::nest _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+			err_ << FATAL;
+		}
+
+		virtual void visit(mapping_tree_detail::missing_mappings const &d) {
+			out_ << "thin device " << d.thin_dev_ << " is missing mappings " << d.keys_ << end_message();
+			{
+				nested_output::nest _ = out_.push();
+				out_ << d.desc_ << end_message();
+			}
+			err_ << FATAL;
+		}
+
+		error_state get_error() const {
+			return err_;
+		}
+
+	private:
+		nested_output &out_;
+		error_state err_;
+	};
+
+	//--------------------------------
+
+	error_state examine_superblock(block_manager<>::ptr bm,
+				       nested_output &out) {
+		out << "examining superblock" << end_message();
+		nested_output::nest _ = out.push();
+
+		superblock_reporter sb_rep(out);
+		check_superblock(bm, sb_rep);
+
+		return sb_rep.get_error();
 	}
 
-	class metadata_checker {
-	public:
-		metadata_checker(string const &dev_path)
-		: bm_(open_bm(dev_path)),
-		  errors_(new error_set("Errors in metadata")) {
+	error_state examine_devices_tree_(transaction_manager::ptr tm,
+					  superblock_detail::superblock const &sb,
+					  nested_output &out) {
+		out << "examining devices tree" << end_message();
+		nested_output::nest _ = out.push();
+
+		devices_reporter dev_rep(out);
+		device_tree dtree(*tm, sb.device_details_root_,
+				  device_tree_detail::device_details_traits::ref_counter());
+		check_device_tree(dtree, dev_rep);
+
+		return dev_rep.get_error();
+	}
+
+	error_state examine_top_level_mapping_tree_(transaction_manager::ptr tm,
+						    superblock_detail::superblock const &sb,
+						    nested_output &out) {
+		out << "examining top level of mapping tree" << end_message();
+		nested_output::nest _ = out.push();
+
+		mapping_reporter mapping_rep(out);
+		dev_tree dtree(*tm, sb.data_mapping_root_,
+			       mapping_tree_detail::mtree_traits::ref_counter(*tm));
+		check_mapping_tree(dtree, mapping_rep);
+
+		return mapping_rep.get_error();
+	}
+
+	error_state examine_mapping_tree_(transaction_manager::ptr tm,
+					  superblock_detail::superblock const &sb,
+					  nested_output &out) {
+		out << "examining mapping tree" << end_message();
+		nested_output::nest _ = out.push();
+
+		mapping_reporter mapping_rep(out);
+		mapping_tree mtree(*tm, sb.data_mapping_root_,
+				   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
+		check_mapping_tree(mtree, mapping_rep);
+
+		return mapping_rep.get_error();
+	}
+
+	error_state examine_top_level_mapping_tree(transaction_manager::ptr tm,
+						   superblock_detail::superblock const &sb,
+						   nested_output &out) {
+		error_state err = examine_devices_tree_(tm, sb, out);
+		err << examine_top_level_mapping_tree_(tm, sb, out);
+
+		return err;
+	}
+
+	error_state examine_mapping_tree(transaction_manager::ptr tm,
+					 superblock_detail::superblock const &sb,
+					 nested_output &out) {
+		error_state err = examine_devices_tree_(tm, sb, out);
+		err << examine_mapping_tree_(tm, sb, out);
+
+		return err;
+	}
+
+	error_state check_space_map_counts(transaction_manager::ptr tm,
+					   superblock_detail::superblock const &sb,
+					   nested_output &out) {
+		out << "checking space map counts" << end_message();
+		nested_output::nest _ = out.push();
+
+		block_counter bc;
+		count_metadata(tm, sb, bc);
+
+		// Finally we need to check the metadata space map agrees
+		// with the counts we've just calculated.
+		error_state err = NO_ERROR;
+		persistent_space_map::ptr metadata_sm =
+			open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
+		for (unsigned b = 0; b < metadata_sm->get_nr_blocks(); b++) {
+			ref_t c_actual = metadata_sm->get_count(b);
+			ref_t c_expected = bc.get_count(b);
+
+			if (c_actual != c_expected) {
+				out << "metadata reference counts differ for block " << b
+				    << ", expected " << c_expected
+				    << ", but got " << c_actual
+				    << end_message();
+
+				err << (c_actual > c_expected ? NON_FATAL : FATAL);
+			}
 		}
 
-		boost::optional<error_set::ptr> check() {
-#if 1
-			superblock sb = read_superblock();
+		return err;
+	}
 
-			// FIXME: check version?
+	void print_info(transaction_manager::ptr tm,
+			superblock_detail::superblock const &sb,
+                        nested_output &out)
+	{
+		out << "TRANSACTION_ID=" << sb.trans_id_ << "\n"
+		    << "METADATA_FREE_BLOCKS=" << tm->get_sm()->get_nr_free()
+		    << end_message();
+	}
 
-			check_mappings();
+	block_address mapping_root(superblock_detail::superblock const &sb, check_options const &opts)
+	{
+		return opts.override_mapping_root_ ? *opts.override_mapping_root_ : sb.data_mapping_root_;
+	}
 
-			return (errors_->get_children().size() > 0) ?
-				optional<error_set::ptr>(errors_) :
-				optional<error_set::ptr>();
-#else
-			error_set::ptr errors(new error_set("Errors in metadata"));
+	//--------------------------------
 
+	class base_metadata_checker : public metadata_checker {
+	public:
+		base_metadata_checker(block_manager<>::ptr bm,
+				      check_options check_opts,
+				      output_options output_opts)
+			: bm_(bm),
+			  options_(check_opts),
+			  out_(cerr, 2),
+			  info_out_(cout, 0) {
 
-			if (md->sb_.metadata_snap_) {
-				block_manager<>::ptr bm = md->tm_->get_bm();
+			if (output_opts == OUTPUT_QUIET) {
+				out_.disable();
+				info_out_.disable();
+			}
+		}
 
+		error_state check() {
+			error_state err = NO_ERROR;
 
-				block_address root = md->sb_.metadata_snap_;
+			err << examine_superblock(bm_, out_);
 
-				metadata_counter.inc(root);
-
-				superblock sb;
-				block_manager<>::read_ref r = bm->read_lock(root);
-				superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-				superblock_traits::unpack(*sbd, sb);
-
-				metadata_counter.inc(sb.data_mapping_root_);
-				metadata_counter.inc(sb.device_details_root_);
+			if (err == FATAL) {
+				if (check_for_xml(bm_))
+					out_ << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
+				return err;
 			}
 
+			superblock_detail::superblock sb = read_superblock(bm_);
+			transaction_manager::ptr tm =
+				open_tm(bm_, superblock_detail::SUPERBLOCK_LOCATION);
+			sb.data_mapping_root_ = mapping_root(sb, options_);
 
-			set<uint64_t> const &mapped_devs = mv->get_devices();
-			details_validator::ptr dv(new details_validator(metadata_counter));
-			md->details_->visit(dv);
+			print_info(tm, sb, info_out_);
 
-			set<uint64_t> const &details_devs = dv->get_devices();
+			err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_);
 
-			for (set<uint64_t>::const_iterator it = mapped_devs.begin(); it != mapped_devs.end(); ++it)
-				if (details_devs.count(*it) == 0) {
-					ostringstream out;
-					out << "mapping exists for device " << *it
-					    << ", yet there is no entry in the details tree.";
-					throw runtime_error(out.str());
-				}
+			// if we're checking everything, and there were no errors,
+			// then we should check the space maps too.
+			if (err != FATAL)
+				err << examine_metadata_space_map(tm, sb, options_.check_metadata_space_map_, out_);
 
-			metadata_counter.inc(SUPERBLOCK_LOCATION);
-			md->metadata_sm_->check(metadata_counter);
-
-			md->data_sm_->check(metadata_counter);
-			errors->add_child(check_ref_counts("Errors in metadata block reference counts",
-							   metadata_counter, md->metadata_sm_));
-			errors->add_child(check_ref_counts("Errors in data block reference counts",
-							   data_counter, md->data_sm_));
-
-			return (errors->get_children().size() > 0) ?
-				optional<error_set::ptr>(errors) :
-				optional<error_set::ptr>();
-#endif
+			return err;
 		}
 
 	private:
-		static block_manager<>::ptr
-		open_bm(string const &dev_path) {
-			block_address nr_blocks = thin_provisioning::get_nr_blocks(dev_path);
-			return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, block_manager<>::READ_ONLY));
+		static error_state
+		examine_data_mappings(transaction_manager::ptr tm,
+				      superblock_detail::superblock const &sb,
+				      check_options::data_mapping_options option,
+				      nested_output &out) {
+			error_state err = NO_ERROR;
+
+			switch (option) {
+			case check_options::DATA_MAPPING_LEVEL1:
+				err << examine_top_level_mapping_tree(tm, sb, out);
+				break;
+			case check_options::DATA_MAPPING_LEVEL2:
+				err << examine_mapping_tree(tm, sb, out);
+				break;
+			default:
+				break; // do nothing
+			}
+
+			return err;
 		}
 
-		// FIXME: common code with metadata.cc
-		superblock read_superblock() {
-			superblock sb;
-			block_manager<>::read_ref r = bm_->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
-			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(&r.data());
-			superblock_traits::unpack(*sbd, sb);
-			return sb;
+		static error_state
+		examine_metadata_space_map(transaction_manager::ptr tm,
+					   superblock_detail::superblock const &sb,
+					   check_options::metadata_space_map_options option,
+					   nested_output &out) {
+			error_state err = NO_ERROR;
+
+			switch (option) {
+			case check_options::METADATA_SPACE_MAP_FULL:
+				err << check_space_map_counts(tm, sb, out);
+				break;
+			default:
+				break; // do nothing
+			}
+
+			return err;
 		}
-
-		void check_mappings() {
-			mapping_validator::ptr mv(
-				new mapping_validator(metadata_counter_,
-						      data_counter_));
-
-			
-
-			md->mappings_->visit(mv);
-		}
-
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
-		typedef boost::shared_ptr<metadata> ptr;
 
 		block_manager<>::ptr bm_;
-		error_set::ptr errors_;
-
-		block_counter metadata_counter_, data_counter_;
-
-
-#if 0
-		tm_ptr tm_;
-		superblock sb_;
-
-		checked_space_map::ptr metadata_sm_;
-		checked_space_map::ptr data_sm_;
-		detail_tree::ptr details_;
-		dev_tree::ptr mappings_top_level_;
-		mapping_tree::ptr mappings_;
-#endif
+		check_options options_;
+		nested_output out_;
+		nested_output info_out_;
 	};
 }
 
-
 //----------------------------------------------------------------
 
-boost::optional<error_set::ptr>
-thin_provisioning::metadata_check(std::string const &dev_path)
+check_options::check_options()
+	: check_data_mappings_(DATA_MAPPING_LEVEL2),
+	  check_metadata_space_map_(METADATA_SPACE_MAP_FULL) {
+}
+
+void check_options::set_superblock_only() {
+	check_data_mappings_ = DATA_MAPPING_NONE;
+	check_metadata_space_map_ = METADATA_SPACE_MAP_NONE;
+}
+
+void check_options::set_skip_mappings() {
+	check_data_mappings_ = DATA_MAPPING_LEVEL1;
+	check_metadata_space_map_ = METADATA_SPACE_MAP_NONE;
+}
+
+void check_options::set_override_mapping_root(block_address b) {
+	override_mapping_root_ = b;
+}
+
+metadata_checker::ptr
+thin_provisioning::create_base_checker(block_manager<>::ptr bm,
+				       check_options const &check_opts,
+				       output_options output_opts)
 {
-	metadata_checker checker(dev_path);
-	return checker.check();
+	metadata_checker::ptr checker;
+	checker = metadata_checker::ptr(new base_metadata_checker(bm, check_opts, output_opts));
+	return checker;
 }
 
 //----------------------------------------------------------------
-#endif
-#endif
