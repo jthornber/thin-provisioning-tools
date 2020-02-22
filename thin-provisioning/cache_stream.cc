@@ -18,7 +18,7 @@ cache_stream::cache_stream(string const &path,
 
 	  // hack because cache uses LRU rather than MRU
 	  cache_blocks_((cache_mem / block_size) / 2u),
-	  fd_(file_utils::open_file(path, O_RDONLY | O_EXCL)),
+	  fd_(path, O_RDONLY | O_EXCL),
 	  v_(new bcache::noop_validator()),
 	  cache_(new block_cache(fd_, block_size / 512, nr_blocks_, cache_mem)),
 	  current_index_(0) {

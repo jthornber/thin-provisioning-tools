@@ -2,6 +2,7 @@
 #define BLOCK_CACHE_H
 
 #include "base/container_of.h"
+#include "base/file_utils.h"
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
@@ -185,7 +186,7 @@ namespace bcache {
 
 		//--------------------------------
 
-		block_cache(int fd, sector_t block_size,
+		block_cache(file_utils::file_descriptor &fd, sector_t block_size,
 			    uint64_t max_nr_blocks, size_t mem);
 		~block_cache();
 
@@ -247,7 +248,7 @@ namespace bcache {
 
 		//--------------------------------
 
-		int fd_;
+		file_utils::file_descriptor &fd_;
 		sector_t block_size_;
 		uint64_t nr_data_blocks_;
 		uint64_t nr_cache_blocks_;

@@ -154,7 +154,7 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	int
+	file_utils::file_descriptor
 	block_manager<BlockSize>::open_or_create_block_file(std::string const &path, off_t file_size, mode m, bool excl)
 	{
 		switch (m) {

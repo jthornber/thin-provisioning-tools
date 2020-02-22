@@ -38,7 +38,7 @@ TEST(BCacheTests, cleaned_on_demand)
 	unsigned const NR_BLOCKS = 16;
 
 	temp_file tmp("bcache_t", 1);
-	int fd = open(tmp.get_path().c_str(), O_RDWR | O_DIRECT, 0666);
+	file_utils::file_descriptor fd(tmp.get_path().c_str(), O_RDWR | O_DIRECT);
 
 	uint64_t bs = 8;
 	block_cache bc(fd, bs, 64, (bs << SECTOR_SHIFT) * NR_BLOCKS);
