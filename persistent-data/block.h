@@ -136,11 +136,12 @@ namespace persistent_data {
 
 	private:
 		uint64_t choose_cache_size(block_address nr_blocks) const;
-		int open_or_create_block_file(std::string const &path, off_t file_size,
-					      mode m, bool excl);
+		file_utils::file_descriptor open_or_create_block_file(std::string const &path,
+								      off_t file_size,
+								      mode m, bool excl);
 		void check(block_address b) const;
 
-		int fd_;
+		file_utils::file_descriptor fd_;
 		mutable block_cache bc_;
 		unsigned superblock_ref_count_;
 	};
