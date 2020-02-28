@@ -64,8 +64,6 @@ namespace persistent_data {
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
 
-			read_ref const &operator =(read_ref const &rhs);
-
 			block_address get_location() const;
 			void const *data() const;
 
@@ -81,8 +79,6 @@ namespace persistent_data {
 			write_ref(block_cache::block &b, unsigned &ref_count);
 			write_ref(write_ref const &rhs);
 			~write_ref();
-
-			write_ref const &operator =(write_ref const &rhs);
 
 			using read_ref::data;
 			void *data();
