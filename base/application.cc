@@ -24,12 +24,12 @@ command::die(string const &msg)
 	exit(1);
 }
 
-uint64_t
+::uint64_t
 command::parse_uint64(string const &str, string const &desc)
 {
 	try {
 		// FIXME: check trailing garbage is handled
-		return lexical_cast<uint64_t>(str);
+		return lexical_cast<::uint64_t>(str);
 
 	} catch (...) {
 		ostringstream out;

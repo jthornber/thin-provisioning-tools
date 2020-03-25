@@ -232,8 +232,8 @@ namespace {
 
 		block_address b;
 		unsigned values;
-		uint64_t key_low;
-		uint64_t key_high;
+		::uint64_t key_low;
+		::uint64_t key_high;
 		//set<uint32_t> devices;
 		uint32_t age;
 		map<uint32_t, uint32_t> time_counts;
@@ -477,7 +477,7 @@ namespace {
 			 
 			// values refer to blocks, so we should have infos for them.
 			auto n = to_node<block_traits>(rr);
-			uint64_t key_low = 0;
+			::uint64_t key_low = 0;
 			unsigned values = 0;
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
@@ -541,7 +541,7 @@ namespace {
 					info.nr_mappings += n.value_at(i).mapped_blocks_;
 				}
 
-			} else if (vsize == sizeof(uint64_t)) {
+			} else if (vsize == sizeof(::uint64_t)) {
 				auto n = to_node<uint64_traits>(rr);
 
 				if (n.get_nr_entries()) {
@@ -658,7 +658,7 @@ namespace {
 		}
 
 	private:
-		void start_mapping(uint64_t origin_block, block_time const &bt) {
+		void start_mapping(::uint64_t origin_block, block_time const &bt) {
 			origin_start_ = origin_block;
 			dest_start_ = bt.block_;
 			time_ = bt.time_;
@@ -677,7 +677,7 @@ namespace {
 			}
 		}
 
-		void add_mapping(uint64_t origin_block, block_time const &bt) {
+		void add_mapping(::uint64_t origin_block, block_time const &bt) {
 			if (!in_range_)
 				start_mapping(origin_block, bt);
 
@@ -748,7 +748,7 @@ namespace {
 		}
 
 	private:
-		void emit_mappings(uint64_t dev_id, block_address subtree_root) {
+		void emit_mappings(::uint64_t dev_id, block_address subtree_root) {
 			mapping_emit_visitor me(e_);
 
 			// Since we're not mutating the btrees we don't need a real space map
@@ -918,7 +918,7 @@ thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e, over
 //----------------------------------------------------------------
 
 void
-thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root) {
+thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, ::uint64_t subtree_root) {
 	mapping_emit_visitor me(e);
 	single_mapping_tree tree(*md->tm_, subtree_root,
 				 mapping_tree_detail::block_time_ref_counter(md->data_sm_));
