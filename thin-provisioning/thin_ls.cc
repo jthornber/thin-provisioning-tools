@@ -236,9 +236,9 @@ namespace {
 		}
 	};
 
-	void pass1(metadata::ptr md, mapping_set &mappings, uint64_t dev_id) {
+	void pass1(metadata::ptr md, mapping_set &mappings, ::uint64_t dev_id) {
 		dev_tree::key k = {dev_id};
-		optional<uint64_t> dev_root = md->mappings_top_level_->lookup(k);
+		optional<::uint64_t> dev_root = md->mappings_top_level_->lookup(k);
 
 		if (!dev_root)
 			throw runtime_error("couldn't find mapping tree root");
@@ -252,9 +252,9 @@ namespace {
 	}
 
 
-	block_address count_exclusives(metadata::ptr md, mapping_set const &mappings, uint64_t dev_id) {
+	block_address count_exclusives(metadata::ptr md, mapping_set const &mappings, ::uint64_t dev_id) {
 		dev_tree::key k = {dev_id};
-		optional<uint64_t> dev_root = md->mappings_top_level_->lookup(k);
+		optional<::uint64_t> dev_root = md->mappings_top_level_->lookup(k);
 
 		if (!dev_root)
 			throw runtime_error("couldn't find mapping tree root");
