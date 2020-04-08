@@ -240,6 +240,8 @@ namespace {
 	public:
 		typedef boost::shared_ptr<index_store> ptr;
 
+		virtual ~index_store() {}
+
 		virtual void count_metadata(block_counter &bc) const = 0;
 		virtual void resize(block_address nr_indexes) = 0;
 		virtual index_entry find_ie(block_address b) const = 0;
