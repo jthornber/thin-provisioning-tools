@@ -8,8 +8,6 @@ namespace pd = persistent_data;
 //----------------------------------------------------------------
 
 namespace {
-	unsigned const METADATA_CACHE_SIZE = 1024;
-
 	// FIXME: duplication
 	transaction_manager::ptr
 	open_tm(block_manager<>::ptr bm) {

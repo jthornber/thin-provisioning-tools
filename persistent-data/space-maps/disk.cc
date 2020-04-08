@@ -586,30 +586,20 @@ namespace {
 
 	class ie_value_visitor {
 	public:
-		ie_value_visitor(index_entry_visitor &v)
-			: v_(v) {
-		}
+		ie_value_visitor(index_entry_visitor &v) {}
 
 		virtual void visit(btree_path const &path, sm_disk_detail::index_entry const &ie) {
 			// FIXME: finish
 		}
-
-	private:
-		index_entry_visitor &v_;
 	};
 
 	class ie_damage_visitor {
 	public:
-		ie_damage_visitor(index_entry_visitor &v)
-			: v_(v) {
-		}
+		ie_damage_visitor(index_entry_visitor &v) {}
 
 		virtual void visit(btree_path const &path, btree_detail::damage const &d) {
 			// FIXME: finish
 		}
-
-	private:
-		index_entry_visitor &v_;
 	};
 
 	class btree_index_store : public index_store {

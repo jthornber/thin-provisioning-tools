@@ -99,7 +99,6 @@ namespace {
 		pd::bitset::ptr bits_;
 
 		bool in_era_array_;
-		uint32_t nr_blocks_;
 	};
 }
 

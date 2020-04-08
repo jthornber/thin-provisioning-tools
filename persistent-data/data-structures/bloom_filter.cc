@@ -37,8 +37,7 @@ namespace {
 
 bloom_filter::bloom_filter(transaction_manager &tm,
 			   unsigned nr_bits, unsigned nr_probes)
-	: tm_(tm),
-	  bits_(tm),
+	: bits_(tm),
 	  nr_probes_(nr_probes),
 	  mask_(nr_bits - 1)
 {
@@ -48,8 +47,7 @@ bloom_filter::bloom_filter(transaction_manager &tm,
 
 bloom_filter::bloom_filter(transaction_manager &tm, block_address root,
 			   unsigned nr_bits, unsigned nr_probes)
-	: tm_(tm),
-	  bits_(tm, root, nr_bits),
+	: bits_(tm, root, nr_bits),
 	  nr_probes_(nr_probes),
 	  mask_(nr_bits - 1)
 {

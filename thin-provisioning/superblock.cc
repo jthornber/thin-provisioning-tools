@@ -85,8 +85,6 @@ namespace {
 	using namespace persistent_data;
 	using namespace superblock_detail;
 
-        uint32_t const VERSION = 1;
-        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 
 	struct sb_validator : public bcache::validator {

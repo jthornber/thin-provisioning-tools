@@ -208,8 +208,6 @@ superblock_invalid::visit(damage_visitor &v) const
 namespace era_validator {
 	using namespace persistent_data;
 
-        uint32_t const VERSION = 1;
-        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 146538381;
 
 	// FIXME: turn into a template, we have 3 similar classes now

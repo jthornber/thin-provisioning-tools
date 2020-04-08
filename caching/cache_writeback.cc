@@ -103,7 +103,6 @@ namespace {
 			: copier_(c),
 			  block_size_(c.get_block_size()),
 			  only_dirty_(only_dirty),
-			  list_failed_blocks_(list_failed_blocks),
 			  batch_(sort_buffer),
 			  monitor_(monitor),
 			  cache_blocks_(cache_blocks) {
@@ -228,7 +227,6 @@ namespace {
 		copier &copier_;
 		unsigned block_size_;
 		bool only_dirty_;
-		bool list_failed_blocks_;
 
 		copy_stats stats_;
 		copy_batch batch_;

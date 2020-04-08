@@ -33,7 +33,6 @@ namespace persistent_data {
 
 		void fill_probes(block_address b, std::vector<unsigned> &probes) const;
 
-		transaction_manager &tm_;
 		persistent_data::bitset bits_;
 		unsigned nr_probes_;
 		uint64_t mask_;

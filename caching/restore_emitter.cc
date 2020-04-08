@@ -12,8 +12,7 @@ namespace {
 	class restorer : public emitter {
 	public:
 		restorer(metadata::ptr md, bool clean_shutdown, unsigned metadata_version)
-			: in_superblock_(false),
-			  md_(md),
+			: md_(md),
 			  clean_shutdown_(clean_shutdown),
 			  metadata_version_(metadata_version) {
 		}
@@ -104,7 +103,6 @@ namespace {
 		}
 
 	private:
-		bool in_superblock_;
 		metadata::ptr md_;
 		bool clean_shutdown_;
 		unsigned metadata_version_;

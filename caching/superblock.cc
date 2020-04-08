@@ -289,8 +289,6 @@ superblock_invalid::visit(damage_visitor &v) const
 namespace validator {
 	using namespace persistent_data;
 
-        uint32_t const VERSION = 1;
-        unsigned const SECTOR_TO_BLOCK_SHIFT = 3;
 	uint32_t const SUPERBLOCK_CSUM_SEED = 9031977;
 
 	struct sb_validator : public bcache::validator {

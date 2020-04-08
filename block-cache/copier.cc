@@ -13,7 +13,6 @@ copier::copier(io_engine &engine,
 	       sector_t block_size, size_t mem)
 	: pool_(block_size * 512, mem, PAGE_SIZE),
 	  block_size_(block_size),
-	  nr_blocks_(mem / block_size),
 	  engine_(engine),
 	  src_handle_(engine_.open_file(src, io_engine::M_READ_ONLY)),
 	  dest_handle_(engine_.open_file(dest, io_engine::M_READ_WRITE)),

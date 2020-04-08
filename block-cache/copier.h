@@ -88,7 +88,6 @@ namespace bcache {
 
 		mempool pool_;
 		sector_t block_size_;
-		unsigned nr_blocks_;
 		io_engine &engine_;
 		io_engine::handle src_handle_;
 		io_engine::handle dest_handle_;
