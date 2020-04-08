@@ -38,7 +38,7 @@ namespace thin_provisioning {
 		block_address nr_blocks_;
 		block_address cache_blocks_;
 
-		int fd_;
+		file_utils::file_descriptor fd_;
 		validator::ptr v_;
 		std::unique_ptr<block_cache> cache_;
 

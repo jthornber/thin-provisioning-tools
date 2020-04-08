@@ -48,18 +48,6 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	typename block_manager<BlockSize>::read_ref const &
-	block_manager<BlockSize>::read_ref::operator =(read_ref const &rhs)
-	{
-		if (this != &rhs) {
-			b_ = rhs.b_;
-			b_.get();
-		}
-
-		return *this;
-	}
-
-	template <uint32_t BlockSize>
 	block_address
 	block_manager<BlockSize>::read_ref::get_location() const
 	{
@@ -113,18 +101,6 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	typename block_manager<BlockSize>::write_ref const &
-	block_manager<BlockSize>::write_ref::operator =(write_ref const &rhs)
-	{
-		if (&rhs != this) {
-			read_ref::operator =(rhs);
-			ref_count_ = rhs.ref_count_;
-			if (ref_count_)
-				(*ref_count_)++;
-		}
-	}
-
-	template <uint32_t BlockSize>
 	void *
 	block_manager<BlockSize>::write_ref::data()
 	{
@@ -154,7 +130,7 @@ namespace persistent_data {
 	}
 
 	template <uint32_t BlockSize>
-	int
+	file_utils::file_descriptor
 	block_manager<BlockSize>::open_or_create_block_file(std::string const &path, off_t file_size, mode m, bool excl)
 	{
 		switch (m) {

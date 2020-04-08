@@ -145,7 +145,7 @@ thin_dump_cmd::run(int argc, char **argv)
 	const char shortopts[] = "hm::o:f:rV";
 	char *end_ptr;
 	block_address metadata_snap = 0;
-	uint64_t dev_id;
+	::uint64_t dev_id;
 	struct flags flags;
 
 	const struct option longopts[] = {

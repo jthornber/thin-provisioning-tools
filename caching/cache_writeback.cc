@@ -192,10 +192,10 @@ namespace {
 			if (call_count++ % 128)
 				return;
 
-			uint64_t scanned = stats_.blocks_scanned * 100 / cache_blocks_;
-			uint64_t copied = safe_div<block_address>(stats_.blocks_completed * 100,
+			::uint64_t scanned = stats_.blocks_scanned * 100 / cache_blocks_;
+			::uint64_t copied = safe_div<block_address>(stats_.blocks_completed * 100,
 								  stats_.blocks_needed, 100ull);
-			uint64_t percent = min<uint64_t>(scanned, copied);
+			::uint64_t percent = min<::uint64_t>(scanned, copied);
 			monitor_.update_percent(percent);
 		}
 

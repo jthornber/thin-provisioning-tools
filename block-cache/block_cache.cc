@@ -15,6 +15,7 @@
 #include <sstream>
 
 using namespace bcache;
+using namespace file_utils;
 
 //----------------------------------------------------------------
 
@@ -290,7 +291,7 @@ block_cache::setup_control_block(block &b)
 	size_t block_size_bytes = block_size_ << SECTOR_SHIFT;
 
 	memset(cb, 0, sizeof(*cb));
-	cb->aio_fildes = fd_;
+	cb->aio_fildes = fd_.fd_;
 
 	cb->u.c.buf = b.data_;
 	cb->u.c.offset = block_size_bytes * b.index_;
@@ -371,8 +372,9 @@ block_cache::calc_nr_buckets(unsigned nr_blocks)
 	return r;
 }
 
-block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, size_t mem)
-	: nr_locked_(0),
+block_cache::block_cache(file_descriptor &fd, sector_t block_size, uint64_t on_disk_blocks, size_t mem)
+	: fd_(fd),
+	  nr_locked_(0),
 	  nr_dirty_(0),
 	  nr_io_pending_(0),
 	  read_hits_(0),
@@ -386,7 +388,6 @@ block_cache::block_cache(int fd, sector_t block_size, uint64_t on_disk_blocks, s
 	int r;
 	unsigned nr_cache_blocks = calc_nr_cache_blocks(mem, block_size);
 
-	fd_ = fd;
 	block_size_ = block_size;
 	nr_data_blocks_ = on_disk_blocks;
 	nr_cache_blocks_ = nr_cache_blocks;
@@ -417,8 +418,6 @@ block_cache::~block_cache()
 
 	if (aio_context_)
 		io_destroy(aio_context_);
-
-	::close(fd_);
 
 #if 0
 	std::cerr << "\nblock cache stats\n"

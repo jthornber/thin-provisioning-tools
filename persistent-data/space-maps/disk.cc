@@ -153,11 +153,27 @@ namespace {
 		}
 
 		boost::optional<unsigned> find_free(unsigned begin, unsigned end) {
+			begin = max(begin, ie_.none_free_before_);
+			if (begin >= end)
+				return boost::optional<unsigned>();
+
 			read_ref rr = tm_.read_lock(ie_.blocknr_, validator_);
 			void const *bits = bitmap_data(rr);
-			for (unsigned i = max(begin, ie_.none_free_before_); i < end; i++)
-				if (__lookup_raw(bits, i) == 0)
-					return boost::optional<unsigned>(i);
+
+			// specify the search range inside the bitmap, in 64-bit unit
+			le64 const *w = reinterpret_cast<le64 const *>(bits);
+			le64 const *le64_begin = w + (begin >> 5);    // w + div_down(begin, 32)
+			le64 const *le64_end = w + ((end + 31) >> 5); // w + div_up(end, 32)
+
+			for (le64 const *ptr = le64_begin; ptr < le64_end; ptr++) {
+				// specify the search range among a 64-bit of entries
+				unsigned entry_begin = (ptr == le64_begin) ? (begin & 0x1F) : 0;
+				unsigned entry_end = ((ptr == le64_end - 1) && (end & 0x1F)) ?
+						     (end & 0x1F) : 32;
+				int i;
+				if ((i = find_free_entry(ptr, entry_begin, entry_end)) >= 0)
+					return ((ptr - w) << 5) + i;
+			}
 
 			return boost::optional<unsigned>();
 		}
@@ -196,6 +212,19 @@ namespace {
 			ref_t result = b2 ? 1 : 0;
 			result |= b1 ? 2 : 0;
 			return result;
+		}
+
+		// find a free entry (a 2-bit pair) among the specified range in the input bits
+		int find_free_entry(le64 const* bits, unsigned entry_begin, unsigned entry_end) {
+			uint64_t v = to_cpu<uint64_t>(*bits);
+			v >>= (entry_begin * 2);
+			for (; entry_begin < entry_end; entry_begin++) {
+				if (!(v & 0x3)) {
+					return entry_begin;
+				}
+				v = v >> 2;
+			}
+			return -1;
 		}
 
 		transaction_manager &tm_;

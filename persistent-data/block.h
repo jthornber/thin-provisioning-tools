@@ -64,8 +64,6 @@ namespace persistent_data {
 			read_ref(read_ref const &rhs);
 			virtual ~read_ref();
 
-			read_ref const &operator =(read_ref const &rhs);
-
 			block_address get_location() const;
 			void const *data() const;
 
@@ -81,8 +79,6 @@ namespace persistent_data {
 			write_ref(block_cache::block &b, unsigned &ref_count);
 			write_ref(write_ref const &rhs);
 			~write_ref();
-
-			write_ref const &operator =(write_ref const &rhs);
 
 			using read_ref::data;
 			void *data();
@@ -136,11 +132,12 @@ namespace persistent_data {
 
 	private:
 		uint64_t choose_cache_size(block_address nr_blocks) const;
-		int open_or_create_block_file(std::string const &path, off_t file_size,
-					      mode m, bool excl);
+		file_utils::file_descriptor open_or_create_block_file(std::string const &path,
+								      off_t file_size,
+								      mode m, bool excl);
 		void check(block_address b) const;
 
-		int fd_;
+		file_utils::file_descriptor fd_;
 		mutable block_cache bc_;
 		unsigned superblock_ref_count_;
 	};

@@ -38,57 +38,20 @@ namespace persistent_data {
 		// trackers if you have a multilayer tree.
 		class damage_tracker {
 		public:
-			damage_tracker()
-				: damaged_(false),
-				  damage_begin_(0) {
-			}
+			damage_tracker();
 
 			typedef run<uint64_t> run64;
 			typedef boost::optional<run64> maybe_run64;
 
-			void bad_node() {
-				damaged_ = true;
-			}
+			void bad_node();
 
-			maybe_run64 good_internal(block_address begin) {
-				maybe_run64 r;
-
-				if (damaged_) {
-					r = maybe_run64(run64(damage_begin_, begin));
-					damaged_ = false;
-				}
-
-				damage_begin_ = begin;
-				return r;
-			}
+			maybe_run64 good_internal(block_address begin);
 
 			// remember 'end' is the one-past-the-end value, so
 			// take the last key in the leaf and add one.
-			maybe_run64 good_leaf(block_address begin, block_address end) {
-				maybe_run64 r;
+			maybe_run64 good_leaf(block_address begin, block_address end);
 
-				if (damaged_) {
-					r = maybe_run64(run64(damage_begin_, begin));
-					damaged_ = false;
-				}
-
-				damage_begin_ = end;
-				return r;
-			}
-
-			maybe_run64 end() {
-				maybe_run64 r;
-
-				if (damaged_)
-					r = maybe_run64(damage_begin_);
-				else
-					r = maybe_run64();
-
-				damaged_ = false;
-				damage_begin_ = 0;
-
-				return r;
-			}
+			maybe_run64 end();
 
 		private:
 			bool damaged_;
@@ -99,28 +62,12 @@ namespace persistent_data {
 		// different sub tree (by looking at the btree_path).
 		class path_tracker {
 		public:
-			path_tracker() {
-				// We push an empty path, to ensure there
-				// is always a current_path.
-				paths_.push_back(btree_path());
-			}
+			path_tracker();
 
 			// returns the old path if the tree has changed.
-			btree_path const *next_path(btree_path const &p) {
-				if (p != current_path()) {
-					if (paths_.size() == 2)
-						paths_.pop_front();
-					paths_.push_back(p);
+			btree_path const *next_path(btree_path const &p);
 
-					return &paths_.front();
-				}
-
-				return NULL;
-			}
-
-			btree_path const &current_path() const {
-				return paths_.back();
-			}
+			btree_path const &current_path() const;
 
 		private:
 			std::list<btree_path> paths_;

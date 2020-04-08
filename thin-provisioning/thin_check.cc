@@ -28,257 +28,33 @@
 #include "base/application.h"
 #include "base/error_state.h"
 #include "base/file_utils.h"
-#include "base/nested_output.h"
-#include "persistent-data/data-structures/btree_counter.h"
-#include "persistent-data/space-maps/core.h"
-#include "persistent-data/space-maps/disk.h"
 #include "persistent-data/file_utils.h"
-#include "thin-provisioning/metadata.h"
-#include "thin-provisioning/device_tree.h"
-#include "thin-provisioning/mapping_tree.h"
-#include "thin-provisioning/metadata_counter.h"
-#include "thin-provisioning/superblock.h"
 #include "thin-provisioning/commands.h"
+#include "thin-provisioning/metadata_checker.h"
+#include "thin-provisioning/superblock.h"
 
 using namespace base;
 using namespace std;
+using namespace persistent_data;
 using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
 namespace {
-	class superblock_reporter : public superblock_detail::damage_visitor {
-	public:
-		superblock_reporter(nested_output &out)
-		: out_(out),
-		  err_(NO_ERROR) {
-		}
-
-		virtual void visit(superblock_detail::superblock_corruption const &d) {
-			out_ << "superblock is corrupt" << end_message();
-			{
-				nested_output::nest _ = out_.push();
-				out_ << d.desc_ << end_message();
-			}
-			err_ << FATAL;
-		}
-
-		base::error_state get_error() const {
-			return err_;
-		}
-
-	private:
-		nested_output &out_;
-		error_state err_;
-	};
-
-	//--------------------------------
-
-	class devices_reporter : public device_tree_detail::damage_visitor {
-	public:
-		devices_reporter(nested_output &out)
-		: out_(out),
-		  err_(NO_ERROR) {
-		}
-
-		virtual void visit(device_tree_detail::missing_devices const &d) {
-			out_ << "missing devices: " << d.keys_ << end_message();
-			{
-				nested_output::nest _ = out_.push();
-				out_ << d.desc_ << end_message();
-			}
-
-			err_ << FATAL;
-		}
-
-		error_state get_error() const {
-			return err_;
-		}
-
-	private:
-		nested_output &out_;
-		error_state err_;
-	};
-
-	//--------------------------------
-
-	class mapping_reporter : public mapping_tree_detail::damage_visitor {
-	public:
-		mapping_reporter(nested_output &out)
-		: out_(out),
-		  err_(NO_ERROR) {
-		}
-
-		virtual void visit(mapping_tree_detail::missing_devices const &d) {
-			out_ << "missing all mappings for devices: " << d.keys_ << end_message();
-			{
-				nested_output::nest _ = out_.push();
-				out_ << d.desc_ << end_message();
-			}
-			err_ << FATAL;
-		}
-
-		virtual void visit(mapping_tree_detail::missing_mappings const &d) {
-			out_ << "thin device " << d.thin_dev_ << " is missing mappings " << d.keys_ << end_message();
-			{
-				nested_output::nest _ = out_.push();
-				out_ << d.desc_ << end_message();
-			}
-			err_ << FATAL;
-		}
-
-		error_state get_error() const {
-			return err_;
-		}
-
-	private:
-		nested_output &out_;
-		error_state err_;
-	};
-
-	//--------------------------------
-
 	struct flags {
 		flags()
-			: check_device_tree(true),
-			  check_mapping_tree_level1(true),
-			  check_mapping_tree_level2(true),
-			  ignore_non_fatal_errors(false),
+			: ignore_non_fatal_errors(false),
 			  quiet(false),
 			  clear_needs_check_flag_on_success(false) {
 		}
 
-		bool check_device_tree;
-		bool check_mapping_tree_level1;
-		bool check_mapping_tree_level2;
+		check_options check_opts;
 
 		bool ignore_non_fatal_errors;
 
 		bool quiet;
-		boost::optional<block_address> override_mapping_root;
 		bool clear_needs_check_flag_on_success;
 	};
-
-	error_state check_space_map_counts(flags const &fs, nested_output &out,
-					   superblock_detail::superblock &sb,
-					   block_manager<>::ptr bm,
-					   transaction_manager::ptr tm) {
-		block_counter bc;
-
-		count_metadata(tm, sb, bc);
-
-		// Finally we need to check the metadata space map agrees
-		// with the counts we've just calculated.
-		error_state err = NO_ERROR;
-		nested_output::nest _ = out.push();
-		persistent_space_map::ptr metadata_sm =
-			open_metadata_sm(*tm, static_cast<void *>(&sb.metadata_space_map_root_));
-		for (unsigned b = 0; b < metadata_sm->get_nr_blocks(); b++) {
-			ref_t c_actual = metadata_sm->get_count(b);
-			ref_t c_expected = bc.get_count(b);
-
-			if (c_actual != c_expected) {
-				out << "metadata reference counts differ for block " << b
-				    << ", expected " << c_expected
-				    << ", but got " << c_actual
-				    << end_message();
-
-				err << (c_actual > c_expected ? NON_FATAL : FATAL);
-			}
-		}
-
-		return err;
-	}
-
-	block_address mapping_root(superblock_detail::superblock const &sb, flags const &fs)
-	{
-		return fs.override_mapping_root ? *fs.override_mapping_root : sb.data_mapping_root_;
-	}
-
-	void print_info(superblock_detail::superblock const &sb,
-                        transaction_manager::ptr tm)
-	{
-		cout << "TRANSACTION_ID=" << sb.trans_id_ << "\n";
-		cout << "METADATA_FREE_BLOCKS=" << tm->get_sm()->get_nr_free() << "\n";
-	}
-
-	error_state metadata_check(string const &path, flags fs) {
-		nested_output out(cerr, 2);
-		if (fs.quiet)
-			out.disable();
-
-		if (file_utils::get_file_length(path) < persistent_data::MD_BLOCK_SIZE) {
-			out << "Metadata device/file too small.  Is this binary metadata?"
-			    << end_message();
-			return FATAL;
-		}
-
-		block_manager<>::ptr bm = open_bm(path);
-
-		superblock_reporter sb_rep(out);
-		devices_reporter dev_rep(out);
-		mapping_reporter mapping_rep(out);
-
-		out << "examining superblock" << end_message();
-		{
-			nested_output::nest _ = out.push();
-			check_superblock(bm, sb_rep);
-		}
-
-		if (sb_rep.get_error() == FATAL) {
-			if (check_for_xml(bm))
-				out << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
-			return FATAL;
-		}
-
-		superblock_detail::superblock sb = read_superblock(bm);
-		transaction_manager::ptr tm =
-			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
-
-		if (!fs.quiet)
-			print_info(sb, tm);
-
-		if (fs.check_device_tree) {
-			out << "examining devices tree" << end_message();
-			{
-				nested_output::nest _ = out.push();
-				device_tree dtree(*tm, sb.device_details_root_,
-						  device_tree_detail::device_details_traits::ref_counter());
-				check_device_tree(dtree, dev_rep);
-			}
-		}
-
-		if (fs.check_mapping_tree_level1 && !fs.check_mapping_tree_level2) {
-			out << "examining top level of mapping tree" << end_message();
-			{
-				nested_output::nest _ = out.push();
-				dev_tree dtree(*tm, mapping_root(sb, fs),
-					       mapping_tree_detail::mtree_traits::ref_counter(*tm));
-				check_mapping_tree(dtree, mapping_rep);
-			}
-
-		} else if (fs.check_mapping_tree_level2) {
-			out << "examining mapping tree" << end_message();
-			{
-				nested_output::nest _ = out.push();
-				mapping_tree mtree(*tm, mapping_root(sb, fs),
-						   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
-				check_mapping_tree(mtree, mapping_rep);
-			}
-		}
-
-		error_state err = NO_ERROR;
-		err << sb_rep.get_error() << mapping_rep.get_error() << dev_rep.get_error();
-
-		// if we're checking everything, and there were no errors,
-		// then we should check the space maps too.
-		if (fs.check_device_tree && fs.check_mapping_tree_level2 && err != FATAL) {
-			out << "checking space map counts" << end_message();
-			err << check_space_map_counts(fs, out, sb, bm, tm);
-		}
-
-		return err;
-	}
 
 	void clear_needs_check(string const &path) {
 		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
@@ -291,11 +67,19 @@ namespace {
 	// Returns 0 on success, 1 on failure (this gets returned directly
 	// by main).
 	int check(string const &path, flags fs) {
-		error_state err;
 		bool success = false;
 
 		try {
-			err = metadata_check(path, fs);
+			if (file_utils::get_file_length(path) < persistent_data::MD_BLOCK_SIZE) {
+				cerr << "Metadata device/file too small.  Is this binary metadata?"
+				     << endl;
+				return 1;
+			}
+
+			block_manager<>::ptr bm = open_bm(path);
+			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
+			metadata_checker::ptr checker = create_base_checker(bm, fs.check_opts, output_opts);
+			error_state err = checker->check();
 
 			if (fs.ignore_non_fatal_errors)
 				success = (err == FATAL) ? false : true;
@@ -373,14 +157,12 @@ thin_check_cmd::run(int argc, char **argv)
 
 		case 1:
 			// super-block-only
-			fs.check_device_tree = false;
-			fs.check_mapping_tree_level1 = false;
-			fs.check_mapping_tree_level2 = false;
+			fs.check_opts.set_superblock_only();
 			break;
 
 		case 2:
 			// skip-mappings
-			fs.check_mapping_tree_level2 = false;
+			fs.check_opts.set_skip_mappings();
 			break;
 
 		case 3:
@@ -395,7 +177,7 @@ thin_check_cmd::run(int argc, char **argv)
 
 		case 5:
 			// override-mapping-root
-			fs.override_mapping_root = boost::lexical_cast<uint64_t>(optarg);
+			fs.check_opts.set_override_mapping_root(boost::lexical_cast<uint64_t>(optarg));
 			break;
 
 		default:
