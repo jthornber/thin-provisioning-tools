@@ -43,7 +43,7 @@ namespace base {
 			  fn_(fn) {
 		}
 
-		int run(int argc, char **argv) const {
+		int run(int argc, char **argv) {
 			return fn_(argc, argv);
 		}
 
