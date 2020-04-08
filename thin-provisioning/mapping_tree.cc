@@ -70,15 +70,23 @@ namespace thin_provisioning {
 		}
 
 		void
-		mtree_ref_counter::inc(block_address b)
+		mtree_ref_counter::set(block_address const &b, uint32_t rc)
 		{
+			tm_.get_sm()->set_count(b, rc);
 		}
 
 		void
-		mtree_ref_counter::dec(block_address b)
+		mtree_ref_counter::inc(block_address const &b)
 		{
+			tm_.get_sm()->inc(b);
 		}
 
+		void
+		mtree_ref_counter::dec(block_address const &b)
+		{
+			tm_.get_sm()->dec(b);
+		}
+		
 		//--------------------------------
 
 		void

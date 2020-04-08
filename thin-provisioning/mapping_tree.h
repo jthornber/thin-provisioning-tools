@@ -43,12 +43,13 @@ namespace thin_provisioning {
 			static void pack(value_type const &value, disk_type &disk);
 		};
 
-		class mtree_ref_counter {
+		class mtree_ref_counter final : public ref_counter<block_address> {
 		public:
 			mtree_ref_counter(transaction_manager &tm);
 
-			void inc(block_address b);
-			void dec(block_address b);
+			void set(block_address const &b, uint32_t rc);
+			void inc(block_address const &b);
+			void dec(block_address const &b);
 
 		private:
 			transaction_manager &tm_;
