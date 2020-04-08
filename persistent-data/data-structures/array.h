@@ -112,17 +112,17 @@ namespace persistent_data {
 				  a_(a) {
 			}
 
-			virtual void set(uint64_t b, uint32_t rc) {
+			virtual void set(uint64_t const &b, uint32_t rc) {
 				sm_->set_count(b, rc);
 				if (rc == 0)
 					dec_values(b);
 			}
 
-			virtual void inc(uint64_t b) {
+			virtual void inc(uint64_t const &b) {
 				sm_->inc(b);
 			}
 
-			virtual void dec(uint64_t b) {
+			virtual void dec(uint64_t const &b) {
 				sm_->dec(b);
 				if (sm_->get_count(b) == 0)
 					dec_values(b);
