@@ -367,7 +367,7 @@ namespace persistent_data {
 			typename ValueTraits::value_type const &v_;
 		};
 
-		friend class resizer;
+		friend struct resizer;
 
 		//--------------------------------
 

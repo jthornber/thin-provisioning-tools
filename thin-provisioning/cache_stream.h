@@ -32,7 +32,7 @@ namespace thin_provisioning {
 			chunk c_;
 		};
 
-		friend class chunk_wrapper;
+		friend struct chunk_wrapper;
 
 		block_address block_size_;
 		block_address nr_blocks_;
