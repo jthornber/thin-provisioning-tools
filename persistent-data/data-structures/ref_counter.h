@@ -30,13 +30,18 @@ namespace persistent_data {
 		boost::shared_ptr<ref_counter<ValueType> > ptr;
 
 		virtual ~ref_counter() {}
-		virtual void set(ValueType const &v, uint32_t rc) {}
-		virtual void inc(ValueType const &v) {}
-		virtual void dec(ValueType const &v) {}
+
+		virtual void set(ValueType const &v, uint32_t rc) = 0;
+		virtual void inc(ValueType const &v) = 0;
+		virtual void dec(ValueType const &v) = 0;
 	};
 
 	template <typename ValueType>
-	class no_op_ref_counter : public ref_counter<ValueType> {
+	class no_op_ref_counter final : public ref_counter<ValueType> {
+	public:
+		virtual void set(ValueType const &v, uint32_t rc) {}
+		virtual void inc(ValueType const &v) {}
+		virtual void dec(ValueType const &v) {}
 	};
 }
 
