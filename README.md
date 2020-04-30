@@ -111,11 +111,10 @@ Functional tests
 
 A bunch of high level tests are implemented in the functional-tests directory.
 These tests are written in Scheme.  To run them you'll need to install
-chezscheme (http://www.scheme.com/).  In addition they make use of the
-thunderchez (https://github.com/ovenpasta/thunderchez) library.
+chezscheme (http://www.scheme.com/).  There is no longer a dependency on
+the ThunderChez library.
 
-Make sure the tools that you wish to test are in your PATH, and the thunderchez
-directory is in the CHEZSCHEMELIBDIRS environment variable.
+Make sure the tools that you wish to test are in your PATH. 
 
 Then,
 

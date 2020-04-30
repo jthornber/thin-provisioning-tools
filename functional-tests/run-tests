@@ -1,14 +1,4 @@
-#! /usr/bin/scheme-script
+#!/bin/sh
 
-(import (rnrs)
-        (test-runner)
-        (cache-functional-tests)
-        (era-functional-tests)
-        (thin-functional-tests))
-
-(register-thin-tests)
-(register-cache-tests)
-(register-era-tests)
-
-(run-tests)
+scheme --libdirs . --program run-tests.scm $*
 
