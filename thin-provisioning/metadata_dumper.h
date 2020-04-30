@@ -63,7 +63,7 @@ namespace thin_provisioning {
 	// We have to provide a different interface for repairing, since
 	// the superblock itself may be corrupt, so we wont be able
 	// to create the metadata object.
-	void metadata_repair(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts);
+	void metadata_repair(block_manager::ptr bm, emitter::ptr e, override_options const &opts);
 
 	// Only used by ll_restore, so we leave the repair arg
 	void metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool repair, uint64_t subtree_root);

@@ -76,6 +76,7 @@ SOURCE=\
 	era/writeset_tree.cc \
 	era/xml_format.cc \
 	main.cc \
+	persistent-data/block.cc \
 	persistent-data/checksum.cc \
 	persistent-data/data-structures/bitset.cc \
 	persistent-data/data-structures/bloom_filter.cc \

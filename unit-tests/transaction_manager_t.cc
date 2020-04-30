@@ -32,8 +32,8 @@ namespace {
 
 	transaction_manager::ptr
 	create_tm() {
-		block_manager<>::ptr bm(
-			new block_manager<>("./test.data", NR_BLOCKS, MAX_HELD_LOCKS, block_manager<>::READ_WRITE));
+		block_manager::ptr bm(
+			new block_manager("./test.data", NR_BLOCKS, MAX_HELD_LOCKS, block_manager::READ_WRITE));
 		space_map::ptr sm(new core_map(NR_BLOCKS));
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		tm->get_sm()->inc(0);
@@ -47,7 +47,7 @@ namespace {
 			new bcache::noop_validator);
 	}
 
-	typedef block_manager<>::write_ref write_ref;
+	typedef block_manager::write_ref write_ref;
 }
 
 //----------------------------------------------------------------
@@ -61,7 +61,7 @@ TEST(TransactionManagerTests, commit_succeeds)
 TEST(TransactionManagerTests, shadowing)
 {
 	transaction_manager::ptr tm = create_tm();
-	block_manager<>::write_ref superblock = tm->begin(0, mk_noop_validator());
+	block_manager::write_ref superblock = tm->begin(0, mk_noop_validator());
 
 	space_map::ptr sm = tm->get_sm();
 	sm->inc(1);

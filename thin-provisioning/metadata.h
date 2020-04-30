@@ -55,11 +55,11 @@ namespace thin_provisioning {
 			OPEN
 		};
 
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
+		typedef block_manager::read_ref read_ref;
+		typedef block_manager::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
-		metadata(block_manager<>::ptr bm, open_type ot,
+		metadata(block_manager::ptr bm, open_type ot,
 			 sector_t data_block_size = 128,
 			 block_address nr_data_blocks = 0); // Only used if CREATE
 
@@ -74,12 +74,12 @@ namespace thin_provisioning {
 		// ii)  Read the metadata snap as given in the superblock
 		// iii) Read the metadata snap given on command line, checking it matches superblock.
 		//
-		metadata(block_manager<>::ptr bm, bool read_space_maps = true); // (i)
-		metadata(block_manager<>::ptr,
+		metadata(block_manager::ptr bm, bool read_space_maps = true); // (i)
+		metadata(block_manager::ptr,
 			 boost::optional<block_address> metadata_snap); // (ii) and (iii)
 
 		// This is used by repair, when we rebuild the superblock
-		metadata(block_manager<>::ptr bm, superblock_detail::superblock const &sb);
+		metadata(block_manager::ptr bm, superblock_detail::superblock const &sb);
 
 		void commit();
 

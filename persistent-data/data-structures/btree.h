@@ -152,7 +152,7 @@ namespace persistent_data {
 		//
 		template <typename ValueTraits>
 		node_ref<ValueTraits>
-		to_node(typename block_manager<>::read_ref &b)
+		to_node(typename block_manager::read_ref &b)
 		{
 			// FIXME: this should return a const read_ref somehow.
 			return node_ref<ValueTraits>(
@@ -163,7 +163,7 @@ namespace persistent_data {
 
 		template <typename ValueTraits>
 		node_ref<ValueTraits>
-		to_node(typename block_manager<>::write_ref &b)
+		to_node(typename block_manager::write_ref &b)
 		{
 			return node_ref<ValueTraits>(
 				b.get_location(),
@@ -188,7 +188,7 @@ namespace persistent_data {
 		private:
 			transaction_manager &tm_;
 			bcache::validator::ptr validator_;
-			std::list<block_manager<>::read_ref> spine_;
+			std::list<block_manager::read_ref> spine_;
 		};
 
 		class shadow_spine : private boost::noncopyable {
@@ -252,7 +252,7 @@ namespace persistent_data {
 		private:
 			transaction_manager &tm_;
 			bcache::validator::ptr validator_;
-			std::list<block_manager<>::write_ref> spine_;
+			std::list<block_manager::write_ref> spine_;
 		        maybe_block root_;
 		};
 
@@ -304,8 +304,8 @@ namespace persistent_data {
 		typedef typename ValueTraits::value_type value_type;
 		typedef boost::optional<value_type> maybe_value;
 		typedef boost::optional<std::pair<unsigned, value_type> > maybe_pair;
-		typedef typename block_manager<>::read_ref read_ref;
-		typedef typename block_manager<>::write_ref write_ref;
+		typedef typename block_manager::read_ref read_ref;
+		typedef typename block_manager::write_ref write_ref;
 		typedef typename btree_detail::node_ref<ValueTraits> leaf_node;
 		typedef typename btree_detail::node_ref<block_traits> internal_node;
 

@@ -22,12 +22,12 @@ namespace caching {
 			CREATE
 		};
 
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
+		typedef block_manager::read_ref read_ref;
+		typedef block_manager::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
-		metadata(block_manager<>::ptr bm, open_type ot, unsigned metadata_version = 2); // Create only
-		metadata(block_manager<>::ptr bm);
+		metadata(block_manager::ptr bm, open_type ot, unsigned metadata_version = 2); // Create only
+		metadata(block_manager::ptr bm);
 
 		void commit(bool clean_shutdown = true);
 		void setup_hint_array(size_t width);
@@ -45,8 +45,8 @@ namespace caching {
 	private:
 		void init_superblock();
 
-		void create_metadata(block_manager<>::ptr bm, unsigned metadata_version);
-		void open_metadata(block_manager<>::ptr bm);
+		void create_metadata(block_manager::ptr bm, unsigned metadata_version);
+		void open_metadata(block_manager::ptr bm);
 
 		void commit_space_map();
 		void commit_mappings();

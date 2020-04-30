@@ -31,15 +31,15 @@ namespace persistent_data {
 	class transaction_manager : boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<transaction_manager> ptr;
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
+		typedef block_manager::read_ref read_ref;
+		typedef block_manager::write_ref write_ref;
 		typedef bcache::validator::ptr validator;
 
 		// If the space map is persistent, then the caller should
 		// hold onto a reference and remember to call sm_->commit()
 		// and update the superblock before dropping the superblock
 		// reference.
-		transaction_manager(block_manager<>::ptr bm,
+		transaction_manager(block_manager::ptr bm,
 				    space_map::ptr sm);
 		~transaction_manager();
 
@@ -62,7 +62,7 @@ namespace persistent_data {
 			sm_ = sm;
 		}
 
-		block_manager<>::ptr get_bm() {
+		block_manager::ptr get_bm() {
 			return bm_;
 		}
 
@@ -76,7 +76,7 @@ namespace persistent_data {
 	        bool is_shadow(block_address b) const;
 		void wipe_shadow_table();
 
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		space_map::ptr sm_;
 
 		std::set<block_address> shadows_;

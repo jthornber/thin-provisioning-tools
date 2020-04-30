@@ -128,7 +128,7 @@ namespace {
 
 		// We can trim any block that has zero count in the data
 		// space map.
-		block_manager<>::ptr bm = open_bm(metadata_dev, block_manager<>::READ_ONLY);
+		block_manager::ptr bm = open_bm(metadata_dev, block_manager::READ_ONLY);
 		metadata md(bm);
 
 		if (!md.data_sm_->get_nr_free()) {

@@ -50,7 +50,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-metadata::metadata(block_manager<>::ptr bm, open_type ot,
+metadata::metadata(block_manager::ptr bm, open_type ot,
 		   sector_t data_block_size,
 		   block_address nr_data_blocks)
 {
@@ -102,7 +102,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot,
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm, bool read_space_maps)
+metadata::metadata(block_manager::ptr bm, bool read_space_maps)
 {
 	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 	sb_ = read_superblock(tm_->get_bm(), SUPERBLOCK_LOCATION);
@@ -113,7 +113,7 @@ metadata::metadata(block_manager<>::ptr bm, bool read_space_maps)
 	open_btrees();
 }
 
-metadata::metadata(block_manager<>::ptr bm,
+metadata::metadata(block_manager::ptr bm,
 		   boost::optional<block_address> metadata_snap)
 {
 	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
@@ -132,7 +132,7 @@ metadata::metadata(block_manager<>::ptr bm,
 	open_btrees();
 }
 
-metadata::metadata(block_manager<>::ptr bm, superblock_detail::superblock const &sb)
+metadata::metadata(block_manager::ptr bm, superblock_detail::superblock const &sb)
 {
 	tm_ = open_tm(bm, SUPERBLOCK_LOCATION);
 	sb_ = sb;

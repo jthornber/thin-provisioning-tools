@@ -8,7 +8,7 @@ using namespace era;
 namespace {
 	// FIXME: duplication
 	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
+	open_tm(block_manager::ptr bm) {
 		auto nr_blocks = bm->get_nr_blocks();
 		if (!nr_blocks)
 			throw runtime_error("Metadata is not large enough for superblock.");
@@ -29,7 +29,7 @@ namespace {
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm, open_type ot)
+metadata::metadata(block_manager::ptr bm, open_type ot)
 {
 	switch (ot) {
 	case CREATE:
@@ -42,13 +42,13 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot)
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm, block_address metadata_snap)
+metadata::metadata(block_manager::ptr bm, block_address metadata_snap)
 {
 	open_metadata(bm);
 }
 
 void
-metadata::create_metadata(block_manager<>::ptr bm)
+metadata::create_metadata(block_manager::ptr bm)
 {
 	tm_ = open_tm(bm);
 
@@ -63,7 +63,7 @@ metadata::create_metadata(block_manager<>::ptr bm)
 }
 
 void
-metadata::open_metadata(block_manager<>::ptr bm, block_address loc)
+metadata::open_metadata(block_manager::ptr bm, block_address loc)
 {
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm(), loc);

@@ -23,12 +23,12 @@ namespace era {
 			OPEN
 		};
 
-		typedef block_manager<>::read_ref read_ref;
-		typedef block_manager<>::write_ref write_ref;
+		typedef block_manager::read_ref read_ref;
+		typedef block_manager::write_ref write_ref;
 		typedef boost::shared_ptr<metadata> ptr;
 
-		metadata(block_manager<>::ptr bm, open_type ot);
-		metadata(block_manager<>::ptr bm, block_address metadata_snap);
+		metadata(block_manager::ptr bm, open_type ot);
+		metadata(block_manager::ptr bm, block_address metadata_snap);
 		void commit();
 
 		typedef persistent_data::transaction_manager tm;
@@ -39,8 +39,8 @@ namespace era {
 		era_array::ptr era_array_;
 
 	private:
-		void create_metadata(block_manager<>::ptr bm);
-		void open_metadata(block_manager<>::ptr bm,
+		void create_metadata(block_manager::ptr bm);
+		void open_metadata(block_manager::ptr bm,
 				   block_address loc = SUPERBLOCK_LOCATION);
 
 		void commit_space_map();

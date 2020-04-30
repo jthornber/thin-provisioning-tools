@@ -114,10 +114,10 @@ namespace era {
 
 	//--------------------------------
 
-	superblock read_superblock(persistent_data::block_manager<>::ptr bm,
+	superblock read_superblock(persistent_data::block_manager::ptr bm,
 				   persistent_data::block_address location = SUPERBLOCK_LOCATION);
 
-	void write_superblock(persistent_data::block_manager<>::ptr bm,
+	void write_superblock(persistent_data::block_manager::ptr bm,
 			      superblock const &sb,
 			      persistent_data::block_address location = SUPERBLOCK_LOCATION);
 
@@ -125,7 +125,7 @@ namespace era {
 			      persistent_data::block_address nr_metadata_blocks,
 			      superblock_damage::damage_visitor &visitor);
 
-	void check_superblock(persistent_data::block_manager<>::ptr bm,
+	void check_superblock(persistent_data::block_manager::ptr bm,
 			      persistent_data::block_address nr_metadata_blocks,
 			      superblock_damage::damage_visitor &visitor);
 }

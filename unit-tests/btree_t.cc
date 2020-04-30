@@ -34,7 +34,7 @@ namespace {
 	class BtreeTests : public Test {
 	public:
 		BtreeTests() 
-			: bm_(new block_manager<>("./test.data", NR_BLOCKS, 4, block_manager<>::READ_WRITE)),
+			: bm_(new block_manager("./test.data", NR_BLOCKS, 4, block_manager::READ_WRITE)),
 			  sm_(new core_map(NR_BLOCKS)),
 			  tm_(bm_, sm_) {
 		}
@@ -48,7 +48,7 @@ namespace {
 		}
 
 	private:
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		space_map::ptr sm_;
 		transaction_manager tm_;
 	};

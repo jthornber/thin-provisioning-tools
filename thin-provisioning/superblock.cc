@@ -159,41 +159,41 @@ namespace thin_provisioning {
 		}
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<> const &bm, block_address location)
+	superblock_detail::superblock read_superblock(block_manager const &bm, block_address location)
 	{
 		using namespace superblock_detail;
 
 		superblock sb;
-		block_manager<>::read_ref r = bm.read_lock(location, superblock_validator());
+		block_manager::read_ref r = bm.read_lock(location, superblock_validator());
 		superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 		superblock_traits::unpack(*sbd, sb);
 		return sb;
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<>::ptr bm, block_address location)
+	superblock_detail::superblock read_superblock(block_manager::ptr bm, block_address location)
 	{
 		return read_superblock(*bm, location);
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<>::ptr bm)
+	superblock_detail::superblock read_superblock(block_manager::ptr bm)
 	{
 		return read_superblock(bm, SUPERBLOCK_LOCATION);
 	}
 
-	superblock_detail::superblock read_superblock(block_manager<> const &bm)
+	superblock_detail::superblock read_superblock(block_manager const &bm)
 	{
 		return read_superblock(bm, SUPERBLOCK_LOCATION);
 	}
 
-	void write_superblock(block_manager<>::ptr bm, superblock_detail::superblock const &sb)
+	void write_superblock(block_manager::ptr bm, superblock_detail::superblock const &sb)
 	{
-		block_manager<>::write_ref w = bm->write_lock(SUPERBLOCK_LOCATION, superblock_validator());
+		block_manager::write_ref w = bm->write_lock(SUPERBLOCK_LOCATION, superblock_validator());
 		superblock_disk *disk = reinterpret_cast<superblock_disk *>(w.data());
 		superblock_traits::pack(sb, *disk);
 	}
 
 	void
-	check_superblock(block_manager<>::ptr bm,
+	check_superblock(block_manager::ptr bm,
 			 superblock_detail::damage_visitor &visitor) {
 		using namespace superblock_detail;
 

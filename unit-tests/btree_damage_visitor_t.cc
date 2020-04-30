@@ -256,7 +256,7 @@ namespace {
 	class DamageTests : public Test {
 	public:
 		DamageTests()
-			: bm_(create_bm<BLOCK_SIZE>(NR_BLOCKS)),
+			: bm_(create_bm(NR_BLOCKS)),
 			  sm_(setup_core_map()),
 			  tm_(bm_, sm_) {
 		}
@@ -290,7 +290,7 @@ namespace {
 		//--------------------------------
 
 		with_temp_directory dir_;
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		space_map::ptr sm_;
 		transaction_manager tm_;
 		thing_traits::ref_counter rc_;
@@ -308,7 +308,7 @@ namespace {
 		}
 
 		void commit() {
-			block_manager<>::write_ref superblock(bm_->superblock(SUPERBLOCK));
+			block_manager::write_ref superblock(bm_->superblock(SUPERBLOCK));
 		}
 
 		virtual void discover_layout() = 0;

@@ -548,7 +548,7 @@ namespace local {
 		block_address nr_data_blocks = 0ull;
 
 		{
-			block_manager<>::ptr bm = open_bm(*fs.dev, block_manager<>::READ_ONLY, !fs.use_metadata_snap);
+			block_manager::ptr bm = open_bm(*fs.dev, block_manager::READ_ONLY, !fs.use_metadata_snap);
 			metadata::ptr md(fs.use_metadata_snap ? new metadata(bm, fs.metadata_snap) : new metadata(bm));
 			sb = md->sb_;
 

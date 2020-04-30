@@ -10,7 +10,7 @@ namespace pd = persistent_data;
 namespace {
 	// FIXME: duplication
 	transaction_manager::ptr
-	open_tm(block_manager<>::ptr bm) {
+	open_tm(block_manager::ptr bm) {
 		auto nr_blocks = bm->get_nr_blocks();
 		if (!nr_blocks)
 			throw runtime_error("Metadata is not large enough for superblock.");
@@ -33,7 +33,7 @@ namespace {
 
 //----------------------------------------------------------------
 
-metadata::metadata(block_manager<>::ptr bm, open_type ot, unsigned metadata_version)
+metadata::metadata(block_manager::ptr bm, open_type ot, unsigned metadata_version)
 {
 	switch (ot) {
 	case CREATE:
@@ -45,7 +45,7 @@ metadata::metadata(block_manager<>::ptr bm, open_type ot, unsigned metadata_vers
 	}
 }
 
-metadata::metadata(block_manager<>::ptr bm)
+metadata::metadata(block_manager::ptr bm)
 {
 	open_metadata(bm);
 }
@@ -69,7 +69,7 @@ metadata::setup_hint_array(size_t width)
 }
 
 void
-metadata::create_metadata(block_manager<>::ptr bm, unsigned metadata_version)
+metadata::create_metadata(block_manager::ptr bm, unsigned metadata_version)
 {
 	tm_ = open_tm(bm);
 
@@ -90,7 +90,7 @@ metadata::create_metadata(block_manager<>::ptr bm, unsigned metadata_version)
 }
 
 void
-metadata::open_metadata(block_manager<>::ptr bm)
+metadata::open_metadata(block_manager::ptr bm)
 {
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm());

@@ -36,8 +36,8 @@ namespace {
 	uint64_t MAX_VALUE = 1000ull;
 	block_address const NR_BLOCKS = 1024;
 	typedef bcache::noop_validator noop_validator;
-	typedef block_manager<>::read_ref read_ref;
-	typedef block_manager<>::write_ref write_ref;
+	typedef block_manager::read_ref read_ref;
+	typedef block_manager::write_ref write_ref;
 
 	// FIXME: lift to utils?
 	class simple_ref_counter {
@@ -86,7 +86,7 @@ namespace {
 
 	transaction_manager::ptr
 	create_tm() {
-		block_manager<>::ptr bm = create_bm<4096>(NR_BLOCKS);
+		block_manager::ptr bm = create_bm(NR_BLOCKS);
 		space_map::ptr sm(new core_map(NR_BLOCKS));
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;

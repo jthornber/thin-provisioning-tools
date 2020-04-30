@@ -276,7 +276,7 @@ namespace {
 
 	class gatherer {
 	public:
-		gatherer(block_manager<> &bm)
+		gatherer(block_manager &bm)
 			: bm_(bm),
 			  referenced_(bm.get_nr_blocks(), false),
 			  examined_(bm.get_nr_blocks(), false) {
@@ -471,7 +471,7 @@ namespace {
 			}
 		}
 
-		node_info get_internal_info(block_manager<>::read_ref &rr) {
+		node_info get_internal_info(block_manager::read_ref &rr) {
 			node_info info;
 			info.b = rr.get_location();
 			 
@@ -520,7 +520,7 @@ namespace {
 			return info;
 		}
 
-		node_info get_leaf_info(block_manager<>::read_ref &rr, node_header const &hdr) {
+		node_info get_leaf_info(block_manager::read_ref &rr, node_header const &hdr) {
 			node_info info;
 			info.b = rr.get_location();
 
@@ -631,7 +631,7 @@ namespace {
 			return optional<node_info>(it->second);
 		}
 
-		block_manager<> &bm_;
+		block_manager &bm_;
 		vector<bool> referenced_;
 		vector<bool> examined_;
 		map<block_address, node_info> infos_;
@@ -778,7 +778,7 @@ namespace {
 	}
 
 	void
-	emit_trees_(block_manager<>::ptr bm, superblock_detail::superblock const &sb,
+	emit_trees_(block_manager::ptr bm, superblock_detail::superblock const &sb,
                     emitter::ptr e, override_options const &ropts)
 	{
 		metadata md(bm, sb);
@@ -805,7 +805,7 @@ namespace {
 	}
 
 	void
-	find_better_roots_(block_manager<>::ptr bm, superblock_detail::superblock &sb)
+	find_better_roots_(block_manager::ptr bm, superblock_detail::superblock &sb)
 	{
 		// We assume the superblock is wrong, and find the best roots
 		// for ourselves.  We've had a few cases where people have
@@ -847,7 +847,7 @@ namespace {
 	}
 
 	optional<superblock_detail::superblock>
-	maybe_read_superblock(block_manager<>::ptr bm)
+	maybe_read_superblock(block_manager::ptr bm)
 	{
 		try {
 			auto sb = read_superblock(bm);
@@ -859,7 +859,7 @@ namespace {
 	}
 
 	void
-	metadata_repair_(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
+	metadata_repair_(block_manager::ptr bm, emitter::ptr e, override_options const &opts)
 	{
 		auto msb = maybe_read_superblock(bm);
 		if (!msb)
@@ -902,7 +902,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 }
 
 void
-thin_provisioning::metadata_repair(block_manager<>::ptr bm, emitter::ptr e, override_options const &opts)
+thin_provisioning::metadata_repair(block_manager::ptr bm, emitter::ptr e, override_options const &opts)
 {
 	try {
 		metadata_repair_(bm, e, opts);

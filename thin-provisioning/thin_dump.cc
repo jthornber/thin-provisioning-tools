@@ -54,7 +54,7 @@ namespace {
 	};
 
 	metadata::ptr open_metadata(string const &path, struct flags &flags) {
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY, !flags.use_metadata_snap);
+		block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY, !flags.use_metadata_snap);
 		metadata::ptr md(flags.use_metadata_snap ? new metadata(bm, flags.snap_location) : new metadata(bm, false));
 
 		return md;
@@ -91,7 +91,7 @@ namespace {
 			emitter::ptr e = create_override_emitter(inner, flags.opts.overrides_);
 
 			if (flags.repair) {
-				auto bm = open_bm(path, block_manager<>::READ_ONLY, true);
+				auto bm = open_bm(path, block_manager::READ_ONLY, true);
 				metadata_repair(bm, e, flags.opts.overrides_);
 			} else {
 				metadata::ptr md = open_metadata(path, flags);

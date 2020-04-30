@@ -197,7 +197,7 @@ namespace {
 			return FATAL;
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
+		block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY);
 
 		superblock_reporter sb_rep(out);
 

@@ -36,7 +36,7 @@ namespace {
 	class SpaceMapTests : public Test {
 	public:
 		SpaceMapTests()
-			: bm_(new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager<>::READ_WRITE)),
+			: bm_(new block_manager("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager::READ_WRITE)),
 			  sm_(new core_map(NR_BLOCKS)),
 			  tm_(bm_, sm_) {
 		}
@@ -240,7 +240,7 @@ namespace {
 			}
 		}
 
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		space_map::ptr sm_;
 		transaction_manager tm_;
 	};
@@ -277,8 +277,8 @@ TEST_F(SpaceMapTests, test_sm_metadata)
 
 TEST_F(SpaceMapTests, test_metadata_and_disk)
 {
-	block_manager<>::ptr bm(
-		new block_manager<>("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager<>::READ_WRITE));
+	block_manager::ptr bm(
+		new block_manager("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager::READ_WRITE));
 	space_map::ptr core_sm(new core_map(NR_BLOCKS));
 	transaction_manager::ptr tm(new transaction_manager(bm, core_sm));
 	persistent_space_map::ptr metadata_sm = persistent_data::create_metadata_sm(*tm, NR_BLOCKS);

@@ -19,10 +19,6 @@ using namespace file_utils;
 
 //----------------------------------------------------------------
 
-// FIXME: get from linux headers
-#define SECTOR_SHIFT 9
-#define PAGE_SIZE 4096
-
 #define MIN_BLOCKS 16
 #define WRITEBACK_LOW_THRESHOLD_PERCENT 33
 #define WRITEBACK_HIGH_THRESHOLD_PERCENT 66

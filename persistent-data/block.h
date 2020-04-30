@@ -38,7 +38,6 @@ namespace persistent_data {
 
 	uint32_t const MD_BLOCK_SIZE = 4096;
 
-	template <uint32_t BlockSize = MD_BLOCK_SIZE>
 	class block_manager : private boost::noncopyable {
 	public:
 		typedef boost::shared_ptr<block_manager> ptr;
@@ -57,7 +56,7 @@ namespace persistent_data {
 
 		class read_ref {
 		public:
-			static uint32_t const BLOCK_SIZE = BlockSize;
+			static uint32_t const BLOCK_SIZE = MD_BLOCK_SIZE;
 
 			read_ref(block_cache::block &b);
 
@@ -148,8 +147,6 @@ namespace persistent_data {
 		return bcache::validator::ptr(v);
 	}
 }
-
-#include "block.tcc"
 
 //----------------------------------------------------------------
 

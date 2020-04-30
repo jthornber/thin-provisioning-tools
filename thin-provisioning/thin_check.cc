@@ -57,7 +57,7 @@ namespace {
 	};
 
 	void clear_needs_check(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
+		block_manager::ptr bm = open_bm(path, block_manager::READ_WRITE);
 
 		superblock_detail::superblock sb = read_superblock(bm);
 		sb.set_needs_check_flag(false);
@@ -76,7 +76,7 @@ namespace {
 				return 1;
 			}
 
-			block_manager<>::ptr bm = open_bm(path);
+			block_manager::ptr bm = open_bm(path);
 			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
 			metadata_checker::ptr checker = create_base_checker(bm, fs.check_opts, output_opts);
 			error_state err = checker->check();

@@ -36,7 +36,7 @@ namespace {
 	int restore(flags const &fs, bool quiet) {
 		bool metadata_touched = false;
 		try {
-			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
+			block_manager::ptr bm = open_bm(*fs.output, block_manager::READ_WRITE);
 			file_utils::check_file_exists(*fs.output);
 			metadata_touched = true;
 			metadata::ptr md(new metadata(bm, metadata::CREATE));

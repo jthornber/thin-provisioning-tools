@@ -120,7 +120,7 @@ namespace {
 
 	//--------------------------------
 
-	error_state examine_superblock(block_manager<>::ptr bm,
+	error_state examine_superblock(block_manager::ptr bm,
 				       nested_output &out) {
 		out << "examining superblock" << end_message();
 		nested_output::nest _ = out.push();
@@ -240,7 +240,7 @@ namespace {
 
 	class base_metadata_checker : public metadata_checker {
 	public:
-		base_metadata_checker(block_manager<>::ptr bm,
+		base_metadata_checker(block_manager::ptr bm,
 				      check_options check_opts,
 				      output_options output_opts)
 			: bm_(bm),
@@ -322,7 +322,7 @@ namespace {
 			return err;
 		}
 
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		check_options options_;
 		nested_output out_;
 		nested_output info_out_;
@@ -351,7 +351,7 @@ void check_options::set_override_mapping_root(block_address b) {
 }
 
 metadata_checker::ptr
-thin_provisioning::create_base_checker(block_manager<>::ptr bm,
+thin_provisioning::create_base_checker(block_manager::ptr bm,
 				       check_options const &check_opts,
 				       output_options output_opts)
 {

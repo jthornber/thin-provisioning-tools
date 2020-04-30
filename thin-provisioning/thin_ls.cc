@@ -319,7 +319,7 @@ namespace {
 	void ls_(string const &path, ostream &out, struct flags &flags) {
 		grid_layout grid;
 
-		block_manager<>::ptr bm(open_bm(path, block_manager<>::READ_ONLY,
+		block_manager::ptr bm(open_bm(path, block_manager::READ_ONLY,
 						!flags.use_metadata_snap));
 		metadata::ptr md;
 

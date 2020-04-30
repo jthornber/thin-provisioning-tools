@@ -204,7 +204,7 @@ namespace {
 	}
 
 	void clear_needs_check(string const &path) {
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
+		block_manager::ptr bm = open_bm(path, block_manager::READ_WRITE);
 
 		superblock sb = read_superblock(bm);
 		sb.flags.clear_flag(superblock_flags::NEEDS_CHECK);
@@ -223,7 +223,7 @@ namespace {
 			return FATAL;
 		}
 
-		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_ONLY);
+		block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY);
 
 		superblock_reporter sb_rep(out);
 		mapping_reporter mapping_rep(out);

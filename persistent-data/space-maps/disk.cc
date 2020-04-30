@@ -718,7 +718,7 @@ namespace {
 
 		metadata_index_store(transaction_manager &tm)
 			: tm_(tm) {
-			block_manager<>::write_ref wr = tm_.new_block(index_validator());
+			block_manager::write_ref wr = tm_.new_block(index_validator());
 			bitmap_root_ = wr.get_location();
 		}
 
@@ -753,7 +753,7 @@ namespace {
 		}
 
 		virtual void commit_ies() {
-			std::pair<block_manager<>::write_ref, bool> p =
+			std::pair<block_manager::write_ref, bool> p =
 				tm_.shadow(bitmap_root_, index_validator());
 
 			bitmap_root_ = p.first.get_location();
@@ -787,7 +787,7 @@ namespace {
 
 	private:
 		void load_ies() {
-			block_manager<>::read_ref rr =
+			block_manager::read_ref rr =
 				tm_.read_lock(bitmap_root_, index_validator());
 
 			metadata_index const *mdi = reinterpret_cast<metadata_index const *>(rr.data());

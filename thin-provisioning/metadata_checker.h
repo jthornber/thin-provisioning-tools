@@ -64,7 +64,7 @@ namespace thin_provisioning {
 	};
 
 	metadata_checker::ptr
-	create_base_checker(persistent_data::block_manager<>::ptr bm,
+	create_base_checker(persistent_data::block_manager::ptr bm,
 			    check_options const &check_opts,
 			    output_options output_opts);
 }

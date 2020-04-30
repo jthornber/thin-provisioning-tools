@@ -216,11 +216,11 @@ namespace persistent_data {
 			unsigned entries_per_block_;
 		};
 
-		typedef block_manager<>::write_ref write_ref;
-		typedef block_manager<>::read_ref read_ref;
+		typedef block_manager::write_ref write_ref;
+		typedef block_manager::read_ref read_ref;
 
-		typedef array_block<ValueTraits, block_manager<>::write_ref> wblock;
-		typedef array_block<ValueTraits, block_manager<>::read_ref> rblock;
+		typedef array_block<ValueTraits, block_manager::write_ref> wblock;
+		typedef array_block<ValueTraits, block_manager::read_ref> rblock;
 
 		typedef boost::shared_ptr<array<ValueTraits> > ptr;
 		typedef typename ValueTraits::value_type value_type;

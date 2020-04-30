@@ -29,7 +29,7 @@ using namespace testing;
 
 namespace {
 	template <uint32_t BlockSize>
-	void check_all_bytes(typename block_manager<BlockSize>::read_ref const &rr, int v) {
+	void check_all_bytes(typename block_manager::read_ref const &rr, int v) {
 		unsigned char const *data = reinterpret_cast<unsigned char const *>(rr.data());
 		for (unsigned b = 0; b < BlockSize; b++)
 			ASSERT_THAT(data[b], Eq(static_cast<unsigned char>(v)));
@@ -68,27 +68,27 @@ namespace {
 		MOCK_CONST_METHOD2(prepare, void(void *, block_address));
 	};
 
-	typedef block_manager<4096> bm4096;
+	typedef block_manager bm4096;
 }
 
 //----------------------------------------------------------------
 
 TEST(BlockTests, bad_path)
 {
-	ASSERT_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_manager<>::READ_WRITE),
+	ASSERT_THROW(bm4096("/bogus/bogus/bogus", 1234, 4, block_manager::READ_WRITE),
 			  runtime_error);
 }
 
 TEST(BlockTests, out_of_range_access)
 {
-	bm4096::ptr bm = create_bm<4096>(1024);
+	bm4096::ptr bm = create_bm(1024);
 	ASSERT_THROW(bm->read_lock(1024), runtime_error);
 }
 
 TEST(BlockTests, read_lock_all_blocks)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm<4096>(nr);
+	bm4096::ptr bm = create_bm(nr);
 	for (unsigned i = 0; i < nr; i++)
 		bm->read_lock(i);
 }
@@ -96,7 +96,7 @@ TEST(BlockTests, read_lock_all_blocks)
 TEST(BlockTests, write_lock_all_blocks)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm<4096>(nr);
+	bm4096::ptr bm = create_bm(nr);
 	for (unsigned i = 0; i < nr; i++)
 		bm->write_lock(i);
 }
@@ -104,7 +104,7 @@ TEST(BlockTests, write_lock_all_blocks)
 TEST(BlockTests, writes_persist)
 {
 	block_address const nr = 64;
-	bm4096::ptr bm = create_bm<4096>(nr);
+	bm4096::ptr bm = create_bm(nr);
 	for (unsigned i = 0; i < nr; i++) {
 		bm4096::write_ref wr = bm->write_lock(i);
 		::memset(wr.data(), i, 4096);
@@ -118,52 +118,21 @@ TEST(BlockTests, writes_persist)
 
 TEST(BlockTests, write_lock_zero_zeroes)
 {
-	bm4096::ptr bm = create_bm<4096>(64);
+	bm4096::ptr bm = create_bm(64);
 	check_all_bytes<4096>(bm->write_lock_zero(23), 0);
-}
-
-TEST(BlockTests, different_block_sizes)
-{
-	{
-		bm4096::ptr bm = create_bm<4096>(64);
-
-		{
-			bm4096::write_ref wr = bm->write_lock(0);
-			memset(wr.data(), 23, 4096);
-		}
-
-		{
-			bm4096::write_ref wr = bm->write_lock_zero(0);
-			check_all_bytes<4096>(wr, 0);
-		}
-	}
-
-	{
-		block_manager<64 * 1024>::ptr bm = create_bm<64 * 1024>(64);
-
-		{
-			block_manager<64 * 1024>::write_ref wr = bm->write_lock(0);
-			memset(wr.data(), 72, 64 * 1024);
-		}
-
-		{
-			block_manager<64 * 1024>::write_ref wr = bm->write_lock_zero(0);
-			check_all_bytes<64 * 1024>(wr, 0);
-		}
-	}
 }
 
 TEST(BlockTests, read_validator_works)
 {
 	bcache::validator::ptr v(new zero_validator<4096>());
-	bm4096::ptr bm = create_bm<4096>(64);
+	bm4096::ptr bm = create_bm(64);
 	bm->write_lock_zero(0);
 	bm->read_lock(0, v);
 }
 
 TEST(BlockTests, write_validator_works)
 {
-	bm4096::ptr bm = create_bm<4096>(64);
+	bm4096::ptr bm = create_bm(64);
 	bcache::validator::ptr v(new zero_validator<4096>());
 
 	{
@@ -177,21 +146,21 @@ TEST(BlockTests, write_validator_works)
 
 TEST(BlockTests, cannot_have_two_superblocks)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm4096::write_ref superblock = bm->superblock(0);
 	ASSERT_THROW(bm->superblock(1), runtime_error);
 }
 
 TEST(BlockTests, can_have_subsequent_superblocks)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 }
 
 TEST(BlockTests, superblocks_can_change_address)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	{ bm4096::write_ref superblock = bm->superblock(0); }
 	{ bm4096::write_ref superblock = bm->superblock(1); }
 }
@@ -203,7 +172,7 @@ TEST(BlockTests, superblocks_can_change_address)
 // correct thing to do is (log the error? put the tm into a 'bad' state?).
 TEST(BlockTests, superblock_must_be_last)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	{
 		bm4096::read_ref rr = bm->read_lock(63);
 		{
@@ -214,21 +183,21 @@ TEST(BlockTests, superblock_must_be_last)
 
 TEST(BlockTests, references_can_be_copied)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm4096::write_ref wr1 = bm->write_lock(0);
 	bm4096::write_ref wr2(wr1);
 }
 
 TEST(BlockTests, no_concurrent_write_locks)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm4096::write_ref wr = bm->write_lock(0);
 	ASSERT_THROW(bm->write_lock(0), runtime_error);
 }
 
 TEST(BlockTests, concurrent_read_locks)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm4096::read_ref rr = bm->read_lock(0);
 	bm->read_lock(0);
 }
@@ -238,7 +207,7 @@ TEST(BlockTests, concurrent_read_locks)
 // think I'm ever going to add the extra checking to the C++ code.
 TEST(BlockTests, no_concurrent_read_and_write_locks)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm4096::write_ref wr = bm->write_lock(0);
 	ASSERT_THROW(bm->read_lock(0), runtime_error);
 }
@@ -246,14 +215,14 @@ TEST(BlockTests, no_concurrent_read_and_write_locks)
 
 TEST(BlockTests, read_then_write)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm->read_lock(0);
 	bm->write_lock(0);
 }
 
 TEST(BlockTests, write_then_read)
 {
-	bm4096::ptr bm = create_bm<4096>();
+	bm4096::ptr bm = create_bm();
 	bm->write_lock(0);
 	bm->read_lock(0);
 }
@@ -264,7 +233,7 @@ namespace {
 	class ValidatorTests : public Test {
 	public:
 		ValidatorTests()
-			: bm(create_bm<4096>()),
+			: bm(create_bm()),
 			  vmock(new validator_mock),
 			  vmock2(new validator_mock) {
 		}

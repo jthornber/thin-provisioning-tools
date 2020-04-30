@@ -3,6 +3,7 @@
 
 #include "base/container_of.h"
 #include "base/file_utils.h"
+#include "block-cache/io_engine.h"
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>

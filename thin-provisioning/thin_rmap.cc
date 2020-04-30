@@ -56,7 +56,7 @@ namespace {
 			for (it = regions.begin(); it != regions.end(); ++it)
 				rv.add_data_region(*it);
 
-			block_manager<>::ptr bm = open_bm(path);
+			block_manager::ptr bm = open_bm(path);
 			transaction_manager::ptr tm =
 				open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 

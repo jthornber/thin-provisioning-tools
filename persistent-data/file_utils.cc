@@ -19,8 +19,8 @@ using namespace std;
 //----------------------------------------------------------------
 
 bool
-persistent_data::check_for_xml(block_manager<>::ptr bm) {
-	block_manager<>::read_ref b = bm->read_lock(0);
+persistent_data::check_for_xml(block_manager::ptr bm) {
+	block_manager::read_ref b = bm->read_lock(0);
 	const char *data = reinterpret_cast<const char *>(b.data());
 	return (!strncmp(data, "<superblock", 11) || !strncmp(data, "<?xml", 5)
 	                       || !strncmp(data, "<!DOCTYPE", 9));
@@ -39,22 +39,22 @@ persistent_data::get_nr_metadata_blocks(std::string const &path)
 	return get_nr_blocks(path, MD_BLOCK_SIZE);
 }
 
-persistent_data::block_manager<>::ptr
-persistent_data::open_bm(std::string const &dev_path, block_manager<>::mode m, bool excl)
+persistent_data::block_manager::ptr
+persistent_data::open_bm(std::string const &dev_path, block_manager::mode m, bool excl)
 {
 	block_address nr_blocks = get_nr_metadata_blocks(dev_path);
-	return block_manager<>::ptr(new block_manager<>(dev_path, nr_blocks, 1, m, excl));
+	return block_manager::ptr(new block_manager(dev_path, nr_blocks, 1, m, excl));
 }
 
-block_manager<>::ptr
+block_manager::ptr
 persistent_data::open_bm(std::string const &path) {
 	block_address nr_blocks = get_nr_metadata_blocks(path);
-	block_manager<>::mode m = block_manager<>::READ_ONLY;
-	return block_manager<>::ptr(new block_manager<>(path, nr_blocks, 1, m));
+	block_manager::mode m = block_manager::READ_ONLY;
+	return block_manager::ptr(new block_manager(path, nr_blocks, 1, m));
 }
 
 transaction_manager::ptr
-persistent_data::open_tm(block_manager<>::ptr bm, block_address superblock_location) {
+persistent_data::open_tm(block_manager::ptr bm, block_address superblock_location) {
 	auto nr_blocks = bm->get_nr_blocks();
 	if (!nr_blocks)
 		throw runtime_error("Metadata is not large enough for superblock.");

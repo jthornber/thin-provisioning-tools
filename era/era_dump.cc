@@ -38,7 +38,7 @@ namespace {
 
 	int dump(string const &dev, string const &output, flags const &fs) {
 		try {
-			block_manager<>::ptr bm = open_bm(dev, block_manager<>::READ_ONLY);
+			block_manager::ptr bm = open_bm(dev, block_manager::READ_ONLY);
 			metadata::ptr md(new metadata(bm, metadata::OPEN));
 
 			if (want_stdout(output)) {

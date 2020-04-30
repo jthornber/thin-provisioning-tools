@@ -60,7 +60,7 @@ namespace {
 		bool metadata_touched = false;
 
 		try {
-			block_manager<>::ptr bm = open_bm(*fs.output, block_manager<>::READ_WRITE);
+			block_manager::ptr bm = open_bm(*fs.output, block_manager::READ_WRITE);
 
 			check_file_exists(*fs.input);
 			ifstream in(fs.input->c_str(), ifstream::in);

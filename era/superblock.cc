@@ -245,10 +245,10 @@ namespace era_validator {
 //----------------------------------------------------------------
 
 superblock
-era::read_superblock(block_manager<>::ptr bm, block_address location)
+era::read_superblock(block_manager::ptr bm, block_address location)
 {
 	superblock sb;
-	block_manager<>::read_ref r = bm->read_lock(location, era_validator::mk_v());
+	block_manager::read_ref r = bm->read_lock(location, era_validator::mk_v());
 	superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(r.data());
 	superblock_traits::unpack(*sbd, sb);
 
@@ -256,9 +256,9 @@ era::read_superblock(block_manager<>::ptr bm, block_address location)
 }
 
 void
-era::write_superblock(block_manager<>::ptr bm, superblock const &sb, block_address location)
+era::write_superblock(block_manager::ptr bm, superblock const &sb, block_address location)
 {
-	block_manager<>::write_ref w = bm->superblock_zero(location, era_validator::mk_v());
+	block_manager::write_ref w = bm->superblock_zero(location, era_validator::mk_v());
 	superblock_traits::pack(sb, *reinterpret_cast<superblock_disk *>(w.data()));
 }
 
@@ -322,7 +322,7 @@ era::check_superblock(superblock const &sb,
 }
 
 void
-era::check_superblock(persistent_data::block_manager<>::ptr bm,
+era::check_superblock(persistent_data::block_manager::ptr bm,
 		      block_address nr_metadata_blocks,
 		      damage_visitor &visitor)
 {

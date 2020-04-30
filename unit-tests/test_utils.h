@@ -28,23 +28,22 @@ namespace test {
 
 	unsigned const MAX_HELD_LOCKS = 16;
 
-	template <uint32_t BlockSize>
-	typename block_manager<BlockSize>::ptr
+	inline block_manager::ptr
 	create_bm(block_address nr = 1024) {
 		std::string const path("./test.data");
 		int r = system("rm -f ./test.data");
 		if (r < 0)
 			throw std::runtime_error("couldn't rm -f ./test.data");
 
-		return typename block_manager<BlockSize>::ptr(
-			new block_manager<BlockSize>(path, nr, MAX_HELD_LOCKS,
-						     block_manager<BlockSize>::CREATE));
+		return typename block_manager::ptr(
+			new block_manager(path, nr, MAX_HELD_LOCKS,
+					  block_manager::CREATE));
 	}
 
 	// Don't use this to update the metadata.
-	transaction_manager::ptr open_temporary_tm(block_manager<>::ptr bm);
+	transaction_manager::ptr open_temporary_tm(block_manager::ptr bm);
 
-	void zero_block(block_manager<>::ptr bm, block_address b);
+	void zero_block(block_manager::ptr bm, block_address b);
 
 	//--------------------------------
 
