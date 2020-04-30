@@ -38,7 +38,7 @@ namespace persistent_data {
 
 		class bitset_visitor {
 		public:
-			typedef boost::shared_ptr<bitset_visitor> ptr;
+			typedef std::shared_ptr<bitset_visitor> ptr;
 
 			virtual ~bitset_visitor() {}
 			virtual void visit(uint32_t index, bool value) = 0;
@@ -48,7 +48,7 @@ namespace persistent_data {
 
 	class bitset {
 	public:
-		typedef boost::shared_ptr<bitset> ptr;
+		typedef std::shared_ptr<bitset> ptr;
 
 		bitset(transaction_manager &tm);
 		bitset(transaction_manager &tm,
@@ -66,7 +66,7 @@ namespace persistent_data {
 		void walk_bitset(bitset_detail::bitset_visitor &v) const;
 
 	private:
-		boost::shared_ptr<bitset_detail::bitset_impl> impl_;
+		std::shared_ptr<bitset_detail::bitset_impl> impl_;
 	};
 }
 

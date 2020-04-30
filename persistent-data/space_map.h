@@ -23,7 +23,6 @@
 #include "persistent-data/block_counter.h"
 #include "persistent-data/run.h"
 
-#include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
 #include <functional>
 
@@ -36,7 +35,7 @@ namespace persistent_data {
 
 	class space_map {
 	public:
-		typedef boost::shared_ptr<space_map> ptr;
+		typedef std::shared_ptr<space_map> ptr;
 
 		virtual ~space_map() {};
 
@@ -140,7 +139,7 @@ namespace persistent_data {
 
 	class persistent_space_map : public space_map {
 	public:
-		typedef boost::shared_ptr<persistent_space_map> ptr;
+		typedef std::shared_ptr<persistent_space_map> ptr;
 
 		virtual void count_metadata(block_counter &bc) const = 0;
 		virtual size_t root_size() const = 0;
@@ -149,7 +148,7 @@ namespace persistent_data {
 
 	class checked_space_map : public persistent_space_map {
 	public:
-		typedef boost::shared_ptr<checked_space_map> ptr;
+		typedef std::shared_ptr<checked_space_map> ptr;
 
 		virtual void visit(space_map_detail::visitor &v) const {
 			throw std::runtime_error("space_map.visit not implemented");

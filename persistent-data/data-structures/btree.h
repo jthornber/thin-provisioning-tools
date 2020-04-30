@@ -298,7 +298,7 @@ namespace persistent_data {
 	template <unsigned Levels, typename ValueTraits>
 	class btree {
 	public:
-		typedef boost::shared_ptr<btree<Levels, ValueTraits> > ptr;
+		typedef std::shared_ptr<btree<Levels, ValueTraits> > ptr;
 
 		typedef uint64_t key[Levels];
 		typedef typename ValueTraits::value_type value_type;
@@ -338,7 +338,7 @@ namespace persistent_data {
 		// inspect the individual nodes that make up a btree.
 		class visitor {
 		public:
-			typedef boost::shared_ptr<visitor> ptr;
+			typedef std::shared_ptr<visitor> ptr;
 			typedef btree_detail::node_location node_location;
 
 			virtual ~visitor() {}

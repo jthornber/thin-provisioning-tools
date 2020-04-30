@@ -19,10 +19,10 @@
 #ifndef EMITTER_H
 #define EMITTER_H
 
-#include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
 #include <boost/optional/optional_io.hpp>
 
+#include <memory>
 #include <string>
 #include <stdint.h>
 
@@ -44,7 +44,7 @@ namespace thin_provisioning {
 
 	class emitter {
 	public:
-		typedef boost::shared_ptr<emitter> ptr;
+		typedef std::shared_ptr<emitter> ptr;
 
 		virtual ~emitter() {}
 

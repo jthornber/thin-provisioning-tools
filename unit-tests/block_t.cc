@@ -61,7 +61,7 @@ namespace {
 
 	class validator_mock : public bcache::validator {
 	public:
-		typedef boost::shared_ptr<validator_mock> ptr;
+		typedef std::shared_ptr<validator_mock> ptr;
 
 		MOCK_CONST_METHOD2(check, void(void const *, block_address));
 		MOCK_CONST_METHOD1(check_raw, bool(void const *data));

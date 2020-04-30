@@ -19,8 +19,6 @@
 #include "gmock/gmock.h"
 #include "persistent-data/cache.h"
 
-#include <boost/shared_ptr.hpp>
-
 using namespace boost;
 using namespace base;
 using namespace std;
@@ -55,7 +53,7 @@ namespace {
 
 	struct SharedThingTraits {
 		typedef unsigned key_type;
-		typedef boost::shared_ptr<Thing> value_type;
+		typedef std::shared_ptr<Thing> value_type;
 
 		static key_type get_key(value_type const &p) {
 			return p->key_;

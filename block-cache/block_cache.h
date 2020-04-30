@@ -8,7 +8,6 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 #include <functional>
 #include <iostream>
 #include <libaio.h>
@@ -29,7 +28,7 @@ namespace bcache {
 
 	class validator {
 	public:
-		typedef boost::shared_ptr<validator> ptr;
+		typedef std::shared_ptr<validator> ptr;
 
 		virtual ~validator() {}
 

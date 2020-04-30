@@ -52,7 +52,7 @@ namespace {
 	//-------------------------------------------------------------------
 
 	struct btree_node_checker {
-		typedef boost::shared_ptr<btree_node_checker> ptr;
+		typedef std::shared_ptr<btree_node_checker> ptr;
 		virtual ~btree_node_checker() {}
 		virtual bool check(node_ref<uint64_traits> &n) = 0;
 	};

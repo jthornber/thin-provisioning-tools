@@ -250,7 +250,7 @@ namespace {
 #if 0
 	class ref_count_checker : public btree_checker<1, ref_count_traits> {
 	public:
-		typedef boost::shared_ptr<ref_count_checker> ptr;
+		typedef std::shared_ptr<ref_count_checker> ptr;
 
 		ref_count_checker(block_counter &counter)
 			: btree_checker<1, ref_count_traits>(counter) {
@@ -267,7 +267,7 @@ namespace {
 
 	class index_store {
 	public:
-		typedef boost::shared_ptr<index_store> ptr;
+		typedef std::shared_ptr<index_store> ptr;
 
 		virtual ~index_store() {}
 
@@ -285,7 +285,7 @@ namespace {
 
 	class sm_disk : public checked_space_map {
 	public:
-		typedef boost::shared_ptr<sm_disk> ptr;
+		typedef std::shared_ptr<sm_disk> ptr;
 		typedef transaction_manager::read_ref read_ref;
 		typedef transaction_manager::write_ref write_ref;
 
@@ -635,7 +635,7 @@ namespace {
 
 	class btree_index_store : public index_store {
 	public:
-		typedef boost::shared_ptr<btree_index_store> ptr;
+		typedef std::shared_ptr<btree_index_store> ptr;
 
 		btree_index_store(transaction_manager &tm)
 			: tm_(tm),
@@ -714,7 +714,7 @@ namespace {
 
 	class metadata_index_store : public index_store {
 	public:
-		typedef boost::shared_ptr<metadata_index_store> ptr;
+		typedef std::shared_ptr<metadata_index_store> ptr;
 
 		metadata_index_store(transaction_manager &tm)
 			: tm_(tm) {

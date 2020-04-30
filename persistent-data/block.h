@@ -27,7 +27,6 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
-#include <boost/shared_ptr.hpp>
 
 #include <string>
 
@@ -40,7 +39,7 @@ namespace persistent_data {
 
 	class block_manager : private boost::noncopyable {
 	public:
-		typedef boost::shared_ptr<block_manager> ptr;
+		typedef std::shared_ptr<block_manager> ptr;
 
 		enum mode {
 			READ_ONLY,

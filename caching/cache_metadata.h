@@ -125,7 +125,7 @@ namespace cache {
 
 		typedef block_manager<>::read_ref read_ref;
 		typedef block_manager<>::write_ref write_ref;
-		typedef boost::shared_ptr<metadata> ptr;
+		typedef std::shared_ptr<metadata> ptr;
 
 		tm_ptr tm_;
 		superblock sb_;

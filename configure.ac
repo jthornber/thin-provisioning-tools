@@ -74,7 +74,6 @@ AC_CHECK_HEADERS([expat.h \
 		  boost/lexical_cast.hpp \
 		  boost/noncopyable.hpp \
 		  boost/optional.hpp \
-		  boost/shared_ptr.hpp \
 		  boost/static_assert.hpp],
 		  [], [AC_MSG_ERROR(bailing out)])
 

@@ -1,7 +1,6 @@
 #ifndef BASE_PROGRESS_MONITOR_H
 #define BASE_PROGRESS_MONITOR_H
 
-#include <boost/shared_ptr.hpp>
 #include <memory>
 #include <string>
 

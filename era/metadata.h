@@ -25,7 +25,7 @@ namespace era {
 
 		typedef block_manager::read_ref read_ref;
 		typedef block_manager::write_ref write_ref;
-		typedef boost::shared_ptr<metadata> ptr;
+		typedef std::shared_ptr<metadata> ptr;
 
 		metadata(block_manager::ptr bm, open_type ot);
 		metadata(block_manager::ptr bm, block_address metadata_snap);

@@ -75,7 +75,7 @@ namespace persistent_data {
 		};
 
 		struct damage {
-			typedef boost::shared_ptr<damage> ptr;
+			typedef std::shared_ptr<damage> ptr;
 
 			damage(run<uint32_t> lost_keys,
 			       std::string const &desc)
@@ -222,7 +222,7 @@ namespace persistent_data {
 		typedef array_block<ValueTraits, block_manager::write_ref> wblock;
 		typedef array_block<ValueTraits, block_manager::read_ref> rblock;
 
-		typedef boost::shared_ptr<array<ValueTraits> > ptr;
+		typedef std::shared_ptr<array<ValueTraits> > ptr;
 		typedef typename ValueTraits::value_type value_type;
 		typedef typename ValueTraits::ref_counter ref_counter;
 

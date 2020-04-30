@@ -10,7 +10,7 @@
 namespace persistent_data {
 	namespace btree_detail {
 		struct damage {
-			typedef boost::shared_ptr<damage> ptr;
+			typedef std::shared_ptr<damage> ptr;
 
 			damage(run<uint64_t> lost_keys,
 			       std::string const &desc)

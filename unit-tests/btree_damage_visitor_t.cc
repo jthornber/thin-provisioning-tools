@@ -66,7 +66,7 @@ namespace {
 	//--------------------------------
 
 	struct node_info {
-		typedef boost::shared_ptr<node_info> ptr;
+		typedef std::shared_ptr<node_info> ptr;
 
 		btree_detail::btree_path path;
 
@@ -170,7 +170,7 @@ namespace {
 	public:
 		typedef btree_detail::node_location node_location;
 		typedef btree<Levels, ValueTraits> tree;
-		typedef boost::shared_ptr<btree_layout_visitor> ptr;
+		typedef std::shared_ptr<btree_layout_visitor> ptr;
 
 		virtual bool visit_internal(node_location const &loc,
 					    typename tree::internal_node const &n) {

@@ -22,7 +22,6 @@
 #include "metadata.h"
 
 #include <string>
-#include <boost/shared_ptr.hpp>
 
 //----------------------------------------------------------------
 
@@ -34,7 +33,7 @@ namespace thin_provisioning {
 	class thin_pool;
 	class thin {
 	public:
-		typedef boost::shared_ptr<thin> ptr;
+		typedef std::shared_ptr<thin> ptr;
 		typedef boost::optional<mapping_tree_detail::block_time> maybe_address;
 
 		thin_dev_t get_dev_t() const;
@@ -57,7 +56,7 @@ namespace thin_provisioning {
 
 	class thin_pool {
 	public:
-		typedef boost::shared_ptr<thin_pool> ptr;
+		typedef std::shared_ptr<thin_pool> ptr;
 
 		thin_pool(metadata::ptr md);
 		~thin_pool();

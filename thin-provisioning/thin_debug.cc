@@ -111,7 +111,7 @@ namespace {
 
 	class command {
 	public:
-		typedef boost::shared_ptr<command> ptr;
+		typedef std::shared_ptr<command> ptr;
 
 		virtual ~command() {}
 		virtual void exec(strings const &args, ostream &out) = 0;

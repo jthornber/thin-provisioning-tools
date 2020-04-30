@@ -36,7 +36,7 @@ namespace persistent_data {
 	template <typename ValueTraits, typename RefType>
 	class array_block {
 	public:
-		typedef boost::shared_ptr<array_block> ptr;
+		typedef std::shared_ptr<array_block> ptr;
 		typedef typename ValueTraits::disk_type disk_type;
 		typedef typename ValueTraits::value_type value_type;
 		typedef typename ValueTraits::ref_counter ref_counter;

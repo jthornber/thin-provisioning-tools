@@ -61,7 +61,7 @@ namespace {
 	class devices_visitor : public detail_tree::visitor {
 	public:
 		struct node_info {
-			typedef boost::shared_ptr<node_info> ptr;
+			typedef std::shared_ptr<node_info> ptr;
 
 			bool leaf;
 			unsigned depth;
@@ -71,7 +71,7 @@ namespace {
 		};
 
 		typedef btree_detail::node_location node_location;
-		typedef boost::shared_ptr<devices_visitor> ptr;
+		typedef std::shared_ptr<devices_visitor> ptr;
 
 		virtual bool visit_internal(node_location const &loc,
 					    detail_tree::internal_node const &n) {

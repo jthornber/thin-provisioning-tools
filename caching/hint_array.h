@@ -55,7 +55,7 @@ namespace caching {
 
 	class hint_array {
 	public:
-		typedef boost::shared_ptr<hint_array> ptr;
+		typedef std::shared_ptr<hint_array> ptr;
 
 		hint_array(transaction_manager &tm, unsigned width);
 		hint_array(transaction_manager &tm, unsigned width, block_address root, unsigned nr_entries);
@@ -77,7 +77,7 @@ namespace caching {
 		static uint32_t check_width(uint32_t width);
 
 		unsigned width_;
-		boost::shared_ptr<persistent_data::array_base> impl_;
+		std::shared_ptr<persistent_data::array_base> impl_;
 	};
 }
 

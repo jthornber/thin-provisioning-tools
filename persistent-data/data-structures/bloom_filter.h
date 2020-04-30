@@ -4,14 +4,12 @@
 #include "persistent-data/transaction_manager.h"
 #include "persistent-data/data-structures/bitset.h"
 
-#include <boost/shared_ptr.hpp>
-
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	class bloom_filter {
 	public:
-		typedef boost::shared_ptr<bloom_filter> ptr;
+		typedef std::shared_ptr<bloom_filter> ptr;
 
 		// nr_bits must be a power of two
 		bloom_filter(transaction_manager &tm,

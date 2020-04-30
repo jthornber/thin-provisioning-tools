@@ -56,7 +56,7 @@ namespace thin_provisioning {
 
 	class metadata_checker {
 	public:
-		typedef boost::shared_ptr<metadata_checker> ptr;
+		typedef std::shared_ptr<metadata_checker> ptr;
 
 		virtual ~metadata_checker() {}
 

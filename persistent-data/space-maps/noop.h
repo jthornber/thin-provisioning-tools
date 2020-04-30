@@ -26,7 +26,7 @@
 namespace persistent_data {
 	class noop_map : public checked_space_map {
 	public:
-		typedef boost::shared_ptr<noop_map> ptr;
+		typedef std::shared_ptr<noop_map> ptr;
 
 		block_address get_nr_blocks() const {
 			fail();

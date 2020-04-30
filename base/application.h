@@ -1,9 +1,9 @@
 #ifndef BASE_APPLICATION_H
 #define BASE_APPLICATION_H
 
-#include <boost/shared_ptr.hpp>
 #include <iostream>
 #include <list>
+#include <memory>
 #include <string>
 #include <stdexcept>
 #include <stdint.h>
@@ -13,7 +13,7 @@
 namespace base {
 	class command {
 	public:
-		typedef boost::shared_ptr<command> ptr;
+		typedef std::shared_ptr<command> ptr;
 
 		command(std::string const &name);
 		virtual ~command() {}

@@ -30,7 +30,7 @@ namespace persistent_data {
 
 		class bitset_impl {
 		public:
-			typedef boost::shared_ptr<bitset_impl> ptr;
+			typedef std::shared_ptr<bitset_impl> ptr;
 			typedef persistent_data::transaction_manager::ptr tm_ptr;
 
 			bitset_impl(transaction_manager &tm)

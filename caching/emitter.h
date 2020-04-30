@@ -3,7 +3,6 @@
 
 #include "persistent-data/block.h"
 
-#include <boost/shared_ptr.hpp>
 #include <vector>
 
 //----------------------------------------------------------------
@@ -13,7 +12,7 @@ namespace caching {
 
 	class emitter {
 	public:
-		typedef boost::shared_ptr<emitter> ptr;
+		typedef std::shared_ptr<emitter> ptr;
 
 		virtual ~emitter() {}
 

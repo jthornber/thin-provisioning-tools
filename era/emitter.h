@@ -10,7 +10,7 @@ namespace era {
 
 	class emitter {
 	public:
-		typedef boost::shared_ptr<emitter> ptr;
+		typedef std::shared_ptr<emitter> ptr;
 
 		virtual ~emitter() {}
 

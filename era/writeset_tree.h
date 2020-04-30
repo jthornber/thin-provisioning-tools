@@ -46,7 +46,7 @@ namespace era {
 
 		class damage_visitor {
 		public:
-			typedef boost::shared_ptr<damage_visitor> ptr;
+			typedef std::shared_ptr<damage_visitor> ptr;
 
 			virtual ~damage_visitor() {}
 
@@ -60,7 +60,7 @@ namespace era {
 
 		class writeset_visitor {
 		public:
-			typedef boost::shared_ptr<writeset_visitor> ptr;
+			typedef std::shared_ptr<writeset_visitor> ptr;
 
 			virtual ~writeset_visitor() {}
 

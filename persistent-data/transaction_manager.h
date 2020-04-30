@@ -23,14 +23,13 @@
 #include "space_map.h"
 
 #include <set>
-#include <boost/shared_ptr.hpp>
 
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	class transaction_manager : boost::noncopyable {
 	public:
-		typedef boost::shared_ptr<transaction_manager> ptr;
+		typedef std::shared_ptr<transaction_manager> ptr;
 		typedef block_manager::read_ref read_ref;
 		typedef block_manager::write_ref write_ref;
 		typedef bcache::validator::ptr validator;

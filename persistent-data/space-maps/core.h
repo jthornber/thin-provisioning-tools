@@ -26,7 +26,7 @@
 namespace persistent_data {
 	class core_map : public checked_space_map {
 	public:
-		typedef boost::shared_ptr<core_map> ptr;
+		typedef std::shared_ptr<core_map> ptr;
 
 		core_map(block_address nr_blocks)
 			: counts_(nr_blocks, 0),

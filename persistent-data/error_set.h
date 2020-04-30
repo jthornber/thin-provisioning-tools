@@ -20,8 +20,8 @@
 #define ERROR_SET_H
 
 #include <boost/optional.hpp>
-#include <boost/shared_ptr.hpp>
 #include <list>
+#include <memory>
 #include <iosfwd>
 #include <string>
 
@@ -34,7 +34,7 @@ namespace persistent_data {
 	// user can control how much detail is displayed.
 	class error_set {
 	public:
-		typedef boost::shared_ptr<error_set> ptr;
+		typedef std::shared_ptr<error_set> ptr;
 
 		error_set(std::string const &err);
 

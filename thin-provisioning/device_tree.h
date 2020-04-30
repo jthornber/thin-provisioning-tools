@@ -50,7 +50,7 @@ namespace thin_provisioning {
 
 		class damage_visitor {
 		public:
-			typedef boost::shared_ptr<damage_visitor> ptr;
+			typedef std::shared_ptr<damage_visitor> ptr;
 
 			virtual ~damage_visitor() {}
 

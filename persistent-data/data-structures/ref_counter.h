@@ -19,15 +19,13 @@
 #ifndef REF_COUNTER_H
 #define REF_COUNTER_H
 
-#include <boost/shared_ptr.hpp>
-
 //----------------------------------------------------------------
 
 namespace persistent_data {
 	template <typename ValueType>
 	class ref_counter {
 	public:
-		boost::shared_ptr<ref_counter<ValueType> > ptr;
+		std::shared_ptr<ref_counter<ValueType> > ptr;
 
 		virtual ~ref_counter() {}
 
