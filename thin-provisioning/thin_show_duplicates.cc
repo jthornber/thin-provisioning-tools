@@ -207,7 +207,7 @@ namespace {
 	};
 
 	int show_dups_pool(flags const &fs) {
-		block_manager<>::ptr bm = open_bm(*fs.metadata_dev);
+		block_manager::ptr bm = open_bm(*fs.metadata_dev);
 		transaction_manager::ptr tm =
 			open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 		superblock_detail::superblock sb = read_superblock(bm);

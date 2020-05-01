@@ -26,13 +26,13 @@
 //----------------------------------------------------------------
 
 namespace thin_provisioning {
-	uint32_t const JOURNAL_BLOCK_SIZE = 256 * 1024;
+	uint32_t const JOURNAL_BLOCK_SIZE = 4096;
 	uint32_t const JOURNAL_CHUNK_SIZE = 32;
 	uint32_t const JOURNAL_NR_CHUNKS = (4096 / JOURNAL_CHUNK_SIZE);
 
 	class byte_stream {
 	public:
-		byte_stream(persistent_data::block_manager<JOURNAL_BLOCK_SIZE>::ptr bm);
+		byte_stream(persistent_data::block_manager::ptr bm);
 
 		void read_bytes(uint8_t *b, uint8_t *e);
 
@@ -40,7 +40,7 @@ namespace thin_provisioning {
 		void next_block_();
 		size_t read_some_(uint8_t *b, uint8_t *e);
 
-		persistent_data::block_manager<JOURNAL_BLOCK_SIZE>::ptr bm_;
+		persistent_data::block_manager::ptr bm_;
 
 		uint64_t current_block_;
 		uint64_t cursor_;
@@ -195,7 +195,7 @@ namespace thin_provisioning {
 
 	class journal {
 	public:
-		journal(persistent_data::block_manager<JOURNAL_BLOCK_SIZE>::ptr bm);
+		journal(persistent_data::block_manager::ptr bm);
 		void read_journal(struct journal_visitor &v);
 
 	private:

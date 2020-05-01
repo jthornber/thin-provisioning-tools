@@ -26,7 +26,7 @@ using namespace std;
 
 //----------------------------------------------------------------
 
-byte_stream::byte_stream(block_manager<JOURNAL_BLOCK_SIZE>::ptr bm)
+byte_stream::byte_stream(block_manager::ptr bm)
 		: bm_(bm),
 		  current_block_(0),
 		  cursor_(0)
@@ -238,7 +238,7 @@ set_read_write_msg::visit(journal_visitor &v) const
 
 //------------------------------------------
 
-journal::journal(block_manager<JOURNAL_BLOCK_SIZE>::ptr bm)
+journal::journal(block_manager::ptr bm)
 	: in_(bm)
 {
 }

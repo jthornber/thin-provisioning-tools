@@ -34,8 +34,8 @@ namespace {
 
 		virtual ~examiner() {}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const = 0;
-//		virtual void render_block(text_ui &ui, block_manager<>::read_ref rr) = 0;
+		virtual bool recognise(block_manager::read_ref rr) const = 0;
+//		virtual void render_block(text_ui &ui, block_manager::read_ref rr) = 0;
 
 		string const &get_name() const {
 			return name_;
@@ -61,7 +61,7 @@ namespace {
 			: examiner("raw", 5, '?') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			return true;
 		}
 	};
@@ -72,7 +72,7 @@ namespace {
 			: examiner("superblock", 1, 'S') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			using namespace superblock_detail;
 
 			superblock_disk const *sbd = reinterpret_cast<superblock_disk const *>(rr.data());
@@ -94,7 +94,7 @@ namespace {
 			: examiner("bitmap", 2, ':') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(rr.data());
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -108,7 +108,7 @@ namespace {
 			: examiner("index", 3, 'i') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			metadata_index const *mi = reinterpret_cast<metadata_index const *>(rr.data());
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
@@ -123,7 +123,7 @@ namespace {
 			: examiner(name, colour_pair, c) {
 		}
 
-		bool is_btree_node(block_manager<>::read_ref rr) const {
+		bool is_btree_node(block_manager::read_ref rr) const {
 			using namespace btree_detail;
 
 			disk_node const *data = reinterpret_cast<disk_node const *>(rr.data());
@@ -140,7 +140,7 @@ namespace {
 			: btree_examiner("dev_details", 4, 'd') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			if (!btree_examiner::is_btree_node(rr))
 				return false;
 
@@ -158,7 +158,7 @@ namespace {
 			: btree_examiner("ref_count node", 6, 'r') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			if (!btree_examiner::is_btree_node(rr))
 				return false;
 
@@ -176,7 +176,7 @@ namespace {
 			: btree_examiner("mapping node", 7, 'm') {
 		}
 
-		virtual bool recognise(block_manager<>::read_ref rr) const {
+		virtual bool recognise(block_manager::read_ref rr) const {
 			if (!btree_examiner::is_btree_node(rr))
 				return false;
 
@@ -191,7 +191,7 @@ namespace {
 	class main_dialog {
 	public:
 		main_dialog(text_ui &ui,
-			    block_manager<> const &bm)
+			    block_manager const &bm)
 			: ui_(ui),
 			  bm_(bm),
 			  raw_examiner_(new raw_examiner()) {
@@ -207,7 +207,7 @@ namespace {
 		void run() {
 			auto line_length = 80;
 			for (block_address b = 0; b < 2000; b++) {
-				block_manager<>::read_ref rr = bm_.read_lock(b);
+				block_manager::read_ref rr = bm_.read_lock(b);
 
 				if (!(b % line_length)) {
 					if (b > 0)
@@ -237,7 +237,7 @@ namespace {
 			printw("metadata nr blocks: %llu\n", sb.metadata_nr_blocks_);
 		}
 
-		shared_ptr<examiner> &find_examiner(block_manager<>::read_ref const &rr) {
+		shared_ptr<examiner> &find_examiner(block_manager::read_ref const &rr) {
 			for (shared_ptr<examiner> &e : examiners_) {
 				if (e->recognise(rr))
 					return e;
@@ -247,7 +247,7 @@ namespace {
 		}
 
 		text_ui &ui_;
-		block_manager<> const &bm_;
+		block_manager const &bm_;
 		list<shared_ptr<examiner>> examiners_;
 		shared_ptr<examiner> raw_examiner_;
 
@@ -271,7 +271,7 @@ namespace {
 
 			block_address nr_blocks = bm->get_nr_blocks();
 			for (block_address b = 0; b < nr_blocks; b++) {
-				block_manager<>::read_ref rr = bm->read_lock(b);
+				block_manager::read_ref rr = bm->read_lock(b);
 
 				if (is_superblock(rr))
 					cout << b << ": superblock" << endl;
@@ -338,7 +338,7 @@ thin_show_metadata_cmd::run(int argc, char **argv)
 	try {
 		ui::text_ui ui;
 
-		block_manager<>::ptr bm = open_bm(argv[optind], block_manager<>::READ_ONLY, true);
+		block_manager::ptr bm = open_bm(argv[optind], block_manager::READ_ONLY, true);
 		main_dialog dialog(ui, *bm);
 		dialog.run();
 #if 0

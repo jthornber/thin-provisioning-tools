@@ -107,7 +107,7 @@ namespace {
 	int create_metadata(flags const &fs) {
 		try {
 			// The block size gets updated by the restorer.
-			block_manager<>::ptr bm(open_bm(*fs.output, block_manager<>::READ_WRITE));
+			block_manager::ptr bm(open_bm(*fs.output, block_manager::READ_WRITE));
 			metadata::ptr md(new metadata(bm, metadata::CREATE, 128, 0));
 			emitter::ptr restorer = create_restore_emitter(md);
 

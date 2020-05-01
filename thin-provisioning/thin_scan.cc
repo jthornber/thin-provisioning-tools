@@ -142,7 +142,7 @@ namespace {
 		virtual ~block_range() {}
 
 		virtual void reset(int type,
-				   typename block_manager<>::read_ref &rr,
+				   typename block_manager::read_ref &rr,
 				   int64_t ref_count) {
 			begin_ = rr.get_location();
 			end_ = begin_ + 1;
@@ -241,7 +241,7 @@ namespace {
 		}
 
 		virtual void reset(int type,
-				   typename block_manager<>::read_ref &rr,
+				   typename block_manager::read_ref &rr,
 				   int64_t ref_count) {
 			using namespace persistent_data;
 			using namespace sm_disk_detail;
@@ -338,7 +338,7 @@ namespace {
 		}
 
 		virtual void reset(int type,
-				   typename block_manager<>::read_ref &rr,
+				   typename block_manager::read_ref &rr,
 				   int64_t ref_count) {
 			node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
 
@@ -423,7 +423,7 @@ namespace {
 	public:
 		virtual ~range_factory() {}
 
-		block_range const &convert_to_range(block_manager<>::read_ref rr, int64_t ref_count) {
+		block_range const &convert_to_range(block_manager::read_ref rr, int64_t ref_count) {
 			if (!memcmp(rr.data(), zeros_.data(), MD_BLOCK_SIZE)) {
 				br_.reset(ZERO, rr, ref_count);
 				return br_;
@@ -465,7 +465,7 @@ namespace {
 
 	class metadata_scanner {
 	public:
-		metadata_scanner(block_manager<>::ptr bm, uint64_t scan_begin, uint64_t scan_end,
+		metadata_scanner(block_manager::ptr bm, uint64_t scan_begin, uint64_t scan_end,
                                  bool check_for_strings)
 			: bm_(bm),
 			  scan_begin_(scan_begin),
@@ -531,7 +531,7 @@ namespace {
 
 		// asci text within our metadata is a sure sign of corruption.
 		optional<vector<string> >
-		scan_strings(block_manager<>::read_ref rr)
+		scan_strings(block_manager::read_ref rr)
 		{
 			vector<string> r;
 			const char *data = reinterpret_cast<const char *>(rr.data()), *end = data + MD_BLOCK_SIZE;
@@ -548,7 +548,7 @@ namespace {
 		}
 
 		block_range const &read_block(block_address b) {
-			block_manager<>::read_ref rr = bm_->read_lock(b);
+			block_manager::read_ref rr = bm_->read_lock(b);
 			int64_t ref_count;
 			try {
 				ref_count = metadata_sm_ ? static_cast<int64_t>(metadata_sm_->get_count(b)) : -1;
@@ -568,7 +568,7 @@ namespace {
 
 		// note: space_map does not take the ownership of transaction_manager,
 		// so the transaction_manager must live in the same scope of space_map.
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		transaction_manager::ptr tm_;
 		checked_space_map::ptr metadata_sm_;
 
@@ -601,8 +601,8 @@ namespace {
 	int scan_metadata_(string const &input,
 			   std::ostream &out,
 			   flags const &f) {
-		block_manager<>::ptr bm;
-		bm = open_bm(input, block_manager<>::READ_ONLY, f.exclusive_);
+		block_manager::ptr bm;
+		bm = open_bm(input, block_manager::READ_ONLY, f.exclusive_);
 		block_address scan_begin = f.scan_begin_ ? *f.scan_begin_ : 0;
 		block_address scan_end = f.scan_end_ ? *f.scan_end_ : bm->get_nr_blocks();
 

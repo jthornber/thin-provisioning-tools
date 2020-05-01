@@ -38,8 +38,8 @@ using namespace xml_utils;
 
 namespace {
 	struct user_data {
-		block_manager<>::ptr input_bm_;
-		block_manager<>::ptr output_bm_;
+		block_manager::ptr input_bm_;
+		block_manager::ptr output_bm_;
 
 		metadata::ptr md_;
 		XML_Parser parser_;
@@ -166,8 +166,8 @@ namespace {
 	int low_level_restore_(string const &src_metadata, string const &input,
 			       string const &output, flags const &f) {
 		user_data ud;
-		ud.input_bm_ = open_bm(src_metadata, block_manager<>::READ_ONLY);
-		ud.output_bm_ = open_bm(output, block_manager<>::READ_WRITE);
+		ud.input_bm_ = open_bm(src_metadata, block_manager::READ_ONLY);
+		ud.output_bm_ = open_bm(output, block_manager::READ_WRITE);
 
 		xml_parser p;
 		ud.parser_ = p.get_parser();

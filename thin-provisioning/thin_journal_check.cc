@@ -154,8 +154,8 @@ namespace {
 	class checker : public journal_visitor {
 	public:
 		virtual void visit(open_journal_msg const &msg) {
-			bm_.reset(new block_manager<>("metadata.tmp", msg.nr_metadata_blocks_,
-                                                      MAX_HELD_LOCKS, block_manager<>::CREATE));
+			bm_.reset(new block_manager("metadata.tmp", msg.nr_metadata_blocks_,
+                                                    MAX_HELD_LOCKS, block_manager::CREATE));
 		}
 
 		virtual void visit(close_journal_msg const &msg) {
@@ -364,7 +364,7 @@ namespace {
 		block_set active_;
 		block_map locks_;
 
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		transaction_manager::ptr tm_;
 	};
 
@@ -378,9 +378,9 @@ namespace {
 
 	void check(string const &path) {
 		block_address journal_size = get_file_length(path) / JOURNAL_BLOCK_SIZE;
-		block_manager<JOURNAL_BLOCK_SIZE>::ptr bm(
-			new block_manager<JOURNAL_BLOCK_SIZE>(path, journal_size, 4,
-                                          block_manager<JOURNAL_BLOCK_SIZE>::READ_ONLY));
+		block_manager::ptr bm(
+			new block_manager(path, journal_size, 4,
+                                          block_manager::READ_ONLY));
 		journal j(bm);
 		checker c;
 		journal_display dc(c);

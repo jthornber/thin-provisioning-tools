@@ -85,7 +85,7 @@ namespace {
 
 	//-------------------------------------------------------------------
 
-	void find_btree_nodes(block_manager<>::ptr bm,
+	void find_btree_nodes(block_manager::ptr bm,
 			      block_address begin,
 			      block_address end,
 			      btree_node_checker::ptr checker,
@@ -93,7 +93,7 @@ namespace {
 		using namespace persistent_data;
 
 		for (block_address b = begin; b < end; ++b) {
-			block_manager<>::read_ref rr = bm->read_lock(b);
+			block_manager::read_ref rr = bm->read_lock(b);
 			node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
 
 			if (checker->check(n))
@@ -133,7 +133,7 @@ namespace {
 
 	class ll_mapping_tree_emitter : public mapping_tree_detail::device_visitor {
 	public:
-		ll_mapping_tree_emitter(block_manager<>::ptr bm,
+		ll_mapping_tree_emitter(block_manager::ptr bm,
 					indented_stream &out)
 			: bm_(bm), out_(out) {
 		}
@@ -145,7 +145,7 @@ namespace {
 
 			// Do not throw exception. Process the next entry inside the current node.
 			try {
-				block_manager<>::read_ref rr = bm_->read_lock(tree_root);
+				block_manager::read_ref rr = bm_->read_lock(tree_root);
 				node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
 				node_info ni;
 				convert_to_node_info(n, ni);
@@ -159,7 +159,7 @@ namespace {
 			out_ << "</device>" << endl;
 		}
 	private:
-		block_manager<>::ptr bm_;
+		block_manager::ptr bm_;
 		indented_stream& out_;
 	};
 
@@ -180,7 +180,7 @@ namespace {
 	int low_level_dump_(string const &input,
 			    std::ostream &output,
 			    flags const &f) {
-		block_manager<>::ptr bm = open_bm(input, block_manager<>::READ_ONLY);
+		block_manager::ptr bm = open_bm(input, block_manager::READ_ONLY);
 
 		block_address scan_begin = f.scan_begin_ ? *f.scan_begin_ : 0;
 		block_address scan_end = f.scan_end_ ? *f.scan_end_ : bm->get_nr_blocks();
@@ -239,7 +239,7 @@ namespace {
 		     ++it) {
 			if (it->begin_ && it->end_) {
 				for (block_address b = *it->begin_; b < *it->end_; ++b) {
-					block_manager<>::read_ref rr = bm->read_lock(b);
+					block_manager::read_ref rr = bm->read_lock(b);
 					node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
 					nodes.push_back(node_info());
 					convert_to_node_info(n, nodes.back());
