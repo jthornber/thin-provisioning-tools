@@ -1,0 +1,28 @@
+NAME
+  thin_metadata_unpack - unpack thin provisioning binary metadata.
+
+SYNOPSIS
+  thin_metadata_unpack [options] -i {device|file} -o {device|file}
+
+DESCRIPTION
+  thin_metadata_pack and thin_metadata_unpack are used to compress
+  binary metadata.  Useful for support.
+
+  thin_metadata_unpack expands metadata that has previously been packed with
+  thin_metadata_pack.  It outputs a binary file that the rest of the thin
+  tools can use.
+
+  This tool cannot be run on live metadata.
+
+OPTIONS
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -i, --input {device|file}	Input file or device with binary data.
+  -o, --output {device|file}	Output file or device for binary data.
+
+SEE ALSO
+  thin_dump(8), thin_check(8), thin_restore(8), thin_rmap(8), thin_metadata_size(8)
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>
+

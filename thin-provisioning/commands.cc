@@ -12,6 +12,8 @@ thin_provisioning::register_thin_commands(base::application &app)
 	app.add_cmd(command::ptr(new thin_delta_cmd()));
 	app.add_cmd(command::ptr(new thin_dump_cmd()));
 	app.add_cmd(command::ptr(new thin_ls_cmd()));
+	app.add_cmd(command::ptr(new thin_metadata_pack_cmd()));
+	app.add_cmd(command::ptr(new thin_metadata_unpack_cmd()));
 	app.add_cmd(command::ptr(new thin_metadata_size_cmd()));
 	app.add_cmd(command::ptr(new thin_restore_cmd()));
 	app.add_cmd(command::ptr(new thin_repair_cmd()));

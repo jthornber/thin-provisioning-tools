@@ -71,6 +71,22 @@ namespace thin_provisioning {
 		virtual int run(int argc, char **argv);
 	};
 
+	class thin_metadata_pack_cmd : public base::command {
+	public:
+		thin_metadata_pack_cmd();
+
+		virtual void usage(std::ostream &out) const override;
+		virtual int run(int argc, char **argv) override;
+	};
+
+	class thin_metadata_unpack_cmd : public base::command {
+	public:
+		thin_metadata_unpack_cmd();
+
+		virtual void usage(std::ostream &out) const override;
+		virtual int run(int argc, char **argv) override;
+	};	
+
 #ifdef DEV_TOOLS
 	class thin_ll_dump_cmd : public base::command {
 	public:

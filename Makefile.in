@@ -113,6 +113,7 @@ SOURCE=\
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_ls.cc \
 	thin-provisioning/thin_metadata_size.cc \
+	thin-provisioning/thin_metadata_pack.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
@@ -166,7 +167,7 @@ CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-laio -lexpat -ldl
+LIBS:=-laio -lexpat -lz -lboost_iostreams -ldl
 
 ifeq ("@DEVTOOLS@", "yes")
 LIBS+=-lncurses
@@ -271,6 +272,8 @@ TOOLS:=\
 	thin_repair \
 	thin_restore \
 	thin_rmap \
+	thin_metadata_pack \
+	thin_metadata_unpack \
 	thin_metadata_size \
 	thin_trim \
 	era_check \
@@ -297,6 +300,8 @@ install: bin/pdata_tools $(MANPAGES)
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
+	ln -s -f pdata_tools $(BINDIR)/thin_metadata_pack
+	ln -s -f pdata_tools $(BINDIR)/thin_metadata_unpack
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/era_check
@@ -317,6 +322,8 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
