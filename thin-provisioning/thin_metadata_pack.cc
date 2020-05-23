@@ -26,7 +26,7 @@
 
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/disk.h"
-#include "persistent-data/validators.h"
+#include "persistent-data/checksum.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/superblock.h"
 #include "version.h"
@@ -42,6 +42,11 @@ namespace {
 	using namespace std;
 	constexpr uint64_t MAGIC = 0xa537a0aa6309ef77;
 
+	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
+	uint32_t const BITMAP_CSUM_XOR = 240779;
+	uint32_t const INDEX_CSUM_XOR = 160478;
+	uint32_t const BTREE_CSUM_XOR = 121107;
+
 	// Pack file format
 	// ----------------
 	// 
@@ -56,25 +61,24 @@ namespace {
 
 	class is_metadata_functor {
 	public:
-		is_metadata_functor()
-			: superblock_v_(superblock_validator()),
-			  btree_node_v_(create_btree_node_validator()),
-			  bitmap_v_(bitmap_validator()),
-			  index_v_(index_validator()) {
+		is_metadata_functor() {
 		}
 
 		bool operator() (void const *raw) const {
-			return superblock_v_->check_raw(raw) ||
-				btree_node_v_->check_raw(raw) ||
-				bitmap_v_->check_raw(raw) ||
-				index_v_->check_raw(raw);
-		}
+			uint32_t const *cksum = reinterpret_cast<uint32_t const*>(raw);
+			base::crc32c sum(*cksum);
+			sum.append(cksum + 1, MD_BLOCK_SIZE - sizeof(uint32_t));
 
-	private:
-		bcache::validator::ptr superblock_v_;
-		bcache::validator::ptr btree_node_v_;
-		bcache::validator::ptr bitmap_v_;
-		bcache::validator::ptr index_v_;
+			switch (sum.get_sum()) {
+			case SUPERBLOCK_CSUM_SEED:
+			case INDEX_CSUM_XOR:
+			case BITMAP_CSUM_XOR:
+			case BTREE_CSUM_XOR:
+				return true;
+			default:
+				return false;
+			}
+		}
 	};
 
 	void prealloc_file(string const &file, off_t len) {
