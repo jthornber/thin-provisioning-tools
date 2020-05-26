@@ -6,6 +6,8 @@
           thin-restore-help
           thin-rmap-help
           thin-delta-help
+	  thin-metadata-pack-help
+	  thin-metadata-unpack-help
 
           cache-check-help
           cache-restore-help
@@ -69,6 +71,22 @@ Options:
   {--thin2, --snap2}
   {-m, --metadata-snap} [block#]
   {--verbose}
+  {-h|--help}
+  {-V|--version}")
+
+  (define thin-metadata-pack-help
+    "Usage: thin_metadata_pack [options]
+Options:
+  {-i|--input} <input metadata (binary format)>
+  {-o|--output} <output packed metadata>
+  {-h|--help}
+  {-V|--version}")
+
+  (define thin-metadata-unpack-help
+    "Usage: thin_metadata_unpack [options]
+Options:
+  {-i|--input} <input packed metadata>
+  {-o|--output} <output metadata (binary format)>
   {-h|--help}
   {-V|--version}")
 

@@ -21,6 +21,8 @@
   (define-tool thin-restore)
   (define-tool thin-rmap)
   (define-tool thin-repair)
+  (define-tool thin-metadata-pack)
+  (define-tool thin-metadata-unpack)
 
   (define-syntax with-thin-xml
     (syntax-rules ()
@@ -500,4 +502,111 @@
       (with-empty-metadata (md2)
         (run-fail-rcv (_ stderr) (thin-repair "--transaction-id=5" "--data-block-size=128" "-i" md1 "-o" md2)
           (assert-matches ".*nr data blocks.*" stderr)))))
-  )
+
+
+  ;;;-----------------------------------------------------------
+  ;;; thin_metadata_pack scenarios
+  ;;;-----------------------------------------------------------
+
+  (define-scenario (thin-metadata-pack version)
+    "thin_metadata_pack accepts --version"
+    (run-ok-rcv (stdout _) (thin-metadata-pack "--version")
+      (assert-equal tools-version stdout)))
+
+  (define-scenario (thin-metadata-pack h)
+    "thin_metadata_pack accepts -h"
+    (run-ok-rcv (stdout _) (thin-metadata-pack "-h")
+      (assert-equal thin-metadata-pack-help stdout)))
+
+  (define-scenario (thin-metadata-pack help)
+    "thin_metadata_pack accepts --help"
+    (run-ok-rcv (stdout _) (thin-metadata-pack "--help")
+      (assert-equal thin-metadata-pack-help stdout)))
+
+  (define-scenario (thin-metadata-pack unrecognised-option)
+    "Unrecognised option should cause failure"
+    (with-valid-metadata (md)
+      (run-fail-rcv (stdout stderr) (thin-metadata-pack "--unleash-the-hedgehogs")
+        (assert-matches ".*thin_metadata_pack: unrecognized option '--unleash-the-hedgehogs" stderr))))
+
+  (define-scenario (thin-metadata-pack missing-input-file)
+    "the input file wasn't specified"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-pack "-o " md)
+        (assert-starts-with "No input file provided." stderr))))
+
+  (define-scenario (thin-metadata-pack no-such-input-file)
+    "the input file can't be found"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-pack "-i no-such-file -o" md)
+        (assert-starts-with "Couldn't stat path" stderr))))
+
+  (define-scenario (thin-metadata-pack missing-output-file)
+    "the output file wasn't specified"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-pack "-i" md)
+        (assert-starts-with "No output file provided." stderr))))
+
+  ;;;-----------------------------------------------------------
+  ;;; thin_metadata_pack scenarios
+  ;;;-----------------------------------------------------------
+  (define-scenario (thin-metadata-unpack version)
+    "thin_metadata_pack accepts --version"
+    (run-ok-rcv (stdout _) (thin-metadata-unpack "--version")
+      (assert-equal tools-version stdout)))
+
+  (define-scenario (thin-metadata-unpack h)
+    "thin_metadata_pack accepts -h"
+    (run-ok-rcv (stdout _) (thin-metadata-unpack "-h")
+      (assert-equal thin-metadata-unpack-help stdout)))
+
+  (define-scenario (thin-metadata-unpack help)
+    "thin_metadata_pack accepts --help"
+    (run-ok-rcv (stdout _) (thin-metadata-unpack "--help")
+      (assert-equal thin-metadata-unpack-help stdout)))
+
+  (define-scenario (thin-metadata-unpack unrecognised-option)
+    "Unrecognised option should cause failure"
+    (with-valid-metadata (md)
+      (run-fail-rcv (stdout stderr) (thin-metadata-unpack "--unleash-the-hedgehogs")
+        (assert-matches ".*thin_metadata_unpack: unrecognized option '--unleash-the-hedgehogs" stderr))))
+
+  (define-scenario (thin-metadata-unpack missing-input-file)
+    "the input file wasn't specified"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-unpack "-o " md)
+        (assert-starts-with "No input file provided." stderr))))
+
+  (define-scenario (thin-metadata-unpack no-such-input-file)
+    "the input file can't be found"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-unpack "-i no-such-file -o" md)
+        (assert-starts-with "Couldn't open pack file" stderr))))
+
+  (define-scenario (thin-metadata-unpack missing-output-file)
+    "the output file wasn't specified"
+    (with-empty-metadata (md)
+      (run-fail-rcv (_ stderr) (thin-metadata-unpack "-i" md)
+        (assert-starts-with "No output file provided." stderr))))
+
+  (define-scenario (thin-metadata-unpack garbage-input-file)
+    "the input file is just zeroes"
+    (with-empty-metadata (bad-pack)
+      (run-fail-rcv (_ stderr) (thin-metadata-unpack "-i " bad-pack "-o junk")
+        (assert-starts-with "Not a pack file." stderr))))
+
+  ;;;-----------------------------------------------------------
+  ;;; thin_metadata_pack/unpack end to end scenario
+  ;;;-----------------------------------------------------------)
+  (define-scenario (thin-metadata-pack end-to-end)
+    "pack -> unpack recovers metadata"
+    (let ((pack-file "md.pack"))
+      (with-valid-metadata (md-in)
+        (with-empty-metadata (md-out)
+          (run-ok (thin-metadata-pack "-i" md-in "-o" pack-file))
+          (run-ok (thin-metadata-unpack "-i" pack-file "-o" md-out))
+            (run-ok-rcv (dump1 _) (thin-dump md-in)
+              (run-ok-rcv (dump2 _) (thin-dump md-out)
+                (assert-equal dump1 dump2)))))))
+
+)
