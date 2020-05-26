@@ -113,6 +113,8 @@ namespace {
 		using namespace boost::iostreams;
 
 		std::ofstream out_file(*f.output_file_, ios_base::binary);
+		write_u64(out_file, MAGIC);
+
 		boost::iostreams::filtering_ostreambuf out_buf;
 		out_buf.push(zlib_compressor());
 		out_buf.push(out_file);
@@ -125,7 +127,6 @@ namespace {
 
 		cerr << "nr_blocks = " << nr_blocks << "\n";
 
-		write_u64(out, MAGIC);
 		write_u64(out, block_size);
 		write_u64(out, nr_blocks);
 
@@ -148,15 +149,15 @@ namespace {
 		
 		ifstream in_file(*f.input_file_, ios_base::binary);
 		if (!in_file)
-			throw runtime_error("couldn't open pack file");
+			throw runtime_error("Couldn't open pack file");
+
+		if (read_u64(in_file) != MAGIC)
+			throw runtime_error("Not a pack file.");
 
 		filtering_istreambuf in_buf;
 		in_buf.push(zlib_decompressor());
 		in_buf.push(in_file);
 		std::istream in(&in_buf);
-
-		if (read_u64(in) != MAGIC)
-			throw runtime_error("not a pack file");
 
 		auto block_size = read_u64(in);
 		auto nr_blocks = read_u64(in);
@@ -250,7 +251,7 @@ thin_metadata_pack_cmd::run(int argc, char **argv)
 	}
 
 	if (!f.output_file_) {
-		cerr << "No output file providied." << endl;
+		cerr << "No output file provided." << endl;
 		usage(cerr);
 		return 1;
 	}
@@ -321,7 +322,7 @@ thin_metadata_unpack_cmd::run(int argc, char **argv)
 	}
 
 	if (!f.output_file_) {
-		cerr << "No output file providied." << endl;
+		cerr << "No output file provided." << endl;
 		usage(cerr);
 		return 1;
 	}
