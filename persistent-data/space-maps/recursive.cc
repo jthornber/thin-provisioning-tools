@@ -216,7 +216,10 @@ namespace {
 
 				switch (op.op_) {
 				case INC:
-					sm_->inc(b, op.rc_);
+					if (op.rc_ > 0)
+						sm_->inc(b, op.rc_);
+					else if (op.rc_ < 0)
+						sm_->dec(b, -op.rc_);
 					break;
 
 				case SET:
