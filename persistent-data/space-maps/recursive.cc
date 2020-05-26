@@ -75,9 +75,8 @@ namespace {
 
 			op_map::const_iterator ops_it = ops_.find(b);
 			if (ops_it != ops_.end()) {
-				list<block_op>::const_iterator it, end = ops_it->second.end();
-				for (it = ops_it->second.begin(); it != end; ++it) {
-					switch (it->op_) {
+				for (auto const &op : ops_it->second) {
+					switch (op.op_) {
 					case block_op::INC:
 						count++;
 						break;
@@ -87,7 +86,7 @@ namespace {
 						break;
 
 					case block_op::SET:
-						count = it->b_;
+						count = op.b_;
 						break;
 					}
 				}
@@ -145,9 +144,8 @@ namespace {
 				// FIXME: duplication
 				op_map::const_iterator ops_it = ops_.find(b);
 				if (ops_it != ops_.end()) {
-					list<block_op>::const_iterator it, end = ops_it->second.end();
-					for (it = ops_it->second.begin(); it != end; ++it) {
-						switch (it->op_) {
+					for (auto const &op : ops_it->second) {
+						switch (op.op_) {
 						case block_op::INC:
 							count++;
 							break;
@@ -157,7 +155,7 @@ namespace {
 							break;
 
 						case block_op::SET:
-							count = it->b_;
+							count = op.b_;
 							break;
 						}
 					}
@@ -216,24 +214,21 @@ namespace {
 
 	private:
 		void flush_ops_() {
-			op_map::const_iterator it, end = ops_.end();
-			for (it = ops_.begin(); it != end; ++it) {
+			for (auto const &block_ops : ops_) {
 				recursing_lock lock(*this);
 
-				list<block_op> const &ops = it->second;
-				list<block_op>::const_iterator op_it, op_end = ops.end();
-				for (op_it = ops.begin(); op_it != op_end; ++op_it) {
-					switch (op_it->op_) {
+				for (auto const &op : block_ops.second) {
+					switch (op.op_) {
 					case block_op::INC:
-						sm_->inc(op_it->b_);
+						sm_->inc(op.b_);
 						break;
 
 					case block_op::DEC:
-						sm_->dec(op_it->b_);
+						sm_->dec(op.b_);
 						break;
 
 					case block_op::SET:
-						sm_->set_count(op_it->b_, op_it->rc_);
+						sm_->set_count(op.b_, op.rc_);
 						break;
 					}
 				}
