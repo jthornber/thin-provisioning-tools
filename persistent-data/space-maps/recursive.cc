@@ -88,6 +88,7 @@ namespace {
 		}
 
 		virtual ref_t get_count(block_address b) const {
+			recursing_const_lock lock(*this);
 			return modify_count(b, sm_->get_count(b));
 		}
 
@@ -123,7 +124,6 @@ namespace {
 			}
 		}
 
-		// FIXME: double check this
 		virtual maybe_block
 		find_free(span_iterator &it) {
 			recursing_lock lock(*this);
@@ -208,11 +208,9 @@ namespace {
 		}
 
 		void flush_ops_() {
-			// FIXME: we need to remove entries as we act upon them
+			recursing_lock lock(*this);
+
 			for (auto const &p : ops_) {
-				// FIXME: lift outside the loop?
-				recursing_lock lock(*this);
-				
 				block_address b = p.first;
 				auto const &op = p.second;
 
