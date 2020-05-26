@@ -27,32 +27,48 @@ using namespace std;
 //----------------------------------------------------------------
 
 namespace {
+	enum op {
+		INC,
+		SET
+	};
+
 	struct block_op {
-		enum op {
-			INC,
-			DEC,
-			SET
-		};
-
-		block_op(op o, block_address b)
+		block_op(op o, uint32_t rc)
 			: op_(o),
-			  b_(b) {
-			if (o == SET)
-				throw runtime_error("SET must take an operand");
-		}
-
-		block_op(op o, block_address b, uint32_t rc)
-			: op_(o),
-			  b_(b),
 			  rc_(rc) {
-			if (o != SET)
-				throw runtime_error("only SET takes an operand");
 		}
 
 		op op_;
-		block_address b_;
-		uint32_t rc_;
+
+		// I'm assuming the ref counts never get above 2^31, which is reasonable I think :)
+		int32_t rc_;
 	};
+
+	block_op operator +(block_op const &lhs, block_op const &rhs) {
+		switch (lhs.op_) {
+		case INC:
+			switch (rhs.op_) {
+			case INC:
+				return block_op(INC, lhs.rc_ + rhs.rc_);
+
+			case SET:
+				return rhs;
+			}
+			break;
+
+		case SET:
+			switch (rhs.op_) {
+			case INC:
+				return block_op(SET, lhs.rc_ + rhs.rc_);
+
+			case SET:
+				return rhs;
+			}
+			break;
+		}
+
+		throw runtime_error("can't get here");
+	}
 
 	class sm_recursive : public checked_space_map {
 	public:
@@ -73,22 +89,18 @@ namespace {
 		virtual ref_t get_count(block_address b) const {
 			ref_t count = sm_->get_count(b);
 
-			op_map::const_iterator ops_it = ops_.find(b);
+			auto ops_it = ops_.find(b);
 			if (ops_it != ops_.end()) {
-				for (auto const &op : ops_it->second) {
-					switch (op.op_) {
-					case block_op::INC:
-						count++;
-						break;
+				auto const &op = ops_it->second;
 
-					case block_op::DEC:
-						count--;
-						break;
+				switch (op.op_) {
+				case INC:
+					count += op.rc_;
+					break;
 
-					case block_op::SET:
-						count = op.b_;
-						break;
-					}
+				case SET:
+					count = op.rc_;
+					break;
 				}
 			}
 
@@ -97,7 +109,7 @@ namespace {
 
 		virtual void set_count(block_address b, ref_t c) {
 			if (depth_)
-				add_op(block_op(block_op::SET, b, c));
+				add_op(b, block_op(SET, c));
 			else {
 				recursing_lock lock(*this);
 				return sm_->set_count(b, c);
@@ -111,7 +123,7 @@ namespace {
 
 		virtual void inc(block_address b) {
 			if (depth_)
-				add_op(block_op(block_op::INC, b));
+				add_op(b, block_op(INC, 1));
 			else {
 				recursing_lock lock(*this);
 				return sm_->inc(b);
@@ -120,13 +132,14 @@ namespace {
 
 		virtual void dec(block_address b) {
 			if (depth_)
-				add_op(block_op(block_op::DEC, b));
+				add_op(b, block_op(INC, -1));
 			else {
 				recursing_lock lock(*this);
 				return sm_->dec(b);
 			}
 		}
 
+		// FIXME: double check this
 		virtual maybe_block
 		find_free(span_iterator &it) {
 			recursing_lock lock(*this);
@@ -137,34 +150,30 @@ namespace {
 
 		virtual bool count_possibly_greater_than_one(block_address b) const {
 			recursing_const_lock lock(*this);
+
 			bool gto = sm_->count_possibly_greater_than_one(b);
-			if (!gto) {
-				ref_t count = 1;
+			if (gto)
+				return true;
 
-				// FIXME: duplication
-				op_map::const_iterator ops_it = ops_.find(b);
-				if (ops_it != ops_.end()) {
-					for (auto const &op : ops_it->second) {
-						switch (op.op_) {
-						case block_op::INC:
-							count++;
-							break;
+			ref_t count = 1;
 
-						case block_op::DEC:
-							count--;
-							break;
+			// FIXME: duplication
+			auto ops_it = ops_.find(b);
+			if (ops_it != ops_.end()) {
+				auto const &op = ops_it->second;
 
-						case block_op::SET:
-							count = op.b_;
-							break;
-						}
-					}
+				switch (op.op_) {
+				case INC:
+					count += op.rc_;
+					break;
+
+				case SET:
+					count = op.rc_;
+					break;
 				}
-
-				gto = count > 1;
 			}
 
-			return gto;
+			return count > 1;
 		}
 
 		virtual void extend(block_address extra_blocks) {
@@ -214,23 +223,21 @@ namespace {
 
 	private:
 		void flush_ops_() {
-			for (auto const &block_ops : ops_) {
+			for (auto const &p : ops_) {
+				// FIXME: lift outside the loop?
 				recursing_lock lock(*this);
+				
+				block_address b = p.first;
+				auto const &op = p.second;
 
-				for (auto const &op : block_ops.second) {
-					switch (op.op_) {
-					case block_op::INC:
-						sm_->inc(op.b_);
-						break;
+				switch (op.op_) {
+				case INC:
+					sm_->inc(b, op.rc_);
+					break;
 
-					case block_op::DEC:
-						sm_->dec(op.b_);
-						break;
-
-					case block_op::SET:
-						sm_->set_count(op.b_, op.rc_);
-						break;
-					}
+				case SET:
+					sm_->set_count(b, op.rc_);
+					break;
 				}
 			}
 
@@ -238,11 +245,17 @@ namespace {
 			allocated_blocks_.clear();
 		}
 
-		void add_op(block_op const &op) {
-			ops_[op.b_].push_back(op);
+		void add_op(block_address b, block_op const &op) {
+			auto it = ops_.find(b);
 
-			if (op.op_ == block_op::INC || (op.op_ == block_op::SET && op.rc_ > 0))
-				allocated_blocks_.add(op.b_, op.b_ + 1);
+			if (it == ops_.end())
+				ops_.insert(make_pair(b, op));
+			else
+				it->second = it->second + op;
+
+			// FIXME: is this the best we can do? 
+			if (op.rc_ > 0)
+				allocated_blocks_.add(b, b + 1);
 		}
 
 		void cant_recurse(string const &method) const {
@@ -282,14 +295,7 @@ namespace {
 		checked_space_map::ptr sm_;
 		mutable int depth_;
 
-		enum op {
-			BOP_INC,
-			BOP_DEC,
-			BOP_SET
-		};
-
-		typedef map<block_address, std::list<block_op> > op_map;
-		op_map ops_;
+		map<block_address, block_op> ops_;
 
 		subtracting_span_iterator::block_set allocated_blocks_;
 		bool flush_in_progress_;
