@@ -44,6 +44,7 @@ namespace {
 		int32_t rc_;
 	};
 
+	// Aggregates two block_ops
 	block_op operator +(block_op const &lhs, block_op const &rhs) {
 		switch (lhs.op_) {
 		case INC:
@@ -87,24 +88,7 @@ namespace {
 		}
 
 		virtual ref_t get_count(block_address b) const {
-			ref_t count = sm_->get_count(b);
-
-			auto ops_it = ops_.find(b);
-			if (ops_it != ops_.end()) {
-				auto const &op = ops_it->second;
-
-				switch (op.op_) {
-				case INC:
-					count += op.rc_;
-					break;
-
-				case SET:
-					count = op.rc_;
-					break;
-				}
-			}
-
-			return count;
+			return modify_count(b, sm_->get_count(b));
 		}
 
 		virtual void set_count(block_address b, ref_t c) {
@@ -155,25 +139,7 @@ namespace {
 			if (gto)
 				return true;
 
-			ref_t count = 1;
-
-			// FIXME: duplication
-			auto ops_it = ops_.find(b);
-			if (ops_it != ops_.end()) {
-				auto const &op = ops_it->second;
-
-				switch (op.op_) {
-				case INC:
-					count += op.rc_;
-					break;
-
-				case SET:
-					count = op.rc_;
-					break;
-				}
-			}
-
-			return count > 1;
+			return modify_count(b, 1) > 1;
 		}
 
 		virtual void extend(block_address extra_blocks) {
@@ -222,7 +188,27 @@ namespace {
 		}
 
 	private:
+		uint32_t modify_count(block_address b, uint32_t count) const {
+			auto ops_it = ops_.find(b);
+			if (ops_it != ops_.end()) {
+				auto const &op = ops_it->second;
+
+				switch (op.op_) {
+				case INC:
+					count += op.rc_;
+					break;
+
+				case SET:
+					count = op.rc_;
+					break;
+				}
+			}
+
+			return count;
+		}
+
 		void flush_ops_() {
+			// FIXME: we need to remove entries as we act upon them
 			for (auto const &p : ops_) {
 				// FIXME: lift outside the loop?
 				recursing_lock lock(*this);
