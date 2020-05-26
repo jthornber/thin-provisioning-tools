@@ -383,23 +383,26 @@ namespace {
 			indexes_->commit_ies();
 		}
 
-		static ref_t inc_mutator(ref_t c) {
-			return c + 1;
-		}
-
-		static ref_t dec_mutator(ref_t c) {
-			return c - 1;
-		}
-
-		void inc(block_address b) {
+		void inc(block_address b) override {
 			if (b == search_start_)
 				search_start_++;
 
-			modify_count(b, inc_mutator);
+			modify_count(b, [](ref_t c) {return c + 1;});
 		}
 
-		void dec(block_address b) {
-			modify_count(b, dec_mutator);
+		void dec(block_address b) override {
+			modify_count(b, [](ref_t c) {return c - 1;});
+		}
+
+		void inc(block_address b, uint32_t count) override {
+			if (b == search_start_)
+				search_start_++;
+
+			modify_count(b, [count](ref_t c) {return c + count;});
+		}
+
+		void dec(block_address b, uint32_t count) override {
+			modify_count(b, [count](ref_t c) {return c - count;});
 		}
 
 		maybe_block find_free(span_iterator &it) {
