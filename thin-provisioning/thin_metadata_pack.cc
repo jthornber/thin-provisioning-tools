@@ -41,6 +41,7 @@ using boost::optional;
 namespace {
 	using namespace std;
 	constexpr uint64_t MAGIC = 0xa537a0aa6309ef77;
+	constexpr uint64_t PACK_VERSION = 1;
 
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 	uint32_t const BITMAP_CSUM_XOR = 240779;
@@ -114,6 +115,7 @@ namespace {
 
 		std::ofstream out_file(*f.output_file_, ios_base::binary);
 		write_u64(out_file, MAGIC);
+		write_u64(out_file, PACK_VERSION);
 
 		boost::iostreams::filtering_ostreambuf out_buf;
 		out_buf.push(zlib_compressor());
@@ -153,6 +155,9 @@ namespace {
 
 		if (read_u64(in_file) != MAGIC)
 			throw runtime_error("Not a pack file.");
+
+		if (read_u64(in_file) != PACK_VERSION)
+			throw runtime_error("unknown pack file format version");
 
 		filtering_istreambuf in_buf;
 		in_buf.push(zlib_decompressor());
