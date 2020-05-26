@@ -383,17 +383,6 @@ namespace {
 			indexes_->commit_ies();
 		}
 
-		void inc(block_address b) override {
-			if (b == search_start_)
-				search_start_++;
-
-			modify_count(b, [](ref_t c) {return c + 1;});
-		}
-
-		void dec(block_address b) override {
-			modify_count(b, [](ref_t c) {return c - 1;});
-		}
-
 		void inc(block_address b, uint32_t count) override {
 			if (b == search_start_)
 				search_start_++;

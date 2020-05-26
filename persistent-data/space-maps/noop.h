@@ -51,11 +51,11 @@ namespace persistent_data {
 			fail();
 		}
 
-		void inc(block_address b) {
+		void inc(block_address b, ref_t count) {
 			fail();
 		}
 
-		void dec(block_address b) {
+		void dec(block_address b, ref_t count) {
 			fail();
 		}
 

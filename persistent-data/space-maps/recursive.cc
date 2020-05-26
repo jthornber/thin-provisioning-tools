@@ -106,21 +106,21 @@ namespace {
 			sm_->commit();
 		}
 
-		virtual void inc(block_address b) {
+		virtual void inc(block_address b, ref_t count) override {
 			if (depth_)
-				add_op(b, block_op(INC, 1));
+				add_op(b, block_op(INC, count));
 			else {
 				recursing_lock lock(*this);
-				return sm_->inc(b);
+				return sm_->inc(b, count);
 			}
 		}
 
-		virtual void dec(block_address b) {
+		virtual void dec(block_address b, ref_t count) override {
 			if (depth_)
-				add_op(b, block_op(INC, -1));
+				add_op(b, block_op(INC, -count));
 			else {
 				recursing_lock lock(*this);
-				return sm_->dec(b);
+				return sm_->dec(b, count);
 			}
 		}
 

@@ -63,15 +63,15 @@ namespace persistent_data {
 		void commit() {
 		}
 
-		void inc(block_address b) {
+		void inc(block_address b, ref_t count) override {
 			if (counts_[b] == 0)
 				nr_free_--;
 
-			counts_[b]++;
+			counts_[b] += count;
 		}
 
-		void dec(block_address b) {
-			counts_[b]--;
+		void dec(block_address b, ref_t count) override {
+			counts_[b] -= count;
 
 			if (counts_[b] == 0) {
 				if (b < search_start_)

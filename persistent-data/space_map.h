@@ -45,19 +45,8 @@ namespace persistent_data {
 		virtual void set_count(block_address b, ref_t c) = 0;
 		virtual void commit() = 0;
 
-		virtual void inc(block_address b) = 0;
-		virtual void dec(block_address b) = 0;
-
-		// slow default implementation
-		virtual void inc(block_address b, uint32_t count) {
-			for (uint32_t i = 0; i < count; i++)
-				inc(b);
-		}
-
-		virtual void dec(block_address b, uint32_t count) {
-			for (uint32_t i = 0; i < count; i++)
-				dec(b);
-		}
+		virtual void inc(block_address b, ref_t count = 1) = 0;
+		virtual void dec(block_address b, ref_t count = 1) = 0;
 
 		// FIXME: change these to return an optional, failure is
 		// not that rare if we're restricting the area that's

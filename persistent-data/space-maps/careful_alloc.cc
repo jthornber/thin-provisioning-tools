@@ -58,18 +58,18 @@ namespace {
 			clear_freed();
 		}
 
-		virtual void inc(block_address b) {
+		virtual void inc(block_address b, ref_t count) override {
 			if (was_freed(b))
 				throw runtime_error("inc of block freed within current transaction");
 
-			sm_->inc(b);
+			sm_->inc(b, count);
 		}
 
-		virtual void dec(block_address b) {
-			if (sm_->get_count(b) == 1)
+		virtual void dec(block_address b, ref_t count) override {
+			if (sm_->get_count(b) == count)
 				mark_freed(b);
 
-			sm_->dec(b);
+			sm_->dec(b, count);
 		}
 
 		virtual maybe_block find_free(span_iterator &it) {
