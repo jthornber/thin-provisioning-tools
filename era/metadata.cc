@@ -13,7 +13,7 @@ namespace {
 		if (!nr_blocks)
 			throw runtime_error("Metadata is not large enough for superblock.");
 
-		space_map::ptr sm(new core_map(nr_blocks));
+		space_map::ptr sm{create_core_map(nr_blocks)};
 		sm->inc(SUPERBLOCK_LOCATION);
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;

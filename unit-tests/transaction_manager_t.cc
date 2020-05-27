@@ -34,7 +34,7 @@ namespace {
 	create_tm() {
 		block_manager::ptr bm(
 			new block_manager("./test.data", NR_BLOCKS, MAX_HELD_LOCKS, block_manager::READ_WRITE));
-		space_map::ptr sm(new core_map(NR_BLOCKS));
+		space_map::ptr sm{create_core_map(NR_BLOCKS)};
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		tm->get_sm()->inc(0);
 		return tm;

@@ -37,14 +37,14 @@ namespace {
 	public:
 		SpaceMapTests()
 			: bm_(new block_manager("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager::READ_WRITE)),
-			  sm_(new core_map(NR_BLOCKS)),
+			  sm_(create_core_map(NR_BLOCKS)),
 			  tm_(bm_, sm_) {
 		}
 
 		struct sm_core_creator {
 			static space_map::ptr
 			create(transaction_manager &tm) {
-				return space_map::ptr(new persistent_data::core_map(NR_BLOCKS));
+				return create_core_map(NR_BLOCKS);
 			}
 		};
 
@@ -52,8 +52,7 @@ namespace {
 			static space_map::ptr
 			create(transaction_manager &tm) {
 				return create_careful_alloc_sm(
-					checked_space_map::ptr(
-						new core_map(NR_BLOCKS)));
+					create_core_map(NR_BLOCKS));
 			}
 		};
 
@@ -61,8 +60,7 @@ namespace {
 			static checked_space_map::ptr
 			create(transaction_manager &tm) {
 				return create_recursive_sm(
-					checked_space_map::ptr(
-						new core_map(NR_BLOCKS)));
+					create_core_map(NR_BLOCKS));
 			}
 		};
 
@@ -279,7 +277,7 @@ TEST_F(SpaceMapTests, test_metadata_and_disk)
 {
 	block_manager::ptr bm(
 		new block_manager("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager::READ_WRITE));
-	space_map::ptr core_sm(new core_map(NR_BLOCKS));
+	space_map::ptr core_sm{create_core_map(NR_BLOCKS)};
 	transaction_manager::ptr tm(new transaction_manager(bm, core_sm));
 	persistent_space_map::ptr metadata_sm = persistent_data::create_metadata_sm(*tm, NR_BLOCKS);
 	copy_space_maps(metadata_sm, core_sm);

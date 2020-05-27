@@ -87,6 +87,7 @@ SOURCE=\
 	persistent-data/file_utils.cc \
 	persistent-data/hex_dump.cc \
 	persistent-data/space-maps/careful_alloc.cc \
+	persistent-data/space-maps/core.cc \
 	persistent-data/space-maps/disk.cc \
 	persistent-data/space-maps/recursive.cc \
 	persistent-data/space_map.cc \

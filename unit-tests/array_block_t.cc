@@ -87,7 +87,7 @@ namespace {
 	transaction_manager::ptr
 	create_tm() {
 		block_manager::ptr bm = create_bm(NR_BLOCKS);
-		space_map::ptr sm(new core_map(NR_BLOCKS));
+		space_map::ptr sm{create_core_map(NR_BLOCKS)};
 		transaction_manager::ptr tm(new transaction_manager(bm, sm));
 		return tm;
 	}

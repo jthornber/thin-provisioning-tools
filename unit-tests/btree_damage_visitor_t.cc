@@ -302,7 +302,7 @@ namespace {
 
 	private:
 		space_map::ptr setup_core_map() {
-			space_map::ptr sm(new core_map(NR_BLOCKS));
+			space_map::ptr sm(create_core_map(NR_BLOCKS));
 			sm->inc(SUPERBLOCK);
 			return sm;
 		}
