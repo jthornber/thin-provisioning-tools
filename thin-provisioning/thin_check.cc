@@ -78,8 +78,7 @@ namespace {
 
 			block_manager::ptr bm = open_bm(path);
 			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
-			metadata_checker::ptr checker = create_base_checker(bm, fs.check_opts, output_opts);
-			error_state err = checker->check();
+			error_state err = check_metadata(bm, fs.check_opts, output_opts);
 
 			if (fs.ignore_non_fatal_errors)
 				success = (err == FATAL) ? false : true;

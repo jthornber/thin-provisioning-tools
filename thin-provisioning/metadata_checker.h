@@ -56,19 +56,10 @@ namespace thin_provisioning {
 		OUTPUT_QUIET,
 	};
 
-	class metadata_checker {
-	public:
-		typedef std::shared_ptr<metadata_checker> ptr;
-
-		virtual ~metadata_checker() {}
-
-		virtual base::error_state check() = 0;
-	};
-
-	metadata_checker::ptr
-	create_base_checker(persistent_data::block_manager::ptr bm,
-			    check_options const &check_opts,
-			    output_options output_opts);
+	base::error_state
+	check_metadata(persistent_data::block_manager::ptr bm,
+		       check_options const &check_opts,
+		       output_options output_opts);
 }
 
 //----------------------------------------------------------------

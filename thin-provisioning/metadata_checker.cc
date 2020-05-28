@@ -289,11 +289,11 @@ namespace {
 
 	//--------------------------------
 
-	class base_metadata_checker : public metadata_checker {
+	class metadata_checker {
 	public:
-		base_metadata_checker(block_manager::ptr bm,
-				      check_options check_opts,
-				      output_options output_opts)
+		metadata_checker(block_manager::ptr bm,
+		      		 check_options check_opts,
+				 output_options output_opts)
 			: bm_(bm),
 			  options_(check_opts),
 			  out_(cerr, 2),
@@ -412,14 +412,13 @@ void check_options::set_override_mapping_root(block_address b) {
 	override_mapping_root_ = b;
 }
 
-metadata_checker::ptr
-thin_provisioning::create_base_checker(block_manager::ptr bm,
-				       check_options const &check_opts,
-				       output_options output_opts)
+base::error_state
+thin_provisioning::check_metadata(block_manager::ptr bm,
+				  check_options const &check_opts,
+				  output_options output_opts)
 {
-	metadata_checker::ptr checker;
-	checker = metadata_checker::ptr(new base_metadata_checker(bm, check_opts, output_opts));
-	return checker;
+	metadata_checker checker(bm, check_opts, output_opts);
+	return checker.check();
 }
 
 //----------------------------------------------------------------
