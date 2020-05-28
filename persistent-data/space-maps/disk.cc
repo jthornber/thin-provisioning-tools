@@ -429,10 +429,6 @@ namespace {
 			return maybe_block();
 		}
 
-		bool count_possibly_greater_than_one(block_address b) const {
-			return get_count(b) > 1;
-		}
-
 		virtual void extend(block_address extra_blocks) {
 			block_address nr_blocks = nr_blocks_ + extra_blocks;
 

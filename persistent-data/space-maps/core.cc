@@ -43,7 +43,6 @@ namespace {
 		void inc(block_address b, ref_t count) override;
 		void dec(block_address b, ref_t count) override;
 		maybe_block find_free(span_iterator &it) override;
-		bool count_possibly_greater_than_one(block_address b) const override;
 		void extend(block_address extra_blocks) override;
 		void count_metadata(block_counter &bc) const override;
 
@@ -129,11 +128,6 @@ namespace {
 		}
 
 		return maybe_block();
-	}
-
-	bool
-	core_map::count_possibly_greater_than_one(block_address b) const {
-		return get_count(b) > 1;
 	}
 
 	void

@@ -77,10 +77,6 @@ namespace {
 			return sm_->find_free(filtered_it);
 		}
 
-		virtual bool count_possibly_greater_than_one(block_address b) const {
-			return sm_->count_possibly_greater_than_one(b);
-		}
-
 		virtual void extend(block_address extra_blocks) {
 			return sm_->extend(extra_blocks);
 		}

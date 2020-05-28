@@ -132,16 +132,6 @@ namespace {
 			return sm_->find_free(filtered_it);
 		}
 
-		virtual bool count_possibly_greater_than_one(block_address b) const {
-			recursing_const_lock lock(*this);
-
-			bool gto = sm_->count_possibly_greater_than_one(b);
-			if (gto)
-				return true;
-
-			return modify_count(b, 1) > 1;
-		}
-
 		virtual void extend(block_address extra_blocks) {
 			cant_recurse("extend");
 			recursing_lock lock(*this);

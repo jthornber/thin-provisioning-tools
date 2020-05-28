@@ -64,11 +64,6 @@ namespace persistent_data {
 			return boost::optional<block_address>(0);
 		}
 
-		bool count_possibly_greater_than_one(block_address b) const {
-			fail();
-			return false;
-		}
-
 		void extend(block_address extra_blocks) {
 			fail();
 		}

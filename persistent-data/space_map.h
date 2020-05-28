@@ -88,8 +88,6 @@ namespace persistent_data {
 
 		virtual maybe_block find_free(span_iterator &it) = 0;
 
-		virtual bool count_possibly_greater_than_one(block_address b) const = 0;
-
 		virtual void extend(block_address extra_blocks) = 0;
 
 		struct iterator {

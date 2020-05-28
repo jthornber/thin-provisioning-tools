@@ -62,7 +62,7 @@ transaction_manager::new_block(validator v)
 pair<transaction_manager::write_ref, bool>
 transaction_manager::shadow(block_address orig, validator v)
 {
-	bool need_inc = sm_->count_possibly_greater_than_one(orig);
+	bool need_inc = sm_->get_count(orig) > 1;
 	if (is_shadow(orig) && !need_inc)
 		return make_pair(bm_->write_lock(orig, v), need_inc);
 
