@@ -33,9 +33,9 @@ namespace thin_provisioning {
 			DATA_MAPPING_LEVEL2,
 		};
 
-		enum metadata_space_map_options {
-			METADATA_SPACE_MAP_NONE,
-			METADATA_SPACE_MAP_FULL,
+		enum space_map_options {
+			SPACE_MAP_NONE,
+			SPACE_MAP_FULL,
 		};
 
 		check_options();
@@ -45,7 +45,9 @@ namespace thin_provisioning {
 		void set_override_mapping_root(bcache::block_address b);
 
 		data_mapping_options check_data_mappings_;
-		metadata_space_map_options check_metadata_space_map_;
+
+		space_map_options sm_opts_;
+
 		boost::optional<bcache::block_address> override_mapping_root_;
 	};
 
