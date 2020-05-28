@@ -212,9 +212,11 @@ namespace {
 		void flush_ops_() {
 			recursing_lock lock(*this);
 
-			for (auto const &p : ops_) {
-				block_address b = p.first;
-				auto const &op = p.second;
+			while (!ops_.empty()) {
+				auto p = ops_.begin();
+				block_address b = p->first;
+				auto op = p->second;
+				ops_.erase(p);
 
 				switch (op.op_) {
 				case INC:
@@ -230,7 +232,6 @@ namespace {
 				}
 			}
 
-			ops_.clear();
 			allocated_blocks_.clear();
 		}
 
