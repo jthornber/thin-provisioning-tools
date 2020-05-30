@@ -58,7 +58,10 @@ namespace thin_provisioning {
 	public:
 		typedef std::shared_ptr<thin_pool> ptr;
 
-		thin_pool(metadata::ptr md);
+		thin_pool(block_manager::ptr bm);
+		thin_pool(block_manager::ptr bm,
+			  sector_t data_block_size,
+			  block_address nr_data_blocks);
 		~thin_pool();
 
 		void create_thin(thin_dev_t dev);

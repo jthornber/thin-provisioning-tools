@@ -104,9 +104,20 @@ thin::set_mapped_blocks(block_address count)
 
 //--------------------------------
 
-thin_pool::thin_pool(metadata::ptr md)
-	: md_(md)
+thin_pool::thin_pool(block_manager::ptr bm)
 {
+	md_ = metadata::ptr(new metadata(bm, true));
+}
+
+thin_pool::thin_pool(block_manager::ptr bm,
+		     sector_t data_block_size,
+		     block_address nr_data_blocks)
+{
+	md_ = metadata::ptr(new metadata(bm,
+					 metadata::CREATE,
+					 data_block_size,
+					 nr_data_blocks));
+	md_->commit();
 }
 
 thin_pool::~thin_pool()
