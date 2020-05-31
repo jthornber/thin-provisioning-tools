@@ -33,7 +33,20 @@ using namespace thin_provisioning;
 
 thin::thin(thin_dev_t dev, thin_pool &pool)
 	: dev_(dev),
-	  pool_(pool)
+	  pool_(pool),
+	  details_(pool.get_transaction_id(), pool.get_time()),
+	  open_count_(1),
+	  changed_(true)
+{
+}
+
+thin::thin(thin_dev_t dev, thin_pool &pool,
+	   device_tree_detail::device_details const &details)
+	: dev_(dev),
+	  pool_(pool),
+	  details_(details),
+	  open_count_(1),
+	  changed_(false)
 {
 }
 
@@ -54,6 +67,10 @@ bool
 thin::insert(block_address thin_block, block_address data_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
+
+	++details_.mapped_blocks_;
+	changed_ = true;
+
 	mapping_tree_detail::block_time bt;
 	bt.block_ = data_block;
 	bt.time_ = 0;		// FIXME: use current time.
@@ -65,41 +82,29 @@ thin::remove(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
 	pool_.md_->mappings_->remove(key);
+
+	--details_.mapped_blocks_;
+	changed_ = true;
 }
 
 void
 thin::set_snapshot_time(uint32_t time)
 {
-	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
-	if (!mdetail)
-		throw runtime_error("no such device");
-
-	mdetail->snapshotted_time_ = time;
-	pool_.md_->details_->insert(key, *mdetail);
+	details_.snapshotted_time_ = time;
+	changed_ = true;
 }
 
 block_address
 thin::get_mapped_blocks() const
 {
-	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
-	if (!mdetail)
-		throw runtime_error("no such device");
-
-	return mdetail->mapped_blocks_;
+	return details_.mapped_blocks_;
 }
 
 void
 thin::set_mapped_blocks(block_address count)
 {
-	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
-	if (!mdetail)
-		throw runtime_error("no such device");
-
-	mdetail->mapped_blocks_ = count;
-	pool_.md_->details_->insert(key, *mdetail);
+	details_.mapped_blocks_ = count;
+	changed_ = true;
 }
 
 //--------------------------------
@@ -131,14 +136,15 @@ thin_pool::create_thin(thin_dev_t dev)
 	uint64_t key[1] = {dev};
 
 	if (device_exists(dev))
-		throw std::runtime_error("Device already exists");
+		throw std::runtime_error("device already exists");
 
 	single_mapping_tree::ptr new_tree(new single_mapping_tree(*md_->tm_,
 								  mapping_tree_detail::block_time_ref_counter(md_->data_sm_)));
 	md_->mappings_top_level_->insert(key, new_tree->get_root());
 	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
-	// FIXME: doesn't set up the device details
+	thin::ptr r = create_device(dev);
+	close_device(r);
 }
 
 void
@@ -172,6 +178,13 @@ thin_pool::del(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
 	md_->mappings_top_level_->remove(key);
+}
+
+void
+thin_pool::commit()
+{
+	write_changed_details();
+	md_->commit();
 }
 
 void
@@ -226,17 +239,16 @@ thin_pool::get_data_dev_size() const
 	return md_->data_sm_->get_nr_blocks();
 }
 
+uint32_t
+thin_pool::get_time() const
+{
+	return md_->sb_.time_;
+}
+
 thin::ptr
 thin_pool::open_thin(thin_dev_t dev)
 {
-	uint64_t key[1] = {dev};
-	boost::optional<device_tree_detail::device_details> mdetails = md_->details_->lookup(key);
-	if (!mdetails)
-		throw runtime_error("no such device");
-
-	thin *ptr = new thin(dev, *this);
-	thin::ptr r(ptr);
-	return r;
+	return open_device(dev);
 }
 
 bool
@@ -244,6 +256,63 @@ thin_pool::device_exists(thin_dev_t dev) const
 {
 	uint64_t key[1] = {dev};
 	return !!md_->details_->lookup(key);
+}
+
+thin::ptr
+thin_pool::create_device(thin_dev_t dev)
+{
+	device_map::iterator it = thin_devices_.find(dev);
+	if (it != thin_devices_.end())
+		throw std::runtime_error("device already exists");
+
+	thin::ptr td(new thin(dev, *this));
+	thin_devices_[dev] = td;
+	return td;
+}
+
+thin::ptr
+thin_pool::open_device(thin_dev_t dev)
+{
+	device_map::iterator it = thin_devices_.find(dev);
+	if (it != thin_devices_.end()) {
+		thin::ptr td = it->second;
+		td->open_count_++;
+		return td;
+	}
+
+	uint64_t key[1] = {dev};
+	device_tree::maybe_value details = md_->details_->lookup(key);
+	if (!details)
+		throw std::runtime_error("no such device");
+
+	thin::ptr td(new thin(dev, *this, *details));
+	thin_devices_[dev] = td;
+	return td;
+}
+
+void
+thin_pool::close_device(thin::ptr td)
+{
+	td->open_count_--;
+}
+
+void
+thin_pool::write_changed_details()
+{
+	for (auto it = thin_devices_.cbegin(); it != thin_devices_.cend(); ) {
+		uint64_t key[1] = {it->first};
+		thin::ptr td = it->second;
+
+		if (td->changed_) {
+			md_->details_->insert(key, td->details_);
+			td->changed_ = false;
+		}
+
+		if (!td->open_count_)
+			it = thin_devices_.erase(it);
+		else
+			++it;
+	}
 }
 
 //----------------------------------------------------------------
