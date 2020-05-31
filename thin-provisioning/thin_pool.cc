@@ -73,7 +73,7 @@ thin::insert(block_address thin_block, block_address data_block)
 
 	mapping_tree_detail::block_time bt;
 	bt.block_ = data_block;
-	bt.time_ = 0;		// FIXME: use current time.
+	bt.time_ = pool_.get_time();
 	return pool_.md_->mappings_->insert(key, bt);
 }
 
