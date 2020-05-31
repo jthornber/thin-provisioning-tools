@@ -98,6 +98,7 @@ namespace thin_provisioning {
 		thin::ptr create_device(thin_dev_t dev);
 		thin::ptr open_device(thin_dev_t dev);
 		void close_device(thin::ptr device);
+		void set_snapshot_details(thin::ptr snap, thin_dev_t origin);
 		void write_changed_details();
 
 		metadata::ptr md_;

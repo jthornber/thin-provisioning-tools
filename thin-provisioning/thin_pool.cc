@@ -153,24 +153,27 @@ thin_pool::create_snap(thin_dev_t dev, thin_dev_t origin)
 	uint64_t snap_key[1] = {dev};
 	uint64_t origin_key[1] = {origin};
 
-	boost::optional<uint64_t> mtree_root = md_->mappings_top_level_->lookup(origin_key);
+	if (device_exists(dev))
+		throw std::runtime_error("device already exists");
+
+	// find the mapping tree of the origin
+	dev_tree::maybe_value mtree_root = md_->mappings_top_level_->lookup(origin_key);
 	if (!mtree_root)
 		throw std::runtime_error("unknown origin");
-
 	single_mapping_tree otree(*md_->tm_, *mtree_root,
 				  mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
 
+	// clone the origin
 	single_mapping_tree::ptr clone(otree.clone());
 	md_->mappings_top_level_->insert(snap_key, clone->get_root());
 	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 
 	md_->sb_.time_++;
 
-	thin::ptr o = open_thin(origin);
-	thin::ptr s = open_thin(dev);
-	o->set_snapshot_time(md_->sb_.time_);
-	s->set_snapshot_time(md_->sb_.time_);
-	s->set_mapped_blocks(o->get_mapped_blocks());
+	// create details for the snapshot
+	thin::ptr s = create_device(dev);
+	set_snapshot_details(s, origin);
+	close_device(s);
 }
 
 void
@@ -294,6 +297,16 @@ void
 thin_pool::close_device(thin::ptr td)
 {
 	td->open_count_--;
+}
+
+void
+thin_pool::set_snapshot_details(thin::ptr snap, thin_dev_t origin)
+{
+	thin::ptr o = open_device(origin);
+	o->set_snapshot_time(md_->sb_.time_);
+	snap->set_snapshot_time(md_->sb_.time_);
+	snap->set_mapped_blocks(o->get_mapped_blocks());
+	close_device(o);
 }
 
 void
