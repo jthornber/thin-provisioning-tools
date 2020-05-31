@@ -48,10 +48,10 @@ namespace thin_provisioning {
 
 	private:
 		friend class thin_pool;
-		thin(thin_dev_t dev, thin_pool *pool); // FIXME: pass a reference rather than a ptr
+		thin(thin_dev_t dev, thin_pool &pool);
 
 		thin_dev_t dev_;
-		thin_pool *pool_;
+		thin_pool &pool_;
 	};
 
 	class thin_pool {

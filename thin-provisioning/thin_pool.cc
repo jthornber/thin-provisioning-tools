@@ -31,7 +31,7 @@ using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
-thin::thin(thin_dev_t dev, thin_pool *pool)
+thin::thin(thin_dev_t dev, thin_pool &pool)
 	: dev_(dev),
 	  pool_(pool)
 {
@@ -47,7 +47,7 @@ thin::maybe_address
 thin::lookup(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	return pool_->md_->mappings_->lookup(key);
+	return pool_.md_->mappings_->lookup(key);
 }
 
 bool
@@ -57,33 +57,33 @@ thin::insert(block_address thin_block, block_address data_block)
 	mapping_tree_detail::block_time bt;
 	bt.block_ = data_block;
 	bt.time_ = 0;		// FIXME: use current time.
-	return pool_->md_->mappings_->insert(key, bt);
+	return pool_.md_->mappings_->insert(key, bt);
 }
 
 void
 thin::remove(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	pool_->md_->mappings_->remove(key);
+	pool_.md_->mappings_->remove(key);
 }
 
 void
 thin::set_snapshot_time(uint32_t time)
 {
 	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->snapshotted_time_ = time;
-	pool_->md_->details_->insert(key, *mdetail);
+	pool_.md_->details_->insert(key, *mdetail);
 }
 
 block_address
 thin::get_mapped_blocks() const
 {
 	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
@@ -94,12 +94,12 @@ void
 thin::set_mapped_blocks(block_address count)
 {
 	uint64_t key[1] = { dev_ };
-	boost::optional<device_tree_detail::device_details> mdetail = pool_->md_->details_->lookup(key);
+	boost::optional<device_tree_detail::device_details> mdetail = pool_.md_->details_->lookup(key);
 	if (!mdetail)
 		throw runtime_error("no such device");
 
 	mdetail->mapped_blocks_ = count;
-	pool_->md_->details_->insert(key, *mdetail);
+	pool_.md_->details_->insert(key, *mdetail);
 }
 
 //--------------------------------
@@ -234,7 +234,7 @@ thin_pool::open_thin(thin_dev_t dev)
 	if (!mdetails)
 		throw runtime_error("no such device");
 
-	thin *ptr = new thin(dev, this);
+	thin *ptr = new thin(dev, *this);
 	thin::ptr r(ptr);
 	return r;
 }
