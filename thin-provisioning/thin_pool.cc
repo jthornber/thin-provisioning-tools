@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "persistent-data/math_utils.h"
 #include "thin-provisioning/thin_pool.h"
 
 #include <stdexcept>
@@ -333,6 +334,42 @@ thin_pool::write_changed_details()
 		else
 			++it;
 	}
+}
+
+//----------------------------------------------------------------
+
+void
+thin_provisioning::process_read(thin::ptr td, thin_pool::ptr tp,
+				sector_t offset)
+{
+	block_address blocknr = base::div_up<sector_t>(offset, tp->get_data_block_size());
+	td->lookup(blocknr);
+}
+
+void
+thin_provisioning::process_write(thin::ptr td, thin_pool::ptr tp,
+				 sector_t offset)
+{
+	block_address blocknr = base::div_up<sector_t>(offset, tp->get_data_block_size());
+	thin::maybe_address result = td->lookup(blocknr);
+	if (!!result && !result->shared_)
+		return;
+	// TODO: handle out-of-space errors
+	block_address data_block = tp->alloc_data_block();
+	td->insert(blocknr, data_block);
+}
+
+void
+thin_provisioning::process_discard(thin::ptr td, thin_pool::ptr tp,
+				   sector_t offset)
+{
+	block_address blocknr = base::div_up<sector_t>(offset, tp->get_data_block_size());
+	thin::maybe_address result = td->lookup(blocknr);
+	if (!result)
+		return;
+	td->remove(blocknr);
+	if (!result->shared_)
+		tp->free_data_block(result->block_);
 }
 
 //----------------------------------------------------------------

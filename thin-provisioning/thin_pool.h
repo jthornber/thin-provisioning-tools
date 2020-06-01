@@ -109,6 +109,10 @@ namespace thin_provisioning {
 		metadata::ptr md_;
 		device_map thin_devices_;
 	};
+
+	void process_read(thin::ptr td, thin_pool::ptr tp, sector_t offset);
+	void process_write(thin::ptr td, thin_pool::ptr tp, sector_t offset);
+	void process_discard(thin::ptr td, thin_pool::ptr tp, sector_t offset);
 };
 
 //----------------------------------------------------------------
