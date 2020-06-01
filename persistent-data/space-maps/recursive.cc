@@ -97,6 +97,12 @@ namespace {
 				add_op(b, block_op(SET, c));
 			else {
 				recursing_lock lock(*this);
+
+				// the inner set_count may trigger a find_free,
+				// so it's important we update the allocated
+				// blocks list before calling.
+				allocated_blocks_.add(b, b + 1);
+
 				return sm_->set_count(b, c);
 			}
 		}
@@ -111,6 +117,12 @@ namespace {
 				add_op(b, block_op(INC, count));
 			else {
 				recursing_lock lock(*this);
+
+				// the inner inc() may trigger a find_free,
+				// so it's important we update the allocated
+				// blocks list before calling.
+				allocated_blocks_.add(b, b + 1);
+
 				return sm_->inc(b, count);
 			}
 		}
@@ -200,9 +212,11 @@ namespace {
 		void flush_ops_() {
 			recursing_lock lock(*this);
 
-			for (auto const &p : ops_) {
-				block_address b = p.first;
-				auto const &op = p.second;
+			while (!ops_.empty()) {
+				auto p = ops_.begin();
+				block_address b = p->first;
+				auto op = p->second;
+				ops_.erase(p);
 
 				switch (op.op_) {
 				case INC:
@@ -218,7 +232,6 @@ namespace {
 				}
 			}
 
-			ops_.clear();
 			allocated_blocks_.clear();
 		}
 
