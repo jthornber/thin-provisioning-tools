@@ -60,7 +60,14 @@ thin::maybe_address
 thin::lookup(block_address thin_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
-	return pool_.md_->mappings_->lookup(key);
+	mapping_tree::maybe_value m = pool_.md_->mappings_->lookup(key);
+	if (!m)
+		return thin::maybe_address();
+
+	lookup_result r;
+	r.block_ = m->block_;
+	r.shared_ = m->time_ < details_.snapshotted_time_;
+	return r;
 }
 
 bool

@@ -33,8 +33,13 @@ namespace thin_provisioning {
 	class thin_pool;
 	class thin {
 	public:
+		struct lookup_result {
+			block_address block_;
+			bool shared_;
+		};
+
 		typedef std::shared_ptr<thin> ptr;
-		typedef boost::optional<mapping_tree_detail::block_time> maybe_address;
+		typedef boost::optional<lookup_result> maybe_address;
 
 		thin_dev_t get_dev_t() const;
 		maybe_address lookup(block_address thin_block);
