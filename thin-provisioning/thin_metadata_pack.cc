@@ -42,6 +42,7 @@ namespace {
 	using namespace std;
 	constexpr uint64_t MAGIC = 0xa537a0aa6309ef77;
 	constexpr uint64_t PACK_VERSION = 1;
+	constexpr uint64_t PREFETCH_COUNT = 1024;
 
 	uint32_t const SUPERBLOCK_CSUM_SEED = 160774;
 	uint32_t const BITMAP_CSUM_XOR = 240779;
@@ -132,6 +133,10 @@ namespace {
 		write_u64(out, block_size);
 		write_u64(out, nr_blocks);
 
+		// prefetch
+		for (block_address b = 0; b < PREFETCH_COUNT; b++)
+			bm->prefetch(b);
+
 		is_metadata_functor is_metadata;
 		for (block_address b = 0; b < nr_blocks; b++) {
 			auto rr = bm->read_lock(b);
@@ -140,6 +145,10 @@ namespace {
 				write_u64(out, b);
 				out.write(reinterpret_cast<const char *>(rr.data()), block_size);
 			}
+
+			auto prefetch_b = b + PREFETCH_COUNT;
+			if (prefetch_b < nr_blocks)
+				bm->prefetch(prefetch_b);
 		} 
 
 		return 0;
