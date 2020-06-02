@@ -227,6 +227,52 @@ thin_pool::get_transaction_id() const
 	return md_->sb_.trans_id_;
 }
 
+void
+thin_pool::reserve_metadata_snap()
+{
+	if (md_->sb_.metadata_snap_)
+		throw std::runtime_error("pool metadata snapshot already exists.");
+
+	commit();
+
+	md_->metadata_sm_->inc(superblock_detail::SUPERBLOCK_LOCATION);
+	transaction_manager::write_ref wr = md_->tm_->shadow(
+			superblock_detail::SUPERBLOCK_LOCATION,
+			superblock_validator()).first;
+
+	superblock_detail::superblock sb;
+	superblock_detail::superblock_disk *sbd = reinterpret_cast<superblock_detail::superblock_disk *>(wr.data());
+	superblock_detail::superblock_traits::unpack(*sbd, sb);
+
+	memset(sb.data_space_map_root_, 0, superblock_detail::SPACE_MAP_ROOT_SIZE);
+	memset(sb.metadata_space_map_root_, 0, superblock_detail::SPACE_MAP_ROOT_SIZE);
+	md_->metadata_sm_->inc(sb.data_mapping_root_);
+	md_->metadata_sm_->inc(sb.device_details_root_);
+
+	superblock_detail::superblock_traits::pack(sb, *sbd);
+
+	md_->sb_.metadata_snap_ = wr.get_location();
+}
+
+void
+thin_pool::release_metadata_snap()
+{
+	if (!md_->sb_.metadata_snap_)
+		throw std::runtime_error("No pool metadata snapshot found");
+
+	superblock_detail::superblock sb = read_superblock(md_->tm_->get_bm(),
+							   md_->sb_.metadata_snap_);
+	device_tree dtree(*md_->tm_, sb.device_details_root_,
+			  device_tree_detail::device_details_traits::ref_counter());
+	dtree.destroy();
+	mapping_tree mtree(*md_->tm_, sb.data_mapping_root_,
+			   mapping_tree_detail::block_traits::ref_counter(md_->tm_->get_sm()));
+	mtree.destroy();
+	md_->metadata_sm_->dec(md_->sb_.metadata_snap_);
+
+	md_->sb_.metadata_snap_ = 0;
+}
+
 block_address
 thin_pool::get_metadata_snap() const
 {
