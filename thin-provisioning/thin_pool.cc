@@ -279,6 +279,12 @@ thin_pool::open_thin(thin_dev_t dev)
 	return open_device(dev);
 }
 
+void
+thin_pool::close_thin(thin::ptr td)
+{
+	close_device(td);
+}
+
 bool
 thin_pool::device_exists(thin_dev_t dev) const
 {

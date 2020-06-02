@@ -94,6 +94,7 @@ namespace thin_provisioning {
 		uint32_t get_time() const;
 
 		thin::ptr open_thin(thin_dev_t);
+		void close_thin(thin::ptr td);
 
 	private:
 		friend class thin;
