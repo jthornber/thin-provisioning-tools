@@ -39,6 +39,7 @@ namespace {
 			METADATA_OP_OPEN,
 			METADATA_OP_CREATE_THIN,
 			METADATA_OP_CREATE_SNAP,
+			METADATA_OP_DELETE_DEV,
 			METADATA_OP_LAST
 		};
 
@@ -82,6 +83,11 @@ namespace {
 			return false;
 		}
 
+		if (op == METADATA_OP_DELETE_DEV && !dev_id) {
+			cerr << "no device id provided." << endl;
+			return false;
+		}
+
 		return true;
 	}
 
@@ -105,6 +111,9 @@ namespace {
 			break;
 		case flags::METADATA_OP_CREATE_SNAP:
 			pool->create_snap(*fs.dev_id, *fs.origin);
+			break;
+		case flags::METADATA_OP_DELETE_DEV:
+			pool->del(*fs.dev_id);
 			break;
 		default:
 			break;
@@ -132,6 +141,7 @@ thin_generate_metadata_cmd::usage(std::ostream &out) const
 	    << "  {--format}\n"
 	    << "  {--create-thin} <dev-id>\n"
 	    << "  {--create-snap} <dev-id>\n"
+	    << "  {--delete} <dev-id>\n"
 	    << "  {--data-block-size} <block size>\n"
 	    << "  {--nr-data-blocks} <nr>\n"
 	    << "  {--origin} <origin-id>\n"
@@ -152,6 +162,7 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 		{ "open", no_argument, NULL, 2 },
 		{ "create-thin", required_argument, NULL, 3 },
 		{ "create-snap", required_argument, NULL, 4 },
+		{ "delete", required_argument, NULL, 5 },
 		{ "data-block-size", required_argument, NULL, 101 },
 		{ "nr-data-blocks", required_argument, NULL, 102 },
 		{ "origin", required_argument, NULL, 401 },
@@ -184,6 +195,11 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 
 		case 4:
 			fs.op = flags::METADATA_OP_CREATE_SNAP;
+			fs.dev_id = parse_uint64(optarg, "device id");
+			break;
+
+		case 5:
+			fs.op = flags::METADATA_OP_DELETE_DEV;
 			fs.dev_id = parse_uint64(optarg, "device id");
 			break;
 
