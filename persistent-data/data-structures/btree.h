@@ -124,6 +124,9 @@ namespace persistent_data {
 			template <typename RefCounter>
 			void inc_children(RefCounter &rc);
 
+			template <typename RefCounter>
+			void dec_children(RefCounter &rc);
+
 			disk_node *raw() {
 				return raw_;
 			}

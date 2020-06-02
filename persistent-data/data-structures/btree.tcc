@@ -25,6 +25,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <stack>
 
 //----------------------------------------------------------------
 
@@ -33,6 +34,56 @@ namespace {
 	using namespace persistent_data;
 	using namespace btree_detail;
 	using namespace std;
+
+	struct frame {
+		frame(block_address blocknr,
+		      uint32_t level,
+		      uint32_t nr_entries)
+			: blocknr_(blocknr),
+			  level_(level),
+			  nr_entries_(nr_entries),
+			  current_child_(0) {
+		}
+		block_address blocknr_;
+		uint32_t level_;
+		uint32_t nr_entries_;
+		uint32_t current_child_;
+	};
+
+	// stack for postorder DFS traversal
+	// TODO: Refactor it into a spine-like class, e.g., btree_del_spine,
+	//       "Spine" sounds better for btree operations.
+	struct btree_del_stack {
+	public:
+		btree_del_stack(transaction_manager &tm): tm_(tm) {
+		}
+
+		void push_frame(block_address blocknr,
+				uint32_t level,
+				uint32_t nr_entries) {
+			if (tm_.get_sm()->get_count(blocknr) > 1)
+				tm_.get_sm()->dec(blocknr);
+			else
+				spine_.push(frame(blocknr, level, nr_entries));
+		}
+
+		void pop_frame() {
+			tm_.get_sm()->dec(spine_.top().blocknr_);
+			spine_.pop();
+		}
+
+		frame &top_frame() {
+			return spine_.top();
+		}
+
+		bool is_empty() {
+			return spine_.empty();
+		}
+
+	private:
+		transaction_manager &tm_;
+		std::stack<frame> spine_;
+	};
 }
 
 //----------------------------------------------------------------
@@ -349,6 +400,21 @@ namespace persistent_data {
 	}
 
 	template <typename ValueTraits>
+	template <typename RefCounter>
+	void
+	node_ref<ValueTraits>::dec_children(RefCounter &rc)
+	{
+		unsigned nr_entries = get_nr_entries();
+		for (unsigned i = 0; i < nr_entries; i++) {
+			typename ValueTraits::value_type v;
+			typename ValueTraits::disk_type d;
+			::memcpy(&d, value_ptr(i), sizeof(d));
+			ValueTraits::unpack(d, v);
+			rc.dec(v);
+		}
+	}
+
+	template <typename ValueTraits>
 	bool
 	node_ref<ValueTraits>::value_sizes_match() const {
 		return sizeof(typename ValueTraits::disk_type) == get_value_size();
@@ -565,15 +631,57 @@ namespace persistent_data {
 		return ptr(new btree<Levels, ValueTraits>(tm_, root_, rc_));
 	}
 
-#if 0
 	template <unsigned Levels, typename ValueTraits>
 	void
 	btree<Levels, ValueTraits>::destroy()
 	{
 		using namespace btree_detail;
 
+		btree_del_stack s(tm_);
+
+		{
+			read_ref blk = tm_.read_lock(root_, validator_);
+			internal_node n = to_node<block_traits>(blk);
+			s.push_frame(root_, 0, n.get_nr_entries());
+		}
+
+		while (!s.is_empty()) {
+			frame &f = s.top_frame();
+
+			if (f.current_child_ >= f.nr_entries_) {
+				s.pop_frame();
+				continue;
+			}
+
+			// FIXME: Cache the read_ref object in the stack to avoid temporary objects?
+			read_ref current = tm_.read_lock(f.blocknr_, validator_);
+			internal_node n = to_node<block_traits>(current);
+
+			if (n.get_type() == INTERNAL) {
+				// TODO: test performance penalty of prefetching
+				//if (!f.current_child_)
+				//	for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				//		tm_.prefetch(n.value_at(i));
+
+				block_address b = n.value_at(f.current_child_);
+				read_ref leaf = tm_.read_lock(b, validator_);
+				internal_node o = to_node<block_traits>(leaf);
+				s.push_frame(b, f.level_, o.get_nr_entries());
+				++f.current_child_;
+			// internal leaf
+			} else if (f.level_ < Levels - 1) {
+				block_address b = n.value_at(f.current_child_);
+				read_ref leaf = tm_.read_lock(b, validator_);
+				internal_node o = to_node<block_traits>(leaf);
+				s.push_frame(b, f.level_ + 1, o.get_nr_entries());
+				++f.current_child_;
+			} else {
+				leaf_node o = to_node<ValueTraits>(current);
+				o.dec_children(rc_); // FIXME: move this into pop_frame()
+				s.pop_frame();
+			}
+		}
 	}
-#endif
 
 	template <unsigned Levels, typename _>
 	template <typename ValueTraits, typename Search>
