@@ -184,7 +184,28 @@ void
 thin_pool::del(thin_dev_t dev)
 {
 	uint64_t key[1] = {dev};
+
+	thin::ptr td = open_device(dev);
+	if (td->open_count_ > 1) {
+		close_device(td);
+		throw std::runtime_error("device busy");
+	}
+
+	thin_devices_.erase(dev);
+
+	dev_tree::maybe_value mtree_root = md_->mappings_top_level_->lookup(key);
+	if (!device_exists(dev) || !mtree_root)
+		throw std::runtime_error("unknown device");
+
+	// TODO: trigger subtree deletion from the mtree_ref_counter,
+	// like the kenrel subtree_dec() does.
+	single_mapping_tree mtree(*md_->tm_, *mtree_root,
+				  mapping_tree_detail::block_time_ref_counter(md_->data_sm_));
+	mtree.destroy();
+
+	md_->details_->remove(key);
 	md_->mappings_top_level_->remove(key);
+	md_->mappings_->set_root(md_->mappings_top_level_->get_root()); // FIXME: ugly
 }
 
 void
