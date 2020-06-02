@@ -20,10 +20,6 @@
 #include "thin-provisioning/thin_pool.h"
 
 #include <stdexcept>
-#include <sstream>
-#include <iostream>
-#include <set>
-#include <map>
 
 using namespace base;
 using namespace std;
@@ -219,7 +215,7 @@ thin_pool::get_metadata_snap() const
 block_address
 thin_pool::alloc_data_block()
 {
-	boost::optional<block_address> mb = md_->data_sm_->new_block();
+	space_map::maybe_block mb = md_->data_sm_->new_block();
 	if (!mb)
 		throw runtime_error("couldn't allocate new block");
 
