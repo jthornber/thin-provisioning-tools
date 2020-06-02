@@ -40,6 +40,9 @@ namespace {
 			METADATA_OP_CREATE_THIN,
 			METADATA_OP_CREATE_SNAP,
 			METADATA_OP_DELETE_DEV,
+			METADATA_OP_SET_TRANSACTION_ID,
+			METADATA_OP_RESERVE_METADATA_SNAP,
+			METADATA_OP_RELEASE_METADATA_SNAP,
 			METADATA_OP_LAST
 		};
 
@@ -57,6 +60,7 @@ namespace {
 		block_address nr_data_blocks;
 		optional<thin_dev_t> dev_id;
 		optional<thin_dev_t> origin;
+		optional<uint64_t> trans_id;
 		optional<string> output;
 	};
 
@@ -88,6 +92,11 @@ namespace {
 			return false;
 		}
 
+		if (op == METADATA_OP_SET_TRANSACTION_ID && !trans_id) {
+			cerr << "no transaction id provided." << endl;
+			return false;
+		}
+
 		return true;
 	}
 
@@ -114,6 +123,15 @@ namespace {
 			break;
 		case flags::METADATA_OP_DELETE_DEV:
 			pool->del(*fs.dev_id);
+			break;
+		case flags::METADATA_OP_SET_TRANSACTION_ID:
+			pool->set_transaction_id(*fs.trans_id);
+			break;
+		case flags::METADATA_OP_RESERVE_METADATA_SNAP:
+			pool->reserve_metadata_snap();
+			break;
+		case flags::METADATA_OP_RELEASE_METADATA_SNAP:
+			pool->release_metadata_snap();
 			break;
 		default:
 			break;
@@ -142,6 +160,9 @@ thin_generate_metadata_cmd::usage(std::ostream &out) const
 	    << "  {--create-thin} <dev-id>\n"
 	    << "  {--create-snap} <dev-id>\n"
 	    << "  {--delete} <dev-id>\n"
+	    << "  {--reserve-metadata-snap}\n"
+	    << "  {--release-metadata-snap}\n"
+	    << "  {--set-transaction-id} <tid>\n"
 	    << "  {--data-block-size} <block size>\n"
 	    << "  {--nr-data-blocks} <nr>\n"
 	    << "  {--origin} <origin-id>\n"
@@ -163,6 +184,9 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 		{ "create-thin", required_argument, NULL, 3 },
 		{ "create-snap", required_argument, NULL, 4 },
 		{ "delete", required_argument, NULL, 5 },
+		{ "set-transaction-id", required_argument, NULL, 6 },
+		{ "reserve-metadata-snap", no_argument, NULL, 7 },
+		{ "release-metadata-snap", no_argument, NULL, 8 },
 		{ "data-block-size", required_argument, NULL, 101 },
 		{ "nr-data-blocks", required_argument, NULL, 102 },
 		{ "origin", required_argument, NULL, 401 },
@@ -201,6 +225,19 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 		case 5:
 			fs.op = flags::METADATA_OP_DELETE_DEV;
 			fs.dev_id = parse_uint64(optarg, "device id");
+			break;
+
+		case 6:
+			fs.op = flags::METADATA_OP_SET_TRANSACTION_ID;
+			fs.trans_id = parse_uint64(optarg, "transaction id");
+			break;
+
+		case 7:
+			fs.op = flags::METADATA_OP_RESERVE_METADATA_SNAP;
+			break;
+
+		case 8:
+			fs.op = flags::METADATA_OP_RELEASE_METADATA_SNAP;
 			break;
 
 		case 101:
