@@ -295,6 +295,23 @@ namespace persistent_data {
 
 	template <typename ValueTraits>
 	void
+	node_ref<ValueTraits>::delete_at(unsigned i)
+	{
+		unsigned nr_entries = get_nr_entries();
+		if (i >= nr_entries)
+			throw runtime_error("key index out of bounds");
+		unsigned nr_to_copy = nr_entries - (i + 1);
+
+		if (nr_to_copy) {
+			::memmove(key_ptr(i), key_ptr(i + 1), sizeof(uint64_t) * nr_to_copy);
+			::memmove(value_ptr(i), value_ptr(i + 1), sizeof(typename ValueTraits::disk_type) * nr_to_copy);
+		}
+
+		set_nr_entries(nr_entries - 1);
+	}
+
+	template <typename ValueTraits>
+	void
 	node_ref<ValueTraits>::copy_entries(node_ref const &rhs,
 					    unsigned begin,
 					    unsigned end)
@@ -307,6 +324,90 @@ namespace persistent_data {
 		::memcpy(key_ptr(n), rhs.key_ptr(begin), sizeof(uint64_t) * count);
 		::memcpy(value_ptr(n), rhs.value_ptr(begin), sizeof(typename ValueTraits::disk_type) * count);
 		set_nr_entries(n + count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::move_entries(node_ref<ValueTraits> &rhs,
+					    int count)
+	{
+		if (!count)
+			return;
+
+		unsigned nr_left = get_nr_entries();
+		unsigned nr_right = rhs.get_nr_entries();
+		unsigned max_entries = get_max_entries();
+
+		if (nr_left - count > max_entries || nr_right - count > max_entries)
+			throw runtime_error("too many entries");
+
+		if (count > 0) {
+			rhs.shift_entries_right(count);
+			copy_entries_to_right(rhs, count);
+		} else {
+			copy_entries_to_left(rhs, -count);
+			rhs.shift_entries_left(-count);
+		}
+
+		set_nr_entries(nr_left - count);
+		rhs.set_nr_entries(nr_right + count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::copy_entries_to_left(node_ref const &rhs, unsigned count)
+	{
+		unsigned n = get_nr_entries();
+		if ((n + count) > get_max_entries())
+			throw runtime_error("too many entries");
+
+		::memcpy(key_ptr(n), rhs.key_ptr(0), sizeof(uint64_t) * count);
+		::memcpy(value_ptr(n), rhs.value_ptr(0), sizeof(typename ValueTraits::disk_type) * count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::copy_entries_to_right(node_ref &rhs, unsigned count) const
+	{
+		unsigned n = rhs.get_nr_entries();
+		if ((n + count) > get_max_entries())
+			throw runtime_error("too many entries");
+
+		unsigned nr_left = get_nr_entries();
+		::memcpy(rhs.key_ptr(0), key_ptr(nr_left - count), sizeof(uint64_t) * count);
+		::memcpy(rhs.value_ptr(0), value_ptr(nr_left - count), sizeof(typename ValueTraits::disk_type) * count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::shift_entries_left(unsigned shift)
+	{
+		unsigned n = get_nr_entries();
+		if (shift > n)
+			throw runtime_error("too many entries");
+
+		unsigned nr_shifted = n - shift;
+		::memmove(key_ptr(0), key_ptr(shift), sizeof(uint64_t) * nr_shifted);
+		::memmove(value_ptr(0), value_ptr(shift), sizeof(typename ValueTraits::disk_type) * nr_shifted);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::shift_entries_right(unsigned shift)
+	{
+		unsigned n = get_nr_entries();
+		if (n + shift > get_max_entries())
+			throw runtime_error("too many entries");
+
+		::memmove(key_ptr(shift), key_ptr(0), sizeof(uint64_t) * n);
+		::memmove(value_ptr(shift), value_ptr(0), sizeof(typename ValueTraits::disk_type) * n);
+	}
+
+	template <typename ValueTraits>
+	unsigned
+	node_ref<ValueTraits>::merge_threshold() const
+	{
+		return get_max_entries() / 3;
 	}
 
 	template <typename ValueTraits>
@@ -599,13 +700,6 @@ namespace persistent_data {
 		root_ = spine.get_root();
 
 		return need_insert;
-	}
-
-	template <unsigned Levels, typename ValueTraits>
-	void
-	btree<Levels, ValueTraits>::remove(key const &key)
-	{
-		using namespace btree_detail;
 	}
 
 	template <unsigned Levels, typename ValueTraits>
