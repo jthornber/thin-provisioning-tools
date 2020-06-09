@@ -168,12 +168,26 @@ fn read_header<R>(mut r: R) -> io::Result<u64>
 where
     R: byteorder::ReadBytesExt,
 {
+    use std::process::exit;
+    
     let magic = r.read_u64::<LittleEndian>()?;
-    assert_eq!(magic, MAGIC);
+    if magic != MAGIC {
+        eprintln!("Not a pack file.");
+        exit(1);
+    }
+    
     let version = r.read_u64::<LittleEndian>()?;
-    assert_eq!(version, PACK_VERSION);
+    if version != PACK_VERSION {
+        eprintln!("unsupported pack file version ({}).", PACK_VERSION);
+        exit(1);
+    }
+    
     let block_size = r.read_u64::<LittleEndian>()?;
-    assert_eq!(block_size, 4096);
+    if block_size != BLOCK_SIZE {
+        eprintln!("block size is not {}", BLOCK_SIZE);
+        exit(1);
+    }
+
     r.read_u64::<LittleEndian>()
 }
 

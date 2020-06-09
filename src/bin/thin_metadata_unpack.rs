@@ -3,6 +3,9 @@ extern crate thinp;
 
 use clap::{App, Arg};
 use std::process;
+use thinp::file_utils;
+
+use std::process::exit;
 
 fn main() {
     let parser = App::new("thin_metadata_unpack")
@@ -21,11 +24,15 @@ fn main() {
             .value_name("FILE")
             .takes_value(true));
 
-
     let matches = parser.get_matches();
     let input_file = matches.value_of("INPUT").unwrap();
     let output_file = matches.value_of("OUTPUT").unwrap();
 
+    if !file_utils::file_exists(input_file) {
+        eprintln!("Couldn't find input file '{}'.", &input_file);
+        exit(1);
+    }
+    
     if let Err(reason) = thinp::pack::pack::unpack(&input_file, &output_file) {
         println!("Application error: {}", reason);
         process::exit(1);
