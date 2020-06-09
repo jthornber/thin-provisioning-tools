@@ -137,12 +137,13 @@ namespace {
 	//--------------------------------
 
 	error_state examine_superblock(block_manager::ptr bm,
+                                       block_address sb_location,
 				       nested_output &out) {
 		out << "examining superblock" << end_message();
 		nested_output::nest _ = out.push();
 
 		superblock_reporter sb_rep(out);
-		check_superblock(bm, sb_rep);
+		check_superblock(bm, sb_rep, sb_location);
 
 		return sb_rep.get_error();
 	}
@@ -307,18 +308,24 @@ namespace {
 
 		error_state check() {
 			error_state err = NO_ERROR;
+			auto sb_location = superblock_detail::SUPERBLOCK_LOCATION;
 
-			err << examine_superblock(bm_, out_);
-
+			if (options_.use_metadata_snap_) {
+				superblock_detail::superblock sb = read_superblock(bm_, sb_location);
+				sb_location = sb.metadata_snap_;
+				if (sb_location == superblock_detail::SUPERBLOCK_LOCATION)
+					throw runtime_error("No metadata snapshot found.");
+			}
+			
+			err << examine_superblock(bm_, sb_location, out_);
 			if (err == FATAL) {
 				if (check_for_xml(bm_))
 					out_ << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
 				return err;
 			}
 
-			superblock_detail::superblock sb = read_superblock(bm_);
-			transaction_manager::ptr tm =
-				open_tm(bm_, superblock_detail::SUPERBLOCK_LOCATION);
+			superblock_detail::superblock sb = read_superblock(bm_, sb_location);
+			transaction_manager::ptr tm = open_tm(bm_, sb_location);
 			sb.data_mapping_root_ = mapping_root(sb, options_);
 
 			print_info(tm, sb, info_out_);
@@ -412,6 +419,10 @@ void check_options::set_override_mapping_root(block_address b) {
 	override_mapping_root_ = b;
 }
 
+void check_options::set_metadata_snap() {
+	sm_opts_ = SPACE_MAP_NONE;
+}
+		
 base::error_state
 thin_provisioning::check_metadata(block_manager::ptr bm,
 				  check_options const &check_opts,

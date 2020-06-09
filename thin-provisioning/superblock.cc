@@ -194,11 +194,12 @@ namespace thin_provisioning {
 
 	void
 	check_superblock(block_manager::ptr bm,
-			 superblock_detail::damage_visitor &visitor) {
+			 superblock_detail::damage_visitor &visitor,
+                         block_address sb_location) {
 		using namespace superblock_detail;
 
 		try {
-			bm->read_lock(SUPERBLOCK_LOCATION, superblock_validator());
+			bm->read_lock(sb_location, superblock_validator());
 
 		} catch (std::exception const &e) {
 			visitor.visit(superblock_corruption(e.what()));

@@ -29,6 +29,7 @@ Options:
   {-q|--quiet}
   {-h|--help}
   {-V|--version}
+  {-m|--metadata-snap}
   {--override-mapping-root}
   {--clear-needs-check-flag}
   {--ignore-non-fatal-errors}
