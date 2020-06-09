@@ -509,17 +509,17 @@
   ;;;-----------------------------------------------------------
 
   (define-scenario (thin-metadata-pack version)
-    "thin_metadata_pack accepts --version"
+    "accepts --version"
     (run-ok-rcv (stdout _) (thin-metadata-pack "--version")
-      (assert-equal tools-version stdout)))
+      (assert-equal "thin_metadata_pack 0.8.5" stdout)))
 
   (define-scenario (thin-metadata-pack h)
-    "thin_metadata_pack accepts -h"
+    "accepts -h"
     (run-ok-rcv (stdout _) (thin-metadata-pack "-h")
       (assert-equal thin-metadata-pack-help stdout)))
 
   (define-scenario (thin-metadata-pack help)
-    "thin_metadata_pack accepts --help"
+    "accepts --help"
     (run-ok-rcv (stdout _) (thin-metadata-pack "--help")
       (assert-equal thin-metadata-pack-help stdout)))
 
@@ -527,41 +527,41 @@
     "Unrecognised option should cause failure"
     (with-valid-metadata (md)
       (run-fail-rcv (stdout stderr) (thin-metadata-pack "--unleash-the-hedgehogs")
-        (assert-matches ".*thin_metadata_pack: unrecognized option '--unleash-the-hedgehogs" stderr))))
+        (assert-starts-with "error: Found argument '--unleash-the-hedgehogs'" stderr)))) 
 
   (define-scenario (thin-metadata-pack missing-input-file)
     "the input file wasn't specified"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-pack "-o " md)
-        (assert-starts-with "No input file provided." stderr))))
+        (assert-starts-with "error: The following required arguments were not provided:\n    -i <DEV>" stderr))))
 
   (define-scenario (thin-metadata-pack no-such-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-pack "-i no-such-file -o" md)
-        (assert-starts-with "Couldn't stat path" stderr))))
+        (assert-starts-with "Couldn't find input file" stderr))))
 
   (define-scenario (thin-metadata-pack missing-output-file)
     "the output file wasn't specified"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-pack "-i" md)
-        (assert-starts-with "No output file provided." stderr))))
+        (assert-starts-with "error: The following required arguments were not provided:\n    -o <FILE>" stderr))))
 
   ;;;-----------------------------------------------------------
-  ;;; thin_metadata_pack scenarios
+  ;;; thin_metadata_unpack scenarios
   ;;;-----------------------------------------------------------
   (define-scenario (thin-metadata-unpack version)
-    "thin_metadata_pack accepts --version"
+    "accepts --version"
     (run-ok-rcv (stdout _) (thin-metadata-unpack "--version")
-      (assert-equal tools-version stdout)))
+      (assert-equal "thin_metadata_unpack 0.8.5" stdout)))
 
   (define-scenario (thin-metadata-unpack h)
-    "thin_metadata_pack accepts -h"
+    "accepts -h"
     (run-ok-rcv (stdout _) (thin-metadata-unpack "-h")
       (assert-equal thin-metadata-unpack-help stdout)))
 
   (define-scenario (thin-metadata-unpack help)
-    "thin_metadata_pack accepts --help"
+    "accepts --help"
     (run-ok-rcv (stdout _) (thin-metadata-unpack "--help")
       (assert-equal thin-metadata-unpack-help stdout)))
 
@@ -569,25 +569,25 @@
     "Unrecognised option should cause failure"
     (with-valid-metadata (md)
       (run-fail-rcv (stdout stderr) (thin-metadata-unpack "--unleash-the-hedgehogs")
-        (assert-matches ".*thin_metadata_unpack: unrecognized option '--unleash-the-hedgehogs" stderr))))
+        (assert-starts-with "error: Found argument '--unleash-the-hedgehogs'" stderr)))) 
 
   (define-scenario (thin-metadata-unpack missing-input-file)
     "the input file wasn't specified"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-unpack "-o " md)
-        (assert-starts-with "No input file provided." stderr))))
+        (assert-starts-with "error: The following required arguments were not provided:\n    -i <DEV>" stderr))))
 
   (define-scenario (thin-metadata-unpack no-such-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-unpack "-i no-such-file -o" md)
-        (assert-starts-with "Couldn't open pack file" stderr))))
+        (assert-starts-with "Couldn't find input file" stderr))))
 
   (define-scenario (thin-metadata-unpack missing-output-file)
     "the output file wasn't specified"
     (with-empty-metadata (md)
       (run-fail-rcv (_ stderr) (thin-metadata-unpack "-i" md)
-        (assert-starts-with "No output file provided." stderr))))
+        (assert-starts-with "error: The following required arguments were not provided:\n    -o <FILE>" stderr))))
 
   (define-scenario (thin-metadata-unpack garbage-input-file)
     "the input file is just zeroes"

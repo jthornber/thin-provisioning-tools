@@ -14,6 +14,8 @@ test.data
 cachegrind.*
 \#*\#
 core
+/target
+**/*.rs.bk
 
 googletest/
 
@@ -55,6 +57,7 @@ autom4te.cache/
 *.rej
 
 version.h
+src/version.rs
 config.cache
 config.log
 config.status

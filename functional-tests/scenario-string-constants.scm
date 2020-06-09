@@ -75,20 +75,34 @@ Options:
   {-V|--version}")
 
   (define thin-metadata-pack-help
-    "Usage: thin_metadata_pack [options]
-Options:
-  {-i|--input} <input metadata (binary format)>
-  {-o|--output} <output packed metadata>
-  {-h|--help}
-  {-V|--version}")
+    "thin_metadata_pack 0.8.5
+Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
+
+USAGE:
+    thin_metadata_pack -i <DEV> -o <FILE>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -i <DEV>         Specify thinp metadata binary device/file
+    -o <FILE>        Specify packed output file")
 
   (define thin-metadata-unpack-help
-    "Usage: thin_metadata_unpack [options]
-Options:
-  {-i|--input} <input packed metadata>
-  {-o|--output} <output metadata (binary format)>
-  {-h|--help}
-  {-V|--version}")
+    "thin_metadata_unpack 0.8.5
+Unpack a compressed file of thin metadata.
+
+USAGE:
+    thin_metadata_unpack -i <DEV> -o <FILE>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -i <DEV>         Specify thinp metadata binary device/file
+    -o <FILE>        Specify packed output file")
 
   (define cache-check-help
     "Usage: cache_check [options] {device|file}
