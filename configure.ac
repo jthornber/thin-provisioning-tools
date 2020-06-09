@@ -210,5 +210,6 @@ Makefile
 contrib/Makefile
 unit-tests/Makefile
 version.h
+src/version.rs
 ])
 AC_OUTPUT

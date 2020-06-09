@@ -14,3 +14,4 @@ extern crate quickcheck_macros;
 pub mod block_manager;
 pub mod check;
 pub mod pack;
+pub mod version;

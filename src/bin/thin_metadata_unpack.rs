@@ -6,7 +6,7 @@ use std::process;
 
 fn main() {
     let parser = App::new("thin_metadata_unpack")
-	.version("0.8.5")	// FIXME: use actual version
+	.version(thinp::version::TOOLS_VERSION)
         .about("Unpack a compressed file of thin metadata.")
         .arg(Arg::with_name("INPUT")
             .help("Specify thinp metadata binary device/file")
