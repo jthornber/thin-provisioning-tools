@@ -13,6 +13,12 @@ The [expat](http://expat.sourceforge.net/) xml parser library (version 1).
 The libaio library (note this is not the same as the aio library that you get by linking -lrt)
 make, autoconf etc.
 
+A couple of non-essential tools are written in rust, and will
+require cargo and rustcc to be installed:
+
+    thin_metadata_pack
+    thin_metadata_unpack
+
 There are more requirements for testing, detailed below.
 
 Building
@@ -22,6 +28,11 @@ Building
     ./configure
     make
     sudo make install
+
+Building Rust tools
+===================
+
+    sudo make install-rust-tools
 
 Quick examples
 ==============

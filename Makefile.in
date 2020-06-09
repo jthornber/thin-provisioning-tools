@@ -114,7 +114,6 @@ SOURCE=\
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_ls.cc \
 	thin-provisioning/thin_metadata_size.cc \
-	thin-provisioning/thin_metadata_pack.cc \
 	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
@@ -273,8 +272,6 @@ TOOLS:=\
 	thin_repair \
 	thin_restore \
 	thin_rmap \
-	thin_metadata_pack \
-	thin_metadata_unpack \
 	thin_metadata_size \
 	thin_trim \
 	era_check \
@@ -301,8 +298,6 @@ install: bin/pdata_tools $(MANPAGES)
 	ln -s -f pdata_tools $(BINDIR)/thin_repair
 	ln -s -f pdata_tools $(BINDIR)/thin_restore
 	ln -s -f pdata_tools $(BINDIR)/thin_rmap
-	ln -s -f pdata_tools $(BINDIR)/thin_metadata_pack
-	ln -s -f pdata_tools $(BINDIR)/thin_metadata_unpack
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/era_check
@@ -323,8 +318,7 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
-	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
+
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
@@ -339,9 +333,12 @@ ifeq ("@DEVTOOLS@", "yes")
 	ln -s -f pdata_tools $(BINDIR)/thin_scan
 endif
 
-#	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
+.PHONY: install install-rust-tools
 
-.PHONY: install
+install-rust-tools:
+	cargo install --path . --root $(BINDIR)
+	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 
 ifeq ("@TESTING@", "yes")
 include unit-tests/Makefile

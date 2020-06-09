@@ -14,6 +14,8 @@ test.data
 cachegrind.*
 \#*\#
 core
+/target
+**/*.rs.bk
 
 googletest/
 
