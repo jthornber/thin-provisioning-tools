@@ -41,8 +41,8 @@ pub fn fail<T>(msg: &str) -> io::Result<T> {
 }
 
 fn get_device_size(path: &str) -> io::Result<u64> {
-    let _file = File::open(path)?; 
-    let fd = File::open(path).unwrap().as_raw_fd();
+    let file = File::open(path)?; 
+    let fd = file.as_raw_fd();
     let mut cap = 0u64;
     unsafe {
        match ioctl_blkgetsize64(fd, &mut cap) {
