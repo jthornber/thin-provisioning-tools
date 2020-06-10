@@ -129,6 +129,7 @@ DEVTOOLS_SOURCE=\
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_generate_metadata.cc \
+	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/thin_show_metadata.cc \
 	thin-provisioning/thin_scan.cc \
