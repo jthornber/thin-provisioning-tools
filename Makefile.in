@@ -318,7 +318,6 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
-
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
@@ -333,10 +332,16 @@ ifeq ("@DEVTOOLS@", "yes")
 	ln -s -f pdata_tools $(BINDIR)/thin_scan
 endif
 
-.PHONY: install install-rust-tools
+.PHONY: install install-rust-tools rust-tools
 
-install-rust-tools:
-	cargo install --path . --root $(BINDIR)
+rust-tools:
+	cargo build --release
+
+install-rust-tools: man8/thin_metadata_pack.8 man8/thin_metadata_unpack.8 rust-tools
+	$(INSTALL_PROGRAM) target/release/thin_metadata_pack  $(BINDIR)
+	$(INSTALL_PROGRAM) target/release/thin_metadata_unpack  $(BINDIR)
+	$(STRIP) $(BINDIR)/thin_metadata_pack
+	$(STRIP) $(BINDIR)/thin_metadata_unpack
 	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 
