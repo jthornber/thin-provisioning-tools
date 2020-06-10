@@ -19,6 +19,7 @@ use rand::prelude::*;
 use std::sync::mpsc::{sync_channel, Receiver};
 
 use crate::pack::node_encode::*;
+use crate::file_utils;
 
 const BLOCK_SIZE: u64 = 4096;
 const MAGIC: u64 = 0xa537a0aa6309ef77;
@@ -192,8 +193,8 @@ where
 }
 
 fn get_nr_blocks(path: &str) -> io::Result<u64> {
-    let metadata = std::fs::metadata(path)?;
-    Ok(metadata.len() / (BLOCK_SIZE as u64))
+    let len = file_utils::file_size(path)?;
+    Ok(len / (BLOCK_SIZE as u64))
 }
 
 fn read_blocks<R>(rdr: &mut R, b: u64, count: u64) -> io::Result<Vec<u8>>
