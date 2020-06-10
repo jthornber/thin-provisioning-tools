@@ -18,8 +18,8 @@ use std::{
 use rand::prelude::*;
 use std::sync::mpsc::{sync_channel, Receiver};
 
-use crate::pack::node_encode::*;
 use crate::file_utils;
+use crate::pack::node_encode::*;
 
 const BLOCK_SIZE: u64 = 4096;
 const MAGIC: u64 = 0xa537a0aa6309ef77;
@@ -170,19 +170,19 @@ where
     R: byteorder::ReadBytesExt,
 {
     use std::process::exit;
-    
+
     let magic = r.read_u64::<LittleEndian>()?;
     if magic != MAGIC {
         eprintln!("Not a pack file.");
         exit(1);
     }
-    
+
     let version = r.read_u64::<LittleEndian>()?;
     if version != PACK_VERSION {
         eprintln!("unsupported pack file version ({}).", PACK_VERSION);
         exit(1);
     }
-    
+
     let block_size = r.read_u64::<LittleEndian>()?;
     if block_size != BLOCK_SIZE {
         eprintln!("block size is not {}", BLOCK_SIZE);
@@ -216,7 +216,7 @@ fn checksum(buf: &[u8]) -> u32 {
 #[derive(PartialEq)]
 enum BT {
     SUPERBLOCK,
-    BTREE,
+    NODE,
     INDEX,
     BITMAP,
     UNKNOWN,
@@ -234,21 +234,17 @@ fn metadata_block_type(buf: &[u8]) -> BT {
     let btype = csum ^ sum_on_disk;
 
     match btype {
-        SUPERBLOCK_CSUM_XOR => return BT::SUPERBLOCK,
-        BTREE_CSUM_XOR => return BT::BTREE,
-        BITMAP_CSUM_XOR => return BT::BITMAP,
-        INDEX_CSUM_XOR => return BT::INDEX,
-        _ => {
-            return BT::UNKNOWN;
-        }
+        SUPERBLOCK_CSUM_XOR => BT::SUPERBLOCK,
+        BTREE_CSUM_XOR => BT::NODE,
+        BITMAP_CSUM_XOR => BT::BITMAP,
+        INDEX_CSUM_XOR => BT::INDEX,
+        _ => BT::UNKNOWN,
     }
 }
 
 fn check<T>(r: &PResult<T>) {
     match r {
-        Ok(_) => {
-            return;
-        }
+        Ok(_) => {}
         Err(PackError::ParseError) => panic!("parse error"),
         Err(PackError::IOError) => panic!("io error"),
     }
@@ -257,12 +253,10 @@ fn check<T>(r: &PResult<T>) {
 fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) {
     match kind {
         BT::SUPERBLOCK => check(&pack_superblock(w, buf)),
-        BT::BTREE => check(&pack_btree_node(w, buf)),
+        BT::NODE => check(&pack_btree_node(w, buf)),
         BT::INDEX => check(&pack_index(w, buf)),
         BT::BITMAP => check(&pack_bitmap(w, buf)),
-        BT::UNKNOWN => {
-            assert!(false);
-        }
+        BT::UNKNOWN => {panic!("asked to pack an unknown block type")}
     }
 }
 

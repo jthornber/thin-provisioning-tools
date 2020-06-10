@@ -18,13 +18,13 @@ pub fn is_file_or_blk(info: FileStat) -> bool {
 pub fn file_exists(path: &str) -> bool {
     match stat::stat(path) {
         Ok(info) => {
-            return is_file_or_blk(info);
+            is_file_or_blk(info)
         }
         _ => {
             // FIXME: assuming all errors indicate the file doesn't
             // exist.
             eprintln!("couldn't stat '{}'", path);
-            return false;
+            false
         }
     }
 }
@@ -46,8 +46,8 @@ fn get_device_size(path: &str) -> io::Result<u64> {
     let mut cap = 0u64;
     unsafe {
        match ioctl_blkgetsize64(fd, &mut cap) {
-           Ok(_) => {return Ok(cap);}
-           _ => {return fail("BLKGETSIZE64 ioctl failed");}
+           Ok(_) => {Ok(cap)}
+           _ => {fail("BLKGETSIZE64 ioctl failed")}
        }
     }
 }
@@ -56,15 +56,15 @@ pub fn file_size(path: &str) -> io::Result<u64> {
     match stat::stat(path) {
         Ok(info) => {
             if check_bits(info.st_mode, &SFlag::S_IFREG) {
-                return Ok(info.st_size as u64);
+                Ok(info.st_size as u64)
             } else if check_bits(info.st_mode, &SFlag::S_IFBLK) {
-                return get_device_size(path);
+                get_device_size(path)
             } else {
-                return fail("not a regular file or block device");
+                fail("not a regular file or block device")
             } 
         }
         _ => {
-            return fail("stat failed");
+            fail("stat failed")
         }
     }    
 }

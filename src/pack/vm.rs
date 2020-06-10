@@ -48,16 +48,16 @@ where
     W: Write,
 {
     if count == 1u64 {
-        return Ok(());
+        Ok(())
     } else if count < 16 {
-        return pack_tag(w, Tag::Count, count as u8);
+        pack_tag(w, Tag::Count, count as u8)
     } else {
         assert!(count < 4096);
         let nibble = count >> 8;
         assert!(nibble < 16);
         let byte = count & 0xff;
         pack_tag(w, Tag::Count8, nibble as u8)?;
-        return w.write_u8(byte as u8);
+        w.write_u8(byte as u8)
     }
 }
 
@@ -68,64 +68,64 @@ fn pack_delta<W: Write>(w: &mut W, d: &Delta) -> io::Result<()> {
         Delta::Base { n } => {
             if *n <= std::u8::MAX as u64 {
                 pack_tag(w, Set, 1)?;
-                return w.write_u8(*n as u8);
+                w.write_u8(*n as u8)
             } else if *n <= std::u16::MAX as u64 {
                 pack_tag(w, Set, 2)?;
-                return w.write_u16::<LittleEndian>(*n as u16);
+                w.write_u16::<LittleEndian>(*n as u16)
             } else if *n <= u32::MAX as u64 {
                 pack_tag(w, Set, 4)?;
-                return w.write_u32::<LittleEndian>(*n as u32);
+                w.write_u32::<LittleEndian>(*n as u32)
             } else {
                 pack_tag(w, Set, 8)?;
-                return w.write_u64::<LittleEndian>(*n);
+                w.write_u64::<LittleEndian>(*n)
             }
         }
         Delta::Pos { delta, count } => {
             pack_count(w, *count)?;
             if *delta < 16 {
-                return pack_tag(w, Tag::Pos, *delta as u8);
+                pack_tag(w, Tag::Pos, *delta as u8)
             } else if *delta <= u8::MAX as u64 {
                 pack_tag(w, PosW, 1)?;
-                return w.write_u8(*delta as u8);
+                w.write_u8(*delta as u8)
             } else if *delta <= u16::MAX as u64 {
                 pack_tag(w, PosW, 2)?;
-                return w.write_u16::<LittleEndian>(*delta as u16);
+                w.write_u16::<LittleEndian>(*delta as u16)
             } else if *delta <= u32::MAX as u64 {
                 pack_tag(w, PosW, 4)?;
-                return w.write_u32::<LittleEndian>(*delta as u32);
+                w.write_u32::<LittleEndian>(*delta as u32)
             } else {
                 pack_tag(w, PosW, 8)?;
-                return w.write_u64::<LittleEndian>(*delta as u64);
+                w.write_u64::<LittleEndian>(*delta as u64)
             }
         }
         Delta::Neg { delta, count } => {
             pack_count(w, *count)?;
 
             if *delta < 16 {
-                return pack_tag(w, Neg, *delta as u8);
+                pack_tag(w, Neg, *delta as u8)
             } else if *delta <= u8::MAX as u64 {
                 pack_tag(w, NegW, 1)?;
-                return w.write_u8(*delta as u8);
+                w.write_u8(*delta as u8)
             } else if *delta <= u16::MAX as u64 {
                 pack_tag(w, NegW, 2)?;
-                return w.write_u16::<LittleEndian>(*delta as u16);
+                w.write_u16::<LittleEndian>(*delta as u16)
             } else if *delta <= u32::MAX as u64 {
                 pack_tag(w, NegW, 4)?;
-                return w.write_u32::<LittleEndian>(*delta as u32);
+                w.write_u32::<LittleEndian>(*delta as u32)
             } else {
                 pack_tag(w, NegW, 8)?;
-                return w.write_u64::<LittleEndian>(*delta as u64);
+                w.write_u64::<LittleEndian>(*delta as u64)
             }
         }
         Delta::Const { count } => {
             if *count < 16 {
-                return pack_tag(w, Tag::Const, *count as u8);
+                pack_tag(w, Tag::Const, *count as u8)
             } else {
                 assert!(*count < 4096);
                 let nibble = *count >> 8;
                 assert!(nibble < 16);
                 pack_tag(w, Tag::Const8, nibble as u8)?;
-                return w.write_u8((*count & 0xff) as u8);
+                w.write_u8((*count & 0xff) as u8)
             }
         }
     }

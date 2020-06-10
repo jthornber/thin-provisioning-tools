@@ -17,17 +17,17 @@ impl std::error::Error for PackError {}
 pub type PResult<T> = Result<T, PackError>;
 
 fn nom_to_pr<T>(r: IResult<&[u8], T>) -> PResult<(&[u8], T)> {
-    return match r {
+    match r {
         Ok(v) => Ok(v),
         Err(_) => Err(PackError::ParseError),
-    };
+    }
 }
 
 fn io_to_pr<T>(r: io::Result<T>) -> PResult<T> {
-    return match r {
+    match r {
         Ok(v) => Ok(v),
         Err(_) => Err(PackError::IOError),
-    };
+    }
 }
 
 //-------------------------------------------
@@ -79,11 +79,11 @@ pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
             io_to_pr(pack_literal(w, hdr))?;
             io_to_pr(pack_u64s(w, &keys))?;
             io_to_pr(pack_shifted_u64s(w, &values))?;
-            if tail.len() > 0 {
+            if !tail.is_empty() {
                 io_to_pr(pack_literal(w, tail))?;
             }
 
-            return Ok(());
+            Ok(())
         } else {
             // We don't bother packing the values if they aren't u64
             let (i, hdr) = nom_to_pr(take(32usize)(data))?;
@@ -93,7 +93,7 @@ pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
             io_to_pr(pack_u64s(w, &keys))?;
             io_to_pr(pack_literal(w, tail))?;
 
-            return Ok(());
+            Ok(())
         }
     } else {
         // Internal node, values are also u64s
@@ -104,11 +104,11 @@ pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
         io_to_pr(pack_literal(w, hdr))?;
         io_to_pr(pack_u64s(w, &keys))?;
         io_to_pr(pack_u64s(w, &values))?;
-        if tail.len() > 0 {
+        if !tail.is_empty() {
             io_to_pr(pack_literal(w, tail))?;
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 

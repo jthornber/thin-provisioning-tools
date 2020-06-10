@@ -11,49 +11,55 @@ pub enum Delta {
 use Delta::*;
 
 pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
+    use std::cmp::Ordering::*;
+    
     let mut ds = Vec::new();
 
-    if ns.len() > 0 {
+    if !ns.is_empty() {
         let mut base = ns[0];
         ds.push(Base { n: base });
 
         let mut i = 1;
         while i < ns.len() {
             let n = ns[i];
-            if n > base {
-                let delta = n - base;
-                let mut count = 1;
-                while i < ns.len() && (ns[i] == (base + (count * delta))) {
-                    i += 1;
-                    count += 1;
+            match n.cmp(&base) {
+                Less => {
+                    let delta = base - n;
+                    let mut count = 1;
+                    while i < ns.len() && (ns[i] + (count * delta) == base) {
+                        i += 1;
+                        count += 1;
+                    }
+                    count -= 1;
+                    ds.push(Neg {
+                        delta,
+                        count,
+                    });
+                    base -= delta * count;
                 }
-                count -= 1;
-                ds.push(Pos {
-                    delta: delta,
-                    count: count,
-                });
-                base += delta * count;
-            } else if n < base {
-                let delta = base - n;
-                let mut count = 1;
-                while i < ns.len() && (ns[i] + (count * delta) == base) {
-                    i += 1;
-                    count += 1;
+                Equal => {
+                    let mut count = 1;
+                    while i < ns.len() && ns[i] == base {
+                        i += 1;
+                        count += 1;
+                    }
+                    count -= 1;
+                    ds.push(Const { count });
                 }
-                count -= 1;
-                ds.push(Neg {
-                    delta: delta,
-                    count: count,
-                });
-                base -= delta * count;
-            } else {
-                let mut count = 1;
-                while i < ns.len() && ns[i] == base {
-                    i += 1;
-                    count += 1;
+                Greater => {
+                    let delta = n - base;
+                    let mut count = 1;
+                    while i < ns.len() && (ns[i] == (base + (count * delta))) {
+                        i += 1;
+                        count += 1;
+                    }
+                    count -= 1;
+                    ds.push(Pos {
+                        delta,
+                        count,
+                    });
+                    base += delta * count;
                 }
-                count -= 1;
-                ds.push(Const { count: count });
             }
         }
     }

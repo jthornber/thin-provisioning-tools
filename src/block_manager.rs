@@ -31,7 +31,7 @@ impl BlockManager {
 
         Ok(BlockManager {
             nr_blocks: get_nr_blocks(path)?,
-            input: input,
+            input,
         })
     }
 

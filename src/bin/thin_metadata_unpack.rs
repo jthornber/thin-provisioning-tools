@@ -33,7 +33,7 @@ fn main() {
         exit(1);
     }
     
-    if let Err(reason) = thinp::pack::pack::unpack(&input_file, &output_file) {
+    if let Err(reason) = thinp::pack::toplevel::unpack(&input_file, &output_file) {
         println!("Application error: {}", reason);
         process::exit(1);
     }
