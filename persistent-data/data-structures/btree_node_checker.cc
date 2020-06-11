@@ -52,8 +52,7 @@ std::string btree_node_checker::value_sizes_mismatch_string() const {
 	std::ostringstream out;
 	out << "value size mismatch: expected " << error_value_sizes_[1]
 	    << ", but got " << error_value_sizes_[0]
-	    << ". This is not the btree you are looking for."
-	    << " (block " << error_location_ << ")";
+	    << " (block " << error_location_ << ").";
 
 	return out.str();
 }

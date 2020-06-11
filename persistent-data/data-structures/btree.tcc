@@ -360,8 +360,7 @@ namespace persistent_data {
 		std::ostringstream out;
 		out << "value size mismatch: expected " << sizeof(typename ValueTraits::disk_type)
 		    << ", but got " << get_value_size()
-		    << ".  This is not the btree you are looking for."
-		    << " (block " << location_ << ")" << std::endl;
+		    << " (block " << location_ << ")." << std::endl;
 
 		return out.str();
 	}
