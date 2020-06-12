@@ -18,11 +18,13 @@
 
 #include "base/nested_output.h"
 #include "persistent-data/file_utils.h"
+#include "persistent-data/space-maps/core.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
 #include "thin-provisioning/metadata_counter.h"
 #include "thin-provisioning/superblock.h"
 
+using namespace boost;
 using namespace persistent_data;
 using namespace thin_provisioning;
 
@@ -84,6 +86,20 @@ namespace {
 
 	//--------------------------------
 
+	class data_ref_counter : public mapping_tree_detail::mapping_visitor {
+	public:
+		data_ref_counter(space_map::ptr sm)
+			: sm_(sm) {
+		}
+
+		virtual void visit(btree_path const &path, mapping_tree_detail::block_time const &bt) {
+			sm_->inc(bt.block_);
+		}
+
+        private:
+	        space_map::ptr sm_;
+	};
+
 	class mapping_reporter : public mapping_tree_detail::damage_visitor {
 	public:
 		mapping_reporter(nested_output &out)
@@ -121,12 +137,13 @@ namespace {
 	//--------------------------------
 
 	error_state examine_superblock(block_manager::ptr bm,
+                                       block_address sb_location,
 				       nested_output &out) {
 		out << "examining superblock" << end_message();
 		nested_output::nest _ = out.push();
 
 		superblock_reporter sb_rep(out);
-		check_superblock(bm, sb_rep);
+		check_superblock(bm, sb_rep, sb_location);
 
 		return sb_rep.get_error();
 	}
@@ -161,14 +178,20 @@ namespace {
 
 	error_state examine_mapping_tree_(transaction_manager::ptr tm,
 					  superblock_detail::superblock const &sb,
-					  nested_output &out) {
+					  nested_output &out,
+                                          optional<space_map::ptr> data_sm) {
 		out << "examining mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
 		mapping_reporter mapping_rep(out);
 		mapping_tree mtree(*tm, sb.data_mapping_root_,
 				   mapping_tree_detail::block_traits::ref_counter(tm->get_sm()));
-		check_mapping_tree(mtree, mapping_rep);
+
+		if (data_sm) {
+			data_ref_counter dcounter(*data_sm);
+			walk_mapping_tree(mtree, dcounter, mapping_rep);
+		} else
+			check_mapping_tree(mtree, mapping_rep);
 
 		return mapping_rep.get_error();
 	}
@@ -184,9 +207,10 @@ namespace {
 
 	error_state examine_mapping_tree(transaction_manager::ptr tm,
 					 superblock_detail::superblock const &sb,
-					 nested_output &out) {
+					 nested_output &out,
+                                         optional<space_map::ptr> data_sm) {
 		error_state err = examine_devices_tree_(tm, sb, out);
-		err << examine_mapping_tree_(tm, sb, out);
+		err << examine_mapping_tree_(tm, sb, out, data_sm);
 
 		return err;
 	}
@@ -222,6 +246,34 @@ namespace {
 		return err;
 	}
 
+	error_state compare_space_maps(space_map::ptr actual, space_map::ptr expected,
+                                       nested_output &out)
+	{
+		error_state err = NO_ERROR;
+		auto nr_blocks = actual->get_nr_blocks();
+
+		if (expected->get_nr_blocks() != nr_blocks) {
+			out << "internal error: nr blocks in space maps differ"
+			    << end_message();
+			err << FATAL;
+		} else {
+			for (block_address b = 0; b < nr_blocks; b++) {
+				auto a_count = actual->get_count(b);
+				auto e_count = actual->get_count(b);
+				
+				if (a_count != e_count) {
+					out << "data reference counts differ for block " << b
+					    << ", expected " << e_count
+					    << ", but got " << a_count
+					    << end_message();
+					err << (a_count > e_count ? NON_FATAL : FATAL);
+				}
+			}
+		}
+
+		return err;
+	}
+
 	void print_info(transaction_manager::ptr tm,
 			superblock_detail::superblock const &sb,
                         nested_output &out)
@@ -238,11 +290,11 @@ namespace {
 
 	//--------------------------------
 
-	class base_metadata_checker : public metadata_checker {
+	class metadata_checker {
 	public:
-		base_metadata_checker(block_manager::ptr bm,
-				      check_options check_opts,
-				      output_options output_opts)
+		metadata_checker(block_manager::ptr bm,
+		      		 check_options check_opts,
+				 output_options output_opts)
 			: bm_(bm),
 			  options_(check_opts),
 			  out_(cerr, 2),
@@ -256,28 +308,44 @@ namespace {
 
 		error_state check() {
 			error_state err = NO_ERROR;
+			auto sb_location = superblock_detail::SUPERBLOCK_LOCATION;
 
-			err << examine_superblock(bm_, out_);
-
+			if (options_.use_metadata_snap_) {
+				superblock_detail::superblock sb = read_superblock(bm_, sb_location);
+				sb_location = sb.metadata_snap_;
+				if (sb_location == superblock_detail::SUPERBLOCK_LOCATION)
+					throw runtime_error("No metadata snapshot found.");
+			}
+			
+			err << examine_superblock(bm_, sb_location, out_);
 			if (err == FATAL) {
 				if (check_for_xml(bm_))
 					out_ << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
 				return err;
 			}
 
-			superblock_detail::superblock sb = read_superblock(bm_);
-			transaction_manager::ptr tm =
-				open_tm(bm_, superblock_detail::SUPERBLOCK_LOCATION);
+			superblock_detail::superblock sb = read_superblock(bm_, sb_location);
+			transaction_manager::ptr tm = open_tm(bm_, sb_location);
 			sb.data_mapping_root_ = mapping_root(sb, options_);
 
 			print_info(tm, sb, info_out_);
 
-			err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_);
+			if (options_.sm_opts_ == check_options::SPACE_MAP_FULL) {
+				space_map::ptr data_sm{open_disk_sm(*tm, &sb.data_space_map_root_)};
+				optional<space_map::ptr> core_sm{create_core_map(data_sm->get_nr_blocks())};
+				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_, core_sm);
 
-			// if we're checking everything, and there were no errors,
-			// then we should check the space maps too.
-			if (err != FATAL)
-				err << examine_metadata_space_map(tm, sb, options_.check_metadata_space_map_, out_);
+				// if we're checking everything, and there were no errors,
+				// then we should check the space maps too.
+				if (err != FATAL) {
+					err << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_);
+
+					if (core_sm)
+						err << compare_space_maps(data_sm, *core_sm, out_);
+				}
+			} else
+				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_,
+                                                             optional<space_map::ptr>());
 
 			return err;
 		}
@@ -287,7 +355,8 @@ namespace {
 		examine_data_mappings(transaction_manager::ptr tm,
 				      superblock_detail::superblock const &sb,
 				      check_options::data_mapping_options option,
-				      nested_output &out) {
+				      nested_output &out,
+                                      optional<space_map::ptr> data_sm) {
 			error_state err = NO_ERROR;
 
 			switch (option) {
@@ -295,7 +364,7 @@ namespace {
 				err << examine_top_level_mapping_tree(tm, sb, out);
 				break;
 			case check_options::DATA_MAPPING_LEVEL2:
-				err << examine_mapping_tree(tm, sb, out);
+				err << examine_mapping_tree(tm, sb, out, data_sm);
 				break;
 			default:
 				break; // do nothing
@@ -307,12 +376,12 @@ namespace {
 		static error_state
 		examine_metadata_space_map(transaction_manager::ptr tm,
 					   superblock_detail::superblock const &sb,
-					   check_options::metadata_space_map_options option,
+					   check_options::space_map_options option,
 					   nested_output &out) {
 			error_state err = NO_ERROR;
 
 			switch (option) {
-			case check_options::METADATA_SPACE_MAP_FULL:
+			case check_options::SPACE_MAP_FULL:
 				err << check_space_map_counts(tm, sb, out);
 				break;
 			default:
@@ -332,32 +401,37 @@ namespace {
 //----------------------------------------------------------------
 
 check_options::check_options()
-	: check_data_mappings_(DATA_MAPPING_LEVEL2),
-	  check_metadata_space_map_(METADATA_SPACE_MAP_FULL) {
+	: use_metadata_snap_(false),
+	  check_data_mappings_(DATA_MAPPING_LEVEL2),
+	  sm_opts_(SPACE_MAP_FULL) {
 }
 
 void check_options::set_superblock_only() {
 	check_data_mappings_ = DATA_MAPPING_NONE;
-	check_metadata_space_map_ = METADATA_SPACE_MAP_NONE;
+	sm_opts_ = SPACE_MAP_NONE;
 }
 
 void check_options::set_skip_mappings() {
 	check_data_mappings_ = DATA_MAPPING_LEVEL1;
-	check_metadata_space_map_ = METADATA_SPACE_MAP_NONE;
+	sm_opts_ = SPACE_MAP_NONE;
 }
 
 void check_options::set_override_mapping_root(block_address b) {
 	override_mapping_root_ = b;
 }
 
-metadata_checker::ptr
-thin_provisioning::create_base_checker(block_manager::ptr bm,
-				       check_options const &check_opts,
-				       output_options output_opts)
+void check_options::set_metadata_snap() {
+	use_metadata_snap_ = true;
+	sm_opts_ = SPACE_MAP_NONE;
+}
+		
+base::error_state
+thin_provisioning::check_metadata(block_manager::ptr bm,
+				  check_options const &check_opts,
+				  output_options output_opts)
 {
-	metadata_checker::ptr checker;
-	checker = metadata_checker::ptr(new base_metadata_checker(bm, check_opts, output_opts));
-	return checker;
+	metadata_checker checker(bm, check_opts, output_opts);
+	return checker.check();
 }
 
 //----------------------------------------------------------------
