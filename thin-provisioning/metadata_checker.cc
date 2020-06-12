@@ -401,7 +401,8 @@ namespace {
 //----------------------------------------------------------------
 
 check_options::check_options()
-	: check_data_mappings_(DATA_MAPPING_LEVEL2),
+	: use_metadata_snap_(false),
+	  check_data_mappings_(DATA_MAPPING_LEVEL2),
 	  sm_opts_(SPACE_MAP_FULL) {
 }
 
@@ -420,6 +421,7 @@ void check_options::set_override_mapping_root(block_address b) {
 }
 
 void check_options::set_metadata_snap() {
+	use_metadata_snap_ = true;
 	sm_opts_ = SPACE_MAP_NONE;
 }
 		

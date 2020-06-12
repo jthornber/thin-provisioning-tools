@@ -76,7 +76,8 @@ namespace {
 				return 1;
 			}
 
-			block_manager::ptr bm = open_bm(path);
+			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY,
+                                                        !fs.check_opts.use_metadata_snap_);
 			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
 			error_state err = check_metadata(bm, fs.check_opts, output_opts);
 
@@ -128,7 +129,7 @@ thin_check_cmd::run(int argc, char **argv)
 	int c;
 	flags fs;
 
-	char const shortopts[] = "qhV";
+	char const shortopts[] = "qhVm";
 	option const longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
