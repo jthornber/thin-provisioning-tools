@@ -40,6 +40,7 @@ SOURCE=\
 	base/error_state.cc \
 	base/error_string.cc \
 	base/grid_layout.cc \
+	base/io_generator.cc \
 	base/file_utils.cc \
 	base/progress_monitor.cc \
 	base/rolling_hash.cc \
