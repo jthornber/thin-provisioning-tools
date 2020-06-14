@@ -8,7 +8,6 @@ use std::{
     fs::OpenOptions,
     io,
     io::prelude::*,
-    io::Cursor,
     io::Write,
     ops::DerefMut,
     sync::{Arc, Mutex},
@@ -20,14 +19,11 @@ use std::sync::mpsc::{sync_channel, Receiver};
 
 use crate::file_utils;
 use crate::pack::node_encode::*;
+use crate::checksum::*;
 
 const BLOCK_SIZE: u64 = 4096;
 const MAGIC: u64 = 0xa537a0aa6309ef77;
 const PACK_VERSION: u64 = 3;
-const SUPERBLOCK_CSUM_XOR: u32 = 160774;
-const BITMAP_CSUM_XOR: u32 = 240779;
-const INDEX_CSUM_XOR: u32 = 160478;
-const BTREE_CSUM_XOR: u32 = 121107;
 
 fn shuffle<T>(v: &mut Vec<T>) {
     let mut rng = rand::thread_rng();
@@ -207,39 +203,6 @@ where
     rdr.read_exact(&mut buf)?;
 
     Ok(buf)
-}
-
-fn checksum(buf: &[u8]) -> u32 {
-    crc32c::crc32c(&buf[4..]) ^ 0xffffffff
-}
-
-#[derive(PartialEq)]
-enum BT {
-    SUPERBLOCK,
-    NODE,
-    INDEX,
-    BITMAP,
-    UNKNOWN,
-}
-
-fn metadata_block_type(buf: &[u8]) -> BT {
-    if buf.len() != BLOCK_SIZE as usize {
-        return BT::UNKNOWN;
-    }
-
-    // The checksum is always stored in the first u32 of the buffer.
-    let mut rdr = Cursor::new(buf);
-    let sum_on_disk = rdr.read_u32::<LittleEndian>().unwrap();
-    let csum = checksum(buf);
-    let btype = csum ^ sum_on_disk;
-
-    match btype {
-        SUPERBLOCK_CSUM_XOR => BT::SUPERBLOCK,
-        BTREE_CSUM_XOR => BT::NODE,
-        BITMAP_CSUM_XOR => BT::BITMAP,
-        INDEX_CSUM_XOR => BT::INDEX,
-        _ => BT::UNKNOWN,
-    }
 }
 
 fn check<T>(r: &PResult<T>) {

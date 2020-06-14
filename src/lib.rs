@@ -19,3 +19,5 @@ pub mod check;
 pub mod file_utils;
 pub mod pack;
 pub mod version;
+pub mod thin;
+pub mod checksum;

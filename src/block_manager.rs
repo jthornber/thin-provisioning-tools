@@ -6,8 +6,8 @@ use std::fs::File;
 
 pub const BLOCK_SIZE: usize = 4096;
 
-#[repr(align(4096))]
 pub struct Block {
+    pub loc: u64,
     pub data: [u8; BLOCK_SIZE as usize],
 }
     
@@ -41,7 +41,7 @@ impl BlockManager {
 
     fn read_block(&mut self, b: u64) -> io::Result<Block>
     {
-        let mut buf = Block {data: [0; BLOCK_SIZE]};
+        let mut buf = Block {loc: b, data: [0; BLOCK_SIZE]};
 
         self.input.seek(io::SeekFrom::Start(b * (BLOCK_SIZE as u64)))?;
         self.input.read_exact(&mut buf.data)?;
