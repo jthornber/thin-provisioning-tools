@@ -76,10 +76,10 @@ namespace {
 				return 1;
 			}
 
-			block_manager::ptr bm = open_bm(path);
+			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY,
+                                                        !fs.check_opts.use_metadata_snap_);
 			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
-			metadata_checker::ptr checker = create_base_checker(bm, fs.check_opts, output_opts);
-			error_state err = checker->check();
+			error_state err = check_metadata(bm, fs.check_opts, output_opts);
 
 			if (fs.ignore_non_fatal_errors)
 				success = (err == FATAL) ? false : true;
@@ -110,15 +110,16 @@ thin_check_cmd::thin_check_cmd()
 void
 thin_check_cmd::usage(std::ostream &out) const
 {
-	out << "Usage: " << get_name() << " [options] {device|file}" << endl
-	    << "Options:" << endl
-	    << "  {-q|--quiet}" << endl
-	    << "  {-h|--help}" << endl
-	    << "  {-V|--version}" << endl
-	    << "  {--override-mapping-root}" << endl
-	    << "  {--clear-needs-check-flag}" << endl
-	    << "  {--ignore-non-fatal-errors}" << endl
-	    << "  {--skip-mappings}" << endl
+	out << "Usage: " << get_name() << " [options] {device|file}\n"
+	    << "Options:\n"
+	    << "  {-q|--quiet}\n"
+	    << "  {-h|--help}\n"
+	    << "  {-V|--version}\n"
+	    << "  {-m|--metadata-snap}\n"
+	    << "  {--override-mapping-root}\n"
+	    << "  {--clear-needs-check-flag}\n"
+	    << "  {--ignore-non-fatal-errors}\n"
+	    << "  {--skip-mappings}\n"
 	    << "  {--super-block-only}" << endl;
 }
 
@@ -128,11 +129,12 @@ thin_check_cmd::run(int argc, char **argv)
 	int c;
 	flags fs;
 
-	char const shortopts[] = "qhV";
+	char const shortopts[] = "qhVm";
 	option const longopts[] = {
 		{ "quiet", no_argument, NULL, 'q'},
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
+		{ "metadata-snap", no_argument, NULL, 'm'},
 		{ "super-block-only", no_argument, NULL, 1},
 		{ "skip-mappings", no_argument, NULL, 2},
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
@@ -154,6 +156,10 @@ thin_check_cmd::run(int argc, char **argv)
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		case 'm':
+			fs.check_opts.set_metadata_snap();
+			break;
 
 		case 1:
 			// super-block-only
@@ -184,6 +190,12 @@ thin_check_cmd::run(int argc, char **argv)
 			usage(cerr);
 			return 1;
 		}
+	}
+
+	if (fs.clear_needs_check_flag_on_success && fs.check_opts.use_metadata_snap_) {
+		cerr << "--metadata-snap cannot be combined with --clear-needs-check-flag.";
+		usage(cerr);
+		exit(1);
 	}
 
 	if (argc == optind) {

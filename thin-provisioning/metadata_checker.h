@@ -33,9 +33,9 @@ namespace thin_provisioning {
 			DATA_MAPPING_LEVEL2,
 		};
 
-		enum metadata_space_map_options {
-			METADATA_SPACE_MAP_NONE,
-			METADATA_SPACE_MAP_FULL,
+		enum space_map_options {
+			SPACE_MAP_NONE,
+			SPACE_MAP_FULL,
 		};
 
 		check_options();
@@ -43,9 +43,11 @@ namespace thin_provisioning {
 		void set_superblock_only();
 		void set_skip_mappings();
 		void set_override_mapping_root(bcache::block_address b);
+		void set_metadata_snap();
 
+		bool use_metadata_snap_;
 		data_mapping_options check_data_mappings_;
-		metadata_space_map_options check_metadata_space_map_;
+		space_map_options sm_opts_;
 		boost::optional<bcache::block_address> override_mapping_root_;
 	};
 
@@ -54,19 +56,10 @@ namespace thin_provisioning {
 		OUTPUT_QUIET,
 	};
 
-	class metadata_checker {
-	public:
-		typedef std::shared_ptr<metadata_checker> ptr;
-
-		virtual ~metadata_checker() {}
-
-		virtual base::error_state check() = 0;
-	};
-
-	metadata_checker::ptr
-	create_base_checker(persistent_data::block_manager::ptr bm,
-			    check_options const &check_opts,
-			    output_options output_opts);
+	base::error_state
+	check_metadata(persistent_data::block_manager::ptr bm,
+		       check_options const &check_opts,
+		       output_options output_opts);
 }
 
 //----------------------------------------------------------------
