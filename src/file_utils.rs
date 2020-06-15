@@ -23,7 +23,6 @@ pub fn file_exists(path: &str) -> bool {
         _ => {
             // FIXME: assuming all errors indicate the file doesn't
             // exist.
-            eprintln!("couldn't stat '{}'", path);
             false
         }
     }
