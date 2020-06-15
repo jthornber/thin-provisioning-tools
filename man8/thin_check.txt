@@ -8,7 +8,8 @@ DESCRIPTION
   thin_check checks thin provisioning metadata created by the device-mapper
   thin provisioning target on a device or file.
 
-  The tool cannot be run on live metadata.
+  The tool cannot be run on live metadata unless the --metadata-snapshot
+  option is used.
 
 OPTIONS
   -q, --quiet		Suppress output messages, return only exit code.
@@ -32,6 +33,12 @@ OPTIONS
     If the metadata check failed, the flag is not cleared and a thin_repair run
     is needed to fix any issues. After thin_repair succeeded, you may run
     thin_check again.
+
+  --metadata-snapshot, -m	Check the metadata snapshot.
+
+    This will check the devices tree and mappings in a metadata snapshot.
+    The snap does not contain space maps, so these will not be checked.  This
+    may be used on live metadata.
 
   --override-mapping-root <block>	Specify a mapping root to use.
 
