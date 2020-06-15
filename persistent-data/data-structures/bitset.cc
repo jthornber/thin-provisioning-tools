@@ -1,6 +1,6 @@
 #include "persistent-data/data-structures/array.h"
 #include "persistent-data/data-structures/bitset.h"
-#include "persistent-data/math_utils.h"
+#include "base/math_utils.h"
 
 using namespace persistent_data;
 using namespace persistent_data::bitset_detail;

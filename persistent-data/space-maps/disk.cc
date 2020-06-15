@@ -26,7 +26,7 @@
 #include "persistent-data/data-structures/btree_damage_visitor.h"
 #include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/checksum.h"
-#include "persistent-data/math_utils.h"
+#include "base/math_utils.h"
 #include "persistent-data/transaction_manager.h"
 
 using namespace persistent_data;

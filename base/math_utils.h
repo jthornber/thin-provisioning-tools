@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef THINP_MATH_H
-#define THINP_MATH_H
+#ifndef BASE_MATH_H
+#define BASE_MATH_H
 
 //----------------------------------------------------------------
 
