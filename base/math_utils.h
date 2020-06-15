@@ -34,6 +34,11 @@ namespace base {
 	T div_down(T const &v, T const &divisor) {
 		return v / divisor;
 	}
+
+	template <typename T>
+	bool is_power_of_two(T const v) {
+		return !(v & (v - 1));
+	}
 }
 
 //----------------------------------------------------------------
