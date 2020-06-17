@@ -34,8 +34,6 @@ namespace cache {
 
 	block_address const SUPERBLOCK_LOCATION = 0;
 
-	typedef uint64_t sector_t;
-
 	//------------------------------------------------
 
 	class space_map_ref_counter {
