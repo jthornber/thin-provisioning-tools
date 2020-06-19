@@ -1,6 +1,7 @@
 #ifndef BLOCK_CACHE_IO_ENGINE_H
 #define BLOCK_CACHE_IO_ENGINE_H
 
+#include "base/types.h"
 #include "base/unique_handle.h"
 
 #include <boost/optional.hpp>
@@ -18,9 +19,8 @@
 //----------------------------------------------------------------
 
 namespace bcache {
-	using sector_t = uint64_t;
-
-	unsigned const SECTOR_SHIFT = 9;
+	using base::sector_t;
+	using base::SECTOR_SHIFT;
 
 	// Virtual base class to aid unit testing
 	class io_engine {

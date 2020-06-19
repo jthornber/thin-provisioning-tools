@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "persistent-data/space-maps/core.h"
-#include "persistent-data/math_utils.h"
+#include "base/math_utils.h"
 
 #include <stdexcept>
 

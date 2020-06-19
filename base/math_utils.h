@@ -16,8 +16,8 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef THINP_MATH_H
-#define THINP_MATH_H
+#ifndef BASE_MATH_H
+#define BASE_MATH_H
 
 //----------------------------------------------------------------
 
@@ -33,6 +33,11 @@ namespace base {
 	template <typename T>
 	T div_down(T const &v, T const &divisor) {
 		return v / divisor;
+	}
+
+	template <typename T>
+	bool is_power_of_two(T const v) {
+		return !(v & (v - 1));
 	}
 }
 

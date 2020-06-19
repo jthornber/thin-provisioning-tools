@@ -110,11 +110,33 @@ namespace persistent_data {
 					  uint64_t key,
 					  typename ValueTraits::value_type const &v);
 
+			// Decrements the nr_entries field
+			void delete_at(unsigned i);
+
 			// Copies entries from another node, appends them
 			// to the back of this node.  Adjusts nr_entries.
 			void copy_entries(node_ref const &rhs,
 					  unsigned begin,
 					  unsigned end);
+
+			// Moves entries between the sibling node,
+			// and maintains the key ordering.
+			// The nr_entreis of both nodes are adjusted.
+			void move_entries(node_ref &rhs,
+					  int count);
+
+			// Copies entries from the beginning of rhs to the end of lhs,
+			// or copies entries from the end of lhs to the beginning of rhs.
+			// The nr_entries is not adjusted.
+			void copy_entries_to_left(node_ref const &rhs, unsigned count);
+			void copy_entries_to_right(node_ref &rhs, unsigned count) const;
+
+			// Shifts entries to left or right.
+			// The nr_entries is not adjusted.
+			void shift_entries_left(unsigned shift);
+			void shift_entries_right(unsigned shift);
+
+			unsigned merge_threshold() const;
 
 			// Various searches
 			int bsearch(uint64_t key, int want_hi) const;
@@ -123,6 +145,9 @@ namespace persistent_data {
 
 			template <typename RefCounter>
 			void inc_children(RefCounter &rc);
+
+			template <typename RefCounter>
+			void dec_children(RefCounter &rc);
 
 			disk_node *raw() {
 				return raw_;
@@ -254,6 +279,26 @@ namespace persistent_data {
 			bcache::validator::ptr validator_;
 			std::list<block_manager::write_ref> spine_;
 		        maybe_block root_;
+		};
+
+		class shadow_child {
+		public:
+			shadow_child(block_manager::write_ref &wr, node_type type)
+				: wr_(wr), type_(type) {
+			}
+
+			node_type get_type() const {
+				return type_;
+			}
+
+			template <typename ValueTraits>
+			node_ref<ValueTraits> get_node() {
+				return to_node<ValueTraits>(wr_);
+			}
+
+		private:
+			block_manager::write_ref wr_;
+			node_type type_;
 		};
 
 		// Used to keep a record of a nested btree's position.
@@ -396,6 +441,14 @@ namespace persistent_data {
 				int *index,
 				RC &leaf_rc);
 
+		template <typename ValueTraits2, typename RC>
+		bool
+		remove_location(btree_detail::shadow_spine &spine,
+				block_address block,
+				uint64_t key,
+				unsigned *index,
+				RC &leaf_rc);
+
 		void walk_tree(visitor &visitor,
 			       btree_detail::node_location const &loc,
 			       block_address b) const;
@@ -408,6 +461,53 @@ namespace persistent_data {
 		void inc_children(btree_detail::shadow_spine &spine,
 				  RefCounter &leaf_rc);
 
+		btree_detail::shadow_child
+		create_shadow_child(internal_node &parent,
+				    unsigned index);
+
+		template <typename ValueTraits2>
+		bool rebalance_children(btree_detail::shadow_spine &spine,
+					uint64_t key);
+
+		template <typename ValueTraits2>
+		void rebalance2(btree_detail::shadow_spine &spine,
+				unsigned left_index);
+
+		template <typename ValueTraits2>
+		void rebalance3(btree_detail::shadow_spine &spine,
+				unsigned left_index);
+
+		template <typename ValueTraits2>
+		void
+		__rebalance2(internal_node &parent,
+			     btree_detail::node_ref<ValueTraits2> &left,
+			     btree_detail::node_ref<ValueTraits2> &right,
+			     unsigned left_index);
+
+		template <typename ValueTraits2>
+		void
+		__rebalance3(internal_node &parent,
+			     btree_detail::node_ref<ValueTraits2> &left,
+			     btree_detail::node_ref<ValueTraits2> &center,
+			     btree_detail::node_ref<ValueTraits2> &right,
+			     unsigned left_index);
+
+		template <typename ValueTraits2>
+		void
+		delete_center_node(internal_node &parent,
+				   btree_detail::node_ref<ValueTraits2> &left,
+				   btree_detail::node_ref<ValueTraits2> &center,
+				   btree_detail::node_ref<ValueTraits2> &right,
+				   unsigned left_index);
+
+		template <typename ValueTraits2>
+		void
+		redistribute3(internal_node &parent,
+			      btree_detail::node_ref<ValueTraits2> &left,
+			      btree_detail::node_ref<ValueTraits2> &center,
+			      btree_detail::node_ref<ValueTraits2> &right,
+			      unsigned left_index);
+
 		transaction_manager &tm_;
 		bool destroy_;
 		block_address root_;
@@ -418,6 +518,7 @@ namespace persistent_data {
 };
 
 #include "btree.tcc"
+#include "btree-remove.tcc"
 
 //----------------------------------------------------------------
 

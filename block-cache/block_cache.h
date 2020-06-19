@@ -24,7 +24,6 @@ namespace bi = boost::intrusive;
 
 namespace bcache {
 	typedef uint64_t block_address;
-	typedef uint64_t sector_t;
 
 	class validator {
 	public:
