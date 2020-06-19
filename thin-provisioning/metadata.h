@@ -37,7 +37,6 @@ namespace thin_provisioning {
 	using namespace base;
 	using namespace persistent_data;
 
-	typedef uint64_t sector_t;
 	typedef uint32_t thin_dev_t;
 
 	//------------------------------------------------

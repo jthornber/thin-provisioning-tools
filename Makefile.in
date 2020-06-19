@@ -40,6 +40,7 @@ SOURCE=\
 	base/error_state.cc \
 	base/error_string.cc \
 	base/grid_layout.cc \
+	base/io_generator.cc \
 	base/file_utils.cc \
 	base/progress_monitor.cc \
 	base/rolling_hash.cc \
@@ -128,6 +129,7 @@ DEVTOOLS_SOURCE=\
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_generate_metadata.cc \
+	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/thin_show_metadata.cc \
 	thin-provisioning/thin_scan.cc \

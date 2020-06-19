@@ -19,7 +19,7 @@
 #ifndef ARRAY_H
 #define ARRAY_H
 
-#include "persistent-data/math_utils.h"
+#include "base/math_utils.h"
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/btree_counter.h"
 #include "persistent-data/data-structures/btree_damage_visitor.h"
