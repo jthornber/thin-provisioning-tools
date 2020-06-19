@@ -42,8 +42,7 @@ namespace base {
 	public:
 		typedef std::shared_ptr<io_generator> ptr;
 
-		virtual bool has_next() = 0;
-		virtual void next(base::io &next_io) = 0;
+		virtual bool next(base::io &next_io) = 0;
 	};
 
 	io_generator::ptr

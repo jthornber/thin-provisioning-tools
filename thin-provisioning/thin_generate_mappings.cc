@@ -93,10 +93,8 @@ namespace {
 		io_generator::ptr gen = create_io_generator(opts);
 
 		base::io io;
-		while (gen->has_next()) {
+		while (gen->next(io)) {
 			// TODO: support io.size_
-			gen->next(io);
-
 			switch (io.op_) {
 			case base::REQ_OP_READ:
 				process_read(td, pool, io.sector_);

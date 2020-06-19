@@ -115,8 +115,7 @@ namespace {
 	class base_io_generator: public io_generator {
 	public:
 		base_io_generator(io_generator_options const &opts);
-		virtual bool has_next();
-		virtual void next(base::io &next_io);
+		virtual bool next(base::io &next_io);
 
 	private:
 		offset_generator::ptr
@@ -140,19 +139,17 @@ namespace {
 		  io_size_total_(opts.io_size_) {
 	}
 
-	bool base_io_generator::has_next() {
-		return io_size_finished_ < io_size_total_;
-	}
-
-	void base_io_generator::next(base::io &next_io) {
+	bool base_io_generator::next(base::io &next_io) {
 		if (io_size_finished_ >= io_size_total_)
-			throw std::runtime_error("");
+			return false;
 
 		next_io.op_ = op_gen_->next_op();
 		next_io.sector_ = offset_gen_->next_offset();
 		next_io.size_ = block_size_;
 
 		io_size_finished_ += block_size_;
+
+		return true;
 	}
 
 	offset_generator::ptr
