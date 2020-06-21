@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
@@ -67,8 +68,8 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
     vs
 }
 
-pub fn pack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
-    let nr_blocks = get_nr_blocks(&input_file)?;
+pub fn pack(input_file: &str, output_file: &str) -> Result<()> {
+    let nr_blocks = get_nr_blocks(&input_file).context("getting nr blocks")?;
     let nr_jobs = std::cmp::max(1, std::cmp::min(num_cpus::get() as u64, nr_blocks / 128));
     let chunk_vecs = mk_chunk_vecs(nr_blocks, nr_jobs);
 
@@ -85,7 +86,7 @@ pub fn pack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
         .truncate(true)
         .open(output_file)?;
 
-    write_header(&output, nr_blocks)?;
+    write_header(&output, nr_blocks).context("unable to write pack file header")?;
 
     let sync_input = Arc::new(Mutex::new(input));
     let sync_output = Arc::new(Mutex::new(output));
@@ -108,7 +109,7 @@ fn crunch<R, W>(
     input: Arc<Mutex<R>>,
     output: Arc<Mutex<W>>,
     ranges: Vec<(u64, u64)>,
-) -> io::Result<()>
+) -> Result<()>
 where
     R: Read + Seek,
     W: Write,
@@ -128,7 +129,7 @@ where
             let kind = metadata_block_type(data);
             if kind != BT::UNKNOWN {
                 z.write_u64::<LittleEndian>(b)?;
-                pack_block(&mut z, kind, &data);
+                pack_block(&mut z, kind, &data)?;
 
                 written += 1;
                 if written == 1024 {
@@ -242,22 +243,18 @@ fn metadata_block_type(buf: &[u8]) -> BT {
     }
 }
 
-fn check<T>(r: &PResult<T>) {
-    match r {
-        Ok(_) => {}
-        Err(PackError::ParseError) => panic!("parse error"),
-        Err(PackError::IOError) => panic!("io error"),
-    }
-}
-
-fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) {
+fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
     match kind {
-        BT::SUPERBLOCK => check(&pack_superblock(w, buf)),
-        BT::NODE => check(&pack_btree_node(w, buf)),
-        BT::INDEX => check(&pack_index(w, buf)),
-        BT::BITMAP => check(&pack_bitmap(w, buf)),
-        BT::UNKNOWN => {panic!("asked to pack an unknown block type")}
+        BT::SUPERBLOCK => pack_superblock(w, buf).context("unable to pack superblock")?,
+        BT::NODE => pack_btree_node(w, buf).context("unable to pack btree node")?,
+        BT::INDEX => pack_index(w, buf).context("unable to pack space map index")?,
+        BT::BITMAP => pack_bitmap(w, buf).context("unable to pack space map bitmap")?,
+        BT::UNKNOWN => {
+            return Err(anyhow!("asked to pack an unknown block type"))
+        }
     }
+
+    Ok(())
 }
 
 fn write_zero_block<W>(w: &mut W, b: u64) -> io::Result<()>

@@ -1,3 +1,4 @@
+use thiserror::Error;
 use std::{io, io::Write};
 
 use nom::{bytes::complete::*, number::complete::*, IResult};
@@ -6,40 +7,26 @@ use crate::pack::vm::*;
 
 //-------------------------------------------
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum PackError {
+    #[error("Couldn't parse binary data")]
     ParseError,
-    IOError,
-}
 
-impl std::error::Error for PackError {}
+    #[error("Write error")]
+    WriteError { source: std::io::Error },
+}
 
 pub type PResult<T> = Result<T, PackError>;
 
 fn nom_to_pr<T>(r: IResult<&[u8], T>) -> PResult<(&[u8], T)> {
-    match r {
-        Ok(v) => Ok(v),
-        Err(_) => Err(PackError::ParseError),
-    }
+    r.map_err(|_source| PackError::ParseError)
 }
 
 fn io_to_pr<T>(r: io::Result<T>) -> PResult<T> {
-    match r {
-        Ok(v) => Ok(v),
-        Err(_) => Err(PackError::IOError),
-    }
+    r.map_err(|source| PackError::WriteError {source})
 }
 
 //-------------------------------------------
-
-impl std::fmt::Display for PackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            PackError::ParseError => write!(f, "parse error"),
-            PackError::IOError => write!(f, "IO error"),
-        }
-    }
-}
 
 fn run64(i: &[u8], count: usize) -> IResult<&[u8], Vec<u64>> {
     let (i, ns) = nom::multi::many_m_n(count, count, le_u64)(i)?;
