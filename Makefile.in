@@ -40,6 +40,7 @@ SOURCE=\
 	base/error_state.cc \
 	base/error_string.cc \
 	base/grid_layout.cc \
+	base/io_generator.cc \
 	base/file_utils.cc \
 	base/progress_monitor.cc \
 	base/rolling_hash.cc \
@@ -128,6 +129,7 @@ DEVTOOLS_SOURCE=\
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
 	thin-provisioning/thin_generate_metadata.cc \
+	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/thin_show_metadata.cc \
 	thin-provisioning/thin_scan.cc \
@@ -167,7 +169,7 @@ CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
-LIBS:=-laio -lexpat -lz -lboost_iostreams -ldl
+LIBS:=-laio -lexpat -lboost_iostreams -ldl
 
 ifeq ("@DEVTOOLS@", "yes")
 LIBS+=-lncurses
@@ -318,7 +320,6 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_repair.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_rmap.8 $(MANPATH)/man8
-
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
@@ -333,10 +334,16 @@ ifeq ("@DEVTOOLS@", "yes")
 	ln -s -f pdata_tools $(BINDIR)/thin_scan
 endif
 
-.PHONY: install install-rust-tools
+.PHONY: install install-rust-tools rust-tools
 
-install-rust-tools:
-	cargo install --path . --root $(BINDIR)
+rust-tools:
+	cargo build --release
+
+install-rust-tools: man8/thin_metadata_pack.8 man8/thin_metadata_unpack.8 rust-tools
+	$(INSTALL_PROGRAM) target/release/thin_metadata_pack  $(BINDIR)
+	$(INSTALL_PROGRAM) target/release/thin_metadata_unpack  $(BINDIR)
+	$(STRIP) $(BINDIR)/thin_metadata_pack
+	$(STRIP) $(BINDIR)/thin_metadata_unpack
 	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 

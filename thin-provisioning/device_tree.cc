@@ -54,6 +54,13 @@ namespace thin_provisioning {
 			  snapshotted_time_(0) {
 		}
 
+		device_details::device_details(uint64_t tid, uint32_t time)
+			: mapped_blocks_(0),
+			  transaction_id_(tid),
+			  creation_time_(time),
+			  snapshotted_time_(time) {
+		}
+
 		void
 		device_details_traits::unpack(device_details_disk const &disk, device_details &value)
 		{

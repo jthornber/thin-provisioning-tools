@@ -29,6 +29,7 @@ Options:
   {-q|--quiet}
   {-h|--help}
   {-V|--version}
+  {-m|--metadata-snap}
   {--override-mapping-root}
   {--clear-needs-check-flag}
   {--ignore-non-fatal-errors}
@@ -75,7 +76,7 @@ Options:
   {-V|--version}")
 
   (define thin-metadata-pack-help
-    "thin_metadata_pack 0.8.5
+    "thin_metadata_pack 0.9.0-rc1
 Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
 USAGE:
@@ -90,7 +91,7 @@ OPTIONS:
     -o <FILE>        Specify packed output file")
 
   (define thin-metadata-unpack-help
-    "thin_metadata_unpack 0.8.5
+    "thin_metadata_unpack 0.9.0-rc1
 Unpack a compressed file of thin metadata.
 
 USAGE:

@@ -25,6 +25,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <stack>
 
 //----------------------------------------------------------------
 
@@ -33,6 +34,56 @@ namespace {
 	using namespace persistent_data;
 	using namespace btree_detail;
 	using namespace std;
+
+	struct frame {
+		frame(block_address blocknr,
+		      uint32_t level,
+		      uint32_t nr_entries)
+			: blocknr_(blocknr),
+			  level_(level),
+			  nr_entries_(nr_entries),
+			  current_child_(0) {
+		}
+		block_address blocknr_;
+		uint32_t level_;
+		uint32_t nr_entries_;
+		uint32_t current_child_;
+	};
+
+	// stack for postorder DFS traversal
+	// TODO: Refactor it into a spine-like class, e.g., btree_del_spine,
+	//       "Spine" sounds better for btree operations.
+	struct btree_del_stack {
+	public:
+		btree_del_stack(transaction_manager &tm): tm_(tm) {
+		}
+
+		void push_frame(block_address blocknr,
+				uint32_t level,
+				uint32_t nr_entries) {
+			if (tm_.get_sm()->get_count(blocknr) > 1)
+				tm_.get_sm()->dec(blocknr);
+			else
+				spine_.push(frame(blocknr, level, nr_entries));
+		}
+
+		void pop_frame() {
+			tm_.get_sm()->dec(spine_.top().blocknr_);
+			spine_.pop();
+		}
+
+		frame &top_frame() {
+			return spine_.top();
+		}
+
+		bool is_empty() {
+			return spine_.empty();
+		}
+
+	private:
+		transaction_manager &tm_;
+		std::stack<frame> spine_;
+	};
 }
 
 //----------------------------------------------------------------
@@ -244,6 +295,23 @@ namespace persistent_data {
 
 	template <typename ValueTraits>
 	void
+	node_ref<ValueTraits>::delete_at(unsigned i)
+	{
+		unsigned nr_entries = get_nr_entries();
+		if (i >= nr_entries)
+			throw runtime_error("key index out of bounds");
+		unsigned nr_to_copy = nr_entries - (i + 1);
+
+		if (nr_to_copy) {
+			::memmove(key_ptr(i), key_ptr(i + 1), sizeof(uint64_t) * nr_to_copy);
+			::memmove(value_ptr(i), value_ptr(i + 1), sizeof(typename ValueTraits::disk_type) * nr_to_copy);
+		}
+
+		set_nr_entries(nr_entries - 1);
+	}
+
+	template <typename ValueTraits>
+	void
 	node_ref<ValueTraits>::copy_entries(node_ref const &rhs,
 					    unsigned begin,
 					    unsigned end)
@@ -256,6 +324,90 @@ namespace persistent_data {
 		::memcpy(key_ptr(n), rhs.key_ptr(begin), sizeof(uint64_t) * count);
 		::memcpy(value_ptr(n), rhs.value_ptr(begin), sizeof(typename ValueTraits::disk_type) * count);
 		set_nr_entries(n + count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::move_entries(node_ref<ValueTraits> &rhs,
+					    int count)
+	{
+		if (!count)
+			return;
+
+		unsigned nr_left = get_nr_entries();
+		unsigned nr_right = rhs.get_nr_entries();
+		unsigned max_entries = get_max_entries();
+
+		if (nr_left - count > max_entries || nr_right - count > max_entries)
+			throw runtime_error("too many entries");
+
+		if (count > 0) {
+			rhs.shift_entries_right(count);
+			copy_entries_to_right(rhs, count);
+		} else {
+			copy_entries_to_left(rhs, -count);
+			rhs.shift_entries_left(-count);
+		}
+
+		set_nr_entries(nr_left - count);
+		rhs.set_nr_entries(nr_right + count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::copy_entries_to_left(node_ref const &rhs, unsigned count)
+	{
+		unsigned n = get_nr_entries();
+		if ((n + count) > get_max_entries())
+			throw runtime_error("too many entries");
+
+		::memcpy(key_ptr(n), rhs.key_ptr(0), sizeof(uint64_t) * count);
+		::memcpy(value_ptr(n), rhs.value_ptr(0), sizeof(typename ValueTraits::disk_type) * count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::copy_entries_to_right(node_ref &rhs, unsigned count) const
+	{
+		unsigned n = rhs.get_nr_entries();
+		if ((n + count) > get_max_entries())
+			throw runtime_error("too many entries");
+
+		unsigned nr_left = get_nr_entries();
+		::memcpy(rhs.key_ptr(0), key_ptr(nr_left - count), sizeof(uint64_t) * count);
+		::memcpy(rhs.value_ptr(0), value_ptr(nr_left - count), sizeof(typename ValueTraits::disk_type) * count);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::shift_entries_left(unsigned shift)
+	{
+		unsigned n = get_nr_entries();
+		if (shift > n)
+			throw runtime_error("too many entries");
+
+		unsigned nr_shifted = n - shift;
+		::memmove(key_ptr(0), key_ptr(shift), sizeof(uint64_t) * nr_shifted);
+		::memmove(value_ptr(0), value_ptr(shift), sizeof(typename ValueTraits::disk_type) * nr_shifted);
+	}
+
+	template <typename ValueTraits>
+	void
+	node_ref<ValueTraits>::shift_entries_right(unsigned shift)
+	{
+		unsigned n = get_nr_entries();
+		if (n + shift > get_max_entries())
+			throw runtime_error("too many entries");
+
+		::memmove(key_ptr(shift), key_ptr(0), sizeof(uint64_t) * n);
+		::memmove(value_ptr(shift), value_ptr(0), sizeof(typename ValueTraits::disk_type) * n);
+	}
+
+	template <typename ValueTraits>
+	unsigned
+	node_ref<ValueTraits>::merge_threshold() const
+	{
+		return get_max_entries() / 3;
 	}
 
 	template <typename ValueTraits>
@@ -345,6 +497,21 @@ namespace persistent_data {
 			::memcpy(&d, value_ptr(i), sizeof(d));
 			ValueTraits::unpack(d, v);
 			rc.inc(v);
+		}
+	}
+
+	template <typename ValueTraits>
+	template <typename RefCounter>
+	void
+	node_ref<ValueTraits>::dec_children(RefCounter &rc)
+	{
+		unsigned nr_entries = get_nr_entries();
+		for (unsigned i = 0; i < nr_entries; i++) {
+			typename ValueTraits::value_type v;
+			typename ValueTraits::disk_type d;
+			::memcpy(&d, value_ptr(i), sizeof(d));
+			ValueTraits::unpack(d, v);
+			rc.dec(v);
 		}
 	}
 
@@ -536,13 +703,6 @@ namespace persistent_data {
 	}
 
 	template <unsigned Levels, typename ValueTraits>
-	void
-	btree<Levels, ValueTraits>::remove(key const &key)
-	{
-		using namespace btree_detail;
-	}
-
-	template <unsigned Levels, typename ValueTraits>
 	block_address
 	btree<Levels, ValueTraits>::get_root() const
 	{
@@ -565,15 +725,57 @@ namespace persistent_data {
 		return ptr(new btree<Levels, ValueTraits>(tm_, root_, rc_));
 	}
 
-#if 0
 	template <unsigned Levels, typename ValueTraits>
 	void
 	btree<Levels, ValueTraits>::destroy()
 	{
 		using namespace btree_detail;
 
+		btree_del_stack s(tm_);
+
+		{
+			read_ref blk = tm_.read_lock(root_, validator_);
+			internal_node n = to_node<block_traits>(blk);
+			s.push_frame(root_, 0, n.get_nr_entries());
+		}
+
+		while (!s.is_empty()) {
+			frame &f = s.top_frame();
+
+			if (f.current_child_ >= f.nr_entries_) {
+				s.pop_frame();
+				continue;
+			}
+
+			// FIXME: Cache the read_ref object in the stack to avoid temporary objects?
+			read_ref current = tm_.read_lock(f.blocknr_, validator_);
+			internal_node n = to_node<block_traits>(current);
+
+			if (n.get_type() == INTERNAL) {
+				// TODO: test performance penalty of prefetching
+				//if (!f.current_child_)
+				//	for (unsigned i = 0; i < n.get_nr_entries(); i++)
+				//		tm_.prefetch(n.value_at(i));
+
+				block_address b = n.value_at(f.current_child_);
+				read_ref leaf = tm_.read_lock(b, validator_);
+				internal_node o = to_node<block_traits>(leaf);
+				s.push_frame(b, f.level_, o.get_nr_entries());
+				++f.current_child_;
+			// internal leaf
+			} else if (f.level_ < Levels - 1) {
+				block_address b = n.value_at(f.current_child_);
+				read_ref leaf = tm_.read_lock(b, validator_);
+				internal_node o = to_node<block_traits>(leaf);
+				s.push_frame(b, f.level_ + 1, o.get_nr_entries());
+				++f.current_child_;
+			} else {
+				leaf_node o = to_node<ValueTraits>(current);
+				o.dec_children(rc_); // FIXME: move this into pop_frame()
+				s.pop_frame();
+			}
+		}
 	}
-#endif
 
 	template <unsigned Levels, typename _>
 	template <typename ValueTraits, typename Search>

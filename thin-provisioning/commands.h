@@ -110,6 +110,13 @@ namespace thin_provisioning {
 		virtual int run(int argc, char **argv);
 	};
 
+	class thin_generate_mappings_cmd : public base::command {
+	public:
+		thin_generate_mappings_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
 	class thin_show_metadata_cmd : public base::command {
 	public:
 		thin_show_metadata_cmd();

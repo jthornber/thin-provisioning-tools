@@ -1,3 +1,4 @@
+use anyhow::Result;
 use crate::block_manager::*;
 use crate::checksum::*;
 
@@ -47,7 +48,7 @@ use SuperblockDamage::*;
 
 //------------------------------
 
-pub fn check_type(b: &Block) -> Result<(), Box<dyn CheckError>> {
+pub fn check_type(b: &Block) -> Result<()> {
     match metadata_block_type(&b.data[0..]) {
         SUPERBLOCK => Ok(()),
         NODE => Err(Box::new(BadBlockType("BTree Node"))),

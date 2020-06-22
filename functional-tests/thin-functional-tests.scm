@@ -511,7 +511,7 @@
   (define-scenario (thin-metadata-pack version)
     "accepts --version"
     (run-ok-rcv (stdout _) (thin-metadata-pack "--version")
-      (assert-equal "thin_metadata_pack 0.8.5" stdout)))
+      (assert-equal "thin_metadata_pack 0.9.0-rc1" stdout)))
 
   (define-scenario (thin-metadata-pack h)
     "accepts -h"
@@ -553,7 +553,7 @@
   (define-scenario (thin-metadata-unpack version)
     "accepts --version"
     (run-ok-rcv (stdout _) (thin-metadata-unpack "--version")
-      (assert-equal "thin_metadata_unpack 0.8.5" stdout)))
+      (assert-equal "thin_metadata_unpack 0.9.0-rc1" stdout)))
 
   (define-scenario (thin-metadata-unpack h)
     "accepts -h"

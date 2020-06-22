@@ -139,7 +139,8 @@ namespace thin_provisioning {
 			      superblock_detail::superblock const &sb);
 
 	void check_superblock(persistent_data::block_manager::ptr bm,
-			      superblock_detail::damage_visitor &visitor);
+			      superblock_detail::damage_visitor &visitor,
+                              persistent_data::block_address sb_location = superblock_detail::SUPERBLOCK_LOCATION);
 }
 
 //----------------------------------------------------------------
