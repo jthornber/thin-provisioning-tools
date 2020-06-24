@@ -51,6 +51,25 @@ pub trait MetadataVisitor {
     fn eof(&mut self) -> Result<()>;
 }
 
+pub struct NoopVisitor {
+}
+
+impl NoopVisitor {
+    pub fn new() -> NoopVisitor { NoopVisitor {} }
+}
+
+impl MetadataVisitor for NoopVisitor {
+    fn superblock_b(&mut self, _sb: &Superblock) -> Result<()> {Ok(())}
+    fn superblock_e(&mut self) -> Result<()> {Ok(())}
+
+    fn device_b(&mut self, _d: &Device) -> Result<()> {Ok(())}
+    fn device_e(&mut self) -> Result<()> {Ok(())}
+
+    fn map(&mut self, _m: Map) -> Result<()> {Ok(())}
+
+    fn eof(&mut self) -> Result<()> {Ok(())}
+}
+
 pub struct XmlWriter<W: Write> {
     w: Writer<W>,
 }

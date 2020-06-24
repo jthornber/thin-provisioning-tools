@@ -26,7 +26,6 @@ fn main() {
 
     // FIXME: check these look like xml
     let input_file = matches.value_of("INPUT").unwrap();
-    let map_file = matches.value_of("MAP").unwrap();
     let output_file = matches.value_of("OUTPUT").unwrap();
 
     if !file_utils::file_exists(input_file) {
