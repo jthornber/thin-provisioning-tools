@@ -4,8 +4,8 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
-use crate::shrink::xml;
 use crate::shrink::copier::{self, Region};
+use crate::shrink::xml;
 
 //---------------------------------------
 
@@ -306,11 +306,9 @@ fn remap(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<BlockRan
         let mut index = index;
         loop {
             let (from, to) = &remaps[index];
-            println!("from = {:?}", from);
 
             // There may be a prefix that doesn't overlap with 'from'
             if r.start < from.start {
-                println!("pushing prefix");
                 let len = u64::min(range_len(&r), from.start - r.start);
                 remap.push(r.start..(r.start + len));
                 r = (r.start + len)..r.end;
@@ -322,12 +320,10 @@ fn remap(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<BlockRan
 
             let to = (to.start + (r.start - from.start))..to.end;
             let from = r.start..from.end;
-            println!("to = {:?}", to);
             let rlen = range_len(&r);
             let flen = range_len(&from);
 
             let len = u64::min(rlen, flen);
-            println!("pushing overlap");
             remap.push(to.start..(to.start + len));
 
             r = (r.start + len)..r.end;
