@@ -25,7 +25,14 @@ fn main() {
                 .value_name("OUTPUT")
                 .takes_value(true),
         )
-        // FIXME: support various disk units
+        .arg(
+            Arg::with_name("DATA")
+                .help("Specify pool data device where data will be moved")
+                .required(true)
+                .long("data")
+                .value_name("DATA")
+                .takes_value(true),
+        )
         .arg(
             Arg::with_name("SIZE")
                 .help("Specify new size for the pool (in data blocks)")
@@ -41,13 +48,14 @@ fn main() {
     let input_file = matches.value_of("INPUT").unwrap();
     let output_file = matches.value_of("OUTPUT").unwrap();
     let size = matches.value_of("SIZE").unwrap().parse::<u64>().unwrap();
+    let data_file = matches.value_of("DATA").unwrap();
 
     if !file_utils::file_exists(input_file) {
         eprintln!("Couldn't find input file '{}'.", &input_file);
         exit(1);
     }
 
-    if let Err(reason) = thinp::shrink::toplevel::shrink(&input_file, &output_file, size) {
+    if let Err(reason) = thinp::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size) {
         println!("Application error: {}\n", reason);
         exit(1);
     }

@@ -5,6 +5,7 @@ use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use crate::shrink::xml;
+use crate::shrink::copier::{self, Region};
 
 //---------------------------------------
 
@@ -268,7 +269,7 @@ fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
 // Finds the index of the first entry that overlaps r.
 fn find_first(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Option<usize> {
     if remaps.len() == 0 {
-        return None
+        return None;
     }
 
     match remaps.binary_search_by_key(&r.start, |(from, _)| from.start) {
@@ -319,9 +320,9 @@ fn remap(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<BlockRan
                 }
             }
 
-	    let to = (to.start + (r.start - from.start))..to.end;
-	    let from = r.start..from.end;
-	    println!("to = {:?}", to);
+            let to = (to.start + (r.start - from.start))..to.end;
+            let from = r.start..from.end;
+            println!("to = {:?}", to);
             let rlen = range_len(&r);
             let flen = range_len(&from);
 
@@ -417,6 +418,11 @@ mod tests {
     }
 }
 
+fn build_copy_regions(remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<Region> {
+    let rs = Vec::new();
+    rs
+}
+
 fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Result<()> {
     let input = OpenOptions::new()
         .read(true)
@@ -428,7 +434,7 @@ fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Res
     Ok(())
 }
 
-pub fn shrink(input_path: &str, output_path: &str, nr_blocks: u64) -> Result<()> {
+pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
     process_xml(input_path, &mut pass1);
     eprintln!("{} blocks need moving", pass1.nr_high_blocks);
@@ -464,6 +470,11 @@ pub fn shrink(input_path: &str, output_path: &str, nr_blocks: u64) -> Result<()>
 
     let remaps = build_remaps(above, free);
     eprintln!("remappings {:?}.", remaps);
+
+    let regions = build_copy_regions(&remaps);
+    eprint!("Copying data...");
+    copier::copy(data_path, &regions);
+    eprintln!("done.");
 
     let output = OpenOptions::new()
         .read(false)
