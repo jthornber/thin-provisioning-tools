@@ -19,6 +19,7 @@ struct Pass1 {
     /// High blocks are beyond the new, reduced end of the pool.  These
     /// will need to be moved.
     nr_high_blocks: u64,
+    block_size: Option<u64>,
 }
 
 impl Pass1 {
@@ -27,6 +28,7 @@ impl Pass1 {
             allocated_blocks: FixedBitSet::with_capacity(0),
             nr_blocks,
             nr_high_blocks: 0,
+            block_size: None,
         }
     }
 }
@@ -34,6 +36,7 @@ impl Pass1 {
 impl xml::MetadataVisitor for Pass1 {
     fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<()> {
         self.allocated_blocks.grow(sb.nr_data_blocks as usize);
+        self.block_size = Some(sb.data_block_size as u64);
         Ok(())
     }
 
@@ -414,8 +417,17 @@ mod tests {
     }
 }
 
-fn build_copy_regions(remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<Region> {
-    let rs = Vec::new();
+fn build_copy_regions(remaps: &Vec<(BlockRange, BlockRange)>, block_size: u64) -> Vec<Region> {
+    let mut rs = Vec::new();
+
+    for (from, to) in remaps {
+        rs.push(Region {
+            src: from.start * block_size,
+            dest: to.start * block_size,
+            len: range_len(&from) * block_size,
+        });
+    }
+
     rs
 }
 
@@ -467,10 +479,10 @@ pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u
     let remaps = build_remaps(above, free);
     eprintln!("remappings {:?}.", remaps);
 
-    let regions = build_copy_regions(&remaps);
-    eprint!("Copying data...");
-    copier::copy(data_path, &regions);
-    eprintln!("done.");
+    let regions = build_copy_regions(&remaps, pass1.block_size.unwrap() as u64);
+    //eprint!("Copying data...");
+    copier::copy(data_path, &regions)?;
+    //eprintln!("done.");
 
     let output = OpenOptions::new()
         .read(false)
