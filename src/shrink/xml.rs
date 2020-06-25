@@ -14,29 +14,29 @@ use quick_xml::{Reader, Writer};
 //---------------------------------------
 
 pub struct Superblock {
-    uuid: String,
-    time: u64,
-    transaction: u64,
-    flags: Option<u32>,
-    version: Option<u32>,
-    data_block_size: u32,
-    nr_data_blocks: u64,
-    metadata_snap: Option<u64>,
+    pub uuid: String,
+    pub time: u64,
+    pub transaction: u64,
+    pub flags: Option<u32>,
+    pub version: Option<u32>,
+    pub data_block_size: u32,
+    pub nr_data_blocks: u64,
+    pub metadata_snap: Option<u64>,
 }
 
 pub struct Device {
-    dev_id: u32,
-    mapped_blocks: u64,
-    transaction: u64,
-    creation_time: u64,
-    snap_time: u64,
+    pub dev_id: u32,
+    pub mapped_blocks: u64,
+    pub transaction: u64,
+    pub creation_time: u64,
+    pub snap_time: u64,
 }
 
 pub struct Map {
-    thin_begin: u64,
-    data_begin: u64,
-    time: u32,
-    len: u64,
+    pub thin_begin: u64,
+    pub data_begin: u64,
+    pub time: u32,
+    pub len: u64,
 }
 
 pub trait MetadataVisitor {
@@ -238,11 +238,11 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
         uuid: check_attr(tag, "uuid", uuid)?,
         time: check_attr(tag, "time", time)?,
         transaction: check_attr(tag, "transaction", transaction)?,
-        flags: flags,
-        version: version,
+        flags,
+        version,
         data_block_size: check_attr(tag, "data_block_size", data_block_size)?,
         nr_data_blocks: check_attr(tag, "nr_data_blocks", nr_data_blocks)?,
-        metadata_snap: metadata_snap,
+        metadata_snap,
     })
 }
 
