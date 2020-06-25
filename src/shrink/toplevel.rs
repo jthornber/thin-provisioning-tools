@@ -1,6 +1,7 @@
 use anyhow::Result;
 use fixedbitset::{FixedBitSet, IndexRange};
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use crate::shrink::xml;
@@ -47,7 +48,7 @@ impl xml::MetadataVisitor for Pass1 {
         Ok(())
     }
 
-    fn map(&mut self, m: xml::Map) -> Result<()> {
+    fn map(&mut self, m: &xml::Map) -> Result<()> {
         for i in m.data_begin..(m.data_begin + m.len) {
             if i > self.nr_blocks {
                 self.nr_high_blocks += 1;
@@ -62,6 +63,80 @@ impl xml::MetadataVisitor for Pass1 {
     }
 }
 
+//---------------------------------------
+
+// Writes remapped xml
+struct Pass2<W: Write> {
+    writer: xml::XmlWriter<W>,
+    nr_blocks: u64,
+    remaps: Vec<(BlockRange, BlockRange)>,
+}
+
+impl<W: Write> Pass2<W> {
+    fn new(w: W, nr_blocks: u64, remaps: Vec<(BlockRange, BlockRange)>) -> Pass2<W> {
+        Pass2 {
+            writer: xml::XmlWriter::new(w),
+            nr_blocks,
+            remaps,
+        }
+    }
+
+    fn remap(&self, r: BlockRange) -> Vec<BlockRange> {
+        let mut rmap = Vec::new();
+
+        // id
+        rmap.push(r.clone());
+
+        rmap
+    }
+}
+
+impl<W: Write> xml::MetadataVisitor for Pass2<W> {
+    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<()> {
+        self.writer.superblock_b(sb)
+    }
+
+    fn superblock_e(&mut self) -> Result<()> {
+        self.writer.superblock_e()
+    }
+
+    fn device_b(&mut self, d: &xml::Device) -> Result<()> {
+        self.writer.device_b(d)
+    }
+
+    fn device_e(&mut self) -> Result<()> {
+        self.writer.device_e()
+    }
+
+    fn map(&mut self, m: &xml::Map) -> Result<()> {
+        if m.data_begin + m.len < self.nr_blocks {
+            // no remapping needed.
+            self.writer.map(m)?;
+        } else {
+            let r = m.data_begin..(m.data_begin + m.len);
+            let remaps = remap(&r, &self.remaps);
+            let mut written = 0;
+
+            for r in remaps {
+                self.writer.map(&xml::Map {
+                    thin_begin: m.thin_begin + written,
+                    data_begin: r.start,
+                    time: m.time,
+                    len: range_len(&r),
+                })?;
+                written += range_len(&r);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn eof(&mut self) -> Result<()> {
+        self.writer.eof()
+    }
+}
+
+//---------------------------------------
 type BlockRange = std::ops::Range<u64>;
 
 fn bits_to_ranges(bits: &FixedBitSet) -> Vec<BlockRange> {
@@ -141,7 +216,7 @@ fn ranges_total(rs: &Vec<BlockRange>) -> u64 {
 }
 
 // Assumes there is enough space to remap.
-fn remap_ranges(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRange, BlockRange)> {
+fn build_remaps(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRange, BlockRange)> {
     use std::cmp::Ordering;
 
     let mut remap = Vec::new();
@@ -161,12 +236,12 @@ fn remap_ranges(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRan
                 remap.push((r, f.start..(f.start + rlen)));
                 f_ = Some((f.start + rlen)..f.end);
                 r_ = range_iter.next();
-            },
+            }
             Ordering::Equal => {
                 remap.push((r, f));
                 r_ = range_iter.next();
                 f_ = free_iter.next();
-            },
+            }
             Ordering::Greater => {
                 remap.push((r.start..(r.start + flen), f));
                 r_ = Some((r.start + flen)..r.end);
@@ -178,17 +253,184 @@ fn remap_ranges(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRan
     remap
 }
 
-pub fn shrink(input_file: &str, _output_file: &str, nr_blocks: u64) -> Result<()> {
+fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
+    if r1.start >= r2.end {
+        return None;
+    }
+
+    if r2.start >= r1.end {
+        return None;
+    }
+
+    Some(index)
+}
+
+// Finds the index of the first entry that overlaps r.
+fn find_first(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Option<usize> {
+    if remaps.len() == 0 {
+        return None
+    }
+
+    match remaps.binary_search_by_key(&r.start, |(from, _)| from.start) {
+        Ok(n) => Some(n),
+        Err(n) => {
+            if n == 0 {
+                let (from, _) = &remaps[n];
+                overlaps(&r, &from, n)
+            } else if n == remaps.len() {
+                let (from, _) = &remaps[n - 1];
+                overlaps(&r, from, n - 1)
+            } else {
+                // Need to check the previous entry
+                let (from, _) = &remaps[n - 1];
+                overlaps(&r, &from, n - 1).or_else(|| {
+                    let (from, to) = &remaps[n];
+                    overlaps(&r, &from, n)
+                })
+            }
+        }
+    }
+}
+
+fn is_empty(r: &BlockRange) -> bool {
+    r.start == r.end
+}
+
+// remaps must be in sorted order by from.start.
+fn remap(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<BlockRange> {
+    let mut remap = Vec::new();
+    let mut r = r.start..r.end;
+
+    if let Some(index) = find_first(&r, &remaps) {
+        let mut index = index;
+        loop {
+            let (from, to) = &remaps[index];
+            println!("from = {:?}", from);
+
+            // There may be a prefix that doesn't overlap with 'from'
+            if r.start < from.start {
+                println!("pushing prefix");
+                let len = u64::min(range_len(&r), from.start - r.start);
+                remap.push(r.start..(r.start + len));
+                r = (r.start + len)..r.end;
+
+                if is_empty(&r) {
+                    break;
+                }
+            }
+
+	    let to = (to.start + (r.start - from.start))..to.end;
+	    let from = r.start..from.end;
+	    println!("to = {:?}", to);
+            let rlen = range_len(&r);
+            let flen = range_len(&from);
+
+            let len = u64::min(rlen, flen);
+            println!("pushing overlap");
+            remap.push(to.start..(to.start + len));
+
+            r = (r.start + len)..r.end;
+            if is_empty(&r) {
+                break;
+            }
+
+            if len == flen {
+                index += 1;
+            }
+
+            if index == remaps.len() {
+                remap.push(r.start..r.end);
+                break;
+            }
+        }
+    } else {
+        remap.push(r.start..r.end);
+    }
+
+    remap
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remap_test() {
+        struct Test {
+            remaps: Vec<(BlockRange, BlockRange)>,
+            input: BlockRange,
+            output: Vec<BlockRange>,
+        }
+
+        let tests = [
+            Test {
+                remaps: vec![],
+                input: 0..1,
+                output: vec![0..1],
+            },
+            Test {
+                remaps: vec![],
+                input: 100..1000,
+                output: vec![100..1000],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 0..5,
+                output: vec![0..5],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 10..20,
+                output: vec![110..120],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 5..15,
+                output: vec![5..10, 110..115],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 5..25,
+                output: vec![5..10, 110..120, 20..25],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 15..25,
+                output: vec![115..120, 20..25],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120)],
+                input: 25..35,
+                output: vec![25..35],
+            },
+            Test {
+                remaps: vec![(10..20, 110..120), (30..40, 230..240)],
+                input: 0..50,
+                output: vec![0..10, 110..120, 20..30, 230..240, 40..50],
+            },
+        ];
+
+        for t in &tests {
+            let rs = remap(&t.input, &t.remaps);
+            assert_eq!(rs, t.output);
+        }
+    }
+}
+
+fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Result<()> {
     let input = OpenOptions::new()
         .read(true)
         .write(false)
         .custom_flags(libc::O_EXCL)
-        .open(input_file)?;
+        .open(input_path)?;
 
-    // let mut visitor = xml::XmlWriter::new(std::io::stdout());
-    // let mut visitor = xml::NoopVisitor::new();
+    xml::read(input, pass)?;
+    Ok(())
+}
+
+pub fn shrink(input_path: &str, output_path: &str, nr_blocks: u64) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
-    xml::read(input, &mut pass1)?;
+    process_xml(input_path, &mut pass1);
     eprintln!("{} blocks need moving", pass1.nr_high_blocks);
 
     let mut free_blocks = 0u64;
@@ -220,8 +462,18 @@ pub fn shrink(input_file: &str, _output_file: &str, nr_blocks: u64) -> Result<()
         panic!("Insufficient space");
     }
 
-    let remaps = remap_ranges(above, free);
+    let remaps = build_remaps(above, free);
     eprintln!("remappings {:?}.", remaps);
+
+    let output = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .open(output_path)?;
+    let mut pass2 = Pass2::new(output, nr_blocks, remaps);
+    eprint!("writing new xml...");
+    process_xml(input_path, &mut pass2)?;
+    eprintln!("done.");
 
     Ok(())
 }

@@ -46,7 +46,7 @@ pub trait MetadataVisitor {
     fn device_b(&mut self, d: &Device) -> Result<()>;
     fn device_e(&mut self) -> Result<()>;
 
-    fn map(&mut self, m: Map) -> Result<()>;
+    fn map(&mut self, m: &Map) -> Result<()>;
 
     fn eof(&mut self) -> Result<()>;
 }
@@ -65,7 +65,7 @@ impl MetadataVisitor for NoopVisitor {
     fn device_b(&mut self, _d: &Device) -> Result<()> {Ok(())}
     fn device_e(&mut self) -> Result<()> {Ok(())}
 
-    fn map(&mut self, _m: Map) -> Result<()> {Ok(())}
+    fn map(&mut self, m: &Map) -> Result<()> {Ok(())}
 
     fn eof(&mut self) -> Result<()> {Ok(())}
 }
@@ -142,7 +142,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         Ok(())
     }
 
-    fn map(&mut self, m: Map) -> Result<()> {
+    fn map(&mut self, m: &Map) -> Result<()> {
         match m.len {
             1 => {
                 let tag = b"single_mapping";
@@ -352,8 +352,8 @@ where
                 _ => todo!(),
             },
             Ok(Event::Empty(ref e)) => match e.name() {
-                b"single_mapping" => visitor.map(parse_single_map(e)?)?,
-                b"range_mapping" => visitor.map(parse_range_map(e)?)?,
+                b"single_mapping" => visitor.map(&parse_single_map(e)?)?,
+                b"range_mapping" => visitor.map(&parse_range_map(e)?)?,
                 _ => todo!(),
             },
             Ok(Event::Text(_)) => {}
