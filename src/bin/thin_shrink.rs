@@ -34,6 +34,14 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("NOCOPY")
+                .help("Skip the copying of data, useful for benchmarking")
+                .required(false)
+                .long("no-copy")
+                .value_name("NOCOPY")
+                .takes_value(false),
+        )
+        .arg(
             Arg::with_name("SIZE")
                 .help("Specify new size for the pool (in data blocks)")
                 .required(true)
@@ -49,13 +57,14 @@ fn main() {
     let output_file = matches.value_of("OUTPUT").unwrap();
     let size = matches.value_of("SIZE").unwrap().parse::<u64>().unwrap();
     let data_file = matches.value_of("DATA").unwrap();
+    let do_copy = !matches.is_present("NOCOPY");
 
     if !file_utils::file_exists(input_file) {
         eprintln!("Couldn't find input file '{}'.", &input_file);
         exit(1);
     }
 
-    if let Err(reason) = thinp::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size) {
+    if let Err(reason) = thinp::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size, do_copy) {
         println!("Application error: {}\n", reason);
         exit(1);
     }

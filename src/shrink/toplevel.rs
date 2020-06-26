@@ -433,7 +433,7 @@ fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Res
     Ok(())
 }
 
-pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64) -> Result<()> {
+pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64, do_copy: bool) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
     eprint!("Reading xml...");
     process_xml(input_path, &mut pass1)?;
@@ -454,8 +454,12 @@ pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u
 
     let remaps = build_remaps(above, free);
 
-    let regions = build_copy_regions(&remaps, pass1.block_size.unwrap() as u64);
-    copier::copy(data_path, &regions)?;
+    if do_copy {
+        let regions = build_copy_regions(&remaps, pass1.block_size.unwrap() as u64);
+        copier::copy(data_path, &regions)?;
+    } else {
+        eprintln!("skipping copy");
+    }
 
     let output = OpenOptions::new()
         .read(false)
