@@ -20,4 +20,5 @@ pub mod check;
 pub mod file_utils;
 pub mod pack;
 pub mod shrink;
+pub mod thin;
 pub mod version;

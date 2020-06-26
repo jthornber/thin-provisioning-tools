@@ -1,11 +1,5 @@
 use anyhow::Result;
-use std::{
-    borrow::{Cow},
-    fmt::Display,
-    io::prelude::*,
-    io::BufReader,
-    io::Write,
-};
+use std::{borrow::Cow, fmt::Display, io::prelude::*, io::BufReader, io::Write};
 
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::{BytesEnd, BytesStart, Event};
@@ -13,6 +7,7 @@ use quick_xml::{Reader, Writer};
 
 //---------------------------------------
 
+#[derive(Clone)]
 pub struct Superblock {
     pub uuid: String,
     pub time: u64,
@@ -24,6 +19,7 @@ pub struct Superblock {
     pub metadata_snap: Option<u64>,
 }
 
+#[derive(Clone)]
 pub struct Device {
     pub dev_id: u32,
     pub mapped_blocks: u64,
@@ -32,6 +28,7 @@ pub struct Device {
     pub snap_time: u64,
 }
 
+#[derive(Clone)]
 pub struct Map {
     pub thin_begin: u64,
     pub data_begin: u64,
@@ -39,16 +36,22 @@ pub struct Map {
     pub len: u64,
 }
 
+#[derive(Clone)]
+pub enum Visit {
+    Continue,
+    Stop,
+}
+
 pub trait MetadataVisitor {
-    fn superblock_b(&mut self, sb: &Superblock) -> Result<()>;
-    fn superblock_e(&mut self) -> Result<()>;
+    fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit>;
+    fn superblock_e(&mut self) -> Result<Visit>;
 
-    fn device_b(&mut self, d: &Device) -> Result<()>;
-    fn device_e(&mut self) -> Result<()>;
+    fn device_b(&mut self, d: &Device) -> Result<Visit>;
+    fn device_e(&mut self) -> Result<Visit>;
 
-    fn map(&mut self, m: &Map) -> Result<()>;
+    fn map(&mut self, m: &Map) -> Result<Visit>;
 
-    fn eof(&mut self) -> Result<()>;
+    fn eof(&mut self) -> Result<Visit>;
 }
 
 pub struct XmlWriter<W: Write> {
@@ -57,7 +60,9 @@ pub struct XmlWriter<W: Write> {
 
 impl<W: Write> XmlWriter<W> {
     pub fn new(w: W) -> XmlWriter<W> {
-        XmlWriter { w: Writer::new_with_indent(w, 0x20, 2) }
+        XmlWriter {
+            w: Writer::new_with_indent(w, 0x20, 2),
+        }
     }
 }
 
@@ -76,7 +81,7 @@ fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
 const XML_VERSION: u32 = 2;
 
 impl<W: Write> MetadataVisitor for XmlWriter<W> {
-    fn superblock_b(&mut self, sb: &Superblock) -> Result<()> {
+    fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {
         let tag = b"superblock";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
         elem.push_attribute(mk_attr(b"uuid", sb.uuid.clone()));
@@ -96,16 +101,16 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         }
 
         self.w.write_event(Event::Start(elem))?;
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn superblock_e(&mut self) -> Result<()> {
+    fn superblock_e(&mut self) -> Result<Visit> {
         self.w
             .write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn device_b(&mut self, d: &Device) -> Result<()> {
+    fn device_b(&mut self, d: &Device) -> Result<Visit> {
         let tag = b"device";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
         elem.push_attribute(mk_attr(b"dev_id", d.dev_id));
@@ -114,16 +119,16 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         elem.push_attribute(mk_attr(b"creation_time", d.creation_time));
         elem.push_attribute(mk_attr(b"snap_time", d.snap_time));
         self.w.write_event(Event::Start(elem))?;
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn device_e(&mut self) -> Result<()> {
+    fn device_e(&mut self) -> Result<Visit> {
         self.w
             .write_event(Event::End(BytesEnd::borrowed(b"device")))?;
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn map(&mut self, m: &Map) -> Result<()> {
+    fn map(&mut self, m: &Map) -> Result<Visit> {
         match m.len {
             1 => {
                 let tag = b"single_mapping";
@@ -143,13 +148,13 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
                 self.w.write_event(Event::Empty(elem))?;
             }
         }
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn eof(&mut self) -> Result<()> {
+    fn eof(&mut self) -> Result<Visit> {
         let w = self.w.inner();
         w.flush()?;
-        Ok(())
+        Ok(Visit::Continue)
     }
 }
 
@@ -184,7 +189,7 @@ fn missing_attr<T>(_tag: &str, _attr: &str) -> Result<T> {
 fn check_attr<T>(tag: &str, name: &str, maybe_v: Option<T>) -> Result<T> {
     match maybe_v {
         None => missing_attr(tag, name),
-        Some(v) => Ok(v)
+        Some(v) => Ok(v),
     }
 }
 
@@ -278,7 +283,7 @@ fn parse_single_map(e: &BytesStart) -> Result<Map> {
         thin_begin: check_attr(tag, "origin_block", thin_begin)?,
         data_begin: check_attr(tag, "data_block", data_begin)?,
         time: check_attr(tag, "time", time)?,
-        len: 1
+        len: 1,
     })
 }
 
@@ -309,6 +314,40 @@ fn parse_range_map(e: &BytesStart) -> Result<Map> {
     })
 }
 
+fn handle_event<R, M>(reader: &mut Reader<R>, buf: &mut Vec<u8>, visitor: &mut M) -> Result<Visit>
+where
+    R: Read + BufRead,
+    M: MetadataVisitor,
+{
+    match reader.read_event(buf) {
+        Ok(Event::Start(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
+            b"device" => visitor.device_b(&parse_device(e)?),
+            _ => todo!(),
+        },
+        Ok(Event::End(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_e(),
+            b"device" => visitor.device_e(),
+            _ => todo!(),
+        },
+        Ok(Event::Empty(ref e)) => match e.name() {
+            b"single_mapping" => visitor.map(&parse_single_map(e)?),
+            b"range_mapping" => visitor.map(&parse_range_map(e)?),
+            _ => todo!(),
+        },
+        Ok(Event::Text(_)) => Ok(Visit::Continue),
+        Ok(Event::Comment(_)) => Ok(Visit::Continue),
+        Ok(Event::Eof) => {
+            visitor.eof()?;
+            Ok(Visit::Stop)
+        }
+        Ok(_) => todo!(),
+
+        // FIXME: don't panic!
+        Err(e) => panic!("error parsing xml {:?}", e),
+    }
+}
+
 pub fn read<R, M>(input: R, visitor: &mut M) -> Result<()>
 where
     R: Read,
@@ -321,33 +360,54 @@ where
     let mut buf = Vec::new();
 
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => match e.name() {
-                b"superblock" => visitor.superblock_b(&parse_superblock(e)?)?,
-                b"device" => visitor.device_b(&parse_device(e)?)?,
-                _ => todo!(),
-            },
-            Ok(Event::End(ref e)) => match e.name() {
-                b"superblock" => visitor.superblock_e()?,
-                b"device" => visitor.device_e()?,
-                _ => todo!(),
-            },
-            Ok(Event::Empty(ref e)) => match e.name() {
-                b"single_mapping" => visitor.map(&parse_single_map(e)?)?,
-                b"range_mapping" => visitor.map(&parse_range_map(e)?)?,
-                _ => todo!(),
-            },
-            Ok(Event::Text(_)) => {}
-            Ok(Event::Comment(_)) => {}
-            Ok(Event::Eof) => break,
-            Ok(_) => todo!(),
-
-            // FIXME: don't panic!
-            Err(e) => panic!("error parsing xml {:?}", e),
+        match handle_event(&mut reader, &mut buf, visitor)? {
+            Visit::Continue => {}
+            Visit::Stop => break,
         }
     }
 
     Ok(())
+}
+
+//---------------------------------------
+
+struct SBVisitor {
+    superblock: Option<Superblock>,
+}
+
+impl MetadataVisitor for SBVisitor {
+    fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {
+        self.superblock = Some(sb.clone());
+        Ok(Visit::Stop)
+    }
+    
+    fn superblock_e(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
+    fn device_b(&mut self, _d: &Device) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+    fn device_e(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
+    fn map(&mut self, _m: &Map) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
+    fn eof(&mut self) -> Result<Visit> {
+        Ok(Visit::Stop)
+    }
+}
+
+pub fn read_superblock<R>(input: R) -> Result<Superblock>
+where
+    R: Read,
+{
+    let mut v = SBVisitor {superblock: None};
+    read(input, &mut v)?;
+    Ok(v.superblock.unwrap())
 }
 
 //---------------------------------------

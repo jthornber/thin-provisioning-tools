@@ -5,7 +5,7 @@ use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use crate::shrink::copier::{self, Region};
-use crate::shrink::xml;
+use crate::thin::xml::{self, Visit};
 
 //---------------------------------------
 
@@ -34,36 +34,36 @@ impl Pass1 {
 }
 
 impl xml::MetadataVisitor for Pass1 {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<()> {
+    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
         self.allocated_blocks.grow(sb.nr_data_blocks as usize);
         self.block_size = Some(sb.data_block_size as u64);
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn superblock_e(&mut self) -> Result<()> {
-        Ok(())
+    fn superblock_e(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
     }
 
-    fn device_b(&mut self, _d: &xml::Device) -> Result<()> {
-        Ok(())
+    fn device_b(&mut self, _d: &xml::Device) -> Result<Visit> {
+        Ok(Visit::Continue)
     }
 
-    fn device_e(&mut self) -> Result<()> {
-        Ok(())
+    fn device_e(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
     }
 
-    fn map(&mut self, m: &xml::Map) -> Result<()> {
+    fn map(&mut self, m: &xml::Map) -> Result<Visit> {
         for i in m.data_begin..(m.data_begin + m.len) {
             if i > self.nr_blocks {
                 self.nr_high_blocks += 1;
             }
             self.allocated_blocks.insert(i as usize);
         }
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn eof(&mut self) -> Result<()> {
-        Ok(())
+    fn eof(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
     }
 }
 
@@ -87,23 +87,23 @@ impl<W: Write> Pass2<W> {
 }
 
 impl<W: Write> xml::MetadataVisitor for Pass2<W> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<()> {
+    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
         self.writer.superblock_b(sb)
     }
 
-    fn superblock_e(&mut self) -> Result<()> {
+    fn superblock_e(&mut self) -> Result<Visit> {
         self.writer.superblock_e()
     }
 
-    fn device_b(&mut self, d: &xml::Device) -> Result<()> {
+    fn device_b(&mut self, d: &xml::Device) -> Result<Visit> {
         self.writer.device_b(d)
     }
 
-    fn device_e(&mut self) -> Result<()> {
+    fn device_e(&mut self) -> Result<Visit> {
         self.writer.device_e()
     }
 
-    fn map(&mut self, m: &xml::Map) -> Result<()> {
+    fn map(&mut self, m: &xml::Map) -> Result<Visit> {
         if m.data_begin + m.len < self.nr_blocks {
             // no remapping needed.
             self.writer.map(m)?;
@@ -123,10 +123,10 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
             }
         }
 
-        Ok(())
+        Ok(Visit::Continue)
     }
 
-    fn eof(&mut self) -> Result<()> {
+    fn eof(&mut self) -> Result<Visit> {
         self.writer.eof()
     }
 }
@@ -181,7 +181,7 @@ fn ranges_split(ranges: &[BlockRange], threshold: u64) -> (Vec<BlockRange>, Vec<
     (below, above)
 }
 
-fn negate_ranges(ranges: &[BlockRange]) -> Vec<BlockRange> {
+fn negate_ranges(ranges: &[BlockRange], upper_limit: u64) -> Vec<BlockRange> {
     use std::ops::Range;
 
     let mut result = Vec::new();
@@ -197,6 +197,10 @@ fn negate_ranges(ranges: &[BlockRange]) -> Vec<BlockRange> {
                 cursor = *end;
             }
         }
+    }
+
+    if cursor < upper_limit {
+        result.push(cursor..upper_limit);
     }
 
     result
@@ -443,7 +447,7 @@ pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u
     let ranges = bits_to_ranges(&pass1.allocated_blocks);
     let (below, above) = ranges_split(&ranges, nr_blocks);
 
-    let free = negate_ranges(&below);
+    let free = negate_ranges(&below, nr_blocks);
     let free_blocks = ranges_total(&free);
     eprintln!("{} free blocks.", free_blocks);
 
