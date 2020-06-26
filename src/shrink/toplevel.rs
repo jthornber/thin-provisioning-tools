@@ -1,5 +1,5 @@
 use anyhow::Result;
-use fixedbitset::{FixedBitSet};
+use fixedbitset::FixedBitSet;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
@@ -163,7 +163,7 @@ fn bits_to_ranges(bits: &FixedBitSet) -> Vec<BlockRange> {
 
 // Splits the ranges into those below threshold, and those equal or
 // above threshold below threshold, and those equal or above threshold
-fn ranges_split(ranges: &Vec<BlockRange>, threshold: u64) -> (Vec<BlockRange>, Vec<BlockRange>) {
+fn ranges_split(ranges: &[BlockRange], threshold: u64) -> (Vec<BlockRange>, Vec<BlockRange>) {
     use std::ops::Range;
 
     let mut below = Vec::new();
@@ -181,7 +181,7 @@ fn ranges_split(ranges: &Vec<BlockRange>, threshold: u64) -> (Vec<BlockRange>, V
     (below, above)
 }
 
-fn negate_ranges(ranges: &Vec<BlockRange>) -> Vec<BlockRange> {
+fn negate_ranges(ranges: &[BlockRange]) -> Vec<BlockRange> {
     use std::ops::Range;
 
     let mut result = Vec::new();
@@ -206,8 +206,8 @@ fn range_len(r: &BlockRange) -> u64 {
     r.end - r.start
 }
 
-fn ranges_total(rs: &Vec<BlockRange>) -> u64 {
-    rs.into_iter().fold(0, |sum, r| sum + range_len(r))
+fn ranges_total(rs: &[BlockRange]) -> u64 {
+    rs.iter().fold(0, |sum, r| sum + range_len(r))
 }
 
 // Assumes there is enough space to remap.
@@ -261,8 +261,8 @@ fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
 }
 
 // Finds the index of the first entry that overlaps r.
-fn find_first(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Option<usize> {
-    if remaps.len() == 0 {
+fn find_first(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Option<usize> {
+    if remaps.is_empty() {
         return None;
     }
 
@@ -292,7 +292,7 @@ fn is_empty(r: &BlockRange) -> bool {
 }
 
 // remaps must be in sorted order by from.start.
-fn remap(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Vec<BlockRange> {
+fn remap(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Vec<BlockRange> {
     let mut remap = Vec::new();
     let mut r = r.start..r.end;
 
@@ -408,7 +408,7 @@ mod tests {
     }
 }
 
-fn build_copy_regions(remaps: &Vec<(BlockRange, BlockRange)>, block_size: u64) -> Vec<Region> {
+fn build_copy_regions(remaps: &[(BlockRange, BlockRange)], block_size: u64) -> Vec<Region> {
     let mut rs = Vec::new();
 
     for (from, to) in remaps {

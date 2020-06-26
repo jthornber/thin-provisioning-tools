@@ -66,7 +66,7 @@ fn mk_attr_<'a, T: Display>(n: T) -> Cow<'a, [u8]> {
     Cow::Owned(str.into_bytes())
 }
 
-fn mk_attr<'a, T: Display>(key: &[u8], value: T) -> Attribute {
+fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
     Attribute {
         key,
         value: mk_attr_(value),

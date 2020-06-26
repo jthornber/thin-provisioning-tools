@@ -43,7 +43,7 @@ where
     Ok(())
 }
 
-pub fn copy(path: &str, regions: &Vec<Region>) -> Result<()> {
+pub fn copy(path: &str, regions: &[Region]) -> Result<()> {
     let mut input = OpenOptions::new()
         .read(true)
         .write(true)
