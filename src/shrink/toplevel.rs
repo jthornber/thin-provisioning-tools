@@ -435,45 +435,27 @@ fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Res
 
 pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
+    eprint!("Reading xml...");
     process_xml(input_path, &mut pass1)?;
+    eprintln!("done");
     eprintln!("{} blocks need moving", pass1.nr_high_blocks);
 
-    let mut free_blocks = 0u64;
-    for i in 0..pass1.allocated_blocks.len() {
-        if !pass1.allocated_blocks[i] {
-            free_blocks += 1;
-        }
-    }
-    eprintln!("{} free blocks below new end.", free_blocks);
-
     let ranges = bits_to_ranges(&pass1.allocated_blocks);
-    eprintln!("{} allocated ranges:", ranges.len());
-
-    eprintln!("{:?}", &ranges);
-
     let (below, above) = ranges_split(&ranges, nr_blocks);
-    eprintln!("ranges split at {}: ({:?}, {:?})", nr_blocks, below, above);
 
     let free = negate_ranges(&below);
-    eprintln!("free {:?}.", free);
-
-    let nr_moving = ranges_total(&above);
-    eprintln!("{} blocks need to be remapped.", nr_moving);
-
     let free_blocks = ranges_total(&free);
     eprintln!("{} free blocks.", free_blocks);
 
-    if free_blocks < nr_moving {
+    if free_blocks < pass1.nr_high_blocks {
+        // FIXME: return error
         panic!("Insufficient space");
     }
 
     let remaps = build_remaps(above, free);
-    eprintln!("remappings {:?}.", remaps);
 
     let regions = build_copy_regions(&remaps, pass1.block_size.unwrap() as u64);
-    //eprint!("Copying data...");
     copier::copy(data_path, &regions)?;
-    //eprintln!("done.");
 
     let output = OpenOptions::new()
         .read(false)
