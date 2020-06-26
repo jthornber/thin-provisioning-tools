@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write, Read};
-use std::os::unix::fs::OpenOptionsExt;
+//use std::os::unix::fs::OpenOptionsExt;
 
 pub type Sector = u64;
 

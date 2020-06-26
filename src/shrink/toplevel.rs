@@ -1,5 +1,5 @@
 use anyhow::Result;
-use fixedbitset::{FixedBitSet, IndexRange};
+use fixedbitset::{FixedBitSet};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
@@ -83,15 +83,6 @@ impl<W: Write> Pass2<W> {
             nr_blocks,
             remaps,
         }
-    }
-
-    fn remap(&self, r: BlockRange) -> Vec<BlockRange> {
-        let mut rmap = Vec::new();
-
-        // id
-        rmap.push(r.clone());
-
-        rmap
     }
 }
 
@@ -288,7 +279,7 @@ fn find_first(r: &BlockRange, remaps: &Vec<(BlockRange, BlockRange)>) -> Option<
                 // Need to check the previous entry
                 let (from, _) = &remaps[n - 1];
                 overlaps(&r, &from, n - 1).or_else(|| {
-                    let (from, to) = &remaps[n];
+                    let (from, _) = &remaps[n];
                     overlaps(&r, &from, n)
                 })
             }
@@ -444,7 +435,7 @@ fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Res
 
 pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
-    process_xml(input_path, &mut pass1);
+    process_xml(input_path, &mut pass1)?;
     eprintln!("{} blocks need moving", pass1.nr_high_blocks);
 
     let mut free_blocks = 0u64;
