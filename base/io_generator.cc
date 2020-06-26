@@ -48,8 +48,10 @@ namespace {
 		base::sector_t next_offset() {
 			sector_t r = current_;
 			current_ += block_size_;
-			if (current_ > end_)
+			if (current_ > end_) {
 				current_ = begin_;
+				return begin_;
+			}
 			return r;
 		}
 
