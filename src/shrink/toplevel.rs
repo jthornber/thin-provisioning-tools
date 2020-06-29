@@ -3,6 +3,7 @@ use fixedbitset::FixedBitSet;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
 
 use crate::shrink::copier::{self, Region};
 use crate::thin::xml::{self, Visit};
@@ -426,7 +427,7 @@ fn build_copy_regions(remaps: &[(BlockRange, BlockRange)], block_size: u64) -> V
     rs
 }
 
-fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Result<()> {
+fn process_xml<MV: xml::MetadataVisitor>(input_path: &Path, pass: &mut MV) -> Result<()> {
     let input = OpenOptions::new()
         .read(true)
         .write(false)
@@ -437,7 +438,13 @@ fn process_xml<MV: xml::MetadataVisitor>(input_path: &str, pass: &mut MV) -> Res
     Ok(())
 }
 
-pub fn shrink(input_path: &str, output_path: &str, data_path: &str, nr_blocks: u64, do_copy: bool) -> Result<()> {
+pub fn shrink(
+    input_path: &Path,
+    output_path: &Path,
+    data_path: &Path,
+    nr_blocks: u64,
+    do_copy: bool,
+) -> Result<()> {
     let mut pass1 = Pass1::new(nr_blocks);
     eprint!("Reading xml...");
     process_xml(input_path, &mut pass1)?;

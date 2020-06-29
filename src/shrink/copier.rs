@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::fs::OpenOptions;
+use std::path::Path;
 use std::io::{Seek, SeekFrom, Write, Read};
 //use std::os::unix::fs::OpenOptionsExt;
 
@@ -43,7 +44,7 @@ where
     Ok(())
 }
 
-pub fn copy(path: &str, regions: &[Region]) -> Result<()> {
+pub fn copy(path: &Path, regions: &[Region]) -> Result<()> {
     let mut input = OpenOptions::new()
         .read(true)
         .write(true)

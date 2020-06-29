@@ -3,6 +3,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rand::Rng;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
+use tempfile::tempdir;
 
 use thinp::file_utils;
 use thinp::thin::xml::{self, Visit};
@@ -22,6 +24,7 @@ struct ThinReadRef {
 
 struct ThinWriteRef<'a, W: Write + Seek> {
     file: &'a mut W,
+    block_byte: u64,
     pub data: Vec<u8>,
 }
 
@@ -38,6 +41,7 @@ impl ThinBlock {
     fn zero_ref<'a, W: Write + Seek>(&self, w: &'a mut W) -> ThinWriteRef<'a, W> {
         ThinWriteRef {
             file: w,
+            block_byte: self.data_block * (self.block_size as u64),
             data: vec![0; self.block_size],
         }
     }
@@ -52,6 +56,7 @@ impl ThinBlock {
 
         let wr = ThinWriteRef {
             file: w,
+            block_byte: self.data_block * (self.block_size as u64),
             data: vec![0; self.block_size],
         };
 
@@ -61,6 +66,10 @@ impl ThinBlock {
 
 impl<'a, W: Write + Seek> Drop for ThinWriteRef<'a, W> {
     fn drop(&mut self) {
+        // FIXME: We shouldn't panic in a drop function, so any IO
+        // errors will have to make their way back to the user
+        // another way (eg, via a flush() method).
+        self.file.seek(SeekFrom::Start(self.block_byte)).unwrap();
         self.file.write_all(&self.data[0..]).unwrap();
     }
 }
@@ -232,28 +241,105 @@ impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
 
 //------------------------------------
 
-fn create_data_file(xml_path: &str) -> Result<std::fs::File> {
+fn mk_path(dir: &Path, file: &str) -> PathBuf {
+    let mut p = PathBuf::new();
+    p.push(dir);
+    p.push(PathBuf::from(file));
+    p
+}
+
+fn generate_xml<G>(path: &Path, g: &mut G) -> Result<()>
+where
+    G: XmlGenerator,
+{
+    let xml_out = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?;
+    let mut w = xml::XmlWriter::new(xml_out);
+
+    g.generate(&mut w)
+}
+
+fn create_data_file(data_path: &Path, xml_path: &Path) -> Result<()> {
     let input = OpenOptions::new().read(true).write(false).open(xml_path)?;
 
     let sb = xml::read_superblock(input)?;
     let nr_blocks = sb.nr_data_blocks as u64;
     let block_size = sb.data_block_size as u64 * 512;
 
-    let file = file_utils::temp_file_sized(nr_blocks * block_size)?;
-    Ok(file)
+    let _file = file_utils::create_sized_file(data_path, nr_blocks * block_size)?;
+    Ok(())
 }
 
-fn main(xml_path: &str) -> Result<()> {
-    let mut data_file = create_data_file(xml_path)?;
-    let mut xml_in = OpenOptions::new().read(true).write(false).open(xml_path)?;
+fn stamp(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
+    let mut data = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .open(&data_path)?;
+    let xml = OpenOptions::new().read(true).write(false).open(&xml_path)?;
+
+    let mut stamper = Stamper::new(&mut data, seed);
+    thin_visit(xml, &mut stamper)
+}
+
+fn verify(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
+    let mut data = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .open(&data_path)?;
+    let xml = OpenOptions::new().read(true).write(false).open(&xml_path)?;
+
+    let mut verifier = Verifier::new(&mut data, seed);
+    thin_visit(xml, &mut verifier)
+}
+
+//------------------------------------
+
+trait XmlGenerator {
+    fn generate(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()>;
+}
+
+struct EmptyPoolG {}
+
+impl XmlGenerator for EmptyPoolG {
+    fn generate(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        v.superblock_b(&xml::Superblock {
+            uuid: "".to_string(),
+            time: 0,
+            transaction: 0,
+            flags: None,
+            version: None,
+            data_block_size: 64,
+            nr_data_blocks: 1024,
+            metadata_snap: None,
+        })?;
+        v.superblock_e()?;
+        Ok(())
+    }
+}
+
+#[test]
+fn shrink_empty_pool() -> Result<()> {
+    let dir = tempdir()?;
+    let xml_before = mk_path(dir.path(), "before.xml");
+    let xml_after = mk_path(dir.path(), "after.xml");
+    let data_path = mk_path(dir.path(), "bin");
+
+    let mut gen = EmptyPoolG {};
+    generate_xml(&xml_before, &mut gen)?;
+    create_data_file(&data_path, &xml_before)?;
 
     let mut rng = rand::thread_rng();
     let seed = rng.gen::<u64>();
 
-    let mut stamper = Stamper::new(&mut data_file, seed);
-    thin_visit(&mut xml_in, &mut stamper)?;
+    stamp(&xml_before, &data_path, seed)?;
 
-    let mut verifier = Verifier::new(&mut data_file, seed);
-    thin_visit(&mut xml_in, &mut verifier)?;
+    let new_nr_blocks = 10;
+    thinp::shrink::toplevel::shrink(&xml_before, &xml_after, &data_path, new_nr_blocks, true)?;
+
+    verify(&xml_after, &data_path, seed)?;
     Ok(())
 }

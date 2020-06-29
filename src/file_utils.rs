@@ -1,9 +1,10 @@
 use nix::sys::stat;
 use nix::sys::stat::{FileStat, SFlag};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{Seek, Write};
 use std::os::unix::io::AsRawFd;
+use std::path::Path;
 use tempfile::tempfile;
 
 //---------------------------------------
@@ -17,7 +18,7 @@ pub fn is_file_or_blk(info: FileStat) -> bool {
         || check_bits(info.st_mode, &stat::SFlag::S_IFREG)
 }
 
-pub fn file_exists(path: &str) -> bool {
+pub fn file_exists(path: &Path) -> bool {
     match stat::stat(path) {
         Ok(info) => is_file_or_blk(info),
         _ => {
@@ -39,7 +40,7 @@ pub fn fail<T>(msg: &str) -> io::Result<T> {
     Err(e)
 }
 
-fn get_device_size(path: &str) -> io::Result<u64> {
+fn get_device_size(path: &Path) -> io::Result<u64> {
     let file = File::open(path)?;
     let fd = file.as_raw_fd();
     let mut cap = 0u64;
@@ -51,7 +52,7 @@ fn get_device_size(path: &str) -> io::Result<u64> {
     }
 }
 
-pub fn file_size(path: &str) -> io::Result<u64> {
+pub fn file_size(path: &Path) -> io::Result<u64> {
     match stat::stat(path) {
         Ok(info) => {
             if check_bits(info.st_mode, &SFlag::S_IFREG) {
@@ -68,16 +69,31 @@ pub fn file_size(path: &str) -> io::Result<u64> {
 
 //---------------------------------------
 
-pub fn temp_file_sized(nr_bytes: u64) -> io::Result<std::fs::File> {
-    let mut file = tempfile()?;
-
+fn set_size<W: Write + Seek>(w: &mut W, nr_bytes: u64) -> io::Result<()> {
     let zeroes: Vec<u8> = vec![0; 1];
 
     if nr_bytes > 0 {
-        file.seek(io::SeekFrom::Start(nr_bytes - 1))?;
-        file.write_all(&zeroes)?;
+        w.seek(io::SeekFrom::Start(nr_bytes - 1))?;
+        w.write_all(&zeroes)?;
     }
 
+    Ok(())
+}
+
+pub fn temp_file_sized(nr_bytes: u64) -> io::Result<std::fs::File> {
+    let mut file = tempfile()?;
+    set_size(&mut file, nr_bytes)?;
+    Ok(file)
+}
+
+pub fn create_sized_file(path: &Path, nr_bytes: u64) -> io::Result<std::fs::File> {
+    let mut file = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?;
+    set_size(&mut file, nr_bytes)?;
     Ok(file)
 }
 
