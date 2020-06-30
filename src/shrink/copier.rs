@@ -20,7 +20,7 @@ where
 {
     let mut buf = vec![0; len];
     file.seek(SeekFrom::Start(src_byte))?;
-    file.read_exact(&mut buf[0..])?;
+    file.read_exact(&mut buf)?;
     file.seek(SeekFrom::Start(dest_byte))?;
     file.write_all(&buf)?;
     Ok(())
@@ -55,6 +55,7 @@ pub fn copy(path: &Path, regions: &[Region]) -> Result<()> {
         eprintln!("copying {:?}", r);
         copy_region(&mut input, r)?;
     }
+    input.flush()?;
 
     Ok(())
 }

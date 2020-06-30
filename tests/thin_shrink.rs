@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rand::Rng;
 use std::fs::OpenOptions;
@@ -11,6 +11,7 @@ use thinp::thin::xml::{self, Visit};
 
 //------------------------------------
 
+#[derive(Debug)]
 struct ThinBlock {
     thin_id: u32,
     thin_block: u64,
@@ -33,35 +34,36 @@ impl ThinBlock {
         let mut rr = ThinReadRef {
             data: vec![0; self.block_size],
         };
-        r.seek(SeekFrom::Start(self.data_block * (self.block_size as u64)))?;
-        r.read_exact(&mut rr.data[0..])?;
+        let byte = self.data_block * (self.block_size as u64) * 512;
+        r.seek(SeekFrom::Start(byte))?;
+        r.read_exact(&mut rr.data)?;
         Ok(rr)
     }
 
     fn zero_ref<'a, W: Write + Seek>(&self, w: &'a mut W) -> ThinWriteRef<'a, W> {
         ThinWriteRef {
             file: w,
-            block_byte: self.data_block * (self.block_size as u64),
+            block_byte: self.data_block * (self.block_size as u64) * 512,
             data: vec![0; self.block_size],
         }
     }
 
-    fn write_ref<'a, W>(&self, w: &'a mut W) -> Result<ThinWriteRef<'a, W>>
-    where
-        W: Read + Write + Seek,
-    {
-        let mut data = vec![0; self.block_size];
-        w.seek(SeekFrom::Start(self.data_block * (self.block_size as u64)))?;
-        w.read_exact(&mut data[0..])?;
-
-        let wr = ThinWriteRef {
-            file: w,
-            block_byte: self.data_block * (self.block_size as u64),
-            data: vec![0; self.block_size],
-        };
-
-        Ok(wr)
-    }
+    //fn write_ref<'a, W>(&self, w: &'a mut W) -> Result<ThinWriteRef<'a, W>>
+    //where
+    //W: Read + Write + Seek,
+    //{
+    //let mut data = vec![0; self.block_size];
+    //w.seek(SeekFrom::Start(self.data_block * (self.block_size as u64)))?;
+    //w.read_exact(&mut data[0..])?;
+    //
+    //let wr = ThinWriteRef {
+    //file: w,
+    //block_byte: self.data_block * (self.block_size as u64),
+    //data: vec![0; self.block_size],
+    //};
+    //
+    //Ok(wr)
+    //}
 }
 
 impl<'a, W: Write + Seek> Drop for ThinWriteRef<'a, W> {
@@ -70,7 +72,7 @@ impl<'a, W: Write + Seek> Drop for ThinWriteRef<'a, W> {
         // errors will have to make their way back to the user
         // another way (eg, via a flush() method).
         self.file.seek(SeekFrom::Start(self.block_byte)).unwrap();
-        self.file.write_all(&self.data[0..]).unwrap();
+        self.file.write_all(&self.data).unwrap();
     }
 }
 
@@ -161,34 +163,41 @@ impl Generator {
     }
 
     fn step(&mut self) {
-        self.x = (self.a * self.x) + self.c
+        self.x = self.a.wrapping_mul(self.x).wrapping_add(self.c)
     }
 
-    fn fill_buffer(&mut self, seed: u64, bytes: &mut [u8]) {
+    fn fill_buffer(&mut self, seed: u64, bytes: &mut [u8]) -> Result<()> {
         self.x = seed;
 
-        assert!(bytes.len() % 8 == 64);
+        assert!(bytes.len() % 8 == 0);
         let nr_words = bytes.len() / 8;
         let mut out = Cursor::new(bytes);
 
         for _ in 0..nr_words {
-            out.write_u64::<LittleEndian>(self.x).unwrap();
+            out.write_u64::<LittleEndian>(self.x)?;
             self.step();
         }
+
+        Ok(())
     }
 
-    fn verify_buffer(&mut self, seed: u64, bytes: &[u8]) {
+    fn verify_buffer(&mut self, seed: u64, bytes: &[u8]) -> Result<bool> {
         self.x = seed;
 
-        assert!(bytes.len() % 8 == 64);
+        assert!(bytes.len() % 8 == 0);
         let nr_words = bytes.len() / 8;
         let mut input = Cursor::new(bytes);
 
         for _ in 0..nr_words {
-            let w = input.read_u64::<LittleEndian>().unwrap();
-            assert_eq!(w, self.x);
+            let w = input.read_u64::<LittleEndian>()?;
+            if w != self.x {
+                eprintln!("{} != {}", w, self.x);
+                return Ok(false);
+            }
             self.step();
         }
+
+        Ok(true)
     }
 }
 
@@ -212,7 +221,7 @@ impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
         gen.fill_buffer(
             self.seed ^ (b.thin_id as u64) ^ b.thin_block,
             &mut wr.data[0..],
-        );
+        )?;
         Ok(())
     }
 }
@@ -234,7 +243,9 @@ impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
     fn thin_block(&mut self, b: &ThinBlock) -> Result<()> {
         let rr = b.read_ref(self.data_file)?;
         let mut gen = Generator::new();
-        gen.verify_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &rr.data[0..]);
+        if !gen.verify_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &rr.data[0..])? {
+            return Err(anyhow!("data verify failed for {:?}", b));
+        }
         Ok(())
     }
 }
@@ -248,10 +259,7 @@ fn mk_path(dir: &Path, file: &str) -> PathBuf {
     p
 }
 
-fn generate_xml<G>(path: &Path, g: &mut G) -> Result<()>
-where
-    G: XmlGenerator,
-{
+fn generate_xml(path: &Path, g: &mut dyn Scenario) -> Result<()> {
     let xml_out = OpenOptions::new()
         .read(false)
         .write(true)
@@ -260,7 +268,7 @@ where
         .open(path)?;
     let mut w = xml::XmlWriter::new(xml_out);
 
-    g.generate(&mut w)
+    g.generate_xml(&mut w)
 }
 
 fn create_data_file(data_path: &Path, xml_path: &Path) -> Result<()> {
@@ -296,50 +304,135 @@ fn verify(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
     thin_visit(xml, &mut verifier)
 }
 
-//------------------------------------
-
-trait XmlGenerator {
-    fn generate(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()>;
+trait Scenario {
+    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()>;
+    fn get_new_nr_blocks(&self) -> u64;
 }
 
-struct EmptyPoolG {}
-
-impl XmlGenerator for EmptyPoolG {
-    fn generate(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
-        v.superblock_b(&xml::Superblock {
-            uuid: "".to_string(),
-            time: 0,
-            transaction: 0,
-            flags: None,
-            version: None,
-            data_block_size: 64,
-            nr_data_blocks: 1024,
-            metadata_snap: None,
-        })?;
-        v.superblock_e()?;
-        Ok(())
-    }
-}
-
-#[test]
-fn shrink_empty_pool() -> Result<()> {
+fn test_shrink(scenario: &mut dyn Scenario) -> Result<()> {
     let dir = tempdir()?;
     let xml_before = mk_path(dir.path(), "before.xml");
     let xml_after = mk_path(dir.path(), "after.xml");
-    let data_path = mk_path(dir.path(), "bin");
+    let data_path = mk_path(dir.path(), "metadata.bin");
 
-    let mut gen = EmptyPoolG {};
-    generate_xml(&xml_before, &mut gen)?;
+    generate_xml(&xml_before, scenario)?;
     create_data_file(&data_path, &xml_before)?;
 
     let mut rng = rand::thread_rng();
     let seed = rng.gen::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-
-    let new_nr_blocks = 10;
+    
+    let new_nr_blocks = scenario.get_new_nr_blocks();
     thinp::shrink::toplevel::shrink(&xml_before, &xml_after, &data_path, new_nr_blocks, true)?;
 
     verify(&xml_after, &data_path, seed)?;
     Ok(())
 }
+
+//------------------------------------
+
+fn common_sb(nr_blocks: u64) -> xml::Superblock {
+    xml::Superblock {
+        uuid: "".to_string(),
+        time: 0,
+        transaction: 0,
+        flags: None,
+        version: None,
+        data_block_size: 32,
+        nr_data_blocks: nr_blocks,
+        metadata_snap: None,
+    }
+}
+
+struct EmptyPoolS {}
+
+impl Scenario for EmptyPoolS {
+    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        v.superblock_b(&common_sb(1024))?;
+        v.superblock_e()?;
+        Ok(())
+    }
+
+    fn get_new_nr_blocks(&self) -> u64 {
+        512
+    }
+}
+
+#[test]
+fn shrink_empty_pool() -> Result<()> {
+    let mut s = EmptyPoolS {};
+    test_shrink(&mut s)
+}
+
+//------------------------------------
+
+struct SingleThinS {
+    offset: u64,
+    len: u64,
+    old_nr_data_blocks: u64,
+    new_nr_data_blocks: u64,
+}
+
+impl SingleThinS {
+    fn new(offset: u64, len: u64, old_nr_data_blocks: u64, new_nr_data_blocks: u64) -> Self {
+        SingleThinS {
+            offset,
+            len,
+            old_nr_data_blocks,
+            new_nr_data_blocks,
+        }
+    }
+}
+
+impl Scenario for SingleThinS {
+    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        v.device_b(&xml::Device {
+            dev_id: 0,
+            mapped_blocks: self.len,
+            transaction: 0,
+            creation_time: 0,
+            snap_time: 0,
+        })?;
+        v.map(&xml::Map {
+            thin_begin: 0,
+            data_begin: self.offset,
+            time: 0,
+            len: self.len,
+        })?;
+        v.device_e()?;
+        v.superblock_e()?;
+        Ok(())
+    }
+
+    fn get_new_nr_blocks(&self) -> u64 {
+        self.new_nr_data_blocks
+    }
+}
+
+#[test]
+fn shrink_single_no_move_1() -> Result<()> {
+    let mut s = SingleThinS::new(0, 1024, 2048, 1280);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_single_no_move_2() -> Result<()> {
+    let mut s = SingleThinS::new(100, 1024, 2048, 1280);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_single_no_move_3() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 2048);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_single_partial_move() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 1280);
+    test_shrink(&mut s)
+}
+
+//------------------------------------
