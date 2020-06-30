@@ -93,7 +93,7 @@ namespace persistent_data {
 	{
 		using namespace btree_detail;
 
-		unsigned i = 0;
+		unsigned i = *index;
 		bool r = false;
 
 		for (;;) {
