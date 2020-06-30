@@ -94,10 +94,11 @@ namespace persistent_data {
 		using namespace btree_detail;
 
 		unsigned i = *index;
-		bool r = false;
 
 		for (;;) {
-			r = spine.step(block);
+			bool inc = spine.step(block);
+			if (inc)
+				inc_children<ValueTraits>(spine, leaf_rc);
 
 			// patch up the parent to point to the new shadow
 			if (spine.has_parent()) {
@@ -115,9 +116,9 @@ namespace persistent_data {
 				return true;
 			}
 
-			r = rebalance_children<ValueTraits>(spine, key);
+			bool r = rebalance_children<ValueTraits>(spine, key);
 			if (!r)
-				break;
+				return false;
 
 			n = spine.get_node<block_traits>();
 			if (n.get_type() == btree_detail::LEAF) {
@@ -133,7 +134,7 @@ namespace persistent_data {
 			block = n.value_at(i);
 		}
 
-		return r;
+		return true;
 	}
 
 	template <unsigned Levels, typename _>
