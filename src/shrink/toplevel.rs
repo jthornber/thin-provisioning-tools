@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -459,8 +459,7 @@ pub fn shrink(
     eprintln!("{} free blocks.", free_blocks);
 
     if free_blocks < pass1.nr_high_blocks {
-        // FIXME: return error
-        panic!("Insufficient space");
+        return Err(anyhow!("Insufficient space"));
     }
 
     let remaps = build_remaps(above, free);

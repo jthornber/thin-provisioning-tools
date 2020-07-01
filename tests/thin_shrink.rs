@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use rand::Rng;
+use rand::prelude::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -32,7 +32,7 @@ struct ThinWriteRef<'a, W: Write + Seek> {
 impl ThinBlock {
     fn read_ref<R: Read + Seek>(&self, r: &mut R) -> Result<ThinReadRef> {
         let mut rr = ThinReadRef {
-            data: vec![0; self.block_size],
+            data: vec![0; self.block_size * 512],
         };
         let byte = self.data_block * (self.block_size as u64) * 512;
         r.seek(SeekFrom::Start(byte))?;
@@ -44,7 +44,7 @@ impl ThinBlock {
         ThinWriteRef {
             file: w,
             block_byte: self.data_block * (self.block_size as u64) * 512,
-            data: vec![0; self.block_size],
+            data: vec![0; self.block_size * 512],
         }
     }
 
@@ -218,10 +218,7 @@ impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
     fn thin_block(&mut self, b: &ThinBlock) -> Result<()> {
         let mut wr = b.zero_ref(self.data_file);
         let mut gen = Generator::new();
-        gen.fill_buffer(
-            self.seed ^ (b.thin_id as u64) ^ b.thin_block,
-            &mut wr.data[0..],
-        )?;
+        gen.fill_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &mut wr.data)?;
         Ok(())
     }
 }
@@ -243,7 +240,7 @@ impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
     fn thin_block(&mut self, b: &ThinBlock) -> Result<()> {
         let rr = b.read_ref(self.data_file)?;
         let mut gen = Generator::new();
-        if !gen.verify_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &rr.data[0..])? {
+        if !gen.verify_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &rr.data)? {
             return Err(anyhow!("data verify failed for {:?}", b));
         }
         Ok(())
@@ -322,7 +319,8 @@ fn test_shrink(scenario: &mut dyn Scenario) -> Result<()> {
     let seed = rng.gen::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-    
+    verify(&xml_before, &data_path, seed)?;
+
     let new_nr_blocks = scenario.get_new_nr_blocks();
     thinp::shrink::toplevel::shrink(&xml_before, &xml_after, &data_path, new_nr_blocks, true)?;
 
@@ -435,4 +433,218 @@ fn shrink_single_partial_move() -> Result<()> {
     test_shrink(&mut s)
 }
 
+#[test]
+fn shrink_single_total_move() -> Result<()> {
+    let mut s = SingleThinS::new(2048, 1024, 1024 + 2048, 1280);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_insufficient_space() -> Result<()> {
+    let mut s = SingleThinS::new(0, 2048, 3000, 1280);
+    match test_shrink(&mut s) {
+        Ok(_) => Err(anyhow!("Shrink unexpectedly succeeded")),
+        Err(_) => Ok(()),
+    }
+}
+
+//------------------------------------
+
+struct FragmentedS {
+    nr_thins: u32,
+    thin_size: u64,
+    old_nr_data_blocks: u64,
+    new_nr_data_blocks: u64,
+}
+
+impl FragmentedS {
+    fn new(nr_thins: u32, thin_size: u64) -> Self {
+        let old_size = (nr_thins as u64) * thin_size;
+        FragmentedS {
+            nr_thins,
+            thin_size,
+            old_nr_data_blocks: (nr_thins as u64) * thin_size,
+            new_nr_data_blocks: old_size * 3 / 4,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ThinRun {
+    thin_id: u32,
+    thin_begin: u64,
+    len: u64,
+}
+
+#[derive(Clone, Debug, Copy)]
+struct MappedRun {
+    thin_id: u32,
+    thin_begin: u64,
+    data_begin: u64,
+    len: u64,
+}
+
+fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<ThinRun> {
+    let mut runs = Vec::new();
+    let mut b = 0u64;
+    while b < total_len {
+        let len = u64::min(
+            total_len - b,
+            thread_rng().gen_range(run_len.start, run_len.end),
+        );
+        runs.push(ThinRun {
+            thin_id: thin_id,
+            thin_begin: b,
+            len,
+        });
+        b += len;
+    }
+    runs
+}
+
+impl Scenario for FragmentedS {
+    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        // Allocate each thin fully, in runs between 1 and 16.
+        let mut runs = Vec::new();
+        for thin in 0..self.nr_thins {
+            runs.append(&mut mk_runs(thin, self.thin_size, 1..17));
+        }
+
+        // Shuffle
+        runs.shuffle(&mut rand::thread_rng());
+
+        // map across the data
+        let mut maps = Vec::new();
+        let mut b = 0;
+        for r in &runs {
+            maps.push(MappedRun {
+                thin_id: r.thin_id,
+                thin_begin: r.thin_begin,
+                data_begin: b,
+                len: r.len,
+            });
+            b += r.len;
+        }
+
+        // drop half the mappings, which leaves us free runs
+        let mut dropped = Vec::new();
+        for i in 0..maps.len() {
+            if i % 2 == 0 {
+                dropped.push(maps[i].clone());
+            }
+        }
+
+        // Unshuffle.  This isn't strictly necc. but makes the xml
+        // more readable.
+        use std::cmp::Ordering;
+        maps.sort_by(|&l, &r| match l.thin_id.cmp(&r.thin_id) {
+            Ordering::Equal => l.thin_begin.cmp(&r.thin_begin),
+            o => o,
+        });
+
+        // write the xml
+        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        for thin in 0..self.nr_thins {
+            v.device_b(&xml::Device {
+                dev_id: thin,
+                mapped_blocks: self.thin_size,
+                transaction: 0,
+                creation_time: 0,
+                snap_time: 0,
+            })?;
+
+            for m in &dropped {
+                if m.thin_id != thin {
+                    continue;
+                }
+
+                v.map(&xml::Map {
+                    thin_begin: m.thin_begin,
+                    data_begin: m.data_begin,
+                    time: 0,
+                    len: m.len,
+                })?;
+            }
+
+            v.device_e()?;
+        }
+        v.superblock_e()?;
+        Ok(())
+    }
+
+    fn get_new_nr_blocks(&self) -> u64 {
+        self.new_nr_data_blocks
+    }
+}
+
+#[test]
+fn shrink_fragmented_thin_1() -> Result<()> {
+    let mut s = FragmentedS::new(1, 2048);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_fragmented_thin_2() -> Result<()> {
+    let mut s = FragmentedS::new(2, 2048);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_fragmented_thin_8() -> Result<()> {
+    let mut s = FragmentedS::new(2, 2048);
+    test_shrink(&mut s)
+}
+
+#[test]
+fn shrink_fragmented_thin_64() -> Result<()> {
+    let mut s = FragmentedS::new(2, 2048);
+    test_shrink(&mut s)
+}
+
+//------------------------------------
+
+/*
+// Snapshots share mappings, not neccessarily the entire ranges.
+struct SnapS {
+    len: u64,
+    nr_snaps: u32,
+
+    // Snaps will differ from the origin by this percentage
+    percent_change: usize,
+    old_nr_data_blocks: u64,
+    new_nr_data_blocks: u64,
+}
+
+impl SnapS {
+    fn new(len: u64, nr_snaps: u32, percent_change: usize) -> Self {
+        let delta = len * (nr_snaps as u64) * (percent_change as u64) / 100;
+        let old_nr_data_blocks = len + 3 * delta;
+        let new_nr_data_blocks = len + 2 * delta;
+
+        SnapS {
+            len,
+            nr_snaps,
+            percent_change,
+            old_nr_data_blocks,
+            new_nr_data_blocks,
+        }
+    }
+}
+
+impl Scenario for SnapS {
+    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        let origin = mk_runs(0, self.len, 8..64);
+    }
+
+    fn get_new_nr_blocks(&self) -> u64 {
+        self.new_nr_data_blocks
+    }
+}
+
+#[test]
+fn shrink_identical_snap() -> Result<()> {
+    let mut s = SnapS::new(1024, 1, 0);
+    test_shrink(&mut s)
+}
+*/
 //------------------------------------
