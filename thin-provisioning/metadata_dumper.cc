@@ -614,8 +614,8 @@ namespace {
 
 				return it->second;
 			} else {
-				node_info info = get_info_(b);
 				examined_[b] = true;
+				node_info info = get_info_(b);
 				if (!failed(info))
 					infos_.insert(make_pair(b, info));
 
