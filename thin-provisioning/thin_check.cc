@@ -174,6 +174,7 @@ thin_check_cmd::run(int argc, char **argv)
 		case 3:
 			// ignore-non-fatal-errors
 			fs.ignore_non_fatal_errors = true;
+			fs.check_opts.set_ignore_non_fatal();
 			break;
 
 		case 4:

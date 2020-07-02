@@ -75,9 +75,11 @@ namespace thin_provisioning {
 
 	void walk_device_tree(device_tree const &tree,
 			      device_tree_detail::device_visitor &dev_v,
-			      device_tree_detail::damage_visitor &dv);
+			      device_tree_detail::damage_visitor &dv,
+                              bool ignore_non_fatal = false);
 	void check_device_tree(device_tree const &tree,
-			       device_tree_detail::damage_visitor &visitor);
+			       device_tree_detail::damage_visitor &visitor,
+                               bool ignore_non_fatal = false);
 }
 
 //----------------------------------------------------------------
