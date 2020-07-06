@@ -253,6 +253,47 @@ fn build_remaps(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRan
     remap
 }
 
+#[test]
+fn test_build_remaps() {
+    struct Test {
+        ranges: Vec<BlockRange>,
+        free: Vec<BlockRange>,
+        result: Vec<(BlockRange, BlockRange)>,
+    }
+
+    let tests = vec![
+        Test {
+            ranges: vec![],
+            free: vec![],
+            result: vec![],
+        },
+        Test {
+            ranges: vec![],
+            free: vec![0..100],
+            result: vec![],
+        },
+        Test {
+            ranges: vec![1000..1002],
+            free: vec![0..100],
+            result: vec![(1000..1002, 0..2)],
+        },
+        Test {
+            ranges: vec![1000..1002, 1100..1110],
+            free: vec![0..100],
+            result: vec![(1000..1002, 0..2), (1100..1110, 2..12)],
+        },
+        Test {
+            ranges: vec![100..120],
+            free: vec![0..5, 20..23, 30..50],
+            result: vec![(100..105, 0..5), (105..108, 20..23), (108..120, 30..42)],
+        },
+    ];
+
+    for t in tests {
+        assert_eq!(build_remaps(t.ranges, t.free), t.result);
+    }
+}
+
 fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
     if r1.start >= r2.end {
         return None;
