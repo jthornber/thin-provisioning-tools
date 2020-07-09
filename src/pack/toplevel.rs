@@ -1,3 +1,4 @@
+use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
@@ -34,11 +35,6 @@ fn shuffle<T>(v: &mut Vec<T>) {
     v.shuffle(&mut rng);
 }
 
-// FIXME: move to a utils module
-fn div_up(n: u64, d: u64) -> u64 {
-    (n + d - 1) / d
-}
-
 // Each thread processes multiple contiguous runs of blocks, called
 // chunks.  Chunks are shuffled so each thread gets chunks spread
 // across the dev in case there are large regions that don't contain
@@ -47,10 +43,15 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
     use std::cmp::{max, min};
 
     let chunk_size = min(4 * 1024u64, max(128u64, nr_blocks / (nr_jobs * 64)));
-    let nr_chunks = div_up(nr_blocks, chunk_size);
+    let nr_chunks = nr_blocks / chunk_size;
     let mut chunks = Vec::with_capacity(nr_chunks as usize);
     for i in 0..nr_chunks {
         chunks.push((i * chunk_size, (i + 1) * chunk_size));
+    }
+
+    // there may be a smaller chunk at the back of the file.
+    if nr_chunks * chunk_size < nr_blocks {
+        chunks.push((nr_chunks * chunk_size, nr_blocks));
     }
 
     shuffle(&mut chunks);
@@ -104,11 +105,7 @@ pub fn pack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn crunch<R, W>(
-    input: Arc<Mutex<R>>,
-    output: Arc<Mutex<W>>,
-    ranges: Vec<(u64, u64)>,
-) -> io::Result<()>
+fn crunch<R, W>(input: Arc<Mutex<R>>, output: Arc<Mutex<W>>, ranges: Vec<(u64, u64)>) -> Result<()>
 where
     R: Read + Seek,
     W: Write,
@@ -256,7 +253,7 @@ fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) {
         BT::NODE => check(&pack_btree_node(w, buf)),
         BT::INDEX => check(&pack_index(w, buf)),
         BT::BITMAP => check(&pack_bitmap(w, buf)),
-        BT::UNKNOWN => {panic!("asked to pack an unknown block type")}
+        BT::UNKNOWN => panic!("asked to pack an unknown block type"),
     }
 }
 
