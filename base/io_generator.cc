@@ -1,4 +1,5 @@
 #include "base/io_generator.h"
+#include "persistent-data/run_set.h"
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
@@ -69,17 +70,37 @@ namespace {
 					sector_t block_size)
 			: block_begin_(offset / block_size),
 			  nr_blocks_(size / block_size),
-			  block_size_(block_size) {
+			  block_size_(block_size),
+			  nr_generated_(0) {
 		}
 
 		sector_t next_offset() {
-			return ((std::rand() % nr_blocks_) + block_begin_) * block_size_;
+			uint64_t blocknr;
+
+			bool found = true;
+			while (found) {
+				blocknr = (std::rand() % nr_blocks_) + block_begin_;
+				found = io_map_.member(blocknr);
+			}
+			io_map_.add(blocknr);
+			++nr_generated_;
+
+			// wrap-around
+			if (nr_generated_ == nr_blocks_) {
+				io_map_.clear();
+				nr_generated_ = 0;
+			}
+
+			return blocknr * block_size_;
 		}
 
 	private:
 		uint64_t block_begin_;
 		uint64_t nr_blocks_;
 		unsigned block_size_;
+
+		base::run_set<uint64_t> io_map_;
+		uint64_t nr_generated_;
 	};
 
 	//--------------------------------
