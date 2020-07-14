@@ -408,7 +408,8 @@ namespace {
 check_options::check_options()
 	: use_metadata_snap_(false),
 	  check_data_mappings_(DATA_MAPPING_LEVEL2),
-	  sm_opts_(SPACE_MAP_FULL) {
+	  sm_opts_(SPACE_MAP_FULL),
+	  ignore_non_fatal_(false) {
 }
 
 void check_options::set_superblock_only() {
