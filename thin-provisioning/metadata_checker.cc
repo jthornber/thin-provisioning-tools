@@ -151,7 +151,7 @@ namespace {
 	error_state examine_devices_tree_(transaction_manager::ptr tm,
 					  superblock_detail::superblock const &sb,
 					  nested_output &out,
-                                          bool ignore_non_fatal) {
+					  bool ignore_non_fatal) {
 		out << "examining devices tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -166,7 +166,7 @@ namespace {
 	error_state examine_top_level_mapping_tree_(transaction_manager::ptr tm,
 						    superblock_detail::superblock const &sb,
 						    nested_output &out,
-                                                    bool ignore_non_fatal) {
+						    bool ignore_non_fatal) {
 		out << "examining top level of mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -182,7 +182,7 @@ namespace {
 					  superblock_detail::superblock const &sb,
 					  nested_output &out,
                                           optional<space_map::ptr> data_sm,
-                                          bool ignore_non_fatal) {
+					  bool ignore_non_fatal) {
 		out << "examining mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -202,7 +202,7 @@ namespace {
 	error_state examine_top_level_mapping_tree(transaction_manager::ptr tm,
 						   superblock_detail::superblock const &sb,
 						   nested_output &out,
-                                                   bool ignore_non_fatal) {
+						   bool ignore_non_fatal) {
 		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
 		err << examine_top_level_mapping_tree_(tm, sb, out, ignore_non_fatal);
 
@@ -212,8 +212,8 @@ namespace {
 	error_state examine_mapping_tree(transaction_manager::ptr tm,
 					 superblock_detail::superblock const &sb,
 					 nested_output &out,
-                                         optional<space_map::ptr> data_sm,
-                                         bool ignore_non_fatal) {
+	                                 optional<space_map::ptr> data_sm,
+					 bool ignore_non_fatal) {
 		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
 		err << examine_mapping_tree_(tm, sb, out, data_sm, ignore_non_fatal);
 
@@ -265,7 +265,7 @@ namespace {
 			for (block_address b = 0; b < nr_blocks; b++) {
 				auto a_count = actual->get_count(b);
 				auto e_count = actual->get_count(b);
-				
+
 				if (a_count != e_count) {
 					out << "data reference counts differ for block " << b
 					    << ", expected " << e_count

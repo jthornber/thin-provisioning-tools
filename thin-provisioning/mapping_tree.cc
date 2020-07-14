@@ -229,7 +229,7 @@ void
 thin_provisioning::walk_mapping_tree(dev_tree const &tree,
 				     mapping_tree_detail::device_visitor &dev_v,
 				     mapping_tree_detail::damage_visitor &dv,
-                                     bool ignore_non_fatal)
+				     bool ignore_non_fatal)
 {
 	dev_tree_damage_visitor ll_dv(dv);
 	btree_visit_values(tree, dev_v, ll_dv, ignore_non_fatal);
@@ -238,7 +238,7 @@ thin_provisioning::walk_mapping_tree(dev_tree const &tree,
 void
 thin_provisioning::check_mapping_tree(dev_tree const &tree,
 				      mapping_tree_detail::damage_visitor &visitor,
-                                      bool ignore_non_fatal)
+				      bool ignore_non_fatal)
 {
 	noop_block_visitor dev_v;
 	walk_mapping_tree(tree, dev_v, visitor, ignore_non_fatal);
@@ -248,7 +248,7 @@ void
 thin_provisioning::walk_mapping_tree(mapping_tree const &tree,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv,
-                                     bool ignore_non_fatal)
+				     bool ignore_non_fatal)
 {
 	mapping_tree_damage_visitor ll_dv(dv);
 	btree_visit_values(tree, mv, ll_dv, ignore_non_fatal);
@@ -257,7 +257,7 @@ thin_provisioning::walk_mapping_tree(mapping_tree const &tree,
 void
 thin_provisioning::check_mapping_tree(mapping_tree const &tree,
 				      mapping_tree_detail::damage_visitor &visitor,
-                                      bool ignore_non_fatal)
+				      bool ignore_non_fatal)
 {
 	noop_block_time_visitor mv;
 	walk_mapping_tree(tree, mv, visitor, ignore_non_fatal);
@@ -268,7 +268,7 @@ thin_provisioning::walk_mapping_tree(single_mapping_tree const &tree,
 				     uint64_t dev_id,
 				     mapping_tree_detail::mapping_visitor &mv,
 				     mapping_tree_detail::damage_visitor &dv,
-                                     bool ignore_non_fatal)
+				     bool ignore_non_fatal)
 {
 	single_mapping_tree_damage_visitor ll_dv(dv, dev_id);
 	btree_visit_values(tree, mv, ll_dv, ignore_non_fatal);
@@ -278,7 +278,7 @@ void
 thin_provisioning::check_mapping_tree(single_mapping_tree const &tree,
 				      uint64_t dev_id,
 				      mapping_tree_detail::damage_visitor &visitor,
-                                      bool ignore_non_fatal)
+				      bool ignore_non_fatal)
 {
 	noop_block_time_visitor mv;
 	walk_mapping_tree(tree, dev_id, mv, visitor, ignore_non_fatal);

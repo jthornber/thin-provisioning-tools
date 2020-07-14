@@ -124,7 +124,7 @@ metadata::metadata(block_manager::ptr bm,
 		throw runtime_error("no current metadata snap");
 
 	if (metadata_snap && *metadata_snap != actual_sb.metadata_snap_)
-			throw runtime_error("metadata snapshot does not match that in superblock");
+		throw runtime_error("metadata snapshot does not match that in superblock");
 
 	sb_ = read_superblock(bm, actual_sb.metadata_snap_);
 
