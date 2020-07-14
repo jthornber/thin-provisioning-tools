@@ -40,17 +40,20 @@ namespace thin_provisioning {
 
 		check_options();
 
+		bool check_conformance();
 		void set_superblock_only();
 		void set_skip_mappings();
 		void set_override_mapping_root(bcache::block_address b);
 		void set_metadata_snap();
 		void set_ignore_non_fatal();
+		void set_fix_metadata_leaks();
 
 		bool use_metadata_snap_;
 		data_mapping_options data_mapping_opts_;
 		space_map_options sm_opts_;
 		boost::optional<bcache::block_address> override_mapping_root_;
 		bool ignore_non_fatal_;
+		bool fix_metadata_leaks_;
 	};
 
 	enum output_options {
@@ -59,7 +62,7 @@ namespace thin_provisioning {
 	};
 
 	base::error_state
-	check_metadata(persistent_data::block_manager::ptr bm,
+	check_metadata(std::string const &path,
 		       check_options const &check_opts,
 		       output_options output_opts);
 }
