@@ -338,7 +338,7 @@ namespace {
 			if (options_.sm_opts_ == check_options::SPACE_MAP_FULL) {
 				space_map::ptr data_sm{open_disk_sm(*tm, &sb.data_space_map_root_)};
 				optional<space_map::ptr> core_sm{create_core_map(data_sm->get_nr_blocks())};
-				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_, core_sm);
+				err << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_, core_sm);
 
 				// if we're checking everything, and there were no errors,
 				// then we should check the space maps too.
@@ -349,7 +349,7 @@ namespace {
 						err << compare_space_maps(data_sm, *core_sm, out_);
 				}
 			} else
-				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_,
+				err << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_,
                                                              optional<space_map::ptr>());
 
 			return err;
@@ -407,18 +407,18 @@ namespace {
 
 check_options::check_options()
 	: use_metadata_snap_(false),
-	  check_data_mappings_(DATA_MAPPING_LEVEL2),
+	  data_mapping_opts_(DATA_MAPPING_LEVEL2),
 	  sm_opts_(SPACE_MAP_FULL),
 	  ignore_non_fatal_(false) {
 }
 
 void check_options::set_superblock_only() {
-	check_data_mappings_ = DATA_MAPPING_NONE;
+	data_mapping_opts_ = DATA_MAPPING_NONE;
 	sm_opts_ = SPACE_MAP_NONE;
 }
 
 void check_options::set_skip_mappings() {
-	check_data_mappings_ = DATA_MAPPING_LEVEL1;
+	data_mapping_opts_ = DATA_MAPPING_LEVEL1;
 	sm_opts_ = SPACE_MAP_NONE;
 }
 
