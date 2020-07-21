@@ -145,6 +145,11 @@
     (with-valid-metadata (md)
       (run-ok (thin-check "--clear-needs-check-flag" md))))
 
+  (define-scenario (thin-check fix-metadata-leaks)
+    "Accepts --fix-metadata-leaks"
+    (with-valid-metadata (md)
+      (run-ok (thin-check "--fix-metadata-leaks" md))))
+
   (define-scenario (thin-check tiny-metadata)
     "Prints helpful message in case tiny metadata given"
     (with-temp-file-sized ((md "thin.bin" 1024))
