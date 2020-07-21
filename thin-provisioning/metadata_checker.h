@@ -19,7 +19,6 @@
 #ifndef METADATA_CHECKER_H
 #define METADATA_CHECKER_H
 
-#include "base/error_state.h"
 #include "block-cache/block_cache.h"
 #include "persistent-data/block.h"
 
@@ -47,6 +46,7 @@ namespace thin_provisioning {
 		void set_metadata_snap();
 		void set_ignore_non_fatal();
 		void set_fix_metadata_leaks();
+		void set_clear_needs_check();
 
 		bool use_metadata_snap_;
 		data_mapping_options data_mapping_opts_;
@@ -54,6 +54,7 @@ namespace thin_provisioning {
 		boost::optional<bcache::block_address> override_mapping_root_;
 		bool ignore_non_fatal_;
 		bool fix_metadata_leaks_;
+		bool clear_needs_check_;
 	};
 
 	enum output_options {
@@ -61,7 +62,7 @@ namespace thin_provisioning {
 		OUTPUT_QUIET,
 	};
 
-	base::error_state
+	bool
 	check_metadata(std::string const &path,
 		       check_options const &check_opts,
 		       output_options output_opts);

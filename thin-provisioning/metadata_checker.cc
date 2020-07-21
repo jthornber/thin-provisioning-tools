@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/error_state.h"
 #include "base/nested_output.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
@@ -437,8 +438,30 @@ namespace {
 			return true;
 		}
 
-		error_state get_error() const {
-			return err_;
+		bool clear_needs_check_flag() {
+			if (!verify_preconditions_before_fixing()) {
+				out_ << "metadata has not been fully examined" << end_message();
+				return false;
+			}
+
+			if (err_ != NO_ERROR)
+				return false;
+
+			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
+			superblock_detail::superblock sb = read_superblock(bm);
+			sb.set_needs_check_flag(false);
+			write_superblock(bm, sb);
+
+			out_ << "cleared needs_check flag" << end_message();
+
+			return true;
+		}
+
+		bool get_status() const {
+			if (options_.ignore_non_fatal_)
+				return (err_ == FATAL) ? false : true;
+
+			return (err_ == NO_ERROR) ? true : false;
 		}
 
 	private:
@@ -529,7 +552,8 @@ check_options::check_options()
 	  data_mapping_opts_(DATA_MAPPING_LEVEL2),
 	  sm_opts_(SPACE_MAP_FULL),
 	  ignore_non_fatal_(false),
-	  fix_metadata_leaks_(false) {
+	  fix_metadata_leaks_(false),
+	  clear_needs_check_(false) {
 }
 
 void check_options::set_superblock_only() {
@@ -559,8 +583,12 @@ void check_options::set_fix_metadata_leaks() {
 	fix_metadata_leaks_ = true;
 }
 
+void check_options::set_clear_needs_check() {
+	clear_needs_check_ = true;
+}
+
 bool check_options::check_conformance() {
-	if (fix_metadata_leaks_) {
+	if (fix_metadata_leaks_ || clear_needs_check_) {
 		if (ignore_non_fatal_) {
 			cerr << "cannot perform fix by ignoring non-fatal errors" << endl;
 			return false;
@@ -588,7 +616,7 @@ bool check_options::check_conformance() {
 
 //----------------------------------------------------------------
 
-base::error_state
+bool
 thin_provisioning::check_metadata(std::string const &path,
 				  check_options const &check_opts,
 				  output_options output_opts)
@@ -598,8 +626,11 @@ thin_provisioning::check_metadata(std::string const &path,
 	checker.check();
 	if (check_opts.fix_metadata_leaks_)
 		checker.fix_metadata_leaks();
+	if (check_opts.fix_metadata_leaks_ ||
+	    check_opts.clear_needs_check_)
+		checker.clear_needs_check_flag();
 
-	return checker.get_error();
+	return checker.get_status();
 }
 
 //----------------------------------------------------------------
