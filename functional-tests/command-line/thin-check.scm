@@ -12,6 +12,8 @@
    "  {-q|--quiet}\n"
    "  {-h|--help}\n"
    "  {-V|--version}\n"
+   "  {--fix-metadata-leaks}\n"
+   "  {--override-mapping-root}\n"
    "  {--clear-needs-check-flag}\n"
    "  {--ignore-non-fatal-errors}\n"
    "  {--skip-mappings}\n"
