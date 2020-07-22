@@ -76,7 +76,7 @@ Options:
   {-V|--version}")
 
   (define thin-metadata-pack-help
-    "thin_metadata_pack 0.9.0-rc1
+    "thin_metadata_pack 0.9.0-rc2
 Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
 USAGE:
@@ -91,7 +91,7 @@ OPTIONS:
     -o <FILE>        Specify packed output file")
 
   (define thin-metadata-unpack-help
-    "thin_metadata_unpack 0.9.0-rc1
+    "thin_metadata_unpack 0.9.0-rc2
 Unpack a compressed file of thin metadata.
 
 USAGE:

@@ -44,11 +44,13 @@ namespace thin_provisioning {
 		void set_skip_mappings();
 		void set_override_mapping_root(bcache::block_address b);
 		void set_metadata_snap();
+		void set_ignore_non_fatal();
 
 		bool use_metadata_snap_;
 		data_mapping_options check_data_mappings_;
 		space_map_options sm_opts_;
 		boost::optional<bcache::block_address> override_mapping_root_;
+		bool ignore_non_fatal_;
 	};
 
 	enum output_options {

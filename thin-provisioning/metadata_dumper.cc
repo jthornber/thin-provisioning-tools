@@ -132,7 +132,7 @@ namespace {
 		auto tree = device_tree(tm, root, device_tree_detail::device_details_traits::ref_counter());
 
 		try {
-			walk_device_tree(tree, de, dv);
+			walk_device_tree(tree, de, dv, true);
 		} catch (...) {
 			return optional<set<uint32_t>>();
 		}
@@ -157,7 +157,7 @@ namespace {
 		auto tree = dev_tree(tm, root, mapping_tree_detail::mtree_traits::ref_counter(tm));
 
 		try {
-			walk_mapping_tree(tree, me, mv);
+			walk_mapping_tree(tree, me, mv, true);
 		} catch (...) {
 			return optional<set<uint32_t>>();
 		}
@@ -614,8 +614,8 @@ namespace {
 
 				return it->second;
 			} else {
-				node_info info = get_info_(b);
 				examined_[b] = true;
+				node_info info = get_info_(b);
 				if (!failed(info))
 					infos_.insert(make_pair(b, info));
 
@@ -754,7 +754,7 @@ namespace {
 			// Since we're not mutating the btrees we don't need a real space map
 			noop_map::ptr sm(new noop_map);
 			single_mapping_tree tree(tm_, subtree_root, mapping_tree_detail::block_time_ref_counter(sm));
-			walk_mapping_tree(tree, dev_id, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_);
+			walk_mapping_tree(tree, dev_id, static_cast<mapping_tree_detail::mapping_visitor &>(me), *damage_policy_, true);
 		}
 
 		dump_options const &opts_;
@@ -785,7 +785,7 @@ namespace {
 		dump_options opts;
 		details_extractor de(opts);
 		device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(true));
-		walk_device_tree(*md.details_, de, *dd_policy);
+		walk_device_tree(*md.details_, de, *dd_policy, true);
 
 		e->begin_superblock("", sb.time_,
 				    sb.trans_id_,
@@ -798,7 +798,7 @@ namespace {
 		{
 			mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(true));
 			mapping_tree_emit_visitor mte(opts, *md.tm_, e, de.get_details(), mapping_damage_policy(true));
-			walk_mapping_tree(*md.mappings_top_level_, mte, *md_policy);
+			walk_mapping_tree(*md.mappings_top_level_, mte, *md_policy, true);
 		}
 
 		e->end_superblock();
@@ -882,7 +882,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 {
 	details_extractor de(opts);
 	device_tree_detail::damage_visitor::ptr dd_policy(details_damage_policy(false));
-	walk_device_tree(*md->details_, de, *dd_policy);
+	walk_device_tree(*md->details_, de, *dd_policy, true);
 
 	e->begin_superblock("", md->sb_.time_,
 			    md->sb_.trans_id_,
@@ -895,7 +895,7 @@ thin_provisioning::metadata_dump(metadata::ptr md, emitter::ptr e, dump_options 
 	{
 		mapping_tree_detail::damage_visitor::ptr md_policy(mapping_damage_policy(false));
 		mapping_tree_emit_visitor mte(opts, *md->tm_, e, de.get_details(), mapping_damage_policy(false));
-		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy);
+		walk_mapping_tree(*md->mappings_top_level_, mte, *md_policy, true);
 	}
 
 	e->end_superblock();
@@ -924,7 +924,7 @@ thin_provisioning::metadata_dump_subtree(metadata::ptr md, emitter::ptr e, bool 
 				 mapping_tree_detail::block_time_ref_counter(md->data_sm_));
 	// FIXME: pass the current device id instead of zero
 	walk_mapping_tree(tree, 0, static_cast<mapping_tree_detail::mapping_visitor &>(me),
-			  *mapping_damage_policy(repair));
+			  *mapping_damage_policy(repair), true);
 }
 
 //----------------------------------------------------------------

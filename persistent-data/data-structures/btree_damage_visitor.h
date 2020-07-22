@@ -106,10 +106,12 @@ namespace persistent_data {
 			typedef boost::optional<run64> maybe_run64;
 
 			btree_damage_visitor(ValueVisitor &value_visitor,
-					     DamageVisitor &damage_visitor)
+					     DamageVisitor &damage_visitor,
+                                             bool ignore_non_fatal)
 				: avoid_repeated_visits_(true),
 				  value_visitor_(value_visitor),
-				  damage_visitor_(damage_visitor) {
+				  damage_visitor_(damage_visitor),
+				  ignore_non_fatal_(ignore_non_fatal) {
 			}
 
 			bool visit_internal(node_location const &loc,
@@ -178,7 +180,7 @@ namespace persistent_data {
 				else if (!checker_.check_block_nr(n) ||
 					 !checker_.check_value_size(n) ||
 					 !checker_.check_max_entries(n) ||
-					 !checker_.check_nr_entries(n, loc.is_sub_root()) ||
+                                         !check_nr_entries(loc, n) ||
 					 !checker_.check_ordered_keys(n) ||
 					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key)) {
 					report_damage(checker_.get_last_error_string());
@@ -202,7 +204,7 @@ namespace persistent_data {
 				else if (!checker_.check_block_nr(n) ||
 					 !checker_.check_value_size(n) ||
 					 !checker_.check_max_entries(n) ||
-					 !checker_.check_nr_entries(n, loc.is_sub_root()) ||
+					 !check_nr_entries(loc, n) ||
 					 !checker_.check_ordered_keys(n) ||
 					 !checker_.check_parent_key(n, loc.is_sub_root() ? boost::optional<uint64_t>() : loc.key) ||
 					 !checker_.check_leaf_key(n, last_leaf_key_[loc.level()])) {
@@ -300,6 +302,12 @@ namespace persistent_data {
 					maybe_issue_damage(*old_path);
 			}
 
+			template <typename ValueTraits2>
+			bool check_nr_entries(node_location const &loc,
+					      btree_detail::node_ref<ValueTraits2> const &n) {
+				return ignore_non_fatal_ || checker_.check_nr_entries(n, loc.is_sub_root());
+			}
+
 			//--------------------------------
 
 			bool avoid_repeated_visits_;
@@ -314,15 +322,17 @@ namespace persistent_data {
 			path_tracker path_tracker_;
 			damage_tracker dt_;
 			std::list<std::string> damage_reasons_;
+			bool ignore_non_fatal_;
 		};
 	}
 
 	template <unsigned Levels, typename ValueTraits, typename ValueVisitor, typename DamageVisitor>
 	void btree_visit_values(btree<Levels, ValueTraits> const &tree,
 				ValueVisitor &value_visitor,
-				DamageVisitor &damage_visitor) {
+				DamageVisitor &damage_visitor,
+                                bool ignore_non_fatal = false) {
 		btree_detail::btree_damage_visitor<ValueVisitor, DamageVisitor, Levels, ValueTraits>
-			v(value_visitor, damage_visitor);
+			v(value_visitor, damage_visitor, ignore_non_fatal);
 		tree.visit_depth_first(v);
 	}
 }
