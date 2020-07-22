@@ -6,6 +6,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::{
     error::Error,
     fs::OpenOptions,
+    path::Path,
     io,
     io::prelude::*,
     io::Cursor,
@@ -67,7 +68,7 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
     vs
 }
 
-pub fn pack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
+pub fn pack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>> {
     let nr_blocks = get_nr_blocks(&input_file)?;
     let nr_jobs = std::cmp::max(1, std::cmp::min(num_cpus::get() as u64, nr_blocks / 128));
     let chunk_vecs = mk_chunk_vecs(nr_blocks, nr_jobs);
@@ -192,7 +193,7 @@ where
     r.read_u64::<LittleEndian>()
 }
 
-fn get_nr_blocks(path: &str) -> io::Result<u64> {
+fn get_nr_blocks(path: &Path) -> io::Result<u64> {
     let len = file_utils::file_size(path)?;
     Ok(len / (BLOCK_SIZE as u64))
 }
@@ -306,7 +307,7 @@ where
     Ok(())
 }
 
-pub fn unpack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
+pub fn unpack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>> {
     let mut input = OpenOptions::new()
         .read(true)
         .write(false)
