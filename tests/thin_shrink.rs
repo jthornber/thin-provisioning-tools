@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rand::prelude::*;
+use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
@@ -603,7 +605,282 @@ fn shrink_fragmented_thin_64() -> Result<()> {
 
 //------------------------------------
 
-/*
+struct Allocator {
+    runs: VecDeque<Range<u64>>,
+}
+
+impl Allocator {
+    fn new_shuffled(total_len: u64, run_len: Range<u64>) -> Allocator {
+        let mut runs = Vec::new();
+
+        let mut b = 0u64;
+        while b < total_len {
+            let len = u64::min(
+                total_len - b,
+                thread_rng().gen_range(run_len.start, run_len.end),
+            );
+            runs.push(b..(b + len));
+            b += len;
+        }
+
+        runs.shuffle(&mut thread_rng());
+        let runs: VecDeque<Range<u64>> = runs.iter().map(|r| r.clone()).collect();
+        Allocator { runs }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.runs.is_empty()
+    }
+
+    fn alloc(&mut self, len: u64) -> Result<Vec<Range<u64>>> {
+        let mut len = len;
+        let mut runs = Vec::new();
+
+        while len > 0 {
+            let r = self.runs.pop_front();
+
+            if r.is_none() {
+                return Err(anyhow!("could not allocate; out of space"));
+            }
+
+            let mut r = r.unwrap();
+            let rlen = r.end - r.start;
+            if len < rlen {
+                runs.push(r.start..(r.start + len));
+
+                // We need to push something back.
+                self.runs.push_front((r.start + len)..r.end);
+                len = 0;
+            } else {
+                runs.push(r.start..r.end);
+                len -= rlen;
+            }
+        }
+
+        Ok(runs)
+    }
+}
+
+// Having explicitly unmapped regions makes it easier to
+// apply snapshots.
+#[derive(Clone)]
+enum Run {
+    Mapped { data_begin: u64, len: u64 },
+    UnMapped { len: u64 },
+}
+
+impl Run {
+    fn len(&self) -> u64 {
+        match self {
+            Run::Mapped {
+                data_begin: _data_begin,
+                len,
+            } => *len,
+            Run::UnMapped { len } => *len,
+        }
+    }
+
+    fn split(&self, n: u64) -> (Option<Run>, Option<Run>) {
+        if n == 0 {
+            return (None, Some(self.clone()));
+        } else {
+            if self.len() <= n {
+                return (Some(self.clone()), None);
+            } else {
+                match self {
+                    Run::Mapped { data_begin, len } => (
+                        Some(Run::Mapped {
+                            data_begin: *data_begin,
+                            len: n,
+                        }),
+                        Some(Run::Mapped {
+                            data_begin: data_begin + n,
+                            len: len - n,
+                        }),
+                    ),
+                    Run::UnMapped { len } => (
+                        Some(Run::UnMapped { len: n }),
+                        Some(Run::UnMapped { len: len - n }),
+                    ),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ThinDev {
+    thin_id: u32,
+    dev_size: u64,
+    runs: Vec<Run>,
+}
+
+impl ThinDev {
+    fn emit(&self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+        v.device_b(&xml::Device {
+            dev_id: self.thin_id,
+            mapped_blocks: self.dev_size,
+            transaction: 0,
+            creation_time: 0,
+            snap_time: 0,
+        })?;
+
+        let mut b = 0;
+        for r in &self.runs {
+            match r {
+                Run::Mapped { data_begin, len } => {
+                    v.map(&xml::Map {
+                        thin_begin: b,
+                        data_begin: *data_begin,
+                        time: 0,
+                        len: *len,
+                    })?;
+                    b += len;
+                }
+                Run::UnMapped { len } => {
+                    b += len;
+                }
+            }
+        }
+
+        v.device_e()?;
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+enum SnapRunType {
+    Same,
+    Diff,
+    Hole,
+}
+
+#[derive(Clone)]
+struct SnapRun(SnapRunType, u64);
+
+fn mk_origin(thin_id: u32, total_len: u64, allocator: &mut Allocator) -> Result<ThinDev> {
+    let mut runs = Vec::new();
+    let mut b = 0;
+    while b < total_len {
+        let len = u64::min(thread_rng().gen_range(16, 64), total_len - b);
+        match thread_rng().gen_range(0, 2) {
+            0 => {
+                for data in allocator.alloc(len)? {
+                    assert!(data.end >= data.start);
+                    runs.push(Run::Mapped {
+                        data_begin: data.start,
+                        len: data.end - data.start,
+                    });
+                }
+            }
+            1 => {
+                runs.push(Run::UnMapped { len });
+            }
+            _ => {
+                return Err(anyhow!("bad value returned from rng"));
+            }
+        };
+
+        b += len;
+    }
+
+    Ok(ThinDev {
+        thin_id,
+        dev_size: total_len,
+        runs,
+    })
+}
+
+fn mk_snap_mapping(
+    total_len: u64,
+    run_len: Range<u64>,
+    same_percent: usize,
+    diff_percent: usize,
+) -> Vec<SnapRun> {
+    let mut runs = Vec::new();
+
+    let mut b = 0u64;
+    while b < total_len {
+        let len = u64::min(
+            total_len - b,
+            thread_rng().gen_range(run_len.start, run_len.end),
+        );
+
+        let n = thread_rng().gen_range(0, 100);
+
+        if n < same_percent {
+            runs.push(SnapRun(SnapRunType::Same, len));
+        } else if n < diff_percent {
+            runs.push(SnapRun(SnapRunType::Diff, len));
+        } else {
+            runs.push(SnapRun(SnapRunType::Hole, len));
+        }
+
+        b += len;
+    }
+
+    runs
+}
+
+fn split_runs(mut n: u64, runs: &Vec<Run>) -> (Vec<Run>, Vec<Run>) {
+    let mut before = Vec::new();
+    let mut after = Vec::new();
+
+    for r in runs {
+        match r.split(n) {
+            (Some(lhs), None) => {
+                before.push(lhs);
+            }
+            (Some(lhs), Some(rhs)) => {
+                before.push(lhs);
+                after.push(rhs);
+            }
+            (None, Some(rhs)) => {
+                after.push(rhs);
+            }
+            (None, None) => {}
+        }
+        n -= r.len();
+    }
+
+    (before, after)
+}
+
+fn apply_snap_runs(
+    origin: &Vec<Run>,
+    snap: &Vec<SnapRun>,
+    allocator: &mut Allocator,
+) -> Result<Vec<Run>> {
+    let mut origin = origin.clone();
+    let mut runs = Vec::new();
+
+    for SnapRun(st, slen) in snap {
+        let (os, rest) = split_runs(*slen, &origin);
+        match st {
+            SnapRunType::Same => {
+                for o in os {
+                    runs.push(o);
+                }
+            }
+            SnapRunType::Diff => {
+                for data in allocator.alloc(*slen)? {
+                    runs.push(Run::Mapped {
+                        data_begin: data.start,
+                        len: data.end - data.start,
+                    });
+                }
+            }
+            SnapRunType::Hole => {
+                runs.push(Run::UnMapped { len: *slen });
+            }
+        }
+
+        origin = rest;
+    }
+
+    Ok(runs)
+}
+
 // Snapshots share mappings, not neccessarily the entire ranges.
 struct SnapS {
     len: u64,
@@ -633,7 +910,14 @@ impl SnapS {
 
 impl Scenario for SnapS {
     fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
-        let origin = mk_runs(0, self.len, 8..64);
+        let mut allocator = Allocator::new_shuffled(self.old_nr_data_blocks, 64..512);
+        let origin = mk_origin(0, self.len, &mut allocator)?;
+
+        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        origin.emit(v)?;
+        v.superblock_e()?;
+
+        Ok(())
     }
 
     fn get_new_nr_blocks(&self) -> u64 {
@@ -646,5 +930,5 @@ fn shrink_identical_snap() -> Result<()> {
     let mut s = SnapS::new(1024, 1, 0);
     test_shrink(&mut s)
 }
-*/
+
 //------------------------------------
