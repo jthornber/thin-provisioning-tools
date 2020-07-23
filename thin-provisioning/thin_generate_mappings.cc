@@ -141,7 +141,7 @@ thin_generate_mappings_cmd::run(int argc, char **argv)
 {
 	int c;
 	struct flags fs;
-	const char *shortopts = "hi:o:qV";
+	const char *shortopts = "ho:V";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "output", required_argument, NULL, 'o' },

@@ -180,7 +180,7 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 {
 	int c;
 	struct flags fs;
-	const char *shortopts = "hi:o:qV";
+	const char *shortopts = "ho:V";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "output", required_argument, NULL, 'o' },
@@ -193,9 +193,9 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 		{ "reserve-metadata-snap", no_argument, NULL, 7 },
 		{ "release-metadata-snap", no_argument, NULL, 8 },
 		{ "set-needs-check", no_argument, NULL, 9 },
-		{ "data-block-size", required_argument, NULL, 101 },
-		{ "nr-data-blocks", required_argument, NULL, 102 },
-		{ "origin", required_argument, NULL, 401 },
+		{ "data-block-size", required_argument, NULL, 1001 },
+		{ "nr-data-blocks", required_argument, NULL, 1002 },
+		{ "origin", required_argument, NULL, 4001 },
 		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -250,15 +250,15 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 			fs.op = flags::METADATA_OP_SET_NEEDS_CHECK;
 			break;
 
-		case 101:
+		case 1001:
 			fs.data_block_size = parse_uint64(optarg, "data block size");
 			break;
 
-		case 102:
+		case 1002:
 			fs.nr_data_blocks = parse_uint64(optarg, "nr data blocks");
 			break;
 
-		case 401:
+		case 4001:
 			fs.origin = parse_uint64(optarg, "origin");
 			break;
 
