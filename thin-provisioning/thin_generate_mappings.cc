@@ -47,6 +47,7 @@ namespace {
 		base::sector_t offset;
 		boost::optional<base::sector_t> size;
 		boost::optional<base::sector_t> io_size;
+		boost::optional<unsigned> nr_seq_blocks;
 	};
 
 	bool flags::check_conformance() {
@@ -63,6 +64,14 @@ namespace {
 		if (!size) {
 			cerr << "No device size specified" << endl;
 			return false;
+		}
+
+		if (nr_seq_blocks) {
+			if (!pattern.is_random()) {
+				cerr << "Cannot specify the sequence size"
+					" while doing non-random IO" << endl;
+				return false;
+			}
 		}
 
 		check_output_file_requirements(*output);
@@ -90,6 +99,7 @@ namespace {
 		opts.offset_ = fs.offset;
 		opts.size_ = *fs.size;
 		opts.io_size_ = !fs.io_size ? *fs.size : *fs.io_size;
+		opts.nr_seq_blocks_ = !fs.nr_seq_blocks ? 1 : *fs.nr_seq_blocks;
 		io_generator::ptr gen = create_io_generator(opts);
 
 		base::io io;
@@ -133,6 +143,7 @@ thin_generate_mappings_cmd::usage(std::ostream &out) const
 	    << "  {--io-size} <io-size in sectors>\n"
 	    << "  {--rw write|trim|randwrite|randtrim|randtw}\n"
 	    << "  {--size} <size in sectors>\n"
+	    << "  {--seq-nr} <max nr. of sequential ios>\n"
 	    << "  {-V|--version}" << endl;
 }
 
@@ -150,6 +161,7 @@ thin_generate_mappings_cmd::run(int argc, char **argv)
 		{ "offset", required_argument, NULL, 3 },
 		{ "size", required_argument, NULL, 4 },
 		{ "io-size", required_argument, NULL, 5 },
+		{ "seq-nr", required_argument, NULL, 6 },
 		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -182,6 +194,10 @@ thin_generate_mappings_cmd::run(int argc, char **argv)
 
 		case 5:
 			fs.io_size = parse_uint64(optarg, "io_size");
+			break;
+
+		case 6:
+			fs.nr_seq_blocks = parse_uint64(optarg, "seq_nr");
 			break;
 
 		case 'V':

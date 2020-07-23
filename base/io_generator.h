@@ -36,6 +36,7 @@ namespace base {
 		sector_t block_size_;
 		sector_t size_;
 		sector_t io_size_;
+		unsigned nr_seq_blocks_;
 	};
 
 	class io_generator {
