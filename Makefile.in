@@ -123,11 +123,13 @@ SOURCE=\
 	thin-provisioning/xml_format.cc
 
 DEVTOOLS_SOURCE=\
+	thin-provisioning/damage_generator.cc \
 	thin-provisioning/thin_journal.cc \
 	thin-provisioning/thin_journal_check.cc \
 	thin-provisioning/thin_ll_dump.cc \
 	thin-provisioning/thin_ll_restore.cc \
 	thin-provisioning/thin_show_duplicates.cc \
+	thin-provisioning/thin_generate_damage.cc \
 	thin-provisioning/thin_generate_metadata.cc \
 	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/variable_chunk_stream.cc \
