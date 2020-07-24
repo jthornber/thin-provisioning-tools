@@ -26,80 +26,86 @@ namespace {
 
 	//--------------------------------
 
-	class offset_generator {
+	class sequence_generator {
 	public:
-		typedef std::shared_ptr<offset_generator> ptr;
+		typedef std::shared_ptr<sequence_generator> ptr;
 
-		virtual base::sector_t next_offset() = 0;
+		virtual uint64_t next() = 0;
 	};
 
-	class sequential_offset_generator: public offset_generator {
+	// - The maximum generated value is not greater than (begin+size)
+	// - The generated values are not aligned to the step, if the begin
+	//   value is not aligned.
+	class forward_sequence_generator: public sequence_generator {
 	public:
-		sequential_offset_generator(base::sector_t offset,
-					    base::sector_t size,
-					    base::sector_t block_size)
-			: block_size_(block_size),
-			  begin_(offset),
-			  end_(offset + size),
-			  current_(offset) {
-			if (size < block_size)
-				throw std::runtime_error("size must be greater than block_size");
+		forward_sequence_generator(uint64_t begin,
+					   uint64_t size,
+					   uint64_t step)
+			: begin_(begin),
+			  end_(begin + (size / step) * step),
+			  step_(step),
+			  current_(begin) {
+			if (size < step)
+				throw std::runtime_error("size must be greater than the step");
 		}
 
-		base::sector_t next_offset() {
-			sector_t r = current_;
-			current_ += block_size_;
-			if (current_ > end_) {
+		uint64_t next() {
+			uint64_t r = current_;
+			current_ += step_;
+			if (current_ >= end_) {
 				current_ = begin_;
-				return begin_;
 			}
 			return r;
 		}
 
 	private:
-		unsigned block_size_;
-		base::sector_t begin_;
-		base::sector_t end_;
-		base::sector_t current_;
+		uint64_t begin_;
+		uint64_t end_;
+		uint64_t step_;
+		uint64_t current_;
 	};
 
-	class random_offset_generator: public offset_generator {
+	// - The maximum generated value is not greater than (begin+size)
+	// - The generated values are not aligned to the step, if the begin
+	//   value is not aligned.
+	class random_sequence_generator: public sequence_generator {
 	public:
-		random_offset_generator(sector_t offset,
-					sector_t size,
-					sector_t block_size)
-			: block_begin_(offset / block_size),
-			  nr_blocks_(size / block_size),
-			  block_size_(block_size),
+		// TODO: load random seeds
+		random_sequence_generator(uint64_t begin,
+					  uint64_t size,
+					  uint64_t step)
+			: begin_(begin),
+			  nr_steps_(size / step),
+			  step_(step),
 			  nr_generated_(0) {
 		}
 
-		sector_t next_offset() {
-			uint64_t blocknr;
+		uint64_t next() {
+			uint64_t step_idx;
 
 			bool found = true;
 			while (found) {
-				blocknr = (std::rand() % nr_blocks_) + block_begin_;
-				found = io_map_.member(blocknr);
+				step_idx = std::rand() % nr_steps_;
+				found = rand_map_.member(step_idx);
 			}
-			io_map_.add(blocknr);
+			rand_map_.add(step_idx);
 			++nr_generated_;
 
 			// wrap-around
-			if (nr_generated_ == nr_blocks_) {
-				io_map_.clear();
+			if (nr_generated_ == nr_steps_) {
+				rand_map_.clear();
 				nr_generated_ = 0;
 			}
 
-			return blocknr * block_size_;
+			return begin_ + step_idx * step_;
 		}
 
 	private:
-		uint64_t block_begin_;
-		uint64_t nr_blocks_;
-		unsigned block_size_;
+		uint64_t begin_;
+		uint64_t nr_steps_;
+		uint64_t step_;
 
-		base::run_set<uint64_t> io_map_;
+		base::run_set<uint64_t> rand_map_;
 		uint64_t nr_generated_;
 	};
 
@@ -141,13 +147,13 @@ namespace {
 		virtual bool next(base::io &next_io);
 
 	private:
-		offset_generator::ptr
+		sequence_generator::ptr
 		create_offset_generator(io_generator_options const &opts);
 
 		op_generator::ptr
 		create_op_generator(io_generator_options const &opts);
 
-		offset_generator::ptr offset_gen_;
+		sequence_generator::ptr offset_gen_;
 		op_generator::ptr op_gen_;
 		sector_t block_size_;
 		size_t io_size_finished_;
@@ -167,7 +173,7 @@ namespace {
 			return false;
 
 		next_io.op_ = op_gen_->next_op();
-		next_io.sector_ = offset_gen_->next_offset();
+		next_io.sector_ = offset_gen_->next();
 		next_io.size_ = block_size_;
 
 		io_size_finished_ += block_size_;
@@ -175,18 +181,18 @@ namespace {
 		return true;
 	}
 
-	offset_generator::ptr
+	sequence_generator::ptr
 	base_io_generator::create_offset_generator(io_generator_options const &opts) {
-		if (opts.pattern_.is_random())
-			return offset_generator::ptr(
-				new random_offset_generator(opts.offset_,
-							    opts.size_,
-							    opts.block_size_));
+		sequence_generator *gen;
 
-		return offset_generator::ptr(
-			new sequential_offset_generator(opts.offset_,
-							opts.size_,
-							opts.block_size_));
+		if (opts.pattern_.is_random())
+			gen = new random_sequence_generator(opts.offset_,
+					opts.size_, opts.block_size_);
+		else
+			gen = new forward_sequence_generator(opts.offset_,
+					opts.size_, opts.block_size_);
+
+		return sequence_generator::ptr(gen);
 	}
 
 	op_generator::ptr
