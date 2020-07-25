@@ -36,11 +36,11 @@ GMOCK_DEPS=\
 lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [CXX] gtest"
 	@mkdir -p lib
-	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googletest -std=c++11 -c $(GMOCK_DIR)/googletest/src/gtest-all.cc
+	$(V) $(CXX) $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googletest -std=c++11 -c $(GMOCK_DIR)/googletest/src/gtest-all.cc
 	@echo "    [CXX] gmock"
-	$(V)g++ $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googlemock -std=c++11 -c $(GMOCK_DIR)/googlemock/src/gmock-all.cc
+	$(V) $(CXX) $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googlemock -std=c++11 -c $(GMOCK_DIR)/googlemock/src/gmock-all.cc
 	@echo "    [AR]  $<"
-	$(V)ar -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
+	$(V)$(AR) -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
 
 TEST_SOURCE=\
 	unit-tests/gmock_main.cc \

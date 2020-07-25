@@ -188,6 +188,7 @@ VERSION_MINOR=`echo "$VER" | $AWK -F '.' '{print $2}'`
 VERSION_PATCHLEVEL=`echo "$VER" | $AWK -F '[[(.]]' '{print $3}'`
 
 ################################################################
+AC_SUBST(AR)
 AC_SUBST(CXXDEBUG_FLAG)
 AC_SUBST(CXXOPTIMISE_FLAG)
 AC_SUBST(CXX_STRERROR_FLAG)

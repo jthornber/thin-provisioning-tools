@@ -185,6 +185,7 @@ ifeq ("@STATIC@", "yes")
 LDFLAGS+=-static
 endif
 
+AR:=@AR@
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
@@ -234,7 +235,7 @@ endif
 lib/libpdata.a: $(OBJECTS) $(EMITTERS)
 	@echo "    [AR]  $<"
 	@mkdir -p $(dir $@)
-	$(V)ar -rv $@ $(OBJECTS) $(EMITTERS) > /dev/null 2>&1
+	$(V)$(AR) -rv $@ $(OBJECTS) $(EMITTERS) > /dev/null 2>&1
 
 bin/pdata_tools: $(OBJECTS) $(EMITTERS)
 	@echo "    [LD]  $@"
