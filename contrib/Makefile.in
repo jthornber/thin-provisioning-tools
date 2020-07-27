@@ -16,7 +16,7 @@ contrib/%.o: contrib/%.cc
 
 contrib/%.a: contrib/%.o
 	$(V)echo "    [AR] $@"
-	$(V)ar rcs $@ $^
+	$(V)$(AR) rcs $@ $^
 
 contrib/%.so: contrib/%.a
 	$(V)echo "    [LD] $@"
