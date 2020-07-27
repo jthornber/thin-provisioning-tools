@@ -93,10 +93,8 @@ namespace {
 		io_generator::ptr gen = create_io_generator(opts);
 
 		base::io io;
-		while (gen->has_next()) {
+		while (gen->next(io)) {
 			// TODO: support io.size_
-			gen->next(io);
-
 			switch (io.op_) {
 			case base::REQ_OP_READ:
 				process_read(td, pool, io.sector_);
@@ -131,10 +129,10 @@ thin_generate_mappings_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}\n"
 	    << "  {-o|--output} <output device or file>\n"
 	    << "  {--dev-id} <dev-id>\n"
-	    << "  {--offset} <offset>\n"
-            << "  {--io-size} <io_size>\n"
+	    << "  {--offset} <offset in sectors>\n"
+	    << "  {--io-size} <io-size in sectors>\n"
 	    << "  {--rw write|trim|randwrite|randtrim|randtw}\n"
-            << "  {--size} <size>\n"
+	    << "  {--size} <size in sectors>\n"
 	    << "  {-V|--version}" << endl;
 }
 

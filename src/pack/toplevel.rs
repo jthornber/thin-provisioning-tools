@@ -11,6 +11,7 @@ use std::{
     io::prelude::*,
     io::Write,
     ops::DerefMut,
+    path::Path,
     sync::{Arc, Mutex},
     thread::spawn,
 };
@@ -18,9 +19,9 @@ use std::{
 use rand::prelude::*;
 use std::sync::mpsc::{sync_channel, Receiver};
 
+use crate::checksum::*;
 use crate::file_utils;
 use crate::pack::node_encode::*;
-use crate::checksum::*;
 
 const BLOCK_SIZE: u64 = 4096;
 const MAGIC: u64 = 0xa537a0aa6309ef77;
@@ -31,11 +32,6 @@ fn shuffle<T>(v: &mut Vec<T>) {
     v.shuffle(&mut rng);
 }
 
-// FIXME: move to a utils module
-fn div_up(n: u64, d: u64) -> u64 {
-    (n + d - 1) / d
-}
-
 // Each thread processes multiple contiguous runs of blocks, called
 // chunks.  Chunks are shuffled so each thread gets chunks spread
 // across the dev in case there are large regions that don't contain
@@ -44,10 +40,15 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
     use std::cmp::{max, min};
 
     let chunk_size = min(4 * 1024u64, max(128u64, nr_blocks / (nr_jobs * 64)));
-    let nr_chunks = div_up(nr_blocks, chunk_size);
+    let nr_chunks = nr_blocks / chunk_size;
     let mut chunks = Vec::with_capacity(nr_chunks as usize);
     for i in 0..nr_chunks {
         chunks.push((i * chunk_size, (i + 1) * chunk_size));
+    }
+
+    // there may be a smaller chunk at the back of the file.
+    if nr_chunks * chunk_size < nr_blocks {
+        chunks.push((nr_chunks * chunk_size, nr_blocks));
     }
 
     shuffle(&mut chunks);
@@ -64,8 +65,8 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
     vs
 }
 
-pub fn pack(input_file: &str, output_file: &str) -> Result<()> {
-    let nr_blocks = get_nr_blocks(&input_file).context("getting nr blocks")?;
+pub fn pack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>> {
+    let nr_blocks = get_nr_blocks(&input_file)?;
     let nr_jobs = std::cmp::max(1, std::cmp::min(num_cpus::get() as u64, nr_blocks / 128));
     let chunk_vecs = mk_chunk_vecs(nr_blocks, nr_jobs);
 
@@ -101,11 +102,7 @@ pub fn pack(input_file: &str, output_file: &str) -> Result<()> {
     Ok(())
 }
 
-fn crunch<R, W>(
-    input: Arc<Mutex<R>>,
-    output: Arc<Mutex<W>>,
-    ranges: Vec<(u64, u64)>,
-) -> Result<()>
+fn crunch<R, W>(input: Arc<Mutex<R>>, output: Arc<Mutex<W>>, ranges: Vec<(u64, u64)>) -> Result<()>
 where
     R: Read + Seek,
     W: Write,
@@ -189,7 +186,7 @@ where
     r.read_u64::<LittleEndian>()
 }
 
-fn get_nr_blocks(path: &str) -> io::Result<u64> {
+fn get_nr_blocks(path: &Path) -> io::Result<u64> {
     let len = file_utils::file_size(path)?;
     Ok(len / (BLOCK_SIZE as u64))
 }
@@ -212,9 +209,7 @@ fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
         BT::NODE => pack_btree_node(w, buf).context("unable to pack btree node")?,
         BT::INDEX => pack_index(w, buf).context("unable to pack space map index")?,
         BT::BITMAP => pack_bitmap(w, buf).context("unable to pack space map bitmap")?,
-        BT::UNKNOWN => {
-            return Err(anyhow!("asked to pack an unknown block type"))
-        }
+        BT::UNKNOWN => return Err(anyhow!("asked to pack an unknown block type")),
     }
 
     Ok(())
@@ -266,7 +261,7 @@ where
     Ok(())
 }
 
-pub fn unpack(input_file: &str, output_file: &str) -> Result<(), Box<dyn Error>> {
+pub fn unpack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>> {
     let mut input = OpenOptions::new()
         .read(true)
         .write(false)

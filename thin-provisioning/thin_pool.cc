@@ -72,13 +72,16 @@ thin::insert(block_address thin_block, block_address data_block)
 {
 	uint64_t key[2] = {dev_, thin_block};
 
-	++details_.mapped_blocks_;
-	changed_ = true;
-
 	mapping_tree_detail::block_time bt;
 	bt.block_ = data_block;
 	bt.time_ = pool_.get_time();
-	return pool_.md_->mappings_->insert(key, bt);
+	bool inserted = pool_.md_->mappings_->insert(key, bt);
+
+	changed_ = true;
+	if (inserted)
+		++details_.mapped_blocks_;
+
+	return inserted;
 }
 
 void

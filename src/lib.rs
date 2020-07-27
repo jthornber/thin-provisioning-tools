@@ -1,3 +1,4 @@
+extern crate anyhow;
 extern crate byteorder;
 extern crate crc32c;
 extern crate flate2;
@@ -18,6 +19,8 @@ pub mod block_manager;
 pub mod check;
 pub mod file_utils;
 pub mod pack;
+pub mod shrink;
+pub mod thin;
 pub mod version;
 pub mod thin;
 pub mod checksum;

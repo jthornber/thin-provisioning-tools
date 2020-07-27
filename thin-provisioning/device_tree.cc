@@ -96,18 +96,21 @@ namespace thin_provisioning {
 void
 thin_provisioning::walk_device_tree(device_tree const &tree,
 				    device_tree_detail::device_visitor &vv,
-				    device_tree_detail::damage_visitor &dv)
+				    device_tree_detail::damage_visitor &dv,
+                                    bool ignore_non_fatal)
 {
 	visitor_adapter av(vv);
 	ll_damage_visitor ll_dv(dv);
-	btree_visit_values(tree, av, ll_dv);
+	btree_visit_values(tree, av, ll_dv, ignore_non_fatal);
 }
 
 void
-thin_provisioning::check_device_tree(device_tree const &tree, damage_visitor &visitor)
+thin_provisioning::check_device_tree(device_tree const &tree,
+                                     damage_visitor &visitor,
+                                     bool ignore_non_fatal)
 {
 	noop_visitor vv;
-	walk_device_tree(tree, vv, visitor);
+	walk_device_tree(tree, vv, visitor, ignore_non_fatal);
 }
 
 //----------------------------------------------------------------

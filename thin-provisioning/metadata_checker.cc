@@ -150,28 +150,30 @@ namespace {
 
 	error_state examine_devices_tree_(transaction_manager::ptr tm,
 					  superblock_detail::superblock const &sb,
-					  nested_output &out) {
+					  nested_output &out,
+                                          bool ignore_non_fatal) {
 		out << "examining devices tree" << end_message();
 		nested_output::nest _ = out.push();
 
 		devices_reporter dev_rep(out);
 		device_tree dtree(*tm, sb.device_details_root_,
 				  device_tree_detail::device_details_traits::ref_counter());
-		check_device_tree(dtree, dev_rep);
+		check_device_tree(dtree, dev_rep, ignore_non_fatal);
 
 		return dev_rep.get_error();
 	}
 
 	error_state examine_top_level_mapping_tree_(transaction_manager::ptr tm,
 						    superblock_detail::superblock const &sb,
-						    nested_output &out) {
+						    nested_output &out,
+                                                    bool ignore_non_fatal) {
 		out << "examining top level of mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
 		mapping_reporter mapping_rep(out);
 		dev_tree dtree(*tm, sb.data_mapping_root_,
 			       mapping_tree_detail::mtree_traits::ref_counter(*tm));
-		check_mapping_tree(dtree, mapping_rep);
+		check_mapping_tree(dtree, mapping_rep, ignore_non_fatal);
 
 		return mapping_rep.get_error();
 	}
@@ -179,7 +181,8 @@ namespace {
 	error_state examine_mapping_tree_(transaction_manager::ptr tm,
 					  superblock_detail::superblock const &sb,
 					  nested_output &out,
-                                          optional<space_map::ptr> data_sm) {
+                                          optional<space_map::ptr> data_sm,
+                                          bool ignore_non_fatal) {
 		out << "examining mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -189,18 +192,19 @@ namespace {
 
 		if (data_sm) {
 			data_ref_counter dcounter(*data_sm);
-			walk_mapping_tree(mtree, dcounter, mapping_rep);
+			walk_mapping_tree(mtree, dcounter, mapping_rep, ignore_non_fatal);
 		} else
-			check_mapping_tree(mtree, mapping_rep);
+			check_mapping_tree(mtree, mapping_rep, ignore_non_fatal);
 
 		return mapping_rep.get_error();
 	}
 
 	error_state examine_top_level_mapping_tree(transaction_manager::ptr tm,
 						   superblock_detail::superblock const &sb,
-						   nested_output &out) {
-		error_state err = examine_devices_tree_(tm, sb, out);
-		err << examine_top_level_mapping_tree_(tm, sb, out);
+						   nested_output &out,
+                                                   bool ignore_non_fatal) {
+		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
+		err << examine_top_level_mapping_tree_(tm, sb, out, ignore_non_fatal);
 
 		return err;
 	}
@@ -208,9 +212,10 @@ namespace {
 	error_state examine_mapping_tree(transaction_manager::ptr tm,
 					 superblock_detail::superblock const &sb,
 					 nested_output &out,
-                                         optional<space_map::ptr> data_sm) {
-		error_state err = examine_devices_tree_(tm, sb, out);
-		err << examine_mapping_tree_(tm, sb, out, data_sm);
+                                         optional<space_map::ptr> data_sm,
+                                         bool ignore_non_fatal) {
+		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
+		err << examine_mapping_tree_(tm, sb, out, data_sm, ignore_non_fatal);
 
 		return err;
 	}
@@ -351,7 +356,7 @@ namespace {
 		}
 
 	private:
-		static error_state
+		error_state
 		examine_data_mappings(transaction_manager::ptr tm,
 				      superblock_detail::superblock const &sb,
 				      check_options::data_mapping_options option,
@@ -361,10 +366,10 @@ namespace {
 
 			switch (option) {
 			case check_options::DATA_MAPPING_LEVEL1:
-				err << examine_top_level_mapping_tree(tm, sb, out);
+				err << examine_top_level_mapping_tree(tm, sb, out, options_.ignore_non_fatal_);
 				break;
 			case check_options::DATA_MAPPING_LEVEL2:
-				err << examine_mapping_tree(tm, sb, out, data_sm);
+				err << examine_mapping_tree(tm, sb, out, data_sm, options_.ignore_non_fatal_);
 				break;
 			default:
 				break; // do nothing
@@ -423,6 +428,10 @@ void check_options::set_override_mapping_root(block_address b) {
 void check_options::set_metadata_snap() {
 	use_metadata_snap_ = true;
 	sm_opts_ = SPACE_MAP_NONE;
+}
+
+void check_options::set_ignore_non_fatal() {
+	ignore_non_fatal_ = true;
 }
 		
 base::error_state
