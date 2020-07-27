@@ -44,6 +44,7 @@ SOURCE=\
 	base/file_utils.cc \
 	base/progress_monitor.cc \
 	base/rolling_hash.cc \
+	base/sequence_generator.cc \
 	base/xml_utils.cc \
 	block-cache/block_cache.cc \
 	block-cache/copier.cc \
