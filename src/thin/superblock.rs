@@ -1,4 +1,3 @@
-use anyhow::Result;
 use crate::block_manager::*;
 use crate::checksum::*;
 
@@ -12,7 +11,7 @@ pub struct Superblock {
     transaction_id: u64,
     metadata_snap: u64,
     data_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
-    metadata_sn_root: [u8; SPACE_MAP_ROOT_SIZE],
+    metadata_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
     mapping_root: u64,
     details_root: u64,
     data_block_size: u32,
@@ -44,6 +43,7 @@ struct SuperblockError {
     kind: ErrorType,
 }
 
+/*
 use SuperblockDamage::*;
 
 //------------------------------
@@ -57,5 +57,5 @@ pub fn check_type(b: &Block) -> Result<()> {
         UNKNOWN => Err(Box::new(BadChecksum)),
     }
 }
-
+*/
 //------------------------------
