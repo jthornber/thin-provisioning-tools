@@ -1,5 +1,5 @@
-#ifndef PERSISTENT_DATA_RANGE_H
-#define PERSISTENT_DATA_RANGE_H
+#ifndef BASE_DATA_RANGE_H
+#define BASE_DATA_RANGE_H
 
 #include <boost/optional.hpp>
 #include <ostream>

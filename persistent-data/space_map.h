@@ -19,9 +19,9 @@
 #ifndef SPACE_MAP_H
 #define SPACE_MAP_H
 
+#include "base/run.h"
 #include "persistent-data/block.h"
 #include "persistent-data/block_counter.h"
-#include "persistent-data/run.h"
 
 #include <boost/optional.hpp>
 #include <functional>

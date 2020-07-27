@@ -1,7 +1,7 @@
-#ifndef PERSISTENT_DATA_H
-#define PERSISTENT_DATA_H
+#ifndef BASE_RUN_SET_H
+#define BASE_RUN_SET_H
 
-#include "persistent-data/run.h"
+#include "base/run.h"
 
 #include <algorithm>
 #include <set>

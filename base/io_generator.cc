@@ -1,5 +1,5 @@
 #include "base/io_generator.h"
-#include "persistent-data/run_set.h"
+#include "base/run_set.h"
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
