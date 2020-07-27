@@ -408,6 +408,12 @@ thin_pool::write_changed_details()
 	}
 }
 
+void
+thin_pool::set_needs_check()
+{
+	md_->sb_.set_needs_check_flag(true);
+}
+
 //----------------------------------------------------------------
 
 void

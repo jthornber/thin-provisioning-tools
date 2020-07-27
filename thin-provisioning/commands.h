@@ -103,6 +103,13 @@ namespace thin_provisioning {
 		virtual int run(int argc, char **argv);
 	};
 
+	class thin_generate_damage_cmd : public base::command {
+	public:
+		thin_generate_damage_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
 	class thin_generate_metadata_cmd : public base::command {
 	public:
 		thin_generate_metadata_cmd();

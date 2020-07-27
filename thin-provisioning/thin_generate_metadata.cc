@@ -43,6 +43,7 @@ namespace {
 			METADATA_OP_SET_TRANSACTION_ID,
 			METADATA_OP_RESERVE_METADATA_SNAP,
 			METADATA_OP_RELEASE_METADATA_SNAP,
+			METADATA_OP_SET_NEEDS_CHECK,
 			METADATA_OP_LAST
 		};
 
@@ -133,6 +134,9 @@ namespace {
 		case flags::METADATA_OP_RELEASE_METADATA_SNAP:
 			pool->release_metadata_snap();
 			break;
+		case flags::METADATA_OP_SET_NEEDS_CHECK:
+			pool->set_needs_check();
+			break;
 		default:
 			break;
 		}
@@ -163,6 +167,7 @@ thin_generate_metadata_cmd::usage(std::ostream &out) const
 	    << "  {--reserve-metadata-snap}\n"
 	    << "  {--release-metadata-snap}\n"
 	    << "  {--set-transaction-id} <tid>\n"
+	    << "  {--set-needs-check}\n"
 	    << "  {--data-block-size} <block size>\n"
 	    << "  {--nr-data-blocks} <nr>\n"
 	    << "  {--origin} <origin-id>\n"
@@ -175,7 +180,7 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 {
 	int c;
 	struct flags fs;
-	const char *shortopts = "hi:o:qV";
+	const char *shortopts = "ho:V";
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "output", required_argument, NULL, 'o' },
@@ -187,9 +192,10 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 		{ "set-transaction-id", required_argument, NULL, 6 },
 		{ "reserve-metadata-snap", no_argument, NULL, 7 },
 		{ "release-metadata-snap", no_argument, NULL, 8 },
-		{ "data-block-size", required_argument, NULL, 101 },
-		{ "nr-data-blocks", required_argument, NULL, 102 },
-		{ "origin", required_argument, NULL, 401 },
+		{ "set-needs-check", no_argument, NULL, 9 },
+		{ "data-block-size", required_argument, NULL, 1001 },
+		{ "nr-data-blocks", required_argument, NULL, 1002 },
+		{ "origin", required_argument, NULL, 4001 },
 		{ "version", no_argument, NULL, 'V' },
 		{ NULL, no_argument, NULL, 0 }
 	};
@@ -240,15 +246,19 @@ thin_generate_metadata_cmd::run(int argc, char **argv)
 			fs.op = flags::METADATA_OP_RELEASE_METADATA_SNAP;
 			break;
 
-		case 101:
+		case 9:
+			fs.op = flags::METADATA_OP_SET_NEEDS_CHECK;
+			break;
+
+		case 1001:
 			fs.data_block_size = parse_uint64(optarg, "data block size");
 			break;
 
-		case 102:
+		case 1002:
 			fs.nr_data_blocks = parse_uint64(optarg, "nr data blocks");
 			break;
 
-		case 401:
+		case 4001:
 			fs.origin = parse_uint64(optarg, "origin");
 			break;
 

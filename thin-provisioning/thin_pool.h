@@ -99,6 +99,9 @@ namespace thin_provisioning {
 		thin::ptr open_thin(thin_dev_t);
 		void close_thin(thin::ptr td);
 
+		// updates the superblock
+		void set_needs_check();
+
 	private:
 		friend class thin;
 		typedef std::map<thin_dev_t, thin::ptr> device_map;
