@@ -29,8 +29,8 @@ impl Block {
         Block { loc, data: ptr }
     }
 
-    fn get_data(&self) -> &mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut::<'static>(self.data, BLOCK_SIZE) }
+    pub fn get_data<'a>(&self) -> &'a mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut::<'a>(self.data, BLOCK_SIZE) }
     }
 }
 
@@ -47,7 +47,8 @@ impl Drop for Block {
 
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
-    fn read(&mut self, blocks: &mut Vec<Block>) -> Result<()>;
+    fn read(&mut self, block: &mut Block) -> Result<()>;
+    fn read_many(&mut self, blocks: &mut Vec<Block>) -> Result<()>;
 }
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
@@ -70,8 +71,6 @@ impl SyncIoEngine {
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
-        let ring = rio::new()?;
-
         Ok(SyncIoEngine {
             nr_blocks: get_nr_blocks(path)?,
             input,
@@ -84,10 +83,16 @@ impl IoEngine for SyncIoEngine {
         self.nr_blocks
     }
 
-    fn read(&mut self, blocks: &mut Vec<Block>) -> Result<()> {
-        for b in blocks.into_iter() {
-            self.input.seek(io::SeekFrom::Start(0))?;
-            self.input.read_exact(&mut b.get_data())?;
+    fn read(&mut self, b: &mut Block) -> Result<()> {
+        self.input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        self.input.read_exact(&mut b.get_data())?;
+
+        Ok(())
+    }
+
+    fn read_many(&mut self, blocks: &mut Vec<Block>) -> Result<()> {
+        for b in blocks {
+            self.read(b);
         }
 
         Ok(())

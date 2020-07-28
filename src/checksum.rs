@@ -14,7 +14,7 @@ fn checksum(buf: &[u8]) -> u32 {
     crc32c(&buf[4..]) ^ 0xffffffff
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum BT {
     SUPERBLOCK,
     NODE,

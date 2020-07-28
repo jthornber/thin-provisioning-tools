@@ -1,20 +1,26 @@
 use crate::block_manager::*;
+use crate::block_manager::*;
 use crate::checksum::*;
+use anyhow::{anyhow, Result};
+use nom::{bytes::complete::*, number::complete::*, IResult};
 
+pub const SUPERBLOCK_LOCATION: u64 = 0;
+const UUID_SIZE: usize = 16;
 const SPACE_MAP_ROOT_SIZE: usize = 128;
 
+#[derive(Debug)]
 pub struct Superblock {
-    block: u64,
-    uuid: String,
-    version: u32,
-    time: u32,
-    transaction_id: u64,
-    metadata_snap: u64,
-    data_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
-    metadata_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
-    mapping_root: u64,
-    details_root: u64,
-    data_block_size: u32,
+    pub block: u64,
+    //uuid: [u8; UUID_SIZE],
+    pub version: u32,
+    pub time: u32,
+    pub transaction_id: u64,
+    pub metadata_snap: u64,
+    //data_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
+    //metadata_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
+    pub mapping_root: u64,
+    pub details_root: u64,
+    pub data_block_size: u32,
 }
 
 pub enum CheckSeverity {
@@ -43,19 +49,51 @@ struct SuperblockError {
     kind: ErrorType,
 }
 
-/*
-use SuperblockDamage::*;
+fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
+    let (i, _csum) = le_u32(data)?;
+    let (i, _flags) = le_u32(i)?;
+    let (i, block) = le_u64(i)?;
+    let (i, _uuid) = take(16usize)(i)?;
+    let (i, _magic) = le_u64(i)?;
+    let (i, version) = le_u32(i)?;
+    let (i, time) = le_u32(i)?;
+    let (i, transaction_id) = le_u64(i)?;
+    let (i, metadata_snap) = le_u64(i)?;
+    let (i, _data_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
+    let (i, _metadata_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
+    let (i, mapping_root) = le_u64(i)?;
+    let (i, details_root) = le_u64(i)?;
+    let (i, data_block_size) = le_u32(i)?;
+    let (i, _metadata_block_size) = le_u32(i)?;
+    let (i, _metadata_nr_blocks) = le_u64(i)?;
 
-//------------------------------
+    Ok((
+        i,
+        Superblock {
+            block,
+            //uuid: uuid[0..UUID_SIZE],
+            version,
+            time,
+            transaction_id,
+            metadata_snap,
+            //data_sm_root,
+            //metadata_sm_root,
+            mapping_root,
+            details_root,
+            data_block_size,
+        },
+    ))
+}
 
-pub fn check_type(b: &Block) -> Result<()> {
-    match metadata_block_type(&b.data[0..]) {
-        SUPERBLOCK => Ok(()),
-        NODE => Err(Box::new(BadBlockType("BTree Node"))),
-        INDEX => Err(Box::new(BadBlockType("Space Map Index"))),
-        BITMAP => Err(Box::new(BadBlockType("Space Map Bitmap"))),
-        UNKNOWN => Err(Box::new(BadChecksum)),
+pub fn read_superblock<E: IoEngine>(engine: &mut E, loc: u64) -> Result<Superblock> {
+    let mut b = Block::new(loc);
+    engine.read(&mut b)?;
+
+    if let Ok((_, sb)) = unpack(&b.get_data()) {
+        Ok(sb)
+    } else {
+        Err(anyhow!("couldn't unpack superblock"))
     }
 }
-*/
+
 //------------------------------
