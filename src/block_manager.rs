@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use rio::{self, Completion, Rio};
 use std::alloc::{alloc, dealloc, Layout};
 use std::collections::HashMap;
 use std::fs::File;
@@ -7,14 +6,17 @@ use std::fs::OpenOptions;
 use std::io;
 use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use io_uring::opcode::{self, types};
+use io_uring::IoUring;
+
+//------------------------------------------
 
 pub const BLOCK_SIZE: usize = 4096;
 const ALIGN: usize = 4096;
 
-// FIXME: introduce a cache
-// FIXME: use O_DIRECT
 #[derive(Debug)]
 pub struct Block {
     pub loc: u64,
@@ -84,7 +86,8 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn read(&mut self, b: &mut Block) -> Result<()> {
-        self.input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        self.input
+            .seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
         self.input.read_exact(&mut b.get_data())?;
 
         Ok(())
@@ -101,53 +104,83 @@ impl IoEngine for SyncIoEngine {
 
 //------------------------------------------
 
-/*
 pub struct AsyncIoEngine {
-    ring: Rio,
+    ring: IoUring,
     nr_blocks: u64,
     input: File,
 }
 
 impl AsyncIoEngine {
-    pub fn new(path: &Path) -> Result<IoEngine> {
+    pub fn new(path: &Path, queue_len: u32) -> Result<AsyncIoEngine> {
         let input = OpenOptions::new()
             .read(true)
             .write(false)
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
-        let ring = rio::new()?;
-
-        Ok(IoEngine {
-            ring,
+        Ok(AsyncIoEngine {
+            ring: IoUring::new(queue_len)?,
             nr_blocks: get_nr_blocks(path)?,
             input,
         })
     }
+}
 
-    pub fn read(&self, blocks: &mut Vec<Block>) -> Result<()> {
-        // FIXME: using a bounce buffer as a hack, since b.get_data() will not have
-        // a big enough lifetime.
-        let mut bounce_buffer = vec![0; blocks.len() * BLOCK_SIZE];
-        let mut completions = Vec::new();
+impl IoEngine for AsyncIoEngine {
+    fn get_nr_blocks(&self) -> u64 {
+        self.nr_blocks
+    }
 
-        for n in 0..blocks.len() {
-            let b = &blocks[n];
-            let at = b.loc * BLOCK_SIZE as u64;
-            let completion = self.ring.read_at(&self.input, &slice, at);
-            completions.push(completion);
+    fn read(&mut self, b: &mut Block) -> Result<()> {
+        let fd = types::Target::Fd(self.input.as_raw_fd());
+        let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32).offset(b.loc as i64 * BLOCK_SIZE as i64);
+
+        unsafe {
+            let mut queue = self.ring.submission().available();
+            queue.push(read_e.build().user_data(1))
+                .ok()
+                .expect("queue is full");
         }
 
-        for c in completions {
-            let n = c.wait()?;
-            if n != BLOCK_SIZE {
-                return Err(anyhow!("short read"));
+        self.ring.submit_and_wait(1)?;
+
+        let cqes = self.ring.completion().available().collect::<Vec<_>>();
+
+	// FIXME: return proper errors
+         assert_eq!(cqes.len(), 1);
+         assert_eq!(cqes[0].user_data(), 1);
+         assert_eq!(cqes[0].result(), BLOCK_SIZE as i32);
+
+        Ok(())
+    }
+
+    fn read_many(&mut self, blocks: &mut Vec<Block>) -> Result<()> {
+        let count = blocks.len();
+        let fd = types::Target::Fd(self.input.as_raw_fd());
+
+        for b in blocks.into_iter() {
+            let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32).offset(b.loc as i64 * BLOCK_SIZE as i64);
+
+            unsafe {
+                let mut queue = self.ring.submission().available();
+                queue.push(read_e.build().user_data(1))
+                    .ok()
+                    .expect("queue is full");
             }
         }
 
-        // copy out of the bounce buffer
+        self.ring.submit_and_wait(count)?;
+
+        let cqes = self.ring.completion().available().collect::<Vec<_>>();
+
+        // FIXME: return proper errors
+        assert_eq!(cqes.len(), count);
+        for c in &cqes {
+            assert_eq!(c.result(), BLOCK_SIZE as i32);
+        }
 
         Ok(())
     }
 }
-*/
+
+//------------------------------------------

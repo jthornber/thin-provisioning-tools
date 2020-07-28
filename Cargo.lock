@@ -251,6 +251,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-uring"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31e11f8867575fc79a3e73e5f554d0b7386bc4a6f469039e8a83136c724fd81"
+dependencies = [
+ "bitflags",
+ "libc",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -528,15 +538,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rio"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce02a35f6fbcc9c5ce0674f17d33fb56afbe0bec6f6263affed4b1ebf594d95d"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -605,6 +606,7 @@ dependencies = [
  "fixedbitset",
  "flate2",
  "futures",
+ "io-uring",
  "libc",
  "nix",
  "nom",
@@ -615,7 +617,6 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
- "rio",
  "tempfile",
  "thiserror",
 ]

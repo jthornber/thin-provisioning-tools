@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::block_manager::{Block, IoEngine, SyncIoEngine, BLOCK_SIZE};
+use crate::block_manager::{Block, IoEngine, AsyncIoEngine, SyncIoEngine, BLOCK_SIZE};
 use crate::checksum;
 use crate::thin::superblock::*;
 
@@ -220,7 +220,8 @@ fn walk_node<E: IoEngine>(
 }
 
 pub fn check(dev: &Path) -> Result<()> {
-    let mut engine = SyncIoEngine::new(dev)?;
+    //let mut engine = SyncIoEngine::new(dev)?;
+    let mut engine = AsyncIoEngine::new(dev, 256)?;
 
     let now = Instant::now();
     let sb = read_superblock(&mut engine, SUPERBLOCK_LOCATION)?;
@@ -232,8 +233,7 @@ pub fn check(dev: &Path) -> Result<()> {
 
     walk_node(&mut engine, &mut seen, MappingLevel::Top, &root)?;
     println!(
-        "read superblock, mapping root at {}, {} ms",
-        sb.mapping_root,
+        "read mapping tree in {} ms",
         now.elapsed().as_millis()
     );
 
