@@ -92,6 +92,14 @@ namespace base {
 			return runs_.end();
 		}
 
+		const_iterator lower_bound(T const &b) const {
+			return runs_.lower_bound(run<T>(b, b + 1));
+		}
+
+		const_iterator upper_bound(T const &b) const {
+			return runs_.upper_bound(run<T>(b, b + 1));
+		}
+
 		void negate() {
 			rset replacement;
 
