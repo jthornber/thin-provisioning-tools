@@ -134,25 +134,41 @@ impl ValueType for ValueBlockTime {
     }
 }
 
+#[derive(Copy, Clone)]
 enum MappingLevel {
     Top,
     Bottom,
 }
 
-fn walk_mapping_tree<E: IoEngine>(
+fn walk_nodes<E: IoEngine>(
     engine: &mut E,
     seen: &mut HashSet<u64>,
     level: MappingLevel,
-    b: u64,
+    bs: &Vec<u64>,
 ) -> Result<()> {
-    if seen.contains(&b) {
-        return Ok(());
-    } else {
-        seen.insert(b);
+    let mut blocks = Vec::new();
+    for b in bs {
+        if !seen.contains(b) {
+            blocks.push(Block::new(*b));
+        }
     }
 
-    let mut b = Block::new(b);
-    engine.read(&mut b)?;
+    engine.read_many(&mut blocks)?;
+
+    for b in blocks {
+        walk_node(engine, seen, level, &b);
+    }
+
+    Ok(())
+}
+
+fn walk_node<E: IoEngine>(
+    engine: &mut E,
+    seen: &mut HashSet<u64>,
+    level: MappingLevel,
+    b: &Block,
+) -> Result<()> {
+    seen.insert(b.loc);
 
     let bt = checksum::metadata_block_type(b.get_data());
     if bt != checksum::BT::NODE {
@@ -163,29 +179,39 @@ fn walk_mapping_tree<E: IoEngine>(
         MappingLevel::Top => {
             let node = unpack_node::<ValueU64>(&b.get_data())?;
             match node {
-                Node::Leaf {header: header, keys: _keys, values} => {
-                    for b in &values {
-                        walk_mapping_tree(engine, seen, MappingLevel::Bottom, *b)?;
-                    }
-                },
-                Node::Internal {header: header, keys: _keys, values} => {
-                    for b in &values {
-                        walk_mapping_tree(engine, seen, MappingLevel::Top, *b)?;
-                    }
-                },
+                Node::Leaf {
+                    header: header,
+                    keys: _keys,
+                    values,
+                } => {
+                    walk_nodes(engine, seen, MappingLevel::Bottom, &values)?;
+                }
+                Node::Internal {
+                    header: header,
+                    keys: _keys,
+                    values,
+                } => {
+                    walk_nodes(engine, seen, MappingLevel::Top, &values)?;
+                }
             }
-        },
+        }
         MappingLevel::Bottom => {
             let node = unpack_node::<ValueBlockTime>(&b.get_data())?;
             match node {
-                Node::Leaf {header: header, keys: _keys, values} => {
+                Node::Leaf {
+                    header: header,
+                    keys: _keys,
+                    values,
+                } => {
                     // FIXME: check in bounds
-                },
-                Node::Internal {header: header, keys: _keys, values} => {
-                    for b in &values {
-                        walk_mapping_tree(engine, seen, MappingLevel::Bottom, *b)?;
-                    }
-                },
+                }
+                Node::Internal {
+                    header: header,
+                    keys: _keys,
+                    values,
+                } => {
+                    walk_nodes(engine, seen, MappingLevel::Bottom, &values)?;
+                }
             }
         }
     }
@@ -200,7 +226,11 @@ pub fn check(dev: &Path) -> Result<()> {
     let sb = read_superblock(&mut engine, SUPERBLOCK_LOCATION)?;
     eprintln!("{:?}", sb);
     let mut seen = HashSet::new();
-    walk_mapping_tree(&mut engine, &mut seen, MappingLevel::Top, sb.mapping_root)?;
+
+    let mut root = Block::new(sb.mapping_root);
+    engine.read(&mut root)?;
+
+    walk_node(&mut engine, &mut seen, MappingLevel::Top, &root)?;
     println!(
         "read superblock, mapping root at {}, {} ms",
         sb.mapping_root,
