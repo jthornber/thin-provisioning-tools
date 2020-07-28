@@ -44,6 +44,9 @@ AC_PROG_INSTALL
 AC_DEFUN([AC_PROG_STRIP], [AC_CHECK_TOOL(STRIP, strip, :)])
 AC_PROG_STRIP
 AC_ARG_VAR(STRIP, [Command for discarding symbols from object files])
+AC_DEFUN([AC_PROG_AR], [AC_CHECK_TOOL(AR, ar, :)])
+AC_PROG_AR
+AC_ARG_VAR(AR, [Program that maintains archive files])
 
 ################################################################
 dnl -- Check for large file support

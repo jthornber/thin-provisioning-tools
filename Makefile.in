@@ -149,6 +149,7 @@ endif
 
 CC:=@CC@
 CXX:=@CXX@
+AR:=@AR@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
 
@@ -187,7 +188,6 @@ ifeq ("@STATIC@", "yes")
 LDFLAGS+=-static
 endif
 
-AR:=@AR@
 INSTALL:=@INSTALL@
 PREFIX:=@prefix@
 BINDIR:=$(DESTDIR)$(PREFIX)/sbin
