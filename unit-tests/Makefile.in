@@ -40,7 +40,7 @@ lib/libgmock.a: $(GMOCK_DEPS)
 	@echo "    [CXX] gmock"
 	$(V) $(CXX) $(GMOCK_INCLUDES) -I$(GMOCK_DIR)/googlemock -std=c++11 -c $(GMOCK_DIR)/googlemock/src/gmock-all.cc
 	@echo "    [AR]  $<"
-	$(V)$(AR) -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
+	$(V) $(AR) -rv lib/libgmock.a gtest-all.o gmock-all.o > /dev/null 2>&1
 
 TEST_SOURCE=\
 	unit-tests/gmock_main.cc \
@@ -89,7 +89,7 @@ TEST_OBJECTS=$(subst .cc,.gmo,$(TEST_SOURCE))
 unit-tests/unit_tests: $(TEST_OBJECTS) lib/libgmock.a lib/libpdata.a
 	@echo "    [LD]  $<"
 	@mkdir -p $(dir $@)
-	$(V)g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(LIBS) $(GMOCK_LIBS) $(LIBEXPAT)
 
 .PHONY: unit-test
 
