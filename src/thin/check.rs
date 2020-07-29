@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use fixedbitset::FixedBitSet;
+use futures::executor;
 use nom::{bytes::complete::*, number::complete::*, IResult};
 use std::collections::HashSet;
 use std::error::Error;
@@ -7,9 +9,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::block_manager::{Block, IoEngine, AsyncIoEngine, SyncIoEngine, BLOCK_SIZE};
+use crate::block_manager::{AsyncIoEngine, Block, IoEngine, SyncIoEngine, BLOCK_SIZE};
 use crate::checksum;
 use crate::thin::superblock::*;
+
+//------------------------------------------
 
 trait ValueType {
     type Value;
@@ -61,6 +65,27 @@ enum Node<V: ValueType> {
     },
 }
 
+impl<V: ValueType> Node<V> {
+    fn get_header(&self) -> &NodeHeader {
+        match self {
+            Node::Internal {
+                header,
+                keys: _k,
+                values: _v,
+            } => &header,
+            Node::Leaf {
+                header,
+                keys: _k,
+                values: _v,
+            } => &header,
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        self.get_header().is_leaf
+    }
+}
+
 fn unpack_node_<V: ValueType>(data: &[u8]) -> IResult<&[u8], Node<V>> {
     use nom::multi::count;
 
@@ -101,6 +126,8 @@ fn unpack_node<V: ValueType>(data: &[u8]) -> Result<Node<V>> {
     }
 }
 
+//------------------------------------------
+
 struct ValueU64;
 
 impl ValueType for ValueU64 {
@@ -109,6 +136,76 @@ impl ValueType for ValueU64 {
         le_u64(i)
     }
 }
+
+//------------------------------------------
+
+trait NodeVisitor<V: ValueType> {
+    fn visit<'a>(&mut self, w: &mut BTreeWalker<'a>, b: &Block, node: &Node<V>) -> Result<()>;
+}
+
+struct BTreeWalker<'a> {
+    engine: &'a mut dyn IoEngine,
+    seen: &'a mut FixedBitSet,
+}
+
+impl<'a> BTreeWalker<'a> {
+    fn new(engine: &'a mut dyn IoEngine, seen: &'a mut FixedBitSet) -> BTreeWalker<'a> {
+        let nr_blocks = engine.get_nr_blocks() as usize;
+        assert_eq!(seen.len(), nr_blocks);
+        let r: BTreeWalker<'a> = BTreeWalker { engine, seen };
+        r
+    }
+
+    fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &Vec<u64>) -> Result<()>
+    where
+        NV: NodeVisitor<V>,
+        V: ValueType,
+    {
+        let mut blocks = Vec::new();
+        for b in bs {
+            if !self.seen[*b as usize] {
+                blocks.push(Block::new(*b));
+            }
+        }
+
+        self.engine.read_many(&mut blocks)?;
+
+        for b in blocks {
+            self.walk_node(visitor, &b)?;
+        }
+
+        Ok(())
+    }
+
+    fn walk_node<NV, V>(&mut self, visitor: &mut NV, b: &Block) -> Result<()>
+    where
+        NV: NodeVisitor<V>,
+        V: ValueType,
+    {
+        self.seen.insert(b.loc as usize);
+
+        let bt = checksum::metadata_block_type(b.get_data());
+        if bt != checksum::BT::NODE {
+            return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
+        }
+
+        let node = unpack_node::<V>(&b.get_data())?;
+        visitor.visit(self, &b, &node)?;
+
+        if let Node::Internal {
+            header: _h,
+            keys: _k,
+            values,
+        } = node
+        {
+            self.walk_nodes(visitor, &values)?;
+        }
+
+        Ok(())
+    }
+}
+
+//------------------------------------------
 
 struct BlockTime {
     block: u64,
@@ -134,90 +231,37 @@ impl ValueType for ValueBlockTime {
     }
 }
 
-#[derive(Copy, Clone)]
-enum MappingLevel {
-    Top,
-    Bottom,
+struct TopLevelVisitor {}
+
+impl NodeVisitor<ValueU64> for TopLevelVisitor {
+    fn visit(&mut self, w: &mut BTreeWalker, _b: &Block, node: &Node<ValueU64>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node
+        {
+            let mut v = BottomLevelVisitor {};
+            w.walk_nodes(&mut v, values)?;
+        }
+        Ok(())
+    }
 }
 
-fn walk_nodes<E: IoEngine>(
-    engine: &mut E,
-    seen: &mut HashSet<u64>,
-    level: MappingLevel,
-    bs: &Vec<u64>,
-) -> Result<()> {
-    let mut blocks = Vec::new();
-    for b in bs {
-        if !seen.contains(b) {
-            blocks.push(Block::new(*b));
-        }
+struct BottomLevelVisitor {}
+
+impl NodeVisitor<ValueBlockTime> for BottomLevelVisitor {
+    fn visit(
+        &mut self,
+        _w: &mut BTreeWalker,
+        _b: &Block,
+        _node: &Node<ValueBlockTime>,
+    ) -> Result<()> {
+        Ok(())
     }
-
-    engine.read_many(&mut blocks)?;
-
-    for b in blocks {
-        walk_node(engine, seen, level, &b);
-    }
-
-    Ok(())
 }
 
-fn walk_node<E: IoEngine>(
-    engine: &mut E,
-    seen: &mut HashSet<u64>,
-    level: MappingLevel,
-    b: &Block,
-) -> Result<()> {
-    seen.insert(b.loc);
-
-    let bt = checksum::metadata_block_type(b.get_data());
-    if bt != checksum::BT::NODE {
-        return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
-    }
-
-    match level {
-        MappingLevel::Top => {
-            let node = unpack_node::<ValueU64>(&b.get_data())?;
-            match node {
-                Node::Leaf {
-                    header: header,
-                    keys: _keys,
-                    values,
-                } => {
-                    walk_nodes(engine, seen, MappingLevel::Bottom, &values)?;
-                }
-                Node::Internal {
-                    header: header,
-                    keys: _keys,
-                    values,
-                } => {
-                    walk_nodes(engine, seen, MappingLevel::Top, &values)?;
-                }
-            }
-        }
-        MappingLevel::Bottom => {
-            let node = unpack_node::<ValueBlockTime>(&b.get_data())?;
-            match node {
-                Node::Leaf {
-                    header: header,
-                    keys: _keys,
-                    values,
-                } => {
-                    // FIXME: check in bounds
-                }
-                Node::Internal {
-                    header: header,
-                    keys: _keys,
-                    values,
-                } => {
-                    walk_nodes(engine, seen, MappingLevel::Bottom, &values)?;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
+//------------------------------------------
 
 pub fn check(dev: &Path) -> Result<()> {
     //let mut engine = SyncIoEngine::new(dev)?;
@@ -226,16 +270,15 @@ pub fn check(dev: &Path) -> Result<()> {
     let now = Instant::now();
     let sb = read_superblock(&mut engine, SUPERBLOCK_LOCATION)?;
     eprintln!("{:?}", sb);
-    let mut seen = HashSet::new();
 
     let mut root = Block::new(sb.mapping_root);
     engine.read(&mut root)?;
 
-    walk_node(&mut engine, &mut seen, MappingLevel::Top, &root)?;
-    println!(
-        "read mapping tree in {} ms",
-        now.elapsed().as_millis()
-    );
+    let mut seen = FixedBitSet::with_capacity(engine.get_nr_blocks() as usize);
+    let mut w = BTreeWalker::new(&mut engine, &mut seen);
+    let mut visitor = TopLevelVisitor {};
+    let result = w.walk_node(&mut visitor, &root)?;
+    println!("read mapping tree in {} ms", now.elapsed().as_millis());
 
     Ok(())
 }
