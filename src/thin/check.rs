@@ -6,8 +6,9 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, spawn};
 use std::time::{Duration, Instant};
+use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine, SyncIoEngine, BLOCK_SIZE};
 use crate::checksum;
@@ -140,19 +141,22 @@ impl ValueType for ValueU64 {
 //------------------------------------------
 
 trait NodeVisitor<V: ValueType> {
-    fn visit<'a>(&mut self, w: &mut BTreeWalker<'a>, b: &Block, node: &Node<V>) -> Result<()>;
+    fn visit<'a>(&mut self, w: &BTreeWalker, b: &Block, node: &Node<V>) -> Result<()>;
 }
 
-struct BTreeWalker<'a> {
-    engine: &'a mut dyn IoEngine,
-    seen: &'a mut FixedBitSet,
+#[derive(Clone)]
+struct BTreeWalker {
+    engine: Arc<Mutex<AsyncIoEngine>>,
+    seen: Arc<Mutex<FixedBitSet>>,
 }
 
-impl<'a> BTreeWalker<'a> {
-    fn new(engine: &'a mut dyn IoEngine, seen: &'a mut FixedBitSet) -> BTreeWalker<'a> {
+impl BTreeWalker {
+    fn new(engine: AsyncIoEngine) -> BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
-        assert_eq!(seen.len(), nr_blocks);
-        let r: BTreeWalker<'a> = BTreeWalker { engine, seen };
+        let r: BTreeWalker = BTreeWalker {
+            engine: Arc::new(Mutex::new(engine)),
+            seen: Arc::new(Mutex::new(FixedBitSet::with_capacity(nr_blocks))),
+        };
         r
     }
 
@@ -162,13 +166,17 @@ impl<'a> BTreeWalker<'a> {
         V: ValueType,
     {
         let mut blocks = Vec::new();
+        let seen = self.seen.lock().unwrap();
         for b in bs {
-            if !self.seen[*b as usize] {
+            if !seen[*b as usize] {
                 blocks.push(Block::new(*b));
             }
         }
+        drop(seen);
 
-        self.engine.read_many(&mut blocks)?;
+        let mut engine = self.engine.lock().unwrap();
+        engine.read_many(&mut blocks)?;
+        drop(engine);
 
         for b in blocks {
             self.walk_node(visitor, &b)?;
@@ -182,7 +190,9 @@ impl<'a> BTreeWalker<'a> {
         NV: NodeVisitor<V>,
         V: ValueType,
     {
-        self.seen.insert(b.loc as usize);
+        let mut seen = self.seen.lock().unwrap();
+        seen.insert(b.loc as usize);
+        drop(seen);
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
@@ -234,16 +244,49 @@ impl ValueType for ValueBlockTime {
 struct TopLevelVisitor {}
 
 impl NodeVisitor<ValueU64> for TopLevelVisitor {
-    fn visit(&mut self, w: &mut BTreeWalker, _b: &Block, node: &Node<ValueU64>) -> Result<()> {
+    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<ValueU64>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
             keys,
             values,
         } = node
         {
-            let mut v = BottomLevelVisitor {};
-            w.walk_nodes(&mut v, values)?;
+            let mut blocks = Vec::new();
+            let mut thin_ids = Vec::new();
+            let seen = w.seen.lock().unwrap();
+            for n in 0..keys.len() {
+                let b = values[n];
+                if !seen[b as usize] {
+                    thin_ids.push(keys[n]);
+                    blocks.push(Block::new(b));
+                }
+            }
+            drop(seen);
+
+            let mut engine = w.engine.lock().unwrap();
+            engine.read_many(&mut blocks)?;
+            drop(engine);
+
+	    // FIXME: with a thread pool we need to return errors another way.
+            let nr_workers = 16;
+            let pool = ThreadPool::new(nr_workers);
+
+            let mut n = 0;
+            for b in blocks {
+                let thin_id = thin_ids[n];
+                n += 1;
+                
+                let mut w = w.clone();
+                pool.execute(move || {
+                    let mut v = BottomLevelVisitor {};
+                    w.walk_node(&mut v, &b);
+                    eprintln!("checked thin_dev {}", thin_id);
+                });
+            }
+
+            pool.join();
         }
+
         Ok(())
     }
 }
@@ -251,12 +294,7 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
 struct BottomLevelVisitor {}
 
 impl NodeVisitor<ValueBlockTime> for BottomLevelVisitor {
-    fn visit(
-        &mut self,
-        _w: &mut BTreeWalker,
-        _b: &Block,
-        _node: &Node<ValueBlockTime>,
-    ) -> Result<()> {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, _node: &Node<ValueBlockTime>) -> Result<()> {
         Ok(())
     }
 }
@@ -275,10 +313,12 @@ pub fn check(dev: &Path) -> Result<()> {
     engine.read(&mut root)?;
 
     let mut seen = FixedBitSet::with_capacity(engine.get_nr_blocks() as usize);
-    let mut w = BTreeWalker::new(&mut engine, &mut seen);
+    let mut w = BTreeWalker::new(engine);
     let mut visitor = TopLevelVisitor {};
     let result = w.walk_node(&mut visitor, &root)?;
     println!("read mapping tree in {} ms", now.elapsed().as_millis());
 
     Ok(())
 }
+
+//------------------------------------------

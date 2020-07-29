@@ -6,7 +6,7 @@ use std::fs::OpenOptions;
 use std::io;
 use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{RawFd, AsRawFd};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use io_uring::opcode::{self, types};
@@ -44,6 +44,8 @@ impl Drop for Block {
         }
     }
 }
+
+unsafe impl Send for Block {}
 
 //------------------------------------------
 
@@ -105,9 +107,11 @@ impl IoEngine for SyncIoEngine {
 //------------------------------------------
 
 pub struct AsyncIoEngine {
+    queue_len: u32,
     ring: IoUring,
     nr_blocks: u64,
-    input: File,
+    fd: RawFd,
+    input: Arc<File>,
 }
 
 impl AsyncIoEngine {
@@ -118,11 +122,26 @@ impl AsyncIoEngine {
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
-        Ok(AsyncIoEngine {
+        Ok  (AsyncIoEngine {
+            queue_len,
             ring: IoUring::new(queue_len)?,
             nr_blocks: get_nr_blocks(path)?,
-            input,
+            fd: input.as_raw_fd(),
+            input: Arc::new(input),
         })
+    }
+}
+
+impl Clone for AsyncIoEngine {
+    fn clone(&self) -> AsyncIoEngine {
+        eprintln!("in clone, queue_len = {}", self.queue_len);
+        AsyncIoEngine {
+            queue_len: self.queue_len,
+            ring: IoUring::new(self.queue_len).expect("couldn't create uring"),
+            nr_blocks: self.nr_blocks,
+            fd: self.fd,
+            input: self.input.clone(),
+        }
     }
 }
 
