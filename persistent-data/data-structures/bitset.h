@@ -19,7 +19,7 @@
 #ifndef PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
 #define PERSISTENT_DATA_DATA_STRUCTURES_BITSET_H
 
-#include "persistent-data/run.h"
+#include "base/run.h"
 
 //----------------------------------------------------------------
 

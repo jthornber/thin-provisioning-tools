@@ -65,6 +65,7 @@ TEST_SOURCE=\
 	unit-tests/rmap_visitor_t.cc \
 	unit-tests/rolling_hash_t.cc \
 	unit-tests/run_set_t.cc \
+	unit-tests/sequence_generator_t.cc \
 	unit-tests/space_map_t.cc \
 	unit-tests/span_iterator_t.cc \
 	unit-tests/transaction_manager_t.cc

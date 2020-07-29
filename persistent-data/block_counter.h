@@ -19,8 +19,8 @@
 #ifndef BLOCK_COUNTER_H
 #define BLOCK_COUNTER_H
 
+#include "base/run_set.h"
 #include "block.h"
-#include "run_set.h"
 
 //----------------------------------------------------------------
 

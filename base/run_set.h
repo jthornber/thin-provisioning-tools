@@ -1,7 +1,7 @@
-#ifndef PERSISTENT_DATA_H
-#define PERSISTENT_DATA_H
+#ifndef BASE_RUN_SET_H
+#define BASE_RUN_SET_H
 
-#include "persistent-data/run.h"
+#include "base/run.h"
 
 #include <algorithm>
 #include <set>
@@ -90,6 +90,14 @@ namespace base {
 
 		const_iterator end() const {
 			return runs_.end();
+		}
+
+		const_iterator lower_bound(T const &b) const {
+			return runs_.lower_bound(run<T>(b, b + 1));
+		}
+
+		const_iterator upper_bound(T const &b) const {
+			return runs_.upper_bound(run<T>(b, b + 1));
 		}
 
 		void negate() {

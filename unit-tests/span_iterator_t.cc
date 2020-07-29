@@ -1,7 +1,7 @@
 #include "gmock/gmock.h"
 
+#include "base/run_set.h"
 #include "persistent-data/space-maps/subtracting_span_iterator.h"
-#include "persistent-data/run_set.h"
 
 using namespace std;
 using namespace persistent_data;

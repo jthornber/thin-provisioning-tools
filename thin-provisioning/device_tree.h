@@ -1,8 +1,8 @@
 #ifndef THIN_DEVICE_CHECKER_H
 #define THIN_DEVICE_CHECKER_H
 
+#include "base/run.h"
 #include "persistent-data/data-structures/btree.h"
-#include "persistent-data/run.h"
 
 //----------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 #ifndef THIN_RMAP_VISITOR_H
 #define THIN_RMAP_VISITOR_H
 
-#include "persistent-data/run.h"
+#include "base/run.h"
 #include "thin-provisioning/mapping_tree.h"
 
 //----------------------------------------------------------------

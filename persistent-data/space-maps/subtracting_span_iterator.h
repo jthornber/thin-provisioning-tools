@@ -1,8 +1,8 @@
 #ifndef SPAN_ITERATOR_H
 #define SPAN_ITERATOR_H
 
+#include "base/run_set.h"
 #include "persistent-data/space_map.h"
-#include "persistent-data/run_set.h"
 
 #include <set>
 
