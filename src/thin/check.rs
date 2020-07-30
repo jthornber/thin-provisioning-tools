@@ -10,7 +10,7 @@ use std::thread::{self, spawn};
 use std::time::{Duration, Instant};
 use threadpool::ThreadPool;
 
-use crate::block_manager::{AsyncIoEngine, Block, IoEngine, SyncIoEngine, BLOCK_SIZE};
+use crate::block_manager::{AsyncIoEngine, Block, IoEngine, BLOCK_SIZE};
 use crate::checksum;
 use crate::thin::superblock::*;
 
