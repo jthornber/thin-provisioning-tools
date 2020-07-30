@@ -1,12 +1,10 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use io_uring::opcode::{self, types};
 use io_uring::IoUring;
 use std::alloc::{alloc, dealloc, Layout};
-use std::collections::HashMap;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io;
-use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;

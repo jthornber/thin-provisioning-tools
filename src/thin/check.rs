@@ -1,16 +1,12 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
-use futures::executor;
-use nom::{bytes::complete::*, number::complete::*, IResult};
-use std::collections::HashSet;
-use std::error::Error;
+use nom::{number::complete::*, IResult};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::thread::{self, spawn};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use threadpool::ThreadPool;
 
-use crate::block_manager::{AsyncIoEngine, Block, IoEngine, BLOCK_SIZE};
+use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
 use crate::checksum;
 use crate::thin::superblock::*;
 
@@ -21,6 +17,7 @@ trait ValueType {
     fn unpack(data: &[u8]) -> IResult<&[u8], Self::Value>;
 }
 
+#[allow(dead_code)]
 struct NodeHeader {
     is_leaf: bool,
     block: u64,
@@ -29,6 +26,7 @@ struct NodeHeader {
     value_size: u32,
 }
 
+#[allow(dead_code)]
 const INTERNAL_NODE: u32 = 1;
 const LEAF_NODE: u32 = 2;
 
@@ -64,27 +62,6 @@ enum Node<V: ValueType> {
         keys: Vec<u64>,
         values: Vec<V::Value>,
     },
-}
-
-impl<V: ValueType> Node<V> {
-    fn get_header(&self) -> &NodeHeader {
-        match self {
-            Node::Internal {
-                header,
-                keys: _k,
-                values: _v,
-            } => &header,
-            Node::Leaf {
-                header,
-                keys: _k,
-                values: _v,
-            } => &header,
-        }
-    }
-
-    fn is_leaf(&self) -> bool {
-        self.get_header().is_leaf
-    }
 }
 
 fn unpack_node_<V: ValueType>(data: &[u8]) -> IResult<&[u8], Node<V>> {
@@ -215,6 +192,7 @@ impl BTreeWalker {
 
 //------------------------------------------
 
+#[allow(dead_code)]
 struct BlockTime {
     block: u64,
     time: u32,
@@ -275,7 +253,7 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
                 let mut w = w.clone();
                 pool.execute(move || {
                     let mut v = BottomLevelVisitor {};
-                    w.walk_node(&mut v, &b);
+                    w.walk_node(&mut v, &b).expect("walk failed"); // FIXME: return error
                     eprintln!("checked thin_dev {}", thin_id);
                 });
             }
@@ -308,10 +286,9 @@ pub fn check(dev: &Path) -> Result<()> {
     let mut root = Block::new(sb.mapping_root);
     engine.read(&mut root)?;
 
-    let mut seen = FixedBitSet::with_capacity(engine.get_nr_blocks() as usize);
     let mut w = BTreeWalker::new(engine);
     let mut visitor = TopLevelVisitor {};
-    let result = w.walk_node(&mut visitor, &root)?;
+    let _result = w.walk_node(&mut visitor, &root)?;
     println!("read mapping tree in {} ms", now.elapsed().as_millis());
 
     Ok(())

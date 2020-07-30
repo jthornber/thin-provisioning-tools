@@ -1,11 +1,9 @@
 use crate::block_manager::*;
-use crate::block_manager::*;
-use crate::checksum::*;
 use anyhow::{anyhow, Result};
 use nom::{bytes::complete::*, number::complete::*, IResult};
 
 pub const SUPERBLOCK_LOCATION: u64 = 0;
-const UUID_SIZE: usize = 16;
+//const UUID_SIZE: usize = 16;
 const SPACE_MAP_ROOT_SIZE: usize = 128;
 
 #[derive(Debug)]
@@ -23,6 +21,7 @@ pub struct Superblock {
     pub data_block_size: u32,
 }
 
+/*
 pub enum CheckSeverity {
     Fatal,
     NonFatal,
@@ -48,6 +47,7 @@ struct SuperblockError {
     severity: CheckSeverity,
     kind: ErrorType,
 }
+*/
 
 fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, _csum) = le_u32(data)?;
