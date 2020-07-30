@@ -146,7 +146,7 @@ trait NodeVisitor<V: ValueType> {
 
 #[derive(Clone)]
 struct BTreeWalker {
-    engine: Arc<Mutex<AsyncIoEngine>>,
+    engine: Arc<AsyncIoEngine>,
     seen: Arc<Mutex<FixedBitSet>>,
 }
 
@@ -154,7 +154,7 @@ impl BTreeWalker {
     fn new(engine: AsyncIoEngine) -> BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         let r: BTreeWalker = BTreeWalker {
-            engine: Arc::new(Mutex::new(engine)),
+            engine: Arc::new(engine),
             seen: Arc::new(Mutex::new(FixedBitSet::with_capacity(nr_blocks))),
         };
         r
@@ -174,9 +174,7 @@ impl BTreeWalker {
         }
         drop(seen);
 
-        let mut engine = self.engine.lock().unwrap();
-        engine.read_many(&mut blocks)?;
-        drop(engine);
+        self.engine.read_many(&mut blocks)?;
 
         for b in blocks {
             self.walk_node(visitor, &b)?;
@@ -263,9 +261,7 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
             }
             drop(seen);
 
-            let mut engine = w.engine.lock().unwrap();
-            engine.read_many(&mut blocks)?;
-            drop(engine);
+            w.engine.read_many(&mut blocks)?;
 
 	    // FIXME: with a thread pool we need to return errors another way.
             let nr_workers = 16;
