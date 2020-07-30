@@ -16,6 +16,7 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#include "base/error_state.h"
 #include "base/nested_output.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/core.h"
@@ -151,7 +152,7 @@ namespace {
 	error_state examine_devices_tree_(transaction_manager::ptr tm,
 					  superblock_detail::superblock const &sb,
 					  nested_output &out,
-                                          bool ignore_non_fatal) {
+					  bool ignore_non_fatal) {
 		out << "examining devices tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -166,7 +167,7 @@ namespace {
 	error_state examine_top_level_mapping_tree_(transaction_manager::ptr tm,
 						    superblock_detail::superblock const &sb,
 						    nested_output &out,
-                                                    bool ignore_non_fatal) {
+						    bool ignore_non_fatal) {
 		out << "examining top level of mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -182,7 +183,7 @@ namespace {
 					  superblock_detail::superblock const &sb,
 					  nested_output &out,
                                           optional<space_map::ptr> data_sm,
-                                          bool ignore_non_fatal) {
+					  bool ignore_non_fatal) {
 		out << "examining mapping tree" << end_message();
 		nested_output::nest _ = out.push();
 
@@ -202,7 +203,7 @@ namespace {
 	error_state examine_top_level_mapping_tree(transaction_manager::ptr tm,
 						   superblock_detail::superblock const &sb,
 						   nested_output &out,
-                                                   bool ignore_non_fatal) {
+						   bool ignore_non_fatal) {
 		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
 		err << examine_top_level_mapping_tree_(tm, sb, out, ignore_non_fatal);
 
@@ -212,31 +213,23 @@ namespace {
 	error_state examine_mapping_tree(transaction_manager::ptr tm,
 					 superblock_detail::superblock const &sb,
 					 nested_output &out,
-                                         optional<space_map::ptr> data_sm,
-                                         bool ignore_non_fatal) {
+	                                 optional<space_map::ptr> data_sm,
+					 bool ignore_non_fatal) {
 		error_state err = examine_devices_tree_(tm, sb, out, ignore_non_fatal);
 		err << examine_mapping_tree_(tm, sb, out, data_sm, ignore_non_fatal);
 
 		return err;
 	}
 
-	error_state check_space_map_counts(transaction_manager::ptr tm,
-					   superblock_detail::superblock const &sb,
-					   nested_output &out) {
-		out << "checking space map counts" << end_message();
-		nested_output::nest _ = out.push();
-
-		block_counter bc;
-		count_metadata(tm, sb, bc);
-
-		// Finally we need to check the metadata space map agrees
-		// with the counts we've just calculated.
+	error_state compare_metadata_space_maps(space_map::ptr actual,
+						block_counter const &expected,
+						nested_output &out) {
 		error_state err = NO_ERROR;
-		persistent_space_map::ptr metadata_sm =
-			open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
-		for (unsigned b = 0; b < metadata_sm->get_nr_blocks(); b++) {
-			ref_t c_actual = metadata_sm->get_count(b);
-			ref_t c_expected = bc.get_count(b);
+		block_address nr_blocks = actual->get_nr_blocks();
+
+		for (block_address b = 0; b < nr_blocks; b++) {
+			ref_t c_actual = actual->get_count(b);
+			ref_t c_expected = expected.get_count(b);
 
 			if (c_actual != c_expected) {
 				out << "metadata reference counts differ for block " << b
@@ -249,6 +242,67 @@ namespace {
 		}
 
 		return err;
+	}
+
+	error_state collect_leaked_blocks(space_map::ptr actual,
+					  block_counter const &expected,
+					  std::set<block_address> &leaked) {
+		error_state err = NO_ERROR;
+		block_address nr_blocks = actual->get_nr_blocks();
+
+		for (block_address b = 0; b < nr_blocks; b++) {
+			ref_t c_actual = actual->get_count(b);
+			ref_t c_expected = expected.get_count(b);
+
+			if (c_actual == c_expected)
+				continue;
+
+			if (c_actual < c_expected) {
+				err << FATAL;
+				break;
+			}
+
+			// Theoretically, the ref-count of a leaked block
+			// should be only one. Here a leaked ref-count of two
+			// is allowed.
+			if (c_expected || c_actual >= 3)
+				err << NON_FATAL;
+			else if (c_actual > 0)
+				leaked.insert(b);
+		}
+
+		return err;
+	}
+
+	error_state clear_leaked_blocks(space_map::ptr actual,
+					block_counter const &expected) {
+		error_state err = NO_ERROR;
+		std::set<block_address> leaked;
+
+		err << collect_leaked_blocks(actual, expected, leaked);
+		if (err != NO_ERROR)
+			return err;
+
+		for (auto const &b : leaked)
+			actual->set_count(b, 0);
+
+		return err;
+	}
+
+	error_state check_metadata_space_map_counts(transaction_manager::ptr tm,
+						    superblock_detail::superblock const &sb,
+						    block_counter &bc,
+						    nested_output &out) {
+		out << "checking space map counts" << end_message();
+		nested_output::nest _ = out.push();
+
+		count_metadata(tm, sb, bc);
+
+		// Finally we need to check the metadata space map agrees
+		// with the counts we've just calculated.
+		space_map::ptr metadata_sm =
+			open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
+		return compare_metadata_space_maps(metadata_sm, bc, out);
 	}
 
 	error_state compare_space_maps(space_map::ptr actual, space_map::ptr expected,
@@ -265,7 +319,7 @@ namespace {
 			for (block_address b = 0; b < nr_blocks; b++) {
 				auto a_count = actual->get_count(b);
 				auto e_count = actual->get_count(b);
-				
+
 				if (a_count != e_count) {
 					out << "data reference counts differ for block " << b
 					    << ", expected " << e_count
@@ -297,40 +351,36 @@ namespace {
 
 	class metadata_checker {
 	public:
-		metadata_checker(block_manager::ptr bm,
+		metadata_checker(std::string const &path,
 		      		 check_options check_opts,
 				 output_options output_opts)
-			: bm_(bm),
+			: path_(path),
 			  options_(check_opts),
 			  out_(cerr, 2),
-			  info_out_(cout, 0) {
+			  info_out_(cout, 0),
+			  err_(NO_ERROR) {
 
 			if (output_opts == OUTPUT_QUIET) {
 				out_.disable();
 				info_out_.disable();
 			}
+
+			sb_location_ = get_superblock_location();
 		}
 
-		error_state check() {
-			error_state err = NO_ERROR;
-			auto sb_location = superblock_detail::SUPERBLOCK_LOCATION;
+		void check() {
+			block_manager::ptr bm = open_bm(path_, block_manager::READ_ONLY,
+							!options_.use_metadata_snap_);
 
-			if (options_.use_metadata_snap_) {
-				superblock_detail::superblock sb = read_superblock(bm_, sb_location);
-				sb_location = sb.metadata_snap_;
-				if (sb_location == superblock_detail::SUPERBLOCK_LOCATION)
-					throw runtime_error("No metadata snapshot found.");
-			}
-			
-			err << examine_superblock(bm_, sb_location, out_);
-			if (err == FATAL) {
-				if (check_for_xml(bm_))
+			err_ = examine_superblock(bm, sb_location_, out_);
+			if (err_ == FATAL) {
+				if (check_for_xml(bm))
 					out_ << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
-				return err;
+				return;
 			}
 
-			superblock_detail::superblock sb = read_superblock(bm_, sb_location);
-			transaction_manager::ptr tm = open_tm(bm_, sb_location);
+			transaction_manager::ptr tm = open_tm(bm, sb_location_);
+			superblock_detail::superblock sb = read_superblock(bm, sb_location_);
 			sb.data_mapping_root_ = mapping_root(sb, options_);
 
 			print_info(tm, sb, info_out_);
@@ -338,24 +388,99 @@ namespace {
 			if (options_.sm_opts_ == check_options::SPACE_MAP_FULL) {
 				space_map::ptr data_sm{open_disk_sm(*tm, &sb.data_space_map_root_)};
 				optional<space_map::ptr> core_sm{create_core_map(data_sm->get_nr_blocks())};
-				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_, core_sm);
+				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_, core_sm);
+
+				if (err_ == FATAL)
+					return;
 
 				// if we're checking everything, and there were no errors,
 				// then we should check the space maps too.
-				if (err != FATAL) {
-					err << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_);
+				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_, expected_rc_);
 
-					if (core_sm)
-						err << compare_space_maps(data_sm, *core_sm, out_);
-				}
+				// check the data space map
+				if (core_sm)
+					err_ << compare_space_maps(data_sm, *core_sm, out_);
 			} else
-				err << examine_data_mappings(tm, sb, options_.check_data_mappings_, out_,
-                                                             optional<space_map::ptr>());
+				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_,
+							      optional<space_map::ptr>());
+		}
 
-			return err;
+		bool fix_metadata_leaks() {
+			if (!verify_preconditions_before_fixing()) {
+				out_ << "metadata has not been fully examined" << end_message();
+				return false;
+			}
+
+			// skip if the metadata cannot be fixed, or there's no leaked blocks
+			if (err_ == FATAL)
+				return false;
+			else if (err_ == NO_ERROR)
+				return true;
+
+			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
+			superblock_detail::superblock sb = read_superblock(bm, sb_location_);
+			transaction_manager::ptr tm = open_tm(bm, sb_location_);
+			persistent_space_map::ptr metadata_sm =
+				open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
+			tm->set_sm(metadata_sm);
+
+			err_ = clear_leaked_blocks(metadata_sm, expected_rc_);
+
+			if (err_ != NO_ERROR)
+				return false;
+
+			metadata_sm->commit();
+			metadata_sm->copy_root(&sb.metadata_space_map_root_, sizeof(sb.metadata_space_map_root_));
+			write_superblock(bm, sb);
+
+			out_ << "fixed metadata leaks" << end_message();
+
+			return true;
+		}
+
+		bool clear_needs_check_flag() {
+			if (!verify_preconditions_before_fixing()) {
+				out_ << "metadata has not been fully examined" << end_message();
+				return false;
+			}
+
+			if (err_ != NO_ERROR)
+				return false;
+
+			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
+			superblock_detail::superblock sb = read_superblock(bm);
+			sb.set_needs_check_flag(false);
+			write_superblock(bm, sb);
+
+			out_ << "cleared needs_check flag" << end_message();
+
+			return true;
+		}
+
+		bool get_status() const {
+			if (options_.ignore_non_fatal_)
+				return (err_ == FATAL) ? false : true;
+
+			return (err_ == NO_ERROR) ? true : false;
 		}
 
 	private:
+		block_address
+		get_superblock_location() {
+			block_address sb_location = superblock_detail::SUPERBLOCK_LOCATION;
+
+			if (options_.use_metadata_snap_) {
+				block_manager::ptr bm = open_bm(path_, block_manager::READ_ONLY,
+								!options_.use_metadata_snap_);
+				superblock_detail::superblock sb = read_superblock(bm, sb_location);
+				sb_location = sb.metadata_snap_;
+				if (sb_location == superblock_detail::SUPERBLOCK_LOCATION)
+					throw runtime_error("No metadata snapshot found.");
+			}
+
+			return sb_location;
+		}
+
 		error_state
 		examine_data_mappings(transaction_manager::ptr tm,
 				      superblock_detail::superblock const &sb,
@@ -382,12 +507,13 @@ namespace {
 		examine_metadata_space_map(transaction_manager::ptr tm,
 					   superblock_detail::superblock const &sb,
 					   check_options::space_map_options option,
-					   nested_output &out) {
+					   nested_output &out,
+					   block_counter &bc) {
 			error_state err = NO_ERROR;
 
 			switch (option) {
 			case check_options::SPACE_MAP_FULL:
-				err << check_space_map_counts(tm, sb, out);
+				err << check_metadata_space_map_counts(tm, sb, bc, out);
 				break;
 			default:
 				break; // do nothing
@@ -396,10 +522,26 @@ namespace {
 			return err;
 		}
 
-		block_manager::ptr bm_;
+		bool verify_preconditions_before_fixing() const {
+			if (options_.use_metadata_snap_ ||
+			    !!options_.override_mapping_root_ ||
+			    options_.sm_opts_ != check_options::SPACE_MAP_FULL ||
+			    options_.data_mapping_opts_ != check_options::DATA_MAPPING_LEVEL2)
+				return false;
+
+			if (!expected_rc_.get_counts().size())
+				return false;
+
+			return true;
+		}
+
+		std::string const &path_;
 		check_options options_;
 		nested_output out_;
 		nested_output info_out_;
+		block_address sb_location_;
+		block_counter expected_rc_;
+		base::error_state err_; // metadata state
 	};
 }
 
@@ -407,17 +549,20 @@ namespace {
 
 check_options::check_options()
 	: use_metadata_snap_(false),
-	  check_data_mappings_(DATA_MAPPING_LEVEL2),
-	  sm_opts_(SPACE_MAP_FULL) {
+	  data_mapping_opts_(DATA_MAPPING_LEVEL2),
+	  sm_opts_(SPACE_MAP_FULL),
+	  ignore_non_fatal_(false),
+	  fix_metadata_leaks_(false),
+	  clear_needs_check_(false) {
 }
 
 void check_options::set_superblock_only() {
-	check_data_mappings_ = DATA_MAPPING_NONE;
+	data_mapping_opts_ = DATA_MAPPING_NONE;
 	sm_opts_ = SPACE_MAP_NONE;
 }
 
 void check_options::set_skip_mappings() {
-	check_data_mappings_ = DATA_MAPPING_LEVEL1;
+	data_mapping_opts_ = DATA_MAPPING_LEVEL1;
 	sm_opts_ = SPACE_MAP_NONE;
 }
 
@@ -433,14 +578,59 @@ void check_options::set_metadata_snap() {
 void check_options::set_ignore_non_fatal() {
 	ignore_non_fatal_ = true;
 }
-		
-base::error_state
-thin_provisioning::check_metadata(block_manager::ptr bm,
+
+void check_options::set_fix_metadata_leaks() {
+	fix_metadata_leaks_ = true;
+}
+
+void check_options::set_clear_needs_check() {
+	clear_needs_check_ = true;
+}
+
+bool check_options::check_conformance() {
+	if (fix_metadata_leaks_ || clear_needs_check_) {
+		if (ignore_non_fatal_) {
+			cerr << "cannot perform fix by ignoring non-fatal errors" << endl;
+			return false;
+		}
+
+		if (use_metadata_snap_) {
+			cerr << "cannot perform fix within metadata snap" << endl;
+			return false;
+		}
+
+		if (!!override_mapping_root_) {
+			cerr << "cannot perform fix with an overridden mapping root" << endl;
+			return false;
+		}
+
+		if (data_mapping_opts_ != DATA_MAPPING_LEVEL2 ||
+		    sm_opts_ != SPACE_MAP_FULL) {
+			cerr << "cannot perform fix without a full examination" << endl;
+			return false;
+		}
+	}
+
+	return true;
+}
+
+//----------------------------------------------------------------
+
+bool
+thin_provisioning::check_metadata(std::string const &path,
 				  check_options const &check_opts,
 				  output_options output_opts)
 {
-	metadata_checker checker(bm, check_opts, output_opts);
-	return checker.check();
+	metadata_checker checker(path, check_opts, output_opts);
+
+	checker.check();
+	if (check_opts.fix_metadata_leaks_)
+		checker.fix_metadata_leaks();
+	if (check_opts.fix_metadata_leaks_ ||
+	    check_opts.clear_needs_check_)
+		checker.clear_needs_check_flag();
+
+	return checker.get_status();
 }
 
 //----------------------------------------------------------------

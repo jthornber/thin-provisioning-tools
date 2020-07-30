@@ -95,6 +95,24 @@
     "Unrecognised option should cause failure"
     (run-fail (thin-check "--hedgehogs-only")))
 
+  (define-scenario (thin-check incompatible-options fix-metadata-leaks)
+    "Incompatible options should cause failure"
+    (with-valid-metadata (md)
+      (run-fail (thin-check "--fix-metadata-leaks" "-m" md))
+      (run-fail (thin-check "--fix-metadata-leaks" "--override-mapping-root 123" md))
+      (run-fail (thin-check "--fix-metadata-leaks" "--super-block-only" md))
+      (run-fail (thin-check "--fix-metadata-leaks" "--skip-mappings" md))
+      (run-fail (thin-check "--fix-metadata-leaks" "--ignore-non-fatal-errors" md))))
+
+  (define-scenario (thin-check incompatible-options clear-needs-check-flag)
+    "Incompatible options should cause failure"
+    (with-valid-metadata (md)
+      (run-fail (thin-check "--clear-needs-check-flag" "-m" md))
+      (run-fail (thin-check "--clear-needs-check-flag" "--override-mapping-root 123" md))
+      (run-fail (thin-check "--clear-needs-check-flag" "--super-block-only" md))
+      (run-fail (thin-check "--clear-needs-check-flag" "--skip-mappings" md))
+      (run-fail (thin-check "--clear-needs-check-flag" "--ignore-non-fatal-errors" md))))
+
   (define-scenario (thin-check superblock-only-valid)
     "--super-block-only check passes on valid metadata"
     (with-valid-metadata (md)
@@ -126,6 +144,11 @@
     "Accepts --clear-needs-check-flag"
     (with-valid-metadata (md)
       (run-ok (thin-check "--clear-needs-check-flag" md))))
+
+  (define-scenario (thin-check fix-metadata-leaks)
+    "Accepts --fix-metadata-leaks"
+    (with-valid-metadata (md)
+      (run-ok (thin-check "--fix-metadata-leaks" md))))
 
   (define-scenario (thin-check tiny-metadata)
     "Prints helpful message in case tiny metadata given"

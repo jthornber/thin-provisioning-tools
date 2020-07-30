@@ -130,31 +130,31 @@ namespace thin_provisioning {
 	void walk_mapping_tree(dev_tree const &tree,
 			       mapping_tree_detail::device_visitor &dev_v,
 			       mapping_tree_detail::damage_visitor &dv,
-                               bool ignore_non_fatal = false);
+			       bool ignore_non_fatal = false);
 
 	void walk_mapping_tree(mapping_tree const &tree,
 			       mapping_tree_detail::mapping_visitor &mv,
 			       mapping_tree_detail::damage_visitor &dv,
-                               bool ignore_non_fatal = false);
+			       bool ignore_non_fatal = false);
 
 	void walk_mapping_tree(single_mapping_tree const &tree,
 			       uint64_t dev_id,
 			       mapping_tree_detail::mapping_visitor &mv,
 			       mapping_tree_detail::damage_visitor &dv,
-                               bool ignore_non_fatal = false);
-	
+			       bool ignore_non_fatal = false);
+
 	void check_mapping_tree(single_mapping_tree const &tree,
 				uint64_t dev_id,
 				mapping_tree_detail::damage_visitor &visitor,
-                                bool ignore_non_fatal = false);
+				bool ignore_non_fatal = false);
 
 	void check_mapping_tree(dev_tree const &tree,
 				mapping_tree_detail::damage_visitor &visitor,
-                                bool ignore_non_fatal = false);
+				bool ignore_non_fatal = false);
 
 	void check_mapping_tree(mapping_tree const &tree,
 				mapping_tree_detail::damage_visitor &visitor,
-                                bool ignore_non_fatal = false);
+				bool ignore_non_fatal = false);
 }
 
 //----------------------------------------------------------------

@@ -43,26 +43,12 @@ using namespace thin_provisioning;
 namespace {
 	struct flags {
 		flags()
-			: ignore_non_fatal_errors(false),
-			  quiet(false),
-			  clear_needs_check_flag_on_success(false) {
+			: quiet(false) {
 		}
 
 		check_options check_opts;
-
-		bool ignore_non_fatal_errors;
-
 		bool quiet;
-		bool clear_needs_check_flag_on_success;
 	};
-
-	void clear_needs_check(string const &path) {
-		block_manager::ptr bm = open_bm(path, block_manager::READ_WRITE);
-
-		superblock_detail::superblock sb = read_superblock(bm);
-		sb.set_needs_check_flag(false);
-		write_superblock(bm, sb);
-	}
 
 	// Returns 0 on success, 1 on failure (this gets returned directly
 	// by main).
@@ -76,18 +62,8 @@ namespace {
 				return 1;
 			}
 
-			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY,
-                                                        !fs.check_opts.use_metadata_snap_);
 			output_options output_opts = !fs.quiet ? OUTPUT_NORMAL : OUTPUT_QUIET;
-			error_state err = check_metadata(bm, fs.check_opts, output_opts);
-
-			if (fs.ignore_non_fatal_errors)
-				success = (err == FATAL) ? false : true;
-			else
-				success = (err == NO_ERROR) ? true : false;
-
-			if (success && fs.clear_needs_check_flag_on_success)
-				clear_needs_check(path);
+			success = check_metadata(path, fs.check_opts, output_opts);
 
 		} catch (std::exception &e) {
 			if (!fs.quiet)
@@ -116,6 +92,7 @@ thin_check_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}\n"
 	    << "  {-V|--version}\n"
 	    << "  {-m|--metadata-snap}\n"
+	    << "  {--fix-metadata-leaks}\n"
 	    << "  {--override-mapping-root}\n"
 	    << "  {--clear-needs-check-flag}\n"
 	    << "  {--ignore-non-fatal-errors}\n"
@@ -140,6 +117,7 @@ thin_check_cmd::run(int argc, char **argv)
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
 		{ "clear-needs-check-flag", no_argument, NULL, 4 },
 		{ "override-mapping-root", required_argument, NULL, 5},
+		{ "fix-metadata-leaks", no_argument, NULL, 6},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -173,18 +151,22 @@ thin_check_cmd::run(int argc, char **argv)
 
 		case 3:
 			// ignore-non-fatal-errors
-			fs.ignore_non_fatal_errors = true;
 			fs.check_opts.set_ignore_non_fatal();
 			break;
 
 		case 4:
 			// clear needs-check flag
-			fs.clear_needs_check_flag_on_success = true;
+			fs.check_opts.set_clear_needs_check();
 			break;
 
 		case 5:
 			// override-mapping-root
 			fs.check_opts.set_override_mapping_root(boost::lexical_cast<uint64_t>(optarg));
+			break;
+
+		case 6:
+			// fix-metadata-leaks
+			fs.check_opts.set_fix_metadata_leaks();
 			break;
 
 		default:
@@ -193,8 +175,7 @@ thin_check_cmd::run(int argc, char **argv)
 		}
 	}
 
-	if (fs.clear_needs_check_flag_on_success && fs.check_opts.use_metadata_snap_) {
-		cerr << "--metadata-snap cannot be combined with --clear-needs-check-flag.";
+	if (!fs.check_opts.check_conformance()) {
 		usage(cerr);
 		exit(1);
 	}

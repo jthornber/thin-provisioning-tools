@@ -91,6 +91,15 @@ thin_generate_damage_cmd::thin_generate_damage_cmd()
 void
 thin_generate_damage_cmd::usage(std::ostream &out) const
 {
+	out << "Usage: " << get_name() << " [options]\n"
+	    << "Options:\n"
+	    << "  {-h|--help}\n"
+	    << "  {-o|--output} <output device or file>\n"
+	    << "  {--create-metadata-leaks}\n"
+	    << "  {--nr-blocks} <block counts>\n"
+	    << "  {--expected} <expected ref-count>\n"
+	    << "  {--actual} <actual ref-count>\n"
+	    << "  {-V|--version}" << endl;
 }
 
 int
@@ -114,7 +123,7 @@ thin_generate_damage_cmd::run(int argc, char **argv)
 		switch(c) {
 		case 'h':
 			usage(cout);
-			break;
+			return 0;
 		case 'o':
 			fs.output = optarg;
 			break;
