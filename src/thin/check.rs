@@ -242,7 +242,7 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
             w.engine.read_many(&mut blocks)?;
 
 	    // FIXME: with a thread pool we need to return errors another way.
-            let nr_workers = 16;
+            let nr_workers = 4;
             let pool = ThreadPool::new(nr_workers);
 
             let mut n = 0;
