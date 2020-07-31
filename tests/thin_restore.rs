@@ -1,8 +1,5 @@
 use anyhow::Result;
-use duct::{cmd, Expression};
-use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use tempfile::{tempdir, TempDir};
 use thinp::file_utils;
 use thinp::version::TOOLS_VERSION;
 

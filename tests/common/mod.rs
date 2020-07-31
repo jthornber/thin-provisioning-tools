@@ -1,14 +1,14 @@
 use anyhow::Result;
 use duct::{cmd, Expression};
 use std::fs::OpenOptions;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::{Display, PathBuf};
 use std::str::from_utf8;
 use tempfile::{tempdir, TempDir};
 use thinp::file_utils;
-use std::io::{Read};
 
 pub mod xml_generator;
-use crate::common::xml_generator::{write_xml, FragmentedS, SingleThinS};
+use crate::common::xml_generator::{write_xml, SingleThinS};
 
 //------------------------------------------
 
@@ -56,7 +56,7 @@ pub struct TestDir {
 impl TestDir {
     pub fn new() -> Result<TestDir> {
         let dir = tempdir()?;
-        Ok(TestDir {dir, file_count: 0})
+        Ok(TestDir { dir, file_count: 0 })
     }
 
     pub fn mk_path(&mut self, file: &str) -> PathBuf {
@@ -96,6 +96,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 
 pub fn mk_zeroed_md(td: &mut TestDir) -> Result<PathBuf> {
     let md = td.mk_path("meta.bin");
+    eprintln!("path = {:?}", md);
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);
     Ok(md)
 }
@@ -116,8 +117,15 @@ pub fn superblock_all_zeroes(path: &PathBuf) -> Result<bool> {
             return Ok(false);
         }
     }
-    
+
     Ok(true)
+}
+
+pub fn damage_superblock(path: &PathBuf) -> Result<()> {
+    let mut output = OpenOptions::new().read(false).write(true).open(path)?;
+    let buf = [0u8; 512];
+    output.write_all(&buf)?;
+    Ok(())
 }
 
 //------------------------------------------

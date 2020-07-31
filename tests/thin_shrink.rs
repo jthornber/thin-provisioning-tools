@@ -3,8 +3,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rand::prelude::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
-use tempfile::tempdir;
+use std::path::{Path};
 
 use thinp::file_utils;
 use thinp::thin::xml::{self, Visit};
