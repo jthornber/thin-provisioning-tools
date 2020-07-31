@@ -90,7 +90,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     write_xml(&xml, &mut gen)?;
 
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    cmd!("bin/thin_restore", "-i", xml, "-o", &md).run()?;
+    thin_restore!("-i", xml, "-o", &md).run()?;
     Ok(md)
 }
 
