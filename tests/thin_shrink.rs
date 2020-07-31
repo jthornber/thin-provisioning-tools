@@ -10,9 +10,9 @@ use thinp::file_utils;
 use thinp::thin::xml::{self, Visit};
 
 mod common;
-use common::mk_path;
+use common::*;
 use common::xml_generator::{
-    write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen,
+    write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen
 };
 
 //------------------------------------
@@ -296,10 +296,10 @@ fn test_shrink<S>(scenario: &mut S) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
-    let dir = tempdir()?;
-    let xml_before = mk_path(dir.path(), "before.xml");
-    let xml_after = mk_path(dir.path(), "after.xml");
-    let data_path = mk_path(dir.path(), "metadata.bin");
+    let mut td = TestDir::new()?;
+    let xml_before = td.mk_path("before.xml");
+    let xml_after = td.mk_path("after.xml");
+    let data_path = td.mk_path("metadata.bin");
 
     write_xml(&xml_before, scenario)?;
     create_data_file(&data_path, &xml_before)?;

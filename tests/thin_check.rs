@@ -72,8 +72,8 @@ fn accepts_clear_needs_check_flag() -> Result<()> {
 
 #[test]
 fn accepts_quiet() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_valid_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
 
     let output = thin_check!("--quiet", &md).run()?;
     assert!(output.status.success());
@@ -84,8 +84,8 @@ fn accepts_quiet() -> Result<()> {
 
 #[test]
 fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let md = mk_zeroed_md(&mut td)?;
     let output = thin_check!("--super-block-only", &md).unchecked().run()?;
     assert!(!output.status.success());
     Ok(())
@@ -93,8 +93,8 @@ fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
 
 #[test]
 fn prints_help_message_for_tiny_metadata() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_path(dir.path(), "meta.bin");
+    let mut td = TestDir::new()?;
+    let md = td.mk_path("meta.bin");
     let _file = file_utils::create_sized_file(&md, 1024);
     let stderr = run_fail(thin_check!(&md))?;
     assert!(stderr.contains("Metadata device/file too small.  Is this binary metadata?"));
@@ -103,8 +103,8 @@ fn prints_help_message_for_tiny_metadata() -> Result<()> {
 
 #[test]
 fn spot_xml_data() -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_path(dir.path(), "meta.xml");
+    let mut td = TestDir::new()?;
+    let xml = td.mk_path("meta.xml");
 
     let mut gen = FragmentedS::new(4, 10240);
     write_xml(&xml, &mut gen)?;
@@ -119,8 +119,8 @@ fn spot_xml_data() -> Result<()> {
 
 #[test]
 fn prints_info_fields() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_valid_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
     let stdout = thin_check!(&md).read()?;
     assert!(stdout.contains("TRANSACTION_ID="));
     assert!(stdout.contains("METADATA_FREE_BLOCKS="));

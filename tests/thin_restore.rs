@@ -45,8 +45,8 @@ fn accepts_help() -> Result<()> {
 
 #[test]
 fn no_input_file() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let md = mk_zeroed_md(&mut td)?;
     let stderr = run_fail(thin_restore!("-o", &md))?;
     assert!(stderr.contains("No input file provided."));
     Ok(())
@@ -54,8 +54,8 @@ fn no_input_file() -> Result<()> {
 
 #[test]
 fn missing_input_file() -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let md = mk_zeroed_md(&mut td)?;
     let stderr = run_fail(thin_restore!("-i", "no-such-file", "-o", &md))?;
     assert!(superblock_all_zeroes(&md)?);
     assert!(stderr.contains("Couldn't stat file"));
@@ -64,9 +64,9 @@ fn missing_input_file() -> Result<()> {
 
 #[test]
 fn garbage_input_file() -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_zeroed_md(&dir)?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let xml = mk_zeroed_md(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
     let _stderr = run_fail(thin_restore!("-i", &xml, "-o", &md))?;
     assert!(superblock_all_zeroes(&md)?);
     Ok(())
@@ -74,8 +74,8 @@ fn garbage_input_file() -> Result<()> {
 
 #[test]
 fn no_output_file() -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_valid_xml(&dir)?;
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
     let stderr = run_fail(thin_restore!("-i", &xml))?;
     assert!(stderr.contains("No output file provided."));
     Ok(())
@@ -83,20 +83,19 @@ fn no_output_file() -> Result<()> {
 
 #[test]
 fn tiny_output_file() -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_valid_xml(&dir)?;
-    let md = mk_path(dir.path(), "meta.bin");
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = td.mk_path("meta.bin");
     let _file = file_utils::create_sized_file(&md, 4096);
     let stderr = run_fail(thin_restore!("-i", &xml, "-o", &md))?;
-    eprintln!("{}", stderr);
     assert!(stderr.contains("Output file too small"));
     Ok(())
 }
 
 fn quiet_flag(flag: &str) -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_valid_xml(&dir)?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
 
     let output = thin_restore!("-i", &xml, "-o", &md, flag).run()?;
 
@@ -117,9 +116,9 @@ fn accepts_quiet() -> Result<()> {
 }
 
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
-    let dir = tempdir()?;
-    let xml = mk_valid_xml(&dir)?;
-    let md = mk_zeroed_md(&dir)?;
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
 
     thin_restore!("-i", &xml, "-o", &md, flag, value).run()?;
 
