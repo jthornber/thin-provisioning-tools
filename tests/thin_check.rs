@@ -8,52 +8,8 @@ use thinp::version::TOOLS_VERSION;
 
 mod common;
 
-use common::mk_path;
+use common::*;
 use common::xml_generator::{write_xml, FragmentedS, SingleThinS};
-
-//------------------------------------------
-
-macro_rules! thin_check {
-    ( $( $arg: expr ),* ) => {
-        {
-            use std::ffi::OsString;
-            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_check", args).stdout_capture().stderr_capture()
-        }
-    };
-}
-
-// Returns stderr, a non zero status must be returned
-fn run_fail(command: Expression) -> Result<String> {
-    let output = command.stderr_capture().unchecked().run()?;
-    assert!(!output.status.success());
-    Ok(from_utf8(&output.stderr[0..]).unwrap().to_string())
-}
-
-fn mk_valid_md(dir: &TempDir) -> Result<PathBuf> {
-    let xml = mk_path(dir.path(), "meta.xml");
-    let md = mk_path(dir.path(), "meta.bin");
-
-    let mut gen = SingleThinS::new(0, 1024, 2048, 2048);
-    write_xml(&xml, &mut gen)?;
-
-    let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    cmd!("bin/thin_restore", "-i", xml, "-o", &md).run()?;
-    Ok(md)
-}
-
-fn mk_corrupt_md(dir: &TempDir) -> Result<PathBuf> {
-    let md = mk_path(dir.path(), "meta.bin");
-    let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    Ok(md)
-}
-
-fn accepts_flag(flag: &str) -> Result<()> {
-    let dir = tempdir()?;
-    let md = mk_valid_md(&dir)?;
-    thin_check!(flag, &md).run()?;
-    Ok(())
-}
 
 //------------------------------------------
 
@@ -120,6 +76,7 @@ fn accepts_quiet() -> Result<()> {
     let md = mk_valid_md(&dir)?;
 
     let output = thin_check!("--quiet", &md).run()?;
+    assert!(output.status.success());
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -128,7 +85,7 @@ fn accepts_quiet() -> Result<()> {
 #[test]
 fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
     let dir = tempdir()?;
-    let md = mk_corrupt_md(&dir)?;
+    let md = mk_zeroed_md(&dir)?;
     let output = thin_check!("--super-block-only", &md).unchecked().run()?;
     assert!(!output.status.success());
     Ok(())
