@@ -4,8 +4,6 @@ use thinp::file_utils;
 use thinp::version::TOOLS_VERSION;
 
 mod common;
-
-use common::xml_generator::{write_xml, FragmentedS, SingleThinS};
 use common::*;
 
 //------------------------------------------

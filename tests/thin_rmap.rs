@@ -1,13 +1,7 @@
 use anyhow::Result;
-use thinp::file_utils;
-use std::fs::OpenOptions;
-use std::io::{Write};
-use std::str::from_utf8;
 use thinp::version::TOOLS_VERSION;
 
 mod common;
-
-use common::xml_generator::{write_xml, FragmentedS, SingleThinS};
 use common::*;
 
 //------------------------------------------
@@ -83,7 +77,7 @@ fn multiple_regions_should_pass() -> Result<()> {
 fn junk_input() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
-    let stderr = run_fail(thin_rmap!("--region", "0..-1", &xml))?;
+    run_fail(thin_rmap!("--region", "0..-1", &xml))?;
     Ok(())
 }
 

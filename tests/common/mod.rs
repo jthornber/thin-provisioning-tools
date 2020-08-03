@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
-use duct::{cmd, Expression};
+use duct::{Expression};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::path::{Display, PathBuf};
+use std::path::{PathBuf};
 use std::str::from_utf8;
 use tempfile::{tempdir, TempDir};
 use thinp::file_utils;

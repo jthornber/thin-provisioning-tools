@@ -5,8 +5,6 @@ use std::io::{Write};
 use std::str::from_utf8;
 
 mod common;
-
-use common::xml_generator::{write_xml, FragmentedS, SingleThinS};
 use common::*;
 
 //------------------------------------------
