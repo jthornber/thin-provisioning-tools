@@ -85,7 +85,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     ))
 }
 
-pub fn read_superblock<E: IoEngine>(engine: &mut E, loc: u64) -> Result<Superblock> {
+pub fn read_superblock<E: IoEngine>(engine: &E, loc: u64) -> Result<Superblock> {
     let mut b = Block::new(loc);
     engine.read(&mut b)?;
 

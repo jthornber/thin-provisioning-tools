@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
-use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, ValueType, ValueU64};
+use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, ValueType};
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -17,11 +18,7 @@ struct BlockTime {
     time: u32,
 }
 
-struct ValueBlockTime;
-
-impl ValueType for ValueBlockTime {
-    type Value = BlockTime;
-
+impl ValueType for BlockTime {
     fn disk_size() -> u32 {
         8
     }
@@ -43,8 +40,8 @@ impl ValueType for ValueBlockTime {
 
 struct TopLevelVisitor {}
 
-impl NodeVisitor<ValueU64> for TopLevelVisitor {
-    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<ValueU64>) -> Result<()> {
+impl NodeVisitor<u64> for TopLevelVisitor {
+    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
             keys,
@@ -77,7 +74,7 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
                 let mut w = w.clone();
                 pool.execute(move || {
                     let mut v = BottomLevelVisitor {};
-                    let result = w.walk(&mut v, &b).expect("walk failed"); // FIXME: return error
+                    let result = w.walk_b(&mut v, &b).expect("walk failed"); // FIXME: return error
                     eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
                 });
             }
@@ -91,8 +88,67 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
 
 struct BottomLevelVisitor {}
 
-impl NodeVisitor<ValueBlockTime> for BottomLevelVisitor {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, _node: &Node<ValueBlockTime>) -> Result<()> {
+impl NodeVisitor<BlockTime> for BottomLevelVisitor {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, _node: &Node<BlockTime>) -> Result<()> {
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
+#[derive(Clone)]
+struct DeviceDetail {
+    mapped_blocks: u64,
+    transaction_id: u64,
+    creation_time: u32,
+    snapshotted_time: u32,
+}
+
+impl ValueType for DeviceDetail {
+    fn disk_size() -> u32 {
+        24
+    }
+
+    fn unpack(i: &[u8]) -> IResult<&[u8], DeviceDetail> {
+        let (i, mapped_blocks) = le_u64(i)?;
+        let (i, transaction_id) = le_u64(i)?;
+        let (i, creation_time) = le_u32(i)?;
+        let (i, snapshotted_time) = le_u32(i)?;
+
+        Ok((
+            i,
+            DeviceDetail {
+                mapped_blocks,
+                transaction_id,
+                creation_time,
+                snapshotted_time,
+            },
+        ))
+    }
+}
+
+struct DeviceVisitor {
+    devs: HashMap<u32, DeviceDetail>,
+}
+
+impl DeviceVisitor {
+    pub fn new() -> DeviceVisitor {
+        DeviceVisitor {
+            devs: HashMap::new(),
+        }
+    }
+}
+
+impl NodeVisitor<DeviceDetail> for DeviceVisitor {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<DeviceDetail>) -> Result<()> {
+        if let Node::Leaf {header: _h, keys, values} = node {
+           for n in 0..keys.len() {
+               let k = keys[n] as u32;
+               let v = values[n].clone();
+               self.devs.insert(k, v.clone());
+           }
+        }
+
         Ok(())
     }
 }
@@ -101,19 +157,25 @@ impl NodeVisitor<ValueBlockTime> for BottomLevelVisitor {
 
 pub fn check(dev: &Path) -> Result<()> {
     //let mut engine = SyncIoEngine::new(dev)?;
-    let mut engine = AsyncIoEngine::new(dev, 256)?;
+    let mut engine = Arc::new(AsyncIoEngine::new(dev, 256)?);
 
     let now = Instant::now();
-    let sb = read_superblock(&mut engine, SUPERBLOCK_LOCATION)?;
+    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     eprintln!("{:?}", sb);
-
-    let mut root = Block::new(sb.mapping_root);
-    engine.read(&mut root)?;
-
-    let mut visitor = TopLevelVisitor {};
-    let mut w = BTreeWalker::new(engine, false);
-    let _result = w.walk(&mut visitor, &root)?;
-    println!("read mapping tree in {} ms", now.elapsed().as_millis());
+    
+    {
+        let mut visitor = DeviceVisitor::new();
+        let mut w = BTreeWalker::new(engine.clone(), false);
+        w.walk(&mut visitor, sb.details_root)?;
+        println!("found {} devices", visitor.devs.len());
+    }
+    
+    {
+        let mut visitor = TopLevelVisitor {};
+        let mut w = BTreeWalker::new(engine.clone(), false);
+        let _result = w.walk(&mut visitor, sb.mapping_root)?;
+        println!("read mapping tree in {} ms", now.elapsed().as_millis());
+    }
 
     Ok(())
 }

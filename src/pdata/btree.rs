@@ -9,10 +9,11 @@ use crate::checksum;
 //------------------------------------------
 
 pub trait ValueType {
-    type Value;
     // The size of the value when on disk.
     fn disk_size() -> u32;
-    fn unpack(data: &[u8]) -> IResult<&[u8], Self::Value>;
+    fn unpack(data: &[u8]) -> IResult<&[u8], Self>
+    where
+        Self: std::marker::Sized;
 }
 
 const NODE_HEADER_SIZE: usize = 32;
@@ -59,7 +60,7 @@ pub enum Node<V: ValueType> {
     Leaf {
         header: NodeHeader,
         keys: Vec<u64>,
-        values: Vec<V::Value>,
+        values: Vec<V>,
     },
 }
 
@@ -85,8 +86,7 @@ pub fn unpack_node<V: ValueType>(
 
     let (i, header) = to_any(unpack_node_header(data))?;
 
-    // FIXME: lift checks to own fn
-    if header.value_size != V::disk_size() {
+    if header.is_leaf && header.value_size != V::disk_size() {
         return node_err(format!(
             "value_size mismatch: expected {}, was {}",
             V::disk_size(),
@@ -94,7 +94,7 @@ pub fn unpack_node<V: ValueType>(
         ));
     }
 
-    let elt_size = V::disk_size() + 8;
+    let elt_size = header.value_size + 8;
     if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
         return node_err(format!("max_entries is too large ({})", header.max_entries));
     }
@@ -152,11 +152,7 @@ pub fn unpack_node<V: ValueType>(
 
 //------------------------------------------
 
-pub struct ValueU64;
-
-impl ValueType for ValueU64 {
-    type Value = u64;
-
+impl ValueType for u64 {
     fn disk_size() -> u32 {
         8
     }
@@ -180,10 +176,10 @@ pub struct BTreeWalker {
 }
 
 impl BTreeWalker {
-    pub fn new(engine: AsyncIoEngine, ignore_non_fatal: bool) -> BTreeWalker {
+    pub fn new(engine: Arc<AsyncIoEngine>, ignore_non_fatal: bool) -> BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         let r: BTreeWalker = BTreeWalker {
-            engine: Arc::new(engine),
+            engine: engine,
             seen: Arc::new(Mutex::new(FixedBitSet::with_capacity(nr_blocks))),
             ignore_non_fatal,
         };
@@ -242,16 +238,22 @@ impl BTreeWalker {
         Ok(())
     }
 
-    pub fn walk<NV, V>(
-        &mut self,
-        visitor: &mut NV,
-        root: &Block,
-    ) -> Result<()>
+    pub fn walk_b<NV, V>(&mut self, visitor: &mut NV, root: &Block) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: ValueType,
     {
-       self.walk_node(visitor, &root, true)
+        self.walk_node(visitor, &root, true)
+    }
+
+    pub fn walk<NV, V>(&mut self, visitor: &mut NV, root: u64) -> Result<()>
+    where
+        NV: NodeVisitor<V>,
+        V: ValueType,
+    {
+        let mut root = Block::new(root);
+        self.engine.read(&mut root)?;
+        self.walk_node(visitor, &root, true)
     }
 }
 
