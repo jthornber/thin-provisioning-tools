@@ -6,8 +6,8 @@ use std::time::Instant;
 use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
+use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, ValueType, ValueU64};
 use crate::thin::superblock::*;
-use crate::pdata::btree::{ValueType, Node, BTreeWalker, NodeVisitor, ValueU64};
 
 //------------------------------------------
 
@@ -21,6 +21,11 @@ struct ValueBlockTime;
 
 impl ValueType for ValueBlockTime {
     type Value = BlockTime;
+
+    fn disk_size() -> u32 {
+        8
+    }
+
     fn unpack(i: &[u8]) -> IResult<&[u8], BlockTime> {
         let (i, n) = le_u64(i)?;
         let block = n >> 24;
@@ -72,8 +77,8 @@ impl NodeVisitor<ValueU64> for TopLevelVisitor {
                 let mut w = w.clone();
                 pool.execute(move || {
                     let mut v = BottomLevelVisitor {};
-                    w.walk_node(&mut v, &b).expect("walk failed"); // FIXME: return error
-                    eprintln!("checked thin_dev {}", thin_id);
+                    let result = w.walk(&mut v, &b).expect("walk failed"); // FIXME: return error
+                    eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
                 });
             }
 
@@ -105,9 +110,9 @@ pub fn check(dev: &Path) -> Result<()> {
     let mut root = Block::new(sb.mapping_root);
     engine.read(&mut root)?;
 
-    let mut w = BTreeWalker::new(engine);
     let mut visitor = TopLevelVisitor {};
-    let _result = w.walk_node(&mut visitor, &root)?;
+    let mut w = BTreeWalker::new(engine, false);
+    let _result = w.walk(&mut visitor, &root)?;
     println!("read mapping tree in {} ms", now.elapsed().as_millis());
 
     Ok(())
