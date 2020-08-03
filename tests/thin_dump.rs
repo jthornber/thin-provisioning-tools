@@ -120,17 +120,3 @@ fn missing_nr_data_blocks() -> Result<()> {
     assert!(stderr.contains("nr data blocks"));
     Ok(())
 }
-
-
-//  (define-scenario (thin-dump repair-superblock missing-data-block-size)
-//    "--data-block-size is mandatory if the superblock is damaged"
-//    (with-damaged-superblock (md)
-//      (run-fail-rcv (_ stderr) (thin-dump "--repair" "--transaction-id=5" "--nr-data-blocks=4096000" md)
-//        (assert-matches ".*data block size.*" stderr))))
-//
-//  (define-scenario (thin-dump repair-superblock missing-nr-data-blocks)
-//    "--nr-data-blocks is mandatory if the superblock is damaged"
-//    (with-damaged-superblock (md)
-//      (run-fail-rcv (_ stderr) (thin-dump "--repair" "--transaction-id=5" "--data-block-size=128" md)
-//        (assert-matches ".*nr data blocks.*" stderr))))
-//

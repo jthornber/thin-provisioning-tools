@@ -46,6 +46,17 @@ macro_rules! thin_dump {
     };
 }
 
+#[macro_export]
+macro_rules! thin_rmap {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_rmap", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
 //------------------------------------------
 
 pub struct TestDir {
@@ -86,7 +97,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     let xml = td.mk_path("meta.xml");
     let md = td.mk_path("meta.bin");
 
-    let mut gen = SingleThinS::new(0, 1024, 2048, 2048);
+    let mut gen = SingleThinS::new(0, 1024, 20480, 20480);
     write_xml(&xml, &mut gen)?;
 
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);

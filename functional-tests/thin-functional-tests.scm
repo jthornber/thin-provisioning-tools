@@ -68,58 +68,6 @@
   (define (register-thin-tests) #t)
 
   ;;;-----------------------------------------------------------
-  ;;; thin_rmap scenarios
-  ;;;-----------------------------------------------------------
-
-  (define-scenario (thin-rmap v)
-    "thin_rmap accepts -V"
-    (run-ok-rcv (stdout _) (thin-rmap "-V")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (thin-rmap version)
-    "thin_rmap accepts --version"
-    (run-ok-rcv (stdout _) (thin-rmap "--version")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (thin-rmap h)
-    "thin_rmap accepts -h"
-    (run-ok-rcv (stdout _) (thin-rmap "-h")
-      (assert-equal thin-rmap-help stdout)))
-
-  (define-scenario (thin-rmap help)
-    "thin_rmap accepts --help"
-    (run-ok-rcv (stdout _) (thin-rmap "--help")
-      (assert-equal thin-rmap-help stdout)))
-
-  (define-scenario (thin-rmap unrecognised-flag)
-    "thin_rmap complains with bad flags."
-    (run-fail (thin-rmap "--unleash-the-hedgehogs")))
-
-  (define-scenario (thin-rmap valid-region-format-should-pass)
-    "thin_rmap with a valid region format should pass."
-    (with-valid-metadata (md)
-      (run-ok
-        (thin-rmap "--region 23..7890" md))))
-
-  (define-scenario (thin-rmap invalid-region-should-fail)
-    "thin_rmap with an invalid region format should fail."
-    (for-each (lambda (pattern)
-                      (with-valid-metadata (md)
-                        (run-fail (thin-rmap "--region" pattern md))))
-              '("23,7890" "23..six" "found..7890" "89..88" "89..89" "89.." "" "89...99")))
-
-  (define-scenario (thin-rmap multiple-regions-should-pass)
-    "thin_rmap should handle multiple regions."
-    (with-valid-metadata (md)
-      (run-ok (thin-rmap "--region 1..23 --region 45..78" md))))
-
-  (define-scenario (thin-rmap handles-junk-input)
-    "Fail gracefully if given nonsense"
-    (with-thin-xml (xml)
-      (run-fail-rcv (_ stderr) (thin-rmap "--region 0..-1" xml)
-          #t)))
-
-  ;;;-----------------------------------------------------------
   ;;; thin_delta scenarios
   ;;;-----------------------------------------------------------
   (define-scenario (thin-delta v)
