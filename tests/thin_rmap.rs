@@ -81,11 +81,4 @@ fn junk_input() -> Result<()> {
     Ok(())
 }
 
-// (define-scenario (thin-rmap handles-junk-input)
-//   "Fail gracefully if given nonsense"
-//   (with-thin-xml (xml)
-//     (run-fail-rcv (_ stderr) (thin-rmap "--region 0..-1" xml)
-//         #t)))
-
-
 //------------------------------------------
