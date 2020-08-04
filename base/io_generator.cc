@@ -1,5 +1,7 @@
 #include "base/io_generator.h"
 #include "base/sequence_generator.h"
+#include <chrono>
+#include <random>
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
@@ -31,19 +33,23 @@ namespace {
 		typedef std::shared_ptr<op_generator> ptr;
 
 		op_generator(base::req_op op1)
-			: op1_(op1), op2_(op1), op1_pct_(100) {
+			: op1_(op1), op2_(op1), op1_pct_(100),
+			  rand_seed_(std::chrono::high_resolution_clock::now().time_since_epoch().count()),
+			  op_engine_(rand_seed_) {
 		}
 
 		op_generator(base::req_op op1,
 			     base::req_op op2,
 			     unsigned op1_pct)
-			: op1_(op1), op2_(op2), op1_pct_(op1_pct) {
+			: op1_(op1), op2_(op2), op1_pct_(op1_pct),
+			  rand_seed_(std::chrono::high_resolution_clock::now().time_since_epoch().count()),
+			  op_engine_(rand_seed_) {
 			if (op1_pct > 100)
 				throw std::runtime_error("invalid percentage");
 		}
 
 		base::req_op next_op() {
-			if (static_cast<unsigned>(std::rand()) % 100 > op1_pct_)
+			if (op_engine_() % 100 > op1_pct_)
 				return op2_;
 			return op1_;
 		}
@@ -52,6 +58,9 @@ namespace {
 		base::req_op op1_;
 		base::req_op op2_;
 		unsigned op1_pct_;
+		uint64_t rand_seed_;
+
+		std::mt19937 op_engine_;
 	};
 
 	//--------------------------------

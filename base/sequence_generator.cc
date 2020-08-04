@@ -1,5 +1,7 @@
 #include "base/run_set.h"
 #include "base/sequence_generator.h"
+#include <chrono>
+#include <random>
 #include <stdexcept>
 
 //----------------------------------------------------------------
@@ -80,6 +82,9 @@ namespace {
 			: begin_(begin),
 			  step_(step),
 			  max_forward_steps_(seq_nr),
+			  rand_seed_(std::chrono::high_resolution_clock::now().time_since_epoch().count()),
+			  results_engine_(rand_seed_),
+			  steps_engine_(rand_seed_),
 			  nr_generated_(0)
 		{
 			if (!size || !step || !seq_nr)
@@ -93,8 +98,14 @@ namespace {
 			if (!max_forward_steps_ || max_forward_steps_ > nr_steps_)
 				throw std::runtime_error("invalid number of forward steps");
 
-			if (max_forward_steps_ > 1)
+			results_distr_ = std::uniform_int_distribution<uint64_t>(0,
+					nr_steps_ - 1);
+
+			if (max_forward_steps_ > 1) {
+				steps_distr_ = std::uniform_int_distribution<uint64_t>(1,
+						max_forward_steps_);
 				reset_forward_generator();
+			}
 		}
 
 		uint64_t next() {
@@ -109,7 +120,7 @@ namespace {
 		void reset_forward_generator() {
 			uint64_t begin = peek_random_step();
 
-			unsigned seq_nr = (std::rand() % max_forward_steps_) + 1;
+			unsigned seq_nr = steps_distr_(steps_engine_);
 			base::run_set<uint64_t>::const_iterator it = rand_map_.upper_bound(begin);
 			if (it != rand_map_.end())
 				seq_nr = std::min<uint64_t>(seq_nr, *it->begin_ - begin);
@@ -148,12 +159,13 @@ namespace {
 			}
 		}
 
-		uint64_t peek_random_step() const {
+		// TODO: improve the complexity of generating unique sequence
+		uint64_t peek_random_step() {
 			uint64_t step_idx;
 
 			bool found = true;
 			while (found) {
-				step_idx = std::rand() % nr_steps_;
+				step_idx = results_distr_(results_engine_);
 				found = rand_map_.member(step_idx);
 			}
 
@@ -164,7 +176,12 @@ namespace {
 		uint64_t nr_steps_;
 		uint64_t step_;
 		unsigned max_forward_steps_;
+		uint64_t rand_seed_;
 
+		std::mt19937_64 results_engine_;
+		std::mt19937_64 steps_engine_;
+		std::uniform_int_distribution<uint64_t> results_distr_;
+		std::uniform_int_distribution<uint64_t> steps_distr_;
 		base::run_set<uint64_t> rand_map_;
 		uint64_t nr_generated_;
 		forward_sequence_generator forward_gen_;
