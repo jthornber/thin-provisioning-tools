@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 use crate::block_manager::*;
 use crate::checksum;
 
+// FIXME: check that keys are in ascending order between nodes.
+
 //------------------------------------------
 
 pub trait ValueType {
@@ -184,6 +186,23 @@ impl BTreeWalker {
             ignore_non_fatal,
         };
         r
+    }
+
+    pub fn new_with_seen(
+        engine: Arc<AsyncIoEngine>,
+        seen: Arc<Mutex<FixedBitSet>>,
+        ignore_non_fatal: bool,
+    ) -> BTreeWalker {
+        {
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), engine.get_nr_blocks() as usize);
+        }
+
+        BTreeWalker {
+            engine,
+            seen,
+            ignore_non_fatal,
+        }
     }
 
     fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &Vec<u64>) -> Result<()>

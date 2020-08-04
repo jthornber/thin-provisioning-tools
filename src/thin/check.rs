@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::collections::HashMap;
 use std::path::Path;
@@ -9,6 +10,31 @@ use threadpool::ThreadPool;
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
 use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, ValueType};
 use crate::thin::superblock::*;
+
+//------------------------------------------
+
+struct TopLevelVisitor<'a> {
+    roots: &'a mut HashMap<u32, u64>,
+}
+
+impl<'a> NodeVisitor<u64> for TopLevelVisitor<'a> {
+    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node
+        {
+            for n in 0..keys.len() {
+                let k = keys[n];
+                let root = values[n];
+                self.roots.insert(k as u32, root);
+            }
+        }
+
+        Ok(())
+    }
+}
 
 //------------------------------------------
 
@@ -35,54 +61,6 @@ impl ValueType for BlockTime {
                 time: time as u32,
             },
         ))
-    }
-}
-
-struct TopLevelVisitor {}
-
-impl NodeVisitor<u64> for TopLevelVisitor {
-    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            let mut blocks = Vec::new();
-            let mut thin_ids = Vec::new();
-            let seen = w.seen.lock().unwrap();
-            for n in 0..keys.len() {
-                let b = values[n];
-                if !seen[b as usize] {
-                    thin_ids.push(keys[n]);
-                    blocks.push(Block::new(b));
-                }
-            }
-            drop(seen);
-
-            w.engine.read_many(&mut blocks)?;
-
-            // FIXME: with a thread pool we need to return errors another way.
-            let nr_workers = 4;
-            let pool = ThreadPool::new(nr_workers);
-
-            let mut n = 0;
-            for b in blocks {
-                let thin_id = thin_ids[n];
-                n += 1;
-
-                let mut w = w.clone();
-                pool.execute(move || {
-                    let mut v = BottomLevelVisitor {};
-                    let result = w.walk_b(&mut v, &b).expect("walk failed"); // FIXME: return error
-                    eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
-                });
-            }
-
-            pool.join();
-        }
-
-        Ok(())
     }
 }
 
@@ -141,12 +119,17 @@ impl DeviceVisitor {
 
 impl NodeVisitor<DeviceDetail> for DeviceVisitor {
     fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<DeviceDetail>) -> Result<()> {
-        if let Node::Leaf {header: _h, keys, values} = node {
-           for n in 0..keys.len() {
-               let k = keys[n] as u32;
-               let v = values[n].clone();
-               self.devs.insert(k, v.clone());
-           }
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node
+        {
+            for n in 0..keys.len() {
+                let k = keys[n] as u32;
+                let v = values[n].clone();
+                self.devs.insert(k, v.clone());
+            }
         }
 
         Ok(())
@@ -162,19 +145,40 @@ pub fn check(dev: &Path) -> Result<()> {
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     eprintln!("{:?}", sb);
-    
+
     {
         let mut visitor = DeviceVisitor::new();
         let mut w = BTreeWalker::new(engine.clone(), false);
         w.walk(&mut visitor, sb.details_root)?;
         println!("found {} devices", visitor.devs.len());
     }
-    
+
+    let mut roots = HashMap::new();
     {
-        let mut visitor = TopLevelVisitor {};
+        let mut visitor = TopLevelVisitor { roots: &mut roots };
         let mut w = BTreeWalker::new(engine.clone(), false);
         let _result = w.walk(&mut visitor, sb.mapping_root)?;
         println!("read mapping tree in {} ms", now.elapsed().as_millis());
+    }
+
+    // FIXME: with a thread pool we need to return errors another way.
+    {
+        let nr_workers = 4;
+        let pool = ThreadPool::new(nr_workers);
+        let mut seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
+            engine.get_nr_blocks() as usize,
+        )));
+
+        for (thin_id, root) in roots {
+            let mut w = BTreeWalker::new_with_seen(engine.clone(), seen.clone(), false);
+            pool.execute(move || {
+                let mut v = BottomLevelVisitor {};
+                let result = w.walk(&mut v, root).expect("walk failed"); // FIXME: return error
+                eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
+            });
+        }
+
+        pool.join();
     }
 
     Ok(())
