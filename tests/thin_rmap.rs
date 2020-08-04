@@ -47,10 +47,7 @@ fn rejects_bad_option() -> Result<()> {
 fn valid_region_format_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let output = thin_rmap!("--region", "23..7890", &md).unchecked().run()?;
-    eprintln!("stdout: {:?}", output.stdout);
-    eprintln!("stderr: {:?}", output.stderr);
-    assert!(output.status.success());
+    thin_rmap!("--region", "23..7890", &md).run()?;
     Ok(())
 }
 
