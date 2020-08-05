@@ -68,50 +68,6 @@
   (define (register-thin-tests) #t)
 
   ;;;-----------------------------------------------------------
-  ;;; thin_delta scenarios
-  ;;;-----------------------------------------------------------
-  (define-scenario (thin-delta v)
-    "thin_delta accepts -V"
-    (run-ok-rcv (stdout _) (thin-delta "-V")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (thin-delta version)
-    "thin_delta accepts --version"
-    (run-ok-rcv (stdout _) (thin-delta "--version")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (thin-delta h)
-    "thin_delta accepts -h"
-    (run-ok-rcv (stdout _) (thin-delta "-h")
-      (assert-equal thin-delta-help stdout)))
-
-  (define-scenario (thin-delta help)
-    "thin_delta accepts --help"
-    (run-ok-rcv (stdout _) (thin-delta "--help")
-      (assert-equal thin-delta-help stdout)))
-
-  (define-scenario (thin-delta unrecognised-option)
-    "Unrecognised option should cause failure"
-    (with-valid-metadata (md)
-      (run-fail-rcv (stdout stderr) (thin-delta "--unleash-the-hedgehogs")
-        (assert-matches ".*thin_delta: unrecognized option '--unleash-the-hedgehogs" stderr))))
-
-  (define-scenario (thin-delta snap1-unspecified)
-    "Fails without --snap1 fails"
-    (run-fail-rcv (_ stderr) (thin-delta "--snap2 45 foo")
-      (assert-starts-with "--snap1 not specified." stderr)))
-
-  (define-scenario (thin-delta snap2-unspecified)
-    "Fails without --snap2 fails"
-    (run-fail-rcv (_ stderr) (thin-delta "--snap1 45 foo")
-      (assert-starts-with "--snap2 not specified." stderr)))
-
-  (define-scenario (thin-delta device-unspecified)
-    "Fails if no device given"
-    (run-fail-rcv (_ stderr) (thin-delta "--snap1 45 --snap2 46")
-      (assert-starts-with "No input device provided." stderr)))
-
-  ;;;-----------------------------------------------------------
   ;;; thin_metadata_pack scenarios
   ;;;-----------------------------------------------------------
 

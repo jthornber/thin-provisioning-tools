@@ -70,6 +70,17 @@ macro_rules! thin_repair {
     };
 }
 
+#[macro_export]
+macro_rules! thin_delta {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_delta", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
 //------------------------------------------
 
 pub struct TestDir {
