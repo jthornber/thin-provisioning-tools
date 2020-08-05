@@ -10,7 +10,7 @@ use crate::checksum;
 
 //------------------------------------------
 
-pub trait ValueType {
+pub trait Unpack {
     // The size of the value when on disk.
     fn disk_size() -> u32;
     fn unpack(data: &[u8]) -> IResult<&[u8], Self>
@@ -53,7 +53,7 @@ pub fn unpack_node_header(data: &[u8]) -> IResult<&[u8], NodeHeader> {
     ))
 }
 
-pub enum Node<V: ValueType> {
+pub enum Node<V: Unpack> {
     Internal {
         header: NodeHeader,
         keys: Vec<u64>,
@@ -79,7 +79,7 @@ pub fn to_any<'a, V>(r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
     }
 }
 
-pub fn unpack_node<V: ValueType>(
+pub fn unpack_node<V: Unpack>(
     data: &[u8],
     ignore_non_fatal: bool,
     is_root: bool,
@@ -154,7 +154,7 @@ pub fn unpack_node<V: ValueType>(
 
 //------------------------------------------
 
-impl ValueType for u64 {
+impl Unpack for u64 {
     fn disk_size() -> u32 {
         8
     }
@@ -166,7 +166,7 @@ impl ValueType for u64 {
 
 //------------------------------------------
 
-pub trait NodeVisitor<V: ValueType> {
+pub trait NodeVisitor<V: Unpack> {
     fn visit<'a>(&mut self, w: &BTreeWalker, b: &Block, node: &Node<V>) -> Result<()>;
 }
 
@@ -208,7 +208,7 @@ impl BTreeWalker {
     fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &Vec<u64>) -> Result<()>
     where
         NV: NodeVisitor<V>,
-        V: ValueType,
+        V: Unpack,
     {
         let mut blocks = Vec::new();
         let seen = self.seen.lock().unwrap();
@@ -231,7 +231,7 @@ impl BTreeWalker {
     fn walk_node<NV, V>(&mut self, visitor: &mut NV, b: &Block, is_root: bool) -> Result<()>
     where
         NV: NodeVisitor<V>,
-        V: ValueType,
+        V: Unpack,
     {
         let mut seen = self.seen.lock().unwrap();
         seen.insert(b.loc as usize);
@@ -260,7 +260,7 @@ impl BTreeWalker {
     pub fn walk_b<NV, V>(&mut self, visitor: &mut NV, root: &Block) -> Result<()>
     where
         NV: NodeVisitor<V>,
-        V: ValueType,
+        V: Unpack,
     {
         self.walk_node(visitor, &root, true)
     }
@@ -268,7 +268,7 @@ impl BTreeWalker {
     pub fn walk<NV, V>(&mut self, visitor: &mut NV, root: u64) -> Result<()>
     where
         NV: NodeVisitor<V>,
-        V: ValueType,
+        V: Unpack,
     {
         let mut root = Block::new(root);
         self.engine.read(&mut root)?;

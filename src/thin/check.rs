@@ -8,7 +8,7 @@ use std::time::Instant;
 use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
-use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, ValueType};
+use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -18,7 +18,7 @@ struct TopLevelVisitor<'a> {
 }
 
 impl<'a> NodeVisitor<u64> for TopLevelVisitor<'a> {
-    fn visit(&mut self, w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
             keys,
@@ -44,7 +44,7 @@ struct BlockTime {
     time: u32,
 }
 
-impl ValueType for BlockTime {
+impl Unpack for BlockTime {
     fn disk_size() -> u32 {
         8
     }
@@ -82,7 +82,7 @@ struct DeviceDetail {
     snapshotted_time: u32,
 }
 
-impl ValueType for DeviceDetail {
+impl Unpack for DeviceDetail {
     fn disk_size() -> u32 {
         24
     }
@@ -139,8 +139,7 @@ impl NodeVisitor<DeviceDetail> for DeviceVisitor {
 //------------------------------------------
 
 pub fn check(dev: &Path) -> Result<()> {
-    //let mut engine = SyncIoEngine::new(dev)?;
-    let mut engine = Arc::new(AsyncIoEngine::new(dev, 256)?);
+    let engine = Arc::new(AsyncIoEngine::new(dev, 256)?);
 
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
@@ -165,7 +164,7 @@ pub fn check(dev: &Path) -> Result<()> {
     {
         let nr_workers = 4;
         let pool = ThreadPool::new(nr_workers);
-        let mut seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
+        let seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
             engine.get_nr_blocks() as usize,
         )));
 

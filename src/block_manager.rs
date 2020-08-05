@@ -141,7 +141,8 @@ impl Clone for AsyncIoEngine {
     fn clone(&self) -> AsyncIoEngine {
         let inner = self.inner.lock().unwrap();
         eprintln!("in clone, queue_len = {}", inner.queue_len);
-        AsyncIoEngine {inner: Mutex::new(AsyncIoEngine_ {
+        AsyncIoEngine {
+            inner: Mutex::new(AsyncIoEngine_ {
                 queue_len: inner.queue_len,
                 ring: IoUring::new(inner.queue_len).expect("couldn't create uring"),
                 nr_blocks: inner.nr_blocks,
