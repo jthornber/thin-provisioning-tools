@@ -68,49 +68,6 @@
   (define (register-thin-tests) #t)
 
   ;;;-----------------------------------------------------------
-  ;;; thin_metadata_pack scenarios
-  ;;;-----------------------------------------------------------
-
-  (define-scenario (thin-metadata-pack version)
-    "accepts --version"
-    (run-ok-rcv (stdout _) (thin-metadata-pack "--version")
-      (assert-equal "thin_metadata_pack 0.9.0-rc2" stdout)))
-
-  (define-scenario (thin-metadata-pack h)
-    "accepts -h"
-    (run-ok-rcv (stdout _) (thin-metadata-pack "-h")
-      (assert-equal thin-metadata-pack-help stdout)))
-
-  (define-scenario (thin-metadata-pack help)
-    "accepts --help"
-    (run-ok-rcv (stdout _) (thin-metadata-pack "--help")
-      (assert-equal thin-metadata-pack-help stdout)))
-
-  (define-scenario (thin-metadata-pack unrecognised-option)
-    "Unrecognised option should cause failure"
-    (with-valid-metadata (md)
-      (run-fail-rcv (stdout stderr) (thin-metadata-pack "--unleash-the-hedgehogs")
-        (assert-starts-with "error: Found argument '--unleash-the-hedgehogs'" stderr)))) 
-
-  (define-scenario (thin-metadata-pack missing-input-file)
-    "the input file wasn't specified"
-    (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (thin-metadata-pack "-o " md)
-        (assert-starts-with "error: The following required arguments were not provided:\n    -i <DEV>" stderr))))
-
-  (define-scenario (thin-metadata-pack no-such-input-file)
-    "the input file can't be found"
-    (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (thin-metadata-pack "-i no-such-file -o" md)
-        (assert-starts-with "Couldn't find input file" stderr))))
-
-  (define-scenario (thin-metadata-pack missing-output-file)
-    "the output file wasn't specified"
-    (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (thin-metadata-pack "-i" md)
-        (assert-starts-with "error: The following required arguments were not provided:\n    -o <FILE>" stderr))))
-
-  ;;;-----------------------------------------------------------
   ;;; thin_metadata_unpack scenarios
   ;;;-----------------------------------------------------------
   (define-scenario (thin-metadata-unpack version)

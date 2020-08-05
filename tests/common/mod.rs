@@ -81,6 +81,28 @@ macro_rules! thin_delta {
     };
 }
 
+#[macro_export]
+macro_rules! thin_metadata_pack {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_metadata_pack", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! thin_metadata_unpack {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_metadata_unpack", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
 //------------------------------------------
 
 pub struct TestDir {
