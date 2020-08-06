@@ -449,6 +449,10 @@ namespace {
 
 			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
 			superblock_detail::superblock sb = read_superblock(bm);
+
+			if (!sb.get_needs_check_flag())
+				return true;
+
 			sb.set_needs_check_flag(false);
 			write_superblock(bm, sb);
 
