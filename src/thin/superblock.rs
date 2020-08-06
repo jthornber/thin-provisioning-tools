@@ -14,8 +14,8 @@ pub struct Superblock {
     pub time: u32,
     pub transaction_id: u64,
     pub metadata_snap: u64,
-    //data_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
-    //metadata_sm_root: [u8; SPACE_MAP_ROOT_SIZE],
+    pub data_sm_root: Vec<u8>,
+    pub metadata_sm_root: Vec<u8>,
     pub mapping_root: u64,
     pub details_root: u64,
     pub data_block_size: u32,
@@ -59,8 +59,8 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, time) = le_u32(i)?;
     let (i, transaction_id) = le_u64(i)?;
     let (i, metadata_snap) = le_u64(i)?;
-    let (i, _data_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
-    let (i, _metadata_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
+    let (i, data_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
+    let (i, metadata_sm_root) = take(SPACE_MAP_ROOT_SIZE)(i)?;
     let (i, mapping_root) = le_u64(i)?;
     let (i, details_root) = le_u64(i)?;
     let (i, data_block_size) = le_u32(i)?;
@@ -76,8 +76,8 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
             time,
             transaction_id,
             metadata_snap,
-            //data_sm_root,
-            //metadata_sm_root,
+            data_sm_root: data_sm_root.to_vec(),
+            metadata_sm_root: metadata_sm_root.to_vec(),
             mapping_root,
             details_root,
             data_block_size,

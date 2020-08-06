@@ -8,8 +8,10 @@ use std::time::Instant;
 use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
-use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, Unpack};
+use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, Unpack, unpack};
+use crate::pdata::space_map::*;
 use crate::thin::superblock::*;
+use crate::checksum;
 
 //------------------------------------------
 
@@ -128,13 +130,70 @@ impl NodeVisitor<DeviceDetail> for DeviceVisitor {
             for n in 0..keys.len() {
                 let k = keys[n] as u32;
                 let v = values[n].clone();
-                self.devs.insert(k, v.clone());
+                self.devs.insert(k, v);
             }
         }
 
         Ok(())
     }
 }
+
+//------------------------------------------
+
+struct IndexVisitor {
+    entries: Vec<IndexEntry>,
+}
+
+impl NodeVisitor<IndexEntry> for IndexVisitor {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<IndexEntry>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node {
+            for n in 0..keys.len() {
+                // FIXME: check keys are in incremental order
+                let v = values[n].clone();
+                self.entries.push(v);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
+// FIXME: move to btree
+struct ValueCollector<V> {
+    values: Vec<(u64, V)>,
+}
+
+impl<V> ValueCollector<V> {
+    fn new() -> ValueCollector<V> {
+        ValueCollector {
+            values: Vec::new(),
+        }
+    }
+}
+
+impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<V>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node {
+            for n in 0..keys.len() {
+                let k = keys[n];
+                let v = values[n].clone();
+                self.values.push((k, v));
+            }
+        }
+
+        Ok(())
+    }
+}    
 
 //------------------------------------------
 
@@ -145,6 +204,7 @@ pub fn check(dev: &Path) -> Result<()> {
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     eprintln!("{:?}", sb);
 
+    // device details
     {
         let mut visitor = DeviceVisitor::new();
         let mut w = BTreeWalker::new(engine.clone(), false);
@@ -152,6 +212,8 @@ pub fn check(dev: &Path) -> Result<()> {
         println!("found {} devices", visitor.devs.len());
     }
 
+/*
+    // mapping top level
     let mut roots = HashMap::new();
     {
         let mut visitor = TopLevelVisitor { roots: &mut roots };
@@ -160,8 +222,9 @@ pub fn check(dev: &Path) -> Result<()> {
         println!("read mapping tree in {} ms", now.elapsed().as_millis());
     }
 
-    // FIXME: with a thread pool we need to return errors another way.
+    // mapping bottom level
     {
+        // FIXME: with a thread pool we need to return errors another way.
         let nr_workers = 4;
         let pool = ThreadPool::new(nr_workers);
         let seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
@@ -178,6 +241,43 @@ pub fn check(dev: &Path) -> Result<()> {
         }
 
         pool.join();
+    }
+    */
+
+    // data space map
+    {
+        let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+        eprintln!("data root: {:?}", root);
+
+        // overflow btree
+        let mut overflow: HashMap<u64, u32> = HashMap::new();
+        {
+            let mut v: ValueCollector<u32> = ValueCollector::new();
+            let mut w = BTreeWalker::new(engine.clone(), false);
+            w.walk(&mut v, root.ref_count_root)?;
+
+            for (k, v) in v.values {
+                overflow.insert(k, v);
+            }
+        }
+        eprintln!("{} overflow entries", overflow.len());
+
+        // Bitmaps
+        let mut v = IndexVisitor {entries: Vec::new()};
+        let mut w = BTreeWalker::new(engine.clone(), false);
+        let _result = w.walk(&mut v, root.bitmap_root);
+        eprintln!("{} index entries", v.entries.len());
+
+        for i in v.entries {
+            let mut b = Block::new(i.blocknr);
+            engine.read(&mut b)?;
+            
+            if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
+                return Err(anyhow!("Index entry points to block ({}) that isn't a bitmap", b.loc));
+            }
+
+            let bitmap = unpack::<Bitmap>(b.get_data())?;
+        }
     }
 
     Ok(())

@@ -18,7 +18,7 @@ const ALIGN: usize = 4096;
 #[derive(Debug)]
 pub struct Block {
     pub loc: u64,
-    data: *mut u8,
+    pub data: *mut u8,
 }
 
 impl Block {
