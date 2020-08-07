@@ -416,7 +416,7 @@ mod tests {
         }
     }
 
-    fn check_u64s_match(ns: &Vec<u64>, bytes: &[u8]) -> bool {
+    fn check_u64s_match(ns: &[u64], bytes: &[u8]) -> bool {
         let mut packed = Vec::with_capacity(ns.len() * 8);
         let mut w = Cursor::new(&mut packed);
         for n in ns {
@@ -425,7 +425,7 @@ mod tests {
         packed == bytes
     }
 
-    fn check_pack_u64s(ns: &Vec<u64>) -> bool {
+    fn check_pack_u64s(ns: &[u64]) -> bool {
         println!("packing {:?}", &ns);
         let mut bs = Vec::with_capacity(4096);
 
@@ -461,7 +461,7 @@ mod tests {
         check_pack_u64s(&ns)
     }
 
-    fn check_pack_shifted_u64s(ns: &Vec<(u64, u64)>) -> bool {
+    fn check_pack_shifted_u64s(ns: &[(u64, u64)]) -> bool {
         let shifted: Vec<u64> = ns
             .iter()
             .map(|(h, l)| (h << 24) | (l & ((1 << 24) - 1)))

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use thinp::file_utils;
 use thinp::version::TOOLS_VERSION;
 use duct::cmd;
 
@@ -7,7 +6,6 @@ mod common;
 
 use common::*;
 use common::test_dir::*;
-use common::cache_xml_generator::{write_xml, XmlGen};
 
 //------------------------------------------
 

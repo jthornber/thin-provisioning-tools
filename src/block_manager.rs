@@ -190,7 +190,7 @@ impl IoEngine for AsyncIoEngine {
         let count = blocks.len();
         let fd = types::Target::Fd(inner.input.as_raw_fd());
 
-        for b in blocks.into_iter() {
+        for b in blocks.iter_mut() {
             let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 

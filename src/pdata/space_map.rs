@@ -116,7 +116,7 @@ impl Unpack for Bitmap {
 
             for _b in 0..32 {
                 let val = word & 0x3;
-                word = word >> 2;
+                word >>= 2;
 
                 if val < 3 {
                     entries.push(BitmapEntry::Small(val as u8));

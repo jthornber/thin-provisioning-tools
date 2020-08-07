@@ -148,12 +148,12 @@ impl NodeVisitor<IndexEntry> for IndexVisitor {
     fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<IndexEntry>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
-            keys,
+            keys: _k,
             values,
         } = node {
-            for n in 0..keys.len() {
+            for v in values {
                 // FIXME: check keys are in incremental order
-                let v = values[n].clone();
+                let v = v.clone();
                 self.entries.push(v);
             }
         }

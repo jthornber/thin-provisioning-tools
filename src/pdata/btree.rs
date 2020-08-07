@@ -31,7 +31,6 @@ const NODE_HEADER_SIZE: usize = 32;
 
 pub struct NodeHeader {
     is_leaf: bool,
-    block: u64,
     nr_entries: u32,
     max_entries: u32,
     value_size: u32,
@@ -44,7 +43,7 @@ const LEAF_NODE: u32 = 2;
 pub fn unpack_node_header(data: &[u8]) -> IResult<&[u8], NodeHeader> {
     let (i, _csum) = le_u32(data)?;
     let (i, flags) = le_u32(i)?;
-    let (i, block) = le_u64(i)?;
+    let (i, _block) = le_u64(i)?;
     let (i, nr_entries) = le_u32(i)?;
     let (i, max_entries) = le_u32(i)?;
     let (i, value_size) = le_u32(i)?;
@@ -54,7 +53,6 @@ pub fn unpack_node_header(data: &[u8]) -> IResult<&[u8], NodeHeader> {
         i,
         NodeHeader {
             is_leaf: flags == LEAF_NODE,
-            block,
             nr_entries,
             max_entries,
             value_size,
@@ -111,18 +109,18 @@ pub fn unpack_node<V: Unpack>(
     }
 
     if header.nr_entries > header.max_entries {
-        return node_err(format!("nr_entries > max_entries"));
+        return node_err("nr_entries > max_entries".to_string());
     }
 
     if !ignore_non_fatal {
         if header.max_entries % 3 != 0 {
-            return node_err(format!("max_entries is not divisible by 3"));
+            return node_err("max_entries is not divisible by 3".to_string());
         }
 
         if !is_root {
             let min = header.max_entries / 3;
             if header.nr_entries < min {
-                return node_err(format!("too few entries"));
+                return node_err("too few entries".to_string());
             }
         }
     }
@@ -133,7 +131,7 @@ pub fn unpack_node<V: Unpack>(
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return node_err(format!("keys out of order"));
+                return node_err("keys out of order".to_string());
             }
         }
 
@@ -186,7 +184,7 @@ impl Unpack for u32 {
 //------------------------------------------
 
 pub trait NodeVisitor<V: Unpack> {
-    fn visit<'a>(&mut self, w: &BTreeWalker, b: &Block, node: &Node<V>) -> Result<()>;
+    fn visit(&mut self, w: &BTreeWalker, b: &Block, node: &Node<V>) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -200,7 +198,7 @@ impl BTreeWalker {
     pub fn new(engine: Arc<AsyncIoEngine>, ignore_non_fatal: bool) -> BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         let r: BTreeWalker = BTreeWalker {
-            engine: engine,
+            engine,
             seen: Arc::new(Mutex::new(FixedBitSet::with_capacity(nr_blocks))),
             ignore_non_fatal,
         };
@@ -224,7 +222,7 @@ impl BTreeWalker {
         }
     }
 
-    fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &Vec<u64>) -> Result<()>
+    fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &[u64]) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,

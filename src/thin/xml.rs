@@ -359,13 +359,7 @@ where
     reader.trim_text(true);
     let mut buf = Vec::new();
 
-    loop {
-        match handle_event(&mut reader, &mut buf, visitor)? {
-            Visit::Continue => {}
-            Visit::Stop => break,
-        }
-    }
-
+    while let Visit::Continue = handle_event(&mut reader, &mut buf, visitor)? {}
     Ok(())
 }
 
@@ -380,7 +374,7 @@ impl MetadataVisitor for SBVisitor {
         self.superblock = Some(sb.clone());
         Ok(Visit::Stop)
     }
-    
+
     fn superblock_e(&mut self) -> Result<Visit> {
         Ok(Visit::Continue)
     }
@@ -405,7 +399,7 @@ pub fn read_superblock<R>(input: R) -> Result<Superblock>
 where
     R: Read,
 {
-    let mut v = SBVisitor {superblock: None};
+    let mut v = SBVisitor { superblock: None };
     read(input, &mut v)?;
     Ok(v.superblock.unwrap())
 }

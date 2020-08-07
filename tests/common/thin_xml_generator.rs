@@ -136,7 +136,7 @@ fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<T
             thread_rng().gen_range(run_len.start, run_len.end),
         );
         runs.push(ThinRun {
-            thin_id: thin_id,
+            thin_id,
             thin_begin: b,
             len,
         });
@@ -171,9 +171,9 @@ impl XmlGen for FragmentedS {
 
         // drop half the mappings, which leaves us free runs
         let mut dropped = Vec::new();
-        for i in 0..maps.len() {
+        for (i, m) in maps.iter().enumerate() {
             if i % 2 == 0 {
-                dropped.push(maps[i].clone());
+                dropped.push(*m);
             }
         }
 
@@ -237,7 +237,7 @@ impl Allocator {
         }
 
         runs.shuffle(&mut thread_rng());
-        let runs: VecDeque<Range<u64>> = runs.iter().map(|r| r.clone()).collect();
+        let runs: VecDeque<Range<u64>> = runs.iter().cloned().collect();
         Allocator { runs }
     }
 
@@ -297,27 +297,25 @@ impl Run {
 
     fn split(&self, n: u64) -> (Option<Run>, Option<Run>) {
         if n == 0 {
-            return (None, Some(self.clone()));
+            (None, Some(self.clone()))
+        } else if self.len() <= n {
+            (Some(self.clone()), None)
         } else {
-            if self.len() <= n {
-                return (Some(self.clone()), None);
-            } else {
-                match self {
-                    Run::Mapped { data_begin, len } => (
-                        Some(Run::Mapped {
-                            data_begin: *data_begin,
-                            len: n,
-                        }),
-                        Some(Run::Mapped {
-                            data_begin: data_begin + n,
-                            len: len - n,
-                        }),
-                    ),
-                    Run::UnMapped { len } => (
-                        Some(Run::UnMapped { len: n }),
-                        Some(Run::UnMapped { len: len - n }),
-                    ),
-                }
+            match self {
+                Run::Mapped { data_begin, len } => (
+                    Some(Run::Mapped {
+                        data_begin: *data_begin,
+                        len: n,
+                    }),
+                    Some(Run::Mapped {
+                        data_begin: data_begin + n,
+                        len: len - n,
+                    }),
+                ),
+                Run::UnMapped { len } => (
+                    Some(Run::UnMapped { len: n }),
+                    Some(Run::UnMapped { len: len - n }),
+                ),
             }
         }
     }
@@ -437,7 +435,7 @@ fn mk_snap_mapping(
     runs
 }
 
-fn split_runs(mut n: u64, runs: &Vec<Run>) -> (Vec<Run>, Vec<Run>) {
+fn split_runs(mut n: u64, runs: &[Run]) -> (Vec<Run>, Vec<Run>) {
     let mut before = Vec::new();
     let mut after = Vec::new();
 
@@ -462,11 +460,11 @@ fn split_runs(mut n: u64, runs: &Vec<Run>) -> (Vec<Run>, Vec<Run>) {
 }
 
 fn apply_snap_runs(
-    origin: &Vec<Run>,
-    snap: &Vec<SnapRun>,
+    origin: &[Run],
+    snap: &[SnapRun],
     allocator: &mut Allocator,
 ) -> Result<Vec<Run>> {
-    let mut origin = origin.clone();
+    let mut origin = origin.to_owned();
     let mut runs = Vec::new();
 
     for SnapRun(st, slen) in snap {

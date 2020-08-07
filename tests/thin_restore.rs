@@ -23,7 +23,7 @@ fn accepts_version() -> Result<()> {
     Ok(())
 }
 
-const USAGE: &'static str = "Usage: thin_restore [options]\nOptions:\n  {-h|--help}\n  {-i|--input} <input xml file>\n  {-o|--output} <output device or file>\n  {--transaction-id} <natural>\n  {--data-block-size} <natural>\n  {--nr-data-blocks} <natural>\n  {-q|--quiet}\n  {-V|--version}";
+const USAGE: &str = "Usage: thin_restore [options]\nOptions:\n  {-h|--help}\n  {-i|--input} <input xml file>\n  {-o|--output} <output device or file>\n  {--transaction-id} <natural>\n  {--data-block-size} <natural>\n  {--nr-data-blocks} <natural>\n  {-q|--quiet}\n  {-V|--version}";
 
 #[test]
 fn accepts_h() -> Result<()> {
