@@ -5,6 +5,7 @@ use thinp::version::TOOLS_VERSION;
 
 mod common;
 use common::*;
+use common::test_dir::*;
 
 //------------------------------------------
 

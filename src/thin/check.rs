@@ -212,7 +212,6 @@ pub fn check(dev: &Path) -> Result<()> {
         println!("found {} devices", visitor.devs.len());
     }
 
-/*
     // mapping top level
     let mut roots = HashMap::new();
     {
@@ -242,7 +241,6 @@ pub fn check(dev: &Path) -> Result<()> {
 
         pool.join();
     }
-    */
 
     // data space map
     {
@@ -276,7 +274,7 @@ pub fn check(dev: &Path) -> Result<()> {
                 return Err(anyhow!("Index entry points to block ({}) that isn't a bitmap", b.loc));
             }
 
-            let bitmap = unpack::<Bitmap>(b.get_data())?;
+            let _bitmap = unpack::<Bitmap>(b.get_data())?;
         }
     }
 

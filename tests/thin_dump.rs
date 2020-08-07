@@ -6,6 +6,7 @@ use std::str::from_utf8;
 
 mod common;
 use common::*;
+use common::test_dir::*;
 
 //------------------------------------------
 

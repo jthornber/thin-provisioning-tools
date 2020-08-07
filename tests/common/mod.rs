@@ -6,11 +6,14 @@ use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::{PathBuf};
 use std::str::from_utf8;
-use tempfile::{tempdir, TempDir};
 use thinp::file_utils;
 
-pub mod xml_generator;
-use crate::common::xml_generator::{write_xml, SingleThinS};
+pub mod thin_xml_generator;
+pub mod cache_xml_generator;
+pub mod test_dir;
+
+use crate::common::thin_xml_generator::{write_xml, SingleThinS};
+use test_dir::TestDir;
 
 //------------------------------------------
 
@@ -103,27 +106,18 @@ macro_rules! thin_metadata_unpack {
     };
 }
 
+#[macro_export]
+macro_rules! cache_check {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/cache_check", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
 //------------------------------------------
-
-pub struct TestDir {
-    dir: TempDir,
-    file_count: usize,
-}
-
-impl TestDir {
-    pub fn new() -> Result<TestDir> {
-        let dir = tempdir()?;
-        Ok(TestDir { dir, file_count: 0 })
-    }
-
-    pub fn mk_path(&mut self, file: &str) -> PathBuf {
-        let mut p = PathBuf::new();
-        p.push(&self.dir);
-        p.push(PathBuf::from(format!("{:02}_{}", self.file_count, file)));
-        self.file_count += 1;
-        p
-    }
-}
 
 // Returns stderr, a non zero status must be returned
 pub fn run_fail(command: Expression) -> Result<String> {

@@ -16,6 +16,7 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 pub mod block_manager;
+pub mod cache;
 pub mod checksum;
 pub mod file_utils;
 pub mod pack;

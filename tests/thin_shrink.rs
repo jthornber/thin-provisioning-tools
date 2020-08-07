@@ -9,8 +9,8 @@ use thinp::file_utils;
 use thinp::thin::xml::{self, Visit};
 
 mod common;
-use common::*;
-use common::xml_generator::{
+use common::test_dir::*;
+use common::thin_xml_generator::{
     write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen
 };
 
