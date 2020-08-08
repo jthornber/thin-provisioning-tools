@@ -67,7 +67,7 @@ impl Unpack for BlockTime {
 }
 
 struct BottomLevelVisitor {
-    data_sm: Arc<Mutex<CoreSpaceMap>>,
+    data_sm: Arc<Mutex<dyn SpaceMap + Send>>,
 }
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
@@ -75,9 +75,23 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
         // FIXME: do other checks
 
         if let Node::Leaf {header: _h, keys: _k, values} = node {
-            let mut data_sm = self.data_sm.lock().unwrap();
-            for bt in values {
-               data_sm.inc(bt.block)?;
+            if values.len() > 0 {
+                let mut data_sm = self.data_sm.lock().unwrap();
+
+                let mut start = values[0].block;
+                let mut len = 1;
+                
+                for n in 1..values.len() {
+                   if values[n].block == start + len {
+                       len += 1;
+                   } else {
+                       data_sm.inc(start, len)?;
+                       start = values[n].block;
+                       len = 1;
+                   }
+                }
+
+                data_sm.inc(start, len)?;
             }
         }
 
@@ -256,10 +270,12 @@ pub fn check(dev: &Path) -> Result<()> {
     eprintln!("{:?}", sb);
 
     // device details
+    let nr_devs;
     {
         let mut visitor = DeviceVisitor::new();
         let mut w = BTreeWalker::new(engine.clone(), false);
         w.walk(&mut visitor, sb.details_root)?;
+        nr_devs = visitor.devs.len();
         println!("found {} devices", visitor.devs.len());
     }
 
@@ -282,7 +298,7 @@ pub fn check(dev: &Path) -> Result<()> {
         )));
 
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-        let data_sm = Arc::new(Mutex::new(CoreSpaceMap::new(root.nr_blocks)));
+        let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
 
         for (thin_id, root) in roots {
             let mut w = BTreeWalker::new_with_seen(engine.clone(), seen.clone(), false);

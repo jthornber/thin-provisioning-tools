@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
-use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 use crate::block_manager::*;
 use crate::pdata::btree::Unpack;
@@ -150,97 +150,49 @@ impl Unpack for Bitmap {
 
 //------------------------------------------
 
-const ENTRIES_PER_WORD: u64 = 32;
-
-pub struct CoreSpaceMap {
-    nr_entries: u64,
-    bits: Vec<u64>,
-    overflow: BTreeMap<u64, u32>,
+pub trait SpaceMap {
+    fn get(&self, b: u64) -> Result<u32>;
+    fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 }
 
-impl CoreSpaceMap {
-    pub fn new(nr_entries: u64) -> CoreSpaceMap {
-        let nr_words = (nr_entries + ENTRIES_PER_WORD - 1) / ENTRIES_PER_WORD;
+pub struct CoreSpaceMap<T> {
+    counts: Vec<T>,
+}
+
+impl<V> CoreSpaceMap<V>
+where
+    V: Copy + Default + std::ops::AddAssign + From<u8>,
+{
+    pub fn new(nr_entries: u64) -> CoreSpaceMap<V> {
         CoreSpaceMap {
-            nr_entries,
-            bits: vec![0; nr_words as usize],
-            overflow: BTreeMap::new(),
+            counts: vec![V::default(); nr_entries as usize],
         }
     }
+}
 
-    fn check_bounds(&self, b: u64) -> Result<()> {
-        if b >= self.nr_entries {
-            return Err(anyhow!("space map index out of bounds"));
+impl<V> SpaceMap for CoreSpaceMap<V>
+where
+    V: Copy + Default + std::ops::AddAssign + From<u8> + Into<u32>,
+    {
+    fn get(&self, b: u64) -> Result<u32> {
+        Ok(self.counts[b as usize].into())
+    }
+
+    fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
+        for b in begin..(begin + len) {
+            self.counts[b as usize] += V::from(1u8);
         }
         Ok(())
     }
+}
 
-    fn get_index(b: u64) -> (usize, usize) {
-        (
-            (b / ENTRIES_PER_WORD) as usize,
-            ((b & (ENTRIES_PER_WORD - 1)) as usize) * 2,
-        )
-    }
-
-    fn get_bits(&self, b: u64) -> Result<u32> {
-        self.check_bounds(b)?;
-
-        let result;
-        let (w, bit) = CoreSpaceMap::get_index(b);
-        unsafe {
-            let word = self.bits.get_unchecked(w);
-            result = (*word >> bit) & 0x3;
-        }
-
-        Ok(result as u32)
-    }
-
-    pub fn get(&self, b: u64) -> Result<u32> {
-        let result = self.get_bits(b)?;
-        if result < 3 {
-            Ok(result)
-        } else {
-            match self.overflow.get(&b) {
-                None => Err(anyhow!(
-                    "internal error: missing overflow entry in space map"
-                )),
-                Some(result) => Ok(*result),
-            }
-        }
-    }
-
-    pub fn inc(&mut self, b: u64) -> Result<()> {
-        self.check_bounds(b)?;
-
-        let (w, bit) = CoreSpaceMap::get_index(b);
-        let count;
-
-        unsafe {
-            let word = self.bits.get_unchecked_mut(w);
-            count = (*word >> bit) & 0x3;
-
-            if count < 3 {
-                // bump up the bits
-                *word = (*word & !(0x3 << bit)) | (((count + 1) as u64) << bit);
-
-                if count == 2 {
-                    // insert overflow entry
-                    self.overflow.insert(b, 1);
-                }
-            }
-        }
-
-        if count >= 3 {
-            if let Some(count) = self.overflow.get_mut(&b) {
-                *count = *count + 1;
-            } else {
-                return Err(anyhow!(
-                    "internal error: missing overflow entry in space map"
-                ));
-            }
-        }
-
-        Ok(())
+pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send>> {
+    if max_count <= u8::MAX as u32 {
+        Arc::new(Mutex::new(CoreSpaceMap::<u8>::new(nr_entries)))
+    } else if max_count <= u16::MAX as u32 {
+        Arc::new(Mutex::new(CoreSpaceMap::<u16>::new(nr_entries)))
+    } else {
+        Arc::new(Mutex::new(CoreSpaceMap::<u32>::new(nr_entries)))
     }
 }
 
