@@ -1,17 +1,17 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
-use std::collections::{BTreeMap};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use threadpool::ThreadPool;
 
 use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
-use crate::pdata::btree::{BTreeWalker, Node, NodeVisitor, Unpack, unpack};
+use crate::checksum;
+use crate::pdata::btree::{unpack, BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::pdata::space_map::*;
 use crate::thin::superblock::*;
-use crate::checksum;
 
 //------------------------------------------
 
@@ -74,21 +74,26 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
     fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<BlockTime>) -> Result<()> {
         // FIXME: do other checks
 
-        if let Node::Leaf {header: _h, keys: _k, values} = node {
+        if let Node::Leaf {
+            header: _h,
+            keys: _k,
+            values,
+        } = node
+        {
             if values.len() > 0 {
                 let mut data_sm = self.data_sm.lock().unwrap();
 
                 let mut start = values[0].block;
                 let mut len = 1;
-                
+
                 for n in 1..values.len() {
-                   if values[n].block == start + len {
-                       len += 1;
-                   } else {
-                       data_sm.inc(start, len)?;
-                       start = values[n].block;
-                       len = 1;
-                   }
+                    if values[n].block == start + len {
+                        len += 1;
+                    } else {
+                        data_sm.inc(start, len)?;
+                        start = values[n].block;
+                        len = 1;
+                    }
                 }
 
                 data_sm.inc(start, len)?;
@@ -175,7 +180,8 @@ impl NodeVisitor<IndexEntry> for IndexVisitor {
             header: _h,
             keys: _k,
             values,
-        } = node {
+        } = node
+        {
             for v in values {
                 // FIXME: check keys are in incremental order
                 let v = v.clone();
@@ -196,9 +202,7 @@ struct ValueCollector<V> {
 
 impl<V> ValueCollector<V> {
     fn new() -> ValueCollector<V> {
-        ValueCollector {
-            values: Vec::new(),
-        }
+        ValueCollector { values: Vec::new() }
     }
 }
 
@@ -208,7 +212,8 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
             header: _h,
             keys,
             values,
-        } = node {
+        } = node
+        {
             for n in 0..keys.len() {
                 let k = keys[n];
                 let v = values[n].clone();
@@ -218,12 +223,49 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
 
         Ok(())
     }
-}    
+}
 
 //------------------------------------------
 
+struct OverflowChecker<'a> {
+    data_sm: &'a dyn SpaceMap,
+}
+
+impl<'a> OverflowChecker<'a> {
+    fn new(data_sm: &'a dyn SpaceMap) -> OverflowChecker<'a> {
+        OverflowChecker { data_sm }
+    }
+}
+
+impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<u32>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node
+        {
+            for n in 0..keys.len() {
+                let k = keys[n];
+                let v = values[n];
+                let expected = self.data_sm.get(k)?;
+                if expected != v {
+                    return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                      k, expected, v));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
+const MAX_CONCURRENT_IO: u32 = 1024;
+
 pub fn check(dev: &Path) -> Result<()> {
-    let engine = Arc::new(AsyncIoEngine::new(dev, 256)?);
+    let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
 
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
@@ -249,6 +291,7 @@ pub fn check(dev: &Path) -> Result<()> {
     }
 
     // mapping bottom level
+    let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
         let nr_workers = 4;
@@ -258,13 +301,13 @@ pub fn check(dev: &Path) -> Result<()> {
         )));
 
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-        let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+        data_sm = core_sm(root.nr_blocks, nr_devs as u32);
 
         for (thin_id, root) in roots {
             let mut w = BTreeWalker::new_with_seen(engine.clone(), seen.clone(), false);
             let data_sm = data_sm.clone();
             pool.execute(move || {
-                let mut v = BottomLevelVisitor {data_sm};
+                let mut v = BottomLevelVisitor { data_sm };
                 let result = w.walk(&mut v, root).expect("walk failed"); // FIXME: return error
                 eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
             });
@@ -275,39 +318,61 @@ pub fn check(dev: &Path) -> Result<()> {
 
     // data space map
     {
+        let data_sm = data_sm.lock().unwrap();
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
         eprintln!("data root: {:?}", root);
 
         // overflow btree
-        let mut overflow: BTreeMap<u64, u32> = BTreeMap::new();
         {
-            let mut v: ValueCollector<u32> = ValueCollector::new();
+            let mut v = OverflowChecker::new(&*data_sm);
             let mut w = BTreeWalker::new(engine.clone(), false);
             w.walk(&mut v, root.ref_count_root)?;
-
-            for (k, v) in v.values {
-                overflow.insert(k, v);
-            }
         }
-        eprintln!("{} overflow entries", overflow.len());
 
         // Bitmaps
-        let mut v = IndexVisitor {entries: Vec::new()};
+        let mut v = IndexVisitor {
+            entries: Vec::new(),
+        };
         let mut w = BTreeWalker::new(engine.clone(), false);
         let _result = w.walk(&mut v, root.bitmap_root);
         eprintln!("{} index entries", v.entries.len());
 
-        for i in v.entries {
-            let mut b = Block::new(i.blocknr);
-            engine.read(&mut b)?;
-            
+        let mut blocks = Vec::new();
+        for i in &v.entries {
+            blocks.push(Block::new(i.blocknr));
+        }
+
+        engine.read_many(&mut blocks)?;
+
+        let mut blocknr = 0;
+        for (n, _i) in v.entries.iter().enumerate() {
+            let b = &blocks[n];
             if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
-                return Err(anyhow!("Index entry points to block ({}) that isn't a bitmap", b.loc));
+                return Err(anyhow!(
+                    "Index entry points to block ({}) that isn't a bitmap",
+                    b.loc
+                ));
             }
 
             let bitmap = unpack::<Bitmap>(b.get_data())?;
-            for _e in bitmap.entries {
-                //builder.push(&e);
+            for e in bitmap.entries {
+                match e {
+                    BitmapEntry::Small(actual) => {
+                        let expected = data_sm.get(blocknr)?;
+                        if actual != expected as u8 {
+                            return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                      blocknr, expected, actual));
+                        }
+                    }
+                    BitmapEntry::Overflow => {
+                        let expected = data_sm.get(blocknr)?;
+                        if expected < 3 {
+                            return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
+                                              blocknr, expected));
+                        }
+                    }
+                }
+                blocknr += 1;
             }
         }
     }

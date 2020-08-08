@@ -135,6 +135,37 @@ impl AsyncIoEngine {
             }),
         })
     }
+
+    fn read_many_(&self, blocks: &mut [Block]) -> Result<()> {
+        let mut inner = self.inner.lock().unwrap();
+        let count = blocks.len();
+        let fd = types::Target::Fd(inner.input.as_raw_fd());
+
+        for b in blocks.iter_mut() {
+            let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
+                .offset(b.loc as i64 * BLOCK_SIZE as i64);
+
+            unsafe {
+                let mut queue = inner.ring.submission().available();
+                queue
+                    .push(read_e.build().user_data(1))
+                    .ok()
+                    .expect("queue is full");
+            }
+        }
+
+        inner.ring.submit_and_wait(count)?;
+
+        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+
+        // FIXME: return proper errors
+        assert_eq!(cqes.len(), count);
+        for c in &cqes {
+            assert_eq!(c.result(), BLOCK_SIZE as i32);
+        }
+
+        Ok(())
+    }
 }
 
 impl Clone for AsyncIoEngine {
@@ -186,33 +217,16 @@ impl IoEngine for AsyncIoEngine {
     }
 
     fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        let count = blocks.len();
-        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let inner = self.inner.lock().unwrap();
+        let queue_len = inner.queue_len as usize;
+        drop(inner);
 
-        for b in blocks.iter_mut() {
-            let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
-                .offset(b.loc as i64 * BLOCK_SIZE as i64);
-
-            unsafe {
-                let mut queue = inner.ring.submission().available();
-                queue
-                    .push(read_e.build().user_data(1))
-                    .ok()
-                    .expect("queue is full");
-            }
+        let mut done = 0;
+        while done != blocks.len() {
+            let len = usize::min(blocks.len() - done, queue_len);
+            self.read_many_(&mut blocks[done..(done + len)])?;
+            done += len;
         }
-
-        inner.ring.submit_and_wait(count)?;
-
-        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
-
-        // FIXME: return proper errors
-        assert_eq!(cqes.len(), count);
-        for c in &cqes {
-            assert_eq!(c.result(), BLOCK_SIZE as i32);
-        }
-
         Ok(())
     }
 }
