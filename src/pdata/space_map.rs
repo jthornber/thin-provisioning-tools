@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
+use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
+use std::collections::HashMap;
 
 use crate::block_manager::*;
 use crate::pdata::btree::Unpack;
@@ -16,9 +18,7 @@ pub struct SMRoot {
 
 pub fn unpack_root(data: &[u8]) -> Result<SMRoot> {
     match SMRoot::unpack(data) {
-        Err(_e) => {
-            Err(anyhow!("couldn't parse SMRoot"))
-        },
+        Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
         Ok((_i, v)) => Ok(v),
     }
 }
@@ -27,19 +27,22 @@ impl Unpack for SMRoot {
     fn disk_size() -> u32 {
         32
     }
-    
+
     fn unpack(data: &[u8]) -> IResult<&[u8], SMRoot> {
         let (i, nr_blocks) = le_u64(data)?;
         let (i, nr_allocated) = le_u64(i)?;
         let (i, bitmap_root) = le_u64(i)?;
         let (i, ref_count_root) = le_u64(i)?;
 
-        Ok  ((i, SMRoot {
-            nr_blocks,
-            nr_allocated,
-            bitmap_root,
-            ref_count_root,
-        }))
+        Ok((
+            i,
+            SMRoot {
+                nr_blocks,
+                nr_allocated,
+                bitmap_root,
+                ref_count_root,
+            },
+        ))
     }
 }
 
@@ -62,7 +65,14 @@ impl Unpack for IndexEntry {
         let (i, nr_free) = le_u32(i)?;
         let (i, none_free_before) = le_u32(i)?;
 
-        Ok((i, IndexEntry {blocknr, nr_free, none_free_before}))
+        Ok((
+            i,
+            IndexEntry {
+                blocknr,
+                nr_free,
+                none_free_before,
+            },
+        ))
     }
 }
 
@@ -85,11 +95,18 @@ impl Unpack for BitmapHeader {
         let (i, not_used) = le_u32(i)?;
         let (i, blocknr) = le_u64(i)?;
 
-        Ok((i, BitmapHeader {csum, not_used, blocknr} ))
+        Ok((
+            i,
+            BitmapHeader {
+                csum,
+                not_used,
+                blocknr,
+            },
+        ))
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BitmapEntry {
     Small(u8),
     Overflow,
@@ -109,7 +126,7 @@ impl Unpack for Bitmap {
     fn unpack(data: &[u8]) -> IResult<&[u8], Self> {
         let (mut i, header) = BitmapHeader::unpack(data)?;
 
-	let mut entries = Vec::new();
+        let mut entries = Vec::new();
         let nr_words = (BLOCK_SIZE - BitmapHeader::disk_size() as usize) / 8;
         for _w in 0..nr_words {
             let (tmp, mut word) = le_u64(i)?;
@@ -128,7 +145,92 @@ impl Unpack for Bitmap {
             i = tmp;
         }
 
-        Ok((i, Bitmap {header, entries}))
+        Ok((i, Bitmap { header, entries }))
+    }
+}
+
+//------------------------------------------
+
+pub struct CoreSpaceMap {
+    nr_entries: u64,
+    bits: FixedBitSet,
+    overflow: HashMap<u64, u32>,
+}
+
+impl CoreSpaceMap {
+    pub fn new(nr_entries: u64) -> CoreSpaceMap {
+        let bits = FixedBitSet::with_capacity(nr_entries as usize * 2);
+        CoreSpaceMap {
+            nr_entries,
+            bits,
+            overflow: HashMap::new(),
+        }
+    }
+
+    fn get_bits(&self, b: u64) -> Result<u32> {
+        if b >= self.nr_entries {
+            return Err(anyhow!("space map index out of bounds"));
+        }
+
+        let low_bit = self.bits.contains((b * 2) as usize);
+        let high_bit = self.bits.contains((b * 2 + 1) as usize);
+        let mut result = 0u32;
+
+        if high_bit {
+            result += 2;
+        }
+        if low_bit {
+            result += 1;
+        }
+
+        Ok(result)
+    }
+
+    fn set_bits(&mut self, b: u64, count: u32) -> Result<()> {
+        if count > 3 {
+            return Err(anyhow!("internal error: bits entry should be <= 3"));
+        }
+
+        self.bits.set((b * 2) as usize, (count & 0x1) != 0);
+        self.bits.set((b * 2 + 1) as usize, (count & 0x2) != 0);
+        Ok(())
+    }
+
+    pub fn get(&self, b: u64) -> Result<u32> {
+        let result = self.get_bits(b)?;
+        if result < 3 {
+            Ok(result)
+        } else {
+            match self.overflow.get(&b) {
+                None => Err(anyhow!(
+                    "internal error: missing overflow entry in space map"
+                )),
+                Some(result) => Ok(*result),
+            }
+        }
+    }
+
+    pub fn inc(&mut self, b: u64) -> Result<()> {
+        let old = self.get(b)?;
+
+        if old < 3 {
+            // bump up the bits
+            self.set_bits(b, old + 1)?;
+
+            if old == 2 {
+                // insert overflow entry
+                self.overflow.insert(b, 1);
+            }
+        } else if let Some(count) = self.overflow.get_mut(&b) {
+            // increment the overflow
+            *count += 1;
+        } else {
+            return Err(anyhow!(
+                "internal error: missing overflow entry in space map"
+            ));
+        }
+
+        Ok(())
     }
 }
 
