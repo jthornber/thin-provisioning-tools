@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -16,7 +16,7 @@ use crate::checksum;
 //------------------------------------------
 
 struct TopLevelVisitor<'a> {
-    roots: &'a mut HashMap<u32, u64>,
+    roots: &'a mut BTreeMap<u32, u64>,
 }
 
 impl<'a> NodeVisitor<u64> for TopLevelVisitor<'a> {
@@ -133,13 +133,13 @@ impl Unpack for DeviceDetail {
 }
 
 struct DeviceVisitor {
-    devs: HashMap<u32, DeviceDetail>,
+    devs: BTreeMap<u32, DeviceDetail>,
 }
 
 impl DeviceVisitor {
     pub fn new() -> DeviceVisitor {
         DeviceVisitor {
-            devs: HashMap::new(),
+            devs: BTreeMap::new(),
         }
     }
 }
@@ -222,46 +222,6 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
 
 //------------------------------------------
 
-struct RangeBuilder {
-    run: Option<(u64, BitmapEntry)>,
-    runs: Vec<(u64, BitmapEntry)>
-}
-
-impl RangeBuilder {
-    fn new() -> RangeBuilder {
-        RangeBuilder {
-            run: None,
-            runs: Vec::new(),
-        }
-    }
-
-    fn push(&mut self, e: &BitmapEntry) {
-        match &self.run {
-            Some((len, e2)) if *e == *e2 => {
-                self.run = Some((*len + 1, e2.clone()));
-            },
-            Some((len, e2)) => {
-                self.runs.push((*len, e2.clone()));
-                self.run = Some((1, e.clone()));
-            },
-            None => {
-                self.run = Some((1, e.clone()));
-            }
-        }
-    }
-
-    fn complete(&mut self) {
-        match &self.run {
-            Some((len, e)) => {
-                self.runs.push((*len, e.clone()));
-            },
-            None => {}
-        }
-    }
-}
-
-//------------------------------------------
-
 pub fn check(dev: &Path) -> Result<()> {
     let engine = Arc::new(AsyncIoEngine::new(dev, 256)?);
 
@@ -280,7 +240,7 @@ pub fn check(dev: &Path) -> Result<()> {
     }
 
     // mapping top level
-    let mut roots = HashMap::new();
+    let mut roots = BTreeMap::new();
     {
         let mut visitor = TopLevelVisitor { roots: &mut roots };
         let mut w = BTreeWalker::new(engine.clone(), false);
@@ -319,7 +279,7 @@ pub fn check(dev: &Path) -> Result<()> {
         eprintln!("data root: {:?}", root);
 
         // overflow btree
-        let mut overflow: HashMap<u64, u32> = HashMap::new();
+        let mut overflow: BTreeMap<u64, u32> = BTreeMap::new();
         {
             let mut v: ValueCollector<u32> = ValueCollector::new();
             let mut w = BTreeWalker::new(engine.clone(), false);
@@ -337,8 +297,6 @@ pub fn check(dev: &Path) -> Result<()> {
         let _result = w.walk(&mut v, root.bitmap_root);
         eprintln!("{} index entries", v.entries.len());
 
-        let mut builder = RangeBuilder::new();
-
         for i in v.entries {
             let mut b = Block::new(i.blocknr);
             engine.read(&mut b)?;
@@ -348,25 +306,9 @@ pub fn check(dev: &Path) -> Result<()> {
             }
 
             let bitmap = unpack::<Bitmap>(b.get_data())?;
-            for e in bitmap.entries {
-                builder.push(&e);
+            for _e in bitmap.entries {
+                //builder.push(&e);
             }
-        }
-        builder.complete();
-        eprintln!("{} ranges", builder.runs.len());
-
-        let mut counts = BTreeMap::new();
-        for (len, _v) in builder.runs {
-            if let Some(c) = counts.get(&len) {
-                let new_c = *c + 1;
-                counts.insert(len, new_c);
-            } else {
-                counts.insert(len, 1);
-            }
-        }
-
-        for (len, c) in counts {
-            eprintln!("{}: {}", len, c);
         }
     }
 
