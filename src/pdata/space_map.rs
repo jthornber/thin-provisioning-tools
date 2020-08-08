@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
-use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::block_manager::*;
 use crate::pdata::btree::Unpack;
@@ -151,49 +150,49 @@ impl Unpack for Bitmap {
 
 //------------------------------------------
 
+const ENTRIES_PER_WORD: u64 = 32;
+
 pub struct CoreSpaceMap {
     nr_entries: u64,
-    bits: FixedBitSet,
-    overflow: HashMap<u64, u32>,
+    bits: Vec<u64>,
+    overflow: BTreeMap<u64, u32>,
 }
 
 impl CoreSpaceMap {
     pub fn new(nr_entries: u64) -> CoreSpaceMap {
-        let bits = FixedBitSet::with_capacity(nr_entries as usize * 2);
+        let nr_words = (nr_entries + ENTRIES_PER_WORD - 1) / ENTRIES_PER_WORD;
         CoreSpaceMap {
             nr_entries,
-            bits,
-            overflow: HashMap::new(),
+            bits: vec![0; nr_words as usize],
+            overflow: BTreeMap::new(),
         }
     }
 
-    fn get_bits(&self, b: u64) -> Result<u32> {
+    fn check_bounds(&self, b: u64) -> Result<()> {
         if b >= self.nr_entries {
             return Err(anyhow!("space map index out of bounds"));
         }
-
-        let low_bit = self.bits.contains((b * 2) as usize);
-        let high_bit = self.bits.contains((b * 2 + 1) as usize);
-        let mut result = 0u32;
-
-        if high_bit {
-            result += 2;
-        }
-        if low_bit {
-            result += 1;
-        }
-
-        Ok(result)
+        Ok(())
     }
 
-    fn set_bits(&mut self, b: u64, count: u32) -> Result<()> {
-        if count > 3 {
-            return Err(anyhow!("internal error: bits entry should be <= 3"));
+    fn get_index(b: u64) -> (usize, usize) {
+        (
+            (b / ENTRIES_PER_WORD) as usize,
+            ((b & (ENTRIES_PER_WORD - 1)) as usize) * 2,
+        )
+    }
+
+    fn get_bits(&self, b: u64) -> Result<u32> {
+        self.check_bounds(b)?;
+
+        let result;
+        let (w, bit) = CoreSpaceMap::get_index(b);
+        unsafe {
+            let word = self.bits.get_unchecked(w);
+            result = (*word >> bit) & 0x3;
         }
 
-        self.bits.set((b * 2) as usize, (count & 0x1) != 0);
-        self.bits.set((b * 2 + 1) as usize, (count & 0x2) != 0);
-        Ok(())
+        Ok(result as u32)
     }
 
     pub fn get(&self, b: u64) -> Result<u32> {
@@ -211,23 +210,34 @@ impl CoreSpaceMap {
     }
 
     pub fn inc(&mut self, b: u64) -> Result<()> {
-        let old = self.get(b)?;
+        self.check_bounds(b)?;
 
-        if old < 3 {
-            // bump up the bits
-            self.set_bits(b, old + 1)?;
+        let (w, bit) = CoreSpaceMap::get_index(b);
+        let count;
 
-            if old == 2 {
-                // insert overflow entry
-                self.overflow.insert(b, 1);
+        unsafe {
+            let word = self.bits.get_unchecked_mut(w);
+            count = (*word >> bit) & 0x3;
+
+            if count < 3 {
+                // bump up the bits
+                *word = (*word & !(0x3 << bit)) | (((count + 1) as u64) << bit);
+
+                if count == 2 {
+                    // insert overflow entry
+                    self.overflow.insert(b, 1);
+                }
             }
-        } else if let Some(count) = self.overflow.get_mut(&b) {
-            // increment the overflow
-            *count += 1;
-        } else {
-            return Err(anyhow!(
-                "internal error: missing overflow entry in space map"
-            ));
+        }
+
+        if count >= 3 {
+            if let Some(count) = self.overflow.get_mut(&b) {
+                *count = *count + 1;
+            } else {
+                return Err(anyhow!(
+                    "internal error: missing overflow entry in space map"
+                ));
+            }
         }
 
         Ok(())
