@@ -318,7 +318,7 @@ namespace {
 		} else {
 			for (block_address b = 0; b < nr_blocks; b++) {
 				auto a_count = actual->get_count(b);
-				auto e_count = actual->get_count(b);
+				auto e_count = expected->get_count(b);
 
 				if (a_count != e_count) {
 					out << "data reference counts differ for block " << b
