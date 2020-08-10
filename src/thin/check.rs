@@ -141,31 +141,6 @@ impl Unpack for DeviceDetail {
 
 //------------------------------------------
 
-struct IndexVisitor {
-    entries: Vec<IndexEntry>,
-}
-
-impl NodeVisitor<IndexEntry> for IndexVisitor {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<IndexEntry>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys: _k,
-            values,
-        } = node
-        {
-            for v in values {
-                // FIXME: check keys are in incremental order
-                let v = v.clone();
-                self.entries.push(v);
-            }
-        }
-
-        Ok(())
-    }
-}
-
-//------------------------------------------
-
 struct OverflowChecker<'a> {
     data_sm: &'a dyn SpaceMap,
 }
@@ -282,15 +257,11 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         }
 
         // Bitmaps
-        let mut v = IndexVisitor {
-            entries: Vec::new(),
-        };
-        let mut w = BTreeWalker::new(engine.clone(), false);
-        let _result = w.walk(&mut v, root.bitmap_root);
-        eprintln!("{} index entries", v.entries.len());
+        let entries = btree_to_map::<IndexEntry>(engine.clone(), false, root.bitmap_root)?;
+        eprintln!("{} index entries", entries.len());
 
         let mut blocks = Vec::new();
-        for i in &v.entries {
+        for (_k, i) in &entries {
             blocks.push(Block::new(i.blocknr));
         }
 
@@ -299,7 +270,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         let mut leaks = 0;
         let mut fail = false;
         let mut blocknr = 0;
-        for (n, _i) in v.entries.iter().enumerate() {
+        for n in 0..entries.len() {
             let b = &blocks[n];
             if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
                 return Err(anyhow!(
