@@ -4,11 +4,10 @@ use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use threadpool::ThreadPool;
 
-use crate::io_engine::{AsyncIoEngine, SyncIoEngine, Block, IoEngine};
 use crate::checksum;
+use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{unpack, BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::pdata::space_map::*;
 use crate::thin::superblock::*;
@@ -80,24 +79,27 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
             values,
         } = node
         {
-            if values.len() > 0 {
-                let mut data_sm = self.data_sm.lock().unwrap();
-
-                let mut start = values[0].block;
-                let mut len = 1;
-
-                for n in 1..values.len() {
-                    if values[n].block == start + len {
-                        len += 1;
-                    } else {
-                        data_sm.inc(start, len)?;
-                        start = values[n].block;
-                        len = 1;
-                    }
-                }
-
-                data_sm.inc(start, len)?;
+            if values.len() == 0 {
+                return Ok(());
             }
+
+            let mut data_sm = self.data_sm.lock().unwrap();
+
+            let mut start = values[0].block;
+            let mut len = 1;
+
+            for n in 1..values.len() {
+                let block = values[n].block;
+                if block == start + len {
+                    len += 1;
+                } else {
+                    data_sm.inc(start, len)?;
+                    start = block;
+                    len = 1;
+                }
+            }
+
+            data_sm.inc(start, len)?;
         }
 
         Ok(())
@@ -282,9 +284,8 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
     }
 
-    let now = Instant::now();
+    // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    eprintln!("{:?}", sb);
 
     // device details
     let nr_devs;
@@ -302,7 +303,6 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         let mut visitor = TopLevelVisitor { roots: &mut roots };
         let mut w = BTreeWalker::new(engine.clone(), false);
         let _result = w.walk(&mut visitor, sb.mapping_root)?;
-        println!("read mapping tree in {} ms", now.elapsed().as_millis());
     }
 
     // mapping bottom level
@@ -323,8 +323,17 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
             let data_sm = data_sm.clone();
             pool.execute(move || {
                 let mut v = BottomLevelVisitor { data_sm };
-                let result = w.walk(&mut v, root).expect("walk failed"); // FIXME: return error
-                eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
+
+                // FIXME: return error
+                match w.walk(&mut v, root) {
+                    Err(e) => {
+                        eprintln!("walk failed {:?}", e);
+                        std::process::abort();
+                    }
+                    Ok(result) => {
+                        eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
+                    }
+                }
             });
         }
 
@@ -333,8 +342,9 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
     // data space map
     {
-        let data_sm = data_sm.lock().unwrap();
+        let mut data_sm = data_sm.lock().unwrap();
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+        let nr_data_blocks = root.nr_blocks;
         eprintln!("data root: {:?}", root);
 
         // overflow btree
@@ -359,6 +369,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
         engine.read_many(&mut blocks)?;
 
+        let mut fail = false;
         let mut blocknr = 0;
         for (n, _i) in v.entries.iter().enumerate() {
             let b = &blocks[n];
@@ -371,24 +382,34 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
             let bitmap = unpack::<Bitmap>(b.get_data())?;
             for e in bitmap.entries {
+                if blocknr >= nr_data_blocks {
+                    break;
+                }
+
                 match e {
                     BitmapEntry::Small(actual) => {
                         let expected = data_sm.get(blocknr)?;
                         if actual != expected as u8 {
-                            return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
-                                      blocknr, expected, actual));
+                            eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                      blocknr, expected, actual);
+                            fail = true;
                         }
                     }
                     BitmapEntry::Overflow => {
                         let expected = data_sm.get(blocknr)?;
                         if expected < 3 {
-                            return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
-                                              blocknr, expected));
+                            eprintln!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
+                                              blocknr, expected);
+                            fail = true;
                         }
                     }
                 }
                 blocknr += 1;
             }
+        }
+
+        if fail {
+            return Err(anyhow!("Inconsistent data space map"));
         }
     }
 
