@@ -8,7 +8,8 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
-use crate::pdata::btree::{btree_to_map, unpack, BTreeWalker, Node, NodeVisitor, Unpack};
+use crate::pdata::unpack::*;
+use crate::pdata::btree::{btree_to_map, BTreeWalker, Node, NodeVisitor};
 use crate::pdata::space_map::*;
 use crate::thin::superblock::*;
 
@@ -207,7 +208,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     // mapping top level
     let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
 
-    // mapping bottom level
+    // Check the mappings filling in the data_sm as we go.
     let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
@@ -242,7 +243,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         pool.join();
     }
 
-    // data space map
+    // Check the data space map.
     {
         let data_sm = data_sm.lock().unwrap();
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -265,6 +266,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
             blocks.push(Block::new(i.blocknr));
         }
 
+        // FIXME: we should do this in batches
         engine.read_many(&mut blocks)?;
 
         let mut leaks = 0;
@@ -321,6 +323,9 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
             return Err(anyhow!("Inconsistent data space map"));
         }
     }
+
+    // Check the metadata space map.
+    
 
     Ok(())
 }
