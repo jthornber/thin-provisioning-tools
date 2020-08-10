@@ -134,11 +134,14 @@ impl Unpack for Bitmap {
                 let val = word & 0x3;
                 word >>= 2;
 
-                if val < 3 {
-                    entries.push(BitmapEntry::Small(val as u8));
-                } else {
-                    entries.push(BitmapEntry::Overflow);
-                }
+                // The bits are stored with the high bit at b * 2 + 1,
+                // and low at b *2.  So we have to interpret this val.
+                entries.push(match val {
+                    0 => BitmapEntry::Small(0),
+                    1 => BitmapEntry::Small(2),
+                    2 => BitmapEntry::Small(1),
+                    _ => BitmapEntry::Overflow,
+                });
             }
 
             i = tmp;
@@ -173,7 +176,7 @@ where
 impl<V> SpaceMap for CoreSpaceMap<V>
 where
     V: Copy + Default + std::ops::AddAssign + From<u8> + Into<u32>,
-    {
+{
     fn get(&self, b: u64) -> Result<u32> {
         Ok(self.counts[b as usize].into())
     }
