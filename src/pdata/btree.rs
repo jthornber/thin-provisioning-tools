@@ -3,8 +3,8 @@ use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
 
-use crate::io_engine::*;
 use crate::checksum;
+use crate::io_engine::*;
 
 // FIXME: check that keys are in ascending order between nodes.
 
@@ -20,9 +20,7 @@ pub trait Unpack {
 
 pub fn unpack<U: Unpack>(data: &[u8]) -> Result<U> {
     match U::unpack(data) {
-        Err(_e) => {
-            Err(anyhow!("couldn't parse SMRoot"))
-        },
+        Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
         Ok((_i, v)) => Ok(v),
     }
 }
@@ -222,16 +220,27 @@ impl BTreeWalker {
         }
     }
 
+    fn is_seen(&self, b: u64) -> bool {
+        let mut seen = self.seen.lock().unwrap();
+        if !seen[b as usize] {
+            seen.insert(b as usize);
+            return false;
+        }
+
+        true
+    }
+
     fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &[u64]) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
     {
         let mut blocks = Vec::new();
-        let seen = self.seen.lock().unwrap();
+        let mut seen = self.seen.lock().unwrap();
         for b in bs {
             if !seen[*b as usize] {
                 blocks.push(Block::new(*b));
+                seen.insert(*b as usize);
             }
         }
         drop(seen);
@@ -250,10 +259,6 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        let mut seen = self.seen.lock().unwrap();
-        seen.insert(b.loc as usize);
-        drop(seen);
-
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
             return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
@@ -279,7 +284,11 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        self.walk_node(visitor, &root, true)
+        if self.is_seen(root.loc) {
+            Ok(())
+        } else {
+            self.walk_node(visitor, &root, true)
+        }
     }
 
     pub fn walk<NV, V>(&mut self, visitor: &mut NV, root: u64) -> Result<()>
@@ -287,9 +296,13 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        let mut root = Block::new(root);
-        self.engine.read(&mut root)?;
-        self.walk_node(visitor, &root, true)
+        if self.is_seen(root) {
+            Ok(())
+        } else {
+            let mut root = Block::new(root);
+            self.engine.read(&mut root)?;
+            self.walk_node(visitor, &root, true)
+        }
     }
 }
 
