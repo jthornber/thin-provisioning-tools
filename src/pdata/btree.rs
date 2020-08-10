@@ -189,13 +189,13 @@ pub trait NodeVisitor<V: Unpack> {
 
 #[derive(Clone)]
 pub struct BTreeWalker {
-    pub engine: Arc<AsyncIoEngine>,
+    pub engine: Arc<dyn IoEngine + Send + Sync>,
     pub seen: Arc<Mutex<FixedBitSet>>,
     ignore_non_fatal: bool,
 }
 
 impl BTreeWalker {
-    pub fn new(engine: Arc<AsyncIoEngine>, ignore_non_fatal: bool) -> BTreeWalker {
+    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         let r: BTreeWalker = BTreeWalker {
             engine,
@@ -206,7 +206,7 @@ impl BTreeWalker {
     }
 
     pub fn new_with_seen(
-        engine: Arc<AsyncIoEngine>,
+        engine: Arc<dyn IoEngine + Send + Sync>,
         seen: Arc<Mutex<FixedBitSet>>,
         ignore_non_fatal: bool,
     ) -> BTreeWalker {

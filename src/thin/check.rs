@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use threadpool::ThreadPool;
 
-use crate::io_engine::{AsyncIoEngine, Block, IoEngine};
+use crate::io_engine::{AsyncIoEngine, SyncIoEngine, Block, IoEngine};
 use crate::checksum;
 use crate::pdata::btree::{unpack, BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::pdata::space_map::*;
@@ -265,7 +265,8 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 const MAX_CONCURRENT_IO: u32 = 1024;
 
 pub fn check(dev: &Path) -> Result<()> {
-    let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
+    //let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = Arc::new(SyncIoEngine::new(dev)?);
 
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;

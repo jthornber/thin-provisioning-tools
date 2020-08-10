@@ -4,7 +4,7 @@ use io_uring::IoUring;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io;
+use std::io::{self, Seek, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -60,10 +60,9 @@ fn get_nr_blocks(path: &Path) -> io::Result<u64> {
 
 //------------------------------------------
 
-/*
 pub struct SyncIoEngine {
     nr_blocks: u64,
-    input: File,
+    input: Mutex<File>,
 }
 
 impl SyncIoEngine {
@@ -76,7 +75,7 @@ impl SyncIoEngine {
 
         Ok(SyncIoEngine {
             nr_blocks: get_nr_blocks(path)?,
-            input,
+            input: Mutex::new(input),
         })
     }
 }
@@ -86,23 +85,26 @@ impl IoEngine for SyncIoEngine {
         self.nr_blocks
     }
 
-    fn read(&mut self, b: &mut Block) -> Result<()> {
-        self.input
-            .seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        self.input.read_exact(&mut b.get_data())?;
+
+    fn read(&self, b: &mut Block) -> Result<()> {
+        let mut input = self.input.lock().unwrap();
+        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        input.read_exact(&mut b.get_data())?;
 
         Ok(())
     }
 
-    fn read_many(&mut self, blocks: &mut Vec<Block>) -> Result<()> {
+    fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()> {
+        let mut input = self.input.lock().unwrap();
         for b in blocks {
-            self.read(b);
+            input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+            input.read_exact(&mut b.get_data())?;
         }
 
         Ok(())
     }
 }
-*/
+
 //------------------------------------------
 
 pub struct AsyncIoEngine_ {
