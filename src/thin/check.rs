@@ -8,7 +8,7 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
-use crate::pdata::btree::{unpack, BTreeWalker, Node, NodeVisitor, Unpack};
+use crate::pdata::btree::{btree_to_map, unpack, BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::pdata::space_map::*;
 use crate::thin::superblock::*;
 
@@ -139,37 +139,6 @@ impl Unpack for DeviceDetail {
     }
 }
 
-struct DeviceVisitor {
-    devs: BTreeMap<u32, DeviceDetail>,
-}
-
-impl DeviceVisitor {
-    pub fn new() -> DeviceVisitor {
-        DeviceVisitor {
-            devs: BTreeMap::new(),
-        }
-    }
-}
-
-impl NodeVisitor<DeviceDetail> for DeviceVisitor {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<DeviceDetail>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            for n in 0..keys.len() {
-                let k = keys[n] as u32;
-                let v = values[n].clone();
-                self.devs.insert(k, v);
-            }
-        }
-
-        Ok(())
-    }
-}
-
 //------------------------------------------
 
 struct IndexVisitor {
@@ -188,38 +157,6 @@ impl NodeVisitor<IndexEntry> for IndexVisitor {
                 // FIXME: check keys are in incremental order
                 let v = v.clone();
                 self.entries.push(v);
-            }
-        }
-
-        Ok(())
-    }
-}
-
-//------------------------------------------
-
-// FIXME: move to btree
-struct ValueCollector<V> {
-    values: Vec<(u64, V)>,
-}
-
-impl<V> ValueCollector<V> {
-    fn new() -> ValueCollector<V> {
-        ValueCollector { values: Vec::new() }
-    }
-}
-
-impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<V>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            for n in 0..keys.len() {
-                let k = keys[n];
-                let v = values[n].clone();
-                self.values.push((k, v));
             }
         }
 
@@ -288,22 +225,12 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
     // device details
-    let nr_devs;
-    {
-        let mut visitor = DeviceVisitor::new();
-        let mut w = BTreeWalker::new(engine.clone(), false);
-        w.walk(&mut visitor, sb.details_root)?;
-        nr_devs = visitor.devs.len();
-        println!("found {} devices", visitor.devs.len());
-    }
+    let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
+    let nr_devs = devs.len();
+    println!("found {} devices", nr_devs);
 
     // mapping top level
-    let mut roots = BTreeMap::new();
-    {
-        let mut visitor = TopLevelVisitor { roots: &mut roots };
-        let mut w = BTreeWalker::new(engine.clone(), false);
-        let _result = w.walk(&mut visitor, sb.mapping_root)?;
-    }
+    let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
 
     // mapping bottom level
     let data_sm;
@@ -342,7 +269,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
     // data space map
     {
-        let mut data_sm = data_sm.lock().unwrap();
+        let data_sm = data_sm.lock().unwrap();
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
         let nr_data_blocks = root.nr_blocks;
         eprintln!("data root: {:?}", root);
@@ -369,6 +296,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
         engine.read_many(&mut blocks)?;
 
+        let mut leaks = 0;
         let mut fail = false;
         let mut blocknr = 0;
         for (n, _i) in v.entries.iter().enumerate() {
@@ -389,7 +317,10 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
                 match e {
                     BitmapEntry::Small(actual) => {
                         let expected = data_sm.get(blocknr)?;
-                        if actual != expected as u8 {
+                        if actual == 1 && expected == 0 {
+                            eprintln!("Data block {} leaked.", blocknr);
+                            leaks += 1;
+                        } else if actual != expected as u8 {
                             eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
                                       blocknr, expected, actual);
                             fail = true;
@@ -406,6 +337,13 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
                 }
                 blocknr += 1;
             }
+        }
+
+        if leaks > 0 {
+            eprintln!(
+                "{} data blocks have leaked.  Use --auto-repair to fix.",
+                leaks
+            );
         }
 
         if fail {

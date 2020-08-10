@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
+use std::collections::BTreeMap;
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -304,6 +305,47 @@ impl BTreeWalker {
             self.walk_node(visitor, &root, true)
         }
     }
+}
+
+//------------------------------------------
+
+struct ValueCollector<V> {
+    values: BTreeMap<u64, V>,
+}
+
+impl<V> ValueCollector<V> {
+    fn new() -> ValueCollector<V> {
+        ValueCollector { values: BTreeMap::new() }
+    }
+}
+
+impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
+    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<V>) -> Result<()> {
+        if let Node::Leaf {
+            header: _h,
+            keys,
+            values,
+        } = node
+        {
+            for n in 0..keys.len() {
+                let k = keys[n];
+                let v = values[n].clone();
+                self.values.insert(k, v);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub fn btree_to_map<V: Unpack + Clone>(engine: Arc<dyn IoEngine + Send + Sync>,
+                                       ignore_non_fatal: bool,
+                                       root: u64) -> Result<BTreeMap<u64, V>> {
+    let mut walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let mut visitor = ValueCollector::<V>::new();
+
+    walker.walk(&mut visitor, root)?;
+    Ok(visitor.values)
 }
 
 //------------------------------------------
