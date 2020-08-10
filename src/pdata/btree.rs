@@ -3,7 +3,7 @@ use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
 
-use crate::block_manager::*;
+use crate::io_engine::*;
 use crate::checksum;
 
 // FIXME: check that keys are in ascending order between nodes.

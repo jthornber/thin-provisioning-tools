@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use threadpool::ThreadPool;
 
-use crate::block_manager::{AsyncIoEngine, Block, IoEngine};
+use crate::io_engine::{AsyncIoEngine, Block, IoEngine};
 use crate::checksum;
 use crate::pdata::btree::{unpack, BTreeWalker, Node, NodeVisitor, Unpack};
 use crate::pdata::space_map::*;
