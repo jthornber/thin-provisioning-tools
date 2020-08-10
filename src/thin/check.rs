@@ -264,10 +264,23 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 
 const MAX_CONCURRENT_IO: u32 = 1024;
 
-pub fn check(dev: &Path) -> Result<()> {
-    let nr_threads = 4;
-    let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
-    //let engine: Arc<dyn IoEngine + Send + Sync> = Arc::new(SyncIoEngine::new(dev, nr_threads)?);
+pub struct ThinCheckOptions<'a> {
+    pub dev: &'a Path,
+    pub async_io: bool,
+}
+
+pub fn check(opts: &ThinCheckOptions) -> Result<()> {
+    let engine: Arc<dyn IoEngine + Send + Sync>;
+
+    let nr_threads;
+    if opts.async_io {
+        nr_threads = std::cmp::min(4, num_cpus::get());
+        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
+    } else {
+        eprintln!("falling back to synchronous io");
+        nr_threads = num_cpus::get() * 2;
+        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
+    }
 
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;

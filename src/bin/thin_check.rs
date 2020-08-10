@@ -5,6 +5,7 @@ use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use thinp::file_utils;
+use thinp::thin::check::{check, ThinCheckOptions};
 
 use std::process::exit;
 
@@ -56,6 +57,13 @@ fn main() {
                 .help("Specify the input device to check")
                 .required(true)
                 .index(1),
+        )
+        .arg(
+            Arg::with_name("SYNC_IO")
+                .help("Force use of synchronous io")
+                .long("sync-io")
+                .value_name("SYNC_IO")
+                .takes_value(false),
         );
 
     let matches = parser.get_matches();
@@ -66,7 +74,12 @@ fn main() {
         exit(1);
     }
 
-    if let Err(reason) = thinp::thin::check::check(&input_file) {
+    let opts = ThinCheckOptions {
+        dev: &input_file,
+        async_io: !matches.is_present("SYNC_IO"),
+    };
+
+    if let Err(reason) = check(&opts) {
         println!("Application error: {}", reason);
         process::exit(1);
     }
