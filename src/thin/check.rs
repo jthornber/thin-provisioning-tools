@@ -265,8 +265,9 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 const MAX_CONCURRENT_IO: u32 = 1024;
 
 pub fn check(dev: &Path) -> Result<()> {
-    //let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
-    let engine: Arc<dyn IoEngine + Send + Sync> = Arc::new(SyncIoEngine::new(dev)?);
+    let nr_threads = 4;
+    let engine = Arc::new(AsyncIoEngine::new(dev, MAX_CONCURRENT_IO)?);
+    //let engine: Arc<dyn IoEngine + Send + Sync> = Arc::new(SyncIoEngine::new(dev, nr_threads)?);
 
     let now = Instant::now();
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
@@ -295,7 +296,7 @@ pub fn check(dev: &Path) -> Result<()> {
     let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
-        let nr_workers = 4;
+        let nr_workers = nr_threads;
         let pool = ThreadPool::new(nr_workers);
         let seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
             engine.get_nr_blocks() as usize,
