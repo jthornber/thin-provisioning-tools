@@ -156,6 +156,7 @@ impl Unpack for Bitmap {
 
 pub trait SpaceMap {
     fn get_nr_blocks(&self) -> Result<u64>;
+    fn get_nr_allocated(&self) -> Result<u64>;
     fn get(&self, b: u64) -> Result<u32>;
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 }
@@ -163,6 +164,7 @@ pub trait SpaceMap {
 //------------------------------------------
 
 pub struct CoreSpaceMap<T> {
+    nr_allocated: u64,
     counts: Vec<T>,
 }
 
@@ -172,6 +174,7 @@ where
 {
     pub fn new(nr_entries: u64) -> CoreSpaceMap<V> {
         CoreSpaceMap {
+            nr_allocated: 0,
             counts: vec![V::default(); nr_entries as usize],
         }
     }
@@ -179,19 +182,29 @@ where
 
 impl<V> SpaceMap for CoreSpaceMap<V>
 where
-    V: Copy + Default + std::ops::AddAssign + From<u8> + Into<u32>,
+    V: Copy + Default + Eq + std::ops::AddAssign + From<u8> + Into<u32>,
 {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
     }
-    
+
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(self.nr_allocated)
+    }
+
     fn get(&self, b: u64) -> Result<u32> {
         Ok(self.counts[b as usize].into())
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
         for b in begin..(begin + len) {
-            self.counts[b as usize] += V::from(1u8);
+            if self.counts[b as usize] == V::from(0u8) {
+                // FIXME: can we get a ref to save dereferencing counts twice?
+                self.nr_allocated += 1;
+                self.counts[b as usize] = V::from(1u8);
+            } else {
+                self.counts[b as usize] += V::from(1u8);
+            }
         }
         Ok(())
     }
@@ -213,12 +226,14 @@ pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send
 // btrees when we want to avoid visiting a node more than once, but
 // aren't interested in counting how many times we've visited.
 pub struct RestrictedSpaceMap {
+    nr_allocated: u64,
     counts: FixedBitSet,
 }
 
 impl RestrictedSpaceMap {
     pub fn new(nr_entries: u64) -> RestrictedSpaceMap {
         RestrictedSpaceMap {
+            nr_allocated: 0,
             counts: FixedBitSet::with_capacity(nr_entries as usize),
         }
     }
@@ -228,7 +243,11 @@ impl SpaceMap for RestrictedSpaceMap {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
     }
-    
+
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(self.nr_allocated)
+    }
+
     fn get(&self, b: u64) -> Result<u32> {
         if self.counts.contains(b as usize) {
             Ok(1)
@@ -239,7 +258,10 @@ impl SpaceMap for RestrictedSpaceMap {
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
         for b in begin..(begin + len) {
-            self.counts.insert(b as usize);
+            if !self.counts.contains(b as usize) {
+                self.nr_allocated += 1;
+                self.counts.insert(b as usize);
+            }
         }
         Ok(())
     }

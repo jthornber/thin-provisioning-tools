@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Result};
+use indicatif::{ProgressBar, ProgressStyle};
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
+use std::{thread, time};
 use threadpool::ThreadPool;
 
 use crate::checksum;
@@ -176,6 +179,86 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 
 //------------------------------------------
 
+enum SpinnerCmd {
+    Complete,
+    Abort,
+    Title(String),
+}
+
+struct Spinner {
+    tx: Sender<SpinnerCmd>,
+    tid: thread::JoinHandle<()>,
+}
+
+impl Spinner {
+    fn new(sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>, total_allocated: u64) -> Result<Spinner> {
+        let (tx, rx) = channel();
+        let tid = thread::spawn(move || spinner_thread(sm, total_allocated, rx));
+        Ok(Spinner { tx, tid })
+    }
+
+    fn complete(self) -> Result<()> {
+        self.tx.send(SpinnerCmd::Complete)?;
+        self.tid.join();
+        Ok(())
+    }
+
+    fn abort(self) -> Result<()> {
+        self.tx.send(SpinnerCmd::Abort)?;
+        self.tid.join();
+        Ok(())
+    }
+
+    fn set_title(&mut self, txt: &str) -> Result<()> {
+        self.tx.send(SpinnerCmd::Title(txt.to_string()))?;
+        Ok(())
+    }
+}
+
+fn spinner_thread(
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    total_allocated: u64,
+    rx: Receiver<SpinnerCmd>,
+) {
+    let interval = time::Duration::from_millis(250);
+    let bar = ProgressBar::new(total_allocated);
+    loop {
+        match rx.try_recv() {
+            Ok(SpinnerCmd::Complete) => {
+                bar.finish();
+                return;
+            }
+            Ok(SpinnerCmd::Abort) => {
+                return;
+            }
+            Ok(SpinnerCmd::Title(txt)) => {
+                let mut fmt = "Checking thin metadata [{bar:40.cyan/blue}] Remaining {eta}, ".to_string();
+                fmt.push_str(&txt);
+                bar.set_style(
+                    ProgressStyle::default_bar()
+                        .template(&fmt)
+                        .progress_chars("=> "),
+                );
+            }
+            Err(TryRecvError::Disconnected) => {
+                return;
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+
+        let sm = sm.lock().unwrap();
+        let nr_allocated = sm.get_nr_allocated().unwrap();
+        drop(sm);
+
+        bar.set_position(nr_allocated);
+        bar.tick();
+
+        thread::sleep(interval);
+    }
+}
+
+//------------------------------------------
+
 const MAX_CONCURRENT_IO: u32 = 1024;
 
 pub struct ThinCheckOptions<'a> {
@@ -191,7 +274,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         nr_threads = std::cmp::min(4, num_cpus::get());
         engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
     } else {
-        eprintln!("falling back to synchronous io");
+        eprintln!("Using synchronous io");
         nr_threads = num_cpus::get() * 2;
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
     }
@@ -199,30 +282,39 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
+    let nr_allocated_metadata;
+    {
+        let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+        nr_allocated_metadata = root.nr_allocated;
+    }
+
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
     // the ref counts for that metadata.
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+    let mut spinner = Spinner::new(metadata_sm.clone(), nr_allocated_metadata)?;
+
+    spinner.set_title("device details tree")?;
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
         engine.clone(),
         metadata_sm.clone(),
         false,
         sb.details_root,
     )?;
-    println!("found {} devices", nr_devs);
 
     // increment superblock
     {
         let mut sm = metadata_sm.lock().unwrap();
         sm.inc(SUPERBLOCK_LOCATION, 1)?;
     }
-    
+
     // mapping top level
     let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
 
     // Check the mappings filling in the data_sm as we go.
+    spinner.set_title("mapping tree")?;
     let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
@@ -232,7 +324,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
         data_sm = core_sm(root.nr_blocks, nr_devs as u32);
 
-        for (thin_id, root) in roots {
+        for (_thin_id, root) in roots {
             let mut w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
             let data_sm = data_sm.clone();
             pool.execute(move || {
@@ -244,8 +336,8 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
                         eprintln!("walk failed {:?}", e);
                         std::process::abort();
                     }
-                    Ok(result) => {
-                        eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
+                    Ok(_result) => {
+                        //eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
                     }
                 }
             });
@@ -256,10 +348,10 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
     // Check the data space map.
     {
+        spinner.set_title("data space map")?;
         let data_sm = data_sm.lock().unwrap();
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
         let nr_data_blocks = root.nr_blocks;
-        eprintln!("data root: {:?}", root);
 
         // overflow btree
         {
@@ -270,7 +362,6 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
         // Bitmaps
         let entries = btree_to_map::<IndexEntry>(engine.clone(), false, root.bitmap_root)?;
-        eprintln!("{} index entries", entries.len());
 
         let mut blocks = Vec::new();
         for (_k, i) in &entries {
@@ -302,7 +393,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
                     BitmapEntry::Small(actual) => {
                         let expected = data_sm.get(blocknr)?;
                         if actual == 1 && expected == 0 {
-                            eprintln!("Data block {} leaked.", blocknr);
+                            // eprintln!("Data block {} leaked.", blocknr);
                             leaks += 1;
                         } else if actual != expected as u8 {
                             eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
@@ -331,12 +422,15 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         }
 
         if fail {
+            spinner.abort()?;
             return Err(anyhow!("Inconsistent data space map"));
         }
     }
 
     // Check the metadata space map.
+    spinner.set_title("metadata space map")?;
 
+    spinner.complete()?;
     Ok(())
 }
 
