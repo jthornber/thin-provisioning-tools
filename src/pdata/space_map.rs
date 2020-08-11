@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
 
@@ -154,9 +155,12 @@ impl Unpack for Bitmap {
 //------------------------------------------
 
 pub trait SpaceMap {
+    fn get_nr_blocks(&self) -> Result<u64>;
     fn get(&self, b: u64) -> Result<u32>;
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 }
+
+//------------------------------------------
 
 pub struct CoreSpaceMap<T> {
     counts: Vec<T>,
@@ -177,6 +181,10 @@ impl<V> SpaceMap for CoreSpaceMap<V>
 where
     V: Copy + Default + std::ops::AddAssign + From<u8> + Into<u32>,
 {
+    fn get_nr_blocks(&self) -> Result<u64> {
+        Ok(self.counts.len() as u64)
+    }
+    
     fn get(&self, b: u64) -> Result<u32> {
         Ok(self.counts[b as usize].into())
     }
@@ -189,13 +197,51 @@ where
     }
 }
 
-pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send>> {
+pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send + Sync>> {
     if max_count <= u8::MAX as u32 {
         Arc::new(Mutex::new(CoreSpaceMap::<u8>::new(nr_entries)))
     } else if max_count <= u16::MAX as u32 {
         Arc::new(Mutex::new(CoreSpaceMap::<u16>::new(nr_entries)))
     } else {
         Arc::new(Mutex::new(CoreSpaceMap::<u32>::new(nr_entries)))
+    }
+}
+
+//------------------------------------------
+
+// This in core space map can only count to one, useful when walking
+// btrees when we want to avoid visiting a node more than once, but
+// aren't interested in counting how many times we've visited.
+pub struct RestrictedSpaceMap {
+    counts: FixedBitSet,
+}
+
+impl RestrictedSpaceMap {
+    pub fn new(nr_entries: u64) -> RestrictedSpaceMap {
+        RestrictedSpaceMap {
+            counts: FixedBitSet::with_capacity(nr_entries as usize),
+        }
+    }
+}
+
+impl SpaceMap for RestrictedSpaceMap {
+    fn get_nr_blocks(&self) -> Result<u64> {
+        Ok(self.counts.len() as u64)
+    }
+    
+    fn get(&self, b: u64) -> Result<u32> {
+        if self.counts.contains(b as usize) {
+            Ok(1)
+        } else {
+            Ok(0)
+        }
+    }
+
+    fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
+        for b in begin..(begin + len) {
+            self.counts.insert(b as usize);
+        }
+        Ok(())
     }
 }
 

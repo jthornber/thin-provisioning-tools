@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -8,9 +7,9 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
-use crate::pdata::unpack::*;
-use crate::pdata::btree::{btree_to_map, BTreeWalker, Node, NodeVisitor};
+use crate::pdata::btree::{btree_to_map, btree_to_map_with_sm, BTreeWalker, Node, NodeVisitor};
 use crate::pdata::space_map::*;
+use crate::pdata::unpack::*;
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -200,11 +199,26 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    // device details
+    // Device details.   We read this once to get the number of thin devices, and hence the
+    // maximum metadata ref count.  Then create metadata space map, and reread to increment
+    // the ref counts for that metadata.
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
+    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+    let _devs = btree_to_map_with_sm::<DeviceDetail>(
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.details_root,
+    )?;
     println!("found {} devices", nr_devs);
 
+    // increment superblock
+    {
+        let mut sm = metadata_sm.lock().unwrap();
+        sm.inc(SUPERBLOCK_LOCATION, 1)?;
+    }
+    
     // mapping top level
     let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
 
@@ -214,15 +228,12 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         // FIXME: with a thread pool we need to return errors another way.
         let nr_workers = nr_threads;
         let pool = ThreadPool::new(nr_workers);
-        let seen = Arc::new(Mutex::new(FixedBitSet::with_capacity(
-            engine.get_nr_blocks() as usize,
-        )));
 
         let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
         data_sm = core_sm(root.nr_blocks, nr_devs as u32);
 
         for (thin_id, root) in roots {
-            let mut w = BTreeWalker::new_with_seen(engine.clone(), seen.clone(), false);
+            let mut w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
             let data_sm = data_sm.clone();
             pool.execute(move || {
                 let mut v = BottomLevelVisitor { data_sm };
@@ -325,7 +336,6 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     }
 
     // Check the metadata space map.
-    
 
     Ok(())
 }

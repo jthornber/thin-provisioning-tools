@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
-use fixedbitset::FixedBitSet;
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
 use crate::io_engine::*;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 
 // FIXME: check that keys are in ascending order between nodes.
@@ -153,7 +153,7 @@ pub trait NodeVisitor<V: Unpack> {
 #[derive(Clone)]
 pub struct BTreeWalker {
     pub engine: Arc<dyn IoEngine + Send + Sync>,
-    pub seen: Arc<Mutex<FixedBitSet>>,
+    pub sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
 }
 
@@ -162,37 +162,35 @@ impl BTreeWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         let r: BTreeWalker = BTreeWalker {
             engine,
-            seen: Arc::new(Mutex::new(FixedBitSet::with_capacity(nr_blocks))),
+            sm: Arc::new(Mutex::new(RestrictedSpaceMap::new(nr_blocks as u64))),
             ignore_non_fatal,
         };
         r
     }
 
-    pub fn new_with_seen(
+    pub fn new_with_sm(
         engine: Arc<dyn IoEngine + Send + Sync>,
-        seen: Arc<Mutex<FixedBitSet>>,
+        sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
         ignore_non_fatal: bool,
-    ) -> BTreeWalker {
+    ) -> Result<BTreeWalker> {
         {
-            let seen = seen.lock().unwrap();
-            assert_eq!(seen.len(), engine.get_nr_blocks() as usize);
+            let sm = sm.lock().unwrap();
+            assert_eq!(sm.get_nr_blocks()?, engine.get_nr_blocks());
         }
 
-        BTreeWalker {
+        Ok(BTreeWalker {
             engine,
-            seen,
+            sm,
             ignore_non_fatal,
-        }
+        })
     }
 
-    fn is_seen(&self, b: u64) -> bool {
-        let mut seen = self.seen.lock().unwrap();
-        if !seen[b as usize] {
-            seen.insert(b as usize);
-            return false;
-        }
-
-        true
+    // Atomically increments the ref count, and returns the _old_ count.
+    fn sm_inc(&self, b: u64) -> Result<u32> {
+        let mut sm = self.sm.lock().unwrap();
+        let count = sm.get(b)?;
+        sm.inc(b, 1)?;
+        Ok(count)
     }
 
     fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &[u64]) -> Result<()>
@@ -201,14 +199,11 @@ impl BTreeWalker {
         V: Unpack,
     {
         let mut blocks = Vec::new();
-        let mut seen = self.seen.lock().unwrap();
         for b in bs {
-            if !seen[*b as usize] {
+            if self.sm_inc(*b)? == 0 {
                 blocks.push(Block::new(*b));
-                seen.insert(*b as usize);
             }
         }
-        drop(seen);
 
         self.engine.read_many(&mut blocks)?;
 
@@ -249,7 +244,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        if self.is_seen(root.loc) {
+        if self.sm_inc(root.loc)? > 0 {
             Ok(())
         } else {
             self.walk_node(visitor, &root, true)
@@ -261,7 +256,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        if self.is_seen(root) {
+        if self.sm_inc(root)? > 0 {
             Ok(())
         } else {
             let mut root = Block::new(root);
@@ -310,6 +305,19 @@ pub fn btree_to_map<V: Unpack + Clone>(
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
     let mut walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let mut visitor = ValueCollector::<V>::new();
+
+    walker.walk(&mut visitor, root)?;
+    Ok(visitor.values)
+}
+
+pub fn btree_to_map_with_sm<V: Unpack + Clone>(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    ignore_non_fatal: bool,
+    root: u64,
+) -> Result<BTreeMap<u64, V>> {
+    let mut walker = BTreeWalker::new_with_sm(engine, sm, ignore_non_fatal)?;
     let mut visitor = ValueCollector::<V>::new();
 
     walker.walk(&mut visitor, root)?;
