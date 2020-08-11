@@ -296,7 +296,8 @@ namespace {
 		out << "checking space map counts" << end_message();
 		nested_output::nest _ = out.push();
 
-		count_metadata(tm, sb, bc);
+		if (!count_metadata(tm, sb, bc))
+			return FATAL;
 
 		// Finally we need to check the metadata space map agrees
 		// with the counts we've just calculated.
@@ -358,6 +359,7 @@ namespace {
 			  options_(check_opts),
 			  out_(cerr, 2),
 			  info_out_(cout, 0),
+			  expected_rc_(true), // set stop on the first error
 			  err_(NO_ERROR) {
 
 			if (output_opts == OUTPUT_QUIET) {
@@ -398,7 +400,7 @@ namespace {
 				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_, expected_rc_);
 
 				// check the data space map
-				if (core_sm)
+				if (err_ != FATAL && core_sm)
 					err_ << compare_space_maps(data_sm, *core_sm, out_);
 			} else
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_,
