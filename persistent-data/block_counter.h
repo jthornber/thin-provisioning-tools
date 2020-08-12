@@ -33,6 +33,12 @@ namespace persistent_data {
 	public:
 		typedef std::map<block_address, unsigned> count_map;
 
+		block_counter(): stop_on_error_(false) {}
+
+		block_counter(bool stop_on_error)
+			: stop_on_error_(stop_on_error) {
+		}
+
 		virtual ~block_counter() {}
 
 		virtual void inc(block_address b) {
@@ -52,8 +58,13 @@ namespace persistent_data {
 			return counts_;
 		}
 
+		virtual bool stop_on_error() {
+			return stop_on_error_;
+		}
+
 	private:
 		count_map counts_;
+		bool stop_on_error_;
 	};
 
 	//----------------------------------------------------------------

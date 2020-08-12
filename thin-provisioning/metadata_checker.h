@@ -55,6 +55,7 @@ namespace thin_provisioning {
 		bool ignore_non_fatal_;
 		bool fix_metadata_leaks_;
 		bool clear_needs_check_;
+		bool open_transaction_;
 	};
 
 	enum output_options {

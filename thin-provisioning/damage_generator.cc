@@ -1,3 +1,5 @@
+#include <chrono>
+#include <random>
 #include "damage_generator.h"
 
 using namespace thin_provisioning;
@@ -13,12 +15,14 @@ namespace {
 		base::run_set<block_address> visited;
 		block_address nr_visited = 0;
 
-		srand(time(NULL));
+		uint64_t rand_seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+		std::mt19937 rand_engine(rand_seed);
+
 		while (nr_blocks) {
 			if (nr_visited == sm_size)
 				break;
 
-			block_address b = rand() % sm_size;
+			block_address b = rand_engine() % sm_size;
 			if (visited.member(b))
 				continue;
 

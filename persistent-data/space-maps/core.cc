@@ -190,10 +190,12 @@ namespace {
 				set_bits_(b, c);
 		}
 		
-		if (old_c == 0 && c > 0)
+		if (old_c == 0 && c > 0) {
 			nr_free_--;
+			if (b == search_start_)
+				search_start_++;
 
-		else if (old_c > 0 && c == 0) {
+		} else if (old_c > 0 && c == 0) {
 			if (b < search_start_)
 				search_start_ = b;
 

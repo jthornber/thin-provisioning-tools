@@ -69,6 +69,12 @@ namespace persistent_data {
 			bm_->prefetch(b);
 		}
 
+		// mark a block as shadowed,
+		// for the purpose of in-place modification
+		void mark_shadowed(block_address b) {
+			add_shadow(b);
+		}
+
 	private:
 		void add_shadow(block_address b);
 		void remove_shadow(block_address b);

@@ -43,11 +43,19 @@ namespace {
 			bitmap_header const *data = reinterpret_cast<bitmap_header const *>(raw);
 			crc32c sum(BITMAP_CSUM_XOR);
 			sum.append(&data->not_used, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(data->csum))
-				throw checksum_error("bad checksum in space map bitmap");
+			if (sum.get_sum() != to_cpu<uint32_t>(data->csum)) {
+				std::ostringstream out;
+				out << "bad checksum in space map bitmap (block "
+				    << location << ")";
+				throw checksum_error(out.str());
+			}
 
-			if (to_cpu<uint64_t>(data->blocknr) != location)
-				throw checksum_error("bad block nr in space map bitmap");
+			if (to_cpu<uint64_t>(data->blocknr) != location) {
+				std::ostringstream out;
+				out << "bad block nr in space map bitmap (block "
+				    << location << ")";
+				throw checksum_error(out.str());
+			}
 		}
 
 		virtual bool check_raw(void const *raw) const {
@@ -77,11 +85,19 @@ namespace {
 			metadata_index const *mi = reinterpret_cast<metadata_index const *>(raw);
 			crc32c sum(INDEX_CSUM_XOR);
 			sum.append(&mi->padding_, MD_BLOCK_SIZE - sizeof(uint32_t));
-			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_))
-				throw checksum_error("bad checksum in metadata index block");
+			if (sum.get_sum() != to_cpu<uint32_t>(mi->csum_)) {
+				std::ostringstream out;
+				out << "bad checksum in metadata index block (block "
+				    << location << ")";
+				throw checksum_error(out.str());
+			}
 
-			if (to_cpu<uint64_t>(mi->blocknr_) != location)
-				throw checksum_error("bad block nr in metadata index block");
+			if (to_cpu<uint64_t>(mi->blocknr_) != location) {
+				std::ostringstream out;
+				out << "bad block nr in metadata index block (block "
+				    << location << ")";
+				throw checksum_error(out.str());
+			}
 		}
 
 		virtual bool check_raw(void const *raw) const {
@@ -639,21 +655,30 @@ namespace {
 		//--------------------------------
 
 		struct index_entry_counter {
-			index_entry_counter(block_counter &bc)
-			: bc_(bc) {
+			index_entry_counter(transaction_manager &tm,
+					    block_counter &bc)
+			: tm_(tm),
+			  bc_(bc),
+			  bitmap_validator_(new bitmap_block_validator()) {
 			}
 
 			void visit(btree_detail::node_location const &loc, index_entry const &ie) {
-				if (ie.blocknr_ != 0)
+				if (!ie.blocknr_)
+					return;
+
+				block_manager::read_ref rr = tm_.read_lock(ie.blocknr_, bitmap_validator_);
+				if (rr.data())
 					bc_.inc(ie.blocknr_);
 			}
 
 		private:
+			transaction_manager &tm_;
 			block_counter &bc_;
+			bcache::validator::ptr bitmap_validator_;
 		};
 
 		virtual void count_metadata(block_counter &bc) const {
-			index_entry_counter vc(bc);
+			index_entry_counter vc(tm_, bc);
 			count_btree_blocks(bitmaps_, bc, vc);
 		}
 
@@ -705,14 +730,16 @@ namespace {
 		typedef std::shared_ptr<metadata_index_store> ptr;
 
 		metadata_index_store(transaction_manager &tm)
-			: tm_(tm) {
+			: tm_(tm),
+			  bitmap_validator_(new bitmap_block_validator()) {
 			block_manager::write_ref wr = tm_.new_block(index_validator());
 			bitmap_root_ = wr.get_location();
 		}
 
 		metadata_index_store(transaction_manager &tm, block_address root, block_address nr_indexes)
 			: tm_(tm),
-			  bitmap_root_(root) {
+			  bitmap_root_(root),
+			  bitmap_validator_(new bitmap_block_validator()) {
 			resize(nr_indexes);
 			load_ies();
 		}
@@ -723,8 +750,17 @@ namespace {
 			for (unsigned i = 0; i < entries_.size(); i++) {
 				block_address b = entries_[i].blocknr_;
 
-				if (b != 0)
-					bc.inc(b);
+				if (b == 0)
+					continue;
+
+				try {
+					block_manager::read_ref rr = tm_.read_lock(b, bitmap_validator_);
+					if (rr.data())
+						bc.inc(b);
+				} catch (std::exception &e) {
+					if (bc.stop_on_error())
+						throw;
+				}
 			}
 		}
 
@@ -786,6 +822,7 @@ namespace {
 		transaction_manager &tm_;
 		block_address bitmap_root_;
 		std::vector<index_entry> entries_;
+		bcache::validator::ptr bitmap_validator_;
 	};
 }
 

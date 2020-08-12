@@ -274,6 +274,17 @@ namespace {
 		return err;
 	}
 
+	void mark_sm_shadowed(transaction_manager::ptr tm, persistent_space_map::ptr sm) {
+		block_counter bc(true);
+		sm->count_metadata(bc);
+
+		block_address nr_blocks = sm->get_nr_blocks();
+		for (block_address b = 0; b < nr_blocks; b++) {
+			if (bc.get_count(b))
+				tm->mark_shadowed(b);
+		}
+	}
+
 	error_state clear_leaked_blocks(space_map::ptr actual,
 					block_counter const &expected) {
 		error_state err = NO_ERROR;
@@ -296,7 +307,8 @@ namespace {
 		out << "checking space map counts" << end_message();
 		nested_output::nest _ = out.push();
 
-		count_metadata(tm, sb, bc);
+		if (!count_metadata(tm, sb, bc))
+			return FATAL;
 
 		// Finally we need to check the metadata space map agrees
 		// with the counts we've just calculated.
@@ -318,7 +330,7 @@ namespace {
 		} else {
 			for (block_address b = 0; b < nr_blocks; b++) {
 				auto a_count = actual->get_count(b);
-				auto e_count = actual->get_count(b);
+				auto e_count = expected->get_count(b);
 
 				if (a_count != e_count) {
 					out << "data reference counts differ for block " << b
@@ -358,6 +370,7 @@ namespace {
 			  options_(check_opts),
 			  out_(cerr, 2),
 			  info_out_(cout, 0),
+			  expected_rc_(true), // set stop on the first error
 			  err_(NO_ERROR) {
 
 			if (output_opts == OUTPUT_QUIET) {
@@ -386,8 +399,11 @@ namespace {
 			print_info(tm, sb, info_out_);
 
 			if (options_.sm_opts_ == check_options::SPACE_MAP_FULL) {
+				// data block reference counting is disabled
+				// until that there's a better solution in space
+				// and time complexity
 				space_map::ptr data_sm{open_disk_sm(*tm, &sb.data_space_map_root_)};
-				optional<space_map::ptr> core_sm{create_core_map(data_sm->get_nr_blocks())};
+				optional<space_map::ptr> core_sm;
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_, core_sm);
 
 				if (err_ == FATAL)
@@ -397,15 +413,15 @@ namespace {
 				// then we should check the space maps too.
 				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_, expected_rc_);
 
-				// check the data space map
-				if (core_sm)
+				// verify ref-counts of data blocks
+				if (err_ != FATAL && core_sm)
 					err_ << compare_space_maps(data_sm, *core_sm, out_);
 			} else
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_,
 							      optional<space_map::ptr>());
 		}
 
-		bool fix_metadata_leaks() {
+		bool fix_metadata_leaks(bool open_transaction) {
 			if (!verify_preconditions_before_fixing()) {
 				out_ << "metadata has not been fully examined" << end_message();
 				return false;
@@ -423,6 +439,9 @@ namespace {
 			persistent_space_map::ptr metadata_sm =
 				open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
 			tm->set_sm(metadata_sm);
+
+			if (!open_transaction)
+				mark_sm_shadowed(tm, metadata_sm);
 
 			err_ = clear_leaked_blocks(metadata_sm, expected_rc_);
 
@@ -449,6 +468,10 @@ namespace {
 
 			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
 			superblock_detail::superblock sb = read_superblock(bm);
+
+			if (!sb.get_needs_check_flag())
+				return true;
+
 			sb.set_needs_check_flag(false);
 			write_superblock(bm, sb);
 
@@ -553,7 +576,8 @@ check_options::check_options()
 	  sm_opts_(SPACE_MAP_FULL),
 	  ignore_non_fatal_(false),
 	  fix_metadata_leaks_(false),
-	  clear_needs_check_(false) {
+	  clear_needs_check_(false),
+	  open_transaction_(false) {
 }
 
 void check_options::set_superblock_only() {
@@ -625,7 +649,7 @@ thin_provisioning::check_metadata(std::string const &path,
 
 	checker.check();
 	if (check_opts.fix_metadata_leaks_)
-		checker.fix_metadata_leaks();
+		checker.fix_metadata_leaks(check_opts.open_transaction_);
 	if (check_opts.fix_metadata_leaks_ ||
 	    check_opts.clear_needs_check_)
 		checker.clear_needs_check_flag();
