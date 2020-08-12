@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
-use nom::{number::complete::*, IResult};
+use nom::{multi::count, number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
 
 use crate::io_engine::*;
@@ -73,6 +73,29 @@ impl Unpack for IndexEntry {
                 none_free_before,
             },
         ))
+    }
+}
+
+//------------------------------------------
+
+const MAX_METADATA_BITMAPS: usize = 255;
+
+pub struct MetadataIndex {
+    pub indexes: Vec<IndexEntry>,
+}
+
+impl Unpack for MetadataIndex {
+    fn disk_size() -> u32 {
+        BLOCK_SIZE as u32
+    }
+
+    fn unpack(data: &[u8]) -> IResult<&[u8], Self> {
+        let (i, _csum) = le_u32(data)?;
+        let (i, _padding) = le_u32(i)?;
+        let (i, _blocknr) = le_u64(i)?;
+        let (i, indexes) = count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
+
+        Ok((i, MetadataIndex {indexes}))
     }
 }
 

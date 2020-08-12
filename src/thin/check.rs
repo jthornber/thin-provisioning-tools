@@ -232,7 +232,7 @@ fn spinner_thread(
                 return;
             }
             Ok(SpinnerCmd::Title(txt)) => {
-                let mut fmt = "Checking thin metadata [{bar:40.cyan/blue}] Remaining {eta}, ".to_string();
+                let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
                 fmt.push_str(&txt);
                 bar.set_style(
                     ProgressStyle::default_bar()
@@ -255,6 +255,87 @@ fn spinner_thread(
 
         thread::sleep(interval);
     }
+}
+
+//------------------------------------------
+
+fn check_space_map(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    entries: Vec<IndexEntry>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    root: SMRoot,
+) -> Result<()> {
+    let sm = sm.lock().unwrap();
+
+    // overflow btree
+    {
+        let mut v = OverflowChecker::new(&*sm);
+        let mut w = BTreeWalker::new(engine.clone(), false);
+        w.walk(&mut v, root.ref_count_root)?;
+    }
+
+    let mut blocks = Vec::new();
+    for i in &entries {
+        blocks.push(Block::new(i.blocknr));
+    }
+
+    // FIXME: we should do this in batches
+    engine.read_many(&mut blocks)?;
+
+    let mut leaks = 0;
+    let mut fail = false;
+    let mut blocknr = 0;
+    for n in 0..entries.len() {
+        let b = &blocks[n];
+        if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
+            return Err(anyhow!(
+                "Index entry points to block ({}) that isn't a bitmap",
+                b.loc
+            ));
+        }
+
+        let bitmap = unpack::<Bitmap>(b.get_data())?;
+        for e in bitmap.entries {
+            if blocknr >= root.nr_blocks {
+                break;
+            }
+
+            match e {
+                BitmapEntry::Small(actual) => {
+                    let expected = sm.get(blocknr)?;
+                    if actual == 1 && expected == 0 {
+                        // eprintln!("Data block {} leaked.", blocknr);
+                        leaks += 1;
+                    } else if actual != expected as u8 {
+                        eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                  blocknr, expected, actual);
+                        fail = true;
+                    }
+                }
+                BitmapEntry::Overflow => {
+                    let expected = sm.get(blocknr)?;
+                    if expected < 3 {
+                        eprintln!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
+                                          blocknr, expected);
+                        fail = true;
+                    }
+                }
+            }
+            blocknr += 1;
+        }
+    }
+
+    if leaks > 0 {
+        eprintln!(
+            "{} data blocks have leaked.  Use --auto-repair to fix.",
+            leaks
+        );
+    }
+
+    if fail {
+        return Err(anyhow!("Inconsistent data space map"));
+    }
+    Ok(())
 }
 
 //------------------------------------------
@@ -346,89 +427,40 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         pool.join();
     }
 
-    // Check the data space map.
+    spinner.set_title("data space map")?;
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let entries = btree_to_map::<IndexEntry>(engine.clone(), false, root.bitmap_root)?;
+    let entries: Vec<IndexEntry> = entries.values().cloned().collect();
+    check_space_map(engine.clone(), entries, data_sm.clone(), root)?;
+
+    spinner.set_title("metadata space map")?;
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let mut b = Block::new(root.bitmap_root);
+    engine.read(&mut b)?;
+    let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
+
+    // Unused entries will point to block 0
+    let entries: Vec<IndexEntry> = entries
+        .iter()
+        .take_while(|e| e.blocknr != 0)
+        .cloned()
+        .collect();
+
+    // We need to increment the ref counts for all the bitmaps, then walk the overflow
+    // tree to inc the ref counts for those.
     {
-        spinner.set_title("data space map")?;
-        let data_sm = data_sm.lock().unwrap();
-        let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-        let nr_data_blocks = root.nr_blocks;
-
-        // overflow btree
-        {
-            let mut v = OverflowChecker::new(&*data_sm);
-            let mut w = BTreeWalker::new(engine.clone(), false);
-            w.walk(&mut v, root.ref_count_root)?;
-        }
-
-        // Bitmaps
-        let entries = btree_to_map::<IndexEntry>(engine.clone(), false, root.bitmap_root)?;
-
-        let mut blocks = Vec::new();
-        for (_k, i) in &entries {
-            blocks.push(Block::new(i.blocknr));
-        }
-
-        // FIXME: we should do this in batches
-        engine.read_many(&mut blocks)?;
-
-        let mut leaks = 0;
-        let mut fail = false;
-        let mut blocknr = 0;
-        for n in 0..entries.len() {
-            let b = &blocks[n];
-            if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
-                return Err(anyhow!(
-                    "Index entry points to block ({}) that isn't a bitmap",
-                    b.loc
-                ));
-            }
-
-            let bitmap = unpack::<Bitmap>(b.get_data())?;
-            for e in bitmap.entries {
-                if blocknr >= nr_data_blocks {
-                    break;
-                }
-
-                match e {
-                    BitmapEntry::Small(actual) => {
-                        let expected = data_sm.get(blocknr)?;
-                        if actual == 1 && expected == 0 {
-                            // eprintln!("Data block {} leaked.", blocknr);
-                            leaks += 1;
-                        } else if actual != expected as u8 {
-                            eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
-                                      blocknr, expected, actual);
-                            fail = true;
-                        }
-                    }
-                    BitmapEntry::Overflow => {
-                        let expected = data_sm.get(blocknr)?;
-                        if expected < 3 {
-                            eprintln!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
-                                              blocknr, expected);
-                            fail = true;
-                        }
-                    }
-                }
-                blocknr += 1;
-            }
-        }
-
-        if leaks > 0 {
-            eprintln!(
-                "{} data blocks have leaked.  Use --auto-repair to fix.",
-                leaks
-            );
-        }
-
-        if fail {
-            spinner.abort()?;
-            return Err(anyhow!("Inconsistent data space map"));
+        let mut sm = metadata_sm.lock().unwrap();
+        for ie in &entries {
+            sm.inc(ie.blocknr, 1)?;
         }
     }
-
-    // Check the metadata space map.
-    spinner.set_title("metadata space map")?;
+    let _counts = btree_to_map_with_sm::<u32>(
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        root.ref_count_root,
+    )?;
+    check_space_map(engine.clone(), entries, metadata_sm.clone(), root)?;
 
     spinner.complete()?;
     Ok(())
