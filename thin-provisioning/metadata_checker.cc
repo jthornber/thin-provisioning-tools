@@ -388,8 +388,11 @@ namespace {
 			print_info(tm, sb, info_out_);
 
 			if (options_.sm_opts_ == check_options::SPACE_MAP_FULL) {
+				// data block reference counting is disabled
+				// until that there's a better solution in space
+				// and time complexity
 				space_map::ptr data_sm{open_disk_sm(*tm, &sb.data_space_map_root_)};
-				optional<space_map::ptr> core_sm{create_core_map(data_sm->get_nr_blocks())};
+				optional<space_map::ptr> core_sm;
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_, core_sm);
 
 				if (err_ == FATAL)
@@ -399,7 +402,7 @@ namespace {
 				// then we should check the space maps too.
 				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_, expected_rc_);
 
-				// check the data space map
+				// verify ref-counts of data blocks
 				if (err_ != FATAL && core_sm)
 					err_ << compare_space_maps(data_sm, *core_sm, out_);
 			} else
