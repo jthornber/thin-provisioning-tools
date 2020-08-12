@@ -92,7 +92,7 @@ thin_check_cmd::usage(std::ostream &out) const
 	    << "  {-h|--help}\n"
 	    << "  {-V|--version}\n"
 	    << "  {-m|--metadata-snap}\n"
-	    << "  {--fix-metadata-leaks}\n"
+	    << "  {--auto-repair}\n"
 	    << "  {--override-mapping-root}\n"
 	    << "  {--clear-needs-check-flag}\n"
 	    << "  {--ignore-non-fatal-errors}\n"
@@ -117,7 +117,7 @@ thin_check_cmd::run(int argc, char **argv)
 		{ "ignore-non-fatal-errors", no_argument, NULL, 3},
 		{ "clear-needs-check-flag", no_argument, NULL, 4 },
 		{ "override-mapping-root", required_argument, NULL, 5},
-		{ "fix-metadata-leaks", no_argument, NULL, 6},
+		{ "auto-repair", no_argument, NULL, 6},
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -165,7 +165,7 @@ thin_check_cmd::run(int argc, char **argv)
 			break;
 
 		case 6:
-			// fix-metadata-leaks
+			// auto-repair
 			fs.check_opts.set_fix_metadata_leaks();
 			break;
 

@@ -30,7 +30,7 @@ Options:
   {-h|--help}
   {-V|--version}
   {-m|--metadata-snap}
-  {--fix-metadata-leaks}
+  {--auto-repair}
   {--override-mapping-root}
   {--clear-needs-check-flag}
   {--ignore-non-fatal-errors}

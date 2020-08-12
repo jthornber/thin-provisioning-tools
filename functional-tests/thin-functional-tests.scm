@@ -95,14 +95,14 @@
     "Unrecognised option should cause failure"
     (run-fail (thin-check "--hedgehogs-only")))
 
-  (define-scenario (thin-check incompatible-options fix-metadata-leaks)
+  (define-scenario (thin-check incompatible-options auto-repair)
     "Incompatible options should cause failure"
     (with-valid-metadata (md)
-      (run-fail (thin-check "--fix-metadata-leaks" "-m" md))
-      (run-fail (thin-check "--fix-metadata-leaks" "--override-mapping-root 123" md))
-      (run-fail (thin-check "--fix-metadata-leaks" "--super-block-only" md))
-      (run-fail (thin-check "--fix-metadata-leaks" "--skip-mappings" md))
-      (run-fail (thin-check "--fix-metadata-leaks" "--ignore-non-fatal-errors" md))))
+      (run-fail (thin-check "--auto-repair" "-m" md))
+      (run-fail (thin-check "--auto-repair" "--override-mapping-root 123" md))
+      (run-fail (thin-check "--auto-repair" "--super-block-only" md))
+      (run-fail (thin-check "--auto-repair" "--skip-mappings" md))
+      (run-fail (thin-check "--auto-repair" "--ignore-non-fatal-errors" md))))
 
   (define-scenario (thin-check incompatible-options clear-needs-check-flag)
     "Incompatible options should cause failure"
@@ -145,10 +145,10 @@
     (with-valid-metadata (md)
       (run-ok (thin-check "--clear-needs-check-flag" md))))
 
-  (define-scenario (thin-check fix-metadata-leaks)
-    "Accepts --fix-metadata-leaks"
+  (define-scenario (thin-check auto-repair)
+    "Accepts --auto-repair"
     (with-valid-metadata (md)
-      (run-ok (thin-check "--fix-metadata-leaks" md))))
+      (run-ok (thin-check "--auto-repair" md))))
 
   (define-scenario (thin-check tiny-metadata)
     "Prints helpful message in case tiny metadata given"

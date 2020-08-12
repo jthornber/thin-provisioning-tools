@@ -40,6 +40,10 @@ OPTIONS
     The snap does not contain space maps, so these will not be checked.  This
     may be used on live metadata.
 
+  --auto-repair		Automatically repair any trivial issues found with the metadata.
+
+    Currently only fixes metadata leaks.
+
   --override-mapping-root <block>	Specify a mapping root to use.
 
     Don't use this.  This overrides what's specified in the superblock.  Only
