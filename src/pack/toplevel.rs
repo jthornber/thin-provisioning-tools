@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
@@ -7,12 +7,11 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::{
     error::Error,
     fs::OpenOptions,
-    path::Path,
     io,
     io::prelude::*,
-    io::Cursor,
     io::Write,
     ops::DerefMut,
+    path::Path,
     sync::{Arc, Mutex},
     thread::spawn,
 };
@@ -20,16 +19,13 @@ use std::{
 use rand::prelude::*;
 use std::sync::mpsc::{sync_channel, Receiver};
 
+use crate::checksum::*;
 use crate::file_utils;
 use crate::pack::node_encode::*;
 
 const BLOCK_SIZE: u64 = 4096;
 const MAGIC: u64 = 0xa537a0aa6309ef77;
 const PACK_VERSION: u64 = 3;
-const SUPERBLOCK_CSUM_XOR: u32 = 160774;
-const BITMAP_CSUM_XOR: u32 = 240779;
-const INDEX_CSUM_XOR: u32 = 160478;
-const BTREE_CSUM_XOR: u32 = 121107;
 
 fn shuffle<T>(v: &mut Vec<T>) {
     let mut rng = rand::thread_rng();
@@ -87,7 +83,7 @@ pub fn pack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>>
         .truncate(true)
         .open(output_file)?;
 
-    write_header(&output, nr_blocks)?;
+    write_header(&output, nr_blocks).context("unable to write pack file header")?;
 
     let sync_input = Arc::new(Mutex::new(input));
     let sync_output = Arc::new(Mutex::new(output));
@@ -126,7 +122,7 @@ where
             let kind = metadata_block_type(data);
             if kind != BT::UNKNOWN {
                 z.write_u64::<LittleEndian>(b)?;
-                pack_block(&mut z, kind, &data);
+                pack_block(&mut z, kind, &data)?;
 
                 written += 1;
                 if written == 1024 {
@@ -207,55 +203,16 @@ where
     Ok(buf)
 }
 
-fn checksum(buf: &[u8]) -> u32 {
-    crc32c::crc32c(&buf[4..]) ^ 0xffffffff
-}
-
-#[derive(PartialEq)]
-enum BT {
-    SUPERBLOCK,
-    NODE,
-    INDEX,
-    BITMAP,
-    UNKNOWN,
-}
-
-fn metadata_block_type(buf: &[u8]) -> BT {
-    if buf.len() != BLOCK_SIZE as usize {
-        return BT::UNKNOWN;
-    }
-
-    // The checksum is always stored in the first u32 of the buffer.
-    let mut rdr = Cursor::new(buf);
-    let sum_on_disk = rdr.read_u32::<LittleEndian>().unwrap();
-    let csum = checksum(buf);
-    let btype = csum ^ sum_on_disk;
-
-    match btype {
-        SUPERBLOCK_CSUM_XOR => BT::SUPERBLOCK,
-        BTREE_CSUM_XOR => BT::NODE,
-        BITMAP_CSUM_XOR => BT::BITMAP,
-        INDEX_CSUM_XOR => BT::INDEX,
-        _ => BT::UNKNOWN,
-    }
-}
-
-fn check<T>(r: &PResult<T>) {
-    match r {
-        Ok(_) => {}
-        Err(PackError::ParseError) => panic!("parse error"),
-        Err(PackError::IOError) => panic!("io error"),
-    }
-}
-
-fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) {
+fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
     match kind {
-        BT::SUPERBLOCK => check(&pack_superblock(w, buf)),
-        BT::NODE => check(&pack_btree_node(w, buf)),
-        BT::INDEX => check(&pack_index(w, buf)),
-        BT::BITMAP => check(&pack_bitmap(w, buf)),
-        BT::UNKNOWN => panic!("asked to pack an unknown block type"),
+        BT::SUPERBLOCK => pack_superblock(w, buf).context("unable to pack superblock")?,
+        BT::NODE => pack_btree_node(w, buf).context("unable to pack btree node")?,
+        BT::INDEX => pack_index(w, buf).context("unable to pack space map index")?,
+        BT::BITMAP => pack_bitmap(w, buf).context("unable to pack space map bitmap")?,
+        BT::UNKNOWN => return Err(anyhow!("asked to pack an unknown block type")),
     }
+
+    Ok(())
 }
 
 fn write_zero_block<W>(w: &mut W, b: u64) -> io::Result<()>

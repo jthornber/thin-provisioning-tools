@@ -133,6 +133,7 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
 }
 
 //---------------------------------------
+
 type BlockRange = std::ops::Range<u64>;
 
 fn bits_to_ranges(bits: &FixedBitSet) -> Vec<BlockRange> {

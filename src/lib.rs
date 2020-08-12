@@ -15,10 +15,12 @@ extern crate quickcheck;
 #[cfg(test)]
 extern crate quickcheck_macros;
 
-pub mod block_manager;
-pub mod check;
+pub mod io_engine;
+pub mod cache;
+pub mod checksum;
 pub mod file_utils;
 pub mod pack;
+pub mod pdata;
 pub mod shrink;
 pub mod thin;
 pub mod version;

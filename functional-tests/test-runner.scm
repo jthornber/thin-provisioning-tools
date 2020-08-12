@@ -14,8 +14,7 @@
           (only (srfi s1 lists) break)
           (regex)
           (srfi s8 receive)
-          (temp-file)
-          (thin-functional-tests))
+          (temp-file))
 
   ;;------------------------------------------------
 
