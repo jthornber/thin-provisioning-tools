@@ -166,7 +166,7 @@ thin_check_cmd::run(int argc, char **argv)
 
 		case 6:
 			// auto-repair
-			fs.check_opts.set_fix_metadata_leaks();
+			fs.check_opts.set_auto_repair();
 			break;
 
 		default:

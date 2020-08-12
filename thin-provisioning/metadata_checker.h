@@ -45,7 +45,7 @@ namespace thin_provisioning {
 		void set_override_mapping_root(bcache::block_address b);
 		void set_metadata_snap();
 		void set_ignore_non_fatal();
-		void set_fix_metadata_leaks();
+		void set_auto_repair();
 		void set_clear_needs_check();
 
 		bool use_metadata_snap_;

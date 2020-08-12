@@ -603,8 +603,9 @@ void check_options::set_ignore_non_fatal() {
 	ignore_non_fatal_ = true;
 }
 
-void check_options::set_fix_metadata_leaks() {
+void check_options::set_auto_repair() {
 	fix_metadata_leaks_ = true;
+	clear_needs_check_ = true;
 }
 
 void check_options::set_clear_needs_check() {
@@ -650,8 +651,7 @@ thin_provisioning::check_metadata(std::string const &path,
 	checker.check();
 	if (check_opts.fix_metadata_leaks_)
 		checker.fix_metadata_leaks(check_opts.open_transaction_);
-	if (check_opts.fix_metadata_leaks_ ||
-	    check_opts.clear_needs_check_)
+	if (check_opts.clear_needs_check_)
 		checker.clear_needs_check_flag();
 
 	return checker.get_status();
