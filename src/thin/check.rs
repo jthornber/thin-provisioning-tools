@@ -179,69 +179,109 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 
 //------------------------------------------
 
-enum SpinnerCmd {
+struct ReportOptions {}
+
+#[derive(Clone)]
+enum ReportOutcome {
+    Success,
+    NonFatal,
+    Fatal,
+}
+
+use ReportOutcome::*;
+
+impl ReportOutcome {
+    fn combine(lhs: &ReportOutcome, rhs: &ReportOutcome) -> ReportOutcome {
+        match (lhs, rhs) {
+            (Success, rhs) => rhs.clone(),
+            (lhs, Success) => lhs.clone(),
+            (Fatal, _) => Fatal,
+            (_, Fatal) => Fatal,
+            (_, _) => NonFatal,
+        }
+    }
+}
+
+enum ReportCmd {
     Log(String),
     Complete,
-    Abort,
     Title(String),
 }
 
-struct Spinner {
-    tx: Sender<SpinnerCmd>,
+struct Report {
+    opts: ReportOptions,
+    outcome: ReportOutcome,
+    tx: Sender<ReportCmd>,
     tid: thread::JoinHandle<()>,
 }
 
-impl Spinner {
-    fn new(sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>, total_allocated: u64) -> Result<Spinner> {
+impl Report {
+    fn new(
+        opts: ReportOptions,
+        sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+        total_allocated: u64,
+    ) -> Result<Report> {
         let (tx, rx) = channel();
-        let tid = thread::spawn(move || spinner_thread(sm, total_allocated, rx));
-        Ok(Spinner { tx, tid })
+        let tid = thread::spawn(move || report_thread(sm, total_allocated, rx));
+        Ok(Report {
+            opts,
+            outcome: ReportOutcome::Success,
+            tx,
+            tid,
+        })
     }
 
-    fn log<I: Into<String>>(&mut self, txt: I) -> Result<()> {
-        self.tx.send(SpinnerCmd::Log(txt.into()))?;
+    fn info<I: Into<String>>(&mut self, txt: I) -> Result<()> {
+        self.tx.send(ReportCmd::Log(txt.into()))?;
+        Ok(())
+    }
+
+    fn add_outcome(&mut self, rhs: ReportOutcome) {
+        self.outcome = ReportOutcome::combine(&self.outcome, &rhs);
+    }
+
+    fn non_fatal<I: Into<String>>(&mut self, txt: I) -> Result<()> {
+        self.add_outcome(NonFatal);
+        self.tx.send(ReportCmd::Log(txt.into()))?;
+        Ok(())
+    }
+
+    fn fatal<I: Into<String>>(&mut self, txt: I) -> Result<()> {
+        self.add_outcome(Fatal);
+        self.tx.send(ReportCmd::Log(txt.into()))?;
         Ok(())
     }
 
     fn complete(self) -> Result<()> {
-        self.tx.send(SpinnerCmd::Complete)?;
-        self.tid.join();
-        Ok(())
-    }
-
-    fn abort(self) -> Result<()> {
-        self.tx.send(SpinnerCmd::Abort)?;
+        self.tx.send(ReportCmd::Complete)?;
         self.tid.join();
         Ok(())
     }
 
     fn set_title(&mut self, txt: &str) -> Result<()> {
-        self.tx.send(SpinnerCmd::Title(txt.to_string()))?;
+        self.tx.send(ReportCmd::Title(txt.to_string()))?;
         Ok(())
     }
 }
 
-fn spinner_thread(
+fn report_thread(
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     total_allocated: u64,
-    rx: Receiver<SpinnerCmd>,
+    rx: Receiver<ReportCmd>,
 ) {
     let interval = time::Duration::from_millis(250);
     let bar = ProgressBar::new(total_allocated);
     loop {
         loop {
             match rx.try_recv() {
-                Ok(SpinnerCmd::Log(txt)) => {
+                Ok(ReportCmd::Log(txt)) => {
                     bar.println(txt);
                 }
-                Ok(SpinnerCmd::Complete) => {
+                Ok(ReportCmd::Complete) => {
                     bar.finish();
                     return;
                 }
-                Ok(SpinnerCmd::Abort) => {
-                    return;
-                }
-                Ok(SpinnerCmd::Title(txt)) => {
+                Ok(ReportCmd::Title(txt)) => {
                     let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
                     fmt.push_str(&txt);
                     bar.set_style(
@@ -275,7 +315,7 @@ fn spinner_thread(
 fn check_space_map(
     kind: &str,
     engine: Arc<dyn IoEngine + Send + Sync>,
-    bar: &mut Spinner,
+    bar: &mut Report,
     entries: Vec<IndexEntry>,
     metadata_sm: Option<Arc<Mutex<dyn SpaceMap + Send + Sync>>>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
@@ -327,7 +367,7 @@ fn check_space_map(
                     if actual == 1 && expected == 0 {
                         leaks += 1;
                     } else if actual != expected as u8 {
-                        bar.log(format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
+                        bar.fatal(format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
                                   kind, blocknr, expected, actual))?;
                         fail = true;
                     }
@@ -335,7 +375,7 @@ fn check_space_map(
                 BitmapEntry::Overflow => {
                     let expected = sm.get(blocknr)?;
                     if expected < 3 {
-                        bar.log(format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
+                        bar.fatal(format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
                                           kind, blocknr, expected))?;
                         fail = true;
                     }
@@ -346,7 +386,7 @@ fn check_space_map(
     }
 
     if leaks > 0 {
-        bar.log(format!(
+        bar.non_fatal(format!(
             "{} {} blocks have leaked.  Use --auto-repair to fix.",
             leaks, kind
         ))?;
@@ -404,9 +444,10 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    let mut spinner = Spinner::new(metadata_sm.clone(), nr_allocated_metadata)?;
+    let opts = ReportOptions {};
+    let mut report = Report::new(opts, metadata_sm.clone(), nr_allocated_metadata)?;
 
-    spinner.set_title("device details tree")?;
+    report.set_title("device details tree")?;
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
         engine.clone(),
         metadata_sm.clone(),
@@ -424,7 +465,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
 
     // Check the mappings filling in the data_sm as we go.
-    spinner.set_title("mapping tree")?;
+    report.set_title("mapping tree")?;
     let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
@@ -456,7 +497,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         pool.join();
     }
 
-    spinner.set_title("data space map")?;
+    report.set_title("data space map")?;
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
 
     let entries = btree_to_map_with_sm::<IndexEntry>(
@@ -471,14 +512,14 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     check_space_map(
         "data",
         engine.clone(),
-        &mut spinner,
+        &mut report,
         entries,
         Some(metadata_sm.clone()),
         data_sm.clone(),
         root,
     )?;
 
-    spinner.set_title("metadata space map")?;
+    report.set_title("metadata space map")?;
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut b = Block::new(root.bitmap_root);
     engine.read(&mut b)?;
@@ -503,14 +544,14 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     check_space_map(
         "metadata",
         engine.clone(),
-        &mut spinner,
+        &mut report,
         entries,
         None,
         metadata_sm.clone(),
         root,
     )?;
 
-    spinner.complete()?;
+    report.complete()?;
     Ok(())
 }
 
