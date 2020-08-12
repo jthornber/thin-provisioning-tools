@@ -21,7 +21,7 @@ fn accepts_version() -> Result<()> {
     Ok(())
 }
 
-const USAGE: &str = "thin_metadata_unpack 0.9.0-rc2\nUnpack a compressed file of thin metadata.\n\nUSAGE:\n    thin_metadata_unpack -i <DEV> -o <FILE>\n\nFLAGS:\n    -h, --help       Prints help information\n    -V, --version    Prints version information\n\nOPTIONS:\n    -i <DEV>         Specify thinp metadata binary device/file\n    -o <FILE>        Specify packed output file";
+const USAGE: &str = "thin_metadata_unpack 0.9.0\nUnpack a compressed file of thin metadata.\n\nUSAGE:\n    thin_metadata_unpack -i <DEV> -o <FILE>\n\nFLAGS:\n    -h, --help       Prints help information\n    -V, --version    Prints version information\n\nOPTIONS:\n    -i <DEV>         Specify thinp metadata binary device/file\n    -o <FILE>        Specify packed output file";
 
 #[test]
 fn accepts_h() -> Result<()> {

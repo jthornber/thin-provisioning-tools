@@ -24,7 +24,7 @@ fn accepts_version() -> Result<()> {
     Ok(())
 }
 
-const USAGE: &str = "Usage: thin_check [options] {device|file}\nOptions:\n  {-q|--quiet}\n  {-h|--help}\n  {-V|--version}\n  {-m|--metadata-snap}\n  {--override-mapping-root}\n  {--clear-needs-check-flag}\n  {--ignore-non-fatal-errors}\n  {--skip-mappings}\n  {--super-block-only}";
+const USAGE: &str = "Usage: thin_check [options] {device|file}\nOptions:\n  {-q|--quiet}\n  {-h|--help}\n  {-V|--version}\n  {-m|--metadata-snap}\n  {--auto-repair}\n  {--override-mapping-root}\n  {--clear-needs-check-flag}\n  {--ignore-non-fatal-errors}\n  {--skip-mappings}\n  {--super-block-only}";
 
 #[test]
 fn accepts_h() -> Result<()> {
