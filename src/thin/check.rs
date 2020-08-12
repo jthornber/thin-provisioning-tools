@@ -180,6 +180,7 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 //------------------------------------------
 
 enum SpinnerCmd {
+    Log(String),
     Complete,
     Abort,
     Title(String),
@@ -195,6 +196,11 @@ impl Spinner {
         let (tx, rx) = channel();
         let tid = thread::spawn(move || spinner_thread(sm, total_allocated, rx));
         Ok(Spinner { tx, tid })
+    }
+
+    fn log<I: Into<String>>(&mut self, txt: I) -> Result<()> {
+        self.tx.send(SpinnerCmd::Log(txt.into()))?;
+        Ok(())
     }
 
     fn complete(self) -> Result<()> {
@@ -223,27 +229,34 @@ fn spinner_thread(
     let interval = time::Duration::from_millis(250);
     let bar = ProgressBar::new(total_allocated);
     loop {
-        match rx.try_recv() {
-            Ok(SpinnerCmd::Complete) => {
-                bar.finish();
-                return;
+        loop {
+            match rx.try_recv() {
+                Ok(SpinnerCmd::Log(txt)) => {
+                    bar.println(txt);
+                }
+                Ok(SpinnerCmd::Complete) => {
+                    bar.finish();
+                    return;
+                }
+                Ok(SpinnerCmd::Abort) => {
+                    return;
+                }
+                Ok(SpinnerCmd::Title(txt)) => {
+                    let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
+                    fmt.push_str(&txt);
+                    bar.set_style(
+                        ProgressStyle::default_bar()
+                            .template(&fmt)
+                            .progress_chars("=> "),
+                    );
+                }
+                Err(TryRecvError::Disconnected) => {
+                    return;
+                }
+                Err(TryRecvError::Empty) => {
+                    break;
+                }
             }
-            Ok(SpinnerCmd::Abort) => {
-                return;
-            }
-            Ok(SpinnerCmd::Title(txt)) => {
-                let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
-                fmt.push_str(&txt);
-                bar.set_style(
-                    ProgressStyle::default_bar()
-                        .template(&fmt)
-                        .progress_chars("=> "),
-                );
-            }
-            Err(TryRecvError::Disconnected) => {
-                return;
-            }
-            Err(TryRecvError::Empty) => {}
         }
 
         let sm = sm.lock().unwrap();
@@ -260,8 +273,11 @@ fn spinner_thread(
 //------------------------------------------
 
 fn check_space_map(
+    kind: &str,
     engine: Arc<dyn IoEngine + Send + Sync>,
+    bar: &mut Spinner,
     entries: Vec<IndexEntry>,
+    metadata_sm: Option<Arc<Mutex<dyn SpaceMap + Send + Sync>>>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     root: SMRoot,
 ) -> Result<()> {
@@ -270,7 +286,12 @@ fn check_space_map(
     // overflow btree
     {
         let mut v = OverflowChecker::new(&*sm);
-        let mut w = BTreeWalker::new(engine.clone(), false);
+        let mut w;
+        if metadata_sm.is_none() {
+            w = BTreeWalker::new(engine.clone(), false);
+        } else {
+            w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.unwrap().clone(), false)?;
+        }
         w.walk(&mut v, root.ref_count_root)?;
     }
 
@@ -304,19 +325,18 @@ fn check_space_map(
                 BitmapEntry::Small(actual) => {
                     let expected = sm.get(blocknr)?;
                     if actual == 1 && expected == 0 {
-                        // eprintln!("Data block {} leaked.", blocknr);
                         leaks += 1;
                     } else if actual != expected as u8 {
-                        eprintln!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
-                                  blocknr, expected, actual);
+                        bar.log(format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
+                                  kind, blocknr, expected, actual))?;
                         fail = true;
                     }
                 }
                 BitmapEntry::Overflow => {
                     let expected = sm.get(blocknr)?;
                     if expected < 3 {
-                        eprintln!("Bad reference count for data block {}.  Expected {}, but space map says it's >= 3.",
-                                          blocknr, expected);
+                        bar.log(format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
+                                          kind, blocknr, expected))?;
                         fail = true;
                     }
                 }
@@ -326,14 +346,24 @@ fn check_space_map(
     }
 
     if leaks > 0 {
-        eprintln!(
-            "{} data blocks have leaked.  Use --auto-repair to fix.",
-            leaks
-        );
+        bar.log(format!(
+            "{} {} blocks have leaked.  Use --auto-repair to fix.",
+            leaks, kind
+        ))?;
     }
 
     if fail {
         return Err(anyhow!("Inconsistent data space map"));
+    }
+    Ok(())
+}
+
+//------------------------------------------
+
+fn inc_entries(sm: &Arc<Mutex<dyn SpaceMap + Sync + Send>>, entries: &[IndexEntry]) -> Result<()> {
+    let mut sm = sm.lock().unwrap();
+    for ie in entries {
+        sm.inc(ie.blocknr, 1)?;
     }
     Ok(())
 }
@@ -355,7 +385,6 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         nr_threads = std::cmp::min(4, num_cpus::get());
         engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
     } else {
-        eprintln!("Using synchronous io");
         nr_threads = num_cpus::get() * 2;
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
     }
@@ -429,9 +458,25 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
 
     spinner.set_title("data space map")?;
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let entries = btree_to_map::<IndexEntry>(engine.clone(), false, root.bitmap_root)?;
+
+    let entries = btree_to_map_with_sm::<IndexEntry>(
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        root.bitmap_root,
+    )?;
     let entries: Vec<IndexEntry> = entries.values().cloned().collect();
-    check_space_map(engine.clone(), entries, data_sm.clone(), root)?;
+    inc_entries(&metadata_sm, &entries[0..])?;
+
+    check_space_map(
+        "data",
+        engine.clone(),
+        &mut spinner,
+        entries,
+        Some(metadata_sm.clone()),
+        data_sm.clone(),
+        root,
+    )?;
 
     spinner.set_title("metadata space map")?;
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
@@ -445,22 +490,25 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         .take_while(|e| e.blocknr != 0)
         .cloned()
         .collect();
+    inc_entries(&metadata_sm, &entries[0..])?;
 
-    // We need to increment the ref counts for all the bitmaps, then walk the overflow
-    // tree to inc the ref counts for those.
-    {
-        let mut sm = metadata_sm.lock().unwrap();
-        for ie in &entries {
-            sm.inc(ie.blocknr, 1)?;
-        }
-    }
     let _counts = btree_to_map_with_sm::<u32>(
         engine.clone(),
         metadata_sm.clone(),
         false,
         root.ref_count_root,
     )?;
-    check_space_map(engine.clone(), entries, metadata_sm.clone(), root)?;
+
+    // Now the counts should be correct and we can check it.
+    check_space_map(
+        "metadata",
+        engine.clone(),
+        &mut spinner,
+        entries,
+        None,
+        metadata_sm.clone(),
+        root,
+    )?;
 
     spinner.complete()?;
     Ok(())
