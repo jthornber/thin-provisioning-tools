@@ -80,6 +80,11 @@ fn accepts_quiet() -> Result<()> {
 }
 
 #[test]
+fn accepts_auto_repair() -> Result<()> {
+    accepts_flag("--auto-repair")
+}
+
+#[test]
 fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
@@ -124,4 +129,28 @@ fn prints_info_fields() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn auto_repair_incompatible_opts() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_fail(thin_check!("--auto-repair", "-m", &md))?;
+    run_fail(thin_check!("--auto-repair", "--override-mapping-root", "123", &md))?;
+    run_fail(thin_check!("--auto-repair", "--super-block-only", &md))?;
+    run_fail(thin_check!("--auto-repair", "--skip-mappings", &md))?;
+    run_fail(thin_check!("--auto-repair", "--ignore-non-fatal-errors", &md))?;
+    Ok(())
+}
+
+#[test]
+fn clear_needs_check_incompatible_opts() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_fail(thin_check!("--clear-needs-check-flag", "-m", &md))?;
+    run_fail(thin_check!("--clear-needs-check-flag", "--override-mapping-root", "123", &md))?;
+    run_fail(thin_check!("--clear-needs-check-flag", "--super-block-only", &md))?;
+    run_fail(thin_check!("--clear-needs-check-flag", "--skip-mappings", &md))?;
+    run_fail(thin_check!("--clear-needs-check-flag", "--ignore-non-fatal-errors", &md))?;
+    Ok(())
+}
+    
 //------------------------------------------
