@@ -274,6 +274,17 @@ namespace {
 		return err;
 	}
 
+	void mark_sm_shadowed(transaction_manager::ptr tm, persistent_space_map::ptr sm) {
+		block_counter bc(true);
+		sm->count_metadata(bc);
+
+		block_address nr_blocks = sm->get_nr_blocks();
+		for (block_address b = 0; b < nr_blocks; b++) {
+			if (bc.get_count(b))
+				tm->mark_shadowed(b);
+		}
+	}
+
 	error_state clear_leaked_blocks(space_map::ptr actual,
 					block_counter const &expected) {
 		error_state err = NO_ERROR;
@@ -410,7 +421,7 @@ namespace {
 							      optional<space_map::ptr>());
 		}
 
-		bool fix_metadata_leaks() {
+		bool fix_metadata_leaks(bool open_transaction) {
 			if (!verify_preconditions_before_fixing()) {
 				out_ << "metadata has not been fully examined" << end_message();
 				return false;
@@ -428,6 +439,9 @@ namespace {
 			persistent_space_map::ptr metadata_sm =
 				open_metadata_sm(*tm, static_cast<void const*>(&sb.metadata_space_map_root_));
 			tm->set_sm(metadata_sm);
+
+			if (!open_transaction)
+				mark_sm_shadowed(tm, metadata_sm);
 
 			err_ = clear_leaked_blocks(metadata_sm, expected_rc_);
 
@@ -562,7 +576,8 @@ check_options::check_options()
 	  sm_opts_(SPACE_MAP_FULL),
 	  ignore_non_fatal_(false),
 	  fix_metadata_leaks_(false),
-	  clear_needs_check_(false) {
+	  clear_needs_check_(false),
+	  open_transaction_(false) {
 }
 
 void check_options::set_superblock_only() {
@@ -634,7 +649,7 @@ thin_provisioning::check_metadata(std::string const &path,
 
 	checker.check();
 	if (check_opts.fix_metadata_leaks_)
-		checker.fix_metadata_leaks();
+		checker.fix_metadata_leaks(check_opts.open_transaction_);
 	if (check_opts.fix_metadata_leaks_ ||
 	    check_opts.clear_needs_check_)
 		checker.clear_needs_check_flag();
