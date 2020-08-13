@@ -4,9 +4,9 @@ use thinp::version::TOOLS_VERSION;
 
 mod common;
 
-use common::*;
 use common::test_dir::*;
 use common::thin_xml_generator::{write_xml, FragmentedS};
+use common::*;
 
 //------------------------------------------
 
@@ -134,10 +134,19 @@ fn auto_repair_incompatible_opts() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     run_fail(thin_check!("--auto-repair", "-m", &md))?;
-    run_fail(thin_check!("--auto-repair", "--override-mapping-root", "123", &md))?;
+    run_fail(thin_check!(
+        "--auto-repair",
+        "--override-mapping-root",
+        "123",
+        &md
+    ))?;
     run_fail(thin_check!("--auto-repair", "--super-block-only", &md))?;
     run_fail(thin_check!("--auto-repair", "--skip-mappings", &md))?;
-    run_fail(thin_check!("--auto-repair", "--ignore-non-fatal-errors", &md))?;
+    run_fail(thin_check!(
+        "--auto-repair",
+        "--ignore-non-fatal-errors",
+        &md
+    ))?;
     Ok(())
 }
 
@@ -146,11 +155,115 @@ fn clear_needs_check_incompatible_opts() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     run_fail(thin_check!("--clear-needs-check-flag", "-m", &md))?;
-    run_fail(thin_check!("--clear-needs-check-flag", "--override-mapping-root", "123", &md))?;
-    run_fail(thin_check!("--clear-needs-check-flag", "--super-block-only", &md))?;
-    run_fail(thin_check!("--clear-needs-check-flag", "--skip-mappings", &md))?;
-    run_fail(thin_check!("--clear-needs-check-flag", "--ignore-non-fatal-errors", &md))?;
+    run_fail(thin_check!(
+        "--clear-needs-check-flag",
+        "--override-mapping-root",
+        "123",
+        &md
+    ))?;
+    run_fail(thin_check!(
+        "--clear-needs-check-flag",
+        "--super-block-only",
+        &md
+    ))?;
+    run_fail(thin_check!(
+        "--clear-needs-check-flag",
+        "--skip-mappings",
+        &md
+    ))?;
+    run_fail(thin_check!(
+        "--clear-needs-check-flag",
+        "--ignore-non-fatal-errors",
+        &md
+    ))?;
     Ok(())
 }
-    
+
+//------------------------------------------
+
+#[test]
+fn clear_needs_check() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    set_needs_check(&md)?;
+
+    assert!(get_needs_check(&md)?);
+    thin_check!("--clear-needs-check-flag", &md).run()?;
+    assert!(!get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn no_clear_needs_check_if_error() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?;
+    run_fail(thin_check!("--clear-needs-check-flag", &md))?;
+    assert!(get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn metadata_leaks_are_non_fatal() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?;
+    run_fail(thin_check!(&md))?;
+    thin_check!("--ignore-non-fatal-errors", &md).run()?;
+    Ok(())
+}
+
+#[test]
+fn fatal_errors_cant_be_ignored() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    generate_metadata_leaks(&md, 1, 1, 0)?;
+    ensure_untouched(&md, || {
+        run_fail(thin_check!("--ignore-non-fatal-errors", &md))?;
+        Ok(())
+    })
+}
+
+#[test]
+fn auto_repair() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+
+    // auto-repair should have no effect on good metadata.
+    ensure_untouched(&md, || {
+        thin_check!("--auto-repair", &md).run()?;
+        Ok(())
+    })?;
+
+    generate_metadata_leaks(&md, 16, 0, 1)?;
+    run_fail(thin_check!(&md))?;
+    thin_check!("--auto-repair", &md).run()?;
+    thin_check!(&md).run()?;
+    Ok(())
+}
+
+#[test]
+fn auto_repair_has_limits() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    generate_metadata_leaks(&md, 16, 1, 0)?;
+
+    ensure_untouched(&md, || {
+        run_fail(thin_check!("--auto-repair", &md))?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+#[test]
+fn auto_repair_clears_needs_check() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    set_needs_check(&md)?;
+    thin_check!("--auto-repair", &md).run()?;
+    assert!(!get_needs_check(&md)?);
+    Ok(())
+}
+
 //------------------------------------------

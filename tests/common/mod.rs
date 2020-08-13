@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use duct::{Expression};
+use duct::{cmd, Expression};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::{PathBuf};
 use std::str::from_utf8;
 use thinp::file_utils;
+use thinp::io_engine::*;
 
 pub mod thin_xml_generator;
 pub mod cache_xml_generator;
@@ -117,6 +118,39 @@ macro_rules! cache_check {
     };
 }
 
+#[macro_export]
+macro_rules! thin_generate_metadata {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_generate_metadata", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! thin_generate_mappings {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_generate_mappings", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! thin_generate_damage {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsString;
+            let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
+            duct::cmd("bin/thin_generate_damage", args).stdout_capture().stderr_capture()
+        }
+    };
+}
+
 //------------------------------------------
 
 // Returns stderr, a non zero status must be returned
@@ -148,7 +182,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 pub fn mk_zeroed_md(td: &mut TestDir) -> Result<PathBuf> {
     let md = td.mk_path("meta.bin");
     eprintln!("path = {:?}", md);
-    let _file = file_utils::create_sized_file(&md, 4096 * 4096);
+    let _file = file_utils::create_sized_file(&md, 1024 * 1024 * 16);
     Ok(md)
 }
 
@@ -179,4 +213,109 @@ pub fn damage_superblock(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-//------------------------------------------
+//-----------------------------------------------
+
+// FIXME: replace mk_valid_md with this?
+pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
+    let md = mk_zeroed_md(td)?;
+    thin_generate_metadata!("-o", &md, "--format", "--nr-data-blocks", "102400").run()?;
+
+    // Create a 2GB device
+    thin_generate_metadata!("-o", &md, "--create-thin", "1").run()?;
+    thin_generate_mappings!(
+        "-o",
+        &md,
+        "--dev-id",
+        "1",
+        "--size",
+        format!("{}", 1024 * 1024 * 2),
+        "--rw=randwrite",
+        "--seq-nr=16"
+    )
+    .run()?;
+
+    // Take a few snapshots.
+    let mut snap_id = 2;
+    for _i in 0..10 {
+        // take a snapshot
+        thin_generate_metadata!(
+            "-o",
+            &md,
+            "--create-snap",
+            format!("{}", snap_id),
+            "--origin",
+            "1"
+        )
+        .run()?;
+
+        // partially overwrite the origin (64MB)
+        thin_generate_mappings!(
+            "-o",
+            &md,
+            "--dev-id",
+            format!("{}", 1),
+            "--size",
+            format!("{}", 1024 * 1024 * 2),
+            "--io-size",
+            format!("{}", 64 * 1024 * 2),
+            "--rw=randwrite",
+            "--seq-nr=16"
+        )
+        .run()?;
+        snap_id += 1;
+    }
+
+    Ok(md)
+}
+
+pub fn set_needs_check(md: &PathBuf) -> Result<()> {
+    thin_generate_metadata!("-o", &md, "--set-needs-check").run()?;
+    Ok(())
+}
+
+pub fn generate_metadata_leaks(md: &PathBuf, nr_blocks: u64, expected: u32, actual: u32) -> Result<()> {
+    let output = thin_generate_damage!(
+        "-o",
+        &md,
+        "--create-metadata-leaks",
+        "--nr-blocks",
+        format!("{}", nr_blocks),
+        "--expected",
+        format!("{}", expected),
+        "--actual",
+        format!("{}", actual)
+    )
+    .unchecked()
+    .run()?;
+
+    assert!(output.status.success());
+    Ok(())
+}
+
+pub fn get_needs_check(md: &PathBuf) -> Result<bool> {
+    use thinp::thin::superblock::*;
+
+    let engine = SyncIoEngine::new(&md, 1)?;
+    let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
+    Ok(sb.flags.needs_check)
+}
+
+pub fn md5(md: &PathBuf) -> Result<String> {
+    let output = cmd!("md5sum", "-b", &md).stdout_capture().run()?;
+    let csum = std::str::from_utf8(&output.stdout[0..])?.to_string();
+    let csum = csum.split_ascii_whitespace().next().unwrap().to_string();
+    Ok(csum)
+}
+
+// This checksums the file before and after the thunk is run to
+// ensure it is unchanged.
+pub fn ensure_untouched<F>(p: &PathBuf, thunk: F) -> Result<()>
+where
+    F: Fn() -> Result<()>,
+{
+    let csum = md5(p)?;
+    thunk()?;
+    assert_eq!(csum, md5(p)?);
+    Ok(())
+}
+
