@@ -47,6 +47,8 @@ struct BottomLevelVisitor {
     data_sm: Arc<Mutex<dyn SpaceMap + Send>>,
 }
 
+//------------------------------------------
+
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
     fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<BlockTime>) -> Result<()> {
         // FIXME: do other checks
@@ -437,7 +439,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     }
 
     // mapping top level
-    let roots = btree_to_map::<u64>(engine.clone(), false, sb.mapping_root)?;
+    let roots = btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
     // Check the mappings filling in the data_sm as we go.
     report.set_title("mapping tree")?;
@@ -498,6 +500,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut b = Block::new(root.bitmap_root);
     engine.read(&mut b)?;
+    metadata_sm.lock().unwrap().inc(root.bitmap_root, 1)?;
     let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
 
     // Unused entries will point to block 0
@@ -508,6 +511,8 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         .collect();
     inc_entries(&metadata_sm, &entries[0..])?;
 
+    // We call this for the side effect of incrementing the ref counts
+    // for the metadata that holds the tree.
     let _counts = btree_to_map_with_sm::<u32>(
         engine.clone(),
         metadata_sm.clone(),
