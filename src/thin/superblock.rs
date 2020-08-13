@@ -7,7 +7,13 @@ pub const SUPERBLOCK_LOCATION: u64 = 0;
 const SPACE_MAP_ROOT_SIZE: usize = 128;
 
 #[derive(Debug)]
+pub struct SuperblockFlags {
+    pub needs_check: bool,
+}
+
+#[derive(Debug)]
 pub struct Superblock {
+    pub flags: SuperblockFlags,
     pub block: u64,
     //uuid: [u8; UUID_SIZE],
     pub version: u32,
@@ -51,7 +57,7 @@ struct SuperblockError {
 
 fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, _csum) = le_u32(data)?;
-    let (i, _flags) = le_u32(i)?;
+    let (i, flags) = le_u32(i)?;
     let (i, block) = le_u64(i)?;
     let (i, _uuid) = take(16usize)(i)?;
     let (i, _magic) = le_u64(i)?;
@@ -70,6 +76,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     Ok((
         i,
         Superblock {
+            flags: SuperblockFlags {needs_check: (flags & 0x1) != 0},
             block,
             //uuid: uuid[0..UUID_SIZE],
             version,
