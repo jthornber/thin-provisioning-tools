@@ -17,31 +17,6 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
-struct TopLevelVisitor<'a> {
-    roots: &'a mut BTreeMap<u32, u64>,
-}
-
-impl<'a> NodeVisitor<u64> for TopLevelVisitor<'a> {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<u64>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            for n in 0..keys.len() {
-                let k = keys[n];
-                let root = values[n];
-                self.roots.insert(k as u32, root);
-            }
-        }
-
-        Ok(())
-    }
-}
-
-//------------------------------------------
-
 #[allow(dead_code)]
 struct BlockTime {
     block: u64,
