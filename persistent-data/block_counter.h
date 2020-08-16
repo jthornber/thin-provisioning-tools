@@ -62,6 +62,10 @@ namespace persistent_data {
 			return stop_on_error_;
 		}
 
+		virtual void clear() {
+			counts_.clear();
+		}
+
 	private:
 		count_map counts_;
 		bool stop_on_error_;
@@ -86,6 +90,11 @@ namespace persistent_data {
 		base::run_set<block_address> const& get_visited() const {
 			return visited_;
 		}
+
+		virtual void clear() {
+			visited_.clear();
+		}
+
 	private:
 		base::run_set<block_address> visited_;
 	};
