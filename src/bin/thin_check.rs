@@ -1,13 +1,15 @@
 extern crate clap;
 extern crate thinp;
 
+use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use thinp::file_utils;
 use thinp::thin::check::{check, ThinCheckOptions};
-
+use std::sync::Arc;
 use std::process::exit;
+use thinp::report::*;
 
 fn main() {
     let parser = App::new("thin_check")
@@ -18,7 +20,6 @@ fn main() {
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
                 .long("quiet")
-                .value_name("QUIET"),
         )
         .arg(
             Arg::with_name("SB_ONLY")
@@ -74,9 +75,20 @@ fn main() {
         exit(1);
     }
 
+    let report;
+
+    if matches.is_present("QUIET") {
+        report = std::sync::Arc::new(mk_quiet_report());
+    } else if atty::is(Stream::Stdout) {
+        report = std::sync::Arc::new(mk_progress_bar_report());
+    } else {
+       report = Arc::new(mk_simple_report());
+    }
+
     let opts = ThinCheckOptions {
         dev: &input_file,
         async_io: !matches.is_present("SYNC_IO"),
+        report
     };
 
     if let Err(reason) = check(&opts) {

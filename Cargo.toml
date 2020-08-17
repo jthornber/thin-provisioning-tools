@@ -6,6 +6,7 @@ edition = "2018"
 license = "GPL3"
 
 [dependencies]
+atty = "0.2"
 anyhow = "1.0"
 base64 = "0.12"
 byteorder = "1.3"

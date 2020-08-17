@@ -704,6 +704,7 @@ name = "thinp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atty",
  "base64",
  "byteorder",
  "clap",

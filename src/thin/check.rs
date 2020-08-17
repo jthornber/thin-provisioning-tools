@@ -257,9 +257,11 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 pub struct ThinCheckOptions<'a> {
     pub dev: &'a Path,
     pub async_io: bool,
+    pub report: Arc<Report>,
 }
 
 pub fn check(opts: &ThinCheckOptions) -> Result<()> {
+    let report = opts.report.clone();
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     let nr_threads;
@@ -286,9 +288,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    let report = Arc::new(mk_progress_bar_report());
-    //let report = Arc::new(mk_simple_report());
-    //let report = Arc::new(mk_quiet_report());
+
     report.set_title("Checking thin metadata");
 
     let tid;
