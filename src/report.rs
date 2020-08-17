@@ -1,4 +1,3 @@
-use anyhow::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::Mutex;
 
@@ -31,10 +30,11 @@ pub struct Report {
 }
 
 trait ReportInner {
-    fn set_title(&mut self, txt: &str) -> Result<()>;
-    fn progress(&mut self, percent: u8) -> Result<()>;
-    fn log(&mut self, txt: &str) -> Result<()>;
-    fn complete(&mut self) -> Result<()>;
+    fn set_title(&mut self, txt: &str);
+    fn set_sub_title(&mut self, txt: &str);
+    fn progress(&mut self, percent: u8);
+    fn log(&mut self, txt: &str);
+    fn complete(&mut self);
 }
 
 impl Report {
@@ -50,48 +50,58 @@ impl Report {
         *lhs = ReportOutcome::combine(&lhs, &rhs);
     }
 
-    pub fn set_title(&self, txt: &str) -> Result<()> {
+    pub fn set_title(&self, txt: &str) {
         let mut inner = self.inner.lock().unwrap();
         inner.set_title(txt)
     }
 
-    pub fn progress(&self, percent: u8) -> Result<()> {
+    pub fn set_sub_title(&self, txt: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.set_sub_title(txt)
+    }
+    
+    pub fn progress(&self, percent: u8) {
         let mut inner = self.inner.lock().unwrap();
         inner.progress(percent)
     }
 
-    pub fn info(&self, txt: &str) -> Result<()> {
+    pub fn info(&self, txt: &str) {
         let mut inner = self.inner.lock().unwrap();
         inner.log(txt)
     }
 
-    pub fn non_fatal(&self, txt: &str) -> Result<()> {
+    pub fn non_fatal(&self, txt: &str) {
         self.update_outcome(NonFatal);
         let mut inner = self.inner.lock().unwrap();
         inner.log(txt)
     }
 
-    pub fn fatal(&self, txt: &str) -> Result<()> {
+    pub fn fatal(&self, txt: &str) {
         self.update_outcome(Fatal);
         let mut inner = self.inner.lock().unwrap();
         inner.log(txt)
     }
 
-    pub fn complete(&mut self) -> Result<()> {
+    pub fn complete(&mut self) {
         let mut inner = self.inner.lock().unwrap();
-        inner.complete()?;
-        Ok(())
+        inner.complete();
     }
 }
 
 //------------------------------------------
 
 struct PBInner {
+    title: String,
     bar: ProgressBar,
 }
 
 impl ReportInner for PBInner {
-    fn set_title(&mut self, txt: &str) -> Result<()> {
+    fn set_title(&mut self, txt: &str) {
+        self.title = txt.to_string();
+    }
+
+    fn set_sub_title(&mut self, txt: &str) {
+        //let mut fmt = "".to_string(); //Checking thin metadata".to_string(); //self.title.clone();
         let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
         fmt.push_str(&txt);
         self.bar.set_style(
@@ -99,28 +109,25 @@ impl ReportInner for PBInner {
                 .template(&fmt)
                 .progress_chars("=> "),
         );
-        Ok(())
     }
 
-    fn progress(&mut self, percent: u8) -> Result<()> {
+    fn progress(&mut self, percent: u8) {
         self.bar.set_position(percent as u64);
         self.bar.tick();
-        Ok(())
     }
 
-    fn log(&mut self, txt: &str) -> Result<()> {
+    fn log(&mut self, txt: &str) {
         self.bar.println(txt);
-        Ok(())
     }
 
-    fn complete(&mut self) -> Result<()> {
+    fn complete(&mut self) {
         self.bar.finish();
-        Ok(())
     }
 }
 
 pub fn mk_progress_bar_report() -> Report {
     Report::new(Box::new(PBInner {
+                        title: "".to_string(),
         bar: ProgressBar::new(100),
     }))
 }
@@ -140,28 +147,27 @@ impl SimpleInner {
 }
 
 impl ReportInner for SimpleInner {
-    fn set_title(&mut self, txt: &str) -> Result<()> {
+    fn set_title(&mut self, txt: &str) {
         println!("{}", txt);
-        Ok(())
     }
 
-    fn progress(&mut self, percent: u8) -> Result<()> {
+    fn set_sub_title(&mut self, txt: &str) {
+        println!("{}", txt);
+    }
+
+    fn progress(&mut self, percent: u8) {
         let elapsed = self.last_progress.elapsed().unwrap();
         if elapsed > std::time::Duration::from_secs(5) {
             println!("Progress: {}%", percent);
             self.last_progress = std::time::SystemTime::now();
         }
-        Ok(())
     }
 
-    fn log(&mut self, txt: &str) -> Result<()> {
+    fn log(&mut self, txt: &str) {
         eprintln!("{}", txt);
-        Ok(())
     }
 
-    fn complete(&mut self) -> Result<()> {
-        Ok(())
-    }
+    fn complete(&mut self) {}
 }
 
 pub fn mk_simple_report() -> Report {
@@ -170,25 +176,18 @@ pub fn mk_simple_report() -> Report {
 
 //------------------------------------------
 
-struct QuietInner {
-}
+struct QuietInner {}
 
 impl ReportInner for QuietInner {
-    fn set_title(&mut self, _txt: &str) -> Result<()> {
-        Ok(())
-    }
+    fn set_title(&mut self, _txt: &str) {}
 
-    fn progress(&mut self, _percent: u8) -> Result<()> {
-        Ok(())
-    }
+    fn set_sub_title(&mut self, _txt: &str) {}
 
-    fn log(&mut self, _txt: &str) -> Result<()> {
-        Ok(())
-    }
+    fn progress(&mut self, _percent: u8) {}
 
-    fn complete(&mut self) -> Result<()> {
-        Ok(())
-    }
+    fn log(&mut self, _txt: &str) {}
+
+    fn complete(&mut self) {}
 }
 
 pub fn mk_quiet_report() -> Report {

@@ -210,7 +210,7 @@ fn check_space_map(
                         leaks += 1;
                     } else if actual != expected as u8 {
                         report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
-                                  kind, blocknr, expected, actual))?;
+                                  kind, blocknr, expected, actual));
                         fail = true;
                     }
                 }
@@ -218,7 +218,7 @@ fn check_space_map(
                     let expected = sm.get(blocknr)?;
                     if expected < 3 {
                         report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
-                                          kind, blocknr, expected))?;
+                                          kind, blocknr, expected));
                         fail = true;
                     }
                 }
@@ -231,7 +231,7 @@ fn check_space_map(
         report.non_fatal(&format!(
             "{} {} blocks have leaked.  Use --auto-repair to fix.",
             leaks, kind
-        ))?;
+        ));
     }
 
     if fail {
@@ -286,9 +286,10 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    //let report = Arc::new(mk_progress_bar_report());
+    let report = Arc::new(mk_progress_bar_report());
     //let report = Arc::new(mk_simple_report());
-    let report = Arc::new(mk_quiet_report());
+    //let report = Arc::new(mk_quiet_report());
+    report.set_title("Checking thin metadata");
 
     let tid;
     let stop_progress = Arc::new(Mutex::new(false));
@@ -320,7 +321,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         });
     }
 
-    report.set_title("device details tree")?;
+    report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
         engine.clone(),
         metadata_sm.clone(),
@@ -339,7 +340,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
     // Check the mappings filling in the data_sm as we go.
-    report.set_title("mapping tree")?;
+    report.set_sub_title("mapping tree");
     let data_sm;
     {
         // FIXME: with a thread pool we need to return errors another way.
@@ -371,7 +372,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         pool.join();
     }
 
-    report.set_title("data space map")?;
+    report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
 
     let entries = btree_to_map_with_sm::<IndexEntry>(
@@ -393,7 +394,7 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         root,
     )?;
 
-    report.set_title("metadata space map")?;
+    report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut b = Block::new(root.bitmap_root);
     engine.read(&mut b)?;
