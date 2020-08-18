@@ -666,9 +666,14 @@ namespace {
 				if (!ie.blocknr_)
 					return;
 
-				block_manager::read_ref rr = tm_.read_lock(ie.blocknr_, bitmap_validator_);
-				if (rr.data())
-					bc_.inc(ie.blocknr_);
+				try {
+					block_manager::read_ref rr = tm_.read_lock(ie.blocknr_, bitmap_validator_);
+					if (rr.data())
+						bc_.inc(ie.blocknr_);
+				} catch (std::exception &e) {
+					if (bc_.stop_on_error())
+						throw;
+				}
 			}
 
 		private:

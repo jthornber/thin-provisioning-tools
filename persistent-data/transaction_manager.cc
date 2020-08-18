@@ -37,6 +37,13 @@ transaction_manager::~transaction_manager()
 {
 }
 
+void
+transaction_manager::commit()
+{
+	wipe_shadow_table();
+	bm_->flush();
+}
+
 transaction_manager::write_ref
 transaction_manager::begin(block_address superblock, validator v)
 {

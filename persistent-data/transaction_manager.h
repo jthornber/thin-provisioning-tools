@@ -42,6 +42,8 @@ namespace persistent_data {
 				    space_map::ptr sm);
 		~transaction_manager();
 
+		void commit();
+
 		// Drop the superblock reference to commit
 		write_ref begin(block_address superblock, validator v);
 		write_ref new_block(validator v);
