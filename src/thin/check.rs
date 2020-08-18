@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -293,11 +294,46 @@ fn spawn_progress_thread(
     Ok((tid, stop_progress))
 }
 
-pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let report = opts.report;
+struct Context {
+    report: Arc<Report>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    pool: ThreadPool,
+}
 
-    report.set_title("Checking thin metadata");
+// Check the mappings filling in the data_sm as we go.
+fn check_mapping_bottom_level(
+    ctx: &Context,
+    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    roots: &BTreeMap<u64, u64>,
+) -> Result<()> {
+    ctx.report.set_sub_title("mapping tree");
 
+    for (_thin_id, root) in roots {
+        let mut w = BTreeWalker::new_with_sm(ctx.engine.clone(), metadata_sm.clone(), false)?;
+        let data_sm = data_sm.clone();
+        let root = *root;
+        ctx.pool.execute(move || {
+            let mut v = BottomLevelVisitor { data_sm };
+
+            // FIXME: return error
+            match w.walk(&mut v, root) {
+                Err(e) => {
+                    eprintln!("walk failed {:?}", e);
+                    std::process::abort();
+                }
+                Ok(_result) => {
+                    //eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
+                }
+            }
+        });
+    }
+    ctx.pool.join();
+    
+    Ok(())
+}
+
+fn mk_context(opts: ThinCheckOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
     let nr_threads;
 
@@ -308,7 +344,25 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         nr_threads = num_cpus::get() * 2;
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
     }
+    let pool = ThreadPool::new(nr_threads);
 
+    Ok(Context {
+        report: opts.report,
+        engine,
+        pool,
+    })
+}
+
+pub fn check(opts: ThinCheckOptions) -> Result<()> {
+    let ctx = mk_context(opts)?;
+
+    // FIXME: temporarily get these out
+    let report = &ctx.report;
+    let engine = &ctx.engine;
+    let pool = &ctx.pool;
+    
+    report.set_title("Checking thin metadata");
+    
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
@@ -325,10 +379,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
 
-    // Kick off the thread that updates the progress
-    let (tid, stop_progress) =
-        spawn_progress_thread(metadata_sm.clone(), nr_allocated_metadata, report.clone())?;
-
     report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
         engine.clone(),
@@ -336,6 +386,9 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         false,
         sb.details_root,
     )?;
+
+    let (tid, stop_progress) =
+        spawn_progress_thread(metadata_sm.clone(), nr_allocated_metadata, report.clone())?;
 
     // increment superblock
     {
@@ -349,36 +402,9 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // Check the mappings filling in the data_sm as we go.
     report.set_sub_title("mapping tree");
-    let data_sm;
-    {
-        // FIXME: with a thread pool we need to return errors another way.
-        let nr_workers = nr_threads;
-        let pool = ThreadPool::new(nr_workers);
-
-        let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-        data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-
-        for (_thin_id, root) in roots {
-            let mut w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
-            let data_sm = data_sm.clone();
-            pool.execute(move || {
-                let mut v = BottomLevelVisitor { data_sm };
-
-                // FIXME: return error
-                match w.walk(&mut v, root) {
-                    Err(e) => {
-                        eprintln!("walk failed {:?}", e);
-                        std::process::abort();
-                    }
-                    Ok(_result) => {
-                        //eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
-                    }
-                }
-            });
-        }
-
-        pool.join();
-    }
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
 
     report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
