@@ -91,7 +91,7 @@ fn main() {
         report
     };
 
-    if let Err(reason) = check(&opts) {
+    if let Err(reason) = check(opts) {
         println!("Application error: {}", reason);
         process::exit(1);
     }

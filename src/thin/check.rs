@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::checksum;
@@ -191,7 +191,7 @@ fn check_space_map(
     for n in 0..entries.len() {
         let b = &blocks[n];
         if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
-            return Err(anyhow!(
+            report.fatal(&format!(
                 "Index entry points to block ({}) that isn't a bitmap",
                 b.loc
             ));
@@ -234,9 +234,6 @@ fn check_space_map(
         ));
     }
 
-    if fail {
-        return Err(anyhow!("Inconsistent data space map"));
-    }
     Ok(())
 }
 
@@ -260,11 +257,50 @@ pub struct ThinCheckOptions<'a> {
     pub report: Arc<Report>,
 }
 
-pub fn check(opts: &ThinCheckOptions) -> Result<()> {
-    let report = opts.report.clone();
-    let engine: Arc<dyn IoEngine + Send + Sync>;
+fn spawn_progress_thread(
+    sm: Arc<Mutex<SpaceMap + Send>>,
+    nr_allocated_metadata: u64,
+    report: Arc<Report>,
+) -> Result<(JoinHandle<()>, Arc<Mutex<bool>>)> {
+    let tid;
+    let stop_progress = Arc::new(Mutex::new(false));
 
+    {
+        let stop_progress = stop_progress.clone();
+        tid = thread::spawn(move || {
+            let interval = std::time::Duration::from_millis(250);
+            loop {
+                {
+                    let stop_progress = stop_progress.lock().unwrap();
+                    if *stop_progress {
+                        break;
+                    }
+                }
+
+                let sm = sm.lock().unwrap();
+                let mut n = sm.get_nr_allocated().unwrap();
+                drop(sm);
+
+                n *= 100;
+                n /= nr_allocated_metadata;
+
+                let _r = report.progress(n as u8);
+                thread::sleep(interval);
+            }
+        });
+    }
+
+    Ok((tid, stop_progress))
+}
+
+pub fn check(opts: ThinCheckOptions) -> Result<()> {
+    let report = opts.report;
+
+    report.set_title("Checking thin metadata");
+
+    let engine: Arc<dyn IoEngine + Send + Sync>;
     let nr_threads;
+
     if opts.async_io {
         nr_threads = std::cmp::min(4, num_cpus::get());
         engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
@@ -289,37 +325,9 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
 
-    report.set_title("Checking thin metadata");
-
-    let tid;
-    let stop_progress = Arc::new(Mutex::new(false));
-
-    {
-        let report = report.clone();
-        let sm = metadata_sm.clone();
-        let stop_progress = stop_progress.clone();
-        tid = thread::spawn(move || {
-            let interval = std::time::Duration::from_millis(250);
-            loop {
-                {
-                    let stop_progress = stop_progress.lock().unwrap();
-                    if *stop_progress {
-                        break;
-                    }
-                }
-
-                let sm = sm.lock().unwrap();
-
-                let mut n = sm.get_nr_allocated().unwrap();
-                drop(sm);
-                n *= 100;
-                n /= nr_allocated_metadata;
-
-                let _r = report.progress(n as u8);
-                thread::sleep(interval);
-            }
-        });
-    }
+    // Kick off the thread that updates the progress
+    let (tid, stop_progress) =
+        spawn_progress_thread(metadata_sm.clone(), nr_allocated_metadata, report.clone())?;
 
     report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
