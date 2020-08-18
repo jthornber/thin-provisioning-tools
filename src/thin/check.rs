@@ -43,7 +43,7 @@ impl Unpack for BlockTime {
 }
 
 struct BottomLevelVisitor {
-    data_sm: Arc<Mutex<dyn SpaceMap + Send>>,
+    data_sm: ASpaceMap,
 }
 
 //------------------------------------------
@@ -159,14 +159,15 @@ fn check_space_map(
     ctx: &Context,
     kind: &str,
     entries: Vec<IndexEntry>,
-    metadata_sm: Option<Arc<Mutex<dyn SpaceMap + Send + Sync>>>,
-    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    metadata_sm: Option<ASpaceMap>,
+    sm: ASpaceMap,
     root: SMRoot,
 ) -> Result<()> {
     let report = ctx.report.clone();
     let engine = ctx.engine.clone();
 
     let sm = sm.lock().unwrap();
+
     // overflow btree
     {
         let mut v = OverflowChecker::new(&*sm);
@@ -238,11 +239,18 @@ fn check_space_map(
 
 //------------------------------------------
 
-fn inc_entries(sm: &Arc<Mutex<dyn SpaceMap + Sync + Send>>, entries: &[IndexEntry]) -> Result<()> {
+fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     for ie in entries {
         sm.inc(ie.blocknr, 1)?;
     }
+    Ok(())
+}
+
+fn inc_superblock(sm: &ASpaceMap) -> Result<()>
+{
+    let mut sm = sm.lock().unwrap();
+    sm.inc(SUPERBLOCK_LOCATION, 1)?;
     Ok(())
 }
 
@@ -375,6 +383,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+    inc_superblock(&metadata_sm)?;
 
     report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
@@ -387,17 +396,11 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let (tid, stop_progress) =
         spawn_progress_thread(metadata_sm.clone(), nr_allocated_metadata, report.clone())?;
 
-    // increment superblock
-    {
-        let mut sm = metadata_sm.lock().unwrap();
-        sm.inc(SUPERBLOCK_LOCATION, 1)?;
-    }
-
     // mapping top level
     let roots =
         btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
-    // Check the mappings filling in the data_sm as we go.
+    // mapping bottom level
     report.set_sub_title("mapping tree");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);

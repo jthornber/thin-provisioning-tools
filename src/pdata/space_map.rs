@@ -184,6 +184,8 @@ pub trait SpaceMap {
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 }
 
+pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
+
 //------------------------------------------
 
 pub struct CoreSpaceMap<T> {
