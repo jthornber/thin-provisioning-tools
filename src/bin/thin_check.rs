@@ -5,11 +5,11 @@ use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use thinp::file_utils;
-use thinp::thin::check::{check, ThinCheckOptions};
-use std::sync::Arc;
 use std::process::exit;
+use std::sync::Arc;
+use thinp::file_utils;
 use thinp::report::*;
+use thinp::thin::check::{check, ThinCheckOptions};
 
 fn main() {
     let parser = App::new("thin_check")
@@ -19,25 +19,27 @@ fn main() {
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
-                .long("quiet")
+                .long("quiet"),
         )
         .arg(
             Arg::with_name("SB_ONLY")
                 .help("Only check the superblock.")
                 .long("super-block-only")
                 .value_name("SB_ONLY"),
+       )        .arg(
+        Arg::with_name("AUTO_REPAIR")
+                .help("Auto repair trivial issues.")
+                .long("auto-repair"),
         )
         .arg(
-            Arg::with_name("ignore-non-fatal-errors")
+            Arg::with_name("IGNORE_NON_FATAL")
                 .help("Only return a non-zero exit code if a fatal error is found.")
-                .long("ignore-non-fatal-errors")
-                .value_name("IGNORE_NON_FATAL"),
+                .long("ignore-non-fatal-errors"),
         )
         .arg(
-            Arg::with_name("clear-needs-check-flag")
+            Arg::with_name("CLEAR_NEEDS_CHECK")
                 .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check")
-                .value_name("CLEAR_NEEDS_CHECK"),
+                .long("clear-needs-check"),
         )
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
@@ -62,9 +64,7 @@ fn main() {
         .arg(
             Arg::with_name("SYNC_IO")
                 .help("Force use of synchronous io")
-                .long("sync-io")
-                .value_name("SYNC_IO")
-                .takes_value(false),
+                .long("sync-io"),
         );
 
     let matches = parser.get_matches();
@@ -82,17 +82,19 @@ fn main() {
     } else if atty::is(Stream::Stdout) {
         report = std::sync::Arc::new(mk_progress_bar_report());
     } else {
-       report = Arc::new(mk_simple_report());
+        report = Arc::new(mk_simple_report());
     }
 
     let opts = ThinCheckOptions {
         dev: &input_file,
         async_io: !matches.is_present("SYNC_IO"),
-        report
+        ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
+        auto_repair: matches.is_present("AUTO_REPAIR"),
+        report,
     };
 
     if let Err(reason) = check(opts) {
-        println!("Application error: {}", reason);
+        println!("{}", reason);
         process::exit(1);
     }
 }

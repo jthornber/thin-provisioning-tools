@@ -247,8 +247,7 @@ fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     Ok(())
 }
 
-fn inc_superblock(sm: &ASpaceMap) -> Result<()>
-{
+fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     sm.inc(SUPERBLOCK_LOCATION, 1)?;
     Ok(())
@@ -261,6 +260,8 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 pub struct ThinCheckOptions<'a> {
     pub dev: &'a Path,
     pub async_io: bool,
+    pub ignore_non_fatal: bool,
+    pub auto_repair: bool,
     pub report: Arc<Report>,
 }
 
@@ -329,7 +330,6 @@ fn check_mapping_bottom_level(
                     std::process::abort();
                 }
                 Ok(_result) => {
-                    //eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
                 }
             }
         });
@@ -359,6 +359,15 @@ fn mk_context(opts: ThinCheckOptions) -> Result<Context> {
     })
 }
 
+fn bail_out(ctx: &Context, task: &str) -> Result<()> {
+    use ReportOutcome::*;
+
+    match ctx.report.get_outcome() {
+        Fatal => Err(anyhow!(format!("Check of {} failed, ending check early.", task))),
+        _ => Ok(()),
+    }
+}
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(opts)?;
 
@@ -370,12 +379,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-
-    let nr_allocated_metadata;
-    {
-        let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-        nr_allocated_metadata = root.nr_allocated;
-    }
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
 
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
@@ -393,8 +397,11 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.details_root,
     )?;
 
-    let (tid, stop_progress) =
-        spawn_progress_thread(metadata_sm.clone(), nr_allocated_metadata, report.clone())?;
+    let (tid, stop_progress) = spawn_progress_thread(
+        metadata_sm.clone(),
+        metadata_root.nr_allocated,
+        report.clone(),
+    )?;
 
     // mapping top level
     let roots =
@@ -405,6 +412,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    bail_out(&ctx, "mapping tree")?;
 
     report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -426,6 +434,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         data_sm.clone(),
         root,
     )?;
+    bail_out(&ctx, "data space map")?;
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
@@ -461,6 +470,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     tid.join();
+    bail_out(&ctx, "metadata space map")?;
+
     Ok(())
 }
 

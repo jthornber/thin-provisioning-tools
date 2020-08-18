@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 //------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ReportOutcome {
     Success,
     NonFatal,
@@ -85,6 +85,11 @@ impl Report {
     pub fn complete(&mut self) {
         let mut inner = self.inner.lock().unwrap();
         inner.complete();
+    }
+
+    pub fn get_outcome(&self) -> ReportOutcome {
+        let outcome = self.outcome.lock().unwrap();
+        outcome.clone()
     }
 }
 
