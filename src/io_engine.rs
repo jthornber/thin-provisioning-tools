@@ -50,10 +50,9 @@ unsafe impl Send for Block {}
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
     fn read(&self, block: &mut Block) -> Result<()>;
-    // FIXME: change to &[Block]
-    fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()>;
+    fn read_many(&self, blocks: &mut [Block]) -> Result<()>;
     fn write(&self, block: &Block) -> Result<()>;
-    fn write_many(&self, blocks: &Vec<Block>) -> Result<()>;
+    fn write_many(&self, blocks: &[Block]) -> Result<()>;
 }
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
@@ -123,7 +122,7 @@ impl IoEngine for SyncIoEngine {
         Ok(())
     }
 
-    fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()> {
+    fn read_many(&self, blocks: &mut [Block]) -> Result<()> {
         let mut input = self.get();
         for b in blocks {
             input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
@@ -143,7 +142,7 @@ impl IoEngine for SyncIoEngine {
         Ok(())
     }
 
-    fn write_many(&self, blocks: &Vec<Block>) -> Result<()> {
+    fn write_many(&self, blocks: &[Block]) -> Result<()> {
         let mut input = self.get();
         for b in blocks {
             input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
@@ -300,7 +299,7 @@ impl IoEngine for AsyncIoEngine {
         Ok(())
     }
 
-    fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()> {
+    fn read_many(&self, blocks: &mut [Block]) -> Result<()> {
         let inner = self.inner.lock().unwrap();
         let queue_len = inner.queue_len as usize;
         drop(inner);
@@ -340,7 +339,7 @@ impl IoEngine for AsyncIoEngine {
         Ok(())
     }
 
-    fn write_many(&self, blocks: &Vec<Block>) -> Result<()> {
+    fn write_many(&self, blocks: &[Block]) -> Result<()> {
         let inner = self.inner.lock().unwrap();
         let queue_len = inner.queue_len as usize;
         drop(inner);
