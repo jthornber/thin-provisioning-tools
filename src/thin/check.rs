@@ -156,16 +156,17 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 //------------------------------------------
 
 fn check_space_map(
+    ctx: &Context,
     kind: &str,
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    report: &Arc<Report>,
     entries: Vec<IndexEntry>,
     metadata_sm: Option<Arc<Mutex<dyn SpaceMap + Send + Sync>>>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     root: SMRoot,
 ) -> Result<()> {
-    let sm = sm.lock().unwrap();
+    let report = ctx.report.clone();
+    let engine = ctx.engine.clone();
 
+    let sm = sm.lock().unwrap();
     // overflow btree
     {
         let mut v = OverflowChecker::new(&*sm);
@@ -187,7 +188,6 @@ fn check_space_map(
     engine.read_many(&mut blocks)?;
 
     let mut leaks = 0;
-    let mut fail = false;
     let mut blocknr = 0;
     for n in 0..entries.len() {
         let b = &blocks[n];
@@ -212,7 +212,6 @@ fn check_space_map(
                     } else if actual != expected as u8 {
                         report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
                                   kind, blocknr, expected, actual));
-                        fail = true;
                     }
                 }
                 BitmapEntry::Overflow => {
@@ -220,7 +219,6 @@ fn check_space_map(
                     if expected < 3 {
                         report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
                                           kind, blocknr, expected));
-                        fail = true;
                     }
                 }
             }
@@ -259,7 +257,7 @@ pub struct ThinCheckOptions<'a> {
 }
 
 fn spawn_progress_thread(
-    sm: Arc<Mutex<SpaceMap + Send>>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     nr_allocated_metadata: u64,
     report: Arc<Report>,
 ) -> Result<(JoinHandle<()>, Arc<Mutex<bool>>)> {
@@ -329,7 +327,7 @@ fn check_mapping_bottom_level(
         });
     }
     ctx.pool.join();
-    
+
     Ok(())
 }
 
@@ -359,10 +357,9 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // FIXME: temporarily get these out
     let report = &ctx.report;
     let engine = &ctx.engine;
-    let pool = &ctx.pool;
-    
+
     report.set_title("Checking thin metadata");
-    
+
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
@@ -419,9 +416,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     inc_entries(&metadata_sm, &entries[0..])?;
 
     check_space_map(
+        &ctx,
         "data",
-        engine.clone(),
-        &report,
         entries,
         Some(metadata_sm.clone()),
         data_sm.clone(),
@@ -453,15 +449,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // Now the counts should be correct and we can check it.
-    check_space_map(
-        "metadata",
-        engine.clone(),
-        &report,
-        entries,
-        None,
-        metadata_sm.clone(),
-        root,
-    )?;
+    check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
 
     // Completing consumes the report.
     {
