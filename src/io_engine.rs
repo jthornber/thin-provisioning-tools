@@ -4,11 +4,11 @@ use io_uring::IoUring;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::{self, Read, Seek};
+use std::io::{self, Read, Seek, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
-use std::sync::{Arc, Mutex, Condvar};
+use std::sync::{Arc, Condvar, Mutex};
 
 //------------------------------------------
 
@@ -50,7 +50,10 @@ unsafe impl Send for Block {}
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
     fn read(&self, block: &mut Block) -> Result<()>;
+    // FIXME: change to &[Block]
     fn read_many(&self, blocks: &mut Vec<Block>) -> Result<()>;
+    fn write(&self, block: &Block) -> Result<()>;
+    fn write_many(&self, blocks: &Vec<Block>) -> Result<()>;
 }
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
@@ -82,7 +85,7 @@ impl SyncIoEngine {
         for _n in 0..nr_files {
             files.push(SyncIoEngine::open_file(path)?);
         }
- 
+
         Ok(SyncIoEngine {
             nr_blocks: get_nr_blocks(path)?,
             files: Mutex::new(files),
@@ -130,6 +133,26 @@ impl IoEngine for SyncIoEngine {
 
         Ok(())
     }
+
+    fn write(&self, b: &Block) -> Result<()> {
+        let mut input = self.get();
+        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        input.write_all(&b.get_data())?;
+        self.put(input);
+
+        Ok(())
+    }
+
+    fn write_many(&self, blocks: &Vec<Block>) -> Result<()> {
+        let mut input = self.get();
+        for b in blocks {
+            input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+            input.write_all(&b.get_data())?;
+        }
+        self.put(input);
+
+        Ok(())
+    }
 }
 
 //------------------------------------------
@@ -165,6 +188,7 @@ impl AsyncIoEngine {
         })
     }
 
+    // FIXME: refactor next two fns
     fn read_many_(&self, blocks: &mut [Block]) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         let count = blocks.len();
@@ -178,6 +202,37 @@ impl AsyncIoEngine {
                 let mut queue = inner.ring.submission().available();
                 queue
                     .push(read_e.build().user_data(1))
+                    .ok()
+                    .expect("queue is full");
+            }
+        }
+
+        inner.ring.submit_and_wait(count)?;
+
+        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+
+        // FIXME: return proper errors
+        assert_eq!(cqes.len(), count);
+        for c in &cqes {
+            assert_eq!(c.result(), BLOCK_SIZE as i32);
+        }
+
+        Ok(())
+    }
+
+    fn write_many_(&self, blocks: &[Block]) -> Result<()> {
+        let mut inner = self.inner.lock().unwrap();
+        let count = blocks.len();
+        let fd = types::Target::Fd(inner.input.as_raw_fd());
+
+        for b in blocks.iter() {
+            let write_e = opcode::Write::new(fd, b.data, BLOCK_SIZE as u32)
+                .offset(b.loc as i64 * BLOCK_SIZE as i64);
+
+            unsafe {
+                let mut queue = inner.ring.submission().available();
+                queue
+                    .push(write_e.build().user_data(1))
                     .ok()
                     .expect("queue is full");
             }
@@ -254,6 +309,46 @@ impl IoEngine for AsyncIoEngine {
         while done != blocks.len() {
             let len = usize::min(blocks.len() - done, queue_len);
             self.read_many_(&mut blocks[done..(done + len)])?;
+            done += len;
+        }
+        Ok(())
+    }
+
+    fn write(&self, b: &Block) -> Result<()> {
+        let mut inner = self.inner.lock().unwrap();
+        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let write_e = opcode::Write::new(fd, b.data, BLOCK_SIZE as u32)
+            .offset(b.loc as i64 * BLOCK_SIZE as i64);
+
+        unsafe {
+            let mut queue = inner.ring.submission().available();
+            queue
+                .push(write_e.build().user_data(1))
+                .ok()
+                .expect("queue is full");
+        }
+
+        inner.ring.submit_and_wait(1)?;
+
+        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+
+        // FIXME: return proper errors
+        assert_eq!(cqes.len(), 1);
+        assert_eq!(cqes[0].user_data(), 1);
+        assert_eq!(cqes[0].result(), BLOCK_SIZE as i32);
+
+        Ok(())
+    }
+
+    fn write_many(&self, blocks: &Vec<Block>) -> Result<()> {
+        let inner = self.inner.lock().unwrap();
+        let queue_len = inner.queue_len as usize;
+        drop(inner);
+
+        let mut done = 0;
+        while done != blocks.len() {
+            let len = usize::min(blocks.len() - done, queue_len);
+            self.write_many_(&blocks[done..(done + len)])?;
             done += len;
         }
         Ok(())
