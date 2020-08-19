@@ -1,11 +1,10 @@
 use anyhow::{anyhow, Result};
-use indicatif::{ProgressBar, ProgressStyle};
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
+use std::io::Cursor;
 use std::path::Path;
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::{thread, time};
+use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::checksum;
@@ -13,6 +12,7 @@ use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{btree_to_map, btree_to_map_with_sm, BTreeWalker, Node, NodeVisitor};
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
+use crate::report::*;
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -44,7 +44,7 @@ impl Unpack for BlockTime {
 }
 
 struct BottomLevelVisitor {
-    data_sm: Arc<Mutex<dyn SpaceMap + Send>>,
+    data_sm: ASpaceMap,
 }
 
 //------------------------------------------
@@ -156,148 +156,23 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 
 //------------------------------------------
 
-struct ReportOptions {}
-
-#[derive(Clone)]
-enum ReportOutcome {
-    Success,
-    NonFatal,
-    Fatal,
+struct BitmapLeak {
+    blocknr: u64, // blocknr for the first entry in the bitmap
+    loc: u64,     // location of the bitmap
 }
 
-use ReportOutcome::*;
-
-impl ReportOutcome {
-    fn combine(lhs: &ReportOutcome, rhs: &ReportOutcome) -> ReportOutcome {
-        match (lhs, rhs) {
-            (Success, rhs) => rhs.clone(),
-            (lhs, Success) => lhs.clone(),
-            (Fatal, _) => Fatal,
-            (_, Fatal) => Fatal,
-            (_, _) => NonFatal,
-        }
-    }
-}
-
-enum ReportCmd {
-    Log(String),
-    Complete,
-    Title(String),
-}
-
-struct Report {
-    opts: ReportOptions,
-    outcome: ReportOutcome,
-    tx: Sender<ReportCmd>,
-    tid: thread::JoinHandle<()>,
-}
-
-impl Report {
-    fn new(
-        opts: ReportOptions,
-        sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-        total_allocated: u64,
-    ) -> Result<Report> {
-        let (tx, rx) = channel();
-        let tid = thread::spawn(move || report_thread(sm, total_allocated, rx));
-        Ok(Report {
-            opts,
-            outcome: ReportOutcome::Success,
-            tx,
-            tid,
-        })
-    }
-
-    fn info<I: Into<String>>(&mut self, txt: I) -> Result<()> {
-        self.tx.send(ReportCmd::Log(txt.into()))?;
-        Ok(())
-    }
-
-    fn add_outcome(&mut self, rhs: ReportOutcome) {
-        self.outcome = ReportOutcome::combine(&self.outcome, &rhs);
-    }
-
-    fn non_fatal<I: Into<String>>(&mut self, txt: I) -> Result<()> {
-        self.add_outcome(NonFatal);
-        self.tx.send(ReportCmd::Log(txt.into()))?;
-        Ok(())
-    }
-
-    fn fatal<I: Into<String>>(&mut self, txt: I) -> Result<()> {
-        self.add_outcome(Fatal);
-        self.tx.send(ReportCmd::Log(txt.into()))?;
-        Ok(())
-    }
-
-    fn complete(self) -> Result<()> {
-        self.tx.send(ReportCmd::Complete)?;
-        self.tid.join();
-        Ok(())
-    }
-
-    fn set_title(&mut self, txt: &str) -> Result<()> {
-        self.tx.send(ReportCmd::Title(txt.to_string()))?;
-        Ok(())
-    }
-}
-
-fn report_thread(
-    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    total_allocated: u64,
-    rx: Receiver<ReportCmd>,
-) {
-    let interval = time::Duration::from_millis(250);
-    let bar = ProgressBar::new(total_allocated);
-    loop {
-        loop {
-            match rx.try_recv() {
-                Ok(ReportCmd::Log(txt)) => {
-                    bar.println(txt);
-                }
-                Ok(ReportCmd::Complete) => {
-                    bar.finish();
-                    return;
-                }
-                Ok(ReportCmd::Title(txt)) => {
-                    let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
-                    fmt.push_str(&txt);
-                    bar.set_style(
-                        ProgressStyle::default_bar()
-                            .template(&fmt)
-                            .progress_chars("=> "),
-                    );
-                }
-                Err(TryRecvError::Disconnected) => {
-                    return;
-                }
-                Err(TryRecvError::Empty) => {
-                    break;
-                }
-            }
-        }
-
-        let sm = sm.lock().unwrap();
-        let nr_allocated = sm.get_nr_allocated().unwrap();
-        drop(sm);
-
-        bar.set_position(nr_allocated);
-        bar.tick();
-
-        thread::sleep(interval);
-    }
-}
-
-//------------------------------------------
-
+// This checks the space map and returns any leak blocks for auto-repair to process.
 fn check_space_map(
+    ctx: &Context,
     kind: &str,
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    bar: &mut Report,
     entries: Vec<IndexEntry>,
-    metadata_sm: Option<Arc<Mutex<dyn SpaceMap + Send + Sync>>>,
-    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    metadata_sm: Option<ASpaceMap>,
+    sm: ASpaceMap,
     root: SMRoot,
-) -> Result<()> {
+) -> Result<Vec<BitmapLeak>> {
+    let report = ctx.report.clone();
+    let engine = ctx.engine.clone();
+
     let sm = sm.lock().unwrap();
 
     // overflow btree
@@ -321,19 +196,21 @@ fn check_space_map(
     engine.read_many(&mut blocks)?;
 
     let mut leaks = 0;
-    let mut fail = false;
     let mut blocknr = 0;
+    let mut bitmap_leaks = Vec::new();
     for n in 0..entries.len() {
         let b = &blocks[n];
         if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
-            return Err(anyhow!(
+            report.fatal(&format!(
                 "Index entry points to block ({}) that isn't a bitmap",
                 b.loc
             ));
         }
 
         let bitmap = unpack::<Bitmap>(b.get_data())?;
-        for e in bitmap.entries {
+        let first_blocknr = blocknr;
+        let mut contains_leak = false;
+        for e in bitmap.entries.iter() {
             if blocknr >= root.nr_blocks {
                 break;
             }
@@ -341,47 +218,94 @@ fn check_space_map(
             match e {
                 BitmapEntry::Small(actual) => {
                     let expected = sm.get(blocknr)?;
-                    if actual == 1 && expected == 0 {
+                    if *actual == 1 && expected == 0 {
                         leaks += 1;
-                    } else if actual != expected as u8 {
-                        bar.fatal(format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
-                                  kind, blocknr, expected, actual))?;
-                        fail = true;
+                        contains_leak = true;
+                    } else if *actual != expected as u8 {
+                        report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
+                                  kind, blocknr, expected, actual));
                     }
                 }
                 BitmapEntry::Overflow => {
                     let expected = sm.get(blocknr)?;
                     if expected < 3 {
-                        bar.fatal(format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
-                                          kind, blocknr, expected))?;
-                        fail = true;
+                        report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
+                                          kind, blocknr, expected));
                     }
                 }
             }
             blocknr += 1;
         }
+        if contains_leak {
+            bitmap_leaks.push(BitmapLeak {
+                blocknr: first_blocknr,
+                loc: b.loc,
+            });
+        }
     }
 
     if leaks > 0 {
-        bar.non_fatal(format!(
-            "{} {} blocks have leaked.  Use --auto-repair to fix.",
-            leaks, kind
-        ))?;
+        report.non_fatal(&format!("{} {} blocks have leaked.", leaks, kind));
     }
 
-    if fail {
-        return Err(anyhow!("Inconsistent data space map"));
+    Ok(bitmap_leaks)
+}
+
+// This assumes the only errors in the space map are leaks.  Entries should just be
+// those that contain leaks.
+fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> Result<()> {
+    let engine = ctx.engine.clone();
+
+    let sm = sm.lock().unwrap();
+
+    let mut blocks = Vec::new();
+    for i in &entries {
+        blocks.push(Block::new(i.loc));
     }
+
+    // FIXME: we should do this in batches
+    engine.read_many(&mut blocks)?;
+
+    for (be, b) in entries.iter().zip(blocks.iter()) {
+        let mut blocknr = be.blocknr;
+        let mut bitmap = unpack::<Bitmap>(b.get_data())?;
+        for e in bitmap.entries.iter_mut() {
+            if blocknr >= sm.get_nr_blocks()? {
+                break;
+            }
+            
+            if let BitmapEntry::Small(actual) = e {
+                let expected = sm.get(blocknr)?;
+                if *actual == 1 && expected == 0 {
+                    *e = BitmapEntry::Small(0);
+                }
+            }
+            
+            blocknr += 1;
+        }
+
+        let mut out = Cursor::new(b.get_data());
+        bitmap.pack(&mut out)?;
+        checksum::write_checksum(b.get_data(), checksum::BT::BITMAP)?;
+    }
+
+    engine.write_many(&blocks)?;
     Ok(())
 }
 
 //------------------------------------------
 
-fn inc_entries(sm: &Arc<Mutex<dyn SpaceMap + Sync + Send>>, entries: &[IndexEntry]) -> Result<()> {
+fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     for ie in entries {
         sm.inc(ie.blocknr, 1)?;
     }
+    Ok(())
+}
+
+fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
+    let mut sm = sm.lock().unwrap();
+    sm.inc(SUPERBLOCK_LOCATION, 1)?;
     Ok(())
 }
 
@@ -392,28 +316,128 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 pub struct ThinCheckOptions<'a> {
     pub dev: &'a Path,
     pub async_io: bool,
+    pub ignore_non_fatal: bool,
+    pub auto_repair: bool,
+    pub report: Arc<Report>,
 }
 
-pub fn check(opts: &ThinCheckOptions) -> Result<()> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
+fn spawn_progress_thread(
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    nr_allocated_metadata: u64,
+    report: Arc<Report>,
+) -> Result<(JoinHandle<()>, Arc<Mutex<bool>>)> {
+    let tid;
+    let stop_progress = Arc::new(Mutex::new(false));
 
+    {
+        let stop_progress = stop_progress.clone();
+        tid = thread::spawn(move || {
+            let interval = std::time::Duration::from_millis(250);
+            loop {
+                {
+                    let stop_progress = stop_progress.lock().unwrap();
+                    if *stop_progress {
+                        break;
+                    }
+                }
+
+                let sm = sm.lock().unwrap();
+                let mut n = sm.get_nr_allocated().unwrap();
+                drop(sm);
+
+                n *= 100;
+                n /= nr_allocated_metadata;
+
+                let _r = report.progress(n as u8);
+                thread::sleep(interval);
+            }
+        });
+    }
+
+    Ok((tid, stop_progress))
+}
+
+struct Context {
+    report: Arc<Report>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    pool: ThreadPool,
+}
+
+// Check the mappings filling in the data_sm as we go.
+fn check_mapping_bottom_level(
+    ctx: &Context,
+    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    roots: &BTreeMap<u64, u64>,
+) -> Result<()> {
+    ctx.report.set_sub_title("mapping tree");
+
+    for (_thin_id, root) in roots {
+        let mut w = BTreeWalker::new_with_sm(ctx.engine.clone(), metadata_sm.clone(), false)?;
+        let data_sm = data_sm.clone();
+        let root = *root;
+        ctx.pool.execute(move || {
+            let mut v = BottomLevelVisitor { data_sm };
+
+            // FIXME: return error
+            match w.walk(&mut v, root) {
+                Err(e) => {
+                    eprintln!("walk failed {:?}", e);
+                    std::process::abort();
+                }
+                Ok(_result) => {}
+            }
+        });
+    }
+    ctx.pool.join();
+
+    Ok(())
+}
+
+fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
+    let engine: Arc<dyn IoEngine + Send + Sync>;
     let nr_threads;
+
     if opts.async_io {
         nr_threads = std::cmp::min(4, num_cpus::get());
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
+        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, opts.auto_repair)?);
     } else {
         nr_threads = num_cpus::get() * 2;
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
+        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
     }
+    let pool = ThreadPool::new(nr_threads);
+
+    Ok(Context {
+        report: opts.report.clone(),
+        engine,
+        pool,
+    })
+}
+
+fn bail_out(ctx: &Context, task: &str) -> Result<()> {
+    use ReportOutcome::*;
+
+    match ctx.report.get_outcome() {
+        Fatal => Err(anyhow!(format!(
+            "Check of {} failed, ending check early.",
+            task
+        ))),
+        _ => Ok(()),
+    }
+}
+
+pub fn check(opts: ThinCheckOptions) -> Result<()> {
+    let ctx = mk_context(&opts)?;
+
+    // FIXME: temporarily get these out
+    let report = &ctx.report;
+    let engine = &ctx.engine;
+
+    report.set_title("Checking thin metadata");
 
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-
-    let nr_allocated_metadata;
-    {
-        let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-        nr_allocated_metadata = root.nr_allocated;
-    }
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
 
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
@@ -421,10 +445,9 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    let opts = ReportOptions {};
-    let mut report = Report::new(opts, metadata_sm.clone(), nr_allocated_metadata)?;
+    inc_superblock(&metadata_sm)?;
 
-    report.set_title("device details tree")?;
+    report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
         engine.clone(),
         metadata_sm.clone(),
@@ -432,49 +455,24 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
         sb.details_root,
     )?;
 
-    // increment superblock
-    {
-        let mut sm = metadata_sm.lock().unwrap();
-        sm.inc(SUPERBLOCK_LOCATION, 1)?;
-    }
+    let (tid, stop_progress) = spawn_progress_thread(
+        metadata_sm.clone(),
+        metadata_root.nr_allocated,
+        report.clone(),
+    )?;
 
     // mapping top level
-    let roots = btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
+    let roots =
+        btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
-    // Check the mappings filling in the data_sm as we go.
-    report.set_title("mapping tree")?;
-    let data_sm;
-    {
-        // FIXME: with a thread pool we need to return errors another way.
-        let nr_workers = nr_threads;
-        let pool = ThreadPool::new(nr_workers);
+    // mapping bottom level
+    report.set_sub_title("mapping tree");
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    bail_out(&ctx, "mapping tree")?;
 
-        let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-        data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-
-        for (_thin_id, root) in roots {
-            let mut w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
-            let data_sm = data_sm.clone();
-            pool.execute(move || {
-                let mut v = BottomLevelVisitor { data_sm };
-
-                // FIXME: return error
-                match w.walk(&mut v, root) {
-                    Err(e) => {
-                        eprintln!("walk failed {:?}", e);
-                        std::process::abort();
-                    }
-                    Ok(_result) => {
-                        //eprintln!("checked thin_dev {} -> {:?}", thin_id, result);
-                    }
-                }
-            });
-        }
-
-        pool.join();
-    }
-
-    report.set_title("data space map")?;
+    report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
 
     let entries = btree_to_map_with_sm::<IndexEntry>(
@@ -486,17 +484,17 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     let entries: Vec<IndexEntry> = entries.values().cloned().collect();
     inc_entries(&metadata_sm, &entries[0..])?;
 
-    check_space_map(
+    let data_leaks = check_space_map(
+        &ctx,
         "data",
-        engine.clone(),
-        &mut report,
         entries,
         Some(metadata_sm.clone()),
         data_sm.clone(),
         root,
     )?;
+    bail_out(&ctx, "data space map")?;
 
-    report.set_title("metadata space map")?;
+    report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut b = Block::new(root.bitmap_root);
     engine.read(&mut b)?;
@@ -521,17 +519,29 @@ pub fn check(opts: &ThinCheckOptions) -> Result<()> {
     )?;
 
     // Now the counts should be correct and we can check it.
-    check_space_map(
-        "metadata",
-        engine.clone(),
-        &mut report,
-        entries,
-        None,
-        metadata_sm.clone(),
-        root,
-    )?;
+    let metadata_leaks = check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
 
-    report.complete()?;
+    if opts.auto_repair {
+        if data_leaks.len() > 0 {
+            ctx.report.info("Repairing data leaks.");
+            repair_space_map(&ctx, data_leaks, data_sm.clone());
+        }
+
+        if metadata_leaks.len() > 0 {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(&ctx, metadata_leaks, metadata_sm.clone());
+        }
+    }
+
+    // Completing consumes the report.
+    {
+        let mut stop_progress = stop_progress.lock().unwrap();
+        *stop_progress = true;
+    }
+
+    tid.join();
+    bail_out(&ctx, "metadata space map")?;
+
     Ok(())
 }
 
