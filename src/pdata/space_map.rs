@@ -2,9 +2,10 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use nom::{multi::count, number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
+use byteorder::{LittleEndian, WriteBytesExt};
 
 use crate::io_engine::*;
-use crate::pdata::unpack::Unpack;
+use crate::pdata::unpack::{Pack, Unpack};
 
 //------------------------------------------
 
@@ -78,7 +79,7 @@ impl Unpack for IndexEntry {
 
 //------------------------------------------
 
-const MAX_METADATA_BITMAPS: usize = 255;
+pub const MAX_METADATA_BITMAPS: usize = 255;
 
 pub struct MetadataIndex {
     pub indexes: Vec<IndexEntry>,
@@ -129,6 +130,15 @@ impl Unpack for BitmapHeader {
     }
 }
 
+impl Pack for BitmapHeader {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+        out.write_u32::<LittleEndian>(self.csum)?;
+        out.write_u32::<LittleEndian>(self.not_used)?;
+        out.write_u64::<LittleEndian>(self.blocknr)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BitmapEntry {
     Small(u8),
@@ -172,6 +182,40 @@ impl Unpack for Bitmap {
         }
 
         Ok((i, Bitmap { header, entries }))
+    }
+}
+
+impl Pack for Bitmap {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+        use BitmapEntry::*;
+        BitmapHeader::pack(&self.header, out)?;
+
+        for chunk in self.entries.chunks(32) {
+            let mut w = 0u64;
+            for e in chunk {
+                w >>= 2;
+                match e {
+                    Small(0) => {
+                    },
+                    Small(1) => {
+                        w |= 0x2 << 62;
+                    },
+                    Small(2) => {
+                        w |= 0x1 << 62;
+                    },
+                    Small(_) => {
+                        return Err(anyhow!("Bad small value in bitmap entry"));
+                    },
+                    Overflow => {
+                        w |= 0x3 << 62;
+                    }
+                }
+            }
+
+            u64::pack(&w, out)?;
+        }
+
+        Ok(())
     }
 }
 

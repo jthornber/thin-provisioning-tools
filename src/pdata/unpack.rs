@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
+use byteorder::{LittleEndian, WriteBytesExt};
 
 //------------------------------------------
 
@@ -20,6 +21,12 @@ pub fn unpack<U: Unpack>(data: &[u8]) -> Result<U> {
 
 //------------------------------------------
 
+pub trait Pack {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()>;
+}
+
+//------------------------------------------
+
 impl Unpack for u64 {
     fn disk_size() -> u32 {
         8
@@ -30,6 +37,13 @@ impl Unpack for u64 {
     }
 }
 
+impl Pack for u64 {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+        out.write_u64::<LittleEndian>(*self)?;
+        Ok(())
+    }
+}
+
 impl Unpack for u32 {
     fn disk_size() -> u32 {
         4
@@ -37,6 +51,13 @@ impl Unpack for u32 {
 
     fn unpack(i: &[u8]) -> IResult<&[u8], u32> {
         le_u32(i)
+    }
+}
+
+impl Pack for u32 {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+        out.write_u32::<LittleEndian>(*self)?;
+        Ok(())
     }
 }
 

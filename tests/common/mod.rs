@@ -295,7 +295,7 @@ pub fn generate_metadata_leaks(md: &PathBuf, nr_blocks: u64, expected: u32, actu
 pub fn get_needs_check(md: &PathBuf) -> Result<bool> {
     use thinp::thin::superblock::*;
 
-    let engine = SyncIoEngine::new(&md, 1)?;
+    let engine = SyncIoEngine::new(&md, 1, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     Ok(sb.flags.needs_check)
 }

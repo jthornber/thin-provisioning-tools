@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -155,6 +156,12 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
 
 //------------------------------------------
 
+struct BitmapLeak {
+    blocknr: u64, // blocknr for the first entry in the bitmap
+    loc: u64,     // location of the bitmap
+}
+
+// This checks the space map and returns any leak blocks for auto-repair to process.
 fn check_space_map(
     ctx: &Context,
     kind: &str,
@@ -162,7 +169,7 @@ fn check_space_map(
     metadata_sm: Option<ASpaceMap>,
     sm: ASpaceMap,
     root: SMRoot,
-) -> Result<()> {
+) -> Result<Vec<BitmapLeak>> {
     let report = ctx.report.clone();
     let engine = ctx.engine.clone();
 
@@ -190,6 +197,7 @@ fn check_space_map(
 
     let mut leaks = 0;
     let mut blocknr = 0;
+    let mut bitmap_leaks = Vec::new();
     for n in 0..entries.len() {
         let b = &blocks[n];
         if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
@@ -200,7 +208,9 @@ fn check_space_map(
         }
 
         let bitmap = unpack::<Bitmap>(b.get_data())?;
-        for e in bitmap.entries {
+        let first_blocknr = blocknr;
+        let mut contains_leak = false;
+        for e in bitmap.entries.iter() {
             if blocknr >= root.nr_blocks {
                 break;
             }
@@ -208,9 +218,10 @@ fn check_space_map(
             match e {
                 BitmapEntry::Small(actual) => {
                     let expected = sm.get(blocknr)?;
-                    if actual == 1 && expected == 0 {
+                    if *actual == 1 && expected == 0 {
                         leaks += 1;
-                    } else if actual != expected as u8 {
+                        contains_leak = true;
+                    } else if *actual != expected as u8 {
                         report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
                                   kind, blocknr, expected, actual));
                     }
@@ -225,15 +236,60 @@ fn check_space_map(
             }
             blocknr += 1;
         }
+        if contains_leak {
+            bitmap_leaks.push(BitmapLeak {
+                blocknr: first_blocknr,
+                loc: b.loc,
+            });
+        }
     }
 
     if leaks > 0 {
-        report.non_fatal(&format!(
-            "{} {} blocks have leaked.  Use --auto-repair to fix.",
-            leaks, kind
-        ));
+        report.non_fatal(&format!("{} {} blocks have leaked.", leaks, kind));
     }
 
+    Ok(bitmap_leaks)
+}
+
+// This assumes the only errors in the space map are leaks.  Entries should just be
+// those that contain leaks.
+fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> Result<()> {
+    let engine = ctx.engine.clone();
+
+    let sm = sm.lock().unwrap();
+
+    let mut blocks = Vec::new();
+    for i in &entries {
+        blocks.push(Block::new(i.loc));
+    }
+
+    // FIXME: we should do this in batches
+    engine.read_many(&mut blocks)?;
+
+    for (be, b) in entries.iter().zip(blocks.iter()) {
+        let mut blocknr = be.blocknr;
+        let mut bitmap = unpack::<Bitmap>(b.get_data())?;
+        for e in bitmap.entries.iter_mut() {
+            if blocknr >= sm.get_nr_blocks()? {
+                break;
+            }
+            
+            if let BitmapEntry::Small(actual) = e {
+                let expected = sm.get(blocknr)?;
+                if *actual == 1 && expected == 0 {
+                    *e = BitmapEntry::Small(0);
+                }
+            }
+            
+            blocknr += 1;
+        }
+
+        let mut out = Cursor::new(b.get_data());
+        bitmap.pack(&mut out)?;
+        checksum::write_checksum(b.get_data(), checksum::BT::BITMAP)?;
+    }
+
+    engine.write_many(&blocks)?;
     Ok(())
 }
 
@@ -329,8 +385,7 @@ fn check_mapping_bottom_level(
                     eprintln!("walk failed {:?}", e);
                     std::process::abort();
                 }
-                Ok(_result) => {
-                }
+                Ok(_result) => {}
             }
         });
     }
@@ -339,21 +394,21 @@ fn check_mapping_bottom_level(
     Ok(())
 }
 
-fn mk_context(opts: ThinCheckOptions) -> Result<Context> {
+fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
     let nr_threads;
 
     if opts.async_io {
         nr_threads = std::cmp::min(4, num_cpus::get());
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO)?);
+        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, opts.auto_repair)?);
     } else {
         nr_threads = num_cpus::get() * 2;
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads)?);
+        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
     }
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {
-        report: opts.report,
+        report: opts.report.clone(),
         engine,
         pool,
     })
@@ -363,13 +418,16 @@ fn bail_out(ctx: &Context, task: &str) -> Result<()> {
     use ReportOutcome::*;
 
     match ctx.report.get_outcome() {
-        Fatal => Err(anyhow!(format!("Check of {} failed, ending check early.", task))),
+        Fatal => Err(anyhow!(format!(
+            "Check of {} failed, ending check early.",
+            task
+        ))),
         _ => Ok(()),
     }
 }
 
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let ctx = mk_context(opts)?;
+    let ctx = mk_context(&opts)?;
 
     // FIXME: temporarily get these out
     let report = &ctx.report;
@@ -426,7 +484,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let entries: Vec<IndexEntry> = entries.values().cloned().collect();
     inc_entries(&metadata_sm, &entries[0..])?;
 
-    check_space_map(
+    let data_leaks = check_space_map(
         &ctx,
         "data",
         entries,
@@ -461,7 +519,19 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // Now the counts should be correct and we can check it.
-    check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+    let metadata_leaks = check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+
+    if opts.auto_repair {
+        if data_leaks.len() > 0 {
+            ctx.report.info("Repairing data leaks.");
+            repair_space_map(&ctx, data_leaks, data_sm.clone());
+        }
+
+        if metadata_leaks.len() > 0 {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(&ctx, metadata_leaks, metadata_sm.clone());
+        }
+    }
 
     // Completing consumes the report.
     {

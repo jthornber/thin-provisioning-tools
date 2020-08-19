@@ -69,20 +69,20 @@ pub struct SyncIoEngine {
 }
 
 impl SyncIoEngine {
-    fn open_file(path: &Path) -> Result<File> {
+    fn open_file(path: &Path, writeable: bool) -> Result<File> {
         let file = OpenOptions::new()
             .read(true)
-            .write(false)
+            .write(writeable)
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
         Ok(file)
     }
 
-    pub fn new(path: &Path, nr_files: usize) -> Result<SyncIoEngine> {
+    pub fn new(path: &Path, nr_files: usize, writeable: bool) -> Result<SyncIoEngine> {
         let mut files = Vec::new();
         for _n in 0..nr_files {
-            files.push(SyncIoEngine::open_file(path)?);
+            files.push(SyncIoEngine::open_file(path, writeable)?);
         }
 
         Ok(SyncIoEngine {
@@ -169,10 +169,10 @@ pub struct AsyncIoEngine {
 }
 
 impl AsyncIoEngine {
-    pub fn new(path: &Path, queue_len: u32) -> Result<AsyncIoEngine> {
+    pub fn new(path: &Path, queue_len: u32, writeable: bool) -> Result<AsyncIoEngine> {
         let input = OpenOptions::new()
             .read(true)
-            .write(false)
+            .write(writeable)
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 

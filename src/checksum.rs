@@ -1,4 +1,5 @@
-use byteorder::{LittleEndian, ReadBytesExt};
+use anyhow::{anyhow, Result};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crc32c::crc32c;
 
 use std::io::Cursor;
@@ -44,3 +45,22 @@ pub fn metadata_block_type(buf: &[u8]) -> BT {
     }
 }
 
+pub fn write_checksum(buf: &mut [u8], kind: BT) -> Result<()> {
+    if buf.len() != BLOCK_SIZE as usize {
+        return Err(anyhow!("block is wrong size"));
+    }
+
+    use BT::*;
+    let salt = match kind {
+        SUPERBLOCK => SUPERBLOCK_CSUM_XOR,
+        NODE => BTREE_CSUM_XOR,
+        BITMAP => BITMAP_CSUM_XOR,
+        INDEX => INDEX_CSUM_XOR,
+        UNKNOWN => {return Err(anyhow!("Invalid block type"));}
+    };
+    
+    let csum = checksum(buf) ^ salt;
+    let mut out = std::io::Cursor::new(buf);
+    out.write_u32::<LittleEndian>(csum)?;
+    Ok(())
+}
