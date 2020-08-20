@@ -520,27 +520,26 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // Now the counts should be correct and we can check it.
     let metadata_leaks = check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+    bail_out(&ctx, "metadata space map")?;
 
     if opts.auto_repair {
         if data_leaks.len() > 0 {
             ctx.report.info("Repairing data leaks.");
-            repair_space_map(&ctx, data_leaks, data_sm.clone());
+            repair_space_map(&ctx, data_leaks, data_sm.clone())?;
         }
 
         if metadata_leaks.len() > 0 {
             ctx.report.info("Repairing metadata leaks.");
-            repair_space_map(&ctx, metadata_leaks, metadata_sm.clone());
+            repair_space_map(&ctx, metadata_leaks, metadata_sm.clone())?;
         }
     }
 
-    // Completing consumes the report.
     {
         let mut stop_progress = stop_progress.lock().unwrap();
         *stop_progress = true;
     }
 
     tid.join();
-    bail_out(&ctx, "metadata space map")?;
 
     Ok(())
 }
