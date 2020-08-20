@@ -9,7 +9,7 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
-use crate::pdata::btree::{btree_to_map, btree_to_map_with_sm, BTreeWalker, Node, NodeVisitor};
+use crate::pdata::btree::{btree_to_map, btree_to_map_with_sm, BTreeWalker, NodeHeader, NodeVisitor};
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
@@ -50,38 +50,30 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&mut self, node: &Node<BlockTime>) -> Result<()> {
+    fn visit(&mut self, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> Result<()> {
         // FIXME: do other checks
 
-        if let Node::Leaf {
-            header: _h,
-            keys: _k,
-            values,
-        } = node
-        {
-            if values.len() == 0 {
-                return Ok(());
-            }
-
-            let mut data_sm = self.data_sm.lock().unwrap();
-
-            let mut start = values[0].block;
-            let mut len = 1;
-
-            for n in 1..values.len() {
-                let block = values[n].block;
-                if block == start + len {
-                    len += 1;
-                } else {
-                    data_sm.inc(start, len)?;
-                    start = block;
-                    len = 1;
-                }
-            }
-
-            data_sm.inc(start, len)?;
+        if values.len() == 0 {
+            return Ok(());
         }
 
+        let mut data_sm = self.data_sm.lock().unwrap();
+
+        let mut start = values[0].block;
+        let mut len = 1;
+
+        for n in 1..values.len() {
+            let block = values[n].block;
+            if block == start + len {
+                len += 1;
+            } else {
+                data_sm.inc(start, len)?;
+                start = block;
+                len = 1;
+            }
+        }
+
+        data_sm.inc(start, len)?;
         Ok(())
     }
 }
@@ -132,21 +124,14 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&mut self, node: &Node<u32>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            for n in 0..keys.len() {
-                let k = keys[n];
-                let v = values[n];
-                let expected = self.data_sm.get(k)?;
-                if expected != v {
-                    return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
-                                      k, expected, v));
-                }
+    fn visit(&mut self, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> Result<()> {
+        for n in 0..keys.len() {
+            let k = keys[n];
+            let v = values[n];
+            let expected = self.data_sm.get(k)?;
+            if expected != v {
+                return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                  k, expected, v));
             }
         }
 

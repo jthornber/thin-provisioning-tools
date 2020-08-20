@@ -147,7 +147,7 @@ pub fn unpack_node<V: Unpack>(
 //------------------------------------------
 
 pub trait NodeVisitor<V: Unpack> {
-    fn visit(&mut self, node: &Node<V>) -> Result<()>;
+    fn visit(&mut self, header: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -219,21 +219,26 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
+        use Node::*;
+
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
             return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
         }
 
         let node = unpack_node::<V>(&b.get_data(), self.ignore_non_fatal, is_root)?;
-        visitor.visit(&node)?;
 
-        if let Node::Internal {
-            header: _h,
-            keys: _k,
-            values,
-        } = node
-        {
-            self.walk_nodes(visitor, &values)?;
+        match node {
+            Internal {
+                header: _h,
+                keys: _k,
+                values,
+            } => {
+                self.walk_nodes(visitor, &values)?;
+            }
+            Leaf { header, keys, values } => {
+                visitor.visit(&header, &keys, &values)?;
+            }
         }
 
         Ok(())
@@ -281,18 +286,11 @@ impl<V> ValueCollector<V> {
 }
 
 impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
-    fn visit(&mut self, node: &Node<V>) -> Result<()> {
-        if let Node::Leaf {
-            header: _h,
-            keys,
-            values,
-        } = node
-        {
-            for n in 0..keys.len() {
-                let k = keys[n];
-                let v = values[n].clone();
-                self.values.insert(k, v);
-            }
+    fn visit(&mut self, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
+        for n in 0..keys.len() {
+            let k = keys[n];
+            let v = values[n].clone();
+            self.values.insert(k, v);
         }
 
         Ok(())
