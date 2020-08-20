@@ -147,7 +147,7 @@ pub fn unpack_node<V: Unpack>(
 //------------------------------------------
 
 pub trait NodeVisitor<V: Unpack> {
-    fn visit(&mut self, w: &BTreeWalker, b: &Block, node: &Node<V>) -> Result<()>;
+    fn visit(&mut self, node: &Node<V>) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -225,7 +225,7 @@ impl BTreeWalker {
         }
 
         let node = unpack_node::<V>(&b.get_data(), self.ignore_non_fatal, is_root)?;
-        visitor.visit(self, &b, &node)?;
+        visitor.visit(&node)?;
 
         if let Node::Internal {
             header: _h,
@@ -281,7 +281,7 @@ impl<V> ValueCollector<V> {
 }
 
 impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<V>) -> Result<()> {
+    fn visit(&mut self, node: &Node<V>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
             keys,

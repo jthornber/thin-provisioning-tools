@@ -50,7 +50,7 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<BlockTime>) -> Result<()> {
+    fn visit(&mut self, node: &Node<BlockTime>) -> Result<()> {
         // FIXME: do other checks
 
         if let Node::Leaf {
@@ -132,7 +132,7 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&mut self, _w: &BTreeWalker, _b: &Block, node: &Node<u32>) -> Result<()> {
+    fn visit(&mut self, node: &Node<u32>) -> Result<()> {
         if let Node::Leaf {
             header: _h,
             keys,
