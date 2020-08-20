@@ -50,7 +50,7 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&mut self, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> Result<()> {
+    fn visit(&self, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> Result<()> {
         // FIXME: do other checks
 
         if values.len() == 0 {
@@ -124,7 +124,7 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&mut self, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> Result<()> {
+    fn visit(&self, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> Result<()> {
         for n in 0..keys.len() {
             let k = keys[n];
             let v = values[n];

@@ -147,7 +147,8 @@ pub fn unpack_node<V: Unpack>(
 //------------------------------------------
 
 pub trait NodeVisitor<V: Unpack> {
-    fn visit(&mut self, header: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()>;
+    // &self is deliberately non mut to allow the walker to use multiple threads.
+    fn visit(&self, header: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -274,23 +275,22 @@ impl BTreeWalker {
 //------------------------------------------
 
 struct ValueCollector<V> {
-    values: BTreeMap<u64, V>,
+    values: Mutex<BTreeMap<u64, V>>,
 }
 
 impl<V> ValueCollector<V> {
     fn new() -> ValueCollector<V> {
         ValueCollector {
-            values: BTreeMap::new(),
+            values: Mutex::new(BTreeMap::new()),
         }
     }
 }
 
 impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
-    fn visit(&mut self, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
+    fn visit(&self, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
+        let mut vals = self.values.lock().unwrap();
         for n in 0..keys.len() {
-            let k = keys[n];
-            let v = values[n].clone();
-            self.values.insert(k, v);
+            vals.insert(keys[n], values[n].clone());
         }
 
         Ok(())
@@ -306,7 +306,7 @@ pub fn btree_to_map<V: Unpack + Clone>(
     let mut visitor = ValueCollector::<V>::new();
 
     walker.walk(&mut visitor, root)?;
-    Ok(visitor.values)
+    Ok(visitor.values.into_inner().unwrap())
 }
 
 pub fn btree_to_map_with_sm<V: Unpack + Clone>(
@@ -319,7 +319,7 @@ pub fn btree_to_map_with_sm<V: Unpack + Clone>(
     let mut visitor = ValueCollector::<V>::new();
 
     walker.walk(&mut visitor, root)?;
-    Ok(visitor.values)
+    Ok(visitor.values.into_inner().unwrap())
 }
 
 //------------------------------------------
