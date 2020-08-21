@@ -10,7 +10,8 @@ namespace thin_provisioning {
 	bool count_metadata(transaction_manager::ptr tm,
 			    superblock_detail::superblock const &sb,
 			    block_counter &bc,
-			    bool skip_metadata_snap = false);
+			    bool skip_metadata_snap = false,
+			    bool ignore_non_fatal = false);
 }
 
 //----------------------------------------------------------------

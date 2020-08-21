@@ -303,11 +303,12 @@ namespace {
 	error_state check_metadata_space_map_counts(transaction_manager::ptr tm,
 						    superblock_detail::superblock const &sb,
 						    block_counter &bc,
-						    nested_output &out) {
+						    nested_output &out,
+						    bool ignore_non_fatal) {
 		out << "checking space map counts" << end_message();
 		nested_output::nest _ = out.push();
 
-		if (!count_metadata(tm, sb, bc))
+		if (!count_metadata(tm, sb, bc, false, ignore_non_fatal))
 			return FATAL;
 
 		// Finally we need to check the metadata space map agrees
@@ -428,7 +429,7 @@ namespace {
 
 				// if we're checking everything, and there were no errors,
 				// then we should check the space maps too.
-				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, out_, expected_rc_);
+				err_ << examine_metadata_space_map(tm, sb, options_.sm_opts_, options_.ignore_non_fatal_, out_, expected_rc_);
 
 				// verify ref-counts of data blocks
 				if (err_ != FATAL && core_sm)
@@ -541,13 +542,14 @@ namespace {
 		examine_metadata_space_map(transaction_manager::ptr tm,
 					   superblock_detail::superblock const &sb,
 					   check_options::space_map_options option,
+					   bool ignore_non_fatal,
 					   nested_output &out,
 					   block_counter &bc) {
 			error_state err = NO_ERROR;
 
 			switch (option) {
 			case check_options::SPACE_MAP_FULL:
-				err << check_metadata_space_map_counts(tm, sb, bc, out);
+				err << check_metadata_space_map_counts(tm, sb, bc, out, ignore_non_fatal);
 				break;
 			default:
 				break; // do nothing
