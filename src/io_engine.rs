@@ -49,6 +49,10 @@ unsafe impl Send for Block {}
 
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
+
+    // FIXME: we need to indicate an error per block.  Add error field
+    // to block?  Data should not be accessible if a read failed.
+    // We should support retry for failed writes.
     fn read(&self, block: &mut Block) -> Result<()>;
     fn read_many(&self, blocks: &mut [Block]) -> Result<()>;
     fn write(&self, block: &Block) -> Result<()>;
@@ -73,7 +77,6 @@ impl SyncIoEngine {
         let file = OpenOptions::new()
             .read(true)
             .write(writeable)
-            .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
         Ok(file)
