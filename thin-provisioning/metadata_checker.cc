@@ -371,7 +371,8 @@ namespace {
 			  out_(cerr, 2),
 			  info_out_(cout, 0),
 			  expected_rc_(true), // set stop on the first error
-			  err_(NO_ERROR) {
+			  err_(NO_ERROR),
+			  metadata_checked_(false) {
 
 			if (output_opts == OUTPUT_QUIET) {
 				out_.disable();
@@ -381,6 +382,22 @@ namespace {
 			sb_location_ = get_superblock_location();
 		}
 
+		void check_and_repair() {
+			check();
+			if (options_.fix_metadata_leaks_)
+				fix_metadata_leaks(options_.open_transaction_);
+			if (options_.clear_needs_check_)
+				clear_needs_check_flag();
+		}
+
+		bool get_status() const {
+			if (options_.ignore_non_fatal_)
+				return (err_ == FATAL) ? false : true;
+
+			return (err_ == NO_ERROR) ? true : false;
+		}
+
+	private:
 		void check() {
 			block_manager::ptr bm = open_bm(path_, block_manager::READ_ONLY,
 							!options_.use_metadata_snap_);
@@ -419,10 +436,12 @@ namespace {
 			} else
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_,
 							      optional<space_map::ptr>());
+
+			metadata_checked_ = true;
 		}
 
 		bool fix_metadata_leaks(bool open_transaction) {
-			if (!verify_preconditions_before_fixing()) {
+			if (!metadata_checked_) {
 				out_ << "metadata has not been fully examined" << end_message();
 				return false;
 			}
@@ -458,7 +477,7 @@ namespace {
 		}
 
 		bool clear_needs_check_flag() {
-			if (!verify_preconditions_before_fixing()) {
+			if (!metadata_checked_) {
 				out_ << "metadata has not been fully examined" << end_message();
 				return false;
 			}
@@ -480,14 +499,6 @@ namespace {
 			return true;
 		}
 
-		bool get_status() const {
-			if (options_.ignore_non_fatal_)
-				return (err_ == FATAL) ? false : true;
-
-			return (err_ == NO_ERROR) ? true : false;
-		}
-
-	private:
 		block_address
 		get_superblock_location() {
 			block_address sb_location = superblock_detail::SUPERBLOCK_LOCATION;
@@ -545,19 +556,6 @@ namespace {
 			return err;
 		}
 
-		bool verify_preconditions_before_fixing() const {
-			if (options_.use_metadata_snap_ ||
-			    !!options_.override_mapping_root_ ||
-			    options_.sm_opts_ != check_options::SPACE_MAP_FULL ||
-			    options_.data_mapping_opts_ != check_options::DATA_MAPPING_LEVEL2)
-				return false;
-
-			if (!expected_rc_.get_counts().size())
-				return false;
-
-			return true;
-		}
-
 		std::string const &path_;
 		check_options options_;
 		nested_output out_;
@@ -565,6 +563,7 @@ namespace {
 		block_address sb_location_;
 		block_counter expected_rc_;
 		base::error_state err_; // metadata state
+		bool metadata_checked_;
 	};
 }
 
@@ -628,12 +627,22 @@ bool check_options::check_conformance() {
 			cerr << "cannot perform fix with an overridden mapping root" << endl;
 			return false;
 		}
+	}
 
-		if (data_mapping_opts_ != DATA_MAPPING_LEVEL2 ||
-		    sm_opts_ != SPACE_MAP_FULL) {
-			cerr << "cannot perform fix without a full examination" << endl;
+	if (fix_metadata_leaks_ &&
+	    (data_mapping_opts_ != DATA_MAPPING_LEVEL2 || sm_opts_ != SPACE_MAP_FULL)) {
+		cerr << "cannot perform fix without a full examination" << endl;
+		return false;
+	}
+
+	if (clear_needs_check_) {
+		if (data_mapping_opts_ == DATA_MAPPING_NONE) {
+			cerr << "cannot perform fix without partially examination" << endl;
 			return false;
 		}
+
+		if (data_mapping_opts_ != DATA_MAPPING_LEVEL2 || sm_opts_ != SPACE_MAP_FULL)
+			cerr << "clearing needs_check without a full examination is not suggested" << endl;
 	}
 
 	return true;
@@ -647,13 +656,7 @@ thin_provisioning::check_metadata(std::string const &path,
 				  output_options output_opts)
 {
 	metadata_checker checker(path, check_opts, output_opts);
-
-	checker.check();
-	if (check_opts.fix_metadata_leaks_)
-		checker.fix_metadata_leaks(check_opts.open_transaction_);
-	if (check_opts.clear_needs_check_)
-		checker.clear_needs_check_flag();
-
+	checker.check_and_repair();
 	return checker.get_status();
 }
 

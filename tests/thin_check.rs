@@ -168,11 +168,6 @@ fn clear_needs_check_incompatible_opts() -> Result<()> {
     ))?;
     run_fail(thin_check!(
         "--clear-needs-check-flag",
-        "--skip-mappings",
-        &md
-    ))?;
-    run_fail(thin_check!(
-        "--clear-needs-check-flag",
         "--ignore-non-fatal-errors",
         &md
     ))?;
@@ -201,6 +196,19 @@ fn no_clear_needs_check_if_error() -> Result<()> {
     generate_metadata_leaks(&md, 1, 0, 1)?;
     run_fail(thin_check!("--clear-needs-check-flag", &md))?;
     assert!(get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn clear_needs_check_if_skip_mappings() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?;
+
+    assert!(get_needs_check(&md)?);
+    thin_check!("--clear-needs-check-flag", "--skip-mappings", &md).run()?;
+    assert!(!get_needs_check(&md)?);
     Ok(())
 }
 
