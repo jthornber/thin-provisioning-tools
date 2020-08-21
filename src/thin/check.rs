@@ -9,7 +9,7 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
-use crate::pdata::btree::{btree_to_map, btree_to_map_with_sm, BTreeWalker, NodeHeader, NodeVisitor};
+use crate::pdata::btree::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
@@ -162,14 +162,14 @@ fn check_space_map(
 
     // overflow btree
     {
-        let mut v = OverflowChecker::new(&*sm);
-        let mut w;
+        let v = OverflowChecker::new(&*sm);
+        let w;
         if metadata_sm.is_none() {
             w = BTreeWalker::new(engine.clone(), false);
         } else {
             w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.unwrap().clone(), false)?;
         }
-        w.walk(&mut v, root.ref_count_root)?;
+        w.walk(&v, root.ref_count_root)?;
     }
 
     let mut blocks = Vec::with_capacity(entries.len());
@@ -258,14 +258,14 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
             if blocknr >= sm.get_nr_blocks()? {
                 break;
             }
-            
+
             if let BitmapEntry::Small(actual) = e {
                 let expected = sm.get(blocknr)?;
                 if *actual == 1 && expected == 0 {
                     *e = BitmapEntry::Small(0);
                 }
             }
-            
+
             blocknr += 1;
         }
 
@@ -357,24 +357,34 @@ fn check_mapping_bottom_level(
 ) -> Result<()> {
     ctx.report.set_sub_title("mapping tree");
 
-    for (_thin_id, root) in roots {
-        let mut w = BTreeWalker::new_with_sm(ctx.engine.clone(), metadata_sm.clone(), false)?;
-        let data_sm = data_sm.clone();
-        let root = *root;
-        ctx.pool.execute(move || {
-            let mut v = BottomLevelVisitor { data_sm };
+    let w = Arc::new(BTreeWalker::new_with_sm(
+        ctx.engine.clone(),
+        metadata_sm.clone(),
+        false,
+    )?);
 
-            // FIXME: return error
-            match w.walk(&mut v, root) {
-                Err(e) => {
-                    eprintln!("walk failed {:?}", e);
-                    std::process::abort();
-                }
-                Ok(_result) => {}
-            }
-        });
+    if roots.len() > 64 {
+        ctx.report.info("spreading load across devices");
+        for (_thin_id, root) in roots {
+            let data_sm = data_sm.clone();
+            let root = *root;
+            let v = BottomLevelVisitor { data_sm };
+            let w = w.clone();
+            ctx.pool.execute(move || {
+                let _r = w.walk(&v, root);
+            });
+        }
+        ctx.pool.join();
+    } else {
+        ctx.report.info("spreading load within device");
+        for (_thin_id, root) in roots {
+            let w = w.clone();
+            let data_sm = data_sm.clone();
+            let root = *root;
+            let v = Arc::new(BottomLevelVisitor { data_sm });
+            walk_threaded(w, &ctx.pool, v, root)?
+        }
     }
-    ctx.pool.join();
 
     Ok(())
 }
@@ -385,7 +395,11 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
 
     if opts.async_io {
         nr_threads = std::cmp::min(4, num_cpus::get());
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, opts.auto_repair)?);
+        engine = Arc::new(AsyncIoEngine::new(
+            opts.dev,
+            MAX_CONCURRENT_IO,
+            opts.auto_repair,
+        )?);
     } else {
         nr_threads = num_cpus::get() * 2;
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
@@ -504,7 +518,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // Now the counts should be correct and we can check it.
-    let metadata_leaks = check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+    let metadata_leaks =
+        check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
     bail_out(&ctx, "metadata space map")?;
 
     if opts.auto_repair {

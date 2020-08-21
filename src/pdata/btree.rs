@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -153,8 +154,8 @@ pub trait NodeVisitor<V: Unpack> {
 
 #[derive(Clone)]
 pub struct BTreeWalker {
-    pub engine: Arc<dyn IoEngine + Send + Sync>,
-    pub sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
 }
 
@@ -194,7 +195,7 @@ impl BTreeWalker {
         Ok(count)
     }
 
-    fn walk_nodes<NV, V>(&mut self, visitor: &mut NV, bs: &[u64]) -> Result<()>
+    fn walk_nodes<NV, V>(&self, visitor: &NV, bs: &[u64]) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -215,7 +216,7 @@ impl BTreeWalker {
         Ok(())
     }
 
-    fn walk_node<NV, V>(&mut self, visitor: &mut NV, b: &Block, is_root: bool) -> Result<()>
+    fn walk_node<NV, V>(&self, visitor: &NV, b: &Block, is_root: bool) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -237,7 +238,11 @@ impl BTreeWalker {
             } => {
                 self.walk_nodes(visitor, &values)?;
             }
-            Leaf { header, keys, values } => {
+            Leaf {
+                header,
+                keys,
+                values,
+            } => {
                 visitor.visit(&header, &keys, &values)?;
             }
         }
@@ -245,19 +250,7 @@ impl BTreeWalker {
         Ok(())
     }
 
-    pub fn walk_b<NV, V>(&mut self, visitor: &mut NV, root: &Block) -> Result<()>
-    where
-        NV: NodeVisitor<V>,
-        V: Unpack,
-    {
-        if self.sm_inc(root.loc)? > 0 {
-            Ok(())
-        } else {
-            self.walk_node(visitor, &root, true)
-        }
-    }
-
-    pub fn walk<NV, V>(&mut self, visitor: &mut NV, root: u64) -> Result<()>
+    pub fn walk<NV, V>(&self, visitor: &NV, root: u64) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -269,6 +262,99 @@ impl BTreeWalker {
             self.engine.read(&mut root)?;
             self.walk_node(visitor, &root, true)
         }
+    }
+}
+
+//--------------------------------
+
+fn walk_node_threaded<NV, V>(
+    w: Arc<BTreeWalker>,
+    pool: &ThreadPool,
+    visitor: Arc<NV>,
+    b: &Block,
+    is_root: bool,
+) -> Result<()>
+where
+    NV: NodeVisitor<V> + Send + Sync + 'static,
+    V: Unpack,
+{
+    use Node::*;
+
+    let bt = checksum::metadata_block_type(b.get_data());
+    if bt != checksum::BT::NODE {
+        return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
+    }
+
+    let node = unpack_node::<V>(&b.get_data(), w.ignore_non_fatal, is_root)?;
+
+    match node {
+        Internal {
+            header: _h,
+            keys: _k,
+            values,
+        } => {
+            walk_nodes_threaded(w, pool, visitor, &values)?;
+        }
+        Leaf {
+            header,
+            keys,
+            values,
+        } => {
+            visitor.visit(&header, &keys, &values)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn walk_nodes_threaded<NV, V>(
+    w: Arc<BTreeWalker>,
+    pool: &ThreadPool,
+    visitor: Arc<NV>,
+    bs: &[u64],
+) -> Result<()>
+where
+    NV: NodeVisitor<V> + Send + Sync + 'static,
+    V: Unpack,
+{
+    let mut blocks = Vec::new();
+    for b in bs {
+        if w.sm_inc(*b)? == 0 {
+            blocks.push(Block::new(*b));
+        }
+    }
+
+    w.engine.read_many(&mut blocks)?;
+
+    for b in blocks {
+        let w = w.clone();
+        let visitor = visitor.clone();
+        pool.execute(move || {
+            // FIXME: return result
+            w.walk_node(visitor.as_ref(), &b, false);
+        });
+    }
+    pool.join();
+
+    Ok(())
+}
+
+pub fn walk_threaded<NV, V>(
+    w: Arc<BTreeWalker>,
+    pool: &ThreadPool,
+    visitor: Arc<NV>,
+    root: u64,
+) -> Result<()>
+where
+    NV: NodeVisitor<V> + Send + Sync + 'static,
+    V: Unpack,
+{
+    if w.sm_inc(root)? > 0 {
+        Ok(())
+    } else {
+        let mut root = Block::new(root);
+        w.engine.read(&mut root)?;
+        walk_node_threaded(w, pool, visitor, &root, true)
     }
 }
 
@@ -302,10 +388,10 @@ pub fn btree_to_map<V: Unpack + Clone>(
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
-    let mut walker = BTreeWalker::new(engine, ignore_non_fatal);
-    let mut visitor = ValueCollector::<V>::new();
+    let walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let visitor = ValueCollector::<V>::new();
 
-    walker.walk(&mut visitor, root)?;
+    walker.walk(&visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
 
@@ -315,10 +401,10 @@ pub fn btree_to_map_with_sm<V: Unpack + Clone>(
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
-    let mut walker = BTreeWalker::new_with_sm(engine, sm, ignore_non_fatal)?;
-    let mut visitor = ValueCollector::<V>::new();
+    let walker = BTreeWalker::new_with_sm(engine, sm, ignore_non_fatal)?;
+    let visitor = ValueCollector::<V>::new();
 
-    walker.walk(&mut visitor, root)?;
+    walker.walk(&visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
 
