@@ -172,7 +172,7 @@ fn check_space_map(
         w.walk(&mut v, root.ref_count_root)?;
     }
 
-    let mut blocks = Vec::new();
+    let mut blocks = Vec::with_capacity(entries.len());
     for i in &entries {
         blocks.push(Block::new(i.blocknr));
     }
@@ -243,7 +243,7 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
 
     let sm = sm.lock().unwrap();
 
-    let mut blocks = Vec::new();
+    let mut blocks = Vec::with_capacity(entries.len());
     for i in &entries {
         blocks.push(Block::new(i.loc));
     }

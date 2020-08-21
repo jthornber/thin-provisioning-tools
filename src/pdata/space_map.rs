@@ -159,8 +159,8 @@ impl Unpack for Bitmap {
     fn unpack(data: &[u8]) -> IResult<&[u8], Self> {
         let (mut i, header) = BitmapHeader::unpack(data)?;
 
-        let mut entries = Vec::new();
         let nr_words = (BLOCK_SIZE - BitmapHeader::disk_size() as usize) / 8;
+        let mut entries = Vec::with_capacity(nr_words * 32);
         for _w in 0..nr_words {
             let (tmp, mut word) = le_u64(i)?;
 

@@ -199,7 +199,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        let mut blocks = Vec::new();
+        let mut blocks = Vec::with_capacity(bs.len());
         for b in bs {
             if self.sm_inc(*b)? == 0 {
                 blocks.push(Block::new(*b));

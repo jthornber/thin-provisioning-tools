@@ -80,7 +80,7 @@ impl SyncIoEngine {
     }
 
     pub fn new(path: &Path, nr_files: usize, writeable: bool) -> Result<SyncIoEngine> {
-        let mut files = Vec::new();
+        let mut files = Vec::with_capacity(nr_files);
         for _n in 0..nr_files {
             files.push(SyncIoEngine::open_file(path, writeable)?);
         }
