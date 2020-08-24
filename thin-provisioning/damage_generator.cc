@@ -63,6 +63,14 @@ void damage_generator::create_metadata_leaks(block_address nr_leaks,
 	std::set<block_address> leaks;
 	find_blocks(md_->metadata_sm_, nr_leaks, expected, leaks);
 
+	block_counter bc(true);
+	md_->metadata_sm_->count_metadata(bc);
+	block_address nr_blocks = md_->metadata_sm_->get_nr_blocks();
+	for (block_address b = 0; b < nr_blocks; b++) {
+		if (bc.get_count(b))
+			md_->tm_->mark_shadowed(b);
+	}
+
 	for (auto const &b : leaks)
 		md_->metadata_sm_->set_count(b, actual);
 }
