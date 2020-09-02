@@ -88,7 +88,6 @@ impl<'a> FileGuard<'a> {
 }
 
 impl<'a> Deref for FileGuard<'a> {
-    // FIXME: do we need this? it's not in DerefMut
     type Target = File;
 
     fn deref(&self) -> &File {
@@ -148,6 +147,19 @@ impl SyncIoEngine {
         files.push(f);
         self.cvar.notify_one();
     }
+
+    fn read_(input: &mut File, loc: u64) -> Result<Block> {
+        let b = Block::new(loc);
+        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        input.read_exact(b.get_data())?;
+        Ok(b)
+    }
+
+    fn write_(output: &mut File, b: &Block) -> Result<()> {
+        output.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        output.write_all(&b.get_data())?;
+        Ok(())
+    }
 }
 
 impl IoEngine for SyncIoEngine {
@@ -156,34 +168,27 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn read(&self, loc: u64) -> Result<Block> {
-        let b = Block::new(loc);
-        let mut input = self.get();
-
-        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        input.read_exact(b.get_data())?;
-        Ok(b)
+        SyncIoEngine::read_(&mut self.get(), loc)
     }
 
-    // FIXME: *_many are getting and putting the input many times
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
+        let mut input = self.get();
         let mut bs = Vec::new();
         for b in blocks {
-            bs.push(self.read(*b));
+            bs.push(SyncIoEngine::read_(&mut input, *b));
         }
         Ok(bs)
     }
 
     fn write(&self, b: &Block) -> Result<()> {
-        let mut input = self.get();
-        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        input.write_all(&b.get_data())?;
-        Ok(())
+        SyncIoEngine::write_(&mut self.get(), b)
     }
 
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
+        let mut output = self.get();
         let mut bs = Vec::new();
         for b in blocks {
-            bs.push(self.write(b));
+            bs.push(SyncIoEngine::write_(&mut output, b));
         }
         Ok(bs)
     }
