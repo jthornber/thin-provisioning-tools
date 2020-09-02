@@ -8,7 +8,7 @@ use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::checksum;
-use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
+use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::btree::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
@@ -174,58 +174,65 @@ fn check_space_map(
 
     let mut blocks = Vec::with_capacity(entries.len());
     for i in &entries {
-        blocks.push(Block::new(i.blocknr));
+        blocks.push(i.blocknr);
     }
 
     // FIXME: we should do this in batches
-    engine.read_many(&mut blocks)?;
+    let blocks = engine.read_many(&mut blocks)?;
 
     let mut leaks = 0;
     let mut blocknr = 0;
     let mut bitmap_leaks = Vec::new();
     for n in 0..entries.len() {
         let b = &blocks[n];
-        if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
-            report.fatal(&format!(
-                "Index entry points to block ({}) that isn't a bitmap",
-                b.loc
-            ));
-        }
-
-        let bitmap = unpack::<Bitmap>(b.get_data())?;
-        let first_blocknr = blocknr;
-        let mut contains_leak = false;
-        for e in bitmap.entries.iter() {
-            if blocknr >= root.nr_blocks {
-                break;
-            }
-
-            match e {
-                BitmapEntry::Small(actual) => {
-                    let expected = sm.get(blocknr)?;
-                    if *actual == 1 && expected == 0 {
-                        leaks += 1;
-                        contains_leak = true;
-                    } else if *actual != expected as u8 {
-                        report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
-                                  kind, blocknr, expected, actual));
-                    }
+        match b {
+            Err(_e) => {
+                todo!();
+            },
+            Ok(b) => {
+                if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
+                    report.fatal(&format!(
+                        "Index entry points to block ({}) that isn't a bitmap",
+                        b.loc
+                    ));
                 }
-                BitmapEntry::Overflow => {
-                    let expected = sm.get(blocknr)?;
-                    if expected < 3 {
-                        report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
-                                          kind, blocknr, expected));
+
+                let bitmap = unpack::<Bitmap>(b.get_data())?;
+                let first_blocknr = blocknr;
+                let mut contains_leak = false;
+                for e in bitmap.entries.iter() {
+                    if blocknr >= root.nr_blocks {
+                        break;
                     }
+
+                    match e {
+                        BitmapEntry::Small(actual) => {
+                            let expected = sm.get(blocknr)?;
+                            if *actual == 1 && expected == 0 {
+                                leaks += 1;
+                                contains_leak = true;
+                            } else if *actual != expected as u8 {
+                                report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
+                                          kind, blocknr, expected, actual));
+                            }
+                        }
+                        BitmapEntry::Overflow => {
+                            let expected = sm.get(blocknr)?;
+                            if expected < 3 {
+                                report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
+                                                  kind, blocknr, expected));
+                            }
+                        }
+                    }
+                    blocknr += 1;
+                }
+                if contains_leak {
+                    bitmap_leaks.push(BitmapLeak {
+                        blocknr: first_blocknr,
+                        loc: b.loc,
+                    });
                 }
             }
-            blocknr += 1;
-        }
-        if contains_leak {
-            bitmap_leaks.push(BitmapLeak {
-                blocknr: first_blocknr,
-                loc: b.loc,
-            });
         }
     }
 
@@ -245,36 +252,48 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
 
     let mut blocks = Vec::with_capacity(entries.len());
     for i in &entries {
-        blocks.push(Block::new(i.loc));
+        blocks.push(i.loc);
     }
 
     // FIXME: we should do this in batches
-    engine.read_many(&mut blocks)?;
+    let rblocks = engine.read_many(&blocks[0..])?;
+    let mut write_blocks = Vec::new();
 
-    for (be, b) in entries.iter().zip(blocks.iter()) {
-        let mut blocknr = be.blocknr;
-        let mut bitmap = unpack::<Bitmap>(b.get_data())?;
-        for e in bitmap.entries.iter_mut() {
-            if blocknr >= sm.get_nr_blocks()? {
-                break;
-            }
-
-            if let BitmapEntry::Small(actual) = e {
-                let expected = sm.get(blocknr)?;
-                if *actual == 1 && expected == 0 {
-                    *e = BitmapEntry::Small(0);
+    let mut i = 0;
+    for rb in rblocks {
+        if rb.is_err() {
+            todo!();
+        } else {
+            let b = rb.unwrap();
+            let be = &entries[i];
+            let mut blocknr = be.blocknr;
+            let mut bitmap = unpack::<Bitmap>(b.get_data())?;
+            for e in bitmap.entries.iter_mut() {
+                if blocknr >= sm.get_nr_blocks()? {
+                    break;
                 }
+
+                if let BitmapEntry::Small(actual) = e {
+                    let expected = sm.get(blocknr)?;
+                    if *actual == 1 && expected == 0 {
+                        *e = BitmapEntry::Small(0);
+                    }
+                }
+
+                blocknr += 1;
             }
 
-            blocknr += 1;
+            let mut out = Cursor::new(b.get_data());
+            bitmap.pack(&mut out)?;
+            checksum::write_checksum(b.get_data(), checksum::BT::BITMAP)?;
+
+            write_blocks.push(b);
         }
 
-        let mut out = Cursor::new(b.get_data());
-        bitmap.pack(&mut out)?;
-        checksum::write_checksum(b.get_data(), checksum::BT::BITMAP)?;
+        i += 1;
     }
 
-    engine.write_many(&blocks)?;
+    engine.write_many(&write_blocks[0..])?;
     Ok(())
 }
 
@@ -401,7 +420,7 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
             opts.auto_repair,
         )?);
     } else {
-        nr_threads = num_cpus::get() * 2;
+        nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
     }
     let pool = ThreadPool::new(nr_threads);
@@ -495,8 +514,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let mut b = Block::new(root.bitmap_root);
-    engine.read(&mut b)?;
+    let b = engine.read(root.bitmap_root)?;
     metadata_sm.lock().unwrap().inc(root.bitmap_root, 1)?;
     let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
 

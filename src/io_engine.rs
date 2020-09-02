@@ -1,10 +1,11 @@
-use anyhow::Result;
 use io_uring::opcode::{self, types};
 use io_uring::IoUring;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::Result;
 use std::io::{self, Read, Seek, Write};
+use std::ops::{Deref, DerefMut};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -15,10 +16,10 @@ use std::sync::{Arc, Condvar, Mutex};
 pub const BLOCK_SIZE: usize = 4096;
 const ALIGN: usize = 4096;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Block {
     pub loc: u64,
-    pub data: *mut u8,
+    data: *mut u8,
 }
 
 impl Block {
@@ -50,13 +51,13 @@ unsafe impl Send for Block {}
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
 
-    // FIXME: we need to indicate an error per block.  Add error field
-    // to block?  Data should not be accessible if a read failed.
-    // We should support retry for failed writes.
-    fn read(&self, block: &mut Block) -> Result<()>;
-    fn read_many(&self, blocks: &mut [Block]) -> Result<()>;
+    fn read(&self, b: u64) -> Result<Block>;
+    // The whole io could fail, or individual blocks
+    fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>>;
+
     fn write(&self, block: &Block) -> Result<()>;
-    fn write_many(&self, blocks: &[Block]) -> Result<()>;
+    // The whole io could fail, or individual blocks
+    fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>>;
 }
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
@@ -72,12 +73,49 @@ pub struct SyncIoEngine {
     cvar: Condvar,
 }
 
+struct FileGuard<'a> {
+    engine: &'a SyncIoEngine,
+    file: Option<File>,
+}
+
+impl<'a> FileGuard<'a> {
+    fn new(engine: &'a SyncIoEngine, file: File) -> FileGuard<'a> {
+        FileGuard {
+            engine,
+            file: Some(file),
+        }
+    }
+}
+
+impl<'a> Deref for FileGuard<'a> {
+    // FIXME: do we need this? it's not in DerefMut
+    type Target = File;
+
+    fn deref(&self) -> &File {
+        &self.file.as_ref().expect("empty file guard")
+    }
+}
+
+impl<'a> DerefMut for FileGuard<'a> {
+    fn deref_mut(&mut self) -> &mut File {
+        match &mut self.file {
+            None => {
+                todo!();
+            }
+            Some(f) => f,
+        }
+    }
+}
+
+impl<'a> Drop for FileGuard<'a> {
+    fn drop(&mut self) {
+        self.engine.put(self.file.take().expect("empty file guard"));
+    }
+}
+
 impl SyncIoEngine {
     fn open_file(path: &Path, writeable: bool) -> Result<File> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(writeable)
-            .open(path)?;
+        let file = OpenOptions::new().read(true).write(writeable).open(path)?;
 
         Ok(file)
     }
@@ -95,13 +133,14 @@ impl SyncIoEngine {
         })
     }
 
-    fn get(&self) -> File {
+    fn get(&self) -> FileGuard {
         let mut files = self.files.lock().unwrap();
 
         while files.len() == 0 {
             files = self.cvar.wait(files).unwrap();
         }
-        files.pop().unwrap()
+
+        FileGuard::new(self, files.pop().unwrap())
     }
 
     fn put(&self, f: File) {
@@ -116,44 +155,37 @@ impl IoEngine for SyncIoEngine {
         self.nr_blocks
     }
 
-    fn read(&self, b: &mut Block) -> Result<()> {
+    fn read(&self, loc: u64) -> Result<Block> {
+        let b = Block::new(loc);
         let mut input = self.get();
-        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        input.read_exact(&mut b.get_data())?;
-        self.put(input);
 
-        Ok(())
+        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
+        input.read_exact(b.get_data())?;
+        Ok(b)
     }
 
-    fn read_many(&self, blocks: &mut [Block]) -> Result<()> {
-        let mut input = self.get();
+    // FIXME: *_many are getting and putting the input many times
+    fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
+        let mut bs = Vec::new();
         for b in blocks {
-            input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-            input.read_exact(&mut b.get_data())?;
+            bs.push(self.read(*b));
         }
-        self.put(input);
-
-        Ok(())
+        Ok(bs)
     }
 
     fn write(&self, b: &Block) -> Result<()> {
         let mut input = self.get();
         input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
         input.write_all(&b.get_data())?;
-        self.put(input);
-
         Ok(())
     }
 
-    fn write_many(&self, blocks: &[Block]) -> Result<()> {
-        let mut input = self.get();
+    fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
+        let mut bs = Vec::new();
         for b in blocks {
-            input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-            input.write_all(&b.get_data())?;
+            bs.push(self.write(b));
         }
-        self.put(input);
-
-        Ok(())
+        Ok(bs)
     }
 }
 
@@ -191,19 +223,21 @@ impl AsyncIoEngine {
     }
 
     // FIXME: refactor next two fns
-    fn read_many_(&self, blocks: &mut [Block]) -> Result<()> {
+    fn read_many_(&self, blocks: Vec<Block>) -> Result<Vec<Result<Block>>> {
+        use std::io::*;
+
         let mut inner = self.inner.lock().unwrap();
         let count = blocks.len();
         let fd = types::Target::Fd(inner.input.as_raw_fd());
 
-        for b in blocks.iter_mut() {
+        for (i, b) in blocks.iter().enumerate() {
             let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
                 let mut queue = inner.ring.submission().available();
                 queue
-                    .push(read_e.build().user_data(1))
+                    .push(read_e.build().user_data(i as u64))
                     .ok()
                     .expect("queue is full");
             }
@@ -211,30 +245,52 @@ impl AsyncIoEngine {
 
         inner.ring.submit_and_wait(count)?;
 
-        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let mut cqes = inner.ring.completion().available().collect::<Vec<_>>();
 
-        // FIXME: return proper errors
-        assert_eq!(cqes.len(), count);
-        for c in &cqes {
-            assert_eq!(c.result(), BLOCK_SIZE as i32);
+        if cqes.len() != count {
+            return Err(Error::new(
+                ErrorKind::Other,
+                "insufficient io_uring completions",
+            ));
         }
 
-        Ok(())
+        // reorder cqes
+        cqes.sort_by(|a, b| a.user_data().partial_cmp(&b.user_data()).unwrap());
+
+        let mut rs = Vec::new();
+        let mut i = 0;
+        for b in blocks {
+            let c = &cqes[i];
+            i += 1;
+
+            let r = c.result();
+            if r < 0 {
+                let error = Error::from_raw_os_error(-r);
+                rs.push(Err(error));
+            } else if c.result() != BLOCK_SIZE as i32 {
+                rs.push(Err(Error::new(ErrorKind::UnexpectedEof, "short read")));
+            } else {
+                rs.push(Ok(b));
+            }
+        }
+        Ok(rs)
     }
 
-    fn write_many_(&self, blocks: &[Block]) -> Result<()> {
+    fn write_many_(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
+        use std::io::*;
+
         let mut inner = self.inner.lock().unwrap();
         let count = blocks.len();
         let fd = types::Target::Fd(inner.input.as_raw_fd());
 
-        for b in blocks.iter() {
+        for (i, b) in blocks.iter().enumerate() {
             let write_e = opcode::Write::new(fd, b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
                 let mut queue = inner.ring.submission().available();
                 queue
-                    .push(write_e.build().user_data(1))
+                    .push(write_e.build().user_data(i as u64))
                     .ok()
                     .expect("queue is full");
             }
@@ -242,15 +298,24 @@ impl AsyncIoEngine {
 
         inner.ring.submit_and_wait(count)?;
 
-        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let mut cqes = inner.ring.completion().available().collect::<Vec<_>>();
 
-        // FIXME: return proper errors
-        assert_eq!(cqes.len(), count);
-        for c in &cqes {
-            assert_eq!(c.result(), BLOCK_SIZE as i32);
+        // reorder cqes
+        cqes.sort_by(|a, b| a.user_data().partial_cmp(&b.user_data()).unwrap());
+
+        let mut rs = Vec::new();
+        for c in cqes {
+            let r = c.result();
+            if r < 0 {
+                let error = Error::from_raw_os_error(-r);
+                rs.push(Err(error));
+            } else if r != BLOCK_SIZE as i32 {
+                rs.push(Err(Error::new(ErrorKind::UnexpectedEof, "short write")));
+            } else {
+                rs.push(Ok(()));
+            }
         }
-
-        Ok(())
+        Ok(rs)
     }
 }
 
@@ -276,16 +341,17 @@ impl IoEngine for AsyncIoEngine {
         inner.nr_blocks
     }
 
-    fn read(&self, b: &mut Block) -> Result<()> {
+    fn read(&self, b: u64) -> Result<Block> {
         let mut inner = self.inner.lock().unwrap();
         let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let b = Block::new(b);
         let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
             .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
         unsafe {
             let mut queue = inner.ring.submission().available();
             queue
-                .push(read_e.build().user_data(1))
+                .push(read_e.build().user_data(0))
                 .ok()
                 .expect("queue is full");
         }
@@ -294,26 +360,34 @@ impl IoEngine for AsyncIoEngine {
 
         let cqes = inner.ring.completion().available().collect::<Vec<_>>();
 
-        // FIXME: return proper errors
-        assert_eq!(cqes.len(), 1);
-        assert_eq!(cqes[0].user_data(), 1);
-        assert_eq!(cqes[0].result(), BLOCK_SIZE as i32);
-
-        Ok(())
+        let r = cqes[0].result();
+        use std::io::*;
+        if r < 0 {
+            let error = Error::from_raw_os_error(-r);
+            Err(error)
+        } else if r != BLOCK_SIZE as i32 {
+            Err(Error::new(ErrorKind::UnexpectedEof, "short write"))
+        } else {
+            Ok(b)
+        }
     }
 
-    fn read_many(&self, blocks: &mut [Block]) -> Result<()> {
+    fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
         let inner = self.inner.lock().unwrap();
         let queue_len = inner.queue_len as usize;
         drop(inner);
 
-        let mut done = 0;
-        while done != blocks.len() {
-            let len = usize::min(blocks.len() - done, queue_len);
-            self.read_many_(&mut blocks[done..(done + len)])?;
-            done += len;
+        let mut results = Vec::new();
+        for cs in blocks.chunks(queue_len) {
+            let mut bs = Vec::new();
+            for b in cs {
+                bs.push(Block::new(*b));
+            }
+
+            results.append(&mut self.read_many_(bs)?);
         }
-        Ok(())
+
+        Ok(results)
     }
 
     fn write(&self, b: &Block) -> Result<()> {
@@ -325,7 +399,7 @@ impl IoEngine for AsyncIoEngine {
         unsafe {
             let mut queue = inner.ring.submission().available();
             queue
-                .push(write_e.build().user_data(1))
+                .push(write_e.build().user_data(0))
                 .ok()
                 .expect("queue is full");
         }
@@ -334,26 +408,32 @@ impl IoEngine for AsyncIoEngine {
 
         let cqes = inner.ring.completion().available().collect::<Vec<_>>();
 
-        // FIXME: return proper errors
-        assert_eq!(cqes.len(), 1);
-        assert_eq!(cqes[0].user_data(), 1);
-        assert_eq!(cqes[0].result(), BLOCK_SIZE as i32);
-
-        Ok(())
+        let r = cqes[0].result();
+        use std::io::*;
+        if r < 0 {
+            let error = Error::from_raw_os_error(-r);
+            Err(error)
+        } else if r != BLOCK_SIZE as i32 {
+            Err(Error::new(ErrorKind::UnexpectedEof, "short write"))
+        } else {
+            Ok(())
+        }
     }
 
-    fn write_many(&self, blocks: &[Block]) -> Result<()> {
+    fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
         let inner = self.inner.lock().unwrap();
         let queue_len = inner.queue_len as usize;
         drop(inner);
 
+        let mut results = Vec::new();
         let mut done = 0;
         while done != blocks.len() {
             let len = usize::min(blocks.len() - done, queue_len);
-            self.write_many_(&blocks[done..(done + len)])?;
+            results.append(&mut self.write_many_(&blocks[done..(done + len)])?);
             done += len;
         }
-        Ok(())
+
+        Ok(results)
     }
 }
 

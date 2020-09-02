@@ -203,14 +203,21 @@ impl BTreeWalker {
         let mut blocks = Vec::with_capacity(bs.len());
         for b in bs {
             if self.sm_inc(*b)? == 0 {
-                blocks.push(Block::new(*b));
+                blocks.push(*b);
             }
         }
 
-        self.engine.read_many(&mut blocks)?;
+        let blocks = self.engine.read_many(&blocks[0..])?;
 
         for b in blocks {
-            self.walk_node(visitor, &b, false)?;
+            match b {
+                Err(_e) => {
+                    todo!();
+                },
+                Ok(b) => {
+                    self.walk_node(visitor, &b, false)?;
+                },
+            }
         }
 
         Ok(())
@@ -258,8 +265,7 @@ impl BTreeWalker {
         if self.sm_inc(root)? > 0 {
             Ok(())
         } else {
-            let mut root = Block::new(root);
-            self.engine.read(&mut root)?;
+            let root = self.engine.read(root)?;
             self.walk_node(visitor, &root, true)
         }
     }
@@ -320,19 +326,26 @@ where
     let mut blocks = Vec::new();
     for b in bs {
         if w.sm_inc(*b)? == 0 {
-            blocks.push(Block::new(*b));
+            blocks.push(*b);
         }
     }
 
-    w.engine.read_many(&mut blocks)?;
+    let blocks = w.engine.read_many(&blocks[0..])?;
 
     for b in blocks {
-        let w = w.clone();
-        let visitor = visitor.clone();
-        pool.execute(move || {
-            // FIXME: return result
-            w.walk_node(visitor.as_ref(), &b, false);
-        });
+        match b {
+            Err(_e) => {
+                todo!();
+            },
+            Ok(b) => {
+                let w = w.clone();
+                let visitor = visitor.clone();
+                pool.execute(move || {
+                    // FIXME: return result
+                    w.walk_node(visitor.as_ref(), &b, false);
+                });
+            }
+        }
     }
     pool.join();
 
@@ -352,8 +365,7 @@ where
     if w.sm_inc(root)? > 0 {
         Ok(())
     } else {
-        let mut root = Block::new(root);
-        w.engine.read(&mut root)?;
+        let root = w.engine.read(root)?;
         walk_node_threaded(w, pool, visitor, &root, true)
     }
 }
