@@ -29,6 +29,8 @@ rand = "0.7"
 tempfile = "3.1"
 threadpool = "1.8"
 thiserror = "1.0"
+tui = "0.10"
+termion = "1.5"
 
 [dev-dependencies]
 json = "0.12"

@@ -9,7 +9,7 @@ use threadpool::ThreadPool;
 
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::btree::*;
+use crate::pdata::btree::{self, *};
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
@@ -50,7 +50,7 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&self, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> Result<()> {
+    fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> btree::Result<()> {
         // FIXME: do other checks
 
         if values.len() == 0 {
@@ -67,13 +67,13 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
             if block == start + len {
                 len += 1;
             } else {
-                data_sm.inc(start, len)?;
+                data_sm.inc(start, len).unwrap();
                 start = block;
                 len = 1;
             }
         }
 
-        data_sm.inc(start, len)?;
+        data_sm.inc(start, len).unwrap();
         Ok(())
     }
 }
@@ -124,14 +124,14 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&self, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> Result<()> {
+    fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> btree::Result<()> {
         for n in 0..keys.len() {
             let k = keys[n];
             let v = values[n];
-            let expected = self.data_sm.get(k)?;
+            let expected = self.data_sm.get(k).unwrap();
             if expected != v {
-                return Err(anyhow!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
-                                  k, expected, v));
+                return Err(value_err(format!("Bad reference count for data block {}.  Expected {}, but space map contains {}.",
+                                  k, expected, v)));
             }
         }
 
@@ -382,7 +382,7 @@ fn check_mapping_bottom_level(
         false,
     )?);
 
-    if roots.len() > 64 {
+    if roots.len() > 64000 {
         ctx.report.info("spreading load across devices");
         for (_thin_id, root) in roots {
             let data_sm = data_sm.clone();
@@ -390,6 +390,7 @@ fn check_mapping_bottom_level(
             let v = BottomLevelVisitor { data_sm };
             let w = w.clone();
             ctx.pool.execute(move || {
+                // FIXME: propogate errors + share fails.
                 let _r = w.walk(&v, root);
             });
         }
@@ -401,6 +402,7 @@ fn check_mapping_bottom_level(
             let data_sm = data_sm.clone();
             let root = *root;
             let v = Arc::new(BottomLevelVisitor { data_sm });
+            // FIXME: propogate errors + share fails.
             walk_threaded(w, &ctx.pool, v, root)?
         }
     }
@@ -480,15 +482,16 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // mapping top level
+    report.set_sub_title("mapping tree");
     let roots =
         btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
     // mapping bottom level
-    report.set_sub_title("mapping tree");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
     bail_out(&ctx, "mapping tree")?;
+    eprintln!("checked mapping");
 
     report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -556,7 +559,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         let mut stop_progress = stop_progress.lock().unwrap();
         *stop_progress = true;
     }
-
     tid.join();
 
     Ok(())
