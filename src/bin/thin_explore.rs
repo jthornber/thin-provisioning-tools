@@ -271,12 +271,120 @@ fn read_node<V: Unpack>(engine: &dyn IoEngine, loc: u64) -> Result<btree::Node<V
 
 //------------------------------------
 
-struct NodeWidget<'a, V: Unpack> {
+// For types that have the concept of adjacency, but not of a distance
+// between values.  For instance with a BlockTime there is no delta that
+// will get between two values with different times.
+trait Adjacent {
+    fn adjacent(&self, rhs: &Self) -> bool;
+}
+
+impl Adjacent for u64 {
+    fn adjacent(&self, rhs: &Self) -> bool {
+        (*self + 1) == *rhs
+    }
+}
+
+impl Adjacent for BlockTime {
+    fn adjacent(&self, rhs: &Self) -> bool {
+        if self.time != rhs.time {
+            return false;
+        }
+
+        self.block + 1 == rhs.block
+    }
+}
+
+impl<X: Adjacent, Y: Adjacent> Adjacent for (X, Y) {
+    fn adjacent(&self, rhs: &Self) -> bool {
+        self.0.adjacent(&rhs.0) && self.1.adjacent(&rhs.1)
+    }
+}
+
+fn adjacent_runs<V: Adjacent + Copy>(mut ns: Vec<V>) -> Vec<(V, usize)> {
+    let mut result = Vec::new();
+
+    if ns.len() == 0 {
+        return result;
+    }
+
+    // Reverse so we can pop without cloning the value.
+    ns.reverse();
+
+    let mut base = ns.pop().unwrap();
+    let mut current = base;
+    let mut len = 1;
+    while let Some(v) = ns.pop() {
+        if current.adjacent(&v) {
+            current = v;
+            len += 1;
+        } else {
+            result.push((base.clone(), len));
+            base = v.clone();
+            current = v.clone();
+            len = 1;
+        }
+    }
+    result.push((base.clone(), len));
+
+    result
+}
+
+fn mk_runs<V: Adjacent + Sized + Copy>(keys: &[u64], values: &[V]) -> Vec<((u64, V), usize)> {
+    let mut pairs = Vec::new();
+    for (k, v) in keys.iter().zip(values.iter()) {
+        pairs.push((k.clone(), v.clone()));
+    }
+
+    adjacent_runs(pairs)
+}
+
+struct NodeWidget<'a, V: Unpack + Adjacent + Clone> {
     title: String,
     node: &'a btree::Node<V>,
 }
 
-impl<'a, V: Unpack + fmt::Display> StatefulWidget for NodeWidget<'a, V> {
+fn mk_item<'a, V: fmt::Display>(k: u64, v: &V, len: usize) -> ListItem<'a> {
+    if len > 1 {
+        ListItem::new(Span::raw(format!(
+            "[{}..{}] -> {}",
+            k, k + len as u64, v
+        )))
+    } else {
+        ListItem::new(Span::raw(format!("{} -> {}", k, v)))
+    }
+}
+
+fn mk_items<'a, V>(keys:  &[u64], values: &[V], selected: usize) -> (Vec<ListItem<'a>>, usize)
+    where
+    V: Adjacent + Copy + fmt::Display
+    {
+    let mut items = Vec::new();
+    let bkeys = &keys[0..selected];
+    let key = keys[selected];
+    let akeys = &keys[(selected + 1)..];
+
+    let bvalues = &values[0..selected];
+    let value = values[selected];
+    let avalues = &values[(selected + 1)..];
+
+    let bruns = mk_runs(bkeys, bvalues);
+    let aruns = mk_runs(akeys, avalues);
+    let i = bruns.len();
+
+    for ((k, v), len) in bruns {
+        items.push(mk_item(k, &v, len));
+    }
+
+    items.push(ListItem::new(Span::raw(format!("{} -> {}", key, value))));
+
+    for ((k, v), len) in aruns {
+        items.push(mk_item(k, &v, len));
+    }
+
+    (items, i)
+}
+
+impl<'a, V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'a, V> {
     type State = ListState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut ListState) {
@@ -291,20 +399,24 @@ impl<'a, V: Unpack + fmt::Display> StatefulWidget for NodeWidget<'a, V> {
         };
         hdr.render(chunks[0], buf);
 
-        let mut items: Vec<ListItem> = Vec::new();
+        let mut items: Vec<ListItem>;
+        let i: usize;
+        let selected = state.selected().unwrap();
+        let mut state = ListState::default();
 
         match self.node {
             btree::Node::Internal { keys, values, .. } => {
-                for (k, v) in keys.iter().zip(values.iter()) {
-                    items.push(ListItem::new(Span::raw(format!("{} -> {}", k, v))));
-                }
+                let (items_, i_) = mk_items(keys, values, selected);
+                items = items_;
+                i = i_;
             }
             btree::Node::Leaf { keys, values, .. } => {
-                for (k, v) in keys.iter().zip(values.iter()) {
-                    items.push(ListItem::new(Span::raw(format!("{} -> {}", k, v))));
-                }
+                let (items_, i_) = mk_items(keys, values, selected);
+                items = items_;
+                i = i_;
             }
         }
+        state.select(Some(i));
 
         let items = List::new(items)
             .block(Block::default().borders(Borders::ALL).title("Entries"))
@@ -314,7 +426,7 @@ impl<'a, V: Unpack + fmt::Display> StatefulWidget for NodeWidget<'a, V> {
                     .add_modifier(Modifier::BOLD),
             );
 
-        StatefulWidget::render(items, chunks[1], buf, state);
+        StatefulWidget::render(items, chunks[1], buf, &mut state);
     }
 }
 

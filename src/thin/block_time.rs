@@ -5,7 +5,7 @@ use crate::pdata::unpack::*;
 
 //------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct BlockTime {
     pub block: u64,
     pub time: u32,
