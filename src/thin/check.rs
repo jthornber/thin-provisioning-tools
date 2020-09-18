@@ -14,34 +14,9 @@ use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::superblock::*;
+use crate::thin::block_time::*;
 
 //------------------------------------------
-
-#[allow(dead_code)]
-struct BlockTime {
-    block: u64,
-    time: u32,
-}
-
-impl Unpack for BlockTime {
-    fn disk_size() -> u32 {
-        8
-    }
-
-    fn unpack(i: &[u8]) -> IResult<&[u8], BlockTime> {
-        let (i, n) = le_u64(i)?;
-        let block = n >> 24;
-        let time = n & ((1 << 24) - 1);
-
-        Ok((
-            i,
-            BlockTime {
-                block,
-                time: time as u32,
-            },
-        ))
-    }
-}
 
 struct BottomLevelVisitor {
     data_sm: ASpaceMap,
@@ -80,7 +55,7 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
 
 //------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct DeviceDetail {
     mapped_blocks: u64,
     transaction_id: u64,

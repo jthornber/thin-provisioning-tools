@@ -634,7 +634,9 @@ fn explore(path: &Path) -> Result<()> {
                         panels.push(Box::new(BottomLevelPanel::new(thin_id, node)));
                     }
                     Some(Action::PopPanel) => {
-                        panels.pop();
+                        if panels.len() > 2 {
+                            panels.pop();
+                        }
                     }
                     _ => {}
                 },

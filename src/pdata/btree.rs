@@ -313,7 +313,7 @@ pub type Result<T> = std::result::Result<T, BTreeError>;
 
 //------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct NodeHeader {
     pub block: u64,
     pub is_leaf: bool,
@@ -824,7 +824,8 @@ impl<V> ValueCollector<V> {
     }
 }
 
-impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
+// FIXME: should we be using Copy rather than clone? (Yes)
+impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
     fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
         let mut vals = self.values.lock().unwrap();
         for n in 0..keys.len() {
@@ -835,7 +836,7 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
     }
 }
 
-pub fn btree_to_map<V: Unpack + Clone>(
+pub fn btree_to_map<V: Unpack + Copy>(
     engine: Arc<dyn IoEngine + Send + Sync>,
     ignore_non_fatal: bool,
     root: u64,
@@ -846,7 +847,7 @@ pub fn btree_to_map<V: Unpack + Clone>(
     Ok(visitor.values.into_inner().unwrap())
 }
 
-pub fn btree_to_map_with_sm<V: Unpack + Clone>(
+pub fn btree_to_map_with_sm<V: Unpack + Copy>(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
@@ -858,5 +859,25 @@ pub fn btree_to_map_with_sm<V: Unpack + Clone>(
     walker.walk(&visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
+
+//------------------------------------------
+
+/*
+struct ValuePathCollector<V> {
+    values: Mutex<BTreeMap<u64, (Vec<u64>, V)>>
+}
+
+impl<V> ValuePathCollector<V> {
+    fn new() -> ValuePathCollector<V> {
+        ValuePathCollector {
+            values: Mutex::new(BTreeMap::new()),
+        }
+    }
+}
+
+impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
+
+}
+*/
 
 //------------------------------------------

@@ -49,7 +49,7 @@ impl Unpack for SMRoot {
 
 //------------------------------------------
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct IndexEntry {
     pub blocknr: u64,
     pub nr_free: u32,
