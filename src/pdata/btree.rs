@@ -176,10 +176,10 @@ fn test_split_range() {
     }
 }
 
-fn split_one(kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
+fn split_one(path: &Vec<u64>, kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
     match kr.split(k) {
         None => {
-            return Err(node_err(&format!(
+            return Err(node_err(path, &format!(
                 "couldn't split key range {} at {}",
                 kr, k
             )));
@@ -188,11 +188,11 @@ fn split_one(kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
     }
 }
 
-fn split_key_ranges_(kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
+fn split_key_ranges_(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     let mut krs = Vec::with_capacity(keys.len());
 
     if keys.len() == 0 {
-        return Err(node_err("split_key_ranges: no keys present"));
+        return Err(node_err(path, "split_key_ranges: no keys present"));
     }
 
     // The first key gives the lower bound
@@ -202,7 +202,7 @@ fn split_key_ranges_(kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     };
 
     for i in 1..keys.len() {
-        let (first, rest) = split_one(&kr, keys[i])?;
+        let (first, rest) = split_one(path, &kr, keys[i])?;
         krs.push(first);
         kr = rest;
     }
@@ -212,9 +212,9 @@ fn split_key_ranges_(kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     Ok(krs)
 }
 
-fn split_key_ranges(kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
+fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     let msg = format!("split: {:?} at {:?}", &kr, &keys);
-    let r = split_key_ranges_(kr, keys);
+    let r = split_key_ranges_(path, kr, keys);
     if r.is_err() {
         eprintln!("{} -> {:?}", msg, &r);
     }
@@ -244,55 +244,36 @@ pub enum BTreeError {
     Aggregate(Vec<BTreeError>),
 
     // #[error("{0:?}, {1}")]
-    Path(u64, Box<BTreeError>),
-}
-
-fn extract_path(e: &BTreeError) -> (Vec<u64>, BTreeError) {
-    let mut path = Vec::new();
-    let mut e = e;
-
-    loop {
-        match e {
-            BTreeError::Path(b, next) => {
-                path.push(*b);
-                e = next.as_ref();
-            }
-            _ => return (path, e.clone()),
-        }
-    }
+    Path(Vec<u64>, Box<BTreeError>),
 }
 
 impl fmt::Display for BTreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (path, e) = extract_path(self);
-        match e {
-            BTreeError::IoError => write!(f, "io error, path{:?}", path),
-            BTreeError::NodeError(msg) => write!(f, "node error: {}, path{:?}", msg, path),
-            BTreeError::ValueError(msg) => write!(f, "value error: {}, path{:?}", msg, path),
-            BTreeError::KeyContext(kr, be) => {
-                write!(f, "{}, effecting keys {}, path{:?}", be, kr, path)
-            }
+        match self {
+            BTreeError::IoError => write!(f, "io error"),
+            BTreeError::NodeError(msg) => write!(f, "node error: {}", msg),
+            BTreeError::ValueError(msg) => write!(f, "value error: {}", msg),
+            BTreeError::KeyContext(kr, be) => write!(f, "{}, effecting keys {}", be, kr),
             BTreeError::Aggregate(errs) => {
                 for e in errs {
                     write!(f, "{}", e)?
                 }
                 Ok(())
             }
-            // Can't happen
-            BTreeError::Path(_, e) => write!(f, "{}", e),
+            BTreeError::Path(path, e) => write!(f, "{} @{:?}", e, path),
         }
     }
 }
-pub fn node_err(msg: &str) -> BTreeError {
-    BTreeError::NodeError(msg.to_string())
+pub fn node_err(path: &Vec<u64>, msg: &str) -> BTreeError {
+    BTreeError::Path(path.clone(), Box::new(BTreeError::NodeError(msg.to_string())))
 }
 
-fn node_err_s(msg: String) -> BTreeError {
-    BTreeError::NodeError(msg)
+fn node_err_s(path: &Vec<u64>, msg: String) -> BTreeError {
+    BTreeError::Path(path.clone(), Box::new(BTreeError::NodeError(msg)))
 }
 
-pub fn io_err() -> BTreeError {
-    BTreeError::IoError
+pub fn io_err(path: &Vec<u64>) -> BTreeError {
+    BTreeError::Path(path.clone(), Box::new(BTreeError::IoError))
 }
 
 pub fn value_err(msg: String) -> BTreeError {
@@ -377,15 +358,16 @@ impl<V: Unpack> Node<V> {
     }
 }
 
-pub fn convert_result<'a, V>(r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
-    r.map_err(|_e| node_err("parse error"))
+pub fn convert_result<'a, V>(path: &Vec<u64>, r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
+    r.map_err(|_e| node_err(path, "parse error"))
 }
 
-pub fn convert_io_err<V>(r: std::io::Result<V>) -> Result<V> {
-    r.map_err(|_| io_err())
+pub fn convert_io_err<V>(path: &Vec<u64>, r: std::io::Result<V>) -> Result<V> {
+    r.map_err(|_| io_err(path))
 }
 
 pub fn unpack_node<V: Unpack>(
+    path: &Vec<u64>,
     data: &[u8],
     ignore_non_fatal: bool,
     is_root: bool,
@@ -393,10 +375,10 @@ pub fn unpack_node<V: Unpack>(
     use nom::multi::count;
 
     let (i, header) =
-        NodeHeader::unpack(data).map_err(|_e| node_err("couldn't parse node header"))?;
+        NodeHeader::unpack(data).map_err(|_e| node_err(path, "couldn't parse node header"))?;
 
     if header.is_leaf && header.value_size != V::disk_size() {
-        return Err(node_err_s(format!(
+        return Err(node_err_s(path, format!(
             "value_size mismatch: expected {}, was {}",
             V::disk_size(),
             header.value_size
@@ -405,25 +387,25 @@ pub fn unpack_node<V: Unpack>(
 
     let elt_size = header.value_size + 8;
     if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
-        return Err(node_err_s(format!(
+        return Err(node_err_s(path, format!(
             "max_entries is too large ({})",
             header.max_entries
         )));
     }
 
     if header.nr_entries > header.max_entries {
-        return Err(node_err("nr_entries > max_entries"));
+        return Err(node_err(path, "nr_entries > max_entries"));
     }
 
     if !ignore_non_fatal {
         if header.max_entries % 3 != 0 {
-            return Err(node_err("max_entries is not divisible by 3"));
+            return Err(node_err(path, "max_entries is not divisible by 3"));
         }
 
         if !is_root {
             let min = header.max_entries / 3;
             if header.nr_entries < min {
-                return Err(node_err_s(format!(
+                return Err(node_err_s(path, format!(
                     "too few entries {}, expected at least {}",
                     header.nr_entries, min
                 )));
@@ -431,13 +413,13 @@ pub fn unpack_node<V: Unpack>(
         }
     }
 
-    let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
+    let (i, keys) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
 
     let mut last = None;
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return Err(node_err("keys out of order"));
+                return Err(node_err(path, "keys out of order"));
             }
         }
 
@@ -445,10 +427,10 @@ pub fn unpack_node<V: Unpack>(
     }
 
     let nr_free = header.max_entries - header.nr_entries;
-    let (i, _padding) = convert_result(count(le_u64, nr_free as usize)(i))?;
+    let (i, _padding) = convert_result(path, count(le_u64, nr_free as usize)(i))?;
 
     if header.is_leaf {
-        let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(path, count(V::unpack, header.nr_entries as usize)(i))?;
 
         Ok(Node::Leaf {
             header,
@@ -456,7 +438,7 @@ pub fn unpack_node<V: Unpack>(
             values,
         })
     } else {
-        let (_i, values) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
         Ok(Node::Internal {
             header,
             keys,
@@ -469,7 +451,7 @@ pub fn unpack_node<V: Unpack>(
 
 pub trait NodeVisitor<V: Unpack> {
     // &self is deliberately non mut to allow the walker to use multiple threads.
-    fn visit(&self, keys: &KeyRange, header: &NodeHeader, keys: &[u64], values: &[V])
+    fn visit(&self, path: &Vec<u64>, keys: &KeyRange, header: &NodeHeader, keys: &[u64], values: &[V])
         -> Result<()>;
 }
 
@@ -549,7 +531,13 @@ impl BTreeWalker {
         }
     }
 
-    fn walk_nodes<NV, V>(&self, visitor: &NV, kr: &[KeyRange], bs: &[u64]) -> Vec<BTreeError>
+    fn walk_nodes<NV, V>(
+        &self,
+        path: &mut Vec<u64>,
+        visitor: &NV,
+        kr: &[KeyRange],
+        bs: &[u64],
+    ) -> Vec<BTreeError>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -579,7 +567,7 @@ impl BTreeWalker {
             Err(_) => {
                 // IO completely failed, error every block
                 for (i, b) in blocks.iter().enumerate() {
-                    let e = io_err().keys_context(&kr[i]);
+                    let e = io_err(path).keys_context(&kr[i]);
                     errs.push(e.clone());
                     self.set_fail(*b, e);
                 }
@@ -589,11 +577,11 @@ impl BTreeWalker {
                 for rb in rblocks {
                     match rb {
                         Err(_) => {
-                            let e = io_err().keys_context(&kr[i]);
+                            let e = io_err(path).keys_context(&kr[i]);
                             errs.push(e.clone());
                             self.set_fail(blocks[i], e);
                         }
-                        Ok(b) => match self.walk_node(visitor, &kr[i], &b, false) {
+                        Ok(b) => match self.walk_node(path, visitor, &kr[i], &b, false) {
                             Err(e) => {
                                 errs.push(e);
                             }
@@ -609,7 +597,14 @@ impl BTreeWalker {
         errs
     }
 
-    fn walk_node_<NV, V>(&self, visitor: &NV, kr: &KeyRange, b: &Block, is_root: bool) -> Result<()>
+    fn walk_node_<NV, V>(
+        &self,
+        path: &mut Vec<u64>,
+        visitor: &NV,
+        kr: &KeyRange,
+        b: &Block,
+        is_root: bool,
+    ) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -619,17 +614,17 @@ impl BTreeWalker {
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
             return Err(
-                node_err_s(format!("checksum failed for node {}, {:?}", b.loc, bt))
+                node_err_s(path, format!("checksum failed for node {}, {:?}", b.loc, bt))
                     .keys_context(kr),
             );
         }
 
-        let node = unpack_node::<V>(&b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node = unpack_node::<V>(path, &b.get_data(), self.ignore_non_fatal, is_root)?;
 
         match node {
             Internal { keys, values, .. } => {
-                let krs = split_key_ranges(&kr, &keys)?;
-                let errs = self.walk_nodes(visitor, &krs, &values);
+                let krs = split_key_ranges(path, &kr, &keys)?;
+                let errs = self.walk_nodes(path, visitor, &krs, &values);
                 return self.build_aggregate(b.loc, errs);
             }
             Leaf {
@@ -637,7 +632,8 @@ impl BTreeWalker {
                 keys,
                 values,
             } => {
-                if let Err(e) = visitor.visit(&kr, &header, &keys, &values) {
+                if let Err(e) = visitor.visit(path, &kr, &header, &keys, &values) {
+                    let e = BTreeError::Path(path.clone(), Box::new(e.clone()));
                     self.set_fail(b.loc, e.clone());
                     return Err(e);
                 }
@@ -647,20 +643,25 @@ impl BTreeWalker {
         Ok(())
     }
 
-    fn walk_node<NV, V>(&self, visitor: &NV, kr: &KeyRange, b: &Block, is_root: bool) -> Result<()>
+    fn walk_node<NV, V>(
+        &self,
+        path: &mut Vec<u64>,
+        visitor: &NV,
+        kr: &KeyRange,
+        b: &Block,
+        is_root: bool,
+    ) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        let r = self.walk_node_(visitor, kr, b, is_root);
-        let r = match r {
-            Err(e) => Err(BTreeError::Path(b.loc, Box::new(e))),
-            Ok(v) => Ok(v),
-        };
+        path.push(b.loc);
+        let r = self.walk_node_(path, visitor, kr, b, is_root);
+        path.pop();
         r
     }
 
-    pub fn walk<NV, V>(&self, visitor: &NV, root: u64) -> Result<()>
+    pub fn walk<NV, V>(&self, path: &mut Vec<u64>, visitor: &NV, root: u64) -> Result<()>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
@@ -672,12 +673,12 @@ impl BTreeWalker {
                 Ok(())
             }
         } else {
-            let root = self.engine.read(root).map_err(|_| io_err())?;
+            let root = self.engine.read(root).map_err(|_| io_err(path))?;
             let kr = KeyRange {
                 start: None,
                 end: None,
             };
-            self.walk_node(visitor, &kr, &root, true)
+            self.walk_node(path, visitor, &kr, &root, true)
         }
     }
 }
@@ -798,6 +799,7 @@ where
 */
 
 pub fn walk_threaded<NV, V>(
+    path: &mut Vec<u64>,
     w: Arc<BTreeWalker>,
     pool: &ThreadPool,
     visitor: Arc<NV>,
@@ -807,7 +809,7 @@ where
     NV: NodeVisitor<V> + Send + Sync + 'static,
     V: Unpack,
 {
-    w.walk(visitor.as_ref(), root)
+    w.walk(path, visitor.as_ref(), root)
 }
 
 //------------------------------------------
@@ -826,7 +828,7 @@ impl<V> ValueCollector<V> {
 
 // FIXME: should we be using Copy rather than clone? (Yes)
 impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
-    fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
+    fn visit(&self, _path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
         let mut vals = self.values.lock().unwrap();
         for n in 0..keys.len() {
             vals.insert(keys[n], values[n].clone());
@@ -837,17 +839,20 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
 }
 
 pub fn btree_to_map<V: Unpack + Copy>(
+    path: &mut Vec<u64>,
     engine: Arc<dyn IoEngine + Send + Sync>,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
     let walker = BTreeWalker::new(engine, ignore_non_fatal);
     let visitor = ValueCollector::<V>::new();
-    walker.walk(&visitor, root)?;
+    let mut path = Vec::new();
+    walker.walk(&mut path, &visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
 
 pub fn btree_to_map_with_sm<V: Unpack + Copy>(
+    path: &mut Vec<u64>,
     engine: Arc<dyn IoEngine + Send + Sync>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
@@ -856,13 +861,12 @@ pub fn btree_to_map_with_sm<V: Unpack + Copy>(
     let walker = BTreeWalker::new_with_sm(engine, sm, ignore_non_fatal)?;
     let visitor = ValueCollector::<V>::new();
 
-    walker.walk(&visitor, root)?;
+    walker.walk(path, &visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
 
 //------------------------------------------
 
-/*
 struct ValuePathCollector<V> {
     values: Mutex<BTreeMap<u64, (Vec<u64>, V)>>
 }
@@ -875,9 +879,29 @@ impl<V> ValuePathCollector<V> {
     }
 }
 
-impl<V: Unpack + Clone> NodeVisitor<V> for ValueCollector<V> {
+impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
+    fn visit(&self, path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[V]) -> Result<()> {
+        let mut vals = self.values.lock().unwrap();
+        for n in 0..keys.len() {
+            vals.insert(keys[n], (path.clone(), values[n].clone()));
+        }
 
+        Ok(())
+    }
 }
-*/
+
+pub fn btree_to_map_with_path<V: Unpack + Copy>(
+    path: &mut Vec<u64>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    ignore_non_fatal: bool,
+    root: u64,
+) -> Result<BTreeMap<u64, (Vec<u64>, V)>> {
+    let walker = BTreeWalker::new_with_sm(engine, sm, ignore_non_fatal)?;
+    let visitor = ValuePathCollector::<V>::new();
+
+    walker.walk(path, &visitor, root)?;
+    Ok(visitor.values.into_inner().unwrap())
+}
 
 //------------------------------------------

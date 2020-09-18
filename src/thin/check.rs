@@ -25,7 +25,7 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> btree::Result<()> {
+    fn visit(&self, _path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> btree::Result<()> {
         // FIXME: do other checks
 
         if values.len() == 0 {
@@ -99,7 +99,7 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&self, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> btree::Result<()> {
+    fn visit(&self, _path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> btree::Result<()> {
         for n in 0..keys.len() {
             let k = keys[n];
             let v = values[n];
@@ -123,6 +123,7 @@ struct BitmapLeak {
 
 // This checks the space map and returns any leak blocks for auto-repair to process.
 fn check_space_map(
+    path: &mut Vec<u64>,
     ctx: &Context,
     kind: &str,
     entries: Vec<IndexEntry>,
@@ -144,7 +145,7 @@ fn check_space_map(
         } else {
             w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.unwrap().clone(), false)?;
         }
-        w.walk(&v, root.ref_count_root)?;
+        w.walk(path, &v, root.ref_count_root)?;
     }
 
     let mut blocks = Vec::with_capacity(entries.len());
@@ -347,7 +348,7 @@ fn check_mapping_bottom_level(
     ctx: &Context,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    roots: &BTreeMap<u64, u64>,
+    roots: &BTreeMap<u64, (Vec<u64>, u64)>,
 ) -> Result<()> {
     ctx.report.set_sub_title("mapping tree");
 
@@ -359,26 +360,28 @@ fn check_mapping_bottom_level(
 
     if roots.len() > 64000 {
         ctx.report.info("spreading load across devices");
-        for (_thin_id, root) in roots {
+        for (_thin_id, (path, root)) in roots {
             let data_sm = data_sm.clone();
             let root = *root;
             let v = BottomLevelVisitor { data_sm };
             let w = w.clone();
+            let mut path = path.clone();
             ctx.pool.execute(move || {
                 // FIXME: propogate errors + share fails.
-                let _r = w.walk(&v, root);
+                let _r = w.walk(&mut path, &v, root);
             });
         }
         ctx.pool.join();
     } else {
         ctx.report.info("spreading load within device");
-        for (_thin_id, root) in roots {
+        for (_thin_id, (path, root)) in roots {
             let w = w.clone();
             let data_sm = data_sm.clone();
             let root = *root;
             let v = Arc::new(BottomLevelVisitor { data_sm });
+            let mut path = path.clone();
             // FIXME: propogate errors + share fails.
-            walk_threaded(w, &ctx.pool, v, root)?
+            walk_threaded(&mut path, w, &ctx.pool, v, root)?
         }
     }
 
@@ -433,17 +436,20 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let mut path = Vec::new();
+    path.push(0);
 
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
     // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(engine.clone(), false, sb.details_root)?;
+    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
     inc_superblock(&metadata_sm)?;
 
     report.set_sub_title("device details tree");
     let _devs = btree_to_map_with_sm::<DeviceDetail>(
+        &mut path,
         engine.clone(),
         metadata_sm.clone(),
         false,
@@ -459,7 +465,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // mapping top level
     report.set_sub_title("mapping tree");
     let roots =
-        btree_to_map_with_sm::<u64>(engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
+        btree_to_map_with_path::<u64>(&mut path, engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
 
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -472,6 +478,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
 
     let entries = btree_to_map_with_sm::<IndexEntry>(
+        &mut path,
         engine.clone(),
         metadata_sm.clone(),
         false,
@@ -481,6 +488,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     inc_entries(&metadata_sm, &entries[0..])?;
 
     let data_leaks = check_space_map(
+        &mut path,
         &ctx,
         "data",
         entries,
@@ -507,6 +515,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // We call this for the side effect of incrementing the ref counts
     // for the metadata that holds the tree.
     let _counts = btree_to_map_with_sm::<u32>(
+        &mut path,
         engine.clone(),
         metadata_sm.clone(),
         false,
@@ -515,7 +524,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // Now the counts should be correct and we can check it.
     let metadata_leaks =
-        check_space_map(&ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+        check_space_map(&mut path, &ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
     bail_out(&ctx, "metadata space map")?;
 
     if opts.auto_repair {

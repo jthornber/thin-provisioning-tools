@@ -265,7 +265,8 @@ fn read_node_header(engine: &dyn IoEngine, loc: u64) -> Result<btree::NodeHeader
 
 fn read_node<V: Unpack>(engine: &dyn IoEngine, loc: u64) -> Result<btree::Node<V>> {
     let b = engine.read(loc)?;
-    btree::unpack_node(&b.get_data(), true, false)
+    let path = Vec::new();
+    btree::unpack_node(&path, &b.get_data(), true, false)
         .map_err(|_| anyhow!("couldn't unpack btree node"))
 }
 
