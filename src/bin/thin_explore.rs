@@ -3,7 +3,7 @@ extern crate clap;
 use anyhow::{anyhow, Result};
 use clap::{App, Arg};
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::Path;
 use std::sync::mpsc;
 use std::sync::{
@@ -13,19 +13,17 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use termion::clear;
-use termion::color;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 use tui::{
-    backend::{Backend, TermionBackend},
+    backend::{TermionBackend},
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     terminal::Frame,
-    text::{Span, Spans},
+    text::{Span},
     widgets::{Block, Borders, List, ListItem, ListState, Row, StatefulWidget, Table, Widget},
     Terminal,
 };
@@ -47,7 +45,6 @@ pub struct Events {
     rx: mpsc::Receiver<Event<Key>>,
     input_handle: thread::JoinHandle<()>,
     ignore_exit_key: Arc<AtomicBool>,
-    tick_handle: thread::JoinHandle<()>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -92,20 +89,10 @@ impl Events {
             })
         };
 
-        let tick_handle = {
-            thread::spawn(move || loop {
-                if tx.send(Event::Tick).is_err() {
-                    break;
-                }
-                thread::sleep(config.tick_rate);
-            })
-        };
-
         Events {
             rx,
             ignore_exit_key,
             input_handle,
-            tick_handle,
         }
     }
 
@@ -138,7 +125,7 @@ fn ls_next(ls: &mut ListState, max: usize) {
     ls.select(Some(i));
 }
 
-fn ls_previous(ls: &mut ListState, max: usize) {
+fn ls_previous(ls: &mut ListState) {
     let i = match ls.selected() {
         Some(i) => {
             if i == 0 {
@@ -185,7 +172,6 @@ impl Widget for SBWidget {
             format!("{}k", sb.data_block_size * 2),
         ];
 
-        let row_style = Style::default().fg(Color::White);
         let table = Table::new(
             ["Field", "Value"].iter(),
             vec![
@@ -226,6 +212,7 @@ struct HeaderWidget<'a> {
 impl<'a> Widget for HeaderWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let hdr = &self.hdr;
+        let block = ["block".to_string(), format!("{}", hdr.block)];
         let kind = [
             "type".to_string(),
             match hdr.is_leaf {
@@ -237,10 +224,10 @@ impl<'a> Widget for HeaderWidget<'a> {
         let max_entries = ["max_entries".to_string(), format!("{}", hdr.max_entries)];
         let value_size = ["value size".to_string(), format!("{}", hdr.value_size)];
 
-        let row_style = Style::default().fg(Color::White);
         let table = Table::new(
             ["Field", "Value"].iter(),
             vec![
+                Row::Data(block.iter()),
                 Row::Data(kind.iter()),
                 Row::Data(nr_entries.iter()),
                 Row::Data(max_entries.iter()),
@@ -258,10 +245,12 @@ impl<'a> Widget for HeaderWidget<'a> {
     }
 }
 
+/*
 fn read_node_header(engine: &dyn IoEngine, loc: u64) -> Result<btree::NodeHeader> {
     let b = engine.read(loc)?;
     unpack(&b.get_data()).map_err(|_| anyhow!("couldn't unpack btree header"))
 }
+*/
 
 fn read_node<V: Unpack>(engine: &dyn IoEngine, loc: u64) -> Result<btree::Node<V>> {
     let b = engine.read(loc)?;
@@ -346,19 +335,16 @@ struct NodeWidget<'a, V: Unpack + Adjacent + Clone> {
 
 fn mk_item<'a, V: fmt::Display>(k: u64, v: &V, len: usize) -> ListItem<'a> {
     if len > 1 {
-        ListItem::new(Span::raw(format!(
-            "[{}..{}] -> {}",
-            k, k + len as u64, v
-        )))
+        ListItem::new(Span::raw(format!("{} x {} -> {}", k, len as u64, v)))
     } else {
         ListItem::new(Span::raw(format!("{} -> {}", k, v)))
     }
 }
 
-fn mk_items<'a, V>(keys:  &[u64], values: &[V], selected: usize) -> (Vec<ListItem<'a>>, usize)
-    where
-    V: Adjacent + Copy + fmt::Display
-    {
+fn mk_items<'a, V>(keys: &[u64], values: &[V], selected: usize) -> (Vec<ListItem<'a>>, usize)
+where
+    V: Adjacent + Copy + fmt::Display,
+{
     let mut items = Vec::new();
     let bkeys = &keys[0..selected];
     let key = keys[selected];
@@ -400,7 +386,7 @@ impl<'a, V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidg
         };
         hdr.render(chunks[0], buf);
 
-        let mut items: Vec<ListItem>;
+        let items: Vec<ListItem>;
         let i: usize;
         let selected = state.selected().unwrap();
         let mut state = ListState::default();
@@ -439,11 +425,14 @@ enum Action {
     PopPanel,
 }
 
+use Action::*;
+
 type Frame_<'a, 'b> = Frame<'a, TermionBackend<termion::raw::RawTerminal<std::io::StdoutLock<'b>>>>;
 
 trait Panel {
     fn render(&mut self, area: Rect, f: &mut Frame_);
     fn input(&mut self, k: Key) -> Option<Action>;
+    fn path_action(&mut self, child: u64) -> Option<Action>;
 }
 
 struct SBPanel {
@@ -459,8 +448,16 @@ impl Panel for SBPanel {
         f.render_widget(w, area);
     }
 
-    fn input(&mut self, k: Key) -> Option<Action> {
+    fn input(&mut self, _k: Key) -> Option<Action> {
         None
+    }
+
+    fn path_action(&mut self, child: u64) -> Option<Action> {
+        if child == self.sb.mapping_root {
+            Some(PushTopLevel(child))
+        } else {
+            None
+        }
     }
 }
 
@@ -501,21 +498,46 @@ impl Panel for TopLevelPanel {
                 None
             }
             Key::Char('k') | Key::Up => {
-                ls_previous(&mut self.state, self.nr_entries);
+                ls_previous(&mut self.state);
                 None
             }
             Key::Char('l') | Key::Right => match &self.node {
                 btree::Node::Internal { values, .. } => {
-                    Some(Action::PushTopLevel(values[self.state.selected().unwrap()]))
+                    Some(PushTopLevel(values[self.state.selected().unwrap()]))
                 }
                 btree::Node::Leaf { values, keys, .. } => {
                     let index = self.state.selected().unwrap();
 
-                    Some(Action::PushBottomLevel(keys[index] as u32, values[index]))
+                    Some(PushBottomLevel(keys[index] as u32, values[index]))
                 }
             },
-            Key::Char('h') | Key::Left => Some(Action::PopPanel),
+            Key::Char('h') | Key::Left => Some(PopPanel),
             _ => None,
+        }
+    }
+
+    fn path_action(&mut self, child: u64) -> Option<Action> {
+        match &self.node {
+            btree::Node::Internal { values, .. } => {
+                for i in 0..values.len() {
+                    if values[i] == child {
+                        self.state.select(Some(i));
+                        return Some(PushTopLevel(child));
+                    }
+                }
+
+                return None;
+            }
+            btree::Node::Leaf { keys, values, .. } => {
+                for i in 0..values.len() {
+                    if values[i] == child {
+                        self.state.select(Some(i));
+                        return Some(PushBottomLevel(keys[i] as u32, child));
+                    }
+                }
+
+                return None;
+            }
         }
     }
 }
@@ -559,43 +581,95 @@ impl Panel for BottomLevelPanel {
                 None
             }
             Key::Char('k') | Key::Up => {
-                ls_previous(&mut self.state, self.nr_entries);
+                ls_previous(&mut self.state);
                 None
             }
             Key::Char('l') | Key::Right => match &self.node {
-                btree::Node::Internal { values, .. } => Some(Action::PushBottomLevel(
+                btree::Node::Internal { values, .. } => Some(PushBottomLevel(
                     self.thin_id,
                     values[self.state.selected().unwrap()],
                 )),
                 _ => None,
             },
 
-            Key::Char('h') | Key::Left => Some(Action::PopPanel),
+            Key::Char('h') | Key::Left => Some(PopPanel),
             _ => None,
+        }
+    }
+
+    fn path_action(&mut self, child: u64) -> Option<Action> {
+        match &self.node {
+            btree::Node::Internal { values, .. } => {
+                for i in 0..values.len() {
+                    if values[i] == child {
+                        self.state.select(Some(i));
+                        return Some(PushBottomLevel(self.thin_id, child));
+                    }
+                }
+                
+                return None;
+            }
+            btree::Node::Leaf { .. } => None,
         }
     }
 }
 
 //------------------------------------
 
-fn explore(path: &Path) -> Result<()> {
+fn perform_action(
+    panels: &mut Vec<Box<dyn Panel>>,
+    engine: &dyn IoEngine,
+    action: Action,
+) -> Result<()> {
+    match action {
+        PushTopLevel(b) => {
+            let node = read_node::<u64>(engine, b)?;
+            panels.push(Box::new(TopLevelPanel::new(node)));
+        }
+        PushBottomLevel(thin_id, b) => {
+            let node = read_node::<BlockTime>(engine, b)?;
+            panels.push(Box::new(BottomLevelPanel::new(thin_id, node)));
+        }
+        PopPanel => {
+            if panels.len() > 2 {
+                panels.pop();
+            }
+        }
+    };
+    Ok(())
+}
+
+fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock().into_raw_mode()?;
-    write!(stdout, "{}", termion::clear::All);
+    write!(stdout, "{}", termion::clear::All)?;
 
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let path = std::path::Path::new("bz1763895/meta.bin");
     let engine = SyncIoEngine::new(&path, 1, false)?;
 
     let mut panels: Vec<Box<dyn Panel>> = Vec::new();
 
-    let sb = read_superblock(&engine, 0)?;
-    panels.push(Box::new(SBPanel { sb: sb.clone() }));
+    if let Some(path) = node_path {
+        assert_eq!(path[0], 0);
+        let sb = read_superblock(&engine, path[0])?;
+        panels.push(Box::new(SBPanel { sb }));
+        for b in &path[1..] {
+            let action = panels.last_mut().unwrap().path_action(*b);
+            if let Some(action) = action {
+                perform_action(&mut panels, &engine, action)?;
+            } else {
+                return Err(anyhow!("bad node path: couldn't find child node {}", b));
+            }
+        }
+    } else {
+        let sb = read_superblock(&engine, 0)?;
+        panels.push(Box::new(SBPanel { sb: sb.clone() }));
 
-    let node = read_node::<u64>(&engine, sb.mapping_root)?;
-    panels.push(Box::new(TopLevelPanel::new(node)));
+        let node = read_node::<u64>(&engine, sb.mapping_root)?;
+        panels.push(Box::new(TopLevelPanel::new(node)));
+    }
 
     let events = Events::new();
 
@@ -626,24 +700,16 @@ fn explore(path: &Path) -> Result<()> {
             match key {
                 Key::Char('q') => break 'main,
                 _ => match active_panel.input(key) {
-                    Some(Action::PushTopLevel(b)) => {
-                        let node = read_node::<u64>(&engine, b)?;
-                        panels.push(Box::new(TopLevelPanel::new(node)));
-                    }
-                    Some(Action::PushBottomLevel(thin_id, b)) => {
-                        let node = read_node::<BlockTime>(&engine, b)?;
-                        panels.push(Box::new(BottomLevelPanel::new(thin_id, node)));
-                    }
-                    Some(Action::PopPanel) => {
-                        if panels.len() > 2 {
-                            panels.pop();
-                        }
+                    Some(action) => {
+                        perform_action(&mut panels, &engine, action)?;
                     }
                     _ => {}
                 },
             }
         }
     }
+
+    events.input_handle.join().unwrap();
 
     Ok(())
 }
@@ -655,6 +721,13 @@ fn main() -> Result<()> {
         .version(thinp::version::TOOLS_VERSION)
         .about("A text user interface for examining thin metadata.")
         .arg(
+            Arg::with_name("NODE_PATH")
+                .help("Pass in a node path as output by thin_check")
+                .short("p")
+                .long("node-path")
+                .value_name("NODE_PATH"),
+        )
+        .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")
                 .required(true)
@@ -662,9 +735,12 @@ fn main() -> Result<()> {
         );
 
     let matches = parser.get_matches();
+    let node_path = matches
+        .value_of("NODE_PATH")
+        .map(|text| btree::decode_node_path(text).unwrap());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    explore(&input_file)
+    explore(&input_file, node_path)
 }
 
 //------------------------------------

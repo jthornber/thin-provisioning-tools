@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::{io, io::Write};
+use thiserror::Error;
 
 use nom::{bytes::complete::*, number::complete::*, IResult};
 
@@ -23,7 +23,7 @@ fn nom_to_pr<T>(r: IResult<&[u8], T>) -> PResult<(&[u8], T)> {
 }
 
 fn io_to_pr<T>(r: io::Result<T>) -> PResult<T> {
-    r.map_err(|source| PackError::WriteError {source})
+    r.map_err(|source| PackError::WriteError { source })
 }
 
 //-------------------------------------------
@@ -36,7 +36,7 @@ fn run64(i: &[u8], count: usize) -> IResult<&[u8], Vec<u64>> {
 struct NodeSummary {
     is_leaf: bool,
     max_entries: usize,
-    value_size: usize
+    value_size: usize,
 }
 
 fn summarise_node(data: &[u8]) -> IResult<&[u8], NodeSummary> {
@@ -47,11 +47,14 @@ fn summarise_node(data: &[u8]) -> IResult<&[u8], NodeSummary> {
     let (i, max_entries) = le_u32(i)?;
     let (i, value_size) = le_u32(i)?;
     let (i, _padding) = le_u32(i)?;
-    Ok((i, NodeSummary {
-        is_leaf: flags == 2,
-        max_entries: max_entries as usize,
-        value_size: value_size as usize,
-    }))
+    Ok((
+        i,
+        NodeSummary {
+            is_leaf: flags == 2,
+            max_entries: max_entries as usize,
+            value_size: value_size as usize,
+        },
+    ))
 }
 
 pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {

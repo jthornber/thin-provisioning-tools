@@ -1,14 +1,18 @@
+use anyhow::{anyhow};
+use byteorder::{ReadBytesExt, WriteBytesExt};
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use threadpool::ThreadPool;
+use data_encoding::BASE64;
 
 use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
+use crate::pack::vm;
 
 // FIXME: check that keys are in ascending order between nodes.
 
@@ -188,7 +192,7 @@ fn split_one(path: &Vec<u64>, kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRan
     }
 }
 
-fn split_key_ranges_(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
+fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     let mut krs = Vec::with_capacity(keys.len());
 
     if keys.len() == 0 {
@@ -212,14 +216,84 @@ fn split_key_ranges_(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec
     Ok(krs)
 }
 
-fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
-    let msg = format!("split: {:?} at {:?}", &kr, &keys);
-    let r = split_key_ranges_(path, kr, keys);
-    if r.is_err() {
-        eprintln!("{} -> {:?}", msg, &r);
-    }
+//------------------------------------------
 
-    r
+pub fn encode_node_path(path: &[u64]) -> String {
+    let mut buffer: Vec<u8> = Vec::with_capacity(128);
+    let mut cursor = std::io::Cursor::new(&mut buffer);
+    assert!(path.len() < 256);
+    
+    // The first entry is normally the superblock (0), so we
+    // special case this.
+    if path[0] == 0 {
+        let count = ((path.len() as u8) - 1) << 1;
+        cursor.write_u8(count as u8).unwrap();
+        vm::pack_u64s(&mut cursor, &path[1..]).unwrap();
+    } else {
+        let count = ((path.len() as u8) << 1) | 1;
+        cursor.write_u8(count as u8).unwrap();
+        vm::pack_u64s(&mut cursor, path).unwrap();
+    }
+    
+    BASE64.encode(&buffer)
+}
+
+pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
+    let mut buffer = vec![0; 128];
+    let bytes = &mut buffer[0..BASE64.decode_len(text.len()).unwrap()];
+    let len = BASE64.decode_mut(text.as_bytes(), &mut bytes[0..]).map_err(|_| anyhow!("bad node path.  Unable to base64 decode."))?;
+    
+    let mut input = std::io::Cursor::new(bytes);
+    
+    let mut count = input.read_u8()?;
+    let mut prepend_zero = false;
+    if (count & 0x1) == 0 {
+        // Implicit 0 as first entry
+        prepend_zero = true;
+    }
+    count >>= 1;
+
+    let count = count as usize;
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+    
+    let mut output = Vec::with_capacity(count * 8);
+    let mut cursor = std::io::Cursor::new(&mut output);
+
+    let mut vm = vm::VM::new();
+    let written = vm.exec(&mut input, &mut cursor, count * 8)?;
+    assert_eq!(written, count * 8);
+
+    let mut cursor = std::io::Cursor::new(&mut output);
+    let mut path = vm::unpack_u64s(&mut cursor, count)?;
+
+    if prepend_zero {
+        let mut full_path = vec![0u64];
+        full_path.append(&mut path);
+        Ok(full_path)
+    } else {
+        Ok(path)
+    }
+}
+
+#[test]
+fn test_encode_path() {
+    struct Test(Vec<u64>);
+
+    let tests = vec![
+        Test(vec![]),
+        Test(vec![1]),
+        Test(vec![1, 2]),
+        Test(vec![1, 2, 3, 4]),
+    ];
+
+    for t in tests {
+        let encoded = encode_node_path(&t.0[0..]);
+        eprintln!("encoded = '{}'", &encoded);
+        let decoded = decode_node_path(&encoded).unwrap();
+        assert_eq!(decoded, &t.0[0..]);
+    }
 }
 
 //------------------------------------------
@@ -260,7 +334,7 @@ impl fmt::Display for BTreeError {
                 }
                 Ok(())
             }
-            BTreeError::Path(path, e) => write!(f, "{} @{:?}", e, path),
+            BTreeError::Path(path, e) => write!(f, "{} {}", e, encode_node_path(path)),
         }
     }
 }

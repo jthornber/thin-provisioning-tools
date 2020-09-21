@@ -56,11 +56,11 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
 //------------------------------------------
 
 #[derive(Clone, Copy)]
-struct DeviceDetail {
-    mapped_blocks: u64,
-    transaction_id: u64,
-    creation_time: u32,
-    snapshotted_time: u32,
+pub struct DeviceDetail {
+    pub mapped_blocks: u64,
+    pub transaction_id: u64,
+    pub creation_time: u32,
+    pub snapshotted_time: u32,
 }
 
 impl Unpack for DeviceDetail {
@@ -543,7 +543,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         let mut stop_progress = stop_progress.lock().unwrap();
         *stop_progress = true;
     }
-    tid.join();
+    tid.join().unwrap();
 
     Ok(())
 }
