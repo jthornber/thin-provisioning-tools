@@ -14,8 +14,6 @@ use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::pack::vm;
 
-// FIXME: check that keys are in ascending order between nodes.
-
 //------------------------------------------
 
 #[derive(Clone, Debug, PartialEq)]
@@ -218,6 +216,8 @@ fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<
 
 //------------------------------------------
 
+// We compress and base64 encode paths to make them easy to
+// cut and paste between programs (eg, thin_explore -p <path>)
 pub fn encode_node_path(path: &[u64]) -> String {
     let mut buffer: Vec<u8> = Vec::with_capacity(128);
     let mut cursor = std::io::Cursor::new(&mut buffer);
@@ -225,7 +225,7 @@ pub fn encode_node_path(path: &[u64]) -> String {
     
     // The first entry is normally the superblock (0), so we
     // special case this.
-    if path[0] == 0 {
+    if path.len() > 0 && path[0] == 0 {
         let count = ((path.len() as u8) - 1) << 1;
         cursor.write_u8(count as u8).unwrap();
         vm::pack_u64s(&mut cursor, &path[1..]).unwrap();
@@ -241,7 +241,7 @@ pub fn encode_node_path(path: &[u64]) -> String {
 pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
     let mut buffer = vec![0; 128];
     let bytes = &mut buffer[0..BASE64.decode_len(text.len()).unwrap()];
-    let len = BASE64.decode_mut(text.as_bytes(), &mut bytes[0..]).map_err(|_| anyhow!("bad node path.  Unable to base64 decode."))?;
+    BASE64.decode_mut(text.as_bytes(), &mut bytes[0..]).map_err(|_| anyhow!("bad node path.  Unable to base64 decode."))?;
     
     let mut input = std::io::Cursor::new(bytes);
     
@@ -254,19 +254,20 @@ pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
     count >>= 1;
 
     let count = count as usize;
+    let mut path;
     if count == 0 {
-        return Ok(Vec::new());
+        path = vec![];
+    } else {
+        let mut output = Vec::with_capacity(count * 8);
+        let mut cursor = std::io::Cursor::new(&mut output);
+
+        let mut vm = vm::VM::new();
+        let written = vm.exec(&mut input, &mut cursor, count * 8)?;
+        assert_eq!(written, count * 8);
+
+        let mut cursor = std::io::Cursor::new(&mut output);
+        path = vm::unpack_u64s(&mut cursor, count)?;
     }
-    
-    let mut output = Vec::with_capacity(count * 8);
-    let mut cursor = std::io::Cursor::new(&mut output);
-
-    let mut vm = vm::VM::new();
-    let written = vm.exec(&mut input, &mut cursor, count * 8)?;
-    assert_eq!(written, count * 8);
-
-    let mut cursor = std::io::Cursor::new(&mut output);
-    let mut path = vm::unpack_u64s(&mut cursor, count)?;
 
     if prepend_zero {
         let mut full_path = vec![0u64];
@@ -286,11 +287,15 @@ fn test_encode_path() {
         Test(vec![1]),
         Test(vec![1, 2]),
         Test(vec![1, 2, 3, 4]),
+        Test(vec![0]),
+        Test(vec![0, 0]),
+        Test(vec![0, 1]),
+        Test(vec![0, 1, 2]),
+        Test(vec![0, 123, 201231, 3102983012]),
     ];
 
     for t in tests {
         let encoded = encode_node_path(&t.0[0..]);
-        eprintln!("encoded = '{}'", &encoded);
         let decoded = decode_node_path(&encoded).unwrap();
         assert_eq!(decoded, &t.0[0..]);
     }
@@ -609,23 +614,26 @@ impl BTreeWalker {
         &self,
         path: &mut Vec<u64>,
         visitor: &NV,
-        kr: &[KeyRange],
+        krs: &[KeyRange],
         bs: &[u64],
     ) -> Vec<BTreeError>
     where
         NV: NodeVisitor<V>,
         V: Unpack,
     {
+        assert_eq!(krs.len(), bs.len());
         let mut errs: Vec<BTreeError> = Vec::new();
 
         let mut blocks = Vec::with_capacity(bs.len());
-        for b in bs {
-            if self.sm_inc(*b) == 0 {
+        let mut filtered_krs = Vec::with_capacity(bs.len());
+        for i in 0..bs.len() {
+            if self.sm_inc(bs[i]) == 0 {
                 // Node not yet seen
-                blocks.push(*b);
+                blocks.push(bs[i]);
+                filtered_krs.push(krs[i].clone());
             } else {
                 // This node has already been checked ...
-                match self.failed(*b) {
+                match self.failed(bs[i]) {
                     None => {
                         // ... it was clean so we can ignore.
                     }
@@ -641,7 +649,7 @@ impl BTreeWalker {
             Err(_) => {
                 // IO completely failed, error every block
                 for (i, b) in blocks.iter().enumerate() {
-                    let e = io_err(path).keys_context(&kr[i]);
+                    let e = io_err(path).keys_context(&filtered_krs[i]);
                     errs.push(e.clone());
                     self.set_fail(*b, e);
                 }
@@ -651,11 +659,11 @@ impl BTreeWalker {
                 for rb in rblocks {
                     match rb {
                         Err(_) => {
-                            let e = io_err(path).keys_context(&kr[i]);
+                            let e = io_err(path).keys_context(&filtered_krs[i]);
                             errs.push(e.clone());
                             self.set_fail(blocks[i], e);
                         }
-                        Ok(b) => match self.walk_node(path, visitor, &kr[i], &b, false) {
+                        Ok(b) => match self.walk_node(path, visitor, &filtered_krs[i], &b, false) {
                             Err(e) => {
                                 errs.push(e);
                             }
@@ -875,7 +883,7 @@ where
 pub fn walk_threaded<NV, V>(
     path: &mut Vec<u64>,
     w: Arc<BTreeWalker>,
-    pool: &ThreadPool,
+    _pool: &ThreadPool,
     visitor: Arc<NV>,
     root: u64,
 ) -> Result<()>
@@ -913,7 +921,7 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
 }
 
 pub fn btree_to_map<V: Unpack + Copy>(
-    path: &mut Vec<u64>,
+    _path: &mut Vec<u64>,
     engine: Arc<dyn IoEngine + Send + Sync>,
     ignore_non_fatal: bool,
     root: u64,
