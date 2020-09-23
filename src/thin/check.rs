@@ -13,8 +13,8 @@ use crate::pdata::btree::{self, *};
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
-use crate::thin::superblock::*;
 use crate::thin::block_time::*;
+use crate::thin::superblock::*;
 
 //------------------------------------------
 
@@ -25,7 +25,14 @@ struct BottomLevelVisitor {
 //------------------------------------------
 
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(&self, _path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, _k: &[u64], values: &[BlockTime]) -> btree::Result<()> {
+    fn visit(
+        &self,
+        _path: &Vec<u64>,
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        _k: &[u64],
+        values: &[BlockTime],
+    ) -> btree::Result<()> {
         // FIXME: do other checks
 
         if values.len() == 0 {
@@ -99,7 +106,14 @@ impl<'a> OverflowChecker<'a> {
 }
 
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
-    fn visit(&self, _path: &Vec<u64>, _kr: &KeyRange, _h: &NodeHeader, keys: &[u64], values: &[u32]) -> btree::Result<()> {
+    fn visit(
+        &self,
+        _path: &Vec<u64>,
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        keys: &[u64],
+        values: &[u32],
+    ) -> btree::Result<()> {
         for n in 0..keys.len() {
             let k = keys[n];
             let v = values[n];
@@ -164,7 +178,7 @@ fn check_space_map(
         match b {
             Err(_e) => {
                 todo!();
-            },
+            }
             Ok(b) => {
                 if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
                     report.fatal(&format!(
@@ -358,20 +372,34 @@ fn check_mapping_bottom_level(
         false,
     )?);
 
-    if roots.len() > 64000 {
+    // We want to print out errors as we progress, so we aggregate for each thin and print
+    // at that point.
+    let mut failed = false;
+
+    if roots.len() > 64 {
         ctx.report.info("spreading load across devices");
+        let errs = Arc::new(Mutex::new(Vec::new()));
         for (_thin_id, (path, root)) in roots {
             let data_sm = data_sm.clone();
             let root = *root;
             let v = BottomLevelVisitor { data_sm };
             let w = w.clone();
             let mut path = path.clone();
+            let errs = errs.clone();
+
             ctx.pool.execute(move || {
-                // FIXME: propogate errors + share fails.
-                let _r = w.walk(&mut path, &v, root);
+                if let Err(e) = w.walk(&mut path, &v, root) {
+                    let mut errs = errs.lock().unwrap();
+                    errs.push(e);
+                }
             });
         }
         ctx.pool.join();
+        let errs = Arc::try_unwrap(errs).unwrap().into_inner().unwrap();
+        if errs.len() > 0 {
+            eprintln!("{}", aggregate_error(errs));
+            failed = true;
+        }
     } else {
         ctx.report.info("spreading load within device");
         for (_thin_id, (path, root)) in roots {
@@ -380,12 +408,19 @@ fn check_mapping_bottom_level(
             let root = *root;
             let v = Arc::new(BottomLevelVisitor { data_sm });
             let mut path = path.clone();
-            // FIXME: propogate errors + share fails.
-            walk_threaded(&mut path, w, &ctx.pool, v, root)?
+
+            if let Err(e) = walk_threaded(&mut path, w, &ctx.pool, v, root) {
+                failed = true;
+                eprintln!("{}", e);
+            }
         }
     }
 
-    Ok(())
+    if failed {
+        Err(anyhow!("Check of mappings failed"))
+    } else {
+        Ok(())
+    }
 }
 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
@@ -464,15 +499,19 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // mapping top level
     report.set_sub_title("mapping tree");
-    let roots =
-        btree_to_map_with_path::<u64>(&mut path, engine.clone(), metadata_sm.clone(), false, sb.mapping_root)?;
+    let roots = btree_to_map_with_path::<u64>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.mapping_root,
+    )?;
 
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
     bail_out(&ctx, "mapping tree")?;
-    eprintln!("checked mapping");
 
     report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -523,8 +562,15 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // Now the counts should be correct and we can check it.
-    let metadata_leaks =
-        check_space_map(&mut path, &ctx, "metadata", entries, None, metadata_sm.clone(), root)?;
+    let metadata_leaks = check_space_map(
+        &mut path,
+        &ctx,
+        "metadata",
+        entries,
+        None,
+        metadata_sm.clone(),
+        root,
+    )?;
     bail_out(&ctx, "metadata space map")?;
 
     if opts.auto_repair {
