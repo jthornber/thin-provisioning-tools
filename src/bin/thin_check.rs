@@ -26,8 +26,15 @@ fn main() {
                 .help("Only check the superblock.")
                 .long("super-block-only")
                 .value_name("SB_ONLY"),
-       )        .arg(
-        Arg::with_name("AUTO_REPAIR")
+        )
+        .arg(
+            Arg::with_name("SKIP_MAPPINGS")
+                .help("Don't check the mapping tree")
+                .long("skip-mappings")
+                .value_name("SKIP_MAPPINGS"),
+        )
+        .arg(
+            Arg::with_name("AUTO_REPAIR")
                 .help("Auto repair trivial issues.")
                 .long("auto-repair"),
         )
@@ -88,6 +95,8 @@ fn main() {
     let opts = ThinCheckOptions {
         dev: &input_file,
         async_io: !matches.is_present("SYNC_IO"),
+        sb_only: matches.is_present("SB_ONLY"),
+        skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         auto_repair: matches.is_present("AUTO_REPAIR"),
         report,

@@ -177,7 +177,7 @@ fn check_space_map(
         let b = &blocks[n];
         match b {
             Err(_e) => {
-                todo!();
+                return Err(anyhow!("Unable to read bitmap block"));
             }
             Ok(b) => {
                 if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
@@ -252,7 +252,7 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
     let mut i = 0;
     for rb in rblocks {
         if rb.is_err() {
-            todo!();
+            return Err(anyhow!("Unable to reread bitmap blocks for repair"));
         } else {
             let b = rb.unwrap();
             let be = &entries[i];
@@ -310,6 +310,8 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 pub struct ThinCheckOptions<'a> {
     pub dev: &'a Path,
     pub async_io: bool,
+    pub sb_only: bool,
+    pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
     pub report: Arc<Report>,
@@ -377,7 +379,6 @@ fn check_mapping_bottom_level(
     let mut failed = false;
 
     if roots.len() > 64 {
-        ctx.report.info("spreading load across devices");
         let errs = Arc::new(Mutex::new(Vec::new()));
         for (_thin_id, (path, root)) in roots {
             let data_sm = data_sm.clone();
@@ -397,11 +398,10 @@ fn check_mapping_bottom_level(
         ctx.pool.join();
         let errs = Arc::try_unwrap(errs).unwrap().into_inner().unwrap();
         if errs.len() > 0 {
-            eprintln!("{}", aggregate_error(errs));
+            ctx.report.fatal(&format!("{}", aggregate_error(errs)));
             failed = true;
         }
     } else {
-        ctx.report.info("spreading load within device");
         for (_thin_id, (path, root)) in roots {
             let w = w.clone();
             let data_sm = data_sm.clone();
@@ -411,7 +411,7 @@ fn check_mapping_bottom_level(
 
             if let Err(e) = walk_threaded(&mut path, w, &ctx.pool, v, root) {
                 failed = true;
-                eprintln!("{}", e);
+                ctx.report.fatal(&format!("{}", e));
             }
         }
     }
@@ -470,6 +470,13 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+
+    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
+
+    if opts.sb_only {
+        return Ok(());
+    }
+
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut path = Vec::new();
     path.push(0);
@@ -507,6 +514,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.mapping_root,
     )?;
 
+    if opts.skip_mappings {
+        return Ok(());
+    }
+
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
@@ -539,6 +550,11 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    report.info(&format!(
+        "METADATA_FREE_BLOCKS={}",
+        root.nr_blocks - root.nr_allocated
+    ));
+
     let b = engine.read(root.bitmap_root)?;
     metadata_sm.lock().unwrap().inc(root.bitmap_root, 1)?;
     let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;

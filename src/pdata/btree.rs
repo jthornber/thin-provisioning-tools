@@ -961,22 +961,6 @@ where
     }
 }
 
-/*
-pub fn walk_threaded<NV, V>(
-    path: &mut Vec<u64>,
-    w: Arc<BTreeWalker>,
-    _pool: &ThreadPool,
-    visitor: Arc<NV>,
-    root: u64,
-) -> Result<()>
-where
-    NV: NodeVisitor<V> + Send + Sync + 'static,
-    V: Unpack,
-{
-    w.walk(path, visitor.as_ref(), root)
-}
-*/
-
 //------------------------------------------
 
 struct ValueCollector<V> {
