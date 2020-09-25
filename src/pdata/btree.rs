@@ -549,6 +549,8 @@ pub trait NodeVisitor<V: Unpack> {
         keys: &[u64],
         values: &[V],
     ) -> Result<()>;
+
+    fn end_walk(&self) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -758,6 +760,7 @@ impl BTreeWalker {
         path.push(b.loc);
         let r = self.walk_node_(path, visitor, kr, b, is_root);
         path.pop();
+        visitor.end_walk()?;
         r
     }
 
@@ -843,8 +846,9 @@ where
     V: Unpack,
 {
     path.push(b.loc);
-    let r = walk_node_threaded_(w, path, pool, visitor, kr, b, is_root);
+    let r = walk_node_threaded_(w, path, pool, visitor.clone(), kr, b, is_root);
     path.pop();
+    visitor.end_walk()?;
     r
 }
 
@@ -992,6 +996,10 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
 
         Ok(())
     }
+
+    fn end_walk(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 pub fn btree_to_map<V: Unpack + Copy>(
@@ -1049,6 +1057,10 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
             vals.insert(keys[n], (path.clone(), values[n].clone()));
         }
 
+        Ok(())
+    }
+
+    fn end_walk(&self) -> Result<()> {
         Ok(())
     }
 }

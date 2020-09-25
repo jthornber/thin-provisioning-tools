@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
@@ -14,6 +13,7 @@ use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
+use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -58,38 +58,9 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
         data_sm.inc(start, len).unwrap();
         Ok(())
     }
-}
 
-//------------------------------------------
-
-#[derive(Clone, Copy)]
-pub struct DeviceDetail {
-    pub mapped_blocks: u64,
-    pub transaction_id: u64,
-    pub creation_time: u32,
-    pub snapshotted_time: u32,
-}
-
-impl Unpack for DeviceDetail {
-    fn disk_size() -> u32 {
-        24
-    }
-
-    fn unpack(i: &[u8]) -> IResult<&[u8], DeviceDetail> {
-        let (i, mapped_blocks) = le_u64(i)?;
-        let (i, transaction_id) = le_u64(i)?;
-        let (i, creation_time) = le_u32(i)?;
-        let (i, snapshotted_time) = le_u32(i)?;
-
-        Ok((
-            i,
-            DeviceDetail {
-                mapped_blocks,
-                transaction_id,
-                creation_time,
-                snapshotted_time,
-            },
-        ))
+    fn end_walk(&self) -> btree::Result<()> {
+        Ok(())
     }
 }
 
@@ -124,6 +95,10 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
             }
         }
 
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
         Ok(())
     }
 }
