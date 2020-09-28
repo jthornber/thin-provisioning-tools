@@ -550,6 +550,11 @@ pub trait NodeVisitor<V: Unpack> {
         values: &[V],
     ) -> Result<()>;
 
+    // Nodes may be shared and thus visited multiple times.  The walker avoids
+    // doing repeated IO, but it does call this method to keep the visitor up to
+    // date.
+    fn visit_again(&self, path: &Vec<u64>, b: u64) -> Result<()>;
+
     fn end_walk(&self) -> Result<()>;
 }
 
@@ -654,7 +659,11 @@ impl BTreeWalker {
                 // This node has already been checked ...
                 match self.failed(bs[i]) {
                     None => {
-                        // ... it was clean so we can ignore.
+                        // ... it was clean.
+                        if let Err(e) = visitor.visit_again(path, bs[i]) {
+                            // ... but the visitor isn't happy
+                            errs.push(e.clone());
+                        }
                     }
                     Some(e) => {
                         // ... there was an error
@@ -773,7 +782,7 @@ impl BTreeWalker {
             if let Some(e) = self.failed(root) {
                 Err(e.clone())
             } else {
-                Ok(())
+                visitor.visit_again(path, root)
             }
         } else {
             let root = self.engine.read(root).map_err(|_| io_err(path))?;
@@ -878,7 +887,11 @@ where
             // This node has already been checked ...
             match w.failed(bs[i]) {
                 None => {
-                    // ... it was clean so we can ignore.
+                    // ... it was clean.
+                    if let Err(e) = visitor.visit_again(path, bs[i]) {
+                        // ... but the visitor isn't happy
+                        errs.push(e.clone());
+                    }
                 }
                 Some(e) => {
                     // ... there was an error
@@ -953,7 +966,7 @@ where
         if let Some(e) = w.failed(root) {
             Err(e.clone())
         } else {
-            Ok(())
+            visitor.visit_again(path, root)
         }
     } else {
         let root = w.engine.read(root).map_err(|_| io_err(path))?;
@@ -994,6 +1007,10 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
             vals.insert(keys[n], values[n].clone());
         }
 
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> Result<()> {
         Ok(())
     }
 
@@ -1057,6 +1074,10 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
             vals.insert(keys[n], (path.clone(), values[n].clone()));
         }
 
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> Result<()> {
         Ok(())
     }
 

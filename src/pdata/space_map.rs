@@ -225,6 +225,10 @@ pub trait SpaceMap {
     fn get_nr_blocks(&self) -> Result<u64>;
     fn get_nr_allocated(&self) -> Result<u64>;
     fn get(&self, b: u64) -> Result<u32>;
+
+    // Returns the old ref count
+    fn set(&mut self, b: u64, v: u32) -> Result<u32>;
+    
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 }
 
@@ -263,6 +267,20 @@ where
 
     fn get(&self, b: u64) -> Result<u32> {
         Ok(self.counts[b as usize].into())
+    }
+
+    fn set(&mut self, b: u64, v: u32) -> Result<u32> {
+        let old = self.counts[b as usize];
+        assert!(v < 0xff);   // FIXME: we can't assume this
+        self.counts[b as usize] = V::from(v as u8);
+
+        if old == V::from(0u8) && v != 0 {
+            self.nr_allocated += 1;
+        } else if old != V::from(0u8) && v == 0 {
+            self.nr_allocated -= 1;
+        }
+
+        Ok(old.into())
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
@@ -323,6 +341,24 @@ impl SpaceMap for RestrictedSpaceMap {
         } else {
             Ok(0)
         }
+    }
+
+    fn set(&mut self, b: u64, v: u32) -> Result<u32> {
+        let old = self.counts.contains(b as usize);
+
+        if v > 0 {
+            if !old {
+                self.nr_allocated += 1;
+            }
+            self.counts.insert(b as usize);
+        } else {
+            if old {
+                self.nr_allocated -= 1;
+            }
+            self.counts.set(b as usize, false);
+        }
+
+        Ok(if old {1} else {0})
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {

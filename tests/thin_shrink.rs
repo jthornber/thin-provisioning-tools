@@ -103,6 +103,14 @@ impl<'a, V: ThinVisitor> xml::MetadataVisitor for ThinXmlVisitor<'a, V> {
         Ok(Visit::Continue)
     }
 
+    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
+    }
+
+    fn def_shared_e(&mut self) -> Result<Visit> {
+        todo!();
+    }
+
     fn device_b(&mut self, d: &xml::Device) -> Result<Visit> {
         self.thin_id = Some(d.dev_id);
         Ok(Visit::Continue)
@@ -123,6 +131,10 @@ impl<'a, V: ThinVisitor> xml::MetadataVisitor for ThinXmlVisitor<'a, V> {
             self.inner.thin_block(&block)?;
         }
         Ok(Visit::Continue)
+    }
+
+    fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
     }
 
     fn eof(&mut self) -> Result<Visit> {

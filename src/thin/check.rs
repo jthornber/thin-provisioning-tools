@@ -59,6 +59,10 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
         Ok(())
     }
 
+    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
     fn end_walk(&self) -> btree::Result<()> {
         Ok(())
     }
@@ -95,6 +99,10 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
             }
         }
 
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
         Ok(())
     }
 
