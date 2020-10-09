@@ -13,7 +13,7 @@ use Delta::*;
 pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
     use std::cmp::Ordering::*;
     
-    let mut ds = Vec::new();
+    let mut ds = Vec::with_capacity(ns.len());
 
     if !ns.is_empty() {
         let mut base = ns[0];

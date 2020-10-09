@@ -46,10 +46,14 @@ pub trait MetadataVisitor {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit>;
     fn superblock_e(&mut self) -> Result<Visit>;
 
+    fn def_shared_b(&mut self, name: &str) -> Result<Visit>;
+    fn def_shared_e(&mut self) -> Result<Visit>;
+
     fn device_b(&mut self, d: &Device) -> Result<Visit>;
     fn device_e(&mut self) -> Result<Visit>;
 
     fn map(&mut self, m: &Map) -> Result<Visit>;
+    fn ref_shared(&mut self, name: &str) -> Result<Visit>;
 
     fn eof(&mut self) -> Result<Visit>;
 }
@@ -110,6 +114,19 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         Ok(Visit::Continue)
     }
 
+    fn def_shared_b(&mut self, name: &str) -> Result<Visit> {
+        let tag = b"def";
+        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        elem.push_attribute(mk_attr(b"name", name));
+        self.w.write_event(Event::Start(elem))?;
+        Ok(Visit::Continue)
+    }
+
+    fn def_shared_e(&mut self) -> Result<Visit> {
+        self.w.write_event(Event::End(BytesEnd::borrowed(b"def")))?;
+        Ok(Visit::Continue)
+    }
+
     fn device_b(&mut self, d: &Device) -> Result<Visit> {
         let tag = b"device";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
@@ -148,6 +165,14 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
                 self.w.write_event(Event::Empty(elem))?;
             }
         }
+        Ok(Visit::Continue)
+    }
+
+    fn ref_shared(&mut self, name: &str) -> Result<Visit> {
+        let tag = b"ref";
+        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        elem.push_attribute(mk_attr(b"name", name));
+        self.w.write_event(Event::Empty(elem))?;
         Ok(Visit::Continue)
     }
 
@@ -379,6 +404,14 @@ impl MetadataVisitor for SBVisitor {
         Ok(Visit::Continue)
     }
 
+    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
+    fn def_shared_e(&mut self) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
     fn device_b(&mut self, _d: &Device) -> Result<Visit> {
         Ok(Visit::Continue)
     }
@@ -387,6 +420,10 @@ impl MetadataVisitor for SBVisitor {
     }
 
     fn map(&mut self, _m: &Map) -> Result<Visit> {
+        Ok(Visit::Continue)
+    }
+
+    fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
         Ok(Visit::Continue)
     }
 

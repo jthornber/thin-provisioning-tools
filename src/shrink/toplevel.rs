@@ -45,6 +45,14 @@ impl xml::MetadataVisitor for Pass1 {
         Ok(Visit::Continue)
     }
 
+    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
+    }
+
+    fn def_shared_e(&mut self) -> Result<Visit> {
+        todo!();
+    }
+
     fn device_b(&mut self, _d: &xml::Device) -> Result<Visit> {
         Ok(Visit::Continue)
     }
@@ -61,6 +69,10 @@ impl xml::MetadataVisitor for Pass1 {
             self.allocated_blocks.insert(i as usize);
         }
         Ok(Visit::Continue)
+    }
+
+    fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
     }
 
     fn eof(&mut self) -> Result<Visit> {
@@ -96,6 +108,14 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
         self.writer.superblock_e()
     }
 
+    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
+    }
+
+    fn def_shared_e(&mut self) -> Result<Visit> {
+        todo!();
+    }
+
     fn device_b(&mut self, d: &xml::Device) -> Result<Visit> {
         self.writer.device_b(d)
     }
@@ -125,6 +145,10 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
         }
 
         Ok(Visit::Continue)
+    }
+
+    fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
+        todo!();
     }
 
     fn eof(&mut self) -> Result<Visit> {

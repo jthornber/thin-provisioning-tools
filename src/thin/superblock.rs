@@ -1,17 +1,27 @@
 use crate::io_engine::*;
 use anyhow::{anyhow, Result};
 use nom::{bytes::complete::*, number::complete::*, IResult};
-
+use std::fmt;
 pub const SUPERBLOCK_LOCATION: u64 = 0;
 //const UUID_SIZE: usize = 16;
 const SPACE_MAP_ROOT_SIZE: usize = 128;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SuperblockFlags {
     pub needs_check: bool,
 }
 
-#[derive(Debug)]
+impl fmt::Display for SuperblockFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.needs_check {
+            write!(f, "NEEDS_CHECK")
+        } else {
+            write!(f, "-")
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Superblock {
     pub flags: SuperblockFlags,
     pub block: u64,
@@ -76,7 +86,9 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     Ok((
         i,
         Superblock {
-            flags: SuperblockFlags {needs_check: (flags & 0x1) != 0},
+            flags: SuperblockFlags {
+                needs_check: (flags & 0x1) != 0,
+            },
             block,
             //uuid: uuid[0..UUID_SIZE],
             version,
@@ -93,8 +105,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
 }
 
 pub fn read_superblock(engine: &dyn IoEngine, loc: u64) -> Result<Superblock> {
-    let mut b = Block::new(loc);
-    engine.read(&mut b)?;
+    let b = engine.read(loc)?;
 
     if let Ok((_, sb)) = unpack(&b.get_data()) {
         Ok(sb)

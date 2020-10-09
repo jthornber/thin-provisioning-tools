@@ -146,8 +146,8 @@ pub fn pack_u64s<W: Write>(w: &mut W, ns: &[u64]) -> io::Result<()> {
 }
 
 fn unshift_nrs(shift: usize, ns: &[u64]) -> (Vec<u64>, Vec<u64>) {
-    let mut values = Vec::new();
-    let mut shifts = Vec::new();
+    let mut values = Vec::with_capacity(ns.len());
+    let mut shifts = Vec::with_capacity(ns.len());
 
     let mask = (1 << shift) - 1;
     for n in ns {
@@ -206,8 +206,8 @@ fn unpack_with_width<R: Read>(r: &mut R, nibble: u8) -> io::Result<u64> {
     Ok(v)
 }
 
-fn unpack_u64s<R: Read>(r: &mut R, count: usize) -> io::Result<Vec<u64>> {
-    let mut v = Vec::new();
+pub fn unpack_u64s<R: Read>(r: &mut R, count: usize) -> io::Result<Vec<u64>> {
+    let mut v = Vec::with_capacity(count);
     for _ in 0..count {
         let n = r.read_u64::<LittleEndian>()?;
         v.push(n);
@@ -215,13 +215,13 @@ fn unpack_u64s<R: Read>(r: &mut R, count: usize) -> io::Result<Vec<u64>> {
     Ok(v)
 }
 
-struct VM {
+pub struct VM {
     base: u64,
     bytes_written: usize,
 }
 
 impl VM {
-    fn new() -> VM {
+    pub fn new() -> VM {
         VM {
             base: 0,
             bytes_written: 0,
@@ -356,7 +356,7 @@ impl VM {
     }
 
     // Runs until at least a number of bytes have been emitted.  Returns nr emitted.
-    fn exec<R: Read, W: Write>(
+    pub fn exec<R: Read, W: Write>(
         &mut self,
         r: &mut R,
         w: &mut W,

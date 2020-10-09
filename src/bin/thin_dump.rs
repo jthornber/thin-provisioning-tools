@@ -9,7 +9,7 @@ use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
-use thinp::thin::check::{check, ThinCheckOptions};
+use thinp::thin::dump::{dump, ThinDumpOptions};
 
 fn main() {
     let parser = App::new("thin_check")
@@ -92,17 +92,13 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
-    let opts = ThinCheckOptions {
+    let opts = ThinDumpOptions {
         dev: &input_file,
         async_io: !matches.is_present("SYNC_IO"),
-        sb_only: matches.is_present("SB_ONLY"),
-        skip_mappings: matches.is_present("SKIP_MAPPINGS"),
-        ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
-        auto_repair: matches.is_present("AUTO_REPAIR"),
         report,
     };
 
-    if let Err(reason) = check(opts) {
+    if let Err(reason) = dump(opts) {
         println!("{}", reason);
         process::exit(1);
     }
