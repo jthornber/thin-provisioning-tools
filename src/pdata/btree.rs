@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use byteorder::{ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use data_encoding::BASE64;
 use nom::{number::complete::*, IResult};
 use std::collections::BTreeMap;
@@ -415,6 +415,27 @@ impl Unpack for NodeHeader {
                 value_size,
             },
         ))
+    }
+}
+
+impl Pack for NodeHeader {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
+            // csum needs to be calculated right for the whole metadata block.
+            w.write_u32::<LittleEndian>(0)?;
+
+            let flags;
+            if self.is_leaf {
+                flags = LEAF_NODE;
+            } else {
+                flags = INTERNAL_NODE;
+            }
+            w.write_u32::<LittleEndian>(flags)?;
+            w.write_u64::<LittleEndian>(self.block)?;
+            w.write_u32::<LittleEndian>(self.nr_entries)?;
+            w.write_u32::<LittleEndian>(self.max_entries)?;
+            w.write_u32::<LittleEndian>(self.value_size)?;
+            w.write_u32::<LittleEndian>(0)?;
+            Ok(())
     }
 }
 
@@ -1020,15 +1041,14 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
 }
 
 pub fn btree_to_map<V: Unpack + Copy>(
-    _path: &mut Vec<u64>,
+    path: &mut Vec<u64>,
     engine: Arc<dyn IoEngine + Send + Sync>,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
     let walker = BTreeWalker::new(engine, ignore_non_fatal);
     let visitor = ValueCollector::<V>::new();
-    let mut path = Vec::new();
-    walker.walk(&mut path, &visitor, root)?;
+    walker.walk(path, &visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
 }
 

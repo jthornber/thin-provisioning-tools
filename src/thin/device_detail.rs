@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::pdata::unpack::*;
 use nom::{number::complete::*, IResult};
 
@@ -9,6 +11,17 @@ pub struct DeviceDetail {
     pub transaction_id: u64,
     pub creation_time: u32,
     pub snapshotted_time: u32,
+}
+
+impl fmt::Display for DeviceDetail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "mapped = {}, trans = {}, create = {}, snap = {}",
+              self.mapped_blocks,
+              self.transaction_id,
+              self.creation_time,
+              self.snapshotted_time);
+        Ok(())
+    }
 }
 
 impl Unpack for DeviceDetail {

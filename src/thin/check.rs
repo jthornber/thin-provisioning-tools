@@ -467,7 +467,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
     // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), false, sb.details_root)?;
+    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), opts.ignore_non_fatal, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
     inc_superblock(&metadata_sm)?;
@@ -477,7 +477,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         &mut path,
         engine.clone(),
         metadata_sm.clone(),
-        false,
+        opts.ignore_non_fatal,
         sb.details_root,
     )?;
 
@@ -493,7 +493,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         &mut path,
         engine.clone(),
         metadata_sm.clone(),
-        false,
+        opts.ignore_non_fatal,
         sb.mapping_root,
     )?;
 
@@ -514,7 +514,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         &mut path,
         engine.clone(),
         metadata_sm.clone(),
-        false,
+        opts.ignore_non_fatal,
         root.bitmap_root,
     )?;
     let entries: Vec<IndexEntry> = entries.values().cloned().collect();
@@ -556,7 +556,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         &mut path,
         engine.clone(),
         metadata_sm.clone(),
-        false,
+        opts.ignore_non_fatal,
         root.ref_count_root,
     )?;
 

@@ -18,12 +18,12 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 use tui::{
-    backend::{TermionBackend},
+    backend::TermionBackend,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     terminal::Frame,
-    text::{Span},
+    text::Span,
     widgets::{Block, Borders, List, ListItem, ListState, Row, StatefulWidget, Table, Widget},
     Terminal,
 };
@@ -32,6 +32,7 @@ use thinp::io_engine::*;
 use thinp::pdata::btree;
 use thinp::pdata::unpack::*;
 use thinp::thin::block_time::*;
+use thinp::thin::device_detail::*;
 use thinp::thin::superblock::*;
 
 //------------------------------------
@@ -141,13 +142,20 @@ fn ls_previous(ls: &mut ListState) {
 
 //------------------------------------
 
-struct SBWidget {
-    sb: Superblock,
+struct SBWidget<'a> {
+    sb: &'a Superblock,
 }
 
-impl Widget for SBWidget {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let sb = &self.sb;
+impl<'a> StatefulWidget for SBWidget<'a> {
+    type State = ListState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut ListState) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(10), Constraint::Percentage(80)].as_ref())
+            .split(area);
+
+        let sb = self.sb;
         let flags = ["flags".to_string(), format!("{}", sb.flags)];
         let block = ["block".to_string(), format!("{}", sb.block)];
         let uuid = ["uuid".to_string(), format!("-")];
@@ -198,7 +206,22 @@ impl Widget for SBWidget {
         .style(Style::default().fg(Color::White))
         .column_spacing(1);
 
-        Widget::render(table, area, buf);
+        Widget::render(table, chunks[0], buf);
+
+	let items = vec![
+            ListItem::new(Span::raw(format!("Device tree"))),
+            ListItem::new(Span::raw(format!("Mapping tree")))
+        ];
+        
+        let items = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("Entries"))
+            .highlight_style(
+                Style::default()
+                    .bg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
+            );
+
+        StatefulWidget::render(items, chunks[1], buf, state);
     }
 }
 
@@ -245,13 +268,6 @@ impl<'a> Widget for HeaderWidget<'a> {
     }
 }
 
-/*
-fn read_node_header(engine: &dyn IoEngine, loc: u64) -> Result<btree::NodeHeader> {
-    let b = engine.read(loc)?;
-    unpack(&b.get_data()).map_err(|_| anyhow!("couldn't unpack btree header"))
-}
-*/
-
 fn read_node<V: Unpack>(engine: &dyn IoEngine, loc: u64) -> Result<btree::Node<V>> {
     let b = engine.read(loc)?;
     let path = Vec::new();
@@ -281,6 +297,12 @@ impl Adjacent for BlockTime {
         }
 
         self.block + 1 == rhs.block
+    }
+}
+
+impl Adjacent for DeviceDetail {
+    fn adjacent(&self, rhs: &Self) -> bool {
+        false
     }
 }
 
@@ -327,6 +349,8 @@ fn mk_runs<V: Adjacent + Sized + Copy>(keys: &[u64], values: &[V]) -> Vec<((u64,
 
     adjacent_runs(pairs)
 }
+
+//------------------------------------
 
 struct NodeWidget<'a, V: Unpack + Adjacent + Clone> {
     title: String,
@@ -420,6 +444,7 @@ impl<'a, V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidg
 //------------------------------------
 
 enum Action {
+    PushDeviceDetail(u64),
     PushTopLevel(u64),
     PushBottomLevel(u32, u64),
     PopPanel,
@@ -435,31 +460,132 @@ trait Panel {
     fn path_action(&mut self, child: u64) -> Option<Action>;
 }
 
+//------------------------------------
+
 struct SBPanel {
     sb: Superblock,
+    state: ListState,
+}
+
+impl SBPanel {
+    fn new(sb: Superblock) -> SBPanel {
+        let mut state = ListState::default();
+        state.select(Some(0));
+
+        SBPanel { sb, state }
+    }
 }
 
 impl Panel for SBPanel {
     fn render(&mut self, area: Rect, f: &mut Frame_) {
-        // FIXME: get rid of clone
-        let w = SBWidget {
-            sb: self.sb.clone(),
-        };
-        f.render_widget(w, area);
+        let w = SBWidget { sb: &self.sb };
+        f.render_stateful_widget(w, area, &mut self.state);
     }
 
-    fn input(&mut self, _k: Key) -> Option<Action> {
-        None
+    fn input(&mut self, k: Key) -> Option<Action> {
+        match k {
+            Key::Char('j') | Key::Down => {
+                ls_next(&mut self.state, 2);
+                None
+            }
+            Key::Char('k') | Key::Up => {
+                ls_previous(&mut self.state);
+                None
+            }
+            Key::Char('l') | Key::Right => {
+                if self.state.selected().unwrap() == 0 {
+                    Some(PushDeviceDetail(self.sb.details_root))
+                } else {
+                    Some(PushTopLevel(self.sb.mapping_root))
+                }
+            },
+            Key::Char('h') | Key::Left => Some(PopPanel),
+            _ => None,
+        }
     }
 
     fn path_action(&mut self, child: u64) -> Option<Action> {
         if child == self.sb.mapping_root {
             Some(PushTopLevel(child))
+        } else if child == self.sb.details_root {
+            Some(PushDeviceDetail(child))
         } else {
             None
         }
     }
 }
+
+//------------------------------------
+
+struct DeviceDetailPanel {
+    node: btree::Node<DeviceDetail>,
+    nr_entries: usize,
+    state: ListState,
+}
+
+impl DeviceDetailPanel {
+    fn new(node: btree::Node<DeviceDetail>) -> DeviceDetailPanel {
+        let nr_entries = node.get_header().nr_entries as usize;
+        let mut state = ListState::default();
+        state.select(Some(0));
+
+        DeviceDetailPanel {
+            node,
+            nr_entries,
+            state,
+        }
+    }
+}
+
+impl Panel for DeviceDetailPanel {
+    fn render(&mut self, area: Rect, f: &mut Frame_) {
+        let w = NodeWidget {
+            title: "Device Details".to_string(),
+            node: &self.node,
+        };
+
+        f.render_stateful_widget(w, area, &mut self.state);
+    }
+
+    fn input(&mut self, k: Key) -> Option<Action> {
+        match k {
+            Key::Char('j') | Key::Down => {
+                ls_next(&mut self.state, self.nr_entries);
+                None
+            }
+            Key::Char('k') | Key::Up => {
+                ls_previous(&mut self.state);
+                None
+            }
+            Key::Char('l') | Key::Right => match &self.node {
+                btree::Node::Internal { values, .. } => {
+                    Some(PushDeviceDetail(values[self.state.selected().unwrap()]))
+                }
+                btree::Node::Leaf { values, keys, .. } => None,
+            },
+            Key::Char('h') | Key::Left => Some(PopPanel),
+            _ => None,
+        }
+    }
+
+    fn path_action(&mut self, child: u64) -> Option<Action> {
+        match &self.node {
+            btree::Node::Internal { values, .. } => {
+                for i in 0..values.len() {
+                    if values[i] == child {
+                        self.state.select(Some(i));
+                        return Some(PushDeviceDetail(child));
+                    }
+                }
+
+                return None;
+            }
+            btree::Node::Leaf { .. } => None,
+        }
+    }
+}
+
+//------------------------------------
 
 struct TopLevelPanel {
     node: btree::Node<u64>,
@@ -485,7 +611,7 @@ impl Panel for TopLevelPanel {
     fn render(&mut self, area: Rect, f: &mut Frame_) {
         let w = NodeWidget {
             title: "Top Level".to_string(),
-            node: &self.node, // FIXME: get rid of clone
+            node: &self.node,
         };
 
         f.render_stateful_widget(w, area, &mut self.state);
@@ -606,7 +732,7 @@ impl Panel for BottomLevelPanel {
                         return Some(PushBottomLevel(self.thin_id, child));
                     }
                 }
-                
+
                 return None;
             }
             btree::Node::Leaf { .. } => None,
@@ -622,6 +748,10 @@ fn perform_action(
     action: Action,
 ) -> Result<()> {
     match action {
+        PushDeviceDetail(b) => {
+            let node = read_node::<DeviceDetail>(engine, b)?;
+            panels.push(Box::new(DeviceDetailPanel::new(node)));
+        }
         PushTopLevel(b) => {
             let node = read_node::<u64>(engine, b)?;
             panels.push(Box::new(TopLevelPanel::new(node)));
@@ -631,7 +761,7 @@ fn perform_action(
             panels.push(Box::new(BottomLevelPanel::new(thin_id, node)));
         }
         PopPanel => {
-            if panels.len() > 2 {
+            if panels.len() > 1 {
                 panels.pop();
             }
         }
@@ -640,21 +770,15 @@ fn perform_action(
 }
 
 fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock().into_raw_mode()?;
-    write!(stdout, "{}", termion::clear::All)?;
-
-    let backend = TermionBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
     let engine = SyncIoEngine::new(&path, 1, false)?;
 
     let mut panels: Vec<Box<dyn Panel>> = Vec::new();
 
     if let Some(path) = node_path {
+        eprintln!("using path: {:?}", path);
         assert_eq!(path[0], 0);
         let sb = read_superblock(&engine, path[0])?;
-        panels.push(Box::new(SBPanel { sb }));
+        panels.push(Box::new(SBPanel::new(sb)));
         for b in &path[1..] {
             let action = panels.last_mut().unwrap().path_action(*b);
             if let Some(action) = action {
@@ -665,13 +789,16 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
         }
     } else {
         let sb = read_superblock(&engine, 0)?;
-        panels.push(Box::new(SBPanel { sb: sb.clone() }));
-
-        let node = read_node::<u64>(&engine, sb.mapping_root)?;
-        panels.push(Box::new(TopLevelPanel::new(node)));
+        panels.push(Box::new(SBPanel::new(sb.clone())));
     }
 
     let events = Events::new();
+
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock().into_raw_mode()?;
+    write!(stdout, "{}", termion::clear::All)?;
+    let backend = TermionBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
     'main: loop {
         let render_panels = |f: &mut Frame_| {
