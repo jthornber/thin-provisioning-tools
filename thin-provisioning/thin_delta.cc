@@ -36,6 +36,8 @@ namespace {
 		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
+		boost::optional<uint64_t> root1;
+		boost::optional<uint64_t> root2;
 	};
 
 	//--------------------------------
@@ -481,9 +483,26 @@ namespace {
 		out << "</superblock>\n";
 	}
 
-	void begin_diff(indented_stream &out, uint64_t snap1, uint64_t snap2) {
+	// FIXME: always show the blocknr?
+	void begin_diff(indented_stream &out,
+			boost::optional<uint64_t> snap1,
+			boost::optional<uint64_t> root1,
+			boost::optional<uint64_t> snap2,
+			boost::optional<uint64_t> root2) {
 		out.indent();
-		out << "<diff left=\"" << snap1 << "\" right=\"" << snap2 << "\">\n";
+		out << "<diff";
+
+		if (snap1)
+			out << " left=\"" << *snap1 << "\"";
+		else if (root1)
+			out << " left_root=\"" << *root1 << "\"";
+
+		if (snap2)
+			out << " right=\"" << *snap2 << "\"";
+		else if (root2)
+			out << " right_root=\"" << *root2 << "\"";
+
+		out << ">\n";
 		out.inc();
 	}
 
@@ -505,8 +524,12 @@ namespace {
 			metadata::ptr md(fs.use_metadata_snap ? new metadata(bm, fs.metadata_snap) : new metadata(bm));
 			sb = md->sb_;
 
-			dev_tree::key k = {*fs.snap1};
-			boost::optional<uint64_t> snap1_root = md->mappings_top_level_->lookup(k);
+			boost::optional<uint64_t> snap1_root;
+			if (fs.snap1) {
+				dev_tree::key k = {*fs.snap1};
+				snap1_root = md->mappings_top_level_->lookup(k);
+			} else if (fs.root1)
+				snap1_root = *fs.root1;
 
 			if (!snap1_root) {
 				ostringstream out;
@@ -517,8 +540,12 @@ namespace {
 			single_mapping_tree snap1(*md->tm_, *snap1_root,
 						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 
-			k[0] = *fs.snap2;
-			boost::optional<uint64_t> snap2_root = md->mappings_top_level_->lookup(k);
+			boost::optional<uint64_t> snap2_root;
+			if (fs.snap2) {
+				dev_tree::key k = {*fs.snap2};
+				snap2_root = md->mappings_top_level_->lookup(k);
+			} else if (fs.root2)
+				snap2_root = *fs.root2;
 
 			if (!snap2_root) {
 				ostringstream out;
@@ -546,7 +573,7 @@ namespace {
 				 sb.metadata_snap_ ?
 				 boost::optional<block_address>(sb.metadata_snap_) :
 				 boost::optional<block_address>());
-		begin_diff(is, *fs.snap1, *fs.snap2);
+		begin_diff(is, fs.snap1, fs.root1, fs.snap2, fs.root2);
 
 		if (fs.verbose) {
 			verbose_emitter e(is);
@@ -586,8 +613,8 @@ thin_delta_cmd::usage(std::ostream &out) const
 {
 	out << "Usage: " << get_name() << " [options] <device or file>\n"
 	    << "Options:\n"
-	    << "  {--thin1, --snap1}\n"
-	    << "  {--thin2, --snap2}\n"
+	    << "  {--thin1, --snap1, --root1}\n"
+	    << "  {--thin2, --snap2, --root2}\n"
 	    << "  {-m, --metadata-snap} [block#]\n"
 	    << "  {--verbose}\n"
 	    << "  {-h|--help}\n"
@@ -610,6 +637,8 @@ thin_delta_cmd::run(int argc, char **argv)
 		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
 		{ "verbose", no_argument, NULL, 4 },
+		{ "root1", required_argument, NULL, 5 },
+		{ "root2", required_argument, NULL, 6 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
@@ -641,6 +670,14 @@ thin_delta_cmd::run(int argc, char **argv)
 			fs.verbose = true;
 			break;
 
+		case 5:
+			fs.root1 = parse_uint64(optarg, "thin root 1");
+			break;
+
+		case 6:
+			fs.root2 = parse_uint64(optarg, "thin root 2");
+			break;
+
 		default:
 			usage(cerr);
 			return 1;
@@ -652,11 +689,15 @@ thin_delta_cmd::run(int argc, char **argv)
 	else
 		fs.dev = argv[optind];
 
-	if (!fs.snap1)
-		die("--snap1 not specified.");
+	if (!fs.snap1 && !fs.root1)
+		die("--snap1 or --root1 not specified.");
+	if (!!fs.snap1 && !!fs.root1)
+		die("--snap1 and --root1 are not compatible.");
 
-	if (!fs.snap2)
-		die("--snap2 not specified.");
+	if (!fs.snap2 && !fs.root2)
+		die("--snap2 or --root2 not specified.");
+	if (!!fs.snap2 && !!fs.root2)
+		die("--snap2 and --root2 are not compatible.");
 
 	return delta(fs);
 }
