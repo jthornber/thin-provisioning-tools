@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
+use byteorder::{LittleEndian, WriteBytesExt};
 use fixedbitset::FixedBitSet;
 use nom::{multi::count, number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
-use byteorder::{LittleEndian, WriteBytesExt};
 
 use crate::io_engine::*;
 use crate::pdata::unpack::{Pack, Unpack};
@@ -96,7 +96,7 @@ impl Unpack for MetadataIndex {
         let (i, _blocknr) = le_u64(i)?;
         let (i, indexes) = count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
 
-        Ok((i, MetadataIndex {indexes}))
+        Ok((i, MetadataIndex { indexes }))
     }
 }
 
@@ -195,17 +195,16 @@ impl Pack for Bitmap {
             for e in chunk {
                 w >>= 2;
                 match e {
-                    Small(0) => {
-                    },
+                    Small(0) => {}
                     Small(1) => {
                         w |= 0x2 << 62;
-                    },
+                    }
                     Small(2) => {
                         w |= 0x1 << 62;
-                    },
+                    }
                     Small(_) => {
                         return Err(anyhow!("Bad small value in bitmap entry"));
-                    },
+                    }
                     Overflow => {
                         w |= 0x3 << 62;
                     }
@@ -228,8 +227,12 @@ pub trait SpaceMap {
 
     // Returns the old ref count
     fn set(&mut self, b: u64, v: u32) -> Result<u32>;
-    
+
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
+
+    // Finds a block with a zero reference count.  Increments the
+    // count.
+    fn alloc(&mut self) -> Result<Option<u64>>;
 }
 
 pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
@@ -238,6 +241,7 @@ pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
 
 pub struct CoreSpaceMap<T> {
     nr_allocated: u64,
+    first_free: u64,
     counts: Vec<T>,
 }
 
@@ -248,6 +252,7 @@ where
     pub fn new(nr_entries: u64) -> CoreSpaceMap<V> {
         CoreSpaceMap {
             nr_allocated: 0,
+            first_free: 0,
             counts: vec![V::default(); nr_entries as usize],
         }
     }
@@ -271,13 +276,16 @@ where
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
         let old = self.counts[b as usize];
-        assert!(v < 0xff);   // FIXME: we can't assume this
+        assert!(v < 0xff); // FIXME: we can't assume this
         self.counts[b as usize] = V::from(v as u8);
 
         if old == V::from(0u8) && v != 0 {
             self.nr_allocated += 1;
         } else if old != V::from(0u8) && v == 0 {
             self.nr_allocated -= 1;
+            if b < self.first_free {
+                self.first_free = b;
+            }
         }
 
         Ok(old.into())
@@ -294,6 +302,19 @@ where
             }
         }
         Ok(())
+    }
+
+    fn alloc(&mut self) -> Result<Option<u64>> {
+        for b in self.first_free..(self.counts.len() as u64) {
+            if self.counts[b as usize] == V::from(0u8) {
+                self.counts[b as usize] = V::from(1u8);
+                self.first_free = b + 1;
+                return Ok(Some(b));
+            }
+        }
+
+        self.first_free = self.counts.len() as u64;
+        Ok(None)
     }
 }
 
@@ -314,6 +335,7 @@ pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send
 // aren't interested in counting how many times we've visited.
 pub struct RestrictedSpaceMap {
     nr_allocated: u64,
+    first_free: usize,
     counts: FixedBitSet,
 }
 
@@ -322,6 +344,7 @@ impl RestrictedSpaceMap {
         RestrictedSpaceMap {
             nr_allocated: 0,
             counts: FixedBitSet::with_capacity(nr_entries as usize),
+            first_free: 0,
         }
     }
 }
@@ -354,11 +377,14 @@ impl SpaceMap for RestrictedSpaceMap {
         } else {
             if old {
                 self.nr_allocated -= 1;
+                if b < self.first_free as u64 {
+                    self.first_free = b as usize;
+                }
             }
             self.counts.set(b as usize, false);
         }
 
-        Ok(if old {1} else {0})
+        Ok(if old { 1 } else { 0 })
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
@@ -369,6 +395,19 @@ impl SpaceMap for RestrictedSpaceMap {
             }
         }
         Ok(())
+    }
+
+    fn alloc(&mut self) -> Result<Option<u64>> {
+        for b in self.first_free..self.counts.len() {
+            if !self.counts.contains(b) {
+                self.counts.insert(b);
+                self.first_free = b + 1;
+                return Ok(Some(b as u64));
+            }
+        }
+
+        self.first_free = self.counts.len();
+        Ok(None)
     }
 }
 

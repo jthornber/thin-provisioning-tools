@@ -301,7 +301,7 @@ impl Adjacent for BlockTime {
 }
 
 impl Adjacent for DeviceDetail {
-    fn adjacent(&self, rhs: &Self) -> bool {
+    fn adjacent(&self, _rhs: &Self) -> bool {
         false
     }
 }
@@ -561,7 +561,7 @@ impl Panel for DeviceDetailPanel {
                 btree::Node::Internal { values, .. } => {
                     Some(PushDeviceDetail(values[self.state.selected().unwrap()]))
                 }
-                btree::Node::Leaf { values, keys, .. } => None,
+                btree::Node::Leaf { .. } => None,
             },
             Key::Char('h') | Key::Left => Some(PopPanel),
             _ => None,

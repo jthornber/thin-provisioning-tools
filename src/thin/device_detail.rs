@@ -19,7 +19,7 @@ impl fmt::Display for DeviceDetail {
               self.mapped_blocks,
               self.transaction_id,
               self.creation_time,
-              self.snapshotted_time);
+              self.snapshotted_time)?;
         Ok(())
     }
 }

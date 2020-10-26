@@ -461,6 +461,26 @@ impl<V: Unpack> Node<V> {
             Leaf { header, .. } => header,
         }
     }
+
+    fn get_mut_header(&mut self) -> &mut NodeHeader {
+        use Node::*;
+        match self {
+            Internal { header, .. } => header,
+            Leaf { header, .. } => header,
+        }
+    }
+    
+    pub fn get_keys(&self) -> &[u64] {
+        use Node::*;
+        match self {
+            Internal { keys, .. } => &keys[0..],
+            Leaf { keys, .. } => &keys[0..],
+        }
+    }
+
+    pub fn set_block(&mut self, b: u64) {
+        self.get_mut_header().block = b;
+    }
 }
 
 pub fn convert_result<'a, V>(path: &Vec<u64>, r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
