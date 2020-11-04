@@ -1,15 +1,21 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
+use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::checksum;
+use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, *};
+use crate::pdata::btree_leaf_walker::*;
+use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
+use crate::thin::runs::*;
 use crate::thin::superblock::*;
 use crate::thin::xml::{self, MetadataVisitor};
 
@@ -166,51 +172,124 @@ fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
 
 //------------------------------------------
 
-struct NoopVisitor {}
+type DefId = u64;
+type ThinId = u32;
 
-impl<V: Unpack> btree::NodeVisitor<V> for NoopVisitor {
-    fn visit(
-        &self,
-        _path: &Vec<u64>,
-        _kr: &btree::KeyRange,
-        _h: &btree::NodeHeader,
-        _k: &[u64],
-        _values: &[V],
-    ) -> btree::Result<()> {
+#[derive(Clone)]
+enum Entry {
+    Leaf(u64),
+    Ref(DefId),
+}
+
+#[derive(Clone)]
+struct Mapping {
+    kr: KeyRange,
+    entries: Vec<Entry>,
+}
+
+#[derive(Clone)]
+struct Device {
+    thin_id: ThinId,
+    detail: DeviceDetail,
+    map: Mapping,
+}
+
+#[derive(Clone)]
+struct Def {
+    def_id: DefId,
+    map: Mapping,
+}
+
+#[derive(Clone)]
+struct Metadata {
+    defs: Vec<Def>,
+    devs: Vec<Device>,
+}
+
+//------------------------------------------
+
+struct CollectLeaves {
+    leaves: Vec<Entry>,
+}
+
+impl CollectLeaves {
+    fn new() -> CollectLeaves {
+        CollectLeaves { leaves: Vec::new() }
+    }
+}
+
+impl LeafVisitor<BlockTime> for CollectLeaves {
+    fn visit(&mut self, _kr: &KeyRange, b: u64) -> btree::Result<()> {
+        self.leaves.push(Entry::Leaf(b));
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
+    fn visit_again(&mut self, b: u64) -> btree::Result<()> {
+        self.leaves.push(Entry::Ref(b));
         Ok(())
     }
 
-    fn end_walk(&self) -> btree::Result<()> {
+    fn end_walk(&mut self) -> btree::Result<()> {
         Ok(())
     }
 }
 
-fn find_shared_nodes(
+fn collect_leaves(
     ctx: &Context,
-    nr_metadata_blocks: u64,
-    roots: &BTreeMap<u64, u64>,
-) -> Result<(BTreeSet<u64>, Arc<Mutex<dyn SpaceMap + Send + Sync>>)> {
-    // By default the walker uses a restricted space map that can only count to 1.  So
-    // we explicitly create a full sm.
-    let sm = core_sm(nr_metadata_blocks, roots.len() as u32);
-    let w = BTreeWalker::new_with_sm(ctx.engine.clone(), sm.clone(), false)?;
+    shared: &mut BTreeSet<u64>,
+    mut sm: Box<dyn SpaceMap>,
+) -> Result<BTreeMap<u64, Vec<Entry>>> {
+    let mut map: BTreeMap<u64, Vec<Entry>> = BTreeMap::new();
 
-    let mut path = Vec::new();
-    path.push(0);
+    ctx.report.set_title(&format!(
+        "Collecting leaves for {} shared nodes",
+        shared.len()
+    ));
 
-    for (thin_id, root) in roots {
-        ctx.report.info(&format!("scanning {}", thin_id));
-        let v = NoopVisitor {};
-        w.walk::<NoopVisitor, BlockTime>(&mut path, &v, *root)?;
+    // FIXME: we don't want any leaves in shared.
+    for r in shared.iter() {
+        let old_count = sm.get(*r).expect("couldn't get count from space map.");
+        sm.set(*r, 0).expect("couldn't set count in space map.");
+
+        let mut w = LeafWalker::new(ctx.engine.clone(), sm.deref_mut(), false);
+        let mut v = CollectLeaves::new();
+
+        let mut path = Vec::new();
+        path.push(0);
+
+        // ctx.report.set_title(&format!("collecting {}", *r));
+        w.walk::<CollectLeaves, BlockTime>(&mut path, &mut v, *r)?;
+        sm.set(*r, old_count)
+            .expect("couldn't set count in space map.");
+
+        map.insert(*r, v.leaves);
     }
 
+    Ok(map)
+}
+
+//------------------------------------------
+
+fn find_shared_nodes(
+    ctx: &Context,
+    roots: &BTreeMap<u64, (Vec<u64>, u64)>,
+) -> Result<(BTreeSet<u64>, Box<dyn SpaceMap>)> {
+    let nr_metadata_blocks = ctx.engine.get_nr_blocks();
+    let mut sm = core_sm_without_mutex(nr_metadata_blocks, roots.len() as u32);
+    let mut v = NoopLeafVisitor {};
+    let mut w = LeafWalker::new(ctx.engine.clone(), sm.deref_mut(), false);
+
+    for (thin_id, (path, root)) in roots {
+        let mut path = path.clone();
+        ctx.report.info(&format!("scanning {}", thin_id));
+        w.walk::<NoopLeafVisitor, BlockTime>(&mut path, &mut v, *root)?;
+    }
+
+    // We have to get the leaves so w is consumed and the &mut on sm
+    // is dropped.
+    let leaves = w.get_leaves();
     let mut shared = BTreeSet::new();
     {
-        let sm = sm.lock().unwrap();
         for i in 0..sm.get_nr_blocks().unwrap() {
             if sm.get(i).expect("couldn't get count from space map.") > 1 {
                 shared.insert(i);
@@ -218,69 +297,280 @@ fn find_shared_nodes(
         }
     }
 
-    return Ok((shared, sm));
+    // we're not interested in leaves (roots will get re-added later).
+    {
+        for i in 0..leaves.len() {
+            if leaves.contains(i) {
+                shared.remove(&(i as u64));
+            }
+        }
+    }
+
+    Ok((shared, sm))
 }
 
 //------------------------------------------
 
-fn dump_node(
-    ctx: &Context,
-    out: &mut dyn xml::MetadataVisitor,
-    root: u64,
-    sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    force: bool, // sets the ref count for the root to zero to force output.
-) -> Result<()> {
-    let w = BTreeWalker::new_with_sm(ctx.engine.clone(), sm.clone(), false)?;
-    let mut path = Vec::new();
-    path.push(0);
-
-    let v = MappingVisitor::new(out);
-
-    // Temporarily set the ref count for the root to zero.
-    let mut old_count = 0;
-    if force {
-        let mut sm = sm.lock().unwrap();
-        old_count = sm.get(root).unwrap();
-        sm.set(root, 0)?;
-    }
-
-    w.walk::<MappingVisitor, BlockTime>(&mut path, &v, root)?;
-
-    // Reset the ref count for root.
-    if force {
-        let mut sm = sm.lock().unwrap();
-        sm.set(root, old_count)?;
-    }
-
-    Ok(())
-}
-
-//------------------------------------------
-
-pub fn dump(opts: ThinDumpOptions) -> Result<()> {
-    let ctx = mk_context(&opts)?;
-
+fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
     let report = &ctx.report;
     let engine = &ctx.engine;
 
     // superblock
     report.set_title("Reading superblock");
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    //let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    //let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let mut path = Vec::new();
     path.push(0);
 
     report.set_title("Reading device details");
-    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
+    let details = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
 
     report.set_title("Reading mappings roots");
-    let roots = btree_to_map::<u64>(&mut path, engine.clone(), true, sb.mapping_root)?;
+    let roots;
+    {
+        let sm = Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())));
+        roots =
+            btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
+    }
 
     report.set_title("Finding shared mappings");
-    let (shared, sm) = find_shared_nodes(&ctx, metadata_root.nr_blocks, &roots)?;
-    report.info(&format!("{} shared nodes found", shared.len()));
+    let (mut shared, sm) = find_shared_nodes(ctx, &roots)?;
 
+    // Add in the roots, because they may not be shared.
+    for (_thin_id, (_path, root)) in &roots {
+        shared.insert(*root);
+    }
+
+    let entry_map = collect_leaves(&ctx, &mut shared, sm)?;
+    let mut defs = Vec::new();
+    let mut devs = Vec::new();
+
+    let mut seen = BTreeSet::new();
+    for (thin_id, (_path, root)) in roots {
+        let id = thin_id as u64;
+        let detail = details.get(&id).expect("couldn't find device details");
+        seen.insert(root);
+        let es = entry_map.get(&root).unwrap();
+        let kr = KeyRange::new(); // FIXME: finish
+        devs.push(Device {
+            thin_id: thin_id as u32,
+            detail: detail.clone(),
+            map: Mapping {
+                kr,
+                entries: es.to_vec(),
+            },
+        });
+    }
+
+    for b in shared {
+        if !seen.contains(&b) {
+            let es = entry_map.get(&b).unwrap();
+            let kr = KeyRange::new(); // FIXME: finish
+            defs.push(Def {
+                def_id: b,
+                map: Mapping {
+                    kr,
+                    entries: es.to_vec(),
+                },
+            });
+        }
+    }
+
+    Ok(Metadata { defs, devs })
+}
+
+//------------------------------------------
+
+fn gather_entries(g: &mut Gatherer, es: &Vec<Entry>) {
+    g.new_seq();
+    for e in es {
+        match e {
+            Entry::Leaf(b) => {
+                g.next(*b);
+            }
+            Entry::Ref(_id) => {
+                g.new_seq();
+            }
+        }
+    }
+}
+
+fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &Vec<Entry>) -> Vec<Entry> {
+    use Entry::*;
+
+    let mut result = Vec::new();
+    let mut entry_index = 0;
+    while entry_index < es.len() {
+        match es[entry_index] {
+            Ref(id) => {
+                result.push(Ref(id));
+                entry_index += 1;
+            }
+            Leaf(b) => {
+                if let Some(run) = runs.get(&b) {
+                    result.push(Ref(b));
+                    entry_index += run.len();
+                } else {
+                    result.push(Leaf(b));
+                    entry_index += 1;
+                }
+            }
+        }
+    }
+
+    result
+}
+
+// FIXME: do we really need to track kr?
+// FIXME: I think this may be better done as part of restore.
+fn optimise_metadata(md: Metadata) -> Result<Metadata> {
+    use Entry::*;
+
+    let mut g = Gatherer::new();
+    for d in &md.defs {
+        gather_entries(&mut g, &d.map.entries);
+    }
+
+    for d in &md.devs {
+        gather_entries(&mut g, &d.map.entries);
+    }
+
+    let mut defs = Vec::new();
+    let mut devs = Vec::new();
+    let mut runs = BTreeMap::new();
+    for run in g.gather() {
+        runs.insert(run[0], run);
+    }
+    eprintln!("{} runs", runs.len());
+
+    // The runs become additional defs that just contain leaves.
+    for (head, run) in runs.iter() {
+        let kr = KeyRange::new();
+        let entries: Vec<Entry> = run.iter().map(|b| Leaf(*b)).collect();
+        defs.push(Def {
+            def_id: *head,
+            map: Mapping { kr, entries },
+        });
+    }
+
+    // Expand old defs to use the new atomic runs
+    for d in &md.defs {
+        let kr = KeyRange::new();
+        let entries = entries_to_runs(&runs, &d.map.entries);
+
+        defs.push(Def {
+            def_id: d.def_id,
+            map: Mapping { kr, entries },
+        });
+    }
+
+    // Expand old devs to use the new atomic runs
+    for d in &md.devs {
+        let kr = KeyRange::new();
+        let entries = entries_to_runs(&runs, &d.map.entries);
+        devs.push(Device {
+            thin_id: d.thin_id,
+            detail: d.detail,
+            map: Mapping { kr, entries },
+        });
+    }
+
+    Ok(Metadata { defs, devs })
+}
+
+//------------------------------------------
+
+fn emit_leaf(out: &mut dyn xml::MetadataVisitor, b: &Block) -> Result<()> {
+    use Node::*;
+    let v = MappingVisitor::new(out);
+    let path = Vec::new();
+    let kr = KeyRange::new();
+
+    let bt = checksum::metadata_block_type(b.get_data());
+    if bt != checksum::BT::NODE {
+        return Err(anyhow!(format!(
+            "checksum failed for node {}, {:?}",
+            b.loc, bt
+        )));
+    }
+
+    let node = unpack_node::<BlockTime>(&path, &b.get_data(), true, true)?;
+
+    match node {
+        Internal { .. } => {
+            return Err(anyhow!("not a leaf"));
+        }
+        Leaf {
+            header,
+            keys,
+            values,
+        } => {
+            if let Err(_e) = v.visit(&path, &kr, &header, &keys, &values) {
+                return Err(anyhow!("couldn't emit leaf node"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn read_for<T>(engine: Arc<dyn IoEngine>, blocks: &[u64], mut t: T) -> Result<()>
+where
+    T: FnMut(Block) -> Result<()>,
+{
+    for cs in blocks.chunks(engine.get_batch_size()) {
+        for b in engine
+            .read_many(cs)
+            .map_err(|_e| anyhow!("read_many failed"))?
+        {
+            t(b.map_err(|_e| anyhow!("read of individual block failed"))?)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn emit_leaves(ctx: &Context, out: &mut dyn xml::MetadataVisitor, ls: &[u64]) -> Result<()> {
+    let proc = |b| {
+        emit_leaf(out, &b)?;
+        Ok(())
+    };
+
+    read_for(ctx.engine.clone(), ls, proc)
+}
+
+fn emit_entries<W: Write>(
+    ctx: &Context,
+    out: &mut xml::XmlWriter<W>,
+    entries: &Vec<Entry>,
+) -> Result<()> {
+    let mut leaves = Vec::new();
+
+    for e in entries {
+        match e {
+            Entry::Leaf(b) => {
+                leaves.push(*b);
+            }
+            Entry::Ref(id) => {
+                if leaves.len() > 0 {
+                    emit_leaves(&ctx, out, &leaves[0..])?;
+                    leaves.clear();
+                }
+                let str = format!("{}", id);
+                out.ref_shared(&str)?;
+            }
+        }
+    }
+
+    if leaves.len() > 0 {
+        emit_leaves(&ctx, out, &leaves[0..])?;
+    }
+
+    Ok(())
+}
+
+fn dump_metadata(ctx: &Context, sb: &Superblock, md: &Metadata) -> Result<()> {
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let mut out = xml::XmlWriter::new(std::io::stdout());
     let xml_sb = xml::Superblock {
         uuid: "".to_string(),
@@ -294,30 +584,42 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     };
     out.superblock_b(&xml_sb)?;
 
-    report.set_title("Dumping shared regions");
-    for b in shared {
-        out.def_shared_b(&format!("{}", b))?;
-        dump_node(&ctx, &mut out, b, &sm, true)?;
+    ctx.report.set_title("Dumping shared regions");
+    for d in &md.defs {
+        out.def_shared_b(&format!("{}", d.def_id))?;
+        emit_entries(ctx, &mut out, &d.map.entries)?;
         out.def_shared_e()?;
     }
 
-    report.set_title("Dumping mappings");
-    for (thin_id, detail) in devs {
-        let d = xml::Device {
-            dev_id: thin_id as u32,
-            mapped_blocks: detail.mapped_blocks,
-            transaction: detail.transaction_id,
-            creation_time: detail.creation_time as u64,
-            snap_time: detail.snapshotted_time as u64,
+    ctx.report.set_title("Dumping devices");
+    for dev in &md.devs {
+        let device = xml::Device {
+            dev_id: dev.thin_id,
+            mapped_blocks: dev.detail.mapped_blocks,
+            transaction: dev.detail.transaction_id,
+            creation_time: dev.detail.creation_time as u64,
+            snap_time: dev.detail.snapshotted_time as u64,
         };
-        out.device_b(&d)?;
-        let root = roots.get(&thin_id).unwrap();
-        dump_node(&ctx, &mut out, *root, &sm, false)?;
+        out.device_b(&device)?;
+        emit_entries(ctx, &mut out, &dev.map.entries)?;
         out.device_e()?;
     }
     out.superblock_e()?;
 
     Ok(())
+}
+
+//------------------------------------------
+
+pub fn dump(opts: ThinDumpOptions) -> Result<()> {
+    let ctx = mk_context(&opts)?;
+    let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let md = build_metadata(&ctx, &sb)?;
+
+    ctx.report
+        .set_title("Optimising metadata to improve leaf packing");
+    let md = optimise_metadata(md)?;
+    dump_metadata(&ctx, &sb, &md)
 }
 
 //------------------------------------------

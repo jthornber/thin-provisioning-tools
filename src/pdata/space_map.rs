@@ -3,6 +3,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use fixedbitset::FixedBitSet;
 use nom::{multi::count, number::complete::*, IResult};
 use std::sync::{Arc, Mutex};
+use std::boxed::Box;
 
 use crate::io_engine::*;
 use crate::pdata::unpack::{Pack, Unpack};
@@ -325,6 +326,16 @@ pub fn core_sm(nr_entries: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send
         Arc::new(Mutex::new(CoreSpaceMap::<u16>::new(nr_entries)))
     } else {
         Arc::new(Mutex::new(CoreSpaceMap::<u32>::new(nr_entries)))
+    }
+}
+
+pub fn core_sm_without_mutex(nr_entries: u64, max_count: u32) -> Box<dyn SpaceMap> {
+    if max_count <= u8::MAX as u32 {
+        Box::new(CoreSpaceMap::<u8>::new(nr_entries))
+    } else if max_count <= u16::MAX as u32 {
+        Box::new(CoreSpaceMap::<u16>::new(nr_entries))
+    } else {
+        Box::new(CoreSpaceMap::<u32>::new(nr_entries))
     }
 }
 

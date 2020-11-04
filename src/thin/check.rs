@@ -9,6 +9,7 @@ use threadpool::ThreadPool;
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, *};
+use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;

@@ -153,17 +153,17 @@ impl SimpleInner {
 
 impl ReportInner for SimpleInner {
     fn set_title(&mut self, txt: &str) {
-        println!("{}", txt);
+        eprintln!("{}", txt);
     }
 
     fn set_sub_title(&mut self, txt: &str) {
-        println!("{}", txt);
+        eprintln!("{}", txt);
     }
 
     fn progress(&mut self, percent: u8) {
         let elapsed = self.last_progress.elapsed().unwrap();
         if elapsed > std::time::Duration::from_secs(5) {
-            println!("Progress: {}%", percent);
+            eprintln!("Progress: {}%", percent);
             self.last_progress = std::time::SystemTime::now();
         }
     }

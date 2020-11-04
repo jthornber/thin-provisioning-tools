@@ -50,6 +50,7 @@ unsafe impl Send for Block {}
 
 pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
+    fn get_batch_size(&self) -> usize;
 
     fn read(&self, b: u64) -> Result<Block>;
     // The whole io could fail, or individual blocks
@@ -165,6 +166,10 @@ impl SyncIoEngine {
 impl IoEngine for SyncIoEngine {
     fn get_nr_blocks(&self) -> u64 {
         self.nr_blocks
+    }
+
+    fn get_batch_size(&self) -> usize {
+        1
     }
 
     fn read(&self, loc: u64) -> Result<Block> {
@@ -344,6 +349,10 @@ impl IoEngine for AsyncIoEngine {
     fn get_nr_blocks(&self) -> u64 {
         let inner = self.inner.lock().unwrap();
         inner.nr_blocks
+    }
+
+    fn get_batch_size(&self) -> usize {
+        self.inner.lock().unwrap().queue_len as usize
     }
 
     fn read(&self, b: u64) -> Result<Block> {
