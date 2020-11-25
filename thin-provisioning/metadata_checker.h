@@ -48,11 +48,14 @@ namespace thin_provisioning {
 		void set_auto_repair();
 		void set_clear_needs_check();
 
+		// flags for checking
 		bool use_metadata_snap_;
 		data_mapping_options data_mapping_opts_;
 		space_map_options sm_opts_;
 		boost::optional<bcache::block_address> override_mapping_root_;
 		bool ignore_non_fatal_;
+
+		// flags for repairing
 		bool fix_metadata_leaks_;
 		bool clear_needs_check_;
 		bool open_transaction_;

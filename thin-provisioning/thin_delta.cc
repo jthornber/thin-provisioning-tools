@@ -22,47 +22,7 @@ using namespace thin_provisioning;
 
 //----------------------------------------------------------------
 
-namespace local {
-	class application {
-	public:
-		application(string const &cmd)
-		: cmd_(cmd) {
-		}
-
-		void usage(ostream &out) {
-			out << "Usage: " << cmd_ << " [options] <device or file>\n"
-			    << "Options:\n"
-			    << "  {--thin1, --snap1}\n"
-			    << "  {--thin2, --snap2}\n"
-			    << "  {-m, --metadata-snap} [block#]\n"
-			    << "  {--verbose}\n"
-			    << "  {-h|--help}\n"
-			    << "  {-V|--version}" << endl;
-		}
-
-		void die(string const &msg) {
-			cerr << msg << endl;
-			usage(cerr);
-			exit(1);
-		}
-
-		uint64_t parse_int(string const &str, string const &desc) {
-			try {
-				return boost::lexical_cast<uint64_t>(str);
-
-			} catch (...) {
-				ostringstream out;
-				out << "Couldn't parse " << desc << ": '" << str << "'";
-				die(out.str());
-			}
-
-			return 0; // never get here
-		}
-
-	private:
-		string cmd_;
-	};
-
+namespace {
 	struct flags {
 		flags()
 			: verbose(false),
@@ -76,6 +36,8 @@ namespace local {
 		boost::optional<uint64_t> metadata_snap;
 		boost::optional<uint64_t> snap1;
 		boost::optional<uint64_t> snap2;
+		boost::optional<uint64_t> root1;
+		boost::optional<uint64_t> root2;
 	};
 
 	//--------------------------------
@@ -95,13 +57,6 @@ namespace local {
 
 		uint64_t vbegin_, dbegin_, len_;
 	};
-
-	ostream &operator <<(ostream &out, mapping const &m) {
-		out << "mapping[vbegin = " << m.vbegin_
-		    << ", dbegin = " << m.dbegin_
-		    << ", len = " << m.len_ << "]";
-		return out;
-	}
 
 	//--------------------------------
 
@@ -528,9 +483,26 @@ namespace local {
 		out << "</superblock>\n";
 	}
 
-	void begin_diff(indented_stream &out, uint64_t snap1, uint64_t snap2) {
+	// FIXME: always show the blocknr?
+	void begin_diff(indented_stream &out,
+			boost::optional<uint64_t> snap1,
+			boost::optional<uint64_t> root1,
+			boost::optional<uint64_t> snap2,
+			boost::optional<uint64_t> root2) {
 		out.indent();
-		out << "<diff left=\"" << snap1 << "\" right=\"" << snap2 << "\">\n";
+		out << "<diff";
+
+		if (snap1)
+			out << " left=\"" << *snap1 << "\"";
+		else if (root1)
+			out << " left_root=\"" << *root1 << "\"";
+
+		if (snap2)
+			out << " right=\"" << *snap2 << "\"";
+		else if (root2)
+			out << " right_root=\"" << *root2 << "\"";
+
+		out << ">\n";
 		out.inc();
 	}
 
@@ -540,7 +512,7 @@ namespace local {
 		out << "</diff>\n";
 	}
 
-	void delta_(application &app, flags const &fs) {
+	void delta_(flags const &fs) {
 		mapping_recorder mr1;
 		mapping_recorder mr2;
 		damage_visitor damage_v;
@@ -552,25 +524,33 @@ namespace local {
 			metadata::ptr md(fs.use_metadata_snap ? new metadata(bm, fs.metadata_snap) : new metadata(bm));
 			sb = md->sb_;
 
-			dev_tree::key k = {*fs.snap1};
-			boost::optional<uint64_t> snap1_root = md->mappings_top_level_->lookup(k);
+			boost::optional<uint64_t> snap1_root;
+			if (fs.snap1) {
+				dev_tree::key k = {*fs.snap1};
+				snap1_root = md->mappings_top_level_->lookup(k);
+			} else if (fs.root1)
+				snap1_root = *fs.root1;
 
 			if (!snap1_root) {
 				ostringstream out;
 				out << "Unable to find mapping tree for snap1 (" << *fs.snap1 << ")";
-				app.die(out.str());
+				throw std::runtime_error(out.str());
 			}
 
 			single_mapping_tree snap1(*md->tm_, *snap1_root,
 						  mapping_tree_detail::block_traits::ref_counter(md->tm_->get_sm()));
 
-			k[0] = *fs.snap2;
-			boost::optional<uint64_t> snap2_root = md->mappings_top_level_->lookup(k);
+			boost::optional<uint64_t> snap2_root;
+			if (fs.snap2) {
+				dev_tree::key k = {*fs.snap2};
+				snap2_root = md->mappings_top_level_->lookup(k);
+			} else if (fs.root2)
+				snap2_root = *fs.root2;
 
 			if (!snap2_root) {
 				ostringstream out;
 				out << "Unable to find mapping tree for snap2 (" << *fs.snap2 << ")";
-				app.die(out.str());
+				throw std::runtime_error(out.str());
 			}
 
 			single_mapping_tree snap2(*md->tm_, *snap2_root,
@@ -593,7 +573,7 @@ namespace local {
 				 sb.metadata_snap_ ?
 				 boost::optional<block_address>(sb.metadata_snap_) :
 				 boost::optional<block_address>());
-		begin_diff(is, *fs.snap1, *fs.snap2);
+		begin_diff(is, fs.snap1, fs.root1, fs.snap2, fs.root2);
 
 		if (fs.verbose) {
 			verbose_emitter e(is);
@@ -607,12 +587,12 @@ namespace local {
 		end_superblock(is);
 	}
 
-	int delta(application &app, flags const &fs) {
+	int delta(flags const &fs) {
 		try {
-			delta_(app, fs);
+			delta_(fs);
 		} catch (exception const &e) {
-			app.die(e.what());
-			return 1; // never get here
+			cerr << e.what() << endl;
+			return 1;
 		}
 
 		return 0;
@@ -631,77 +611,95 @@ thin_delta_cmd::thin_delta_cmd()
 void
 thin_delta_cmd::usage(std::ostream &out) const
 {
-	// FIXME: finish
+	out << "Usage: " << get_name() << " [options] <device or file>\n"
+	    << "Options:\n"
+	    << "  {--thin1, --snap1, --root1}\n"
+	    << "  {--thin2, --snap2, --root2}\n"
+	    << "  {-m, --metadata-snap} [block#]\n"
+	    << "  {--verbose}\n"
+	    << "  {-h|--help}\n"
+	    << "  {-V|--version}" << endl;
 }
 
 int
 thin_delta_cmd::run(int argc, char **argv)
 {
-	using namespace local;
-
 	int c;
 	flags fs;
-	local::application app(basename(argv[0]));
 
 	char const shortopts[] = "hVm::";
 	option const longopts[] = {
 		{ "help", no_argument, NULL, 'h' },
+		{ "metadata-snap", optional_argument, NULL, 'm' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "thin1", required_argument, NULL, 1 },
 		{ "snap1", required_argument, NULL, 1 },
 		{ "thin2", required_argument, NULL, 2 },
 		{ "snap2", required_argument, NULL, 2 },
-		{ "metadata-snap", optional_argument, NULL, 'm' },
 		{ "verbose", no_argument, NULL, 4 },
+		{ "root1", required_argument, NULL, 5 },
+		{ "root2", required_argument, NULL, 6 },
 		{ NULL, no_argument, NULL, 0 }
 	};
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (c) {
 		case 'h':
-			app.usage(cout);
+			usage(cout);
 			return 0;
+
+		case 'm':
+			fs.use_metadata_snap = true;
+			if (optarg)
+				fs.metadata_snap = parse_uint64(optarg, "metadata snapshot block");
+			break;
 
 		case 'V':
 			cout << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
 
 		case 1:
-			fs.snap1 = app.parse_int(optarg, "thin id 1");
+			fs.snap1 = parse_uint64(optarg, "thin id 1");
 			break;
 
 		case 2:
-			fs.snap2 = app.parse_int(optarg, "thin id 2");
-			break;
-
-		case 'm':
-			fs.use_metadata_snap = true;
-			if (optarg)
-				fs.metadata_snap = app.parse_int(optarg, "metadata snapshot block");
+			fs.snap2 = parse_uint64(optarg, "thin id 2");
 			break;
 
 		case 4:
 			fs.verbose = true;
 			break;
 
+		case 5:
+			fs.root1 = parse_uint64(optarg, "thin root 1");
+			break;
+
+		case 6:
+			fs.root2 = parse_uint64(optarg, "thin root 2");
+			break;
+
 		default:
-			app.usage(cerr);
+			usage(cerr);
 			return 1;
 		}
 	}
 
 	if (argc == optind)
-		app.die("No input device provided.");
+		die("No input device provided.");
 	else
 		fs.dev = argv[optind];
 
-	if (!fs.snap1)
-		app.die("--snap1 not specified.");
+	if (!fs.snap1 && !fs.root1)
+		die("--snap1 or --root1 not specified.");
+	if (!!fs.snap1 && !!fs.root1)
+		die("--snap1 and --root1 are not compatible.");
 
-	if (!fs.snap2)
-		app.die("--snap2 not specified.");
+	if (!fs.snap2 && !fs.root2)
+		die("--snap2 or --root2 not specified.");
+	if (!!fs.snap2 && !!fs.root2)
+		die("--snap2 and --root2 are not compatible.");
 
-	return delta(app, fs);
+	return delta(fs);
 }
 
 //----------------------------------------------------------------

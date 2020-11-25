@@ -21,7 +21,7 @@ io-uring = "0.3"
 indicatif = "0.15"
 libc = "0.2.71"
 nix = "0.17"
-nom = { path = "/home/ejt/builds/nom/" }
+nom = "6.0.0"
 num_cpus = "1.13"
 num-derive = "0.3"
 num-traits = "0.2"

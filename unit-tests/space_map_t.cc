@@ -368,6 +368,7 @@ namespace {
 			sm_disk_detail::sm_root root;
 			get_root(root);
 			test::zero_block(bm_, root.bitmap_root_);
+			bm_->flush();
 		}
 
 		// TODO: trash the bitmap corresponding to a given key
@@ -376,12 +377,14 @@ namespace {
 			load_ies(entries);
 			ASSERT_LT(index, entries.size());
 			test::zero_block(bm_, entries[index].blocknr_);
+			bm_->flush();
 		}
 
 		void trash_ref_count_root() {
 			sm_disk_detail::sm_root root;
 			get_root(root);
 			test::zero_block(bm_, root.ref_count_root_);
+			bm_->flush();
 		}
 
 		// TODO: trash the node corresponding to a given key
@@ -394,6 +397,7 @@ namespace {
 
 			ASSERT_GT(ref_count_blocks_.size(), 0u);
 			test::zero_block(bm_, *ref_count_blocks_.begin());
+			bm_->flush();
 		}
 
 		std::set<block_address> ref_count_blocks_;
@@ -450,17 +454,20 @@ namespace {
 			sm_disk_detail::sm_root root;
 			get_data_sm_root(root);
 			test::zero_block(bm_, root.bitmap_root_);
+			bm_->flush();
 		}
 
 		// TODO: trash the bitmap corresponding to a given key
 		void trash_bitmap_block() {
 			test::zero_block(bm_, *bitmap_blocks_.begin());
+			bm_->flush();
 		}
 
 		void trash_ref_count_root() {
 			sm_disk_detail::sm_root root;
 			get_data_sm_root(root);
 			test::zero_block(bm_, root.ref_count_root_);
+			bm_->flush();
 		}
 
 		// TODO: trash the node corresponding to a given key
@@ -471,6 +478,7 @@ namespace {
 
 			ASSERT_GT(ref_count_blocks_.size(), 0u);
 			test::zero_block(bm_, *ref_count_blocks_.begin());
+			bm_->flush();
 		}
 
 		std::set<block_address> index_store_blocks_;
@@ -749,7 +757,7 @@ TEST_F(MetaSMCountingTests, test_trashed_bitmap_root)
 	// explicitly test open_metadata_sm()
 	block_manager::ptr bm(new block_manager("./test.data", NR_BLOCKS, MAX_LOCKS, block_manager::READ_WRITE));
 	space_map::ptr core_sm{create_core_map(NR_BLOCKS)};
-	transaction_manager::ptr tm(new transaction_manager(bm_, core_sm));
+	transaction_manager::ptr tm(new transaction_manager(bm, core_sm));
 	ASSERT_THROW(persistent_data::open_metadata_sm(*tm, &d), runtime_error);
 }
 
