@@ -197,13 +197,19 @@ thin_dump_cmd::run(int argc, char **argv)
 			break;
 
 		case 1:
-			dev_id = strtoull(optarg, &end_ptr, 10);
-			if (end_ptr == optarg) {
-				cerr << "couldn't parse <dev-id>\n";
+			if (optarg) {
+				dev_id = strtoull(optarg, &end_ptr, 10);
+				if (end_ptr == optarg) {
+					cerr << "couldn't parse <dev-id>\n";
+					usage(cerr);
+					return 1;
+				}
+				flags.opts.select_dev(dev_id);
+			} else {
+				cerr << "No input argument provided\n";
 				usage(cerr);
 				return 1;
 			}
-			flags.opts.select_dev(dev_id);
 			break;
 
 		case 2:
