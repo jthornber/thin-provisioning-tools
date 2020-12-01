@@ -1,17 +1,8 @@
 use anyhow::Result;
-use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::btree::{self, *};
-use crate::pdata::space_map::*;
-use crate::pdata::unpack::*;
 use crate::report::*;
-use crate::thin::block_time::*;
-use crate::thin::device_detail::*;
-use crate::thin::superblock::*;
-use crate::thin::xml::{self, MetadataVisitor};
 
 //------------------------------------------
 
@@ -24,7 +15,7 @@ pub struct ThinRestoreOptions<'a> {
 
 //------------------------------------------
 
-pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
+pub fn restore(_opts: ThinRestoreOptions) -> Result<()> {
     todo!();
 }
 

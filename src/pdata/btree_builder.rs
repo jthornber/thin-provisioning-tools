@@ -141,6 +141,7 @@ impl<V> Entries<V> {
 
 //------------------------------------------
 
+#[allow(dead_code)]
 pub struct NodeSummary {
     block: u64,
     nr_entries: usize,
@@ -251,7 +252,7 @@ impl<V: Unpack + Pack> Builder<V> {
                 // Add the entries individually
                 todo!();
             },
-            n => {
+            _n => {
                 let actions = self.entries.complete();
                 for a in actions {
                     self.perform_action(a)?;

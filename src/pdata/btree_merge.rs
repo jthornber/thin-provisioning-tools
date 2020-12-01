@@ -1,10 +1,6 @@
-use anyhow::{anyhow, Result};
-use byteorder::{LittleEndian, WriteBytesExt};
-use std::collections::VecDeque;
-use std::io::Cursor;
+use anyhow::Result;
 use std::sync::{Arc, Mutex};
 
-use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::btree::*;
@@ -21,6 +17,7 @@ use crate::write_batcher::*;
 // ii) Merge leaf nodes where they can be packed more efficiently (non destructively to original subtrees).
 // iii) Build higher levels from scratch.  There are very few of these internal nodes compared to leaves anyway.
 
+#[allow(dead_code)]
 struct NodeSummary {
     block: u64,
     nr_entries: usize,
@@ -28,6 +25,7 @@ struct NodeSummary {
     key_high: u64, // inclusive
 }
 
+#[allow(dead_code)]
 struct LVInner {
     last_key: Option<u64>,
     leaves: Vec<NodeSummary>,
@@ -52,10 +50,10 @@ impl<V: Unpack> NodeVisitor<V> for LeafVisitor {
     fn visit(
         &self,
         path: &Vec<u64>,
-        kr: &KeyRange,
-        header: &NodeHeader,
+        _kr: &KeyRange,
+        _header: &NodeHeader,
         keys: &[u64],
-        values: &[V],
+        _values: &[V],
     ) -> btree::Result<()> {
         // ignore empty nodes
         if keys.len() == 0 {
@@ -85,7 +83,7 @@ impl<V: Unpack> NodeVisitor<V> for LeafVisitor {
         Ok(())
     }
 
-    fn visit_again(&self, path: &Vec<u64>, b: u64) -> btree::Result<()> {
+    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
         Ok(())
     }
 
@@ -111,7 +109,7 @@ fn collect_leaves<V: Unpack>(engine: AEngine, roots: &[u64]) -> Result<Vec<NodeS
 //------------------------------------------
 
 fn optimise_leaves<V: Unpack + Pack>(
-    batcher: &mut WriteBatcher,
+    _batcher: &mut WriteBatcher,
     lvs: Vec<NodeSummary>,
 ) -> Result<Vec<NodeSummary>> {
     // FIXME: implement
@@ -128,7 +126,7 @@ pub fn merge<V: Unpack + Pack>(
     let lvs = collect_leaves::<V>(engine.clone(), roots)?;
 
     let mut batcher = WriteBatcher::new(engine, sm, 256);
-    let lvs = optimise_leaves::<V>(&mut batcher, lvs)?;
+    let _lvs = optimise_leaves::<V>(&mut batcher, lvs)?;
 
     todo!();
 }

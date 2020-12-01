@@ -1,5 +1,5 @@
 use fixedbitset::FixedBitSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -23,11 +23,11 @@ pub trait LeafVisitor<V: Unpack> {
 pub struct NoopLeafVisitor {}
 
 impl<V: Unpack> LeafVisitor<V> for NoopLeafVisitor {
-    fn visit(&mut self, kr: &KeyRange, b: u64) -> Result<()> {
+    fn visit(&mut self, _kr: &KeyRange, _b: u64) -> Result<()> {
         Ok(())
     }
 
-    fn visit_again(&mut self, b: u64) -> Result<()> {
+    fn visit_again(&mut self, _b: u64) -> Result<()> {
         Ok(())
     }
 
