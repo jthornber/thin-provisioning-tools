@@ -69,8 +69,13 @@ fn main() {
                 .index(1),
         )
         .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for asynchronous IO")
+                .long("async-io"),
+        )
+        .arg(
             Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous io")
+                .help("Force use of synchronous IO (currently the default)")
                 .long("sync-io"),
         );
 
@@ -92,9 +97,25 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
+    if matches.is_present("SYNC_IO") &&
+    matches.is_present("ASYNC_IO") {
+        eprintln!("--sync-io and --async-io may not be used at the same time.");
+        process::exit(1);
+    }
+
+    let mut async_io = false;
+    if matches.is_present("ASYNC_IO") {
+        async_io = true;
+    }
+
+    // redundant since sync is the default.
+    if matches.is_present("SYNC_IO") {
+        async_io = false;
+    }
+
     let opts = ThinCheckOptions {
         dev: &input_file,
-        async_io: !matches.is_present("SYNC_IO"),
+        async_io: async_io,
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
@@ -103,7 +124,7 @@ fn main() {
     };
 
     if let Err(reason) = check(opts) {
-        println!("{}", reason);
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }
