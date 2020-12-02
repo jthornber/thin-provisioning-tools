@@ -11,6 +11,8 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
 
+use crate::file_utils;
+
 //------------------------------------------
 
 pub const BLOCK_SIZE: usize = 4096;
@@ -62,8 +64,7 @@ pub trait IoEngine {
 }
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
-    let metadata = std::fs::metadata(path)?;
-    Ok(metadata.len() / (BLOCK_SIZE as u64))
+    Ok(file_utils::file_size(path)? / (BLOCK_SIZE as u64))
 }
 
 //------------------------------------------
