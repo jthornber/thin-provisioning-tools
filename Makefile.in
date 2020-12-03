@@ -128,6 +128,7 @@ TOOLS_SOURCE=\
 DEVTOOLS_SOURCE=\
 	base/command_interpreter.cc \
 	base/output_formatter.cc \
+	caching/cache_debug.cc \
 	caching/devel_commands.cc \
 	era/devel_commands.cc \
 	thin-provisioning/damage_generator.cc \
