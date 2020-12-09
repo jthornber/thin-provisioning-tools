@@ -7,9 +7,10 @@ use crate::pdata::space_map::*;
 
 //------------------------------------------
 
+#[derive(Clone)]
 pub struct WriteBatcher {
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    sm: Arc<Mutex<dyn SpaceMap>>,
+    pub engine: Arc<dyn IoEngine + Send + Sync>,
+    pub sm: Arc<Mutex<dyn SpaceMap>>,
 
     batch_size: usize,
     queue: Vec<Block>,

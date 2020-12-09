@@ -2,8 +2,8 @@ use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use fixedbitset::FixedBitSet;
 use nom::{multi::count, number::complete::*, IResult};
-use std::sync::{Arc, Mutex};
 use std::boxed::Box;
+use std::sync::{Arc, Mutex};
 
 use crate::io_engine::*;
 use crate::pdata::unpack::{Pack, Unpack};
@@ -226,13 +226,22 @@ pub trait SpaceMap {
     fn get_nr_allocated(&self) -> Result<u64>;
     fn get(&self, b: u64) -> Result<u32>;
 
-    // Returns the old ref count
+    /// Returns the old ref count
     fn set(&mut self, b: u64, v: u32) -> Result<u32>;
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
 
-    // Finds a block with a zero reference count.  Increments the
-    // count.
+    /// Returns true if the block is now free
+    fn dec(&mut self, b: u64) -> Result<bool> {
+        let old = self.get(b)?;
+        assert!(old > 0);
+        self.set(b, old - 1)?;
+
+        Ok(old == 1)
+    }
+
+    /// Finds a block with a zero reference count.  Increments the
+    /// count.
     fn alloc(&mut self) -> Result<Option<u64>>;
 }
 
