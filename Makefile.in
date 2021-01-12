@@ -22,6 +22,7 @@ PROGRAMS=\
 	bin/pdata_tools
 
 ifeq ("@TESTING@", "yes")
+PROGRAMS += bin/pdata_tools_dev
 TESTLIBS=\
 	lib/libft.so
 endif
@@ -31,7 +32,7 @@ all: $(PROGRAMS) $(TESTLIBS)
 
 include contrib/Makefile
 
-SOURCE=\
+COMMON_SOURCE=\
 	base/output_file_requirements.cc \
 	base/application.cc \
 	base/base64.cc \
@@ -50,13 +51,6 @@ SOURCE=\
 	block-cache/copier.cc \
 	block-cache/io_engine.cc \
 	block-cache/mem_pool.cc \
-	caching/cache_check.cc \
-	caching/cache_dump.cc \
-	caching/cache_metadata_size.cc \
-	caching/cache_repair.cc \
-	caching/cache_restore.cc \
-	caching/cache_writeback.cc \
-	caching/commands.cc \
 	caching/hint_array.cc \
 	caching/mapping_array.cc \
 	caching/metadata.cc \
@@ -64,13 +58,8 @@ SOURCE=\
 	caching/restore_emitter.cc \
 	caching/superblock.cc \
 	caching/xml_format.cc \
-	era/commands.cc \
 	era/era_array.cc \
-	era/era_check.cc \
 	era/era_detail.cc \
-	era/era_dump.cc \
-	era/era_invalidate.cc \
-	era/era_restore.cc \
 	era/metadata.cc \
 	era/metadata_dump.cc \
 	era/restore_emitter.cc \
@@ -95,7 +84,6 @@ SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
-	thin-provisioning/commands.cc \
 	thin-provisioning/cache_stream.cc \
 	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
@@ -111,37 +99,54 @@ SOURCE=\
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
+	thin-provisioning/xml_format.cc
+
+TOOLS_SOURCE=\
+	caching/commands.cc \
+	caching/cache_check.cc \
+	caching/cache_dump.cc \
+	caching/cache_metadata_size.cc \
+	caching/cache_repair.cc \
+	caching/cache_restore.cc \
+	caching/cache_writeback.cc \
+	era/commands.cc \
+	era/era_check.cc \
+	era/era_dump.cc \
+	era/era_invalidate.cc \
+	era/era_restore.cc \
+	thin-provisioning/commands.cc \
 	thin-provisioning/thin_check.cc \
 	thin-provisioning/thin_delta.cc \
 	thin-provisioning/thin_dump.cc \
 	thin-provisioning/thin_ls.cc \
 	thin-provisioning/thin_metadata_size.cc \
-	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_repair.cc \
 	thin-provisioning/thin_restore.cc \
 	thin-provisioning/thin_rmap.cc \
-	thin-provisioning/thin_trim.cc \
-	thin-provisioning/xml_format.cc
+	thin-provisioning/thin_trim.cc
 
 DEVTOOLS_SOURCE=\
+	caching/devel_commands.cc \
+	era/devel_commands.cc \
 	thin-provisioning/damage_generator.cc \
+	thin-provisioning/devel_commands.cc \
+	thin-provisioning/thin_generate_damage.cc \
+	thin-provisioning/thin_generate_mappings.cc \
+	thin-provisioning/thin_generate_metadata.cc \
 	thin-provisioning/thin_journal.cc \
 	thin-provisioning/thin_journal_check.cc \
 	thin-provisioning/thin_ll_dump.cc \
 	thin-provisioning/thin_ll_restore.cc \
-	thin-provisioning/thin_show_duplicates.cc \
-	thin-provisioning/thin_generate_damage.cc \
-	thin-provisioning/thin_generate_metadata.cc \
-	thin-provisioning/thin_generate_mappings.cc \
-	thin-provisioning/variable_chunk_stream.cc \
 	thin-provisioning/thin_patch_superblock.cc \
-	thin-provisioning/thin_show_metadata.cc \
+	thin-provisioning/thin_pool.cc \
 	thin-provisioning/thin_scan.cc \
+	thin-provisioning/thin_show_duplicates.cc \
+	thin-provisioning/thin_show_metadata.cc \
+	thin-provisioning/variable_chunk_stream.cc \
 	ui/ui.cc
 
-ifeq ("@DEVTOOLS@", "yes")
-SOURCE+=$(DEVTOOLS_SOURCE)
-endif
+SOURCE=$(COMMON_SOURCE) $(TOOLS_SOURCE)
+DEV_SOURCE=$(COMMON_SOURCE) $(DEVTOOLS_SOURCE)
 
 ifeq ("@STATIC@", "yes")
 SOURCE += thin-provisioning/static_library_emitter.cc
@@ -154,6 +159,7 @@ CXX:=@CXX@
 AR:=@AR@
 STRIP:=@STRIP@
 OBJECTS:=$(subst .cc,.o,$(SOURCE))
+DEV_OBJECTS:=$(subst .cc,.o,$(DEV_SOURCE))
 
 ifeq ("@STATIC@", "yes")
 EMITTERS += $(PLUGIN_LIBS)
@@ -165,20 +171,13 @@ CFLAGS+=-g -Wall -O3 -fPIC
 CFLAGS+=@LFS_FLAGS@
 CXXFLAGS+=-g -Wall -fPIC -fno-strict-aliasing -std=c++11
 
-ifeq ("@DEVTOOLS@", "yes")
-CXXFLAGS+=-DDEV_TOOLS
-endif
-
 CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
 LIBS:=-laio -lexpat -lboost_iostreams -ldl
-
-ifeq ("@DEVTOOLS@", "yes")
-LIBS+=-lncurses
-endif
+DEV_LIBS:=-lncurses
 
 ifeq ("@STATIC_CXX@", "yes")
 CXXLIB+=-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -Wl,--as-needed
@@ -246,10 +245,16 @@ bin/pdata_tools: $(OBJECTS) $(EMITTERS)
 	@mkdir -p $(dir $@)
 	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(CXXLIB)
 
+bin/pdata_tools_dev: $(DEV_OBJECTS)
+	@echo "    [LD]  $@"
+	@mkdir -p $(dir $@)
+	$(V) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $+ $(LIBS) $(DEV_LIBS) $(CXXLIB)
+
 #----------------------------------------------------------------
 
 DEPEND_FILES=\
 	$(subst .cc,.d,$(SOURCE)) \
+	$(subst .cc,.d,$(DEV_SOURCE)) \
 	$(subst .cc,.d,$(TEST_SOURCE)) \
 	$(subst .cc,.d,$(CXX_PROGRAM_SOURCE)) \
 	$(subst .c,.d,$(C_PROGRAM_SOURCE))
@@ -260,7 +265,7 @@ clean:
 	find . -name \*.o -delete
 	find . -name \*.gmo -delete
 	find . -name \*.d -delete
-	$(RM) $(TEST_PROGRAMS) $(PROGRAMS) $(GMOCK_OBJECTS) lib/*.a lib/*.so
+	$(RM) $(PROGRAMS) lib/*.a lib/*.so
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
@@ -331,13 +336,6 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_invalidate.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
-ifeq ("@DEVTOOLS@", "yes")
-	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
-	ln -s -f pdata_tools $(BINDIR)/thin_ll_dump
-	ln -s -f pdata_tools $(BINDIR)/thin_show_duplicates
-	ln -s -f pdata_tools $(BINDIR)/thin_generate_metadata
-	ln -s -f pdata_tools $(BINDIR)/thin_scan
-endif
 
 .PHONY: install install-rust-tools rust-tools
 
@@ -368,7 +366,7 @@ lib/libft.so: $(LIBFT_OBJECTS)
 
 .PHONEY: functional-test unit-test
 
-functional-test: bin/pdata_tools lib/libft.so
+functional-test: $(PROGRAMS) $(TESTLIBS)
 	cd functional-tests && ./run-tests run
 
 test: functional-test unit-test

@@ -47,7 +47,7 @@ application::run(int argc, char **argv)
 {
 	string cmd = get_basename(argv[0]);
 
-	if (cmd == string("pdata_tools")) {
+	if (cmd.find("pdata_tools") == 0) {
 		argc--;
 		argv++;
 

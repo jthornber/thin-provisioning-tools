@@ -21,7 +21,7 @@ fn accepts_version() -> Result<()> {
     Ok(())
 }
 
-const USAGE: &str = "Usage: thin_delta [options] <device or file>\nOptions:\n  {--thin1, --snap1}\n  {--thin2, --snap2}\n  {-m, --metadata-snap} [block#]\n  {--verbose}\n  {-h|--help}\n  {-V|--version}";
+const USAGE: &str = "Usage: thin_delta [options] <device or file>\nOptions:\n  {--thin1, --snap1, --root1}\n  {--thin2, --snap2, --root2}\n  {-m, --metadata-snap} [block#]\n  {--verbose}\n  {-h|--help}\n  {-V|--version}";
 
 #[test]
 fn accepts_h() -> Result<()> {
@@ -49,7 +49,7 @@ fn snap1_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta!("--snap2", "45", &md))?;
-    assert!(stderr.contains("--snap1 not specified"));
+    assert!(stderr.contains("--snap1 or --root1 not specified"));
     Ok(())
 }
 
@@ -58,7 +58,7 @@ fn snap2_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta!("--snap1", "45", &md))?;
-    assert!(stderr.contains("--snap2 not specified"));
+    assert!(stderr.contains("--snap2 or --root2 not specified"));
     Ok(())
 }
 

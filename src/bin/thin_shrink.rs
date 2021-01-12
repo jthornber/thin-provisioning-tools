@@ -1,3 +1,7 @@
+// This work is based on the implementation by Nikhil Kshirsagar which
+// can be found here:
+//    https://github.com/nkshirsagar/thinpool_shrink/blob/split_ranges/thin_shrink.py
+
 extern crate clap;
 extern crate thinp;
 
