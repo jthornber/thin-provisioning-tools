@@ -34,6 +34,7 @@
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
+#include "thin-provisioning/superblock.h"
 #include "version.h"
 
 using namespace boost;
@@ -122,9 +123,12 @@ namespace {
 
 	class command_interpreter {
 	public:
+		typedef std::shared_ptr<command_interpreter> ptr;
+
 		command_interpreter(istream &in, ostream &out)
 			: in_(in),
-			  out_(out) {
+			  out_(out),
+			  exit_(false) {
 		}
 
 		void register_command(string const &str, command::ptr cmd) {
@@ -132,8 +136,12 @@ namespace {
 		}
 
 		void enter_main_loop() {
-			while (true)
+			while (!exit_)
 				do_once();
+		}
+
+		void exit_main_loop() {
+			exit_ = true;
 		}
 
 	private:
@@ -160,13 +168,19 @@ namespace {
 			it = commands_.find(args[0]);
 			if (it == commands_.end())
 				out_ << "Unrecognised command" << endl;
-			else
-				it->second->exec(args, out_);
+			else {
+				try {
+					it->second->exec(args, out_);
+				} catch (std::exception &e) {
+					cerr << e.what() << endl;
+				}
+			}
 		}
 
 		istream &in_;
 		ostream &out_;
 		map <string, command::ptr> commands_;
+		bool exit_;
 	};
 
 	//--------------------------------
@@ -175,6 +189,31 @@ namespace {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Hello, world!" << endl;
 		}
+	};
+
+	class help : public command {
+		virtual void exec(strings const &args, ostream &out) {
+			out << "Commands:" << endl
+			    << "  superblock" << endl
+			    << "  m1_node <block# of top-level mapping tree node>" << endl
+			    << "  m2_node <block# of bottom-level mapping tree node>" << endl
+			    << "  detail_node <block# of device details tree node>" << endl
+			    << "  exit" << endl;
+		}
+	};
+
+	class exit_handler : public command {
+	public:
+		exit_handler(command_interpreter &interpreter)
+			: interpreter_(interpreter) {
+		}
+
+		virtual void exec(strings const &args, ostream &out) {
+			out << "Goodbye!" << endl;
+			interpreter_.exit_main_loop();
+		}
+
+		command_interpreter &interpreter_;
 	};
 
 	class show_superblock : public command {
@@ -298,7 +337,7 @@ namespace {
 
 	//--------------------------------
 
-	int debug(string const &path) {
+	int debug(string const &path, bool ignore_metadata_sm) {
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY, 1);
 			metadata::ptr md(new metadata(bm, false));
@@ -308,16 +347,17 @@ namespace {
 			interp.register_command("m1_node", command::ptr(new show_btree_node<uint64_show_traits>(md)));
 			interp.register_command("m2_node", command::ptr(new show_btree_node<block_show_traits>(md)));
 			interp.register_command("detail_node", command::ptr(new show_btree_node<device_details_show_traits>(md)));
+			interp.register_command("help", command::ptr(new help));
+			interp.register_command("exit", command::ptr(new exit_handler(interp)));
 			interp.enter_main_loop();
 
 		} catch (std::exception &e) {
-			cerr << e.what();
+			cerr << e.what() << endl;
 			return 1;
 		}
 
 		return 0;
 	}
-
 }
 
 thin_debug_cmd::thin_debug_cmd()
@@ -342,8 +382,10 @@ thin_debug_cmd::run(int argc, char **argv)
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
+		{ "ignore-metadata-sm", no_argument, NULL, 1},
 		{ NULL, no_argument, NULL, 0 }
 	};
+	bool ignore_metadata_sm = false;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
@@ -354,6 +396,10 @@ thin_debug_cmd::run(int argc, char **argv)
 		case 'V':
 			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
+
+		case 1:
+			ignore_metadata_sm = true;
+			break;
 		}
 	}
 
@@ -362,5 +408,5 @@ thin_debug_cmd::run(int argc, char **argv)
 		exit(1);
 	}
 
-	return debug(argv[optind]);
+	return debug(argv[optind], ignore_metadata_sm);
 }
