@@ -215,6 +215,8 @@ namespace {
 
 	class device_details_show_traits : public thin_provisioning::device_tree_detail::device_details_traits {
 	public:
+		typedef thin_provisioning::device_tree_detail::device_details_traits value_trait;
+
 		static void show(formatter &f, string const &key,
 				 thin_provisioning::device_tree_detail::device_details const &value) {
 			field(f, "mapped blocks", value.mapped_blocks_);
@@ -226,6 +228,8 @@ namespace {
 
 	class uint64_show_traits : public uint64_traits {
 	public:
+		typedef uint64_traits value_trait;
+
 		static void show(formatter &f, string const &key, uint64_t const &value) {
 			field(f, key, lexical_cast<string>(value));
 		}
@@ -233,6 +237,8 @@ namespace {
 
 	class block_show_traits : public thin_provisioning::mapping_tree_detail::block_traits {
 	public:
+		typedef thin_provisioning::mapping_tree_detail::block_traits value_trait;
+
 		static void show(formatter &f, string const &key,
 				 thin_provisioning::mapping_tree_detail::block_time const &value) {
 			field(f, "block", value.block_);
@@ -240,7 +246,7 @@ namespace {
 		}
 	};
 
-	template <typename ValueTraits>
+	template <typename ShowTraits>
 	class show_btree_node : public command {
 	public:
 		explicit show_btree_node(metadata::ptr md)
@@ -256,18 +262,18 @@ namespace {
 			block_address block = lexical_cast<block_address>(args[1]);
 			block_manager::read_ref rr = md_->tm_->read_lock(block);
 
-			node_ref<uint64_show_traits> n = btree_detail::to_node<uint64_show_traits>(rr);
+			node_ref<uint64_show_traits::value_trait> n = btree_detail::to_node<uint64_show_traits::value_trait>(rr);
 			if (n.get_type() == INTERNAL)
 				show_node<uint64_show_traits>(n, out);
 			else {
-				node_ref<ValueTraits> n = btree_detail::to_node<ValueTraits>(rr);
-				show_node<ValueTraits>(n, out);
+				node_ref<typename ShowTraits::value_trait> n = btree_detail::to_node<typename ShowTraits::value_trait>(rr);
+				show_node<ShowTraits>(n, out);
 			}
 		}
 
 	private:
-		template <typename VT>
-		void show_node(node_ref<VT> n, ostream &out) {
+		template <typename ST>
+		void show_node(node_ref<typename ST::value_trait> n, ostream &out) {
 			xml_formatter f;
 
 			field(f, "csum", n.get_checksum());
@@ -280,7 +286,7 @@ namespace {
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
 				formatter::ptr f2(new xml_formatter);
 				field(*f2, "key", n.key_at(i));
-				VT::show(*f2, "value", n.value_at(i));
+				ST::show(*f2, "value", n.value_at(i));
 				f.child("child", f2);
 			}
 
