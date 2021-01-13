@@ -364,7 +364,7 @@ namespace {
 			xml_formatter f;
 
 			field(f, "csum", n.get_checksum());
-			field(f, "blocknr", n.get_location());
+			field(f, "blocknr", n.get_block_nr());
 			field(f, "type", n.get_type() == INTERNAL ? "internal" : "leaf");
 			field(f, "nr entries", n.get_nr_entries());
 			field(f, "max entries", n.get_max_entries());
@@ -374,7 +374,7 @@ namespace {
 				formatter::ptr f2(new xml_formatter);
 				field(*f2, "key", n.key_at(i));
 				ST::show(*f2, "value", n.value_at(i));
-				f.child("child", f2);
+				f.child(lexical_cast<string>(i), f2);
 			}
 
 			f.output(out, 0);
