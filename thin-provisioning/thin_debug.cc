@@ -31,6 +31,7 @@
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/file_utils.h"
+#include "persistent-data/space-maps/disk_structures.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/metadata.h"
 #include "thin-provisioning/metadata_checker.h"
@@ -61,7 +62,7 @@ namespace {
 			fields_.push_back(field_type(name, t));
 		}
 
-		virtual void output(ostream &out, int depth = 0) = 0;
+		virtual void output(ostream &out, int depth = 0, boost::optional<string> name = boost::none) = 0;
 
 	protected:
 		typedef boost::variant<string, ptr> value;
@@ -80,9 +81,12 @@ namespace {
 
 	class xml_formatter : public formatter {
 	public:
-		virtual void output(ostream &out, int depth)  {
+		virtual void output(ostream &out, int depth, boost::optional<string> name = boost::none)  {
 			indent(depth, out);
-			out << "<fields>" << endl;
+			if (name && (*name).length())
+				out << "<fields id=\"" << *name << "\">" << endl;
+			else
+				out << "<fields>" << endl;
 			vector<field_type>::const_iterator it;
 			for (it = fields_.begin(); it != fields_.end(); ++it) {
 				if (string const *s = get<string>(&it->get<1>())) {
@@ -96,7 +100,7 @@ namespace {
 
 				} else {
 					formatter::ptr f = get<formatter::ptr>(it->get<1>());
-					f->output(out, depth + 1);
+					f->output(out, depth + 1, it->get<0>());
 				}
 			}
 
@@ -216,6 +220,17 @@ namespace {
 		command_interpreter &interpreter_;
 	};
 
+	class sm_root_show_traits : public persistent_data::sm_disk_detail::sm_root_traits {
+	public:
+		static void show(formatter &f, string const &key,
+				 persistent_data::sm_disk_detail::sm_root const &value) {
+			field(f, "nr blocks", value.nr_blocks_);
+			field(f, "nr allocated", value.nr_allocated_);
+			field(f, "bitmap root", value.bitmap_root_);
+			field(f, "ref count root", value.ref_count_root_);
+		}
+	};
+
 	class show_superblock : public command {
 	public:
 		explicit show_superblock(metadata::ptr md)
@@ -236,6 +251,24 @@ namespace {
 			field(f, "time", sb.time_);
 			field(f, "trans id", sb.trans_id_);
 			field(f, "metadata snap", sb.metadata_snap_);
+
+			sm_disk_detail::sm_root_disk const *d;
+			sm_disk_detail::sm_root v;
+			{
+				d = reinterpret_cast<sm_disk_detail::sm_root_disk const *>(sb.metadata_space_map_root_);
+				sm_disk_detail::sm_root_traits::unpack(*d, v);
+				formatter::ptr f2(new xml_formatter);
+				sm_root_show_traits::show(*f2, "value", v);
+				f.child("metadata space map root", f2);
+			}
+			{
+				d = reinterpret_cast<sm_disk_detail::sm_root_disk const *>(sb.data_space_map_root_);
+				sm_disk_detail::sm_root_traits::unpack(*d, v);
+				formatter::ptr f2(new xml_formatter);
+				sm_root_show_traits::show(*f2, "value", v);
+				f.child("data space map root", f2);
+			}
+
 			field(f, "data mapping root", sb.data_mapping_root_);
 			field(f, "device details root", sb.device_details_root_);
 			field(f, "data block size", sb.data_block_size_);
