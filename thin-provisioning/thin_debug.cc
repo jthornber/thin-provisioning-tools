@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "base/math_utils.h"
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/file_utils.h"
@@ -202,6 +203,8 @@ namespace {
 			    << "  m1_node <block# of top-level mapping tree node>" << endl
 			    << "  m2_node <block# of bottom-level mapping tree node>" << endl
 			    << "  detail_node <block# of device details tree node>" << endl
+			    << "  index_block <block# of metadata space map root>" << endl
+			    << "  index_node <block# of data space map node>" << endl
 			    << "  exit" << endl;
 		}
 	};
@@ -318,6 +321,18 @@ namespace {
 		}
 	};
 
+	class index_entry_show_traits : public persistent_data::sm_disk_detail::index_entry_traits {
+	public:
+		typedef persistent_data::sm_disk_detail::index_entry_traits value_trait;
+
+		static void show(formatter &f, string const &key,
+				 persistent_data::sm_disk_detail::index_entry const &value) {
+			field(f, "blocknr", value.blocknr_);
+			field(f, "nr free", value.nr_free_);
+			field(f, "none free before", value.none_free_before_);
+		}
+	};
+
 	template <typename ShowTraits>
 	class show_btree_node : public command {
 	public:
@@ -368,6 +383,52 @@ namespace {
 		metadata::ptr md_;
 	};
 
+	class show_index_block : public command {
+	public:
+		explicit show_index_block(metadata::ptr md)
+			: md_(md) {
+		}
+
+		virtual void exec(strings const &args, ostream &out) {
+			if (args.size() != 2)
+				throw runtime_error("incorrect number of arguments");
+
+			// manually load metadata_index, without using index_validator()
+			block_address block = lexical_cast<block_address>(args[1]);
+			block_manager::read_ref rr = md_->tm_->read_lock(block);
+
+			sm_disk_detail::sm_root_disk const *d =
+				reinterpret_cast<sm_disk_detail::sm_root_disk const *>(md_->sb_.metadata_space_map_root_);
+			sm_disk_detail::sm_root v;
+			sm_disk_detail::sm_root_traits::unpack(*d, v);
+			block_address nr_indexes = base::div_up<block_address>(v.nr_blocks_, ENTRIES_PER_BLOCK);
+
+			sm_disk_detail::metadata_index const *mdi =
+				reinterpret_cast<sm_disk_detail::metadata_index const *>(rr.data());
+			show_metadata_index(mdi, nr_indexes, out);
+		}
+
+	private:
+		void show_metadata_index(sm_disk_detail::metadata_index const *mdi, block_address nr_indexes, ostream &out) {
+			xml_formatter f;
+			field(f, "csum", to_cpu<uint32_t>(mdi->csum_));
+			field(f, "padding", to_cpu<uint32_t>(mdi->padding_));
+			field(f, "blocknr", to_cpu<uint64_t>(mdi->blocknr_));
+
+			sm_disk_detail::index_entry ie;
+			for (block_address i = 0; i < nr_indexes; i++) {
+				sm_disk_detail::index_entry_traits::unpack(*(mdi->index + i), ie);
+				formatter::ptr f2(new xml_formatter);
+				index_entry_show_traits::show(*f2, "value", ie);
+				f.child(lexical_cast<string>(i), f2);
+			}
+			f.output(out, 0);
+		}
+
+		unsigned const ENTRIES_PER_BLOCK = (MD_BLOCK_SIZE - sizeof(persistent_data::sm_disk_detail::bitmap_header)) * 4;
+		metadata::ptr md_;
+	};
+
 	//--------------------------------
 
 	int debug(string const &path, bool ignore_metadata_sm) {
@@ -380,6 +441,8 @@ namespace {
 			interp.register_command("m1_node", command::ptr(new show_btree_node<uint64_show_traits>(md)));
 			interp.register_command("m2_node", command::ptr(new show_btree_node<block_show_traits>(md)));
 			interp.register_command("detail_node", command::ptr(new show_btree_node<device_details_show_traits>(md)));
+			interp.register_command("index_block", command::ptr(new show_index_block(md)));
+			interp.register_command("index_node", command::ptr(new show_btree_node<index_entry_show_traits>(md)));
 			interp.register_command("help", command::ptr(new help));
 			interp.register_command("exit", command::ptr(new exit_handler(interp)));
 			interp.enter_main_loop();
