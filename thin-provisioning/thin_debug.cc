@@ -59,7 +59,7 @@ namespace {
 		}
 
 		void child(string const &name, formatter::ptr t) {
-			fields_.push_back(field_type(name, t));
+			children_.push_back(field_type(name, t));
 		}
 
 		virtual void output(ostream &out, int depth = 0, boost::optional<string> name = boost::none) = 0;
@@ -69,6 +69,7 @@ namespace {
 		typedef boost::tuple<string, value> field_type;
 
 		vector<field_type> fields_;
+		vector<field_type> children_;
 	};
 
 	template <typename T>
@@ -83,22 +84,27 @@ namespace {
 	public:
 		virtual void output(ostream &out, int depth, boost::optional<string> name = boost::none)  {
 			indent(depth, out);
+			out << "<fields";
 			if (name && (*name).length())
-				out << "<fields id=\"" << *name << "\">" << endl;
-			else
-				out << "<fields>" << endl;
+				out << " id=\"" << *name << "\"";
+
+			/* output non-child fields */
 			vector<field_type>::const_iterator it;
 			for (it = fields_.begin(); it != fields_.end(); ++it) {
 				if (string const *s = boost::get<string>(&it->get<1>())) {
-					indent(depth + 1, out);
-					out << "<field key=\""
-					    << it->get<0>()
-					    << "\" value=\""
-					    << *s
-					    << "\"/>"
-					    << endl;
+					out << " " << it->get<0>() << "=\"" << *s << "\"";
+				}
+			}
 
-				} else {
+			if (children_.size() == 0) {
+				out << " />" << endl;
+				return;
+			}
+
+			/* output child fields */
+			out << ">" << endl;
+			for (it = children_.begin(); it != children_.end(); ++it) {
+				if (!boost::get<string>(&it->get<1>())) {
 					formatter::ptr f = boost::get<formatter::ptr>(it->get<1>());
 					f->output(out, depth + 1, it->get<0>());
 				}
@@ -107,6 +113,7 @@ namespace {
 			indent(depth, out);
 			out << "</fields>" << endl;
 		}
+
 
 	private:
 		void indent(int depth, ostream &out) const {
@@ -226,10 +233,10 @@ namespace {
 	public:
 		static void show(formatter &f, string const &key,
 				 persistent_data::sm_disk_detail::sm_root const &value) {
-			field(f, "nr blocks", value.nr_blocks_);
-			field(f, "nr allocated", value.nr_allocated_);
-			field(f, "bitmap root", value.bitmap_root_);
-			field(f, "ref count root", value.ref_count_root_);
+			field(f, "nr_blocks", value.nr_blocks_);
+			field(f, "nr_allocated", value.nr_allocated_);
+			field(f, "bitmap_root", value.bitmap_root_);
+			field(f, "ref_count_root", value.ref_count_root_);
 		}
 	};
 
@@ -251,8 +258,8 @@ namespace {
 			field(f, "magic", sb.magic_);
 			field(f, "version", sb.version_);
 			field(f, "time", sb.time_);
-			field(f, "trans id", sb.trans_id_);
-			field(f, "metadata snap", sb.metadata_snap_);
+			field(f, "trans_id", sb.trans_id_);
+			field(f, "metadata_snap", sb.metadata_snap_);
 
 			sm_disk_detail::sm_root_disk const *d;
 			sm_disk_detail::sm_root v;
@@ -261,24 +268,24 @@ namespace {
 				sm_disk_detail::sm_root_traits::unpack(*d, v);
 				formatter::ptr f2(new xml_formatter);
 				sm_root_show_traits::show(*f2, "value", v);
-				f.child("metadata space map root", f2);
+				f.child("metadata_space_map_root", f2);
 			}
 			{
 				d = reinterpret_cast<sm_disk_detail::sm_root_disk const *>(sb.data_space_map_root_);
 				sm_disk_detail::sm_root_traits::unpack(*d, v);
 				formatter::ptr f2(new xml_formatter);
 				sm_root_show_traits::show(*f2, "value", v);
-				f.child("data space map root", f2);
+				f.child("data_space_map_root", f2);
 			}
 
-			field(f, "data mapping root", sb.data_mapping_root_);
-			field(f, "device details root", sb.device_details_root_);
-			field(f, "data block size", sb.data_block_size_);
-			field(f, "metadata block size", sb.metadata_block_size_);
-			field(f, "metadata nr blocks", sb.metadata_nr_blocks_);
-			field(f, "compat flags", sb.compat_flags_);
-			field(f, "compat ro flags", sb.compat_ro_flags_);
-			field(f, "incompat flags", sb.incompat_flags_);
+			field(f, "data_mapping_root", sb.data_mapping_root_);
+			field(f, "device_details_root", sb.device_details_root_);
+			field(f, "data_block_size", sb.data_block_size_);
+			field(f, "metadata_block_size", sb.metadata_block_size_);
+			field(f, "metadata_nr_blocks", sb.metadata_nr_blocks_);
+			field(f, "compat_flags", sb.compat_flags_);
+			field(f, "compat_ro_flags", sb.compat_ro_flags_);
+			field(f, "incompat_flags", sb.incompat_flags_);
 
 			f.output(out, 0);
 		}
@@ -293,10 +300,10 @@ namespace {
 
 		static void show(formatter &f, string const &key,
 				 thin_provisioning::device_tree_detail::device_details const &value) {
-			field(f, "mapped blocks", value.mapped_blocks_);
-			field(f, "transaction id", value.transaction_id_);
-			field(f, "creation time", value.creation_time_);
-			field(f, "snap time", value.snapshotted_time_);
+			field(f, "mapped_blocks", value.mapped_blocks_);
+			field(f, "transaction_id", value.transaction_id_);
+			field(f, "creation_time", value.creation_time_);
+			field(f, "snap_time", value.snapshotted_time_);
 		}
 	};
 
@@ -327,8 +334,8 @@ namespace {
 		static void show(formatter &f, string const &key,
 				 persistent_data::sm_disk_detail::index_entry const &value) {
 			field(f, "blocknr", value.blocknr_);
-			field(f, "nr free", value.nr_free_);
-			field(f, "none free before", value.none_free_before_);
+			field(f, "nr_free", value.nr_free_);
+			field(f, "none_free_before", value.none_free_before_);
 		}
 	};
 
@@ -365,9 +372,9 @@ namespace {
 			field(f, "csum", n.get_checksum());
 			field(f, "blocknr", n.get_block_nr());
 			field(f, "type", n.get_type() == INTERNAL ? "internal" : "leaf");
-			field(f, "nr entries", n.get_nr_entries());
-			field(f, "max entries", n.get_max_entries());
-			field(f, "value size", n.get_value_size());
+			field(f, "nr_entries", n.get_nr_entries());
+			field(f, "max_entries", n.get_max_entries());
+			field(f, "value_size", n.get_value_size());
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
 				formatter::ptr f2(new xml_formatter);
