@@ -39,7 +39,6 @@
 #include "thin-provisioning/superblock.h"
 #include "version.h"
 
-using namespace boost;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
@@ -53,7 +52,7 @@ namespace {
 
 		virtual ~formatter() {}
 
-		typedef optional<string> maybe_string;
+		typedef boost::optional<string> maybe_string;
 
 		void field(string const &name, string const &value) {
 			fields_.push_back(field_type(name, value));
@@ -75,7 +74,7 @@ namespace {
 	template <typename T>
 	void
 	field(formatter &t, string const &name, T const &value) {
-		t.field(name, lexical_cast<string>(value));
+		t.field(name, boost::lexical_cast<string>(value));
 	}
 
 	//--------------------------------
@@ -90,7 +89,7 @@ namespace {
 				out << "<fields>" << endl;
 			vector<field_type>::const_iterator it;
 			for (it = fields_.begin(); it != fields_.end(); ++it) {
-				if (string const *s = get<string>(&it->get<1>())) {
+				if (string const *s = boost::get<string>(&it->get<1>())) {
 					indent(depth + 1, out);
 					out << "<field key=\""
 					    << it->get<0>()
@@ -100,7 +99,7 @@ namespace {
 					    << endl;
 
 				} else {
-					formatter::ptr f = get<formatter::ptr>(it->get<1>());
+					formatter::ptr f = boost::get<formatter::ptr>(it->get<1>());
 					f->output(out, depth + 1, it->get<0>());
 				}
 			}
@@ -306,7 +305,7 @@ namespace {
 		typedef uint64_traits value_trait;
 
 		static void show(formatter &f, string const &key, uint64_t const &value) {
-			field(f, key, lexical_cast<string>(value));
+			field(f, key, boost::lexical_cast<string>(value));
 		}
 	};
 
@@ -346,7 +345,7 @@ namespace {
 			if (args.size() != 2)
 				throw runtime_error("incorrect number of arguments");
 
-			block_address block = lexical_cast<block_address>(args[1]);
+			block_address block = boost::lexical_cast<block_address>(args[1]);
 			block_manager::read_ref rr = md_->tm_->read_lock(block);
 
 			node_ref<uint64_show_traits::value_trait> n = btree_detail::to_node<uint64_show_traits::value_trait>(rr);
@@ -374,7 +373,7 @@ namespace {
 				formatter::ptr f2(new xml_formatter);
 				field(*f2, "key", n.key_at(i));
 				ST::show(*f2, "value", n.value_at(i));
-				f.child(lexical_cast<string>(i), f2);
+				f.child(boost::lexical_cast<string>(i), f2);
 			}
 
 			f.output(out, 0);
@@ -394,7 +393,7 @@ namespace {
 				throw runtime_error("incorrect number of arguments");
 
 			// manually load metadata_index, without using index_validator()
-			block_address block = lexical_cast<block_address>(args[1]);
+			block_address block = boost::lexical_cast<block_address>(args[1]);
 			block_manager::read_ref rr = md_->tm_->read_lock(block);
 
 			sm_disk_detail::sm_root_disk const *d =
@@ -420,7 +419,7 @@ namespace {
 				sm_disk_detail::index_entry_traits::unpack(*(mdi->index + i), ie);
 				formatter::ptr f2(new xml_formatter);
 				index_entry_show_traits::show(*f2, "value", ie);
-				f.child(lexical_cast<string>(i), f2);
+				f.child(boost::lexical_cast<string>(i), f2);
 			}
 			f.output(out, 0);
 		}
