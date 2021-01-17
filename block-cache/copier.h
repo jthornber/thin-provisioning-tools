@@ -61,11 +61,20 @@ namespace bcache {
 	public:
 		copier(io_engine &engine,
 		       std::string const &src, std::string const &dest,
-		       sector_t block_size, size_t mem);
+		       sector_t block_size, size_t mem,
+		       sector_t src_offset, sector_t dest_offset);
 		~copier();
 
 		sector_t get_block_size() const {
 			return block_size_;
+		}
+
+		sector_t get_src_offset() const {
+			return src_offset_;
+		}
+
+		sector_t get_dest_offset() const {
+			return dest_offset_;
 		}
 
 		// Blocks if out of memory.
@@ -83,7 +92,8 @@ namespace bcache {
 		void wait_();
 		void complete(copy_job const &j);
 
-		sector_t to_sector(block_address b) const;
+		sector_t to_src_sector(block_address b) const;
+		sector_t to_dest_sector(block_address b) const;
 		unsigned genkey();
 
 		mempool pool_;
@@ -91,6 +101,8 @@ namespace bcache {
 		io_engine &engine_;
 		io_engine::handle src_handle_;
 		io_engine::handle dest_handle_;
+		sector_t src_offset_;
+		sector_t dest_offset_;
 		unsigned genkey_count_;
 
 		using job_map = std::map<unsigned, copy_job>;
