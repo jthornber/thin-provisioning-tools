@@ -10,12 +10,14 @@ using namespace std;
 
 copier::copier(io_engine &engine,
 	       string const &src, string const &dest,
-	       sector_t block_size, size_t mem)
+	       sector_t block_size, size_t mem,
+	       sector_t src_offset, sector_t dest_offset)
 	: pool_(block_size * 512, mem, PAGE_SIZE),
 	  block_size_(block_size),
 	  engine_(engine),
 	  src_handle_(engine_.open_file(src, io_engine::M_READ_ONLY)),
 	  dest_handle_(engine_.open_file(dest, io_engine::M_READ_WRITE)),
+	  src_offset_(src_offset), dest_offset_(dest_offset),
 	  genkey_count_(0)
 {
 }
@@ -45,8 +47,8 @@ copier::issue(copy_op const &op)
 
 	auto r = engine_.issue_io(src_handle_,
 				  io_engine::D_READ,
-				  to_sector(op.src_b),
-				  to_sector(op.src_e),
+				  to_src_sector(op.src_b),
+				  to_src_sector(op.src_e),
 				  data,
 				  key);
 
@@ -151,8 +153,8 @@ copier::wait_successful(io_engine::wait_result const &p)
 		j.op.read_complete = true;
 		if (!engine_.issue_io(dest_handle_,
 				      io_engine::D_WRITE,
-				      to_sector(j.op.dest_b),
-				      to_sector(j.op.dest_b + (j.op.src_e - j.op.src_b)),
+				      to_dest_sector(j.op.dest_b),
+				      to_dest_sector(j.op.dest_b + (j.op.src_e - j.op.src_b)),
 				      j.data,
 				      it->first)) {
 			complete(j);
@@ -177,9 +179,15 @@ copier::complete(copy_job const &j)
 }
 
 sector_t
-copier::to_sector(block_address b) const
+copier::to_src_sector(block_address b) const
 {
-	return b * block_size_;
+	return src_offset_ + b * block_size_;
+}
+
+sector_t
+copier::to_dest_sector(block_address b) const
+{
+	return dest_offset_ + b * block_size_;
 }
 
 unsigned
