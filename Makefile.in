@@ -126,6 +126,8 @@ TOOLS_SOURCE=\
 	thin-provisioning/thin_trim.cc
 
 DEVTOOLS_SOURCE=\
+	base/command_interpreter.cc \
+	base/output_formatter.cc \
 	caching/devel_commands.cc \
 	era/devel_commands.cc \
 	thin-provisioning/damage_generator.cc \

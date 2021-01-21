@@ -16,193 +16,36 @@
 // with thin-provisioning-tools.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include <boost/algorithm/string/classification.hpp>
-#include <boost/algorithm/string/split.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/tuple/tuple.hpp>
-#include <boost/variant.hpp>
 #include <getopt.h>
 #include <iostream>
-#include <libgen.h>
-#include <map>
 #include <string>
-#include <vector>
 
+#include "base/command_interpreter.h"
 #include "base/math_utils.h"
+#include "base/output_formatter.h"
 #include "persistent-data/data-structures/btree.h"
 #include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/disk_structures.h"
 #include "thin-provisioning/commands.h"
 #include "thin-provisioning/metadata.h"
-#include "thin-provisioning/metadata_checker.h"
 #include "thin-provisioning/superblock.h"
 #include "version.h"
 
+using namespace dbg;
 using namespace persistent_data;
 using namespace std;
 using namespace thin_provisioning;
 
 namespace {
-	typedef vector<string> strings;
-
-	class formatter {
-	public:
-		typedef std::shared_ptr<formatter> ptr;
-
-		virtual ~formatter() {}
-
-		typedef boost::optional<string> maybe_string;
-
-		void field(string const &name, string const &value) {
-			fields_.push_back(field_type(name, value));
-		}
-
-		void child(string const &name, formatter::ptr t) {
-			children_.push_back(field_type(name, t));
-		}
-
-		virtual void output(ostream &out, int depth = 0, boost::optional<string> name = boost::none) = 0;
-
-	protected:
-		typedef boost::variant<string, ptr> value;
-		typedef boost::tuple<string, value> field_type;
-
-		vector<field_type> fields_;
-		vector<field_type> children_;
-	};
-
-	template <typename T>
-	void
-	field(formatter &t, string const &name, T const &value) {
-		t.field(name, boost::lexical_cast<string>(value));
-	}
-
-	//--------------------------------
-
-	class xml_formatter : public formatter {
-	public:
-		virtual void output(ostream &out, int depth, boost::optional<string> name = boost::none)  {
-			indent(depth, out);
-			out << "<fields";
-			if (name && (*name).length())
-				out << " id=\"" << *name << "\"";
-
-			/* output non-child fields */
-			vector<field_type>::const_iterator it;
-			for (it = fields_.begin(); it != fields_.end(); ++it) {
-				if (string const *s = boost::get<string>(&it->get<1>())) {
-					out << " " << it->get<0>() << "=\"" << *s << "\"";
-				}
-			}
-
-			if (children_.size() == 0) {
-				out << " />" << endl;
-				return;
-			}
-
-			/* output child fields */
-			out << ">" << endl;
-			for (it = children_.begin(); it != children_.end(); ++it) {
-				if (!boost::get<string>(&it->get<1>())) {
-					formatter::ptr f = boost::get<formatter::ptr>(it->get<1>());
-					f->output(out, depth + 1, it->get<0>());
-				}
-			}
-
-			indent(depth, out);
-			out << "</fields>" << endl;
-		}
-
-
-	private:
-		void indent(int depth, ostream &out) const {
-			for (int i = 0; i < depth * 2; i++)
-				out << ' ';
-		}
-	};
-
-	//--------------------------------
-
-	class command {
-	public:
-		typedef std::shared_ptr<command> ptr;
-
-		virtual ~command() {}
-		virtual void exec(strings const &args, ostream &out) = 0;
-	};
-
-	class command_interpreter {
-	public:
-		typedef std::shared_ptr<command_interpreter> ptr;
-
-		command_interpreter(istream &in, ostream &out)
-			: in_(in),
-			  out_(out),
-			  exit_(false) {
-		}
-
-		void register_command(string const &str, command::ptr cmd) {
-			commands_.insert(make_pair(str, cmd));
-		}
-
-		void enter_main_loop() {
-			while (!exit_)
-				do_once();
-		}
-
-		void exit_main_loop() {
-			exit_ = true;
-		}
-
-	private:
-		strings read_input() {
-			using namespace boost::algorithm;
-
-			string input;
-			getline(in_, input);
-
-			strings toks;
-			split(toks, input, is_any_of(" \t"), token_compress_on);
-
-			return toks;
-		}
-
-		void do_once() {
-			if (in_.eof())
-				throw runtime_error("input closed");
-
-			out_ << "> ";
-			strings args = read_input();
-
-			map<string, command::ptr>::iterator it;
-			it = commands_.find(args[0]);
-			if (it == commands_.end())
-				out_ << "Unrecognised command" << endl;
-			else {
-				try {
-					it->second->exec(args, out_);
-				} catch (std::exception &e) {
-					cerr << e.what() << endl;
-				}
-			}
-		}
-
-		istream &in_;
-		ostream &out_;
-		map <string, command::ptr> commands_;
-		bool exit_;
-	};
-
-	//--------------------------------
-
-	class hello : public command {
+	class hello : public dbg::command {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Hello, world!" << endl;
 		}
 	};
 
-	class help : public command {
+	class help : public dbg::command {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Commands:" << endl
 			    << "  superblock" << endl
@@ -215,7 +58,7 @@ namespace {
 		}
 	};
 
-	class exit_handler : public command {
+	class exit_handler : public dbg::command {
 	public:
 		exit_handler(command_interpreter &interpreter)
 			: interpreter_(interpreter) {
@@ -240,7 +83,7 @@ namespace {
 		}
 	};
 
-	class show_superblock : public command {
+	class show_superblock : public dbg::command {
 	public:
 		explicit show_superblock(metadata::ptr md)
 			: md_(md) {
@@ -340,7 +183,7 @@ namespace {
 	};
 
 	template <typename ShowTraits>
-	class show_btree_node : public command {
+	class show_btree_node : public dbg::command {
 	public:
 		explicit show_btree_node(metadata::ptr md)
 			: md_(md) {
@@ -389,7 +232,7 @@ namespace {
 		metadata::ptr md_;
 	};
 
-	class show_index_block : public command {
+	class show_index_block : public dbg::command {
 	public:
 		explicit show_index_block(metadata::ptr md)
 			: md_(md) {
@@ -437,7 +280,9 @@ namespace {
 
 	//--------------------------------
 
-	int debug(string const &path, bool ignore_metadata_sm) {
+	int debug_(string const &path, bool ignore_metadata_sm) {
+		using dbg::command;
+
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY, 1);
 			metadata::ptr md(new metadata(bm, false));
@@ -510,5 +355,5 @@ thin_debug_cmd::run(int argc, char **argv)
 		exit(1);
 	}
 
-	return debug(argv[optind], ignore_metadata_sm);
+	return debug_(argv[optind], ignore_metadata_sm);
 }
