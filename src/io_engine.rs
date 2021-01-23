@@ -255,10 +255,11 @@ impl AsyncIoEngine {
 
         let mut inner = self.inner.lock().unwrap();
         let count = blocks.len();
-        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let fd_inner = inner.input.as_raw_fd();
 
         for (i, b) in blocks.iter().enumerate() {
-            let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
+            let read_e = opcode::Read::new(
+                    types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
@@ -306,10 +307,11 @@ impl AsyncIoEngine {
 
         let mut inner = self.inner.lock().unwrap();
         let count = blocks.len();
-        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let fd_inner = inner.input.as_raw_fd();
 
         for (i, b) in blocks.iter().enumerate() {
-            let write_e = opcode::Write::new(fd, b.data, BLOCK_SIZE as u32)
+            let write_e = opcode::Write::new(
+                    types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
@@ -372,7 +374,7 @@ impl IoEngine for AsyncIoEngine {
 
     fn read(&self, b: u64) -> Result<Block> {
         let mut inner = self.inner.lock().unwrap();
-        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let fd = types::Fd(inner.input.as_raw_fd());
         let b = Block::new(b);
         let read_e = opcode::Read::new(fd, b.data, BLOCK_SIZE as u32)
             .offset(b.loc as i64 * BLOCK_SIZE as i64);
@@ -421,7 +423,7 @@ impl IoEngine for AsyncIoEngine {
 
     fn write(&self, b: &Block) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
-        let fd = types::Target::Fd(inner.input.as_raw_fd());
+        let fd = types::Fd(inner.input.as_raw_fd());
         let write_e = opcode::Write::new(fd, b.data, BLOCK_SIZE as u32)
             .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
