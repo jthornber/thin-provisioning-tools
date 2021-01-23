@@ -161,16 +161,16 @@ impl<'a> StatefulWidget for SBWidget<'a> {
             .split(area);
 
         let sb = self.sb;
-        let flags = ["flags".to_string(), format!("{}", sb.flags)];
-        let block = ["block".to_string(), format!("{}", sb.block)];
-        let uuid = ["uuid".to_string(), "-".to_string()];
-        let version = ["version".to_string(), format!("{}", sb.version)];
-        let time = ["time".to_string(), format!("{}", sb.time)];
-        let transaction_id = [
+        let flags = vec!["flags".to_string(), format!("{}", sb.flags)];
+        let block = vec!["block".to_string(), format!("{}", sb.block)];
+        let uuid = vec!["uuid".to_string(), "-".to_string()];
+        let version = vec!["version".to_string(), format!("{}", sb.version)];
+        let time = vec!["time".to_string(), format!("{}", sb.time)];
+        let transaction_id = vec![
             "transaction_id".to_string(),
             format!("{}", sb.transaction_id),
         ];
-        let metadata_snap = [
+        let metadata_snap = vec![
             "metadata_snap".to_string(),
             if sb.metadata_snap == 0 {
                 "-".to_string()
@@ -178,35 +178,36 @@ impl<'a> StatefulWidget for SBWidget<'a> {
                 format!("{}", sb.metadata_snap)
             },
         ];
-        let mapping_root = ["mapping root".to_string(), format!("{}", sb.mapping_root)];
-        let details_root = ["details root".to_string(), format!("{}", sb.details_root)];
-        let data_block_size = [
+        let mapping_root = vec!["mapping root".to_string(), format!("{}", sb.mapping_root)];
+        let details_root = vec!["details root".to_string(), format!("{}", sb.details_root)];
+        let data_block_size = vec![
             "data block size".to_string(),
             format!("{}k", sb.data_block_size * 2),
         ];
 
         let table = Table::new(
-            ["Field", "Value"].iter(),
             vec![
-                Row::Data(flags.iter()),
-                Row::Data(block.iter()),
-                Row::Data(uuid.iter()),
-                Row::Data(version.iter()),
-                Row::Data(time.iter()),
-                Row::Data(transaction_id.iter()),
-                Row::Data(metadata_snap.iter()),
-                Row::Data(mapping_root.iter()),
-                Row::Data(details_root.iter()),
-                Row::Data(data_block_size.iter()),
+                Row::new(flags),
+                Row::new(block),
+                Row::new(uuid),
+                Row::new(version),
+                Row::new(time),
+                Row::new(transaction_id),
+                Row::new(metadata_snap),
+                Row::new(mapping_root),
+                Row::new(details_root),
+                Row::new(data_block_size),
             ]
-            .into_iter(),
+        )
+        .header(
+            Row::new(vec!["Field", "Value"])
+                .style(Style::default().fg(Color::Yellow))
         )
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Superblock".to_string()),
         )
-        .header_style(Style::default().fg(Color::Yellow))
         .widths(&[Constraint::Length(20), Constraint::Length(60)])
         .style(Style::default().fg(Color::White))
         .column_spacing(1);
@@ -240,31 +241,32 @@ struct HeaderWidget<'a> {
 impl<'a> Widget for HeaderWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let hdr = &self.hdr;
-        let block = ["block".to_string(), format!("{}", hdr.block)];
-        let kind = [
+        let block = vec!["block".to_string(), format!("{}", hdr.block)];
+        let kind = vec![
             "type".to_string(),
             match hdr.is_leaf {
                 true => "LEAF".to_string(),
                 false => "INTERNAL".to_string(),
             },
         ];
-        let nr_entries = ["nr_entries".to_string(), format!("{}", hdr.nr_entries)];
-        let max_entries = ["max_entries".to_string(), format!("{}", hdr.max_entries)];
-        let value_size = ["value size".to_string(), format!("{}", hdr.value_size)];
+        let nr_entries = vec!["nr_entries".to_string(), format!("{}", hdr.nr_entries)];
+        let max_entries = vec!["max_entries".to_string(), format!("{}", hdr.max_entries)];
+        let value_size = vec!["value size".to_string(), format!("{}", hdr.value_size)];
 
         let table = Table::new(
-            ["Field", "Value"].iter(),
             vec![
-                Row::Data(block.iter()),
-                Row::Data(kind.iter()),
-                Row::Data(nr_entries.iter()),
-                Row::Data(max_entries.iter()),
-                Row::Data(value_size.iter()),
+                Row::new(block),
+                Row::new(kind),
+                Row::new(nr_entries),
+                Row::new(max_entries),
+                Row::new(value_size),
             ]
-            .into_iter(),
+        )
+        .header(
+            Row::new(vec!["Field", "Value"])
+                .style(Style::default().fg(Color::Yellow))
         )
         .block(Block::default().borders(Borders::ALL).title(self.title))
-        .header_style(Style::default().fg(Color::Yellow))
         .widths(&[Constraint::Length(20), Constraint::Length(60)])
         .style(Style::default().fg(Color::White))
         .column_spacing(1);
