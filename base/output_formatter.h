@@ -17,26 +17,10 @@ namespace dbg {
 		typedef std::shared_ptr<formatter> ptr;
 
 		virtual ~formatter() {}
-
-		typedef boost::optional<std::string> maybe_string;
-
-		void field(std::string const &name, std::string const &value) {
-			fields_.push_back(field_type(name, value));
-		}
-
-		void child(std::string const &name, formatter::ptr t) {
-			children_.push_back(field_type(name, t));
-		}
-
+		virtual void field(std::string const &name, std::string const &value) = 0;
+		virtual void child(std::string const &name, formatter::ptr t) = 0;
 		virtual void output(std::ostream &out, int depth = 0,
 				    boost::optional<std::string> name = boost::none) = 0;
-
-	protected:
-		typedef boost::variant<std::string, ptr> value;
-		typedef boost::tuple<std::string, value> field_type;
-
-		std::vector<field_type> fields_;
-		std::vector<field_type> children_;
 	};
 
 	template <typename T>
@@ -45,13 +29,7 @@ namespace dbg {
 		t.field(name, boost::lexical_cast<std::string>(value));
 	}
 
-	//--------------------------------
-
-	class xml_formatter : public formatter {
-	public:
-		virtual void output(std::ostream &out, int depth = 0,
-				    boost::optional<std::string> name = boost::none);
-	};
+	formatter::ptr create_xml_formatter();
 }
 
 //----------------------------------------------------------------
