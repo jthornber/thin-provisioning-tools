@@ -126,10 +126,14 @@ TOOLS_SOURCE=\
 	thin-provisioning/thin_trim.cc
 
 DEVTOOLS_SOURCE=\
+	base/command_interpreter.cc \
+	base/output_formatter.cc \
+	caching/cache_debug.cc \
 	caching/devel_commands.cc \
 	era/devel_commands.cc \
 	thin-provisioning/damage_generator.cc \
 	thin-provisioning/devel_commands.cc \
+	thin-provisioning/thin_debug.cc \
 	thin-provisioning/thin_generate_damage.cc \
 	thin-provisioning/thin_generate_mappings.cc \
 	thin-provisioning/thin_generate_metadata.cc \

@@ -8,6 +8,7 @@ using namespace thin_provisioning;
 void
 thin_provisioning::register_thin_commands(base::application &app)
 {
+	app.add_cmd(command::ptr(new thin_debug_cmd()));
 	app.add_cmd(command::ptr(new thin_generate_damage_cmd()));
 	app.add_cmd(command::ptr(new thin_generate_mappings_cmd()));
 	app.add_cmd(command::ptr(new thin_generate_metadata_cmd()));
