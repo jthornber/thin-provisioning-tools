@@ -73,6 +73,13 @@ namespace thin_provisioning {
 
 	//------------------------------------------------------
 
+	class thin_debug_cmd : public base::command {
+	public:
+		thin_debug_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
 	class thin_generate_damage_cmd : public base::command {
 	public:
 		thin_generate_damage_cmd();
@@ -90,6 +97,13 @@ namespace thin_provisioning {
 	class thin_generate_mappings_cmd : public base::command {
 	public:
 		thin_generate_mappings_cmd();
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	class thin_journal_cmd : public base::command {
+	public:
+		thin_journal_cmd();
 		virtual void usage(std::ostream &out) const;
 		virtual int run(int argc, char **argv);
 	};
@@ -136,13 +150,6 @@ namespace thin_provisioning {
 	class thin_show_metadata_cmd : public base::command {
 	public:
 		thin_show_metadata_cmd();
-		virtual void usage(std::ostream &out) const;
-		virtual int run(int argc, char **argv);
-	};
-
-	class thin_journal_cmd : public base::command {
-	public:
-		thin_journal_cmd();
 		virtual void usage(std::ostream &out) const;
 		virtual int run(int argc, char **argv);
 	};
