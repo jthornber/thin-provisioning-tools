@@ -48,7 +48,7 @@ namespace {
 	class help : public dbg::command {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Commands:" << endl
-			    << "  superblock" << endl
+			    << "  superblock [block#]" << endl
 			    << "  m1_node <block# of top-level mapping tree node>" << endl
 			    << "  m2_node <block# of bottom-level mapping tree node>" << endl
 			    << "  detail_node <block# of device details tree node>" << endl
@@ -85,15 +85,20 @@ namespace {
 
 	class show_superblock : public dbg::command {
 	public:
-		explicit show_superblock(metadata::ptr md)
-			: md_(md) {
+		explicit show_superblock(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
+			if (args.size() > 2)
+				throw runtime_error("incorrect number of arguments");
+
+			block_address b = superblock_detail::SUPERBLOCK_LOCATION;
+			if (args.size() == 2)
+				b = boost::lexical_cast<block_address>(args[1]);
+			superblock_detail::superblock sb = read_superblock(bm_, b);
+
 			formatter::ptr f = create_xml_formatter();
-
-			thin_provisioning::superblock_detail::superblock const &sb = md_->sb_;
-
 			field(*f, "csum", sb.csum_);
 			field(*f, "flags", sb.flags_);
 			field(*f, "blocknr", sb.blocknr_);
@@ -134,7 +139,7 @@ namespace {
 		}
 
 	private:
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	class device_details_show_traits : public thin_provisioning::device_tree_detail::device_details_traits {
@@ -185,8 +190,8 @@ namespace {
 	template <typename ShowTraits>
 	class show_btree_node : public dbg::command {
 	public:
-		explicit show_btree_node(metadata::ptr md)
-			: md_(md) {
+		explicit show_btree_node(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
@@ -196,7 +201,7 @@ namespace {
 				throw runtime_error("incorrect number of arguments");
 
 			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = md_->tm_->read_lock(block);
+			block_manager::read_ref rr = bm_->read_lock(block);
 
 			node_ref<uint64_show_traits::value_trait> n = btree_detail::to_node<uint64_show_traits::value_trait>(rr);
 			if (n.get_type() == INTERNAL)
@@ -229,32 +234,27 @@ namespace {
 			f->output(out, 0);
 		}
 
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	class show_index_block : public dbg::command {
 	public:
-		explicit show_index_block(metadata::ptr md)
-			: md_(md) {
+		explicit show_index_block(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
 			if (args.size() != 2)
 				throw runtime_error("incorrect number of arguments");
 
-			// manually load metadata_index, without using index_validator()
 			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = md_->tm_->read_lock(block);
 
-			sm_disk_detail::sm_root_disk const *d =
-				reinterpret_cast<sm_disk_detail::sm_root_disk const *>(md_->sb_.metadata_space_map_root_);
-			sm_disk_detail::sm_root v;
-			sm_disk_detail::sm_root_traits::unpack(*d, v);
-			block_address nr_indexes = base::div_up<block_address>(v.nr_blocks_, ENTRIES_PER_BLOCK);
+			// no checksum validation for debugging purpose
+			block_manager::read_ref rr = bm_->read_lock(block);
 
 			sm_disk_detail::metadata_index const *mdi =
 				reinterpret_cast<sm_disk_detail::metadata_index const *>(rr.data());
-			show_metadata_index(mdi, nr_indexes, out);
+			show_metadata_index(mdi, sm_disk_detail::MAX_METADATA_BITMAPS, out);
 		}
 
 	private:
@@ -267,6 +267,10 @@ namespace {
 			sm_disk_detail::index_entry ie;
 			for (block_address i = 0; i < nr_indexes; i++) {
 				sm_disk_detail::index_entry_traits::unpack(*(mdi->index + i), ie);
+
+				if (!ie.blocknr_ && !ie.nr_free_ && !ie.none_free_before_)
+					continue;
+
 				formatter::ptr f2 = create_xml_formatter();
 				index_entry_show_traits::show(f2, "value", ie);
 				f->child(boost::lexical_cast<string>(i), f2);
@@ -275,25 +279,24 @@ namespace {
 		}
 
 		unsigned const ENTRIES_PER_BLOCK = (MD_BLOCK_SIZE - sizeof(persistent_data::sm_disk_detail::bitmap_header)) * 4;
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	//--------------------------------
 
-	int debug_(string const &path, bool ignore_metadata_sm) {
+	int debug_(string const &path) {
 		using dbg::command;
 
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY, 1);
-			metadata::ptr md(new metadata(bm, false));
 			command_interpreter::ptr interp = create_command_interpreter(cin, cout);
 			interp->register_command("hello", command::ptr(new hello));
-			interp->register_command("superblock", command::ptr(new show_superblock(md)));
-			interp->register_command("m1_node", command::ptr(new show_btree_node<uint64_show_traits>(md)));
-			interp->register_command("m2_node", command::ptr(new show_btree_node<block_show_traits>(md)));
-			interp->register_command("detail_node", command::ptr(new show_btree_node<device_details_show_traits>(md)));
-			interp->register_command("index_block", command::ptr(new show_index_block(md)));
-			interp->register_command("index_node", command::ptr(new show_btree_node<index_entry_show_traits>(md)));
+			interp->register_command("superblock", command::ptr(new show_superblock(bm)));
+			interp->register_command("m1_node", command::ptr(new show_btree_node<uint64_show_traits>(bm)));
+			interp->register_command("m2_node", command::ptr(new show_btree_node<block_show_traits>(bm)));
+			interp->register_command("detail_node", command::ptr(new show_btree_node<device_details_show_traits>(bm)));
+			interp->register_command("index_block", command::ptr(new show_index_block(bm)));
+			interp->register_command("index_node", command::ptr(new show_btree_node<index_entry_show_traits>(bm)));
 			interp->register_command("help", command::ptr(new help));
 			interp->register_command("exit", command::ptr(new exit_handler(interp)));
 			interp->enter_main_loop();
@@ -329,10 +332,8 @@ thin_debug_cmd::run(int argc, char **argv)
 	const struct option longopts[] = {
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
-		{ "ignore-metadata-sm", no_argument, NULL, 1},
 		{ NULL, no_argument, NULL, 0 }
 	};
-	bool ignore_metadata_sm = false;
 
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch(c) {
@@ -343,10 +344,6 @@ thin_debug_cmd::run(int argc, char **argv)
 		case 'V':
 			cerr << THIN_PROVISIONING_TOOLS_VERSION << endl;
 			return 0;
-
-		case 1:
-			ignore_metadata_sm = true;
-			break;
 		}
 	}
 
@@ -355,5 +352,5 @@ thin_debug_cmd::run(int argc, char **argv)
 		exit(1);
 	}
 
-	return debug_(argv[optind], ignore_metadata_sm);
+	return debug_(argv[optind]);
 }

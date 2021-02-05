@@ -48,7 +48,7 @@ namespace {
 	class help : public dbg::command {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Commands:" << endl
-			    << "  superblock" << endl
+			    << "  superblock [block#]" << endl
 			    << "  mapping_node <block# of tree node for mappings>" << endl
 			    << "  mapping_array <block# of array block for mappings>" << endl
 			    << "  exit" << endl;
@@ -82,16 +82,21 @@ namespace {
 
 	class show_superblock : public dbg::command {
 	public:
-		explicit show_superblock(metadata::ptr md)
-			: md_(md) {
+		explicit show_superblock(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
+			if (args.size() > 2)
+				throw runtime_error("incorrect number of arguments");
+
+			block_address b = caching::SUPERBLOCK_LOCATION;
+			if (args.size() == 2)
+				b = boost::lexical_cast<block_address>(args[1]);
+			caching::superblock sb = read_superblock(bm_, b);
+
 			formatter::ptr f = create_xml_formatter();
 			ostringstream version;
-
-			superblock const &sb = md_->sb_;
-
 			field(*f, "csum", sb.csum);
 			field(*f, "flags", sb.flags.encode());
 			field(*f, "blocknr", sb.blocknr);
@@ -137,7 +142,7 @@ namespace {
 		}
 
 	private:
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	class uint64_show_traits : public uint64_traits {
@@ -167,8 +172,8 @@ namespace {
 	template <typename ValueTraits>
 	class show_btree_node : public dbg::command {
 	public:
-		explicit show_btree_node(metadata::ptr md)
-			: md_(md) {
+		explicit show_btree_node(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const &args, ostream &out) {
@@ -178,7 +183,7 @@ namespace {
 				throw runtime_error("incorrect number of arguments");
 
 			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = md_->tm_->read_lock(block);
+			block_manager::read_ref rr = bm_->read_lock(block);
 
 			node_ref<uint64_show_traits> n = btree_detail::to_node<uint64_show_traits>(rr);
 			if (n.get_type() == INTERNAL)
@@ -211,15 +216,15 @@ namespace {
 			f->output(out, 0);
 		}
 
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	template <typename ValueTraits>
 	class show_array_block : public dbg::command {
 		typedef array_block<ValueTraits, block_manager::read_ref> rblock;
 	public:
-		explicit show_array_block(metadata::ptr md)
-			: md_(md) {
+		explicit show_array_block(block_manager::ptr bm)
+			: bm_(bm) {
 		}
 
 		virtual void exec(strings const& args, ostream &out) {
@@ -227,7 +232,7 @@ namespace {
 				throw runtime_error("incorrect number of arguments");
 
 			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = md_->tm_->read_lock(block);
+			block_manager::read_ref rr = bm_->read_lock(block);
 
 			rblock b(rr, typename ValueTraits::ref_counter());
 			show_array_entries(b, out);
@@ -252,7 +257,7 @@ namespace {
 			f->output(out, 0);
 		}
 
-		metadata::ptr md_;
+		block_manager::ptr bm_;
 	};
 
 	//--------------------------------
@@ -262,12 +267,11 @@ namespace {
 
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY);
-			metadata::ptr md(new metadata(bm));
 			command_interpreter::ptr interp = create_command_interpreter(cin, cout);
 			interp->register_command("hello", command::ptr(new hello));
-			interp->register_command("superblock", command::ptr(new show_superblock(md)));
-			interp->register_command("mapping_node", command::ptr(new show_btree_node<block_show_traits>(md)));
-			interp->register_command("mapping_array", command::ptr(new show_array_block<mapping_show_traits>(md)));
+			interp->register_command("superblock", command::ptr(new show_superblock(bm)));
+			interp->register_command("mapping_node", command::ptr(new show_btree_node<block_show_traits>(bm)));
+			interp->register_command("mapping_array", command::ptr(new show_array_block<mapping_show_traits>(bm)));
 			interp->register_command("help", command::ptr(new help));
 			interp->register_command("exit", command::ptr(new exit_handler(interp)));
 			interp->enter_main_loop();
