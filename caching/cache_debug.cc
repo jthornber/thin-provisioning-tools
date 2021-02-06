@@ -49,8 +49,8 @@ namespace {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Commands:" << endl
 			    << "  superblock [block#]" << endl
-			    << "  mapping_node <block# of tree node for mappings>" << endl
-			    << "  mapping_array <block# of array block for mappings>" << endl
+			    << "  block_node <block# of array block-tree node>" << endl
+			    << "  mapping_block <block# of mappings array block>" << endl
 			    << "  exit" << endl;
 		}
 	};
@@ -145,31 +145,28 @@ namespace {
 		block_manager::ptr bm_;
 	};
 
+	// FIXME: duplication
 	class uint64_show_traits : public uint64_traits {
 	public:
+		typedef uint64_traits value_trait;
+
 		static void show(formatter::ptr f, string const &key, uint64_t const &value) {
 			field(*f, key, boost::lexical_cast<string>(value));
 		}
 	};
 
-	// FIXME: Expose the array ValueTraits parameter or not?
-	//	  Since the block_traits isn't related to the ValueTraits.
-	class block_show_traits : public persistent_data::array<caching::mapping_traits>::block_traits {
-	public:
-		static void show(formatter::ptr f, string const &key, block_address const &value) {
-			field(*f, "block", value);
-		}
-	};
-
 	class mapping_show_traits : public caching::mapping_traits {
 	public:
+		typedef mapping_traits value_trait;
+
 		static void show(formatter::ptr f, string const &key, caching::mapping const &value) {
 			field(*f, "oblock", value.oblock_);
 			field(*f, "flags", value.flags_);
 		}
 	};
 
-	template <typename ValueTraits>
+	// FIXME: duplication
+	template <typename ShowTraits>
 	class show_btree_node : public dbg::command {
 	public:
 		explicit show_btree_node(block_manager::ptr bm)
@@ -185,22 +182,22 @@ namespace {
 			block_address block = boost::lexical_cast<block_address>(args[1]);
 			block_manager::read_ref rr = bm_->read_lock(block);
 
-			node_ref<uint64_show_traits> n = btree_detail::to_node<uint64_show_traits>(rr);
+			node_ref<uint64_show_traits::value_trait> n = btree_detail::to_node<uint64_show_traits::value_trait>(rr);
 			if (n.get_type() == INTERNAL)
 				show_node<uint64_show_traits>(n, out);
 			else {
-				node_ref<ValueTraits> n = btree_detail::to_node<ValueTraits>(rr);
-				show_node<ValueTraits>(n, out);
+				node_ref<typename ShowTraits::value_trait> n = btree_detail::to_node<typename ShowTraits::value_trait>(rr);
+				show_node<ShowTraits>(n, out);
 			}
 		}
 
 	private:
-		template <typename VT>
-		void show_node(node_ref<VT> n, ostream &out) {
+		template <typename ST>
+		void show_node(node_ref<typename ST::value_trait> n, ostream &out) {
 			formatter::ptr f = create_xml_formatter();
 
 			field(*f, "csum", n.get_checksum());
-			field(*f, "blocknr", n.get_location());
+			field(*f, "blocknr", n.get_block_nr());
 			field(*f, "type", n.get_type() == INTERNAL ? "internal" : "leaf");
 			field(*f, "nr_entries", n.get_nr_entries());
 			field(*f, "max_entries", n.get_max_entries());
@@ -209,8 +206,8 @@ namespace {
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
 				formatter::ptr f2 = create_xml_formatter();
 				field(*f2, "key", n.key_at(i));
-				VT::show(f2, "value", n.value_at(i));
-				f->child("child", f2);
+				ST::show(f2, "value", n.value_at(i));
+				f->child(boost::lexical_cast<string>(i), f2);
 			}
 
 			f->output(out, 0);
@@ -219,12 +216,13 @@ namespace {
 		block_manager::ptr bm_;
 	};
 
-	template <typename ValueTraits>
+	template <typename ShowTraits>
 	class show_array_block : public dbg::command {
-		typedef array_block<ValueTraits, block_manager::read_ref> rblock;
+		typedef array_block<typename ShowTraits::value_trait, block_manager::read_ref> rblock;
 	public:
-		explicit show_array_block(block_manager::ptr bm)
-			: bm_(bm) {
+		explicit show_array_block(block_manager::ptr bm,
+					  typename ShowTraits::ref_counter rc)
+			: bm_(bm), rc_(rc) {
 		}
 
 		virtual void exec(strings const& args, ostream &out) {
@@ -234,7 +232,7 @@ namespace {
 			block_address block = boost::lexical_cast<block_address>(args[1]);
 			block_manager::read_ref rr = bm_->read_lock(block);
 
-			rblock b(rr, typename ValueTraits::ref_counter());
+			rblock b(rr, rc_);
 			show_array_entries(b, out);
 		}
 
@@ -249,15 +247,15 @@ namespace {
 
 			for (unsigned i = 0; i < nr_entries; i++) {
 				formatter::ptr f2 = create_xml_formatter();
-				field(*f2, "index", i);
-				ValueTraits::show(f2, "value", b.get(i));
-				f->child("child", f2);
+				ShowTraits::show(f2, "value", b.get(i));
+				f->child(boost::lexical_cast<string>(i), f2);
 			}
 
 			f->output(out, 0);
 		}
 
 		block_manager::ptr bm_;
+		typename ShowTraits::ref_counter rc_;
 	};
 
 	//--------------------------------
@@ -270,8 +268,9 @@ namespace {
 			command_interpreter::ptr interp = create_command_interpreter(cin, cout);
 			interp->register_command("hello", command::ptr(new hello));
 			interp->register_command("superblock", command::ptr(new show_superblock(bm)));
-			interp->register_command("mapping_node", command::ptr(new show_btree_node<block_show_traits>(bm)));
-			interp->register_command("mapping_array", command::ptr(new show_array_block<mapping_show_traits>(bm)));
+			interp->register_command("block_node", command::ptr(new show_btree_node<uint64_show_traits>(bm)));
+			interp->register_command("mapping_block", command::ptr(new show_array_block<mapping_show_traits>(bm,
+					mapping_show_traits::ref_counter())));
 			interp->register_command("help", command::ptr(new help));
 			interp->register_command("exit", command::ptr(new exit_handler(interp)));
 			interp->enter_main_loop();
