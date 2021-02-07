@@ -34,6 +34,18 @@ namespace era {
 		virtual int run(int argc, char **argv);
 	};
 
+	//------------------------------------------------------
+
+	class era_debug_cmd : public base::command {
+	public:
+		era_debug_cmd();
+
+		virtual void usage(std::ostream &out) const;
+		virtual int run(int argc, char **argv);
+	};
+
+	//------------------------------------------------------
+
 	void register_era_commands(base::application &app);
 }
 
