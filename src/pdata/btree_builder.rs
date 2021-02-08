@@ -153,7 +153,7 @@ pub struct NodeSummary {
 
 fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<(u64, u64)> {
     let keys = node.get_keys();
-    let first_key = keys.first().unwrap_or(&0u64).clone();
+    let first_key = *keys.first().unwrap_or(&0u64);
 
     let loc = w.alloc()?;
     node.set_block(loc);

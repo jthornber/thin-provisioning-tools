@@ -269,10 +269,8 @@ impl AsyncIoEngine {
         cqes.sort_by(|a, b| a.user_data().partial_cmp(&b.user_data()).unwrap());
 
         let mut rs = Vec::new();
-        let mut i = 0;
-        for b in blocks {
+        for (i, b) in blocks.into_iter().enumerate() {
             let c = &cqes[i];
-            i += 1;
 
             let r = c.result();
             if r < 0 {

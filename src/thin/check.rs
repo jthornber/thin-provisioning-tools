@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
@@ -28,7 +29,7 @@ struct BottomLevelVisitor {
 impl NodeVisitor<BlockTime> for BottomLevelVisitor {
     fn visit(
         &self,
-        _path: &Vec<u64>,
+        _path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         _k: &[u64],
@@ -36,7 +37,7 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
     ) -> btree::Result<()> {
         // FIXME: do other checks
 
-        if values.len() == 0 {
+        if values.is_empty() {
             return Ok(());
         }
 
@@ -45,8 +46,8 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
         let mut start = values[0].block;
         let mut len = 1;
 
-        for n in 1..values.len() {
-            let block = values[n].block;
+        for b in values.iter().skip(1) {
+            let block = b.block;
             if block == start + len {
                 len += 1;
             } else {
@@ -60,7 +61,7 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
         Ok(())
     }
 
@@ -84,7 +85,7 @@ impl<'a> OverflowChecker<'a> {
 impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
     fn visit(
         &self,
-        _path: &Vec<u64>,
+        _path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
@@ -103,7 +104,7 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
         Ok(())
     }
 
@@ -152,13 +153,12 @@ fn check_space_map(
     }
 
     // FIXME: we should do this in batches
-    let blocks = engine.read_many(&mut blocks)?;
+    let blocks = engine.read_many(&blocks)?;
 
     let mut leaks = 0;
     let mut blocknr = 0;
     let mut bitmap_leaks = Vec::new();
-    for n in 0..entries.len() {
-        let b = &blocks[n];
+    for b in blocks.iter().take(entries.len()) {
         match b {
             Err(_e) => {
                 return Err(anyhow!("Unable to read bitmap block"));
@@ -233,12 +233,8 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
     let rblocks = engine.read_many(&blocks[0..])?;
     let mut write_blocks = Vec::new();
 
-    let mut i = 0;
-    for rb in rblocks {
-        if rb.is_err() {
-            return Err(anyhow!("Unable to reread bitmap blocks for repair"));
-        } else {
-            let b = rb.unwrap();
+    for (i, rb) in rblocks.into_iter().enumerate() {
+        if let Ok(b) = rb {
             let be = &entries[i];
             let mut blocknr = be.blocknr;
             let mut bitmap = unpack::<Bitmap>(b.get_data())?;
@@ -262,9 +258,9 @@ fn repair_space_map(ctx: &Context, entries: Vec<BitmapLeak>, sm: ASpaceMap) -> R
             checksum::write_checksum(b.get_data(), checksum::BT::BITMAP)?;
 
             write_blocks.push(b);
+        } else {
+            return Err(anyhow!("Unable to reread bitmap blocks for repair"));
         }
-
-        i += 1;
     }
 
     engine.write_many(&write_blocks[0..])?;
@@ -305,20 +301,17 @@ fn spawn_progress_thread(
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     nr_allocated_metadata: u64,
     report: Arc<Report>,
-) -> Result<(JoinHandle<()>, Arc<Mutex<bool>>)> {
+) -> Result<(JoinHandle<()>, Arc<AtomicBool>)> {
     let tid;
-    let stop_progress = Arc::new(Mutex::new(false));
+    let stop_progress = Arc::new(AtomicBool::new(false));
 
     {
         let stop_progress = stop_progress.clone();
         tid = thread::spawn(move || {
             let interval = std::time::Duration::from_millis(250);
             loop {
-                {
-                    let stop_progress = stop_progress.lock().unwrap();
-                    if *stop_progress {
-                        break;
-                    }
+                if stop_progress.load(Ordering::Relaxed) {
+                    break;
                 }
 
                 let sm = sm.lock().unwrap();
@@ -364,7 +357,7 @@ fn check_mapping_bottom_level(
 
     if roots.len() > 64 {
         let errs = Arc::new(Mutex::new(Vec::new()));
-        for (_thin_id, (path, root)) in roots {
+        for (path, root) in roots.values() {
             let data_sm = data_sm.clone();
             let root = *root;
             let v = BottomLevelVisitor { data_sm };
@@ -381,12 +374,12 @@ fn check_mapping_bottom_level(
         }
         ctx.pool.join();
         let errs = Arc::try_unwrap(errs).unwrap().into_inner().unwrap();
-        if errs.len() > 0 {
+        if !errs.is_empty() {
             ctx.report.fatal(&format!("{}", aggregate_error(errs)));
             failed = true;
         }
     } else {
-        for (_thin_id, (path, root)) in roots {
+        for (path, root) in roots.values() {
             let w = w.clone();
             let data_sm = data_sm.clone();
             let root = *root;
@@ -468,7 +461,12 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
     // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), opts.ignore_non_fatal, sb.details_root)?;
+    let devs = btree_to_map::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        opts.ignore_non_fatal,
+        sb.details_root,
+    )?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
     inc_superblock(&metadata_sm)?;
@@ -574,21 +572,18 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     bail_out(&ctx, "metadata space map")?;
 
     if opts.auto_repair {
-        if data_leaks.len() > 0 {
+        if !data_leaks.is_empty() {
             ctx.report.info("Repairing data leaks.");
             repair_space_map(&ctx, data_leaks, data_sm.clone())?;
         }
 
-        if metadata_leaks.len() > 0 {
+        if !metadata_leaks.is_empty() {
             ctx.report.info("Repairing metadata leaks.");
             repair_space_map(&ctx, metadata_leaks, metadata_sm.clone())?;
         }
     }
 
-    {
-        let mut stop_progress = stop_progress.lock().unwrap();
-        *stop_progress = true;
-    }
+    stop_progress.store(true, Ordering::Relaxed);
     tid.join().unwrap();
 
     Ok(())

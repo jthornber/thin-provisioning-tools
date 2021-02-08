@@ -173,7 +173,7 @@ pub fn pack_literal<W: Write>(w: &mut W, bs: &[u8]) -> io::Result<()> {
     use Tag::LitW;
 
     let len = bs.len() as u64;
-    if len < 16 as u64 {
+    if len < 16 {
         pack_tag(w, Tag::Lit, len as u8)?;
     } else if len <= u8::MAX as u64 {
         pack_tag(w, LitW, 1)?;
@@ -367,6 +367,12 @@ impl VM {
             self.unpack_instr(r, w, 1)?;
         }
         Ok(self.bytes_written - begin)
+    }
+}
+
+impl Default for VM {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -115,7 +115,7 @@ fn main() {
 
     let opts = ThinCheckOptions {
         dev: &input_file,
-        async_io: async_io,
+        async_io,
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),

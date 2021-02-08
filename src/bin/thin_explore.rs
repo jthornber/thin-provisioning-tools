@@ -72,7 +72,6 @@ impl Events {
         let (tx, rx) = mpsc::channel();
         let ignore_exit_key = Arc::new(AtomicBool::new(false));
         let input_handle = {
-            let tx = tx.clone();
             let ignore_exit_key = ignore_exit_key.clone();
             thread::spawn(move || {
                 let stdin = io::stdin();
@@ -107,6 +106,12 @@ impl Events {
 
     pub fn enable_exit_key(&mut self) {
         self.ignore_exit_key.store(false, Ordering::Relaxed);
+    }
+}
+
+impl Default for Events {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -158,7 +163,7 @@ impl<'a> StatefulWidget for SBWidget<'a> {
         let sb = self.sb;
         let flags = ["flags".to_string(), format!("{}", sb.flags)];
         let block = ["block".to_string(), format!("{}", sb.block)];
-        let uuid = ["uuid".to_string(), format!("-")];
+        let uuid = ["uuid".to_string(), "-".to_string()];
         let version = ["version".to_string(), format!("{}", sb.version)];
         let time = ["time".to_string(), format!("{}", sb.time)];
         let transaction_id = [
@@ -208,11 +213,11 @@ impl<'a> StatefulWidget for SBWidget<'a> {
 
         Widget::render(table, chunks[0], buf);
 
-	let items = vec![
-            ListItem::new(Span::raw(format!("Device tree"))),
-            ListItem::new(Span::raw(format!("Mapping tree")))
+        let items = vec![
+            ListItem::new(Span::raw("Device tree".to_string())),
+            ListItem::new(Span::raw("Mapping tree".to_string())),
         ];
-        
+
         let items = List::new(items)
             .block(Block::default().borders(Borders::ALL).title("Entries"))
             .highlight_style(
@@ -315,7 +320,7 @@ impl<X: Adjacent, Y: Adjacent> Adjacent for (X, Y) {
 fn adjacent_runs<V: Adjacent + Copy>(mut ns: Vec<V>) -> Vec<(V, usize)> {
     let mut result = Vec::new();
 
-    if ns.len() == 0 {
+    if ns.is_empty() {
         return result;
     }
 
@@ -330,13 +335,13 @@ fn adjacent_runs<V: Adjacent + Copy>(mut ns: Vec<V>) -> Vec<(V, usize)> {
             current = v;
             len += 1;
         } else {
-            result.push((base.clone(), len));
-            base = v.clone();
-            current = v.clone();
+            result.push((base, len));
+            base = v;
+            current = v;
             len = 1;
         }
     }
-    result.push((base.clone(), len));
+    result.push((base, len));
 
     result
 }
@@ -344,7 +349,7 @@ fn adjacent_runs<V: Adjacent + Copy>(mut ns: Vec<V>) -> Vec<(V, usize)> {
 fn mk_runs<V: Adjacent + Sized + Copy>(keys: &[u64], values: &[V]) -> Vec<((u64, V), usize)> {
     let mut pairs = Vec::new();
     for (k, v) in keys.iter().zip(values.iter()) {
-        pairs.push((k.clone(), v.clone()));
+        pairs.push((*k, *v));
     }
 
     adjacent_runs(pairs)
@@ -498,7 +503,7 @@ impl Panel for SBPanel {
                 } else {
                     Some(PushTopLevel(self.sb.mapping_root))
                 }
-            },
+            }
             Key::Char('h') | Key::Left => Some(PopPanel),
             _ => None,
         }
@@ -571,14 +576,14 @@ impl Panel for DeviceDetailPanel {
     fn path_action(&mut self, child: u64) -> Option<Action> {
         match &self.node {
             btree::Node::Internal { values, .. } => {
-                for i in 0..values.len() {
-                    if values[i] == child {
+                for (i, v) in values.iter().enumerate() {
+                    if *v == child {
                         self.state.select(Some(i));
                         return Some(PushDeviceDetail(child));
                     }
                 }
 
-                return None;
+                None
             }
             btree::Node::Leaf { .. } => None,
         }
@@ -645,14 +650,14 @@ impl Panel for TopLevelPanel {
     fn path_action(&mut self, child: u64) -> Option<Action> {
         match &self.node {
             btree::Node::Internal { values, .. } => {
-                for i in 0..values.len() {
-                    if values[i] == child {
+                for (i, v) in values.iter().enumerate() {
+                    if *v == child {
                         self.state.select(Some(i));
                         return Some(PushTopLevel(child));
                     }
                 }
 
-                return None;
+                None
             }
             btree::Node::Leaf { keys, values, .. } => {
                 for i in 0..values.len() {
@@ -662,7 +667,7 @@ impl Panel for TopLevelPanel {
                     }
                 }
 
-                return None;
+                None
             }
         }
     }
@@ -726,14 +731,14 @@ impl Panel for BottomLevelPanel {
     fn path_action(&mut self, child: u64) -> Option<Action> {
         match &self.node {
             btree::Node::Internal { values, .. } => {
-                for i in 0..values.len() {
-                    if values[i] == child {
+                for (i, v) in values.iter().enumerate() {
+                    if *v == child {
                         self.state.select(Some(i));
                         return Some(PushBottomLevel(self.thin_id, child));
                     }
                 }
 
-                return None;
+                None
             }
             btree::Node::Leaf { .. } => None,
         }
@@ -789,7 +794,7 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
         }
     } else {
         let sb = read_superblock(&engine, 0)?;
-        panels.push(Box::new(SBPanel::new(sb.clone())));
+        panels.push(Box::new(SBPanel::new(sb)));
     }
 
     let events = Events::new();
@@ -826,12 +831,11 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
         if let Event::Input(key) = events.next()? {
             match key {
                 Key::Char('q') => break 'main,
-                _ => match active_panel.input(key) {
-                    Some(action) => {
+                _ => {
+                    if let Some(action) = active_panel.input(key) {
                         perform_action(&mut panels, &engine, action)?;
                     }
-                    _ => {}
-                },
+                }
             }
         }
     }

@@ -102,8 +102,7 @@ impl<'a> LeafWalker<'a> {
             .read_many(&blocks[0..])
             .map_err(|_e| io_err(path))?;
 
-        let mut i = 0;
-        for rb in rblocks {
+        for (i, rb) in rblocks.into_iter().enumerate() {
             match rb {
                 Err(_) => {
                     return Err(io_err(path).keys_context(&filtered_krs[i]));
@@ -112,8 +111,6 @@ impl<'a> LeafWalker<'a> {
                     self.walk_node(depth - 1, path, visitor, &filtered_krs[i], &b, false)?;
                 }
             }
-
-            i += 1;
         }
 
         Ok(())
@@ -225,14 +222,12 @@ impl<'a> LeafWalker<'a> {
             self.leaves.insert(root as usize);
             visitor.visit(&kr, root)?;
             Ok(())
+        } else if self.sm_inc(root) > 0 {
+            visitor.visit_again(root)
         } else {
-            if self.sm_inc(root) > 0 {
-                visitor.visit_again(root)
-            } else {
-                let root = self.engine.read(root).map_err(|_| io_err(path))?;
+            let root = self.engine.read(root).map_err(|_| io_err(path))?;
 
-                self.walk_node(depth - 1, path, visitor, &kr, &root, true)
-            }
+            self.walk_node(depth - 1, path, visitor, &kr, &root, true)
         }
     }
 

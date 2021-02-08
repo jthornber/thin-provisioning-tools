@@ -38,7 +38,7 @@ impl RunBuilder {
                 self.run = Some(xml::Map {
                     thin_begin: thin_block,
                     data_begin: data_block,
-                    time: time,
+                    time,
                     len: 1,
                 });
                 None
@@ -59,7 +59,7 @@ impl RunBuilder {
                     self.run.replace(Map {
                         thin_begin: thin_block,
                         data_begin: data_block,
-                        time: time,
+                        time,
                         len: 1,
                     })
                 }
@@ -99,7 +99,7 @@ impl<'a> MappingVisitor<'a> {
 impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
     fn visit(
         &self,
-        _path: &Vec<u64>,
+        _path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
@@ -118,7 +118,7 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, b: u64) -> btree::Result<()> {
+    fn visit_again(&self, _path: &[u64], b: u64) -> btree::Result<()> {
         let mut inner = self.inner.lock().unwrap();
         inner
             .md_out
@@ -337,7 +337,7 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
     let (mut shared, sm) = find_shared_nodes(ctx, &roots)?;
 
     // Add in the roots, because they may not be shared.
-    for (_thin_id, (_path, root)) in &roots {
+    for (_path, root) in roots.values() {
         shared.insert(*root);
     }
 
@@ -354,7 +354,7 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
         let kr = KeyRange::new(); // FIXME: finish
         devs.push(Device {
             thin_id: thin_id as u32,
-            detail: detail.clone(),
+            detail: *detail,
             map: Mapping {
                 kr,
                 entries: es.to_vec(),
@@ -381,7 +381,7 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
 
 //------------------------------------------
 
-fn gather_entries(g: &mut Gatherer, es: &Vec<Entry>) {
+fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     g.new_seq();
     for e in es {
         match e {
@@ -395,7 +395,7 @@ fn gather_entries(g: &mut Gatherer, es: &Vec<Entry>) {
     }
 }
 
-fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &Vec<Entry>) -> Vec<Entry> {
+fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
     use Entry::*;
 
     let mut result = Vec::new();
@@ -542,7 +542,7 @@ fn emit_leaves(ctx: &Context, out: &mut dyn xml::MetadataVisitor, ls: &[u64]) ->
 fn emit_entries<W: Write>(
     ctx: &Context,
     out: &mut xml::XmlWriter<W>,
-    entries: &Vec<Entry>,
+    entries: &[Entry],
 ) -> Result<()> {
     let mut leaves = Vec::new();
 
@@ -552,7 +552,7 @@ fn emit_entries<W: Write>(
                 leaves.push(*b);
             }
             Entry::Ref(id) => {
-                if leaves.len() > 0 {
+                if !leaves.is_empty() {
                     emit_leaves(&ctx, out, &leaves[0..])?;
                     leaves.clear();
                 }
@@ -562,7 +562,7 @@ fn emit_entries<W: Write>(
         }
     }
 
-    if leaves.len() > 0 {
+    if !leaves.is_empty() {
         emit_leaves(&ctx, out, &leaves[0..])?;
     }
 

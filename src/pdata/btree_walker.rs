@@ -14,7 +14,7 @@ pub trait NodeVisitor<V: Unpack> {
     // &self is deliberately non mut to allow the walker to use multiple threads.
     fn visit(
         &self,
-        path: &Vec<u64>,
+        path: &[u64],
         kr: &KeyRange,
         header: &NodeHeader,
         keys: &[u64],
@@ -24,7 +24,7 @@ pub trait NodeVisitor<V: Unpack> {
     // Nodes may be shared and thus visited multiple times.  The walker avoids
     // doing repeated IO, but it does call this method to keep the visitor up to
     // date.
-    fn visit_again(&self, path: &Vec<u64>, b: u64) -> Result<()>;
+    fn visit_again(&self, path: &[u64], b: u64) -> Result<()>;
 
     fn end_walk(&self) -> Result<()>;
 }
@@ -154,8 +154,7 @@ impl BTreeWalker {
                 }
             }
             Ok(rblocks) => {
-                let mut i = 0;
-                for rb in rblocks {
+                for (i, rb) in rblocks.into_iter().enumerate() {
                     match rb {
                         Err(_) => {
                             let e = io_err(path).keys_context(&filtered_krs[i]);
@@ -169,8 +168,6 @@ impl BTreeWalker {
                             Ok(()) => {}
                         },
                     }
-
-                    i += 1;
                 }
             }
         }
@@ -215,7 +212,7 @@ impl BTreeWalker {
                 values,
             } => {
                 if let Err(e) = visitor.visit(path, &kr, &header, &keys, &values) {
-                    let e = BTreeError::Path(path.clone(), Box::new(e.clone()));
+                    let e = BTreeError::Path(path.clone(), Box::new(e));
                     self.set_fail(b.loc, e.clone());
                     return Err(e);
                 }
@@ -251,7 +248,7 @@ impl BTreeWalker {
     {
         if self.sm_inc(root) > 0 {
             if let Some(e) = self.failed(root) {
-                Err(e.clone())
+                Err(e)
             } else {
                 visitor.visit_again(path, root)
             }
@@ -382,10 +379,9 @@ where
             }
         }
         Ok(rblocks) => {
-            let mut i = 0;
             let errs = Arc::new(Mutex::new(Vec::new()));
 
-            for rb in rblocks {
+            for (i, rb) in rblocks.into_iter().enumerate() {
                 match rb {
                     Err(_) => {
                         let e = io_err(path).keys_context(&filtered_krs[i]);
@@ -411,8 +407,6 @@ where
                         });
                     }
                 }
-
-                i += 1;
             }
 
             pool.join();
@@ -435,7 +429,7 @@ where
 {
     if w.sm_inc(root) > 0 {
         if let Some(e) = w.failed(root) {
-            Err(e.clone())
+            Err(e)
         } else {
             visitor.visit_again(path, root)
         }
@@ -467,7 +461,7 @@ impl<V> ValueCollector<V> {
 impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
     fn visit(
         &self,
-        _path: &Vec<u64>,
+        _path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
@@ -475,13 +469,13 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
     ) -> Result<()> {
         let mut vals = self.values.lock().unwrap();
         for n in 0..keys.len() {
-            vals.insert(keys[n], values[n].clone());
+            vals.insert(keys[n], values[n]);
         }
 
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
         Ok(())
     }
 
@@ -533,7 +527,7 @@ impl<V> ValuePathCollector<V> {
 impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
     fn visit(
         &self,
-        path: &Vec<u64>,
+        path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
@@ -541,13 +535,13 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
     ) -> Result<()> {
         let mut vals = self.values.lock().unwrap();
         for n in 0..keys.len() {
-            vals.insert(keys[n], (path.clone(), values[n].clone()));
+            vals.insert(keys[n], (path.to_vec(), values[n].clone()));
         }
 
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
         Ok(())
     }
 

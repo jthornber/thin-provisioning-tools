@@ -49,21 +49,21 @@ impl LeafVisitor {
 impl<V: Unpack> NodeVisitor<V> for LeafVisitor {
     fn visit(
         &self,
-        path: &Vec<u64>,
+        path: &[u64],
         _kr: &KeyRange,
         _header: &NodeHeader,
         keys: &[u64],
         _values: &[V],
     ) -> btree::Result<()> {
         // ignore empty nodes
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Ok(());
         }
 
         let mut inner = self.inner.lock().unwrap();
 
         // Check keys are ordered.
-        if inner.leaves.len() > 0 {
+        if !inner.leaves.is_empty() {
             let last_key = inner.leaves.last().unwrap().key_high;
             if keys[0] <= last_key {
                 return Err(BTreeError::NodeError(
@@ -83,7 +83,7 @@ impl<V: Unpack> NodeVisitor<V> for LeafVisitor {
         Ok(())
     }
 
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> btree::Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
         Ok(())
     }
 
