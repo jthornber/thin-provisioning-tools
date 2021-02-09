@@ -1,5 +1,6 @@
 use io_uring::opcode::{self, types};
 use io_uring::IoUring;
+use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -30,6 +31,12 @@ impl Block {
         let ptr = unsafe { alloc(layout) };
         assert!(!ptr.is_null(), "out of memory");
         Block { loc, data: ptr }
+    }
+
+    pub fn zeroed(loc: u64) -> Block {
+        let r = Self::new(loc);
+        write_bytes(r.get_data(), 0);
+        r
     }
 
     pub fn get_data<'a>(&self) -> &'a mut [u8] {

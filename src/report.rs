@@ -95,6 +95,7 @@ impl Report {
 
 //------------------------------------------
 
+#[allow(dead_code)]
 struct PBInner {
     title: String,
     bar: ProgressBar,
