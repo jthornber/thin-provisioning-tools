@@ -21,11 +21,13 @@
 #include <iostream>
 #include <string>
 
-#include "base/command_interpreter.h"
-#include "base/output_formatter.h"
+#include "dbg-lib/array_block_dumper.h"
+#include "dbg-lib/btree_node_dumper.h"
+#include "dbg-lib/command_interpreter.h"
+#include "dbg-lib/commands.h"
+#include "dbg-lib/output_formatter.h"
+#include "dbg-lib/sm_show_traits.h"
 #include "persistent-data/file_utils.h"
-#include "persistent-data/data-structures/btree.h"
-#include "persistent-data/data-structures/simple_traits.h"
 #include "persistent-data/space-maps/disk_structures.h"
 #include "caching/commands.h"
 #include "caching/metadata.h"
@@ -39,12 +41,6 @@ using namespace caching;
 //----------------------------------------------------------------
 
 namespace {
-	class hello : public dbg::command {
-		virtual void exec(strings const &args, ostream &out) {
-			out << "Hello, world!" << endl;
-		}
-	};
-
 	class help : public dbg::command {
 		virtual void exec(strings const &args, ostream &out) {
 			out << "Commands:" << endl
@@ -52,31 +48,6 @@ namespace {
 			    << "  block_node <block# of array block-tree node>" << endl
 			    << "  mapping_block <block# of mappings array block>" << endl
 			    << "  exit" << endl;
-		}
-	};
-
-	class exit_handler : public dbg::command {
-	public:
-		exit_handler(command_interpreter::ptr interpreter)
-			: interpreter_(interpreter) {
-		}
-
-		virtual void exec(strings const &args, ostream &out) {
-			out << "Goodbye!" << endl;
-			interpreter_->exit_main_loop();
-		}
-
-		command_interpreter::ptr interpreter_;
-	};
-
-	class sm_root_show_traits : public persistent_data::sm_disk_detail::sm_root_traits {
-	public:
-		static void show(formatter::ptr f, string const &key,
-				 persistent_data::sm_disk_detail::sm_root const &value) {
-			field(*f, "nr_blocks", value.nr_blocks_);
-			field(*f, "nr_allocated", value.nr_allocated_);
-			field(*f, "bitmap_root", value.bitmap_root_);
-			field(*f, "ref_count_root", value.ref_count_root_);
 		}
 	};
 
@@ -145,16 +116,6 @@ namespace {
 		block_manager::ptr bm_;
 	};
 
-	// FIXME: duplication
-	class uint64_show_traits : public uint64_traits {
-	public:
-		typedef uint64_traits value_trait;
-
-		static void show(formatter::ptr f, string const &key, uint64_t const &value) {
-			field(*f, key, boost::lexical_cast<string>(value));
-		}
-	};
-
 	class mapping_show_traits : public caching::mapping_traits {
 	public:
 		typedef mapping_traits value_trait;
@@ -165,100 +126,20 @@ namespace {
 		}
 	};
 
-	// FIXME: duplication
-	template <typename ShowTraits>
-	class show_btree_node : public dbg::command {
-	public:
-		explicit show_btree_node(block_manager::ptr bm)
-			: bm_(bm) {
-		}
-
-		virtual void exec(strings const &args, ostream &out) {
-			using namespace persistent_data::btree_detail;
-
-			if (args.size() != 2)
-				throw runtime_error("incorrect number of arguments");
-
-			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = bm_->read_lock(block);
-
-			node_ref<uint64_show_traits::value_trait> n = btree_detail::to_node<uint64_show_traits::value_trait>(rr);
-			if (n.get_type() == INTERNAL)
-				show_node<uint64_show_traits>(n, out);
-			else {
-				node_ref<typename ShowTraits::value_trait> n = btree_detail::to_node<typename ShowTraits::value_trait>(rr);
-				show_node<ShowTraits>(n, out);
-			}
-		}
-
-	private:
-		template <typename ST>
-		void show_node(node_ref<typename ST::value_trait> n, ostream &out) {
-			formatter::ptr f = create_xml_formatter();
-
-			field(*f, "csum", n.get_checksum());
-			field(*f, "blocknr", n.get_block_nr());
-			field(*f, "type", n.get_type() == INTERNAL ? "internal" : "leaf");
-			field(*f, "nr_entries", n.get_nr_entries());
-			field(*f, "max_entries", n.get_max_entries());
-			field(*f, "value_size", n.get_value_size());
-
-			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
-				formatter::ptr f2 = create_xml_formatter();
-				field(*f2, "key", n.key_at(i));
-				ST::show(f2, "value", n.value_at(i));
-				f->child(boost::lexical_cast<string>(i), f2);
-			}
-
-			f->output(out, 0);
-		}
-
-		block_manager::ptr bm_;
-	};
-
-	template <typename ShowTraits>
-	class show_array_block : public dbg::command {
-		typedef array_block<typename ShowTraits::value_trait, block_manager::read_ref> rblock;
-	public:
-		explicit show_array_block(block_manager::ptr bm,
-					  typename ShowTraits::ref_counter rc)
-			: bm_(bm), rc_(rc) {
-		}
-
-		virtual void exec(strings const& args, ostream &out) {
-			if (args.size() != 2)
-				throw runtime_error("incorrect number of arguments");
-
-			block_address block = boost::lexical_cast<block_address>(args[1]);
-			block_manager::read_ref rr = bm_->read_lock(block);
-
-			rblock b(rr, rc_);
-			show_array_entries(b, out);
-		}
-
-	private:
-		void show_array_entries(rblock const& b, ostream &out) {
-			formatter::ptr f = create_xml_formatter();
-			uint32_t nr_entries = b.nr_entries();
-
-			field(*f, "max_entries", b.max_entries());
-			field(*f, "nr_entries", nr_entries);
-			field(*f, "value_size", b.value_size());
-
-			for (unsigned i = 0; i < nr_entries; i++) {
-				formatter::ptr f2 = create_xml_formatter();
-				ShowTraits::show(f2, "value", b.get(i));
-				f->child(boost::lexical_cast<string>(i), f2);
-			}
-
-			f->output(out, 0);
-		}
-
-		block_manager::ptr bm_;
-		typename ShowTraits::ref_counter rc_;
-	};
-
 	//--------------------------------
+
+	template <typename ShowTraits>
+	dbg::command::ptr
+	create_btree_node_handler(block_manager::ptr bm) {
+		return create_block_handler(bm, create_btree_node_dumper<ShowTraits>());
+	}
+
+	template <typename ShowTraits>
+	dbg::command::ptr
+	create_array_block_handler(block_manager::ptr bm,
+				   typename ShowTraits::value_trait::ref_counter rc) {
+		return create_block_handler(bm, create_array_block_dumper<ShowTraits>(rc));
+	}
 
 	int debug(string const &path) {
 		using dbg::command;
@@ -266,13 +147,13 @@ namespace {
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY);
 			command_interpreter::ptr interp = create_command_interpreter(cin, cout);
-			interp->register_command("hello", command::ptr(new hello));
+			interp->register_command("hello", create_hello_handler());
 			interp->register_command("superblock", command::ptr(new show_superblock(bm)));
-			interp->register_command("block_node", command::ptr(new show_btree_node<uint64_show_traits>(bm)));
-			interp->register_command("mapping_block", command::ptr(new show_array_block<mapping_show_traits>(bm,
-					mapping_show_traits::ref_counter())));
+			interp->register_command("block_node", create_btree_node_handler<uint64_show_traits>(bm));
+			interp->register_command("mapping_block", create_array_block_handler<mapping_show_traits>(bm,
+					mapping_traits::ref_counter()));
 			interp->register_command("help", command::ptr(new help));
-			interp->register_command("exit", command::ptr(new exit_handler(interp)));
+			interp->register_command("exit", create_exit_handler(interp));
 			interp->enter_main_loop();
 
 		} catch (std::exception &e) {
