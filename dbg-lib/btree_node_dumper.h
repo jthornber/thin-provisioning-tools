@@ -17,16 +17,14 @@ namespace dbg {
 		virtual void show(block_manager::read_ref &rr, std::ostream &out) {
 			node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
 			if (n.get_type() == INTERNAL)
-				show_node<uint64_show_traits>(n, out);
+				btree_node_dumper<uint64_show_traits>::show_node(n, out);
 			else {
 				node_ref<typename ShowTraits::value_trait> n = btree_detail::to_node<typename ShowTraits::value_trait>(rr);
-				show_node<ShowTraits>(n, out);
+				show_node(n, out);
 			}
 		}
 
-	private:
-		template <typename ST>
-		void show_node(node_ref<typename ST::value_trait> n, std::ostream &out) {
+		static void show_node(node_ref<typename ShowTraits::value_trait> n, std::ostream &out) {
 			formatter::ptr f = create_xml_formatter();
 
 			field(*f, "csum", n.get_checksum());
@@ -39,7 +37,7 @@ namespace dbg {
 			for (unsigned i = 0; i < n.get_nr_entries(); i++) {
 				formatter::ptr f2 = create_xml_formatter();
 				field(*f2, "key", n.key_at(i));
-				ST::show(f2, "value", n.value_at(i));
+				ShowTraits::show(f2, "value", n.value_at(i));
 				f->child(boost::lexical_cast<std::string>(i), f2);
 			}
 
