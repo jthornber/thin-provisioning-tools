@@ -26,6 +26,7 @@
 #include "dbg-lib/bitset_block_dumper.h"
 #include "dbg-lib/command_interpreter.h"
 #include "dbg-lib/commands.h"
+#include "dbg-lib/index_block_dumper.h"
 #include "dbg-lib/output_formatter.h"
 #include "dbg-lib/sm_show_traits.h"
 #include "persistent-data/file_utils.h"
@@ -49,6 +50,7 @@ namespace {
 			    << "  block_node <block# of array block-tree node>" << endl
 			    << "  bitset_block <block# of bitset block>" << endl
 			    << "  era_block <block# of era array block>" << endl
+			    << "  index_block <block# of metadata space map root>" << endl
 			    << "  writeset_node <block# of writeset tree node>" << endl
 			    << "  exit" << endl;
 		}
@@ -143,6 +145,11 @@ namespace {
 		return create_block_handler(bm, create_bitset_block_dumper());
 	}
 
+	dbg::command::ptr
+	create_index_block_handler(block_manager::ptr bm) {
+		return create_block_handler(bm, create_index_block_dumper());
+	}
+
 	int debug(string const &path) {
 		using dbg::command;
 
@@ -156,6 +163,7 @@ namespace {
 			interp->register_command("bitset_block", create_bitset_block_handler(bm));
 			interp->register_command("era_block", create_array_block_handler<uint32_show_traits>(bm,
 					uint32_traits::ref_counter()));
+			interp->register_command("index_block", create_index_block_handler(bm));
 			interp->register_command("writeset_node", create_btree_node_handler<writeset_show_traits>(bm));
 			interp->register_command("help", command::ptr(new help));
 			interp->register_command("exit", create_exit_handler(interp));
