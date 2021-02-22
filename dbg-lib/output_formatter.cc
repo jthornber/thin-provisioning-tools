@@ -1,6 +1,6 @@
 #include <string>
 
-#include "base/output_formatter.h"
+#include "dbg-lib/output_formatter.h"
 
 using namespace dbg;
 using namespace std;

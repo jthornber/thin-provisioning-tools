@@ -31,14 +31,14 @@
 #include "dbg-lib/sm_show_traits.h"
 #include "persistent-data/file_utils.h"
 #include "persistent-data/space-maps/disk_structures.h"
-#include "caching/commands.h"
-#include "caching/metadata.h"
+#include "era/commands.h"
+#include "era/metadata.h"
 #include "version.h"
 
 using namespace dbg;
 using namespace persistent_data;
 using namespace std;
-using namespace caching;
+using namespace era;
 
 //----------------------------------------------------------------
 
@@ -49,9 +49,21 @@ namespace {
 			    << "  superblock [block#]" << endl
 			    << "  block_node <block# of array block-tree node>" << endl
 			    << "  bitset_block <block# of bitset block>" << endl
+			    << "  era_block <block# of era array block>" << endl
 			    << "  index_block <block# of metadata space map root>" << endl
-			    << "  mapping_block <block# of mappings array block>" << endl
+			    << "  writeset_node <block# of writeset tree node>" << endl
 			    << "  exit" << endl;
+		}
+	};
+
+	// for displaying the writeset tree
+	class writeset_show_traits : public era::era_detail_traits {
+	public:
+		typedef era_detail_traits value_trait;
+
+		static void show(formatter::ptr f, string const &key, era_detail const &value) {
+			field(*f, "nr_bits", value.nr_bits);
+			field(*f, "writeset_root", value.writeset_root);
 		}
 	};
 
@@ -65,10 +77,10 @@ namespace {
 			if (args.size() > 2)
 				throw runtime_error("incorrect number of arguments");
 
-			block_address b = caching::SUPERBLOCK_LOCATION;
+			block_address b = era::SUPERBLOCK_LOCATION;
 			if (args.size() == 2)
 				b = boost::lexical_cast<block_address>(args[1]);
-			caching::superblock sb = read_superblock(bm_, b);
+			era::superblock sb = read_superblock(bm_, b);
 
 			formatter::ptr f = create_xml_formatter();
 			ostringstream version;
@@ -78,12 +90,6 @@ namespace {
 			field(*f, "uuid", sb.uuid); // FIXME: delimit, and handle non-printable chars
 			field(*f, "magic", sb.magic);
 			field(*f, "version", sb.version);
-			field(*f, "policy_name", reinterpret_cast<char const*>(sb.policy_name));
-			version << sb.policy_version[0] << "."
-				<< sb.policy_version[1] << "."
-				<< sb.policy_version[2];
-			field(*f, "policy_version", version.str().c_str());
-			field(*f, "policy_hint_size", sb.policy_hint_size);
 
 			sm_disk_detail::sm_root_disk const *d;
 			sm_disk_detail::sm_root v;
@@ -95,39 +101,28 @@ namespace {
 				f->child("metadata_space_map_root", f2);
 			}
 
-			field(*f, "mapping_root", sb.mapping_root);
-			if (sb.version >= 2)
-				field(*f, "dirty_root", *sb.dirty_root);
-			field(*f, "hint_root", sb.hint_root);
-			field(*f, "discard_root", sb.discard_root);
-			field(*f, "discard_block_size", sb.discard_block_size);
-			field(*f, "discard_nr_blocks", sb.discard_nr_blocks);
 			field(*f, "data_block_size", sb.data_block_size);
 			field(*f, "metadata_block_size", sb.metadata_block_size);
-			field(*f, "cache_blocks", sb.cache_blocks);
-			field(*f, "compat_flags", sb.compat_flags);
-			field(*f, "compat_ro_flags", sb.compat_ro_flags);
-			field(*f, "incompat_flags", sb.incompat_flags);
-			field(*f, "read_hits", sb.read_hits);
-			field(*f, "read_misses", sb.read_misses);
-			field(*f, "write_hits", sb.write_hits);
-			field(*f, "write_misses", sb.write_misses);
+			field(*f, "nr_blocks", sb.nr_blocks);
+
+			field(*f, "current_era", sb.current_era);
+			{
+				formatter::ptr f2 = create_xml_formatter();
+				writeset_show_traits::show(f2, "value", sb.current_detail);
+				f->child("current_writeset", f2);
+			}
+
+			field(*f, "writeset_tree_root", sb.writeset_tree_root);
+			field(*f, "era_array_root", sb.era_array_root);
+
+			if (sb.metadata_snap)
+				field(*f, "metadata_snap", *sb.metadata_snap);
 
 			f->output(out, 0);
 		}
 
 	private:
 		block_manager::ptr bm_;
-	};
-
-	class mapping_show_traits : public caching::mapping_traits {
-	public:
-		typedef mapping_traits value_trait;
-
-		static void show(formatter::ptr f, string const &key, caching::mapping const &value) {
-			field(*f, "oblock", value.oblock_);
-			field(*f, "flags", value.flags_);
-		}
 	};
 
 	//--------------------------------
@@ -160,14 +155,16 @@ namespace {
 
 		try {
 			block_manager::ptr bm = open_bm(path, block_manager::READ_ONLY);
+			transaction_manager::ptr null_tm = open_tm(bm, era::SUPERBLOCK_LOCATION);
 			command_interpreter::ptr interp = create_command_interpreter(cin, cout);
 			interp->register_command("hello", create_hello_handler());
 			interp->register_command("superblock", command::ptr(new show_superblock(bm)));
 			interp->register_command("block_node", create_btree_node_handler<uint64_show_traits>(bm));
 			interp->register_command("bitset_block", create_bitset_block_handler(bm));
+			interp->register_command("era_block", create_array_block_handler<uint32_show_traits>(bm,
+					uint32_traits::ref_counter()));
 			interp->register_command("index_block", create_index_block_handler(bm));
-			interp->register_command("mapping_block", create_array_block_handler<mapping_show_traits>(bm,
-					mapping_traits::ref_counter()));
+			interp->register_command("writeset_node", create_btree_node_handler<writeset_show_traits>(bm));
 			interp->register_command("help", command::ptr(new help));
 			interp->register_command("exit", create_exit_handler(interp));
 			interp->enter_main_loop();
@@ -183,13 +180,13 @@ namespace {
 
 //----------------------------------------------------------------
 
-cache_debug_cmd::cache_debug_cmd()
-	: command("cache_debug")
+era_debug_cmd::era_debug_cmd()
+	: command("era_debug")
 {
 }
 
 void
-cache_debug_cmd::usage(std::ostream &out) const
+era_debug_cmd::usage(std::ostream &out) const
 {
 	out << "Usage: " << get_name() << " {device|file}" << endl
 	    << "Options:" << endl
@@ -198,7 +195,7 @@ cache_debug_cmd::usage(std::ostream &out) const
 }
 
 int
-cache_debug_cmd::run(int argc, char **argv)
+era_debug_cmd::run(int argc, char **argv)
 {
 	int c;
 	const char shortopts[] = "hV";

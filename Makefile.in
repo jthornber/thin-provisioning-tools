@@ -126,11 +126,17 @@ TOOLS_SOURCE=\
 	thin-provisioning/thin_trim.cc
 
 DEVTOOLS_SOURCE=\
-	base/command_interpreter.cc \
-	base/output_formatter.cc \
 	caching/cache_debug.cc \
 	caching/devel_commands.cc \
+	dbg-lib/bitset_block_dumper.cc \
+	dbg-lib/command_interpreter.cc \
+	dbg-lib/commands.cc \
+	dbg-lib/index_block_dumper.cc \
+	dbg-lib/output_formatter.cc \
+	dbg-lib/simple_show_traits.cc \
+	dbg-lib/sm_show_traits.cc \
 	era/devel_commands.cc \
+	era/era_debug.cc \
 	thin-provisioning/damage_generator.cc \
 	thin-provisioning/devel_commands.cc \
 	thin-provisioning/thin_debug.cc \

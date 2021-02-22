@@ -1,4 +1,4 @@
-#include "base/command_interpreter.h"
+#include "dbg-lib/command_interpreter.h"
 
 using namespace dbg;
 using namespace std;
