@@ -55,7 +55,7 @@ impl<V: Unpack + Copy> NodeVisitor<ArrayBlockEntry> for BlockValueVisitor<V> {
     // FIXME: return errors
     fn visit(
         &self,
-        path: &Vec<u64>,
+        path: &[u64],
         _kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
@@ -71,7 +71,7 @@ impl<V: Unpack + Copy> NodeVisitor<ArrayBlockEntry> for BlockValueVisitor<V> {
     }
 
     // FIXME: stub
-    fn visit_again(&self, _path: &Vec<u64>, _b: u64) -> Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
         Ok(())
     }
 
