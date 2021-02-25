@@ -24,8 +24,8 @@ pub fn write_xml(path: &Path, g: &mut dyn XmlGen) -> Result<()> {
 }
 
 pub struct CacheGen {
-    block_size: u64,
-    nr_cache_blocks: u64,
+    block_size: u32,
+    nr_cache_blocks: u32,
     nr_origin_blocks: u64,
     percent_resident: u8,
     percent_dirty: u8,
@@ -33,8 +33,8 @@ pub struct CacheGen {
 
 impl CacheGen {
     pub fn new(
-        block_size: u64,
-        nr_cache_blocks: u64,
+        block_size: u32,
+        nr_cache_blocks: u32,
         nr_origin_blocks: u64,
         percent_resident: u8,
         percent_dirty: u8,
@@ -67,7 +67,7 @@ impl XmlGen for CacheGen {
 
         v.mappings_b()?;
         {
-            let nr_resident = (self.nr_cache_blocks * 100 as u64) / (self.percent_resident as u64);
+            let nr_resident = (self.nr_cache_blocks * 100 as u32) / (self.percent_resident as u32);
             let mut used = HashSet::new();
             for n in 0..nr_resident {
                 let mut oblock = 0u64;

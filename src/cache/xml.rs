@@ -11,22 +11,22 @@ use quick_xml::Writer;
 #[derive(Clone)]
 pub struct Superblock {
     pub uuid: String,
-    pub block_size: u64,
-    pub nr_cache_blocks: u64,
+    pub block_size: u32,
+    pub nr_cache_blocks: u32,
     pub policy: String,
     pub hint_width: u32,
 }
 
 #[derive(Clone)]
 pub struct Map {
-    pub cblock: u64,
+    pub cblock: u32,
     pub oblock: u64,
     pub dirty: bool,
 }
 
 #[derive(Clone)]
 pub struct Hint {
-    pub cblock: u64,
+    pub cblock: u32,
     pub data: Vec<u8>,
 }
 
