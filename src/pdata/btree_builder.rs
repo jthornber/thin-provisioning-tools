@@ -13,7 +13,7 @@ use crate::write_batcher::*;
 
 //------------------------------------------
 
-fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
+pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
     match node {
         Node::Internal {
             header,
@@ -60,7 +60,7 @@ fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> R
 
 //------------------------------------------
 
-fn calc_max_entries<V: Unpack>() -> usize {
+pub fn calc_max_entries<V: Unpack>() -> usize {
     let elt_size = 8 + V::disk_size() as usize;
     ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize
 }
