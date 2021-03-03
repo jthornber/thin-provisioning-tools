@@ -35,7 +35,7 @@ impl CheckMappingVisitor {
 
     fn seen_oblock(&self, b: u64) -> bool {
         let seen_oblocks = self.seen_oblocks.lock().unwrap();
-        return seen_oblocks.contains(&b);
+        seen_oblocks.contains(&b)
     }
 
     fn record_oblock(&self, b: u64) {
@@ -46,7 +46,7 @@ impl CheckMappingVisitor {
     // FIXME: is it possible to validate flags at an early phase?
     // e.g., move to ctor of Mapping?
     fn has_unknown_flags(&self, m: &Mapping) -> bool {
-        return (m.flags & self.allowed_flags) != 0;
+        (m.flags & self.allowed_flags) != 0
     }
 }
 

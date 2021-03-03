@@ -23,7 +23,7 @@ struct MappingEmitter {
 impl MappingEmitter {
     pub fn new(emitter: Arc<Mutex<dyn MetadataVisitor>>) -> MappingEmitter {
         MappingEmitter {
-            emitter: emitter,
+            emitter,
         }
     }
 }
@@ -58,7 +58,7 @@ struct HintEmitter<Width> {
 impl<Width> HintEmitter<Width> {
     pub fn new(emitter: Arc<Mutex<dyn MetadataVisitor>>) -> HintEmitter<Width> {
         HintEmitter {
-            emitter: emitter,
+            emitter,
             _not_used: PhantomData,
         }
     }

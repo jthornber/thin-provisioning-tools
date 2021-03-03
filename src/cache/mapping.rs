@@ -22,11 +22,11 @@ pub struct Mapping {
 
 impl Mapping {
     pub fn is_valid(&self) -> bool {
-        return (self.flags & MappingFlags::Valid as u32) != 0;
+        (self.flags & MappingFlags::Valid as u32) != 0
     }
 
     pub fn is_dirty(&self) -> bool {
-        return (self.flags & MappingFlags::Dirty as u32) != 0;
+        (self.flags & MappingFlags::Dirty as u32) != 0
     }
 }
 

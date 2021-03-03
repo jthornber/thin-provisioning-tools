@@ -50,7 +50,7 @@ impl<V: Unpack> ArrayBlock<V> {
     }
 }
 
-fn convert_result<'a, V>(r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
+fn convert_result<V>(r: IResult<&[u8], V>) -> Result<(&[u8], V)> {
     r.map_err(|_| anyhow!("parse error"))
 }
 
