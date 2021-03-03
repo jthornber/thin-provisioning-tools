@@ -98,7 +98,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
         i,
         Superblock {
             flags: SuperblockFlags {
-                needs_check: (flags | 0x1) != 0,
+                needs_check: (flags & 0x1) != 0,
             },
             block,
             version,
