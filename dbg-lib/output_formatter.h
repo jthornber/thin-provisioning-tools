@@ -6,6 +6,7 @@
 #include <boost/tuple/tuple.hpp>
 #include <boost/variant.hpp>
 
+#include <memory>
 #include <vector>
 #include <string>
 
