@@ -14,20 +14,20 @@ pub struct ArrayWalker {
 }
 
 // FIXME: define another Result type for array visiting?
-pub trait ArrayBlockVisitor<V: Unpack> {
+pub trait ArrayVisitor<V: Unpack> {
     fn visit(&self, index: u64, v: V) -> anyhow::Result<()>;
 }
 
-struct BlockValueVisitor<V> {
+struct BlockValueVisitor<'a, V> {
     engine: Arc<dyn IoEngine + Send + Sync>,
-    array_block_visitor: Box<dyn ArrayBlockVisitor<V>>,
+    array_block_visitor: &'a mut dyn ArrayVisitor<V>,
 }
 
-impl<V: Unpack + Copy> BlockValueVisitor<V> {
+impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
     pub fn new(
         e: Arc<dyn IoEngine + Send + Sync>,
-        v: Box<dyn ArrayBlockVisitor<V>>,
-    ) -> BlockValueVisitor<V> {
+        v: &'a mut dyn ArrayVisitor<V>,
+    ) -> BlockValueVisitor<'a, V> {
         BlockValueVisitor {
             engine: e,
             array_block_visitor: v,
@@ -44,7 +44,7 @@ impl<V: Unpack + Copy> BlockValueVisitor<V> {
     }
 }
 
-impl<V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<V> {
+impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
     // FIXME: return errors
     fn visit(
         &self,
@@ -81,7 +81,7 @@ impl ArrayWalker {
     }
 
     // FIXME: redefine the Result type for array visiting?
-    pub fn walk<V>(&self, visitor: Box<dyn ArrayBlockVisitor<V>>, root: u64) -> Result<()>
+    pub fn walk<V>(&self, visitor: &mut dyn ArrayVisitor<V>, root: u64) -> Result<()>
     where
         V: Unpack + Copy,
     {

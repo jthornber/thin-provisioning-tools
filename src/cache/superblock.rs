@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
+use nom::{bytes::complete::*, number::complete::*, IResult};
 
 use crate::io_engine::*;
-use nom::{bytes::complete::*, number::complete::*, IResult};
 
 //------------------------------------------
 

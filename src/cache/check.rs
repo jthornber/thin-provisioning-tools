@@ -1,13 +1,12 @@
 use anyhow::anyhow;
-use std::marker::PhantomData;
+use std::collections::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::collections::*;
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
+use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array_walker::*;
 
 //------------------------------------------
@@ -50,7 +49,7 @@ impl CheckMappingVisitor {
     }
 }
 
-impl ArrayBlockVisitor<Mapping> for CheckMappingVisitor {
+impl ArrayVisitor<Mapping> for CheckMappingVisitor {
     fn visit(&self, _index: u64, m: Mapping) -> anyhow::Result<()> {
         if !m.is_valid() {
             return Ok(());
@@ -72,20 +71,16 @@ impl ArrayBlockVisitor<Mapping> for CheckMappingVisitor {
 
 //------------------------------------------
 
-struct CheckHintVisitor<Width> {
-    _not_used: PhantomData<Width>,
-}
+struct CheckHintVisitor {}
 
-impl<Width> CheckHintVisitor<Width> {
-    fn new() -> CheckHintVisitor<Width> {
-        CheckHintVisitor {
-            _not_used: PhantomData,
-        }
+impl CheckHintVisitor {
+    fn new() -> CheckHintVisitor {
+        CheckHintVisitor {}
     }
 }
 
-impl<Width: typenum::Unsigned> ArrayBlockVisitor<Hint<Width>> for CheckHintVisitor<Width> {
-    fn visit(&self, _index: u64, _hint: Hint<Width>) -> anyhow::Result<()> {
+impl ArrayVisitor<Hint> for CheckHintVisitor {
+    fn visit(&self, _index: u64, _hint: Hint) -> anyhow::Result<()> {
         // TODO: check hints
         Ok(())
     }
@@ -112,19 +107,13 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(
-            opts.dev,
-            MAX_CONCURRENT_IO,
-            false,
-        )?);
+        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
     }
 
-    Ok(Context {
-        engine,
-    })
+    Ok(Context { engine })
 }
 
 pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
@@ -141,19 +130,21 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
         let w = ArrayWalker::new(engine.clone(), false);
-        let c = Box::new(CheckMappingVisitor::new(sb.version));
-        w.walk(c, sb.mapping_root)?;
+        let mut c = CheckMappingVisitor::new(sb.version);
+        w.walk(&mut c, sb.mapping_root)?;
 
         if sb.version >= 2 {
-           // TODO: check dirty bitset
+            // TODO: check dirty bitset
         }
     }
 
-    if !opts.skip_hints && sb.hint_root != 0 {
+    if !opts.skip_hints && sb.hint_root != 0 && sb.policy_hint_size != 0 {
+        if sb.policy_hint_size != 4 {
+            return Err(anyhow!("cache_check only supports policy hint size of 4"));
+        }
         let w = ArrayWalker::new(engine.clone(), false);
-        type Width = typenum::U4; // FIXME: check sb.policy_hint_size
-        let c = Box::new(CheckHintVisitor::<Width>::new());
-        w.walk(c, sb.hint_root)?;
+        let mut c = CheckHintVisitor::new();
+        w.walk(&mut c, sb.hint_root)?;
     }
 
     if !opts.skip_discards {
