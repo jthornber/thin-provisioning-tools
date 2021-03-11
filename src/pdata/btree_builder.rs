@@ -62,7 +62,8 @@ pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) 
 
 pub fn calc_max_entries<V: Unpack>() -> usize {
     let elt_size = 8 + V::disk_size() as usize;
-    ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize
+    let total = ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize
+    total / 3 * 3
 }
 
 //------------------------------------------
