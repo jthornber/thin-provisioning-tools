@@ -63,7 +63,7 @@ impl RefCounter<u64> for SMRefCounter {
 //------------------------------------------
 
 /// Pack the given node ready to write to disk.
-fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
+pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
     match node {
         Node::Internal {
             header,
@@ -106,6 +106,14 @@ fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> R
     }
 
     Ok(())
+}
+
+//------------------------------------------
+
+pub fn calc_max_entries<V: Unpack>() -> usize {
+    let elt_size = 8 + V::disk_size() as usize;
+    let total = ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize;
+    total / 3 * 3
 }
 
 pub struct WriteResult {
@@ -217,15 +225,6 @@ impl NodeIO<u64> for InternalIO {
 
 //------------------------------------------
 
-/// What is the maximum number of entries of a given size we can fit in
-/// a btree node?
-fn calc_max_entries<V: Unpack>() -> usize {
-    let elt_size = 8 + V::disk_size() as usize;
-    ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize
-}
-
-//------------------------------------------
-
 /// This takes a sequence of values or nodes, and builds a vector of leaf nodes.
 /// Care is taken to make sure that all nodes are at least half full unless there's
 /// only a single node.
@@ -269,7 +268,6 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
             nodes: Vec::new(),
         }
     }
-
     /// Push a single value.  This may emit a new node, hence the Result
     /// return type.  The value's ref count will be incremented.
     pub fn push_value(&mut self, key: u64, val: V) -> Result<()> {
@@ -503,3 +501,17 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
 }
 
 //------------------------------------------
+
+/*
+=======
+fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<(u64, u64)> {
+    let keys = node.get_keys();
+    let first_key = *keys.first().unwrap_or(&0u64);
+>>>>>>> main
+
+=======
+fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<(u64, u64)> {
+    let keys = node.get_keys();
+    let first_key = *keys.first().unwrap_or(&0u64);
+>>>>>>> main
+*/

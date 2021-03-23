@@ -151,14 +151,6 @@ AC_ARG_ENABLE(testing,
 AC_MSG_RESULT($TESTING)
 
 ################################################################################
-dnl -- Enable development tools
-AC_MSG_CHECKING(whether to enable development tools)
-AC_ARG_ENABLE(dev-tools,
-	      AC_HELP_STRING(--enable-dev-tools, [enable development tools in the makefile]),
-	      DEVTOOLS=$enableval, DEVTOOLS=no)
-AC_MSG_RESULT($DEVTOOLS)
-
-################################################################################
 dnl -- Enable static libstdc++
 AC_MSG_CHECKING(whether to statically link libstdc++)
 AC_ARG_ENABLE(static_cxx,
@@ -214,6 +206,5 @@ Makefile
 contrib/Makefile
 unit-tests/Makefile
 version.h
-src/version.rs
 ])
 AC_OUTPUT

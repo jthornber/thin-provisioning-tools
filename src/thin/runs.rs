@@ -139,6 +139,12 @@ impl Gatherer {
     }
 }
 
+impl Default for Gatherer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 //------------------------------------------
 
 #[cfg(test)]

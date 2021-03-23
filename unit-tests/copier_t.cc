@@ -59,6 +59,12 @@ namespace {
 		}
 
 		unique_ptr<copier> make_copier() {
+			return make_copier(BLOCK_SIZE, 0, 0);
+		}
+
+		unique_ptr<copier> make_copier(sector_t block_size,
+					       sector_t src_offset,
+					       sector_t dest_offset) {
 			EXPECT_CALL(engine_, open_file(src_file_, io_engine::M_READ_ONLY, io_engine::EXCLUSIVE)).
 				WillOnce(Return(SRC_HANDLE));
 			EXPECT_CALL(engine_, open_file(dest_file_, io_engine::M_READ_WRITE, io_engine::EXCLUSIVE)).
@@ -69,20 +75,22 @@ namespace {
 
 			return unique_ptr<copier>(new copier(engine_, src_file_,
 							     dest_file_,
-							     BLOCK_SIZE, 1 * 1024 * 1024));
+							     block_size, 1 * 1024 * 1024,
+							     src_offset, dest_offset));
 		}
 
 		static optional<wait_result> make_wr(bool success, unsigned context) {
 			return optional<wait_result>(wait_result(success, context));
 		}
 
+		// issue a copy_op, and wait for its completion synchronously
 		void issue_successful_op(copier &c, copy_op &op, unsigned context) {
 			InSequence dummy;
 
 			unsigned nr_pending = c.nr_pending();
 			EXPECT_CALL(engine_, issue_io(SRC_HANDLE, io_engine::D_READ,
-						      op.src_b * BLOCK_SIZE,
-						      op.src_e * BLOCK_SIZE, _, context)).
+						      expected_src_sector(c, op.src_b),
+						      expected_src_sector(c, op.src_e), _, context)).
 				WillOnce(Return(true));
 			c.issue(op);
 
@@ -92,8 +100,9 @@ namespace {
 				WillOnce(Return(make_wr(true, context)));
 
 			EXPECT_CALL(engine_, issue_io(DEST_HANDLE, io_engine::D_WRITE,
-						      op.dest_b * BLOCK_SIZE,
-						      (op.dest_b + (op.src_e - op.src_b)) * BLOCK_SIZE, _, context)).
+						      expected_dest_sector(c, op.dest_b),
+						      expected_dest_sector(c, op.dest_b + (op.src_e - op.src_b)),
+						      _, context)).
 				WillOnce(Return(true));
 
 			EXPECT_CALL(engine_, wait()).
@@ -108,28 +117,63 @@ namespace {
 		unsigned const SRC_HANDLE = 10;
 		unsigned const DEST_HANDLE = 11;
 
+		StrictMock<io_engine_mock> engine_;
+
+	private:
+		sector_t expected_src_sector(const copier &c, block_address b) {
+			return c.get_src_offset() + b * c.get_block_size();
+		}
+
+		sector_t expected_dest_sector(const copier &c, block_address b) {
+			return c.get_dest_offset() + b * c.get_block_size();
+		}
+
 		string src_file_;
 		string dest_file_;
-		StrictMock<io_engine_mock> engine_;
 	};
 }
 
 //----------------------------------------------------------------
 
-TEST_F(CopierTests, empty_test)
+TEST_F(CopierTests, create_default_copier)
 {
 	auto c = make_copier();
+	ASSERT_EQ(c->get_block_size(), BLOCK_SIZE);
+	ASSERT_EQ(c->get_src_offset(), 0u);
+	ASSERT_EQ(c->get_dest_offset(), 0u);
+}
+
+TEST_F(CopierTests, create_copier_with_offsets)
+{
+	sector_t src_offset = 2048;
+	sector_t dest_offset = 8192;
+
+	auto c = make_copier(BLOCK_SIZE, src_offset, dest_offset);
+	ASSERT_EQ(c->get_block_size(), BLOCK_SIZE);
+	ASSERT_EQ(c->get_src_offset(), src_offset);
+	ASSERT_EQ(c->get_dest_offset(), dest_offset);
 }
 
 TEST_F(CopierTests, successful_copy)
 {
- 	// Copy first block
+	// Copy first block
 	copy_op op1(0, 1, 0);
 
 	auto c = make_copier();
 	issue_successful_op(*c, op1, 0);
 }
 
+TEST_F(CopierTests, successful_copy_with_offsets)
+{
+	copy_op op1(0, 1, 0);
+
+	auto c = make_copier(BLOCK_SIZE, 2048, 8192);
+	issue_successful_op(*c, op1, 0);
+}
+
+// Verify copier's error handling against unsucessful engine operations
+// at different stages.
+// Test the first stage (issue_read (failed) => read => issue_write => write)
 TEST_F(CopierTests, unsuccessful_issue_read)
 {
 	copy_op op1(0, 1, 0);
@@ -147,6 +191,7 @@ TEST_F(CopierTests, unsuccessful_issue_read)
 	ASSERT_FALSE(mop->success());
 }
 
+// Test the second stage (issue_read => read (failed) => issue_write => write)
 TEST_F(CopierTests, unsuccessful_read)
 {
 	copy_op op1(0, 1, 0);
@@ -167,6 +212,7 @@ TEST_F(CopierTests, unsuccessful_read)
 	ASSERT_FALSE(mop->success());
 }
 
+// Test the third stage (issue_read => read => issue_write (failed) => write)
 TEST_F(CopierTests, unsuccessful_issue_write)
 {
 	copy_op op1(0, 1, 0);
@@ -191,6 +237,7 @@ TEST_F(CopierTests, unsuccessful_issue_write)
 	ASSERT_FALSE(mop->success());
 }
 
+// Test the last stage (issue_read => read => issue_write => write (failed))
 TEST_F(CopierTests, unsuccessful_write)
 {
 	// Copy first block
@@ -231,6 +278,18 @@ TEST_F(CopierTests, copy_the_same_block_many_times)
 TEST_F(CopierTests, copy_different_blocks)
 {
 	auto c = make_copier();
+	for (unsigned i = 0; i < 5000; i++) {
+		copy_op op(i, i + 1, i);
+		issue_successful_op(*c, op, i);
+	}
+}
+
+TEST_F(CopierTests, copy_different_blocks_with_offsets)
+{
+	sector_t src_offset = 2048;
+	sector_t dest_offset = 8192;
+
+	auto c = make_copier(BLOCK_SIZE, src_offset, dest_offset);
 	for (unsigned i = 0; i < 5000; i++) {
 		copy_op op(i, i + 1, i);
 		issue_successful_op(*c, op, i);

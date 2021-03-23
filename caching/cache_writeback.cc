@@ -31,6 +31,8 @@ namespace {
 		flags()
 			: cache_size(4 * 1024 * 1024),
 			  sort_buffers(16 * 1024),
+			  origin_dev_offset(0),
+			  fast_dev_offset(0),
 			  list_failed_blocks(false),
 			  update_metadata(true) {
 		}
@@ -52,6 +54,8 @@ namespace {
 		maybe_string metadata_dev;
 		maybe_string origin_dev;
 		maybe_string fast_dev;
+		sector_t origin_dev_offset;
+		sector_t fast_dev_offset;
 		bool list_failed_blocks;
 		bool update_metadata;
 	};
@@ -303,7 +307,9 @@ namespace {
 		unsigned max_ios = f.cache_size / (md.sb_.data_block_size << SECTOR_SHIFT);
 		aio_engine engine(max_ios);
 		copier c(engine, *f.fast_dev, *f.origin_dev,
-			 md.sb_.data_block_size, f.cache_size);
+			 md.sb_.data_block_size, f.cache_size,
+			 f.fast_dev_offset >> SECTOR_SHIFT,
+			 f.origin_dev_offset >> SECTOR_SHIFT);
 
 		auto bar = create_progress_bar("Copying data");
 		copy_visitor cv(c, f.sort_buffers, clean_shutdown(md), f.list_failed_blocks,
@@ -364,6 +370,8 @@ cache_writeback_cmd::usage(std::ostream &out) const
 	    << "\t\t--buffer-size-meg <size>\n"
 	    << "\t\t--list-failed-blocks\n"
 	    << "\t\t--no-metadata-update\n"
+	    << "\t\t--origin-device-offset <bytes>\n"
+	    << "\t\t--fast-device-offset <bytes>\n"
 	    << "Options:\n"
 	    << "  {-h|--help}\n"
 	    << "  {-V|--version}" << endl;
@@ -382,6 +390,8 @@ cache_writeback_cmd::run(int argc, char **argv)
 		{ "buffer-size-meg", required_argument, NULL, 3 },
 		{ "list-failed-blocks", no_argument, NULL, 4 },
 		{ "no-metadata-update", no_argument, NULL, 5 },
+		{ "origin-device-offset", required_argument, NULL, 6 },
+		{ "fast-device-offset", required_argument, NULL, 7 },
 		{ "help", no_argument, NULL, 'h'},
 		{ "version", no_argument, NULL, 'V'},
 		{ NULL, no_argument, NULL, 0 }
@@ -411,6 +421,14 @@ cache_writeback_cmd::run(int argc, char **argv)
 
 		case 5:
 			fs.update_metadata = false;
+			break;
+
+		case 6:
+			fs.origin_dev_offset = parse_uint64(optarg, "origin dev offset");
+			break;
+
+		case 7:
+			fs.fast_dev_offset = parse_uint64(optarg, "fast dev offset");
 			break;
 
 		case 'h':
@@ -448,6 +466,13 @@ cache_writeback_cmd::run(int argc, char **argv)
 
 	if (!fs.fast_dev) {
 		cerr << "No fast device provided.\n\n";
+		usage(cerr);
+		return 1;
+	}
+
+	if (fs.origin_dev_offset & (SECTOR_SHIFT - 1) ||
+	    fs.fast_dev_offset & (SECTOR_SHIFT - 1)) {
+		cerr << "Offset must be sector-aligned\n\n";
 		usage(cerr);
 		return 1;
 	}

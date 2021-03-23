@@ -26,6 +26,12 @@ impl KeyRange {
     }
 }
 
+impl Default for KeyRange {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Display for KeyRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (self.start, self.end) {
@@ -182,22 +188,20 @@ fn test_split_range() {
     }
 }
 
-fn split_one(path: &Vec<u64>, kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
+fn split_one(path: &[u64], kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
     match kr.split(k) {
-        None => {
-            return Err(node_err(
-                path,
-                &format!("couldn't split key range {} at {}", kr, k),
-            ));
-        }
+        None => Err(node_err(
+            path,
+            &format!("couldn't split key range {} at {}", kr, k),
+        )),
         Some(pair) => Ok(pair),
     }
 }
 
-pub fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
+pub fn split_key_ranges(path: &[u64], kr: &KeyRange, keys: &[u64]) -> Result<Vec<KeyRange>> {
     let mut krs = Vec::with_capacity(keys.len());
 
-    if keys.len() == 0 {
+    if keys.is_empty() {
         return Err(node_err(path, "split_key_ranges: no keys present"));
     }
 
@@ -207,8 +211,8 @@ pub fn split_key_ranges(path: &Vec<u64>, kr: &KeyRange, keys: &[u64]) -> Result<
         end: kr.end,
     };
 
-    for i in 1..keys.len() {
-        let (first, rest) = split_one(path, &kr, keys[i])?;
+    for k in keys.iter().skip(1) {
+        let (first, rest) = split_one(path, &kr, *k)?;
         krs.push(first);
         kr = rest;
     }
@@ -229,7 +233,7 @@ pub fn encode_node_path(path: &[u64]) -> String {
 
     // The first entry is normally the superblock (0), so we
     // special case this.
-    if path.len() > 0 && path[0] == 0 {
+    if !path.is_empty() && path[0] == 0 {
         let count = ((path.len() as u8) - 1) << 1;
         cursor.write_u8(count as u8).unwrap();
         vm::pack_u64s(&mut cursor, &path[1..]).unwrap();
@@ -349,19 +353,19 @@ impl fmt::Display for BTreeError {
         }
     }
 }
-pub fn node_err(path: &Vec<u64>, msg: &str) -> BTreeError {
+pub fn node_err(path: &[u64], msg: &str) -> BTreeError {
     BTreeError::Path(
-        path.clone(),
+        path.to_vec(),
         Box::new(BTreeError::NodeError(msg.to_string())),
     )
 }
 
-pub fn node_err_s(path: &Vec<u64>, msg: String) -> BTreeError {
-    BTreeError::Path(path.clone(), Box::new(BTreeError::NodeError(msg)))
+pub fn node_err_s(path: &[u64], msg: String) -> BTreeError {
+    BTreeError::Path(path.to_vec(), Box::new(BTreeError::NodeError(msg)))
 }
 
-pub fn io_err(path: &Vec<u64>) -> BTreeError {
-    BTreeError::Path(path.clone(), Box::new(BTreeError::IoError))
+pub fn io_err(path: &[u64]) -> BTreeError {
+    BTreeError::Path(path.to_vec(), Box::new(BTreeError::IoError))
 }
 
 pub fn value_err(msg: String) -> BTreeError {
@@ -424,22 +428,22 @@ impl Unpack for NodeHeader {
 
 impl Pack for NodeHeader {
     fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
-            // csum needs to be calculated right for the whole metadata block.
-            w.write_u32::<LittleEndian>(0)?;
+        // csum needs to be calculated right for the whole metadata block.
+        w.write_u32::<LittleEndian>(0)?;
 
-            let flags;
-            if self.is_leaf {
-                flags = LEAF_NODE;
-            } else {
-                flags = INTERNAL_NODE;
-            }
-            w.write_u32::<LittleEndian>(flags)?;
-            w.write_u64::<LittleEndian>(self.block)?;
-            w.write_u32::<LittleEndian>(self.nr_entries)?;
-            w.write_u32::<LittleEndian>(self.max_entries)?;
-            w.write_u32::<LittleEndian>(self.value_size)?;
-            w.write_u32::<LittleEndian>(0)?;
-            Ok(())
+        let flags;
+        if self.is_leaf {
+            flags = LEAF_NODE;
+        } else {
+            flags = INTERNAL_NODE;
+        }
+        w.write_u32::<LittleEndian>(flags)?;
+        w.write_u64::<LittleEndian>(self.block)?;
+        w.write_u32::<LittleEndian>(self.nr_entries)?;
+        w.write_u32::<LittleEndian>(self.max_entries)?;
+        w.write_u32::<LittleEndian>(self.value_size)?;
+        w.write_u32::<LittleEndian>(0)?;
+        Ok(())
     }
 }
 
@@ -473,7 +477,7 @@ impl<V: Unpack> Node<V> {
             Leaf { header, .. } => header,
         }
     }
-    
+
     pub fn get_keys(&self) -> &[u64] {
         use Node::*;
         match self {
@@ -487,16 +491,16 @@ impl<V: Unpack> Node<V> {
     }
 }
 
-pub fn convert_result<'a, V>(path: &Vec<u64>, r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
+pub fn convert_result<'a, V>(path: &[u64], r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
     r.map_err(|_e| node_err(path, "parse error"))
 }
 
-pub fn convert_io_err<V>(path: &Vec<u64>, r: std::io::Result<V>) -> Result<V> {
+pub fn convert_io_err<V>(path: &[u64], r: std::io::Result<V>) -> Result<V> {
     r.map_err(|_| io_err(path))
 }
 
 pub fn unpack_node<V: Unpack>(
-    path: &Vec<u64>,
+    path: &[u64],
     data: &[u8],
     ignore_non_fatal: bool,
     is_root: bool,
@@ -554,7 +558,7 @@ pub fn unpack_node<V: Unpack>(
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return Err(node_err(path, "keys out of order"));
+                return Err(node_err(&path, "keys out of order"));
             }
         }
 
@@ -573,7 +577,7 @@ pub fn unpack_node<V: Unpack>(
             values,
         })
     } else {
-        let (_i, values) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(&path, count(le_u64, header.nr_entries as usize)(i))?;
         Ok(Node::Internal {
             header,
             keys,
