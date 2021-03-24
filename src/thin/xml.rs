@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::{borrow::Cow, fmt::Display, io::prelude::*, io::BufReader, io::Write};
 
 use quick_xml::events::attributes::Attribute;
@@ -46,9 +46,11 @@ pub trait MetadataVisitor {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit>;
     fn superblock_e(&mut self) -> Result<Visit>;
 
+    // Defines a shared sub tree.  May only contain a 'map' (no 'ref' allowed).
     fn def_shared_b(&mut self, name: &str) -> Result<Visit>;
     fn def_shared_e(&mut self) -> Result<Visit>;
 
+    // A device contains a number of 'map' or 'ref' items.
     fn device_b(&mut self, d: &Device) -> Result<Visit>;
     fn device_e(&mut self) -> Result<Visit>;
 
@@ -207,8 +209,9 @@ fn bad_attr<T>(_tag: &str, _attr: &[u8]) -> Result<T> {
     todo!();
 }
 
-fn missing_attr<T>(_tag: &str, _attr: &str) -> Result<T> {
-    todo!();
+fn missing_attr<T>(tag: &str, attr: &str) -> Result<T> {
+    let msg = format!("missing attribute '{}' for tag '{}", attr, tag);
+    Err(anyhow!(msg))
 }
 
 fn check_attr<T>(tag: &str, name: &str, maybe_v: Option<T>) -> Result<T> {
@@ -255,6 +258,24 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
         nr_data_blocks: check_attr(tag, "nr_data_blocks", nr_data_blocks)?,
         metadata_snap,
     })
+}
+
+fn parse_def(e: &BytesStart, tag: &str) -> Result<String> {
+    let mut name: Option<String> = None;
+    
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"name" => {
+                name = Some(string_val(&kv));
+            },
+            _ => {
+                return bad_attr(tag, kv.key)
+            }
+        }
+    }
+
+    Ok(name.unwrap())
 }
 
 fn parse_device(e: &BytesStart) -> Result<Device> {
@@ -348,16 +369,19 @@ where
         Ok(Event::Start(ref e)) => match e.name() {
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"device" => visitor.device_b(&parse_device(e)?),
+            b"def" => visitor.def_shared_b(&parse_def(e, "def")?),
             _ => todo!(),
         },
         Ok(Event::End(ref e)) => match e.name() {
             b"superblock" => visitor.superblock_e(),
             b"device" => visitor.device_e(),
+            b"def" => visitor.def_shared_e(),
             _ => todo!(),
         },
         Ok(Event::Empty(ref e)) => match e.name() {
             b"single_mapping" => visitor.map(&parse_single_map(e)?),
             b"range_mapping" => visitor.map(&parse_range_map(e)?),
+            b"ref" => visitor.ref_shared(&parse_def(e, "ref")?),
             _ => todo!(),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),

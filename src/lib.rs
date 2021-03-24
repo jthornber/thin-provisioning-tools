@@ -19,6 +19,7 @@ pub mod cache;
 pub mod checksum;
 pub mod file_utils;
 pub mod io_engine;
+pub mod math;
 pub mod pack;
 pub mod pdata;
 pub mod report;

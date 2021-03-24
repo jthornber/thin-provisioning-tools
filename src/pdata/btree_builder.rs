@@ -21,6 +21,14 @@ pub trait RefCounter<Value> {
     fn dec(&mut self, v: &Value) -> Result<()>;
 }
 
+pub struct NoopRC {}
+
+impl<Value> RefCounter<Value> for NoopRC {
+    fn get(&self, _v: &Value) -> Result<u32> {Ok(0)}
+    fn inc(&mut self, _v: &Value) -> Result<()> {Ok(())}
+    fn dec(&mut self, _v: &Value) -> Result<()> {Ok(())}
+}
+
 /// Wraps a space map up to become a RefCounter.
 struct SMRefCounter {
     sm: Arc<Mutex<dyn SpaceMap>>,
@@ -126,12 +134,12 @@ fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Res
     let keys = node.get_keys();
     let first_key = keys.first().unwrap_or(&0u64).clone();
 
-    let loc = w.alloc()?;
-    node.set_block(loc);
+    let b = w.alloc()?;
+    node.set_block(b.loc);
 
-    let b = Block::new(loc);
     let mut cursor = Cursor::new(b.get_data());
     pack_node(&node, &mut cursor)?;
+    let loc = b.loc;
     w.write(b, checksum::BT::NODE)?;
 
     Ok(WriteResult { first_key, loc })
@@ -149,7 +157,7 @@ pub trait NodeIO<V: Unpack + Pack> {
     ) -> Result<(Vec<u64>, Vec<V>)>;
 }
 
-struct LeafIO {}
+pub struct LeafIO {}
 
 impl<V: Unpack + Pack> NodeIO<V> for LeafIO {
     fn write(&self, w: &mut WriteBatcher, keys: Vec<u64>, values: Vec<V>) -> Result<WriteResult> {
@@ -229,7 +237,6 @@ impl NodeIO<u64> for InternalIO {
 /// Care is taken to make sure that all nodes are at least half full unless there's
 /// only a single node.
 pub struct NodeBuilder<V: Pack + Unpack> {
-    batcher: WriteBatcher,
     nio: Box<dyn NodeIO<V>>,
     value_rc: Box<dyn RefCounter<V>>,
     max_entries_per_node: usize,
@@ -252,15 +259,13 @@ pub struct NodeSummary {
     shared: bool,
 }
 
-impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
+impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     /// Create a new NodeBuilder
     pub fn new(
-        batcher: WriteBatcher,
         nio: Box<dyn NodeIO<V>>,
         value_rc: Box<dyn RefCounter<V>>,
     ) -> Self {
         NodeBuilder {
-            batcher,
             nio,
             value_rc,
             max_entries_per_node: calc_max_entries::<V>(),
@@ -270,12 +275,12 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
     }
     /// Push a single value.  This may emit a new node, hence the Result
     /// return type.  The value's ref count will be incremented.
-    pub fn push_value(&mut self, key: u64, val: V) -> Result<()> {
+    pub fn push_value(&mut self, w: &mut WriteBatcher, key: u64, val: V) -> Result<()> {
         // Have we got enough values to emit a node?  We try and keep
         // at least max_entries_per_node entries unflushed so we
         // can ensure the final node is balanced properly.
         if self.values.len() == self.max_entries_per_node * 2 {
-            self.emit_node()?;
+            self.emit_node(w)?;
         }
 
         self.value_rc.inc(&val)?;
@@ -289,7 +294,7 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
     /// Any shared nodes that are used have their block incremented in
     /// the space map.  Will only increment the ref count for values
     /// contained in the nodes if it unpacks them.
-    pub fn push_nodes(&mut self, nodes: &Vec<NodeSummary>) -> Result<()> {
+    pub fn push_nodes(&mut self, w: &mut WriteBatcher, nodes: &Vec<NodeSummary>) -> Result<()> {
         assert!(nodes.len() > 0);
 
         // As a sanity check we make sure that all the shared nodes contain the
@@ -305,7 +310,7 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
         if self.values.len() < half_full {
             // To avoid writing an under populated node we have to grab some
             // values from the first of the shared nodes.
-            let (keys, values) = self.read_node(nodes.get(0).unwrap().block)?;
+            let (keys, values) = self.read_node(w, nodes.get(0).unwrap().block)?;
 
             for i in 0..keys.len() {
                 self.value_rc.inc(&values[i])?;
@@ -313,21 +318,21 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
             }
 
             // Flush all the values.
-            self.emit_all()?;
+            self.emit_all(w)?;
 
             // Add the remaining nodes.
             for i in 1..nodes.len() {
                 let n = nodes.get(i).unwrap();
-                self.batcher.sm.lock().unwrap().inc(n.block, 1)?;
+                w.sm.lock().unwrap().inc(n.block, 1)?;
                 self.nodes.push(n.clone());
             }
         } else {
             // Flush all the values.
-            self.emit_all()?;
+            self.emit_all(w)?;
 
             // add the nodes
             for n in nodes {
-                self.batcher.sm.lock().unwrap().inc(n.block, 1)?;
+                w.sm.lock().unwrap().inc(n.block, 1)?;
                 self.nodes.push(n.clone());
             }
         }
@@ -337,16 +342,21 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
 
     /// Signal that no more values or nodes will be pushed.  Returns a
     /// vector of the built nodes.  Consumes the builder.
-    pub fn complete(mut self) -> Result<Vec<NodeSummary>> {
+    pub fn complete(mut self, w: &mut WriteBatcher) -> Result<Vec<NodeSummary>> {
         let half_full = self.max_entries_per_node / 2;
 
         if (self.nodes.len() > 0) && (self.values.len() < half_full) {
             // We don't have enough values to emit a node.  So we're going to
             // have to rebalance with the previous node.
-            self.unshift_node()?;
+            self.unshift_node(w)?;
         }
 
-        self.emit_all()?;
+        self.emit_all(w)?;
+
+        if self.nodes.len() == 0 {
+            self.emit_empty_leaf(w)?
+        }
+        
         Ok(self.nodes)
     }
 
@@ -354,13 +364,13 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
 
     // We're only interested in the keys and values from the node, and
     // not whether it's a leaf or internal node.
-    fn read_node(&self, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
-        self.nio.read(&self.batcher.engine, block)
+    fn read_node(&self, w: &WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
+        self.nio.read(&w.engine, block)
     }
 
     /// Writes a node with the first 'nr_entries' values.
-    fn emit_values(&mut self, nr_entries: usize) -> Result<()> {
-        assert!(self.values.len() <= nr_entries);
+    fn emit_values(&mut self, w: &mut WriteBatcher, nr_entries: usize) -> Result<()> {
+        assert!(nr_entries <= self.values.len());
 
         // Write the node
         let mut keys = Vec::new();
@@ -372,7 +382,7 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
             values.push(v);
         }
 
-        let wresult = self.nio.write(&mut self.batcher, keys, values)?;
+        let wresult = self.nio.write(w, keys, values)?;
 
         // Push a summary to the 'nodes' vector.
         self.nodes.push(NodeSummary {
@@ -385,13 +395,13 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
     }
 
     /// Writes a full node.
-    fn emit_node(&mut self) -> Result<()> {
-        self.emit_values(self.max_entries_per_node)
+    fn emit_node(&mut self, w: &mut WriteBatcher) -> Result<()> {
+        self.emit_values(w, self.max_entries_per_node)
     }
 
     /// Emits all remaining values.  Panics if there are more than 2 *
     /// max_entries_per_node values.
-    fn emit_all(&mut self) -> Result<()> {
+    fn emit_all(&mut self, w: &mut WriteBatcher) -> Result<()> {
         match self.values.len() {
             0 => {
                 // There's nothing to emit
@@ -399,14 +409,14 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
             }
             n if n <= self.max_entries_per_node => {
                 // Emit a single node.
-                self.emit_values(n)
+                self.emit_values(w, n)
             }
             n if n <= self.max_entries_per_node * 2 => {
                 // Emit two nodes.
                 let n1 = n / 2;
                 let n2 = n - n1;
-                self.emit_values(n1)?;
-                self.emit_values(n2)
+                self.emit_values(w, n1)?;
+                self.emit_values(w, n2)
             }
             _ => {
                 panic!("self.values shouldn't have more than 2 * max_entries_per_node entries");
@@ -414,13 +424,17 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
         }
     }
 
+    fn emit_empty_leaf(&mut self, w: &mut WriteBatcher) -> Result<()> {
+        self.emit_values(w, 0)
+    }
+
     /// Pops the last node, and prepends it's values to 'self.values'.  Used
     /// to rebalance when we have insufficient values for a final node.  The
     /// node is decremented in the space map.
-    fn unshift_node(&mut self) -> Result<()> {
+    fn unshift_node(&mut self, w: &mut WriteBatcher) -> Result<()> {
         let ls = self.nodes.pop().unwrap();
-        let (keys, values) = self.read_node(ls.block)?;
-        self.batcher.sm.lock().unwrap().dec(ls.block)?;
+        let (keys, values) = self.read_node(w, ls.block)?;
+        w.sm.lock().unwrap().dec(ls.block)?;
 
         let mut vals = VecDeque::new();
 
@@ -442,57 +456,47 @@ impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
 //------------------------------------------
 
 pub struct Builder<V: Unpack + Pack> {
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    sm: Arc<Mutex<dyn SpaceMap>>,
     leaf_builder: NodeBuilder<V>,
 }
 
-const BATCH_SIZE: usize = 128;
-
 impl<V: Unpack + Pack + Clone> Builder<V> {
     pub fn new(
-        engine: Arc<dyn IoEngine + Send + Sync>,
-        sm: Arc<Mutex<dyn SpaceMap>>,
         value_rc: Box<dyn RefCounter<V>>,
     ) -> Builder<V> {
         Builder {
-            engine: engine.clone(),
-            sm: sm.clone(),
             leaf_builder: NodeBuilder::new(
-                WriteBatcher::new(engine.clone(), sm.clone(), BATCH_SIZE),
                 Box::new(LeafIO {}),
                 value_rc,
             ),
         }
     }
 
-    pub fn push_value(&mut self, k: u64, v: V) -> Result<()> {
-        self.leaf_builder.push_value(k, v)
+    pub fn push_value(&mut self, w: &mut WriteBatcher, k: u64, v: V) -> Result<()> {
+        self.leaf_builder.push_value(w, k, v)
     }
 
-    pub fn push_leaves(&mut self, leaves: &Vec<NodeSummary>) -> Result<()> {
-        self.leaf_builder.push_nodes(leaves)
+    pub fn push_leaves(&mut self, w: &mut WriteBatcher, leaves: &Vec<NodeSummary>) -> Result<()> {
+        self.leaf_builder.push_nodes(w, leaves)
     }
 
-    pub fn complete(self) -> Result<u64> {
-        let mut nodes = self.leaf_builder.complete()?;
+    pub fn complete(self, w: &mut WriteBatcher) -> Result<u64> {
+        let mut nodes = self.leaf_builder.complete(w)?;
 
         // Now we iterate, adding layers of internal nodes until we end
         // up with a single root.
         while nodes.len() > 1 {
             let mut builder = NodeBuilder::new(
-                WriteBatcher::new(self.engine.clone(), self.sm.clone(), BATCH_SIZE),
                 Box::new(InternalIO {}),
                 Box::new(SMRefCounter {
-                    sm: self.sm.clone(),
+                    sm: w.sm.clone(),
                 }),
             );
 
             for n in nodes {
-                builder.push_value(n.key, n.block)?;
+                builder.push_value(w, n.key, n.block)?;
             }
 
-            nodes = builder.complete()?;
+            nodes = builder.complete(w)?;
         }
 
         assert!(nodes.len() == 1);
@@ -502,16 +506,3 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
 
 //------------------------------------------
 
-/*
-=======
-fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<(u64, u64)> {
-    let keys = node.get_keys();
-    let first_key = *keys.first().unwrap_or(&0u64);
->>>>>>> main
-
-=======
-fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<(u64, u64)> {
-    let keys = node.get_keys();
-    let first_key = *keys.first().unwrap_or(&0u64);
->>>>>>> main
-*/

@@ -11,6 +11,7 @@ use crate::pdata::btree::{self, *};
 use crate::pdata::btree_leaf_walker::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
+use crate::pdata::space_map_disk::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
@@ -287,7 +288,7 @@ fn find_shared_nodes(
 
     // We have to get the leaves so w is consumed and the &mut on sm
     // is dropped.
-    let leaves = w.get_leaves();
+    let _leaves = w.get_leaves();
     let mut shared = BTreeSet::new();
     {
         for i in 0..sm.get_nr_blocks().unwrap() {
@@ -297,6 +298,8 @@ fn find_shared_nodes(
         }
     }
 
+/*
+    // FIXME: why?!!
     // we're not interested in leaves (roots will get re-added later).
     {
         for i in 0..leaves.len() {
@@ -305,6 +308,7 @@ fn find_shared_nodes(
             }
         }
     }
+    */
 
     Ok((shared, sm))
 }
@@ -616,9 +620,11 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(&ctx, &sb)?;
 
+/*
     ctx.report
         .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;
+    */
     dump_metadata(&ctx, &sb, &md)
 }
 

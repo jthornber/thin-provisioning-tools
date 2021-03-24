@@ -27,6 +27,7 @@ fn main() {
                 .help("Specify the input xml")
                 .short("i")
                 .long("input")
+                .value_name("INPUT")
                 .required(true),
         )
         .arg(
@@ -34,6 +35,7 @@ fn main() {
                 .help("Specify the output device to check")
                 .short("o")
                 .long("output")
+                .value_name("OUTPUT")
                 .required(true),
         )
         .arg(
