@@ -558,7 +558,7 @@ pub fn unpack_node<V: Unpack>(
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return Err(node_err(&path, "keys out of order"));
+                return Err(node_err(&path, &format!("keys out of order: {} <= {}", k, l)));
             }
         }
 

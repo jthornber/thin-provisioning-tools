@@ -338,7 +338,7 @@ namespace persistent_data {
 		unsigned nr_right = rhs.get_nr_entries();
 		unsigned max_entries = get_max_entries();
 
-		if (nr_left - count > max_entries || nr_right - count > max_entries)
+		if (nr_left - count > max_entries || nr_right + count > max_entries)
 			throw runtime_error("too many entries");
 
 		if (count > 0) {
