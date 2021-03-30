@@ -14,6 +14,7 @@ const SPACE_MAP_ROOT_SIZE: usize = 128;
 
 #[derive(Debug, Clone)]
 pub struct SuperblockFlags {
+    pub clean_shutdown: bool,
     pub needs_check: bool,
 }
 
@@ -98,7 +99,8 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
         i,
         Superblock {
             flags: SuperblockFlags {
-                needs_check: (flags & 0x1) != 0,
+                clean_shutdown: (flags & 0x1) != 0,
+                needs_check: (flags & 0x2) != 0,
             },
             block,
             version,

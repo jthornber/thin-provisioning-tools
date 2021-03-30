@@ -8,7 +8,7 @@ use thinp::cache::dump::{dump, CacheDumpOptions};
 //------------------------------------------
 
 fn main() {
-    let parser = App::new("cache_check")
+    let parser = App::new("cache_dump")
         .version(thinp::version::TOOLS_VERSION)
         .arg(
             Arg::with_name("INPUT")

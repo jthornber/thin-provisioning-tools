@@ -16,54 +16,79 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 //------------------------------------------
 
 struct CheckMappingVisitor {
+    metadata_version: u32,
     allowed_flags: u32,
+    nr_origin_blocks: u64,
     seen_oblocks: Arc<Mutex<BTreeSet<u64>>>,
+    //dirty_iterator: Option<BitsetIterator>,
 }
 
 impl CheckMappingVisitor {
-    fn new(metadata_version: u32) -> CheckMappingVisitor {
+    fn new(metadata_version: u32, nr_origin_blocks: Option<u64>, dirty_root: Option<u64>) -> CheckMappingVisitor {
         let mut flags: u32 = MappingFlags::Valid as u32;
+        //let dirty_iterator;
         if metadata_version == 1 {
             flags |= MappingFlags::Dirty as u32;
+            //dirty_iterator = None;
+        } else {
+            let _b = dirty_root.expect("dirty bitset unavailable");
+            //dirty_iterator = Some(BitsetIterator::new(b));
         }
+
         CheckMappingVisitor {
+            metadata_version,
             allowed_flags: flags,
+            nr_origin_blocks: if let Some(n) = nr_origin_blocks {n} else {MAX_ORIGIN_BLOCKS},
             seen_oblocks: Arc::new(Mutex::new(BTreeSet::new())),
+            //dirty_iterator,
         }
     }
 
-    fn seen_oblock(&self, b: u64) -> bool {
-        let seen_oblocks = self.seen_oblocks.lock().unwrap();
-        seen_oblocks.contains(&b)
+    // TODO: move to ctor of Mapping?
+    fn check_flags(&self, m: &Mapping) -> anyhow::Result<()> {
+        if (m.flags & !self.allowed_flags) != 0 {
+            return Err(anyhow!("unknown flags in mapping"));
+        }
+
+        if !m.is_valid() {
+            if self.metadata_version == 1 {
+                if m.is_dirty() {
+                    return Err(anyhow!("dirty bit found on an unmapped block"));
+                }
+            }/*else if dirty_iterator.expect("dirty bitset unavailable").next() {
+                return Err(anyhow!("dirty bit found on an unmapped block"));
+            }*/
+        }
+
+        Ok(())
     }
 
-    fn record_oblock(&self, b: u64) {
+    fn check_oblock(&self, m: &Mapping) -> anyhow::Result<()> {
+        if !m.is_valid() {
+            if m.oblock > 0 {
+                return Err(anyhow!("invalid mapped block"));
+            }
+            return Ok(());
+        }
+
+        if m.oblock >= self.nr_origin_blocks {
+            return Err(anyhow!("mapping beyond end of the origin device"));
+        }
+
         let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
-        seen_oblocks.insert(b);
-    }
+        if seen_oblocks.contains(&m.oblock) {
+            return Err(anyhow!("origin block already mapped"));
+        }
+        seen_oblocks.insert(m.oblock);
 
-    // FIXME: is it possible to validate flags at an early phase?
-    // e.g., move to ctor of Mapping?
-    fn has_unknown_flags(&self, m: &Mapping) -> bool {
-        (m.flags & self.allowed_flags) != 0
+        Ok(())
     }
 }
 
 impl ArrayVisitor<Mapping> for CheckMappingVisitor {
     fn visit(&self, _index: u64, m: Mapping) -> anyhow::Result<()> {
-        if !m.is_valid() {
-            return Ok(());
-        }
-
-        if self.seen_oblock(m.oblock) {
-            return Err(anyhow!("origin block already mapped"));
-        }
-
-        self.record_oblock(m.oblock);
-
-        if !self.has_unknown_flags(&m) {
-            return Err(anyhow!("unknown flags in mapping"));
-        }
+        self.check_flags(&m)?;
+        self.check_oblock(&m)?;
 
         Ok(())
     }
@@ -71,11 +96,11 @@ impl ArrayVisitor<Mapping> for CheckMappingVisitor {
 
 //------------------------------------------
 
-struct CheckHintVisitor {}
+struct CheckHintVisitor;
 
 impl CheckHintVisitor {
     fn new() -> CheckHintVisitor {
-        CheckHintVisitor {}
+        CheckHintVisitor
     }
 }
 
@@ -116,21 +141,37 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
     Ok(Context { engine })
 }
 
+fn check_superblock(sb: &Superblock) -> anyhow::Result<()> {
+    if sb.version >= 2 && sb.dirty_root == None {
+        return Err(anyhow!("dirty bitset not found"));
+    }
+    Ok(())
+}
+
 pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
 
     let engine = &ctx.engine;
 
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    check_superblock(&sb)?;
 
     if opts.sb_only {
         return Ok(());
     }
 
+    let nr_origin_blocks;
+    if sb.flags.clean_shutdown {
+        let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
+        nr_origin_blocks = Some(origin_sectors / sb.data_block_size as u64);
+    } else {
+        nr_origin_blocks = None;
+    }
+
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
         let w = ArrayWalker::new(engine.clone(), false);
-        let mut c = CheckMappingVisitor::new(sb.version);
+        let mut c = CheckMappingVisitor::new(sb.version, nr_origin_blocks, sb.dirty_root);
         w.walk(&mut c, sb.mapping_root)?;
 
         if sb.version >= 2 {
