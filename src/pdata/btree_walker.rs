@@ -379,13 +379,13 @@ where
             }
         }
         Ok(rblocks) => {
-            let errs = Arc::new(Mutex::new(Vec::new()));
+            let child_errs = Arc::new(Mutex::new(Vec::new()));
 
             for (i, rb) in rblocks.into_iter().enumerate() {
                 match rb {
                     Err(_) => {
                         let e = io_err(path).keys_context(&filtered_krs[i]);
-                        let mut errs = errs.lock().unwrap();
+                        let mut errs = child_errs.lock().unwrap();
                         errs.push(e.clone());
                         w.set_fail(blocks[i], e);
                     }
@@ -393,7 +393,7 @@ where
                         let w = w.clone();
                         let visitor = visitor.clone();
                         let kr = filtered_krs[i].clone();
-                        let errs = errs.clone();
+                        let errs = child_errs.clone();
                         let mut path = path.clone();
 
                         pool.execute(move || {
@@ -410,6 +410,8 @@ where
             }
 
             pool.join();
+            let mut child_errs = Arc::try_unwrap(child_errs).unwrap().into_inner().unwrap();
+            errs.append(&mut child_errs);
         }
     }
 
