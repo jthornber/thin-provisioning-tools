@@ -1,14 +1,13 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::io::Cursor;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::checksum;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::IoEngine;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
@@ -285,11 +284,10 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
+pub const MAX_CONCURRENT_IO: u32 = 1024;
 
-pub struct ThinCheckOptions<'a> {
-    pub dev: &'a Path,
-    pub async_io: bool,
+pub struct ThinCheckOptions {
+    pub engine: Arc<dyn IoEngine + Send + Sync>,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
@@ -400,25 +398,12 @@ fn check_mapping_bottom_level(
     }
 }
 
-fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-    let nr_threads;
-
-    if opts.async_io {
-        nr_threads = std::cmp::min(4, num_cpus::get());
-        engine = Arc::new(AsyncIoEngine::new(
-            opts.dev,
-            MAX_CONCURRENT_IO,
-            opts.auto_repair,
-        )?);
-    } else {
-        nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
-    }
+fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
+    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {
-        report: opts.report.clone(),
+        report,
         engine,
         pool,
     })
@@ -437,7 +422,7 @@ fn bail_out(ctx: &Context, task: &str) -> Result<()> {
 }
 
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let ctx = mk_context(&opts)?;
+    let ctx = mk_context(opts.engine.clone(), opts.report.clone())?;
 
     // FIXME: temporarily get these out
     let report = &ctx.report;
@@ -590,3 +575,142 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 }
 
 //------------------------------------------
+
+// Some callers wish to know which blocks are allocated.
+pub struct CheckMaps {
+    pub metadata_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    pub data_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+}
+
+pub fn check_with_maps(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<CheckMaps> {
+    let ctx = mk_context(engine.clone(), report.clone())?;
+    report.set_title("Checking thin metadata");
+
+    // superblock
+    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+
+    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
+
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let mut path = Vec::new();
+    path.push(0);
+
+    // Device details.   We read this once to get the number of thin devices, and hence the
+    // maximum metadata ref count.  Then create metadata space map, and reread to increment
+    // the ref counts for that metadata.
+    let devs = btree_to_map::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        false,
+        sb.details_root,
+    )?;
+    let nr_devs = devs.len();
+    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+    inc_superblock(&metadata_sm)?;
+
+    report.set_sub_title("device details tree");
+    let _devs = btree_to_map_with_sm::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.details_root,
+    )?;
+
+    let (tid, stop_progress) = spawn_progress_thread(
+        metadata_sm.clone(),
+        metadata_root.nr_allocated,
+        report.clone(),
+    )?;
+
+    // mapping top level
+    report.set_sub_title("mapping tree");
+    let roots = btree_to_map_with_path::<u64>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.mapping_root,
+    )?;
+
+    // mapping bottom level
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    bail_out(&ctx, "mapping tree")?;
+
+    report.set_sub_title("data space map");
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+
+    let entries = btree_to_map_with_sm::<IndexEntry>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        root.bitmap_root,
+    )?;
+    let entries: Vec<IndexEntry> = entries.values().cloned().collect();
+    inc_entries(&metadata_sm, &entries[0..])?;
+
+    let _data_leaks = check_space_map(
+        &mut path,
+        &ctx,
+        "data",
+        entries,
+        Some(metadata_sm.clone()),
+        data_sm.clone(),
+        root,
+    )?;
+    bail_out(&ctx, "data space map")?;
+
+    report.set_sub_title("metadata space map");
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    report.info(&format!(
+        "METADATA_FREE_BLOCKS={}",
+        root.nr_blocks - root.nr_allocated
+    ));
+
+    let b = engine.read(root.bitmap_root)?;
+    metadata_sm.lock().unwrap().inc(root.bitmap_root, 1)?;
+    let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
+
+    // Unused entries will point to block 0
+    let entries: Vec<IndexEntry> = entries
+        .iter()
+        .take_while(|e| e.blocknr != 0)
+        .cloned()
+        .collect();
+    inc_entries(&metadata_sm, &entries[0..])?;
+
+    // We call this for the side effect of incrementing the ref counts
+    // for the metadata that holds the tree.
+    let _counts = btree_to_map_with_sm::<u32>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        root.ref_count_root,
+    )?;
+
+    // Now the counts should be correct and we can check it.
+    let _metadata_leaks = check_space_map(
+        &mut path,
+        &ctx,
+        "metadata",
+        entries,
+        None,
+        metadata_sm.clone(),
+        root,
+    )?;
+    bail_out(&ctx, "metadata space map")?;
+
+    stop_progress.store(true, Ordering::Relaxed);
+    tid.join().unwrap();
+
+    Ok(CheckMaps {
+        metadata_sm: metadata_sm.clone(),
+        data_sm: data_sm.clone(),
+    })
+}
+
+

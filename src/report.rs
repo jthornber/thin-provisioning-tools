@@ -29,7 +29,7 @@ pub struct Report {
     inner: Mutex<Box<dyn ReportInner + Send>>,
 }
 
-trait ReportInner {
+pub trait ReportInner {
     fn set_title(&mut self, txt: &str);
     fn set_sub_title(&mut self, txt: &str);
     fn progress(&mut self, percent: u8);
@@ -38,7 +38,7 @@ trait ReportInner {
 }
 
 impl Report {
-    fn new(inner: Box<dyn ReportInner + Send>) -> Report {
+    pub fn new(inner: Box<dyn ReportInner + Send>) -> Report {
         Report {
             outcome: Mutex::new(Success),
             inner: Mutex::new(inner),
