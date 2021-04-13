@@ -1,10 +1,9 @@
-use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::sync::{Arc, Mutex};
 
 use crate::io_engine::IoEngine;
+use crate::pdata::array;
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
-use crate::pdata::btree::{self};
 
 struct BitsetVisitor<'a> {
     nr_entries: u64,
@@ -21,10 +20,10 @@ impl<'a> BitsetVisitor<'a> {
 }
 
 impl<'a> ArrayVisitor<u64> for BitsetVisitor<'a> {
-    fn visit(&self, index: u64, bits: u64) -> Result<()> {
+    fn visit(&self, index: u64, bits: u64) -> array::Result<()> {
         let begin: u64 = index << 6;
         if begin > self.nr_entries {
-            return Err(anyhow!("bitset size exceeds expectation"));
+            return Err(array::value_err("bitset size exceeds expectation".to_string()));
         }
 
         let end: u64 = std::cmp::min(begin + 64, self.nr_entries);
@@ -44,7 +43,7 @@ pub fn read_bitset(
     root: u64,
     ignore_none_fatal: bool,
     bitset: &mut FixedBitSet,
-)-> btree::Result<()> {
+)-> array::Result<()> {
     let w = ArrayWalker::new(engine.clone(), ignore_none_fatal);
     let mut v = BitsetVisitor::new(bitset);
     w.walk(&mut v, root)

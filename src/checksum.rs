@@ -11,6 +11,7 @@ const SUPERBLOCK_CSUM_XOR: u32 = 160774;
 const BITMAP_CSUM_XOR: u32 = 240779;
 const INDEX_CSUM_XOR: u32 = 160478;
 const BTREE_CSUM_XOR: u32 = 121107;
+const ARRAY_CSUM_XOR: u32 = 595846735;
 
 fn checksum(buf: &[u8]) -> u32 {
     crc32c(&buf[4..]) ^ 0xffffffff
@@ -22,6 +23,7 @@ pub enum BT {
     NODE,
     INDEX,
     BITMAP,
+    ARRAY,
     UNKNOWN,
 }
 
@@ -41,6 +43,7 @@ pub fn metadata_block_type(buf: &[u8]) -> BT {
         BTREE_CSUM_XOR => BT::NODE,
         BITMAP_CSUM_XOR => BT::BITMAP,
         INDEX_CSUM_XOR => BT::INDEX,
+        ARRAY_CSUM_XOR => BT::ARRAY,
         _ => BT::UNKNOWN,
     }
 }
@@ -56,6 +59,7 @@ pub fn write_checksum(buf: &mut [u8], kind: BT) -> Result<()> {
         NODE => BTREE_CSUM_XOR,
         BITMAP => BITMAP_CSUM_XOR,
         INDEX => INDEX_CSUM_XOR,
+        ARRAY => ARRAY_CSUM_XOR,
         UNKNOWN => {return Err(anyhow!("Invalid block type"));}
     };
     

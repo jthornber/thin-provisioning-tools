@@ -8,6 +8,7 @@ use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::pdata::array;
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset_walker::*;
 
@@ -33,30 +34,30 @@ mod format1 {
             }
         }
 
-        fn check_flags(&self, m: &Mapping) -> anyhow::Result<()> {
+        fn check_flags(&self, m: &Mapping) -> array::Result<()> {
             if (m.flags & !(MappingFlags::Valid as u32 | MappingFlags::Dirty as u32)) != 0 {
-                return Err(anyhow!("unknown flags in mapping: {}", m.flags));
+                return Err(array::value_err(format!("unknown flags in mapping: {}", m.flags)));
             }
             if !m.is_valid() && m.is_dirty() {
-                return Err(anyhow!("dirty bit found on an unmapped block"));
+                return Err(array::value_err(format!("dirty bit found on an unmapped block")));
             }
             Ok(())
         }
 
-        fn check_oblock(&self, m: &Mapping) -> anyhow::Result<()> {
+        fn check_oblock(&self, m: &Mapping) -> array::Result<()> {
             if !m.is_valid() {
                 if m.oblock > 0 {
-                    return Err(anyhow!("invalid mapped block"));
+                    return Err(array::value_err(format!("invalid block is mapped")));
                 }
                 return Ok(());
             }
             if m.oblock >= self.nr_origin_blocks {
-                return Err(anyhow!("mapping beyond end of the origin device"));
+                return Err(array::value_err(format!("mapping beyond end of the origin device")));
             }
 
             let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
             if seen_oblocks.contains(&m.oblock) {
-                return Err(anyhow!("origin block already mapped"));
+                return Err(array::value_err(format!("origin block already mapped")));
             }
             seen_oblocks.insert(m.oblock);
 
@@ -65,7 +66,7 @@ mod format1 {
     }
 
     impl ArrayVisitor<Mapping> for MappingChecker {
-        fn visit(&self, _index: u64, m: Mapping) -> anyhow::Result<()> {
+        fn visit(&self, _index: u64, m: Mapping) -> array::Result<()> {
             self.check_flags(&m)?;
             self.check_oblock(&m)?;
 
@@ -98,28 +99,28 @@ mod format2 {
             }
         }
 
-        fn check_flags(&self, m: &Mapping, dirty_bit: bool) -> anyhow::Result<()> {
+        fn check_flags(&self, m: &Mapping, dirty_bit: bool) -> array::Result<()> {
             if (m.flags & !(MappingFlags::Valid as u32)) != 0 {
-                return Err(anyhow!("unknown flags in mapping: {}", m.flags));
+                return Err(array::value_err(format!("unknown flags in mapping: {}", m.flags)));
             }
             if !m.is_valid() && dirty_bit {
-                return Err(anyhow!("dirty bit found on an unmapped block"));
+                return Err(array::value_err(format!("dirty bit found on an unmapped block")));
             }
             Ok(())
         }
 
-        fn check_oblock(&self, m: &Mapping, seen_oblocks: &mut BTreeSet<u64>) -> anyhow::Result<()> {
+        fn check_oblock(&self, m: &Mapping, seen_oblocks: &mut BTreeSet<u64>) -> array::Result<()> {
             if !m.is_valid() {
                 if m.oblock > 0 {
-                    return Err(anyhow!("invalid mapped block"));
+                    return Err(array::value_err(format!("invalid mapped block")));
                 }
                 return Ok(());
             }
             if m.oblock >= self.nr_origin_blocks {
-                return Err(anyhow!("mapping beyond end of the origin device"));
+                return Err(array::value_err(format!("mapping beyond end of the origin device")));
             }
             if seen_oblocks.contains(&m.oblock) {
-                return Err(anyhow!("origin block already mapped"));
+                return Err(array::value_err(format!("origin block already mapped")));
             }
             seen_oblocks.insert(m.oblock);
 
@@ -128,7 +129,7 @@ mod format2 {
     }
 
     impl ArrayVisitor<Mapping> for MappingChecker {
-        fn visit(&self, index: u64, m: Mapping) -> anyhow::Result<()> {
+        fn visit(&self, index: u64, m: Mapping) -> array::Result<()> {
             let mut inner = self.inner.lock().unwrap();
             self.check_flags(&m, inner.dirty_bits.contains(index as usize))?;
             self.check_oblock(&m, &mut inner.seen_oblocks)?;
@@ -149,7 +150,7 @@ impl HintChecker {
 }
 
 impl ArrayVisitor<Hint> for HintChecker {
-    fn visit(&self, _index: u64, _hint: Hint) -> anyhow::Result<()> {
+    fn visit(&self, _index: u64, _hint: Hint) -> array::Result<()> {
         // TODO: check hints
         Ok(())
     }

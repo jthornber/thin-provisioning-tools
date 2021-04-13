@@ -1,4 +1,4 @@
-pub mod array_block;
+pub mod array;
 pub mod array_walker;
 pub mod bitset_walker;
 pub mod btree;
