@@ -1,6 +1,5 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::array::{self, *};
 use crate::pdata::btree::{self, *};
@@ -14,14 +13,17 @@ pub struct ArrayWalker {
     ignore_non_fatal: bool,
 }
 
-// FIXME: define another Result type for array visiting?
 pub trait ArrayVisitor<V: Unpack> {
     fn visit(&self, index: u64, v: V) -> array::Result<()>;
 }
 
+//------------------------------------------
+
+// FIXME: Eliminate this structure by impl NodeVisitor for ArrayWalker?
 struct BlockValueVisitor<'a, V> {
     engine: Arc<dyn IoEngine + Send + Sync>,
     array_visitor: &'a mut dyn ArrayVisitor<V>,
+    array_errs: Mutex<Vec<ArrayError>>,
 }
 
 impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
@@ -32,10 +34,11 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
         BlockValueVisitor {
             engine: e,
             array_visitor: v,
+            array_errs: Mutex::new(Vec::new()),
         }
     }
 
-    pub fn visit_array_block(&self, index: u64, array_block: ArrayBlock<V>) -> array::Result<()>{
+    fn visit_array_block(&self, index: u64, array_block: ArrayBlock<V>) -> array::Result<()>{
         let mut errs: Vec<ArrayError> = Vec::new();
 
         let begin = index * array_block.header.max_entries as u64;
@@ -49,12 +52,10 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
         match errs.len() {
             0 => Ok(()),
             1 => {
-                let e = errs[0].clone();
-                Err(e)
+                Err(errs[0].clone())
             }
             _ => {
-                let e = array::aggregate_error(errs);
-                Err(e)
+                Err(array::aggregate_error(errs))
             }
         }
     }
@@ -73,26 +74,27 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
         let mut path = path.to_vec();
         let mut errs: Vec<BTreeError> = Vec::new();
 
+        // TODO: check index continuity
+        // FIXME: use IoEngine::read_many()
         for (n, index) in keys.iter().enumerate() {
-            let b = self.engine.read(values[n]).map_err(|_| io_err(&path))?;
-
-            // FIXME: move to unpack_array_block?
-            let bt = checksum::metadata_block_type(b.get_data());
-            if bt != checksum::BT::ARRAY {
-                errs.push(btree::value_err(
-                    format!("checksum failed for array block {}, {:?}", b.loc, bt)
-                ));
+            // FIXME: count read errors on its parent (BTreeError::IoError) or on its location
+            // (ArrayError::IoError)?
+            let b = self.engine.read(values[n]).map_err(|_| btree::io_err(&path));
+            if let Err(e) = b {
+                errs.push(e);
+                continue;
             }
+            let b = b.unwrap();
 
             path.push(values[n]);
             match unpack_array_block::<V>(&path, b.get_data()) {
                 Ok(array_block) => {
                     if let Err(e) = self.visit_array_block(*index, array_block) {
-                        errs.push(btree::value_err(format!("{}", e)));
+                        self.array_errs.lock().unwrap().push(e);
                     }
                 },
                 Err(e) => {
-                    errs.push(btree::value_err(format!("{}", e)));
+                    self.array_errs.lock().unwrap().push(e);
                 }
             }
             path.pop();
@@ -121,6 +123,8 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
     }
 }
 
+//------------------------------------------
+
 impl ArrayWalker {
     pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> ArrayWalker {
         let r: ArrayWalker = ArrayWalker {
@@ -130,7 +134,6 @@ impl ArrayWalker {
         r
     }
 
-    // FIXME: redefine the Result type for array visiting?
     pub fn walk<V>(&self, visitor: &mut dyn ArrayVisitor<V>, root: u64) -> array::Result<()>
     where
         V: Unpack + Copy,
@@ -139,7 +142,18 @@ impl ArrayWalker {
         let mut path = Vec::new();
         path.push(0);
         let v = BlockValueVisitor::<V>::new(self.engine.clone(), visitor);
-        w.walk(&mut path, &v, root).map_err(|e| ArrayError::BTreeError(e))
+        let btree_err = w.walk(&mut path, &v, root).map_err(|e| ArrayError::BTreeError(e));
+
+        let mut array_errs = v.array_errs.into_inner().unwrap();
+        if let Err(e) = btree_err {
+            array_errs.push(e);
+        }
+
+        match array_errs.len() {
+            0 => Ok(()),
+            1 => Err(array_errs[0].clone()),
+            _ => Err(ArrayError::Aggregate(array_errs)),
+        }
     }
 }
 

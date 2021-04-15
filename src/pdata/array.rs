@@ -1,6 +1,7 @@
 use nom::{multi::count, number::complete::*, IResult};
 use thiserror::Error;
 
+use crate::checksum;
 use crate::io_engine::BLOCK_SIZE;
 use crate::pdata::btree;
 use crate::pdata::unpack::Unpack;
@@ -94,7 +95,14 @@ fn convert_result<'a, V>(path: &[u64], r: IResult<&'a [u8], V>) -> Result<(&'a [
 }
 
 pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayBlock<V>> {
-    // TODO: collect errors
+    let bt = checksum::metadata_block_type(data);
+    if bt != checksum::BT::ARRAY {
+        return Err(array_block_err(
+            path,
+            &format!("checksum failed for array block {}, {:?}", path.last().unwrap(), bt)
+        ));
+    }
+
     let (i, header) =
         ArrayBlockHeader::unpack(data).map_err(|_| array_block_err(
             path,
