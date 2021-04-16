@@ -53,29 +53,39 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
         let mut errs: Vec<BTreeError> = Vec::new();
 
         // TODO: check index continuity
-        // FIXME: use IoEngine::read_many()
-        for (n, index) in keys.iter().enumerate() {
-            // FIXME: count read errors on its parent (BTreeError::IoError) or on its location
-            // (ArrayError::IoError)?
-            let b = self.engine.read(values[n]).map_err(|_| btree::io_err(&path));
-            if let Err(e) = b {
-                errs.push(e);
-                continue;
-            }
-            let b = b.unwrap();
-
-            path.push(values[n]);
-            match unpack_array_block::<V>(&path, b.get_data()) {
-                Ok(array_block) => {
-                    if let Err(e) = self.array_visitor.visit(*index, array_block) {
-                        self.array_errs.lock().unwrap().push(e);
-                    }
-                },
-                Err(e) => {
-                    self.array_errs.lock().unwrap().push(e);
+        match self.engine.read_many(values) {
+            Err(_) => {
+                // IO completely failed on all the child blocks
+                // FIXME: count read errors on its parent (BTreeError::IoError) or on its location
+                // (ArrayError::IoError)?
+                for (_i, _b) in values.iter().enumerate() {
+                    errs.push(btree::io_err(&path)); // FIXME: add key_context
                 }
             }
-            path.pop();
+            Ok(rblocks) => {
+                for (i, rb) in rblocks.into_iter().enumerate() {
+                    match rb {
+                        Err(_) => {
+                            errs.push(btree::io_err(&path)); // FIXME: add key_context
+                        },
+                        Ok(b) => {
+                            path.push(b.loc);
+                            match unpack_array_block::<V>(&path, b.get_data()) {
+                                Ok(array_block) => {
+                                    // FIXME: will the returned blocks be reordered?
+                                    if let Err(e) = self.array_visitor.visit(keys[i], array_block) {
+                                        self.array_errs.lock().unwrap().push(e);
+                                    }
+                                },
+                                Err(e) => {
+                                    self.array_errs.lock().unwrap().push(e);
+                                }
+                            }
+                            path.pop();
+                        },
+                    }
+                }
+            }
         }
 
         // FIXME: duplicate to BTreeWalker::build_aggregrate()
