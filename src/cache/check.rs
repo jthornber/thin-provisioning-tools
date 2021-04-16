@@ -8,7 +8,7 @@ use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::array;
+use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset_walker::*;
 
@@ -54,23 +54,40 @@ mod format1 {
             if m.oblock >= self.nr_origin_blocks {
                 return Err(array::value_err(format!("mapping beyond end of the origin device")));
             }
-
             let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
             if seen_oblocks.contains(&m.oblock) {
                 return Err(array::value_err(format!("origin block already mapped")));
             }
             seen_oblocks.insert(m.oblock);
-
             Ok(())
         }
     }
 
     impl ArrayVisitor<Mapping> for MappingChecker {
-        fn visit(&self, _index: u64, m: Mapping) -> array::Result<()> {
-            self.check_flags(&m)?;
-            self.check_oblock(&m)?;
+        fn visit(&self, _index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+            let mut errs: Vec<ArrayError> = Vec::new();
 
-            Ok(())
+            for i in 0..b.header.nr_entries as usize {
+                let m = b.values[i];
+
+                if let Err(e) = self.check_flags(&m) {
+                    errs.push(e);
+                }
+                if let Err(e) = self.check_oblock(&m) {
+                    errs.push(e);
+                }
+            }
+
+            // FIXME: duplicate to BTreeWalker::build_aggregrate()
+            match errs.len() {
+                0 => Ok(()),
+                1 => {
+                    Err(errs[0].clone())
+                }
+                _ => {
+                    Err(array::aggregate_error(errs))
+                }
+            }
         }
     }
 }
@@ -129,12 +146,32 @@ mod format2 {
     }
 
     impl ArrayVisitor<Mapping> for MappingChecker {
-        fn visit(&self, index: u64, m: Mapping) -> array::Result<()> {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
             let mut inner = self.inner.lock().unwrap();
-            self.check_flags(&m, inner.dirty_bits.contains(index as usize))?;
-            self.check_oblock(&m, &mut inner.seen_oblocks)?;
+            let mut errs: Vec<ArrayError> = Vec::new();
 
-            Ok(())
+            let begin = index as usize * b.header.max_entries as usize;
+            for i in 0..b.header.nr_entries {
+                let m = b.values[i as usize];
+
+                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(begin + i as usize)) {
+                    errs.push(e);
+                }
+                if let Err(e) = self.check_oblock(&m, &mut inner.seen_oblocks) {
+                    errs.push(e);
+                }
+            }
+
+            // FIXME: duplicate to BTreeWalker::build_aggregrate()
+            match errs.len() {
+                0 => Ok(()),
+                1 => {
+                    Err(errs[0].clone())
+                }
+                _ => {
+                    Err(array::aggregate_error(errs))
+                }
+            }
         }
     }
 }
@@ -150,7 +187,7 @@ impl HintChecker {
 }
 
 impl ArrayVisitor<Hint> for HintChecker {
-    fn visit(&self, _index: u64, _hint: Hint) -> array::Result<()> {
+    fn visit(&self, _index: u64, _b: ArrayBlock<Hint>) -> array::Result<()> {
         // TODO: check hints
         Ok(())
     }

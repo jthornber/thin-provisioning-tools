@@ -14,7 +14,7 @@ pub struct ArrayWalker {
 }
 
 pub trait ArrayVisitor<V: Unpack> {
-    fn visit(&self, index: u64, v: V) -> array::Result<()>;
+    fn visit(&self, index: u64, b: ArrayBlock<V>) -> array::Result<()>;
 }
 
 //------------------------------------------
@@ -35,28 +35,6 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
             engine: e,
             array_visitor: v,
             array_errs: Mutex::new(Vec::new()),
-        }
-    }
-
-    fn visit_array_block(&self, index: u64, array_block: ArrayBlock<V>) -> array::Result<()>{
-        let mut errs: Vec<ArrayError> = Vec::new();
-
-        let begin = index * array_block.header.max_entries as u64;
-        for i in 0..array_block.header.nr_entries {
-            if let Err(e) = self.array_visitor.visit(begin + i as u64, array_block.values[i as usize]) {
-                errs.push(e); // TODO: add path or keys context?
-            }
-        }
-
-        // FIXME: duplicate to BTreeWalker::build_aggregrate()
-        match errs.len() {
-            0 => Ok(()),
-            1 => {
-                Err(errs[0].clone())
-            }
-            _ => {
-                Err(array::aggregate_error(errs))
-            }
         }
     }
 }
@@ -89,7 +67,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
             path.push(values[n]);
             match unpack_array_block::<V>(&path, b.get_data()) {
                 Ok(array_block) => {
-                    if let Err(e) = self.visit_array_block(*index, array_block) {
+                    if let Err(e) = self.array_visitor.visit(*index, array_block) {
                         self.array_errs.lock().unwrap().push(e);
                     }
                 },

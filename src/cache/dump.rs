@@ -8,7 +8,7 @@ use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
 use crate::cache::xml::{self, MetadataVisitor};
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::array;
+use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
 
 //------------------------------------------
@@ -46,12 +46,17 @@ mod format1 {
     }
 
     impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
-        fn visit(&self, index: u64, m: Mapping) -> array::Result<()> {
-            if m.is_valid() {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+            for i in 0..b.header.nr_entries as usize {
+                let map = b.values[i];
+                if !map.is_valid() {
+                    continue;
+                }
+
                 let m = xml::Map {
                     cblock: index as u32,
-                    oblock: m.oblock,
-                    dirty: m.is_dirty(),
+                    oblock: map.oblock,
+                    dirty: map.is_dirty(),
                 };
 
                 let mut inner = self.inner.lock().unwrap();
@@ -79,7 +84,7 @@ mod format2 {
     impl DirtyVisitor {
         pub fn new(nr_entries: usize) -> Self {
             DirtyVisitor {
-                nr_entries,
+                nr_entries, // number of bits
                 bits: Mutex::new(FixedBitSet::with_capacity(nr_entries)),
             }
         }
@@ -90,13 +95,19 @@ mod format2 {
     }
 
     impl ArrayVisitor<u64> for DirtyVisitor {
-        fn visit(&self, index: u64, bits: u64) -> array::Result<()> {
-            for i in 0..64u64 {
-                if (index + i) >= self.nr_entries as u64 {
-                    break;
-                }
+        fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
+            let mut pos = index as usize * (b.header.max_entries as usize) << 6;
+            for i in 0..b.header.nr_entries as usize {
+                let bits = b.values[i];
 
-                self.bits.lock().unwrap().set((index + i) as usize, bits & (1 << i) != 0);
+                for bi in 0..64u64 {
+                    if pos >= self.nr_entries {
+                        break;
+                    }
+
+                    self.bits.lock().unwrap().set(pos, bits & (1 << bi) != 0);
+                    pos += 1;
+                }
             }
             Ok(())
         }
@@ -133,20 +144,25 @@ mod format2 {
     }
 
     impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
-        fn visit(&self, index: u64, m: Mapping) -> array::Result<()> {
-            if m.is_valid() {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+            for i in 0..b.header.nr_entries as usize {
+                let map = b.values[i];
+
+                if !map.is_valid() {
+                    continue;
+                }
+
                 let mut inner = self.inner.lock().unwrap();
                 let dirty = inner.dirty_bits.contains(index as usize);
                 let m = xml::Map {
                     cblock: index as u32,
-                    oblock: m.oblock,
+                    oblock: map.oblock,
                     dirty,
                 };
 
                 inner.valid_mappings.set(index as usize, true);
                 inner.visitor.mapping(&m).map_err(|e| array::value_err(format!("{}", e)))?;
             }
-
             Ok(())
         }
     }
@@ -169,10 +185,16 @@ impl<'a> HintEmitter<'a> {
 }
 
 impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
-    fn visit(&self, index: u64, hint: Hint) -> array::Result<()> {
-        if self.valid_mappings.contains(index as usize) {
+    fn visit(&self, index: u64, b: ArrayBlock<Hint>) -> array::Result<()> {
+        let mut cblock = index as u32 * b.header.max_entries;
+        for i in 0..b.header.nr_entries as usize {
+            if !self.valid_mappings.contains(cblock as usize) {
+                continue;
+            }
+
+            let hint = b.values[i];
             let h = xml::Hint {
-                cblock: index as u32,
+                cblock,
                 data: hint.hint.to_vec(),
             };
 
@@ -181,6 +203,8 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
                 .unwrap()
                 .hint(&h)
                 .map_err(|e| array::value_err(format!("{}", e)))?;
+
+            cblock += 1;
         }
 
         Ok(())
