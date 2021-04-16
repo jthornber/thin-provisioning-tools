@@ -10,7 +10,7 @@ use crate::cache::superblock::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
-use crate::pdata::bitset_walker::*;
+use crate::pdata::bitset::*;
 
 //------------------------------------------
 
