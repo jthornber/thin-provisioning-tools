@@ -1,4 +1,5 @@
 use nom::{multi::count, number::complete::*, IResult};
+use std::fmt;
 use thiserror::Error;
 
 use crate::checksum;
@@ -52,23 +53,41 @@ pub struct ArrayBlock<V: Unpack> {
 
 #[derive(Error, Clone, Debug)]
 pub enum ArrayError {
-    #[error("io_error")]
+    //#[error("io_error")]
     IoError,
 
-    #[error("block error: {0}")]
+    //#[error("block error: {0}")]
     BlockError(String),
 
-    #[error("value error: {0}")]
+    //#[error("value error: {0}")]
     ValueError(String),
 
-    #[error("aggregate: {0:?}")]
+    //#[error("aggregate: {0:?}")]
     Aggregate(Vec<ArrayError>),
 
-    #[error("{0:?}, {1}")]
+    //#[error("{0:?}, {1}")]
     Path(Vec<u64>, Box<ArrayError>),
 
     #[error(transparent)]
     BTreeError(#[from] btree::BTreeError),
+}
+
+impl fmt::Display for ArrayError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArrayError::IoError => write!(f, "io error"),
+            ArrayError::BlockError(msg) => write!(f, "block error: {}", msg),
+            ArrayError::ValueError(msg) => write!(f, "value error: {}", msg),
+            ArrayError::Aggregate(errs) => {
+                for e in errs {
+                    write!(f, "{}", e)?
+                }
+                Ok(())
+            }
+            ArrayError::Path(path, e) => write!(f, "{} {}", e, btree::encode_node_path(path)),
+            ArrayError::BTreeError(e) => write!(f, "{}", e),
+        }
+    }
 }
 
 pub fn array_block_err(path: &[u64], msg: &str) -> ArrayError {

@@ -5,21 +5,49 @@ use crate::io_engine::IoEngine;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
 
-struct BitsetVisitor<'a> {
-    nr_entries: u64,
-    bits: Mutex<&'a mut FixedBitSet>,
+pub struct CheckedBitSet {
+    bits: FixedBitSet,
 }
 
-impl<'a> BitsetVisitor<'a> {
-    pub fn new(bitset: &'a mut FixedBitSet) -> Self {
-        BitsetVisitor {
-            nr_entries: bitset.len() as u64,
-            bits: Mutex::new(bitset),
+impl CheckedBitSet {
+    pub fn with_capacity(bits: usize) -> CheckedBitSet {
+        CheckedBitSet {
+            bits: FixedBitSet::with_capacity(bits << 1),
         }
+    }
+
+    pub fn set(&mut self, bit: usize, enabled: bool) {
+        self.bits.set(bit << 1, true);
+        self.bits.set((bit << 1) + 1, enabled);
+    }
+
+    pub fn contains(&self, bit: usize) -> Option<bool> {
+        if !self.bits.contains(bit << 1) {
+            return None;
+        }
+        Some(self.bits.contains((bit << 1) + 1))
     }
 }
 
-impl<'a> ArrayVisitor<u64> for BitsetVisitor<'a> {
+struct BitsetVisitor {
+    nr_entries: usize,
+    bits: Mutex<CheckedBitSet>,
+}
+
+impl BitsetVisitor {
+    pub fn new(nr_entries: usize) -> Self {
+        BitsetVisitor {
+            nr_entries,
+            bits: Mutex::new(CheckedBitSet::with_capacity(nr_entries)),
+        }
+    }
+
+    pub fn get_bitset(self) -> CheckedBitSet {
+        self.bits.into_inner().unwrap()
+    }
+}
+
+impl ArrayVisitor<u64> for BitsetVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
         let mut begin = index as usize * (b.header.max_entries as usize) << 6;
 
@@ -46,10 +74,15 @@ impl<'a> ArrayVisitor<u64> for BitsetVisitor<'a> {
 pub fn read_bitset(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
+    nr_entries: usize,
     ignore_none_fatal: bool,
-    bitset: &mut FixedBitSet,
-)-> array::Result<()> {
+)-> (CheckedBitSet, Option<array::ArrayError>) {
     let w = ArrayWalker::new(engine.clone(), ignore_none_fatal);
-    let mut v = BitsetVisitor::new(bitset);
-    w.walk(&mut v, root)
+    let mut v = BitsetVisitor::new(nr_entries);
+    let err = w.walk(&mut v, root);
+    let e = match err {
+        Ok(()) => None,
+        Err(e) => Some(e),
+    };
+    return (v.get_bitset(), e);
 }

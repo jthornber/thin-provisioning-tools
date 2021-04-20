@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use fixedbitset::FixedBitSet;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -11,6 +10,7 @@ use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::*;
+use crate::report::*;
 
 //------------------------------------------
 
@@ -102,11 +102,11 @@ mod format2 {
 
     struct Inner {
         seen_oblocks: BTreeSet<u64>,
-        dirty_bits: FixedBitSet,
+        dirty_bits: CheckedBitSet,
     }
 
     impl MappingChecker {
-        pub fn new(nr_origin_blocks: Option<u64>, dirty_bits: FixedBitSet) -> MappingChecker {
+        pub fn new(nr_origin_blocks: Option<u64>, dirty_bits: CheckedBitSet) -> MappingChecker {
             MappingChecker {
                 nr_origin_blocks: if let Some(n) = nr_origin_blocks {n} else {MAX_ORIGIN_BLOCKS},
                 inner: Mutex::new(Inner {
@@ -116,11 +116,11 @@ mod format2 {
             }
         }
 
-        fn check_flags(&self, m: &Mapping, dirty_bit: bool) -> array::Result<()> {
+        fn check_flags(&self, m: &Mapping, dirty_bit: Option<bool>) -> array::Result<()> {
             if (m.flags & !(MappingFlags::Valid as u32)) != 0 {
                 return Err(array::value_err(format!("unknown flags in mapping: {}", m.flags)));
             }
-            if !m.is_valid() && dirty_bit {
+            if !m.is_valid() && dirty_bit.is_some() && dirty_bit.unwrap() {
                 return Err(array::value_err(format!("dirty bit found on an unmapped block")));
             }
             Ok(())
@@ -203,10 +203,12 @@ pub struct CacheCheckOptions<'a> {
     pub skip_mappings: bool,
     pub skip_hints: bool,
     pub skip_discards: bool,
+    pub report: Arc<Report>,
 }
 
-// TODO: thread pool, report
+// TODO: thread pool
 struct Context {
+    report: Arc<Report>,
     engine: Arc<dyn IoEngine + Send + Sync>,
 }
 
@@ -220,7 +222,10 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
     }
 
-    Ok(Context { engine })
+    Ok(Context {
+        report: opts.report.clone(),
+        engine,
+    })
 }
 
 fn check_superblock(sb: &Superblock) -> anyhow::Result<()> {
@@ -256,15 +261,25 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         match sb.version {
             1 => {
                 let mut c = format1::MappingChecker::new(nr_origin_blocks);
-                w.walk(&mut c, sb.mapping_root)?;
+                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                    ctx.report.fatal(&format!("{}", e));
+                }
             }
             2 => {
-                // FIXME: possibly size truncation on 32-bit targets
-                let mut dirty_bits = FixedBitSet::with_capacity(sb.cache_blocks as usize);
                 // TODO: allow ignore_none_fatal
-                read_bitset(engine.clone(), sb.dirty_root.unwrap(), false, &mut dirty_bits)?;
+                let (dirty_bits, err) = read_bitset(
+                    engine.clone(),
+                    sb.dirty_root.unwrap(),
+                    sb.cache_blocks as usize,
+                    false,
+                );
+                if err.is_some() {
+                    ctx.report.fatal(&format!("{}", err.unwrap()));
+                }
                 let mut c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
-                w.walk(&mut c, sb.mapping_root)?;
+                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                    ctx.report.fatal(&format!("{}", e));
+                }
             }
             v => {
                 return Err(anyhow!("unsupported metadata version {}", v));
@@ -278,14 +293,23 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         }
         let w = ArrayWalker::new(engine.clone(), false);
         let mut c = HintChecker::new();
-        w.walk(&mut c, sb.hint_root)?;
+        if let Err(e) = w.walk(&mut c, sb.hint_root) {
+            ctx.report.fatal(&format!("{}", e));
+        }
     }
 
     // The discard bitset might not be available if the cache has never been suspended,
     // e.g., a crash of freshly created cache.
     if !opts.skip_discards && sb.discard_root != 0 {
-        let mut discard_bits = FixedBitSet::with_capacity(sb.discard_nr_blocks as usize);
-        read_bitset(engine.clone(), sb.discard_root, false, &mut discard_bits)?;
+        let (discard_bits, err) = read_bitset(
+            engine.clone(),
+            sb.discard_root,
+            sb.cache_blocks as usize,
+            false,
+        );
+        if err.is_some() {
+            ctx.report.fatal(&format!("{}", err.unwrap()));
+        }
     }
 
     Ok(())
