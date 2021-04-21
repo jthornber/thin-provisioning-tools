@@ -40,39 +40,48 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
 }
 
 impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
-    // FIXME: wrap ArrayError into BTreeError, rather than mapping to value_err?
     fn visit(
         &self,
         path: &[u64],
-        _kr: &KeyRange,
+        kr: &KeyRange,
         _h: &NodeHeader,
         keys: &[u64],
         values: &[u64],
     ) -> btree::Result<()> {
         let mut path = path.to_vec();
-        let mut errs: Vec<BTreeError> = Vec::new();
 
-        // TODO: check index continuity
+        // The ordering of array indices had been verified in unpack_node(),
+        // thus checking the upper bound implies key continuity among siblings.
+        if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
+            return Err(btree::value_err(format!("gaps in array indicies")));
+        }
+        if let Some(end) = kr.end {
+            if *keys.last().unwrap() + 1 != end {
+                return Err(btree::value_err(format!("gaps or overlaps in array indicies")));
+            }
+        }
+
+        // FIXME: will the returned blocks be reordered?
         match self.engine.read_many(values) {
             Err(_) => {
                 // IO completely failed on all the child blocks
-                // FIXME: count read errors on its parent (BTreeError::IoError) or on its location
-                // (ArrayError::IoError)?
-                for (_i, _b) in values.iter().enumerate() {
-                    errs.push(btree::io_err(&path)); // FIXME: add key_context
+                for (i, b) in values.iter().enumerate() {
+                    // TODO: report indices of array entries based on the type size
+                    let mut array_errs = self.array_errs.lock().unwrap();
+                    array_errs.push(array::io_err(&path, *b).index_context(keys[i]));
                 }
             }
             Ok(rblocks) => {
                 for (i, rb) in rblocks.into_iter().enumerate() {
                     match rb {
                         Err(_) => {
-                            errs.push(btree::io_err(&path)); // FIXME: add key_context
+                            let mut array_errs = self.array_errs.lock().unwrap();
+                            array_errs.push(array::io_err(&path, values[i]).index_context(keys[i]));
                         },
                         Ok(b) => {
                             path.push(b.loc);
                             match unpack_array_block::<V>(&path, b.get_data()) {
                                 Ok(array_block) => {
-                                    // FIXME: will the returned blocks be reordered?
                                     if let Err(e) = self.array_visitor.visit(keys[i], array_block) {
                                         self.array_errs.lock().unwrap().push(e);
                                     }
@@ -88,18 +97,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
             }
         }
 
-        // FIXME: duplicate to BTreeWalker::build_aggregrate()
-        match errs.len() {
-            0 => Ok(()),
-            1 => {
-                let e = errs[0].clone();
-                Err(e)
-            }
-            _ => {
-                let e = btree::aggregate_error(errs);
-                Err(e)
-            }
-        }
+        Ok(())
     }
 
     fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {

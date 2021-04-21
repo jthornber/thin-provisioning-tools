@@ -45,6 +45,11 @@ fn main() {
                 .value_name("SKIP_DISCARDS"),
         )
         .arg(
+            Arg::with_name("IGNORE_NON_FATAL")
+                .help("Only return a non-zero exit code if a fatal error is found.")
+                .long("ignore-non-fatal-errors"),
+        )
+        .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
@@ -70,6 +75,7 @@ fn main() {
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         skip_hints: matches.is_present("SKIP_HINTS"),
         skip_discards: matches.is_present("SKIP_DISCARDS"),
+        ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         report,
     };
 

@@ -195,7 +195,7 @@ impl ArrayVisitor<Hint> for HintChecker {
 
 //------------------------------------------
 
-// TODO: ignore_non_fatal, clear_needs_check, auto_repair
+// TODO: clear_needs_check, auto_repair
 pub struct CacheCheckOptions<'a> {
     pub dev: &'a Path,
     pub async_io: bool,
@@ -203,6 +203,7 @@ pub struct CacheCheckOptions<'a> {
     pub skip_mappings: bool,
     pub skip_hints: bool,
     pub skip_discards: bool,
+    pub ignore_non_fatal: bool,
     pub report: Arc<Report>,
 }
 
@@ -257,7 +258,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
 
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
-        let w = ArrayWalker::new(engine.clone(), false);
+        let w = ArrayWalker::new(engine.clone(), opts.ignore_non_fatal);
         match sb.version {
             1 => {
                 let mut c = format1::MappingChecker::new(nr_origin_blocks);
@@ -271,7 +272,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                     engine.clone(),
                     sb.dirty_root.unwrap(),
                     sb.cache_blocks as usize,
-                    false,
+                    opts.ignore_non_fatal,
                 );
                 if err.is_some() {
                     ctx.report.fatal(&format!("{}", err.unwrap()));
@@ -291,7 +292,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         if sb.policy_hint_size != 4 {
             return Err(anyhow!("cache_check only supports policy hint size of 4"));
         }
-        let w = ArrayWalker::new(engine.clone(), false);
+        let w = ArrayWalker::new(engine.clone(), opts.ignore_non_fatal);
         let mut c = HintChecker::new();
         if let Err(e) = w.walk(&mut c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));
@@ -305,7 +306,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             engine.clone(),
             sb.discard_root,
             sb.cache_blocks as usize,
-            false,
+            opts.ignore_non_fatal,
         );
         if err.is_some() {
             ctx.report.fatal(&format!("{}", err.unwrap()));

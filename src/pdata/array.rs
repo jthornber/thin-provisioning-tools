@@ -53,14 +53,17 @@ pub struct ArrayBlock<V: Unpack> {
 
 #[derive(Error, Clone, Debug)]
 pub enum ArrayError {
-    //#[error("io_error")]
-    IoError,
+    //#[error("io_error {0}")]
+    IoError(u64),
 
     //#[error("block error: {0}")]
     BlockError(String),
 
     //#[error("value error: {0}")]
     ValueError(String),
+
+    //#[error("index: {0:?}")]
+    IndexContext(u64, Box<ArrayError>),
 
     //#[error("aggregate: {0:?}")]
     Aggregate(Vec<ArrayError>),
@@ -75,9 +78,13 @@ pub enum ArrayError {
 impl fmt::Display for ArrayError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArrayError::IoError => write!(f, "io error"),
+            ArrayError::IoError(b) => write!(f, "io error {}", b),
             ArrayError::BlockError(msg) => write!(f, "block error: {}", msg),
             ArrayError::ValueError(msg) => write!(f, "value error: {}", msg),
+            ArrayError::IndexContext(idx, e) => {
+                write!(f, "{}, effecting index {}", e, idx)?;
+                Ok(())
+            }
             ArrayError::Aggregate(errs) => {
                 for e in errs {
                     write!(f, "{}", e)?
@@ -88,6 +95,10 @@ impl fmt::Display for ArrayError {
             ArrayError::BTreeError(e) => write!(f, "{}", e),
         }
     }
+}
+
+pub fn io_err(path: &[u64], blocknr: u64) -> ArrayError {
+    ArrayError::Path(path.to_vec(), Box::new(ArrayError::IoError(blocknr)))
 }
 
 pub fn array_block_err(path: &[u64], msg: &str) -> ArrayError {
@@ -103,6 +114,12 @@ pub fn value_err(msg: String) -> ArrayError {
 
 pub fn aggregate_error(errs: Vec<ArrayError>) -> ArrayError {
     ArrayError::Aggregate(errs)
+}
+
+impl ArrayError {
+    pub fn index_context(self, index: u64) -> ArrayError {
+        ArrayError::IndexContext(index, Box::new(self))
+    }
 }
 
 pub type Result<T> = std::result::Result<T, ArrayError>;
