@@ -10,11 +10,22 @@ use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::*;
+use crate::pdata::space_map::*;
+use crate::pdata::space_map_checker::*;
+use crate::pdata::unpack::unpack;
 use crate::report::*;
 
 //------------------------------------------
 
 const MAX_CONCURRENT_IO: u32 = 1024;
+
+//------------------------------------------
+
+fn inc_superblock(sm: &ASpaceMap) -> anyhow::Result<()> {
+    let mut sm = sm.lock().unwrap();
+    sm.inc(SUPERBLOCK_LOCATION, 1)?;
+    Ok(())
+}
 
 //------------------------------------------
 
@@ -204,6 +215,7 @@ pub struct CacheCheckOptions<'a> {
     pub skip_hints: bool,
     pub skip_discards: bool,
     pub ignore_non_fatal: bool,
+    pub auto_repair: bool,
     pub report: Arc<Report>,
 }
 
@@ -240,6 +252,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
 
     let engine = &ctx.engine;
+    let metadata_sm = core_sm(engine.get_nr_blocks(), u8::MAX as u32);
+    inc_superblock(&metadata_sm)?;
 
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     check_superblock(&sb)?;
@@ -258,7 +272,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
 
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
-        let w = ArrayWalker::new(engine.clone(), opts.ignore_non_fatal);
+        let w = ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         match sb.version {
             1 => {
                 let mut c = format1::MappingChecker::new(nr_origin_blocks);
@@ -267,13 +281,13 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                 }
             }
             2 => {
-                // TODO: allow ignore_none_fatal
-                let (dirty_bits, err) = read_bitset(
+                let (dirty_bits, err) = read_bitset_with_sm(
                     engine.clone(),
                     sb.dirty_root.unwrap(),
                     sb.cache_blocks as usize,
+                    metadata_sm.clone(),
                     opts.ignore_non_fatal,
-                );
+                )?;
                 if err.is_some() {
                     ctx.report.fatal(&format!("{}", err.unwrap()));
                 }
@@ -292,7 +306,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         if sb.policy_hint_size != 4 {
             return Err(anyhow!("cache_check only supports policy hint size of 4"));
         }
-        let w = ArrayWalker::new(engine.clone(), opts.ignore_non_fatal);
+        let w = ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         let mut c = HintChecker::new();
         if let Err(e) = w.walk(&mut c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));
@@ -302,14 +316,31 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // The discard bitset might not be available if the cache has never been suspended,
     // e.g., a crash of freshly created cache.
     if !opts.skip_discards && sb.discard_root != 0 {
-        let (discard_bits, err) = read_bitset(
+        let (_discard_bits, err) = read_bitset_with_sm(
             engine.clone(),
             sb.discard_root,
             sb.cache_blocks as usize,
+            metadata_sm.clone(),
             opts.ignore_non_fatal,
-        );
+        )?;
         if err.is_some() {
             ctx.report.fatal(&format!("{}", err.unwrap()));
+        }
+    }
+
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let metadata_leaks = check_metadata_space_map(
+        engine.clone(),
+        ctx.report.clone(),
+        root,
+        metadata_sm.clone(),
+        opts.ignore_non_fatal,
+    )?;
+
+    if opts.auto_repair {
+        if !metadata_leaks.is_empty() {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         }
     }
 

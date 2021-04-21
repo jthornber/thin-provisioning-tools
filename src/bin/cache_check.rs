@@ -50,6 +50,11 @@ fn main() {
                 .long("ignore-non-fatal-errors"),
         )
         .arg(
+            Arg::with_name("AUTO_REPAIR")
+                .help("Auto repair trivial issues.")
+                .long("auto-repair"),
+        )
+        .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
@@ -76,6 +81,7 @@ fn main() {
         skip_hints: matches.is_present("SKIP_HINTS"),
         skip_discards: matches.is_present("SKIP_DISCARDS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
+        auto_repair: matches.is_present("AUTO_REPAIR"),
         report,
     };
 

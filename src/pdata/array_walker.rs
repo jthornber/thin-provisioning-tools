@@ -4,12 +4,14 @@ use crate::io_engine::*;
 use crate::pdata::array::{self, *};
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 
 //------------------------------------------
 
 pub struct ArrayWalker {
     engine: Arc<dyn IoEngine + Send + Sync>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
 }
 
@@ -23,17 +25,20 @@ pub trait ArrayVisitor<V: Unpack> {
 struct BlockValueVisitor<'a, V> {
     engine: Arc<dyn IoEngine + Send + Sync>,
     array_visitor: &'a mut dyn ArrayVisitor<V>,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     array_errs: Mutex<Vec<ArrayError>>,
 }
 
 impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
     pub fn new(
         e: Arc<dyn IoEngine + Send + Sync>,
+        sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
         v: &'a mut dyn ArrayVisitor<V>,
     ) -> BlockValueVisitor<'a, V> {
         BlockValueVisitor {
             engine: e,
             array_visitor: v,
+            sm: sm,
             array_errs: Mutex::new(Vec::new()),
         }
     }
@@ -85,6 +90,8 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                                     if let Err(e) = self.array_visitor.visit(keys[i], array_block) {
                                         self.array_errs.lock().unwrap().push(e);
                                     }
+                                    let mut sm = self.sm.lock().unwrap();
+                                    sm.inc(b.loc, 1).unwrap();
                                 },
                                 Err(e) => {
                                     self.array_errs.lock().unwrap().push(e);
@@ -113,21 +120,44 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
 
 impl ArrayWalker {
     pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> ArrayWalker {
+        let nr_blocks = engine.get_nr_blocks() as u64;
         let r: ArrayWalker = ArrayWalker {
             engine,
+            sm: Arc::new(Mutex::new(RestrictedSpaceMap::new(nr_blocks))),
             ignore_non_fatal,
         };
         r
+    }
+
+    pub fn new_with_sm(
+        engine: Arc<dyn IoEngine + Send + Sync>,
+        sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+        ignore_non_fatal: bool,
+    ) -> array::Result<ArrayWalker> {
+        {
+            let sm = sm.lock().unwrap();
+            assert_eq!(sm.get_nr_blocks().unwrap(), engine.get_nr_blocks());
+        }
+
+        Ok(ArrayWalker {
+            engine,
+            sm,
+            ignore_non_fatal,
+        })
     }
 
     pub fn walk<V>(&self, visitor: &mut dyn ArrayVisitor<V>, root: u64) -> array::Result<()>
     where
         V: Unpack + Copy,
     {
-        let w = BTreeWalker::new(self.engine.clone(), self.ignore_non_fatal);
+        let w = BTreeWalker::new_with_sm(
+            self.engine.clone(),
+            self.sm.clone(),
+            self.ignore_non_fatal
+        )?;
         let mut path = Vec::new();
         path.push(0);
-        let v = BlockValueVisitor::<V>::new(self.engine.clone(), visitor);
+        let v = BlockValueVisitor::<V>::new(self.engine.clone(), self.sm.clone(), visitor);
         let btree_err = w.walk(&mut path, &v, root).map_err(|e| ArrayError::BTreeError(e));
 
         let mut array_errs = v.array_errs.into_inner().unwrap();

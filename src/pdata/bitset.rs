@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::io_engine::IoEngine;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
+use crate::pdata::space_map::*;
 
 pub struct CheckedBitSet {
     bits: FixedBitSet,
@@ -77,7 +78,7 @@ pub fn read_bitset(
     nr_entries: usize,
     ignore_none_fatal: bool,
 )-> (CheckedBitSet, Option<array::ArrayError>) {
-    let w = ArrayWalker::new(engine.clone(), ignore_none_fatal);
+    let w = ArrayWalker::new(engine, ignore_none_fatal);
     let mut v = BitsetVisitor::new(nr_entries);
     let err = w.walk(&mut v, root);
     let e = match err {
@@ -85,4 +86,22 @@ pub fn read_bitset(
         Err(e) => Some(e),
     };
     return (v.get_bitset(), e);
+}
+
+// TODO: multi-threaded is possible
+pub fn read_bitset_with_sm(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    root: u64,
+    nr_entries: usize,
+    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    ignore_none_fatal: bool,
+)-> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
+    let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
+    let mut v = BitsetVisitor::new(nr_entries);
+    let err = w.walk(&mut v, root);
+    let e = match err {
+        Ok(()) => None,
+        Err(e) => Some(e),
+    };
+    return Ok((v.get_bitset(), e));
 }
