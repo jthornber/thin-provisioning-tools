@@ -567,3 +567,51 @@ pub fn btree_to_map_with_path<V: Unpack + Copy>(
 }
 
 //------------------------------------------
+
+struct NoopVisitor<V> {
+    dummy: std::marker::PhantomData<V>,
+}
+
+impl<V> NoopVisitor<V> {
+    pub fn new() -> NoopVisitor<V> {
+        NoopVisitor {
+            dummy: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _header: &NodeHeader,
+        _keys: &[u64],
+        _values: &[V],
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    //fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn count_btree_blocks<V: Unpack>(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    path: &mut Vec<u64>,
+    root: u64,
+    metadata_sm: ASpaceMap,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let w = BTreeWalker::new_with_sm(engine, metadata_sm, ignore_non_fatal)?;
+    let v = NoopVisitor::<V>::new();
+    w.walk(path, &v, root)
+}
+
+//------------------------------------------
