@@ -62,7 +62,7 @@ chunk const &
 cache_stream::get()
 {
 	chunk_wrapper *w = new chunk_wrapper(*this);
-	return w->c_;
+	return w->c_; // wrapper will get freed by the put method
 }
 
 void
