@@ -98,6 +98,7 @@ impl<'a> Pass1<'a> {
 impl<'a> MetadataVisitor for Pass1<'a> {
     fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
         self.result.sb = Some(sb.clone());
+        self.w.alloc()?;
         Ok(Visit::Continue)
     }
 
@@ -276,6 +277,8 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
 
     // FIXME: I think we need to decrement the shared leaves
     // Build metadata space map
+
+    w.flush()?;
 
     // Write the superblock
     if let Some(xml_sb) = pass.sb {

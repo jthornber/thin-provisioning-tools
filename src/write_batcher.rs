@@ -65,6 +65,18 @@ impl WriteBatcher {
         Ok(())
     }
 
+    pub fn read(&mut self, blocknr: u64) -> Result<Block> {
+        for b in self.queue.iter().rev() {
+            if b.loc == blocknr {
+                let r = Block::new(b.loc);
+                r.get_data().copy_from_slice(b.get_data());
+                return Ok(r);
+            }
+        }
+
+        self.engine.read(blocknr).map_err(|_| anyhow!("read block error"))
+    }
+
     pub fn flush_(&mut self, queue: Vec<Block>) -> Result<()> {
         self.engine.write_many(&queue)?;
         Ok(())

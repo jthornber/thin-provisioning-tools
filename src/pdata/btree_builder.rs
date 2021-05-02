@@ -152,7 +152,7 @@ pub trait NodeIO<V: Unpack + Pack> {
     fn write(&self, w: &mut WriteBatcher, keys: Vec<u64>, values: Vec<V>) -> Result<WriteResult>;
     fn read(
         &self,
-        engine: &Arc<dyn IoEngine + Send + Sync>,
+        w: &mut WriteBatcher,
         block: u64,
     ) -> Result<(Vec<u64>, Vec<V>)>;
 }
@@ -180,10 +180,10 @@ impl<V: Unpack + Pack> NodeIO<V> for LeafIO {
 
     fn read(
         &self,
-        engine: &Arc<dyn IoEngine + Send + Sync>,
+        w: &mut WriteBatcher,
         block: u64,
     ) -> Result<(Vec<u64>, Vec<V>)> {
-        let b = engine.read(block)?;
+        let b = w.read(block)?;
         let path = Vec::new();
         match unpack_node::<V>(&path, b.get_data(), true, true)? {
             Node::Internal { .. } => {
@@ -217,10 +217,10 @@ impl NodeIO<u64> for InternalIO {
 
     fn read(
         &self,
-        engine: &Arc<dyn IoEngine + Send + Sync>,
+        w: &mut WriteBatcher,
         block: u64,
     ) -> Result<(Vec<u64>, Vec<u64>)> {
-        let b = engine.read(block)?;
+        let b = w.read(block)?;
         let path = Vec::new();
         match unpack_node::<u64>(&path, b.get_data(), true, true)? {
             Node::Internal { keys, values, .. } => Ok((keys, values)),
@@ -307,7 +307,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
         }
 
         // Decide if we're going to use the pre-built nodes.
-        if self.values.len() < half_full {
+        if (self.values.len() > 0) && (self.values.len() < half_full) {
             // To avoid writing an under populated node we have to grab some
             // values from the first of the shared nodes.
             let (keys, values) = self.read_node(w, nodes.get(0).unwrap().block)?;
@@ -345,7 +345,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     pub fn complete(mut self, w: &mut WriteBatcher) -> Result<Vec<NodeSummary>> {
         let half_full = self.max_entries_per_node / 2;
 
-        if (self.nodes.len() > 0) && (self.values.len() < half_full) {
+        if (self.values.len() > 0) && (self.values.len() < half_full) && (self.nodes.len() > 0) {
             // We don't have enough values to emit a node.  So we're going to
             // have to rebalance with the previous node.
             self.unshift_node(w)?;
@@ -364,8 +364,8 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
 
     // We're only interested in the keys and values from the node, and
     // not whether it's a leaf or internal node.
-    fn read_node(&self, w: &WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
-        self.nio.read(&w.engine, block)
+    fn read_node(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
+        self.nio.read(w, block)
     }
 
     /// Writes a node with the first 'nr_entries' values.
