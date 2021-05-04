@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::io::Cursor;
 use std::collections::BTreeMap;
+use std::io::Cursor;
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -299,7 +299,7 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
 
 pub fn write_disk_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRoot> {
     let (index_entries, ref_count_root) = write_common(w, sm)?;
-  
+
     let mut index_builder: Builder<IndexEntry> = Builder::new(Box::new(NoopRC {}));
     for (i, ie) in index_entries.iter().enumerate() {
         index_builder.push_value(w, i as u64, *ie)?;
@@ -340,7 +340,7 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
         if bitmap.entries[*a as usize] == Small(0) {
             nr_free -= 1;
         }
-        
+
         bitmap.entries[*a as usize] = Small(1);
     }
 
@@ -350,7 +350,7 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
     w.write(bitmap_block, checksum::BT::BITMAP)?;
 
     // Return the adjusted index entry
-    Ok  (IndexEntry {
+    Ok(IndexEntry {
         blocknr: ie.blocknr,
         nr_free,
         none_free_before: first_free,
@@ -381,7 +381,7 @@ pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRo
     // Write out the metadata index
     let metadata_index = MetadataIndex {
         blocknr: bitmap_root.loc,
-        indexes
+        indexes,
     };
     let mut cur = Cursor::new(bitmap_root.get_data());
     metadata_index.pack(&mut cur)?;

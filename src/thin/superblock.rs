@@ -4,8 +4,8 @@ use nom::{bytes::complete::*, number::complete::*, IResult};
 use std::fmt;
 use std::io::Cursor;
 
-use crate::io_engine::*;
 use crate::checksum::*;
+use crate::io_engine::*;
 
 //----------------------------------------
 
@@ -116,14 +116,14 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     w.write_u32::<LittleEndian>(sb.time)?;
     w.write_u64::<LittleEndian>(sb.transaction_id)?;
     w.write_u64::<LittleEndian>(sb.metadata_snap)?;
-    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?;   // data sm root
-    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?;   // metadata sm root
+    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?; // data sm root
+    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?; // metadata sm root
     w.write_u64::<LittleEndian>(sb.mapping_root)?;
     w.write_u64::<LittleEndian>(sb.details_root)?;
     w.write_u32::<LittleEndian>(sb.data_block_size)?;
     w.write_u32::<LittleEndian>(BLOCK_SIZE as u32)?;
     w.write_u64::<LittleEndian>(sb.nr_metadata_blocks)?;
-    
+
     Ok(())
 }
 
@@ -138,7 +138,7 @@ pub fn write_superblock(engine: &dyn IoEngine, _loc: u64, sb: &Superblock) -> Re
 
     // calculate the checksum
     write_checksum(b.get_data(), BT::SUPERBLOCK)?;
-    
+
     // write
     engine.write(&b)?;
     Ok(())

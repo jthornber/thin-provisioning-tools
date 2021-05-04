@@ -24,9 +24,15 @@ pub trait RefCounter<Value> {
 pub struct NoopRC {}
 
 impl<Value> RefCounter<Value> for NoopRC {
-    fn get(&self, _v: &Value) -> Result<u32> {Ok(0)}
-    fn inc(&mut self, _v: &Value) -> Result<()> {Ok(())}
-    fn dec(&mut self, _v: &Value) -> Result<()> {Ok(())}
+    fn get(&self, _v: &Value) -> Result<u32> {
+        Ok(0)
+    }
+    fn inc(&mut self, _v: &Value) -> Result<()> {
+        Ok(())
+    }
+    fn dec(&mut self, _v: &Value) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Wraps a space map up to become a RefCounter.
@@ -150,11 +156,7 @@ fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Res
 /// decide if it produces internal or leaf nodes.
 pub trait NodeIO<V: Unpack + Pack> {
     fn write(&self, w: &mut WriteBatcher, keys: Vec<u64>, values: Vec<V>) -> Result<WriteResult>;
-    fn read(
-        &self,
-        w: &mut WriteBatcher,
-        block: u64,
-    ) -> Result<(Vec<u64>, Vec<V>)>;
+    fn read(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)>;
 }
 
 pub struct LeafIO {}
@@ -178,11 +180,7 @@ impl<V: Unpack + Pack> NodeIO<V> for LeafIO {
         write_node_(w, node)
     }
 
-    fn read(
-        &self,
-        w: &mut WriteBatcher,
-        block: u64,
-    ) -> Result<(Vec<u64>, Vec<V>)> {
+    fn read(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
         let b = w.read(block)?;
         let path = Vec::new();
         match unpack_node::<V>(&path, b.get_data(), true, true)? {
@@ -215,11 +213,7 @@ impl NodeIO<u64> for InternalIO {
         write_node_(w, node)
     }
 
-    fn read(
-        &self,
-        w: &mut WriteBatcher,
-        block: u64,
-    ) -> Result<(Vec<u64>, Vec<u64>)> {
+    fn read(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<u64>)> {
         let b = w.read(block)?;
         let path = Vec::new();
         match unpack_node::<u64>(&path, b.get_data(), true, true)? {
@@ -261,10 +255,7 @@ pub struct NodeSummary {
 
 impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     /// Create a new NodeBuilder
-    pub fn new(
-        nio: Box<dyn NodeIO<V>>,
-        value_rc: Box<dyn RefCounter<V>>,
-    ) -> Self {
+    pub fn new(nio: Box<dyn NodeIO<V>>, value_rc: Box<dyn RefCounter<V>>) -> Self {
         NodeBuilder {
             nio,
             value_rc,
@@ -356,7 +347,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
         if self.nodes.len() == 0 {
             self.emit_empty_leaf(w)?
         }
-        
+
         Ok(self.nodes)
     }
 
@@ -460,14 +451,9 @@ pub struct Builder<V: Unpack + Pack> {
 }
 
 impl<V: Unpack + Pack + Clone> Builder<V> {
-    pub fn new(
-        value_rc: Box<dyn RefCounter<V>>,
-    ) -> Builder<V> {
+    pub fn new(value_rc: Box<dyn RefCounter<V>>) -> Builder<V> {
         Builder {
-            leaf_builder: NodeBuilder::new(
-                Box::new(LeafIO {}),
-                value_rc,
-            ),
+            leaf_builder: NodeBuilder::new(Box::new(LeafIO {}), value_rc),
         }
     }
 
@@ -487,9 +473,7 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
         while nodes.len() > 1 {
             let mut builder = NodeBuilder::new(
                 Box::new(InternalIO {}),
-                Box::new(SMRefCounter {
-                    sm: w.sm.clone(),
-                }),
+                Box::new(SMRefCounter { sm: w.sm.clone() }),
             );
 
             for n in nodes {
@@ -505,4 +489,3 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
 }
 
 //------------------------------------------
-

@@ -262,16 +262,14 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
 
 fn parse_def(e: &BytesStart, tag: &str) -> Result<String> {
     let mut name: Option<String> = None;
-    
+
     for a in e.attributes() {
         let kv = a.unwrap();
         match kv.key {
             b"name" => {
                 name = Some(string_val(&kv));
-            },
-            _ => {
-                return bad_attr(tag, kv.key)
             }
+            _ => return bad_attr(tag, kv.key),
         }
     }
 

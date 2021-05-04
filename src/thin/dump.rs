@@ -298,7 +298,7 @@ fn find_shared_nodes(
         }
     }
 
-/*
+    /*
     // FIXME: why?!!
     // we're not interested in leaves (roots will get re-added later).
     {
@@ -620,7 +620,7 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(&ctx, &sb)?;
 
-/*
+    /*
     ctx.report
         .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;

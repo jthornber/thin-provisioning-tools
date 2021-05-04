@@ -74,7 +74,9 @@ impl WriteBatcher {
             }
         }
 
-        self.engine.read(blocknr).map_err(|_| anyhow!("read block error"))
+        self.engine
+            .read(blocknr)
+            .map_err(|_| anyhow!("read block error"))
     }
 
     pub fn flush_(&mut self, queue: Vec<Block>) -> Result<()> {

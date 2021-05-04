@@ -1,5 +1,5 @@
-use nom::IResult;
 use nom::number::complete::*;
+use nom::IResult;
 
 use crate::pdata::unpack::*;
 
@@ -25,7 +25,6 @@ impl Mapping {
         return (self.flags & MappingFlags::Valid as u32) != 0;
     }
 }
-
 
 impl Unpack for Mapping {
     fn disk_size() -> u32 {

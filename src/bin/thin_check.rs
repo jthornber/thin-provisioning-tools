@@ -97,8 +97,7 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
-    if matches.is_present("SYNC_IO") &&
-    matches.is_present("ASYNC_IO") {
+    if matches.is_present("SYNC_IO") && matches.is_present("ASYNC_IO") {
         eprintln!("--sync-io and --async-io may not be used at the same time.");
         process::exit(1);
     }

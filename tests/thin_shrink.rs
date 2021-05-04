@@ -3,16 +3,14 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rand::prelude::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::path::{Path};
+use std::path::Path;
 
 use thinp::file_utils;
 use thinp::thin::xml::{self, Visit};
 
 mod common;
 use common::test_dir::*;
-use common::thin_xml_generator::{
-    write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen
-};
+use common::thin_xml_generator::{write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen};
 
 //------------------------------------
 

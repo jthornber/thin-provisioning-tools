@@ -3,8 +3,8 @@ use std::str::from_utf8;
 use thinp::version::TOOLS_VERSION;
 
 mod common;
-use common::*;
 use common::test_dir::*;
+use common::*;
 
 //------------------------------------------
 
@@ -132,8 +132,7 @@ fn superblock_succeeds() -> Result<()> {
     Ok(())
 }
 
-fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()>
-{
+fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     damage_superblock(&md1)?;
@@ -145,15 +144,27 @@ fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()>
 
 #[test]
 fn missing_transaction_id() -> Result<()> {
-    missing_thing("--data-block-size=128", "--nr-data-blocks=4096000", "transaction id")
+    missing_thing(
+        "--data-block-size=128",
+        "--nr-data-blocks=4096000",
+        "transaction id",
+    )
 }
 
 #[test]
 fn missing_data_block_size() -> Result<()> {
-    missing_thing("--transaction-id=5", "--nr-data-blocks=4096000", "data block size")
+    missing_thing(
+        "--transaction-id=5",
+        "--nr-data-blocks=4096000",
+        "data block size",
+    )
 }
 
 #[test]
 fn missing_nr_data_blocks() -> Result<()> {
-    missing_thing("--transaction-id=5", "--data-block-size=128", "nr data blocks")
+    missing_thing(
+        "--transaction-id=5",
+        "--data-block-size=128",
+        "nr data blocks",
+    )
 }

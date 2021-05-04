@@ -100,7 +100,8 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn superblock_e(&mut self) -> Result<Visit> {
-        self.w.write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
+        self.w
+            .write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
         Ok(Visit::Continue)
     }
 
@@ -112,10 +113,11 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn mappings_e(&mut self) -> Result<Visit> {
-        self.w.write_event(Event::End(BytesEnd::borrowed(b"mappings")))?;
+        self.w
+            .write_event(Event::End(BytesEnd::borrowed(b"mappings")))?;
         Ok(Visit::Continue)
     }
-        
+
     fn mapping(&mut self, m: &Map) -> Result<Visit> {
         let tag = b"map";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
@@ -132,12 +134,13 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         self.w.write_event(Event::Start(elem))?;
         Ok(Visit::Continue)
     }
-    
+
     fn hints_e(&mut self) -> Result<Visit> {
-        self.w.write_event(Event::End(BytesEnd::borrowed(b"hints")))?;
+        self.w
+            .write_event(Event::End(BytesEnd::borrowed(b"hints")))?;
         Ok(Visit::Continue)
     }
-    
+
     fn hint(&mut self, h: &Hint) -> Result<Visit> {
         let tag = b"hint";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
@@ -153,12 +156,13 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         self.w.write_event(Event::Start(elem))?;
         Ok(Visit::Continue)
     }
-    
+
     fn discards_e(&mut self) -> Result<Visit> {
-        self.w.write_event(Event::End(BytesEnd::borrowed(b"discards")))?;
+        self.w
+            .write_event(Event::End(BytesEnd::borrowed(b"discards")))?;
         Ok(Visit::Continue)
     }
-    
+
     fn discard(&mut self, d: &Discard) -> Result<Visit> {
         let tag = b"discard";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
@@ -172,4 +176,3 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         Ok(Visit::Continue)
     }
 }
-

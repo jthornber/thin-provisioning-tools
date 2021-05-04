@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs::OpenOptions;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use std::io::{Seek, SeekFrom, Write, Read};
 //use std::os::unix::fs::OpenOptionsExt;
 
 pub type Sector = u64;
@@ -12,7 +12,6 @@ pub struct Region {
     pub dest: Sector,
     pub len: Sector,
 }
-
 
 fn copy_step<W>(file: &mut W, src_byte: u64, dest_byte: u64, len: usize) -> Result<()>
 where
@@ -38,7 +37,12 @@ where
     let mut written = 0;
     while written != len_bytes {
         let step = u64::min(len_bytes - written, MAX_BYTES);
-        copy_step(file, src_bytes + written, dest_bytes + written, step as usize)?;
+        copy_step(
+            file,
+            src_bytes + written,
+            dest_bytes + written,
+            step as usize,
+        )?;
         written += step;
     }
     Ok(())

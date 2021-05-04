@@ -55,9 +55,11 @@ pub fn write_checksum(buf: &mut [u8], kind: BT) -> Result<()> {
         NODE => BTREE_CSUM_XOR,
         BITMAP => BITMAP_CSUM_XOR,
         INDEX => INDEX_CSUM_XOR,
-        UNKNOWN => {return Err(anyhow!("Invalid block type"));}
+        UNKNOWN => {
+            return Err(anyhow!("Invalid block type"));
+        }
     };
-    
+
     let csum = checksum(buf) ^ salt;
     let mut out = std::io::Cursor::new(buf);
     out.write_u32::<LittleEndian>(csum)?;

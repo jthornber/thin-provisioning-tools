@@ -2,8 +2,8 @@ use anyhow::Result;
 use thinp::version::TOOLS_VERSION;
 
 mod common;
-use common::*;
 use common::test_dir::*;
+use common::*;
 
 //------------------------------------------
 
@@ -68,4 +68,3 @@ fn dev_unspecified() -> Result<()> {
     assert!(stderr.contains("No input device provided"));
     Ok(())
 }
-
