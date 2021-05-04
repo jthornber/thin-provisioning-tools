@@ -4,14 +4,14 @@ use anyhow::Result;
 use duct::{cmd, Expression};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::str::from_utf8;
 use thinp::file_utils;
 use thinp::io_engine::*;
 
-pub mod thin_xml_generator;
 pub mod cache_xml_generator;
 pub mod test_dir;
+pub mod thin_xml_generator;
 
 use crate::common::thin_xml_generator::{write_xml, SingleThinS};
 use test_dir::TestDir;
@@ -273,7 +273,12 @@ pub fn set_needs_check(md: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn generate_metadata_leaks(md: &PathBuf, nr_blocks: u64, expected: u32, actual: u32) -> Result<()> {
+pub fn generate_metadata_leaks(
+    md: &PathBuf,
+    nr_blocks: u64,
+    expected: u32,
+    actual: u32,
+) -> Result<()> {
     let output = thin_generate_damage!(
         "-o",
         &md,
@@ -318,4 +323,3 @@ where
     assert_eq!(csum, md5(p)?);
     Ok(())
 }
-

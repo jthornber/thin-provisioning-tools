@@ -1,3 +1,5 @@
+use anyhow::Result;
+use byteorder::WriteBytesExt;
 use nom::{number::complete::*, IResult};
 use std::fmt;
 
@@ -28,6 +30,13 @@ impl Unpack for BlockTime {
                 time: time as u32,
             },
         ))
+    }
+}
+
+impl Pack for BlockTime {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+        let bt: u64 = (self.block << 24) | self.time as u64;
+        bt.pack(data)
     }
 }
 

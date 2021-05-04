@@ -11,16 +11,12 @@ use crate::pdata::unpack::*;
 
 pub struct ArrayWalker {
     engine: Arc<dyn IoEngine + Send + Sync>,
-    ignore_non_fatal: bool
+    ignore_non_fatal: bool,
 }
 
 // FIXME: define another Result type for array visiting?
 pub trait ArrayBlockVisitor<V: Unpack> {
-    fn visit(
-        &self,
-        index: u64,
-        v: V,
-    ) -> anyhow::Result<()>;
+    fn visit(&self, index: u64, v: V) -> anyhow::Result<()>;
 }
 
 struct BlockValueVisitor<V> {
@@ -39,14 +35,12 @@ impl<V: Unpack + Copy> BlockValueVisitor<V> {
         }
     }
 
-    pub fn visit_array_block(
-        &self,
-        index: u64,
-        array_block: ArrayBlock<V>,
-    ) {
+    pub fn visit_array_block(&self, index: u64, array_block: ArrayBlock<V>) {
         let begin = index * u64::from(array_block.header.nr_entries);
         for i in 0..array_block.header.nr_entries {
-            self.array_block_visitor.visit(begin + u64::from(i), array_block.values[i as usize]).unwrap();
+            self.array_block_visitor
+                .visit(begin + u64::from(i), array_block.values[i as usize])
+                .unwrap();
         }
     }
 }
@@ -63,7 +57,10 @@ impl<V: Unpack + Copy> NodeVisitor<ArrayBlockEntry> for BlockValueVisitor<V> {
     ) -> Result<()> {
         for n in 0..keys.len() {
             let index = keys[n];
-            let b = self.engine.read(values[n].block).map_err(|_| io_err(path))?;
+            let b = self
+                .engine
+                .read(values[n].block)
+                .map_err(|_| io_err(path))?;
             let array_block = unpack_array_block::<V>(b.get_data()).map_err(|_| io_err(path))?;
             self.visit_array_block(index, array_block);
         }

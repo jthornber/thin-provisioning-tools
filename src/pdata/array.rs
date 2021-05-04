@@ -21,12 +21,7 @@ impl Unpack for ArrayBlockEntry {
         let (i, n) = le_u64(i)?;
         let block = n;
 
-        Ok((
-            i,
-            ArrayBlockEntry {
-                block,
-            }
-        ))
+        Ok((i, ArrayBlockEntry { block }))
     }
 }
 

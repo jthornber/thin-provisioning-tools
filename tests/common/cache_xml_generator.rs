@@ -1,4 +1,4 @@
-use anyhow::{Result};
+use anyhow::Result;
 use rand::prelude::*;
 use std::collections::HashSet;
 use std::fs::OpenOptions;

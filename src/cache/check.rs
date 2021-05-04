@@ -1,13 +1,13 @@
 use anyhow::anyhow;
+use std::collections::*;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::collections::*;
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
+use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array_walker::*;
 
 //------------------------------------------
@@ -112,19 +112,13 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(
-            opts.dev,
-            MAX_CONCURRENT_IO,
-            false,
-        )?);
+        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
     }
 
-    Ok(Context {
-        engine,
-    })
+    Ok(Context { engine })
 }
 
 pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
@@ -145,7 +139,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         w.walk(c, sb.mapping_root)?;
 
         if sb.version >= 2 {
-           // TODO: check dirty bitset
+            // TODO: check dirty bitset
         }
     }
 

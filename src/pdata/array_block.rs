@@ -33,7 +33,7 @@ impl Unpack for ArrayBlockHeader {
                 max_entries,
                 nr_entries,
                 value_size,
-                blocknr
+                blocknr,
             },
         ))
     }
@@ -54,17 +54,13 @@ fn convert_result<'a, V>(r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
     r.map_err(|_| anyhow!("parse error"))
 }
 
-pub fn unpack_array_block<V: Unpack>(
-    data: &[u8],
-) -> Result<ArrayBlock<V>> {
+pub fn unpack_array_block<V: Unpack>(data: &[u8]) -> Result<ArrayBlock<V>> {
     // TODO: collect errors
-    let (i, header) = ArrayBlockHeader::unpack(data).map_err(|_e| anyhow!("Couldn't parse header"))?;
+    let (i, header) =
+        ArrayBlockHeader::unpack(data).map_err(|_e| anyhow!("Couldn't parse header"))?;
     let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
 
-    Ok(ArrayBlock {
-        header,
-        values,
-    })
+    Ok(ArrayBlock { header, values })
 }
 
 //------------------------------------------
