@@ -485,9 +485,8 @@ fn optimise_metadata(md: Metadata) -> Result<Metadata> {
 
 //------------------------------------------
 
-fn emit_leaf(out: &mut dyn xml::MetadataVisitor, b: &Block) -> Result<()> {
+fn emit_leaf(v: &mut MappingVisitor, b: &Block) -> Result<()> {
     use Node::*;
-    let v = MappingVisitor::new(out);
     let path = Vec::new();
     let kr = KeyRange::new();
 
@@ -536,12 +535,14 @@ where
 }
 
 fn emit_leaves(ctx: &Context, out: &mut dyn xml::MetadataVisitor, ls: &[u64]) -> Result<()> {
+    let mut v = MappingVisitor::new(out);
     let proc = |b| {
-        emit_leaf(out, &b)?;
+        emit_leaf(&mut v, &b)?;
         Ok(())
     };
 
-    read_for(ctx.engine.clone(), ls, proc)
+    read_for(ctx.engine.clone(), ls, proc)?;
+    v.end_walk().map_err(|_| anyhow!("failed to emit leaves"))
 }
 
 fn emit_entries<W: Write>(
