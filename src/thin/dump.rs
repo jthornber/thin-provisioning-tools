@@ -237,18 +237,16 @@ impl LeafVisitor<BlockTime> for CollectLeaves {
 
 fn collect_leaves(
     ctx: &Context,
-    shared: &mut BTreeSet<u64>,
+    roots: &BTreeSet<u64>,
     mut sm: Box<dyn SpaceMap>,
 ) -> Result<BTreeMap<u64, Vec<Entry>>> {
     let mut map: BTreeMap<u64, Vec<Entry>> = BTreeMap::new();
 
-    ctx.report.set_title(&format!(
-        "Collecting leaves for {} shared nodes",
-        shared.len()
-    ));
+    ctx.report
+        .set_title(&format!("Collecting leaves for {} roots", roots.len()));
 
     // FIXME: we don't want any leaves in shared.
-    for r in shared.iter() {
+    for r in roots.iter() {
         let old_count = sm.get(*r).expect("couldn't get count from space map.");
         sm.set(*r, 0).expect("couldn't set count in space map.");
 
@@ -270,6 +268,7 @@ fn collect_leaves(
 
 //------------------------------------------
 
+#[allow(dead_code)]
 fn find_shared_nodes(
     ctx: &Context,
     roots: &BTreeMap<u64, (Vec<u64>, u64)>,
@@ -335,16 +334,10 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
             btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
     }
 
-    report.set_title("Finding shared mappings");
-    let (mut shared, sm) = find_shared_nodes(ctx, &roots)?;
-
-    // Add in the roots, because they may not be shared.
-    for (_path, root) in roots.values() {
-        shared.insert(*root);
-    }
-
-    let entry_map = collect_leaves(&ctx, &mut shared, sm)?;
-    let mut defs = Vec::new();
+    let sm = Box::new(RestrictedSpaceMap::new(engine.get_nr_blocks()));
+    let mapping_roots = roots.values().map(|(_, root)| *root).collect();
+    let entry_map = collect_leaves(&ctx, &mapping_roots, sm)?;
+    let defs = Vec::new();
     let mut devs = Vec::new();
 
     let mut seen = BTreeSet::new();
@@ -362,20 +355,6 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
                 entries: es.to_vec(),
             },
         });
-    }
-
-    for b in shared {
-        if !seen.contains(&b) {
-            let es = entry_map.get(&b).unwrap();
-            let kr = KeyRange::new(); // FIXME: finish
-            defs.push(Def {
-                def_id: b,
-                map: Mapping {
-                    kr,
-                    entries: es.to_vec(),
-                },
-            });
-        }
     }
 
     Ok(Metadata { defs, devs })
@@ -622,11 +601,10 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(&ctx, &sb)?;
 
-    /*
     ctx.report
         .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;
-    */
+
     dump_metadata(&ctx, &sb, &md)
 }
 

@@ -15,6 +15,7 @@ pub trait LeafVisitor<V: Unpack> {
     // Nodes may be shared and thus visited multiple times.  The walker avoids
     // doing repeated IO, but it does call this method to keep the visitor up to
     // date.  b may be an internal node obviously.
+    // FIXME: remove this method?
     fn visit_again(&mut self, b: u64) -> Result<()>;
     fn end_walk(&mut self) -> Result<()>;
 }
@@ -79,22 +80,13 @@ impl<'a> LeafWalker<'a> {
         V: Unpack,
     {
         assert_eq!(krs.len(), bs.len());
-        let mut errs: Vec<BTreeError> = Vec::new();
 
         let mut blocks = Vec::with_capacity(bs.len());
         let mut filtered_krs = Vec::with_capacity(krs.len());
         for i in 0..bs.len() {
-            if self.sm_inc(bs[i]) == 0 {
-                // Node not yet seen
-                blocks.push(bs[i]);
-                filtered_krs.push(krs[i].clone());
-            } else {
-                // This node has already been checked ...
-                if let Err(e) = visitor.visit_again(bs[i]) {
-                    // ... but the visitor isn't happy
-                    errs.push(e.clone());
-                }
-            }
+            self.sm_inc(bs[i]);
+            blocks.push(bs[i]);
+            filtered_krs.push(krs[i].clone());
         }
 
         let rblocks = self
@@ -145,6 +137,7 @@ impl<'a> LeafWalker<'a> {
         if let Internal { keys, values, .. } = node {
             let krs = split_key_ranges(path, &kr, &keys)?;
             if depth == 0 {
+                // it is the lowest internal
                 for i in 0..krs.len() {
                     self.sm.inc(values[i], 1).expect("sm.inc() failed");
                     for v in &values {
@@ -218,13 +211,13 @@ impl<'a> LeafWalker<'a> {
         let depth = self.get_depth::<V>(path, root, true)?;
 
         if depth == 0 {
+            // root is a leaf
             self.sm_inc(root);
             self.leaves.insert(root as usize);
             visitor.visit(&kr, root)?;
             Ok(())
-        } else if self.sm_inc(root) > 0 {
-            visitor.visit_again(root)
         } else {
+            self.sm_inc(root);
             let root = self.engine.read(root).map_err(|_| io_err(path))?;
 
             self.walk_node(depth - 1, path, visitor, &kr, &root, true)
