@@ -17,6 +17,7 @@ fn checksum(buf: &[u8]) -> u32 {
 }
 
 #[derive(Debug, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum BT {
     SUPERBLOCK,
     NODE,
@@ -59,7 +60,9 @@ pub fn write_checksum(buf: &mut [u8], kind: BT) -> Result<()> {
         BITMAP => BITMAP_CSUM_XOR,
         INDEX => INDEX_CSUM_XOR,
         ARRAY => ARRAY_CSUM_XOR,
-        UNKNOWN => {return Err(anyhow!("Invalid block type"));}
+        UNKNOWN => {
+            return Err(anyhow!("Invalid block type"));
+        }
     };
 
     let csum = checksum(buf) ^ salt;

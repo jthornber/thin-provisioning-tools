@@ -1,6 +1,5 @@
 use nom::IResult;
 use std::convert::TryInto;
-use std::marker::PhantomData;
 
 use crate::pdata::unpack::*;
 

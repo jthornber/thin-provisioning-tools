@@ -135,15 +135,16 @@ pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayB
     if bt != checksum::BT::ARRAY {
         return Err(array_block_err(
             path,
-            &format!("checksum failed for array block {}, {:?}", path.last().unwrap(), bt)
+            &format!(
+                "checksum failed for array block {}, {:?}",
+                path.last().unwrap(),
+                bt
+            ),
         ));
     }
 
-    let (i, header) =
-        ArrayBlockHeader::unpack(data).map_err(|_| array_block_err(
-            path,
-            "Couldn't parse array block header"
-        ))?;
+    let (i, header) = ArrayBlockHeader::unpack(data)
+        .map_err(|_| array_block_err(path, "Couldn't parse array block header"))?;
 
     // check value_size
     if header.value_size != V::disk_size() {
@@ -153,7 +154,7 @@ pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayB
                 "value_size mismatch: expected {}, was {}",
                 V::disk_size(),
                 header.value_size
-            )
+            ),
         ));
     }
 
@@ -161,7 +162,7 @@ pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayB
     if header.value_size * header.max_entries + ARRAY_BLOCK_HEADER_SIZE > BLOCK_SIZE as u32 {
         return Err(array_block_err(
             path,
-            &format!("max_entries is too large ({})", header.max_entries)
+            &format!("max_entries is too large ({})", header.max_entries),
         ));
     }
 

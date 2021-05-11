@@ -45,8 +45,10 @@ impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
             let v = values[n];
             let expected = self.sm.get(k).unwrap();
             if expected != v {
-                return Err(value_err(format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
-                    self.kind, k, expected, v)));
+                return Err(value_err(format!(
+                    "Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
+                    self.kind, k, expected, v
+                )));
             }
         }
 
@@ -76,10 +78,10 @@ fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
 // Compare the refernece counts in bitmaps against the expected values
 //
 // `sm` - The in-core space map of expected reference counts
-fn check_low_ref_counts<'a>(
+fn check_low_ref_counts(
     engine: Arc<dyn IoEngine + Send + Sync>,
     report: Arc<Report>,
-    kind: &'a str,
+    kind: &str,
     entries: Vec<IndexEntry>,
     sm: ASpaceMap,
 ) -> Result<Vec<BitmapLeak>> {
@@ -215,7 +217,12 @@ pub fn check_disk_space_map(
     metadata_sm: ASpaceMap,
     ignore_non_fatal: bool,
 ) -> Result<Vec<BitmapLeak>> {
-    let entries = gather_disk_index_entries(engine.clone(), root.bitmap_root, metadata_sm.clone(), ignore_non_fatal)?;
+    let entries = gather_disk_index_entries(
+        engine.clone(),
+        root.bitmap_root,
+        metadata_sm.clone(),
+        ignore_non_fatal,
+    )?;
 
     // check overflow ref-counts
     {
@@ -239,8 +246,15 @@ pub fn check_metadata_space_map(
     metadata_sm: ASpaceMap,
     ignore_non_fatal: bool,
 ) -> Result<Vec<BitmapLeak>> {
-    count_btree_blocks::<u32>(engine.clone(), &mut vec![0], root.ref_count_root, metadata_sm.clone(), false)?;
-    let entries = gather_metadata_index_entries(engine.clone(), root.bitmap_root, metadata_sm.clone())?;
+    count_btree_blocks::<u32>(
+        engine.clone(),
+        &mut vec![0],
+        root.ref_count_root,
+        metadata_sm.clone(),
+        false,
+    )?;
+    let entries =
+        gather_metadata_index_entries(engine.clone(), root.bitmap_root, metadata_sm.clone())?;
 
     // check overflow ref-counts
     {
@@ -259,7 +273,7 @@ pub fn check_metadata_space_map(
 pub fn repair_space_map(
     engine: Arc<dyn IoEngine + Send + Sync>,
     entries: Vec<BitmapLeak>,
-    sm: ASpaceMap
+    sm: ASpaceMap,
 ) -> Result<()> {
     let sm = sm.lock().unwrap();
 

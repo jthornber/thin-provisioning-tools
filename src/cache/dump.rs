@@ -61,7 +61,10 @@ mod format1 {
 
                 let mut inner = self.inner.lock().unwrap();
                 inner.valid_mappings.set(index as usize, true);
-                inner.visitor.mapping(&m).map_err(|e| array::value_err(format!("{}", e)))?;
+                inner
+                    .visitor
+                    .mapping(&m)
+                    .map_err(|e| array::value_err(format!("{}", e)))?;
             }
 
             Ok(())
@@ -96,7 +99,7 @@ mod format2 {
 
     impl ArrayVisitor<u64> for DirtyVisitor {
         fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
-            let mut pos = index as usize * (b.header.max_entries as usize) << 6;
+            let mut pos = (index as usize * (b.header.max_entries as usize)) << 6;
             for i in 0..b.header.nr_entries as usize {
                 let bits = b.values[i];
 
@@ -127,7 +130,11 @@ mod format2 {
     }
 
     impl<'a> MappingEmitter<'a> {
-        pub fn new(nr_entries: usize, dirty_bits: FixedBitSet, visitor: &'a mut dyn MetadataVisitor) -> MappingEmitter<'a> {
+        pub fn new(
+            nr_entries: usize,
+            dirty_bits: FixedBitSet,
+            visitor: &'a mut dyn MetadataVisitor,
+        ) -> MappingEmitter<'a> {
             MappingEmitter {
                 inner: Mutex::new(Inner {
                     visitor,
@@ -161,7 +168,10 @@ mod format2 {
                 };
 
                 inner.valid_mappings.set(index as usize, true);
-                inner.visitor.mapping(&m).map_err(|e| array::value_err(format!("{}", e)))?;
+                inner
+                    .visitor
+                    .mapping(&m)
+                    .map_err(|e| array::value_err(format!("{}", e)))?;
             }
             Ok(())
         }
@@ -272,7 +282,8 @@ fn dump_metadata(ctx: &Context, sb: &Superblock, _repair: bool) -> anyhow::Resul
             let dirty_bits = v.get_bits();
 
             let w = ArrayWalker::new(engine.clone(), false);
-            let mut emitter = format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, &mut out);
+            let mut emitter =
+                format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, &mut out);
             w.walk(&mut emitter, sb.mapping_root)?;
             emitter.get_valid()
         }

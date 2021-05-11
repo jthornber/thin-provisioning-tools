@@ -138,7 +138,7 @@ pub struct WriteResult {
 /// Write a node to a free metadata block.
 fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<WriteResult> {
     let keys = node.get_keys();
-    let first_key = keys.first().unwrap_or(&0u64).clone();
+    let first_key = *keys.first().unwrap_or(&0u64);
 
     let b = w.alloc()?;
     node.set_block(b.loc);
@@ -285,8 +285,8 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     /// Any shared nodes that are used have their block incremented in
     /// the space map.  Will only increment the ref count for values
     /// contained in the nodes if it unpacks them.
-    pub fn push_nodes(&mut self, w: &mut WriteBatcher, nodes: &Vec<NodeSummary>) -> Result<()> {
-        assert!(nodes.len() > 0);
+    pub fn push_nodes(&mut self, w: &mut WriteBatcher, nodes: &[NodeSummary]) -> Result<()> {
+        assert!(!nodes.is_empty());
 
         // As a sanity check we make sure that all the shared nodes contain the
         // minimum nr of entries.
@@ -298,7 +298,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
         }
 
         // Decide if we're going to use the pre-built nodes.
-        if (self.values.len() > 0) && (self.values.len() < half_full) {
+        if !self.values.is_empty() && (self.values.len() < half_full) {
             // To avoid writing an under populated node we have to grab some
             // values from the first of the shared nodes.
             let (keys, values) = self.read_node(w, nodes.get(0).unwrap().block)?;
@@ -336,7 +336,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     pub fn complete(mut self, w: &mut WriteBatcher) -> Result<Vec<NodeSummary>> {
         let half_full = self.max_entries_per_node / 2;
 
-        if (self.values.len() > 0) && (self.values.len() < half_full) && (self.nodes.len() > 0) {
+        if !self.values.is_empty() && (self.values.len() < half_full) && !self.nodes.is_empty() {
             // We don't have enough values to emit a node.  So we're going to
             // have to rebalance with the previous node.
             self.unshift_node(w)?;
@@ -344,7 +344,7 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
 
         self.emit_all(w)?;
 
-        if self.nodes.len() == 0 {
+        if self.nodes.is_empty() {
             self.emit_empty_leaf(w)?
         }
 
@@ -461,7 +461,7 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
         self.leaf_builder.push_value(w, k, v)
     }
 
-    pub fn push_leaves(&mut self, w: &mut WriteBatcher, leaves: &Vec<NodeSummary>) -> Result<()> {
+    pub fn push_leaves(&mut self, w: &mut WriteBatcher, leaves: &[NodeSummary]) -> Result<()> {
         self.leaf_builder.push_nodes(w, leaves)
     }
 

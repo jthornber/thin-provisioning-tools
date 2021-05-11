@@ -255,8 +255,7 @@ fn collect_leaves(
         let mut w = LeafWalker::new(ctx.engine.clone(), sm.deref_mut(), false);
         let mut v = CollectLeaves::new();
 
-        let mut path = Vec::new();
-        path.push(0);
+        let mut path = vec![0];
 
         // ctx.report.set_title(&format!("collecting {}", *r));
         w.walk::<CollectLeaves, BlockTime>(&mut path, &mut v, *r)?;
@@ -323,8 +322,7 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
     report.set_title("Reading superblock");
     //let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     //let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let mut path = Vec::new();
-    path.push(0);
+    let mut path = vec![0];
 
     report.set_title("Reading device details");
     let details = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
@@ -385,6 +383,7 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
 
 //------------------------------------------
 
+#[allow(dead_code)]
 fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     g.new_seq();
     for e in es {
@@ -399,6 +398,7 @@ fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     }
 }
 
+#[allow(dead_code)]
 fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
     use Entry::*;
 
@@ -427,6 +427,7 @@ fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
 
 // FIXME: do we really need to track kr?
 // FIXME: I think this may be better done as part of restore.
+#[allow(dead_code)]
 fn optimise_metadata(md: Metadata) -> Result<Metadata> {
     use Entry::*;
 

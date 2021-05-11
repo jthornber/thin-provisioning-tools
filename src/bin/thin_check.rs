@@ -106,14 +106,19 @@ fn main() {
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     if matches.is_present("ASYNC_IO") {
-        engine = Arc::new(AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, false).expect("unable to open input file"));
+        engine = Arc::new(
+            AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, false)
+                .expect("unable to open input file"),
+        );
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(&input_file, nr_threads, false).expect("unable to open input file"));
+        engine = Arc::new(
+            SyncIoEngine::new(&input_file, nr_threads, false).expect("unable to open input file"),
+        );
     }
 
     let opts = ThinCheckOptions {
-        engine: engine,
+        engine,
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),

@@ -69,10 +69,7 @@ impl BTreeWalker {
 
     fn failed(&self, b: u64) -> Option<BTreeError> {
         let fails = self.fails.lock().unwrap();
-        match fails.get(&b) {
-            None => None,
-            Some(e) => Some(e.clone()),
-        }
+        fails.get(&b).cloned()
     }
 
     fn set_fail(&self, b: u64, err: BTreeError) {

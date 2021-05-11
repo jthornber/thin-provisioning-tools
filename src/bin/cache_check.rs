@@ -6,8 +6,8 @@ use clap::{App, Arg};
 use std::path::Path;
 use std::sync::Arc;
 
-use thinp::report::*;
 use thinp::cache::check::{check, CacheCheckOptions};
+use thinp::report::*;
 
 //------------------------------------------
 

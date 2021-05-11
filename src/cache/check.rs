@@ -41,17 +41,26 @@ mod format1 {
     impl MappingChecker {
         pub fn new(nr_origin_blocks: Option<u64>) -> MappingChecker {
             MappingChecker {
-                nr_origin_blocks: if let Some(n) = nr_origin_blocks {n} else {MAX_ORIGIN_BLOCKS},
+                nr_origin_blocks: if let Some(n) = nr_origin_blocks {
+                    n
+                } else {
+                    MAX_ORIGIN_BLOCKS
+                },
                 seen_oblocks: Mutex::new(BTreeSet::new()),
             }
         }
 
         fn check_flags(&self, m: &Mapping) -> array::Result<()> {
             if (m.flags & !(MappingFlags::Valid as u32 | MappingFlags::Dirty as u32)) != 0 {
-                return Err(array::value_err(format!("unknown flags in mapping: {}", m.flags)));
+                return Err(array::value_err(format!(
+                    "unknown flags in mapping: {}",
+                    m.flags
+                )));
             }
             if !m.is_valid() && m.is_dirty() {
-                return Err(array::value_err(format!("dirty bit found on an unmapped block")));
+                return Err(array::value_err(
+                    "dirty bit found on an unmapped block".to_string(),
+                ));
             }
             Ok(())
         }
@@ -59,16 +68,18 @@ mod format1 {
         fn check_oblock(&self, m: &Mapping) -> array::Result<()> {
             if !m.is_valid() {
                 if m.oblock > 0 {
-                    return Err(array::value_err(format!("invalid block is mapped")));
+                    return Err(array::value_err("invalid block is mapped".to_string()));
                 }
                 return Ok(());
             }
             if m.oblock >= self.nr_origin_blocks {
-                return Err(array::value_err(format!("mapping beyond end of the origin device")));
+                return Err(array::value_err(
+                    "mapping beyond end of the origin device".to_string(),
+                ));
             }
             let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
             if seen_oblocks.contains(&m.oblock) {
-                return Err(array::value_err(format!("origin block already mapped")));
+                return Err(array::value_err("origin block already mapped".to_string()));
             }
             seen_oblocks.insert(m.oblock);
             Ok(())
@@ -93,12 +104,8 @@ mod format1 {
             // FIXME: duplicate to BTreeWalker::build_aggregrate()
             match errs.len() {
                 0 => Ok(()),
-                1 => {
-                    Err(errs[0].clone())
-                }
-                _ => {
-                    Err(array::aggregate_error(errs))
-                }
+                1 => Err(errs[0].clone()),
+                _ => Err(array::aggregate_error(errs)),
             }
         }
     }
@@ -120,7 +127,11 @@ mod format2 {
     impl MappingChecker {
         pub fn new(nr_origin_blocks: Option<u64>, dirty_bits: CheckedBitSet) -> MappingChecker {
             MappingChecker {
-                nr_origin_blocks: if let Some(n) = nr_origin_blocks {n} else {MAX_ORIGIN_BLOCKS},
+                nr_origin_blocks: if let Some(n) = nr_origin_blocks {
+                    n
+                } else {
+                    MAX_ORIGIN_BLOCKS
+                },
                 inner: Mutex::new(Inner {
                     seen_oblocks: BTreeSet::new(),
                     dirty_bits,
@@ -130,10 +141,15 @@ mod format2 {
 
         fn check_flags(&self, m: &Mapping, dirty_bit: Option<bool>) -> array::Result<()> {
             if (m.flags & !(MappingFlags::Valid as u32)) != 0 {
-                return Err(array::value_err(format!("unknown flags in mapping: {}", m.flags)));
+                return Err(array::value_err(format!(
+                    "unknown flags in mapping: {}",
+                    m.flags
+                )));
             }
             if !m.is_valid() && dirty_bit.is_some() && dirty_bit.unwrap() {
-                return Err(array::value_err(format!("dirty bit found on an unmapped block")));
+                return Err(array::value_err(
+                    "dirty bit found on an unmapped block".to_string(),
+                ));
             }
             Ok(())
         }
@@ -141,15 +157,17 @@ mod format2 {
         fn check_oblock(&self, m: &Mapping, seen_oblocks: &mut BTreeSet<u64>) -> array::Result<()> {
             if !m.is_valid() {
                 if m.oblock > 0 {
-                    return Err(array::value_err(format!("invalid mapped block")));
+                    return Err(array::value_err("invalid mapped block".to_string()));
                 }
                 return Ok(());
             }
             if m.oblock >= self.nr_origin_blocks {
-                return Err(array::value_err(format!("mapping beyond end of the origin device")));
+                return Err(array::value_err(
+                    "mapping beyond end of the origin device".to_string(),
+                ));
             }
             if seen_oblocks.contains(&m.oblock) {
-                return Err(array::value_err(format!("origin block already mapped")));
+                return Err(array::value_err("origin block already mapped".to_string()));
             }
             seen_oblocks.insert(m.oblock);
 
@@ -166,7 +184,8 @@ mod format2 {
             for i in 0..b.header.nr_entries {
                 let m = b.values[i as usize];
 
-                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(begin + i as usize)) {
+                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(begin + i as usize))
+                {
                     errs.push(e);
                 }
                 if let Err(e) = self.check_oblock(&m, &mut inner.seen_oblocks) {
@@ -177,12 +196,8 @@ mod format2 {
             // FIXME: duplicate to BTreeWalker::build_aggregrate()
             match errs.len() {
                 0 => Ok(()),
-                1 => {
-                    Err(errs[0].clone())
-                }
-                _ => {
-                    Err(array::aggregate_error(errs))
-                }
+                1 => Err(errs[0].clone()),
+                _ => Err(array::aggregate_error(errs)),
             }
         }
     }
@@ -273,7 +288,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
 
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
-        let w = ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
+        let w =
+            ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         match sb.version {
             1 => {
                 let mut c = format1::MappingChecker::new(nr_origin_blocks);
@@ -307,7 +323,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         if sb.policy_hint_size != 4 {
             return Err(anyhow!("cache_check only supports policy hint size of 4"));
         }
-        let w = ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
+        let w =
+            ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         let mut c = HintChecker::new();
         if let Err(e) = w.walk(&mut c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));
@@ -338,11 +355,9 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         opts.ignore_non_fatal,
     )?;
 
-    if opts.auto_repair {
-        if !metadata_leaks.is_empty() {
-            ctx.report.info("Repairing metadata leaks.");
-            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
-        }
+    if opts.auto_repair && !metadata_leaks.is_empty() {
+        ctx.report.info("Repairing metadata leaks.");
+        repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
     }
 
     Ok(())

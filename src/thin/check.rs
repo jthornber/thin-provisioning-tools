@@ -1,12 +1,11 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::IoEngine;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
@@ -236,8 +235,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let mut path = Vec::new();
-    path.push(0);
+    let mut path = vec![0];
 
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
@@ -349,7 +347,10 @@ pub struct CheckMaps {
     pub data_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
 }
 
-pub fn check_with_maps(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<CheckMaps> {
+pub fn check_with_maps(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    report: Arc<Report>,
+) -> Result<CheckMaps> {
     let ctx = mk_context(engine.clone(), report.clone())?;
     report.set_title("Checking thin metadata");
 
@@ -359,18 +360,12 @@ pub fn check_with_maps(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Repo
     report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let mut path = Vec::new();
-    path.push(0);
+    let mut path = vec![0];
 
     // Device details.   We read this once to get the number of thin devices, and hence the
     // maximum metadata ref count.  Then create metadata space map, and reread to increment
     // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(
-        &mut path,
-        engine.clone(),
-        false,
-        sb.details_root,
-    )?;
+    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), false, sb.details_root)?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
     inc_superblock(&metadata_sm)?;

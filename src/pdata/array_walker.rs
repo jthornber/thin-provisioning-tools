@@ -38,7 +38,7 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
         BlockValueVisitor {
             engine: e,
             array_visitor: v,
-            sm: sm,
+            sm,
             array_errs: Mutex::new(Vec::new()),
         }
     }
@@ -58,11 +58,13 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
         // The ordering of array indices had been verified in unpack_node(),
         // thus checking the upper bound implies key continuity among siblings.
         if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
-            return Err(btree::value_err(format!("gaps in array indicies")));
+            return Err(btree::value_err("gaps in array indicies".to_string()));
         }
         if let Some(end) = kr.end {
             if *keys.last().unwrap() + 1 != end {
-                return Err(btree::value_err(format!("gaps or overlaps in array indicies")));
+                return Err(btree::value_err(
+                    "gaps or overlaps in array indicies".to_string(),
+                ));
             }
         }
 
@@ -82,7 +84,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                         Err(_) => {
                             let mut array_errs = self.array_errs.lock().unwrap();
                             array_errs.push(array::io_err(&path, values[i]).index_context(keys[i]));
-                        },
+                        }
                         Ok(b) => {
                             path.push(b.loc);
                             match unpack_array_block::<V>(&path, b.get_data()) {
@@ -92,13 +94,13 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                                     }
                                     let mut sm = self.sm.lock().unwrap();
                                     sm.inc(b.loc, 1).unwrap();
-                                },
+                                }
                                 Err(e) => {
                                     self.array_errs.lock().unwrap().push(e);
                                 }
                             }
                             path.pop();
-                        },
+                        }
                     }
                 }
             }
@@ -150,15 +152,11 @@ impl ArrayWalker {
     where
         V: Unpack + Copy,
     {
-        let w = BTreeWalker::new_with_sm(
-            self.engine.clone(),
-            self.sm.clone(),
-            self.ignore_non_fatal
-        )?;
-        let mut path = Vec::new();
-        path.push(0);
+        let w =
+            BTreeWalker::new_with_sm(self.engine.clone(), self.sm.clone(), self.ignore_non_fatal)?;
+        let mut path = vec![0];
         let v = BlockValueVisitor::<V>::new(self.engine.clone(), self.sm.clone(), visitor);
-        let btree_err = w.walk(&mut path, &v, root).map_err(|e| ArrayError::BTreeError(e));
+        let btree_err = w.walk(&mut path, &v, root).map_err(ArrayError::BTreeError);
 
         let mut array_errs = v.array_errs.into_inner().unwrap();
         if let Err(e) = btree_err {
