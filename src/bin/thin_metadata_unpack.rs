@@ -10,7 +10,7 @@ use std::process::exit;
 
 fn main() {
     let parser = App::new("thin_metadata_unpack")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .about("Unpack a compressed file of thin metadata.")
         .arg(
             Arg::with_name("INPUT")

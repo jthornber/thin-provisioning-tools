@@ -13,7 +13,7 @@ use thinp::thin::restore::{restore, ThinRestoreOptions};
 
 fn main() {
     let parser = App::new("thin_restore")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .about("Convert XML format metadata to binary.")
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")

@@ -8,7 +8,7 @@ use thinp::file_utils;
 
 fn main() {
     let parser = App::new("thin_metadata_pack")
-	.version(thinp::version::TOOLS_VERSION)
+	.version(thinp::version::tools_version())
         .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
         .arg(Arg::with_name("INPUT")
             .help("Specify thinp metadata binary device/file")

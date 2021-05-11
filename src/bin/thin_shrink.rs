@@ -12,7 +12,7 @@ use thinp::file_utils;
 
 fn main() {
     let parser = App::new("thin_shrink")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .about("Rewrite xml metadata and move data in an inactive pool.")
         .arg(
             Arg::with_name("INPUT")

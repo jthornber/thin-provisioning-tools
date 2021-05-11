@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::str::from_utf8;
-use thinp::version::TOOLS_VERSION;
+use thinp::version::tools_version;
 
 mod common;
 use common::test_dir::*;
@@ -11,14 +11,14 @@ use common::*;
 #[test]
 fn accepts_v() -> Result<()> {
     let stdout = thin_repair!("-V").read()?;
-    assert_eq!(stdout, TOOLS_VERSION);
+    assert_eq!(stdout, tools_version());
     Ok(())
 }
 
 #[test]
 fn accepts_version() -> Result<()> {
     let stdout = thin_repair!("--version").read()?;
-    assert_eq!(stdout, TOOLS_VERSION);
+    assert_eq!(stdout, tools_version());
     Ok(())
 }
 

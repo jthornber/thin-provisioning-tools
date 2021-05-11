@@ -9,7 +9,7 @@ use thinp::cache::dump::{dump, CacheDumpOptions};
 
 fn main() {
     let parser = App::new("cache_dump")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")

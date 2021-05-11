@@ -13,7 +13,7 @@ use thinp::report::*;
 
 fn main() {
     let parser = App::new("cache_check")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")

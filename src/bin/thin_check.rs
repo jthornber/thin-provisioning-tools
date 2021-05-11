@@ -14,7 +14,7 @@ use thinp::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
 
 fn main() {
     let parser = App::new("thin_check")
-        .version(thinp::version::TOOLS_VERSION)
+        .version(thinp::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
         .arg(
             Arg::with_name("QUIET")
