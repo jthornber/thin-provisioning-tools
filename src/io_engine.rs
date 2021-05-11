@@ -26,6 +26,8 @@ pub struct Block {
 }
 
 impl Block {
+    // Creates a new block that corresponds to the given location.  The
+    // memory is not initialised.
     pub fn new(loc: u64) -> Block {
         let layout = Layout::from_size_align(BLOCK_SIZE, ALIGN).unwrap();
         let ptr = unsafe { alloc(layout) };
@@ -41,6 +43,12 @@ impl Block {
 
     pub fn get_data<'a>(&self) -> &'a mut [u8] {
         unsafe { std::slice::from_raw_parts_mut::<'a>(self.data, BLOCK_SIZE) }
+    }
+
+    pub fn zero(&mut self) {
+        unsafe {
+            std::ptr::write_bytes(self.data, 0, BLOCK_SIZE);
+        }
     }
 }
 

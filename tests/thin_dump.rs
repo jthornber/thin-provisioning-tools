@@ -1,12 +1,12 @@
 use anyhow::Result;
-use thinp::file_utils;
 use std::fs::OpenOptions;
-use std::io::{Write};
+use std::io::Write;
 use std::str::from_utf8;
+use thinp::file_utils;
 
 mod common;
-use common::*;
 use common::test_dir::*;
+use common::*;
 
 //------------------------------------------
 
@@ -27,7 +27,11 @@ fn dump_restore_cycle() -> Result<()> {
     let output = thin_dump!(&md).run()?;
 
     let xml = td.mk_path("meta.xml");
-    let mut file = OpenOptions::new().read(false).write(true).create(true).open(&xml)?;
+    let mut file = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .open(&xml)?;
     file.write_all(&output.stdout[0..])?;
     drop(file);
 
@@ -63,7 +67,7 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
 
 #[test]
 fn override_transaction_id() -> Result<()> {
-     override_something("--transaction-id", "2345", "transaction=\"2345\"")
+    override_something("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
@@ -80,13 +84,26 @@ fn override_nr_data_blocks() -> Result<()> {
 fn repair_superblock() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let before = thin_dump!("--transaction-id=5", "--data-block-size=128", "--nr-data-blocks=4096000", &md).run()?;
+    let before = thin_dump!(
+        "--transaction-id=5",
+        "--data-block-size=128",
+        "--nr-data-blocks=4096000",
+        &md
+    )
+    .run()?;
     damage_superblock(&md)?;
 
-    let after = thin_dump!("--repair", "--transaction-id=5", "--data-block-size=128", "--nr-data-blocks=4096000", &md).run()?;
+    let after = thin_dump!(
+        "--repair",
+        "--transaction-id=5",
+        "--data-block-size=128",
+        "--nr-data-blocks=4096000",
+        &md
+    )
+    .run()?;
     assert_eq!(after.stderr.len(), 0);
     assert_eq!(before.stdout, after.stdout);
-    
+
     Ok(())
 }
 
@@ -95,7 +112,12 @@ fn missing_transaction_id() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(thin_dump!("--repair", "--data-block-size=128", "--nr-data-blocks=4096000", &md))?;
+    let stderr = run_fail(thin_dump!(
+        "--repair",
+        "--data-block-size=128",
+        "--nr-data-blocks=4096000",
+        &md
+    ))?;
     assert!(stderr.contains("transaction id"));
     Ok(())
 }
@@ -105,7 +127,12 @@ fn missing_data_block_size() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(thin_dump!("--repair", "--transaction-id=5", "--nr-data-blocks=4096000", &md))?;
+    let stderr = run_fail(thin_dump!(
+        "--repair",
+        "--transaction-id=5",
+        "--nr-data-blocks=4096000",
+        &md
+    ))?;
     assert!(stderr.contains("data block size"));
     Ok(())
 }
@@ -115,7 +142,12 @@ fn missing_nr_data_blocks() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(thin_dump!("--repair", "--transaction-id=5", "--data-block-size=128", &md))?;
+    let stderr = run_fail(thin_dump!(
+        "--repair",
+        "--transaction-id=5",
+        "--data-block-size=128",
+        &md
+    ))?;
     assert!(stderr.contains("nr data blocks"));
     Ok(())
 }

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
-use nom::{number::complete::*, IResult};
 use byteorder::{LittleEndian, WriteBytesExt};
+use nom::{number::complete::*, IResult};
 
 //------------------------------------------
 

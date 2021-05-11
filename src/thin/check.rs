@@ -11,6 +11,7 @@ use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::space_map_checker::*;
+use crate::pdata::space_map_disk::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
@@ -79,11 +80,10 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
+pub const MAX_CONCURRENT_IO: u32 = 1024;
 
-pub struct ThinCheckOptions<'a> {
-    pub dev: &'a Path,
-    pub async_io: bool,
+pub struct ThinCheckOptions {
+    pub engine: Arc<dyn IoEngine + Send + Sync>,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
@@ -194,25 +194,12 @@ fn check_mapping_bottom_level(
     }
 }
 
-fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-    let nr_threads;
-
-    if opts.async_io {
-        nr_threads = std::cmp::min(4, num_cpus::get());
-        engine = Arc::new(AsyncIoEngine::new(
-            opts.dev,
-            MAX_CONCURRENT_IO,
-            opts.auto_repair,
-        )?);
-    } else {
-        nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, opts.auto_repair)?);
-    }
+fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
+    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {
-        report: opts.report.clone(),
+        report,
         engine,
         pool,
     })
@@ -231,7 +218,7 @@ fn bail_out(ctx: &Context, task: &str) -> Result<()> {
 }
 
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let ctx = mk_context(&opts)?;
+    let ctx = mk_context(opts.engine.clone(), opts.report.clone())?;
 
     // FIXME: temporarily get these out
     let report = &ctx.report;
@@ -352,6 +339,110 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     tid.join().unwrap();
 
     Ok(())
+}
+
+//------------------------------------------
+
+// Some callers wish to know which blocks are allocated.
+pub struct CheckMaps {
+    pub metadata_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    pub data_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+}
+
+pub fn check_with_maps(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<CheckMaps> {
+    let ctx = mk_context(engine.clone(), report.clone())?;
+    report.set_title("Checking thin metadata");
+
+    // superblock
+    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+
+    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
+
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let mut path = Vec::new();
+    path.push(0);
+
+    // Device details.   We read this once to get the number of thin devices, and hence the
+    // maximum metadata ref count.  Then create metadata space map, and reread to increment
+    // the ref counts for that metadata.
+    let devs = btree_to_map::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        false,
+        sb.details_root,
+    )?;
+    let nr_devs = devs.len();
+    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+    inc_superblock(&metadata_sm)?;
+
+    report.set_sub_title("device details tree");
+    let _devs = btree_to_map_with_sm::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.details_root,
+    )?;
+
+    let (tid, stop_progress) = spawn_progress_thread(
+        metadata_sm.clone(),
+        metadata_root.nr_allocated,
+        report.clone(),
+    )?;
+
+    // mapping top level
+    report.set_sub_title("mapping tree");
+    let roots = btree_to_map_with_path::<u64>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        false,
+        sb.mapping_root,
+    )?;
+
+    // mapping bottom level
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    bail_out(&ctx, "mapping tree")?;
+
+    //-----------------------------------------
+
+    report.set_sub_title("data space map");
+    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let _data_leaks = check_disk_space_map(
+        engine.clone(),
+        report.clone(),
+        root,
+        data_sm.clone(),
+        metadata_sm.clone(),
+        false,
+    )?;
+    bail_out(&ctx, "data space map")?;
+
+    //-----------------------------------------
+
+    report.set_sub_title("metadata space map");
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    report.info(&format!(
+        "METADATA_FREE_BLOCKS={}",
+        root.nr_blocks - root.nr_allocated
+    ));
+
+    // Now the counts should be correct and we can check it.
+    let _metadata_leaks =
+        check_metadata_space_map(engine.clone(), report, root, metadata_sm.clone(), false)?;
+    bail_out(&ctx, "metadata space map")?;
+
+    //-----------------------------------------
+
+    stop_progress.store(true, Ordering::Relaxed);
+    tid.join().unwrap();
+
+    Ok(CheckMaps {
+        metadata_sm: metadata_sm.clone(),
+        data_sm: data_sm.clone(),
+    })
 }
 
 //------------------------------------------

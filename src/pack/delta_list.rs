@@ -12,7 +12,7 @@ use Delta::*;
 
 pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
     use std::cmp::Ordering::*;
-    
+
     let mut ds = Vec::with_capacity(ns.len());
 
     if !ns.is_empty() {
@@ -31,10 +31,7 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
                         count += 1;
                     }
                     count -= 1;
-                    ds.push(Neg {
-                        delta,
-                        count,
-                    });
+                    ds.push(Neg { delta, count });
                     base -= delta * count;
                 }
                 Equal => {
@@ -54,10 +51,7 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
                         count += 1;
                     }
                     count -= 1;
-                    ds.push(Pos {
-                        delta,
-                        count,
-                    });
+                    ds.push(Pos { delta, count });
                     base += delta * count;
                 }
             }

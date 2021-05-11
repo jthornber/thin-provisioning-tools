@@ -8,8 +8,9 @@ use std::process;
 use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
+use thinp::io_engine::*;
 use thinp::report::*;
-use thinp::thin::check::{check, ThinCheckOptions};
+use thinp::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
 
 fn main() {
     let parser = App::new("thin_check")
@@ -97,25 +98,22 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
-    if matches.is_present("SYNC_IO") &&
-    matches.is_present("ASYNC_IO") {
+    if matches.is_present("SYNC_IO") && matches.is_present("ASYNC_IO") {
         eprintln!("--sync-io and --async-io may not be used at the same time.");
         process::exit(1);
     }
 
-    let mut async_io = false;
-    if matches.is_present("ASYNC_IO") {
-        async_io = true;
-    }
+    let engine: Arc<dyn IoEngine + Send + Sync>;
 
-    // redundant since sync is the default.
-    if matches.is_present("SYNC_IO") {
-        async_io = false;
+    if matches.is_present("ASYNC_IO") {
+        engine = Arc::new(AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, false).expect("unable to open input file"));
+    } else {
+        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
+        engine = Arc::new(SyncIoEngine::new(&input_file, nr_threads, false).expect("unable to open input file"));
     }
 
     let opts = ThinCheckOptions {
-        dev: &input_file,
-        async_io,
+        engine: engine,
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),

@@ -1,10 +1,18 @@
-use crate::io_engine::*;
 use anyhow::{anyhow, Result};
+use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{bytes::complete::*, number::complete::*, IResult};
 use std::fmt;
+use std::io::Cursor;
+
+use crate::checksum::*;
+use crate::io_engine::*;
+
+//----------------------------------------
+
+pub const MAGIC: u64 = 27022010;
 pub const SUPERBLOCK_LOCATION: u64 = 0;
-//const UUID_SIZE: usize = 16;
-const SPACE_MAP_ROOT_SIZE: usize = 128;
+const UUID_SIZE: usize = 16;
+pub const SPACE_MAP_ROOT_SIZE: usize = 128;
 
 #[derive(Debug, Clone)]
 pub struct SuperblockFlags {
@@ -35,35 +43,8 @@ pub struct Superblock {
     pub mapping_root: u64,
     pub details_root: u64,
     pub data_block_size: u32,
+    pub nr_metadata_blocks: u64,
 }
-
-/*
-pub enum CheckSeverity {
-    Fatal,
-    NonFatal,
-}
-
-pub trait CheckError {
-    fn severity(&self) -> CheckSeverity;
-    fn block(&self) -> u64;
-    fn sub_errors(&self) -> Vec<Box<dyn CheckError>>;
-}
-
-enum ErrorType {
-    BadChecksum,
-    BadBlockType(&'static str),
-    BadBlock(u64),
-    BadVersion(u32),
-    MetadataSnapOutOfBounds(u64),
-    MappingRootOutOfBounds(u64),
-    DetailsRootOutOfBounds(u64),
-}
-
-struct SuperblockError {
-    severity: CheckSeverity,
-    kind: ErrorType,
-}
-*/
 
 fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, _csum) = le_u32(data)?;
@@ -81,7 +62,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, details_root) = le_u64(i)?;
     let (i, data_block_size) = le_u32(i)?;
     let (i, _metadata_block_size) = le_u32(i)?;
-    let (i, _metadata_nr_blocks) = le_u64(i)?;
+    let (i, nr_metadata_blocks) = le_u64(i)?;
 
     Ok((
         i,
@@ -100,6 +81,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
             mapping_root,
             details_root,
             data_block_size,
+            nr_metadata_blocks,
         },
     ))
 }
@@ -112,6 +94,54 @@ pub fn read_superblock(engine: &dyn IoEngine, loc: u64) -> Result<Superblock> {
     } else {
         Err(anyhow!("couldn't unpack superblock"))
     }
+}
+
+//------------------------------
+
+fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
+    // checksum, which we don't know yet
+    w.write_u32::<LittleEndian>(0)?;
+
+    // flags
+    if sb.flags.needs_check {
+        w.write_u32::<LittleEndian>(0x1)?;
+    } else {
+        w.write_u32::<LittleEndian>(0)?;
+    }
+
+    w.write_u64::<LittleEndian>(sb.block)?;
+    w.write_all(&vec![0; UUID_SIZE])?;
+    w.write_u64::<LittleEndian>(MAGIC)?;
+    w.write_u32::<LittleEndian>(sb.version)?;
+    w.write_u32::<LittleEndian>(sb.time)?;
+    w.write_u64::<LittleEndian>(sb.transaction_id)?;
+    w.write_u64::<LittleEndian>(sb.metadata_snap)?;
+    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?; // data sm root
+    w.write_all(&vec![0; SPACE_MAP_ROOT_SIZE])?; // metadata sm root
+    w.write_u64::<LittleEndian>(sb.mapping_root)?;
+    w.write_u64::<LittleEndian>(sb.details_root)?;
+    w.write_u32::<LittleEndian>(sb.data_block_size)?;
+    w.write_u32::<LittleEndian>(BLOCK_SIZE as u32)?;
+    w.write_u64::<LittleEndian>(sb.nr_metadata_blocks)?;
+
+    Ok(())
+}
+
+pub fn write_superblock(engine: &dyn IoEngine, _loc: u64, sb: &Superblock) -> Result<()> {
+    let b = Block::zeroed(SUPERBLOCK_LOCATION);
+
+    // pack the superblock
+    {
+        let mut cursor = Cursor::new(b.get_data());
+        pack_superblock(sb, &mut cursor)?;
+    }
+
+    // calculate the checksum
+    write_checksum(b.get_data(), BT::SUPERBLOCK)?;
+
+    // write
+    engine.write(&b)?;
+    Ok(())
 }
 
 //------------------------------

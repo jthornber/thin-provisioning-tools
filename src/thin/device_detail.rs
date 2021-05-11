@@ -1,7 +1,9 @@
+use anyhow::Result;
+use byteorder::{LittleEndian, WriteBytesExt};
+use nom::{number::complete::*, IResult};
 use std::fmt;
 
 use crate::pdata::unpack::*;
-use nom::{number::complete::*, IResult};
 
 //------------------------------------------
 
@@ -15,11 +17,11 @@ pub struct DeviceDetail {
 
 impl fmt::Display for DeviceDetail {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "mapped = {}, trans = {}, create = {}, snap = {}",
-              self.mapped_blocks,
-              self.transaction_id,
-              self.creation_time,
-              self.snapshotted_time)?;
+        write!(
+            f,
+            "mapped = {}, trans = {}, create = {}, snap = {}",
+            self.mapped_blocks, self.transaction_id, self.creation_time, self.snapshotted_time
+        )?;
         Ok(())
     }
 }
@@ -44,6 +46,16 @@ impl Unpack for DeviceDetail {
                 snapshotted_time,
             },
         ))
+    }
+}
+
+impl Pack for DeviceDetail {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+        w.write_u64::<LittleEndian>(self.mapped_blocks)?;
+        w.write_u64::<LittleEndian>(self.transaction_id)?;
+        w.write_u32::<LittleEndian>(self.creation_time)?;
+        w.write_u32::<LittleEndian>(self.snapshotted_time)?;
+        Ok(())
     }
 }
 

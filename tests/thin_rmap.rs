@@ -2,8 +2,8 @@ use anyhow::Result;
 use thinp::version::TOOLS_VERSION;
 
 mod common;
-use common::*;
 use common::test_dir::*;
+use common::*;
 
 //------------------------------------------
 
@@ -54,7 +54,16 @@ fn valid_region_format_should_pass() -> Result<()> {
 
 #[test]
 fn invalid_regions_should_fail() -> Result<()> {
-    let invalid_regions = ["23,7890", "23..six", "found..7890", "89..88", "89..89", "89..", "", "89...99"];
+    let invalid_regions = [
+        "23,7890",
+        "23..six",
+        "found..7890",
+        "89..88",
+        "89..89",
+        "89..",
+        "",
+        "89...99",
+    ];
     for r in &invalid_regions {
         let mut td = TestDir::new()?;
         let md = mk_valid_md(&mut td)?;

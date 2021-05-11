@@ -1,11 +1,11 @@
 use anyhow::Result;
-use thinp::version::TOOLS_VERSION;
 use duct::cmd;
+use thinp::version::TOOLS_VERSION;
 
 mod common;
 
-use common::*;
 use common::test_dir::*;
+use common::*;
 
 //------------------------------------------
 
@@ -88,7 +88,7 @@ fn failing_q() -> Result<()> {
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
-    
+
 #[test]
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;

@@ -6,7 +6,6 @@ use std::io::Cursor;
 
 const BLOCK_SIZE: u64 = 4096;
 #[allow(dead_code)]
-const MAGIC: u64 = 0xa537a0aa6309ef77;
 const SUPERBLOCK_CSUM_XOR: u32 = 160774;
 const BITMAP_CSUM_XOR: u32 = 240779;
 const INDEX_CSUM_XOR: u32 = 160478;
@@ -62,7 +61,7 @@ pub fn write_checksum(buf: &mut [u8], kind: BT) -> Result<()> {
         ARRAY => ARRAY_CSUM_XOR,
         UNKNOWN => {return Err(anyhow!("Invalid block type"));}
     };
-    
+
     let csum = checksum(buf) ^ salt;
     let mut out = std::io::Cursor::new(buf);
     out.write_u32::<LittleEndian>(csum)?;

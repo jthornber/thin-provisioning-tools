@@ -145,11 +145,11 @@ namespace persistent_data {
 	{
 		internal_node n = spine.get_node<block_traits>();
 
+		// compact the path if there's only one child
 		if (n.get_nr_entries() == 1) {
 			block_address b = n.value_at(0);
 			read_ref child = tm_.read_lock(b, validator_);
 
-			// FIXME: is it safe?
 			::memcpy(n.raw(), child.data(), read_ref::BLOCK_SIZE);
 
 			tm_.get_sm()->dec(child.get_location());
@@ -341,7 +341,6 @@ namespace persistent_data {
 		if (nr_left < nr_right) {
 			int s = nr_left - target_left;
 
-			// FIXME: signed & unsigned comparison
 			if (s < 0 && nr_center < static_cast<unsigned>(-s)) {
 				// not enough in central node
 				left.move_entries(center, -nr_center);
