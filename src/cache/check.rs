@@ -337,7 +337,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         let (_discard_bits, err) = read_bitset_with_sm(
             engine.clone(),
             sb.discard_root,
-            sb.cache_blocks as usize,
+            sb.discard_nr_blocks as usize,
             metadata_sm.clone(),
             opts.ignore_non_fatal,
         )?;

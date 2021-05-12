@@ -31,15 +31,15 @@ impl CheckedBitSet {
 }
 
 struct BitsetVisitor {
-    nr_entries: usize,
+    nr_bits: usize,
     bits: Mutex<CheckedBitSet>,
 }
 
 impl BitsetVisitor {
-    pub fn new(nr_entries: usize) -> Self {
+    pub fn new(nr_bits: usize) -> Self {
         BitsetVisitor {
-            nr_entries,
-            bits: Mutex::new(CheckedBitSet::with_capacity(nr_entries)),
+            nr_bits,
+            bits: Mutex::new(CheckedBitSet::with_capacity(nr_bits)),
         }
     }
 
@@ -51,15 +51,15 @@ impl BitsetVisitor {
 impl ArrayVisitor<u64> for BitsetVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
         let mut begin = (index as usize * (b.header.max_entries as usize)) << 6;
+        if begin >= self.nr_bits as usize {
+            return Err(array::value_err(format!(
+                "bitset size exceeds limit: {} bits",
+                self.nr_bits
+            )));
+        }
 
         for i in 0..b.header.nr_entries as usize {
-            if begin > self.nr_entries as usize {
-                return Err(array::value_err(
-                    "bitset size exceeds expectation".to_string(),
-                ));
-            }
-
-            let end: usize = std::cmp::min(begin + 64, self.nr_entries as usize);
+            let end: usize = std::cmp::min(begin + 64, self.nr_bits as usize);
             let mut mask = 1;
             let bits = b.values[i];
 
@@ -77,11 +77,11 @@ impl ArrayVisitor<u64> for BitsetVisitor {
 pub fn read_bitset(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
-    nr_entries: usize,
+    nr_bits: usize,
     ignore_none_fatal: bool,
 ) -> (CheckedBitSet, Option<array::ArrayError>) {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
-    let mut v = BitsetVisitor::new(nr_entries);
+    let mut v = BitsetVisitor::new(nr_bits);
     let err = w.walk(&mut v, root);
     let e = match err {
         Ok(()) => None,
@@ -94,12 +94,12 @@ pub fn read_bitset(
 pub fn read_bitset_with_sm(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
-    nr_entries: usize,
+    nr_bits: usize,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_none_fatal: bool,
 ) -> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
     let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
-    let mut v = BitsetVisitor::new(nr_entries);
+    let mut v = BitsetVisitor::new(nr_bits);
     let err = w.walk(&mut v, root);
     let e = match err {
         Ok(()) => None,
