@@ -58,10 +58,9 @@ impl ArrayVisitor<u64> for BitsetVisitor {
             )));
         }
 
-        for i in 0..b.header.nr_entries as usize {
+        for bits in b.values.iter() {
             let end: usize = std::cmp::min(begin + 64, self.nr_bits as usize);
             let mut mask = 1;
-            let bits = b.values[i];
 
             for bi in begin..end {
                 self.bits.lock().unwrap().set(bi, bits & mask != 0);
