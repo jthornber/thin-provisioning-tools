@@ -1,5 +1,5 @@
 use anyhow::Result;
-use thinp::version::TOOLS_VERSION;
+use thinp::version::tools_version;
 
 mod common;
 use common::test_dir::*;
@@ -10,14 +10,14 @@ use common::*;
 #[test]
 fn accepts_v() -> Result<()> {
     let stdout = thin_delta!("-V").read()?;
-    assert_eq!(stdout, TOOLS_VERSION);
+    assert_eq!(stdout, tools_version());
     Ok(())
 }
 
 #[test]
 fn accepts_version() -> Result<()> {
     let stdout = thin_delta!("--version").read()?;
-    assert_eq!(stdout, TOOLS_VERSION);
+    assert_eq!(stdout, tools_version());
     Ok(())
 }
 

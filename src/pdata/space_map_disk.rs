@@ -371,7 +371,7 @@ pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRo
     let mut by_bitmap = BTreeMap::new();
     for b in allocations {
         let bitmap = block_to_bitmap(b);
-        (*by_bitmap.entry(bitmap).or_insert(Vec::new())).push(b % ENTRIES_PER_BITMAP as u64);
+        (*by_bitmap.entry(bitmap).or_insert_with(Vec::new)).push(b % ENTRIES_PER_BITMAP as u64);
     }
 
     for (bitmap, allocs) in by_bitmap {

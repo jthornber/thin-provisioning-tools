@@ -1,30 +1,26 @@
 use nom::IResult;
 use std::convert::TryInto;
-use std::marker::PhantomData;
 
 use crate::pdata::unpack::*;
 
 //------------------------------------------
 
 #[derive(Clone, Copy)]
-pub struct Hint<Width> {
-    pub hint: [u8; 4], // FIXME: support various hint sizes
-    _not_used: PhantomData<Width>,
+pub struct Hint {
+    pub hint: [u8; 4],
 }
 
-impl<Width: typenum::Unsigned> Unpack for Hint<Width> {
+impl Unpack for Hint {
     fn disk_size() -> u32 {
-        Width::to_u32()
+        4
     }
 
-    // FIXME: support different width
-    fn unpack(i: &[u8]) -> IResult<&[u8], Hint<Width>> {
-        let size = Width::to_usize();
+    fn unpack(i: &[u8]) -> IResult<&[u8], Hint> {
+        let size = 4;
         Ok((
             &i[size..],
             Hint {
                 hint: i[0..size].try_into().unwrap(),
-                _not_used: PhantomData,
             },
         ))
     }

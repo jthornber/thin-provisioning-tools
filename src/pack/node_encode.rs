@@ -114,4 +114,8 @@ pub fn pack_index<W: Write>(w: &mut W, bytes: &[u8]) -> PResult<()> {
     io_to_pr(pack_literal(w, bytes))
 }
 
+pub fn pack_array<W: Write>(w: &mut W, bytes: &[u8]) -> PResult<()> {
+    io_to_pr(pack_literal(w, bytes))
+}
+
 //-------------------------------------

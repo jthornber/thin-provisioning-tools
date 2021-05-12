@@ -89,7 +89,7 @@ impl<'a> Pass1<'a> {
         if let Some((name, nodes)) = current {
             Ok((name, nodes.complete(self.w)?))
         } else {
-            let msg = format!("Unbalanced </def> tag");
+            let msg = "Unbalanced </def> tag".to_string();
             Err(anyhow!(msg))
         }
     }
@@ -154,7 +154,7 @@ impl<'a> MetadataVisitor for Pass1<'a> {
             }
             Ok(Visit::Continue)
         } else {
-            let msg = format!("Mapping tags must appear within a <def> or <device> tag.");
+            let msg = "Mapping tags must appear within a <def> or <device> tag.".to_string();
             Err(anyhow!(msg))
         }
     }

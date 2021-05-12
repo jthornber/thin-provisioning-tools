@@ -33,7 +33,6 @@ threadpool = "1.8"
 thiserror = "1.0"
 tui = "0.10"
 termion = "1.5"
-typenum = "1.12.0"
 
 [dev-dependencies]
 json = "0.12"

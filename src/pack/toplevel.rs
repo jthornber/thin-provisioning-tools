@@ -209,6 +209,7 @@ fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
         BT::NODE => pack_btree_node(w, buf).context("unable to pack btree node")?,
         BT::INDEX => pack_index(w, buf).context("unable to pack space map index")?,
         BT::BITMAP => pack_bitmap(w, buf).context("unable to pack space map bitmap")?,
+        BT::ARRAY => pack_array(w, buf).context("unable to pack array block")?,
         BT::UNKNOWN => return Err(anyhow!("asked to pack an unknown block type")),
     }
 

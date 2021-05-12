@@ -69,10 +69,7 @@ impl BTreeWalker {
 
     fn failed(&self, b: u64) -> Option<BTreeError> {
         let fails = self.fails.lock().unwrap();
-        match fails.get(&b) {
-            None => None,
-            Some(e) => Some(e.clone()),
-        }
+        fails.get(&b).cloned()
     }
 
     fn set_fail(&self, b: u64, err: BTreeError) {
@@ -379,13 +376,13 @@ where
             }
         }
         Ok(rblocks) => {
-            let errs = Arc::new(Mutex::new(Vec::new()));
+            let child_errs = Arc::new(Mutex::new(Vec::new()));
 
             for (i, rb) in rblocks.into_iter().enumerate() {
                 match rb {
                     Err(_) => {
                         let e = io_err(path).keys_context(&filtered_krs[i]);
-                        let mut errs = errs.lock().unwrap();
+                        let mut errs = child_errs.lock().unwrap();
                         errs.push(e.clone());
                         w.set_fail(blocks[i], e);
                     }
@@ -393,7 +390,7 @@ where
                         let w = w.clone();
                         let visitor = visitor.clone();
                         let kr = filtered_krs[i].clone();
-                        let errs = errs.clone();
+                        let errs = child_errs.clone();
                         let mut path = path.clone();
 
                         pool.execute(move || {
@@ -410,6 +407,8 @@ where
             }
 
             pool.join();
+            let mut child_errs = Arc::try_unwrap(child_errs).unwrap().into_inner().unwrap();
+            errs.append(&mut child_errs);
         }
     }
 
@@ -562,6 +561,54 @@ pub fn btree_to_map_with_path<V: Unpack + Copy>(
 
     walker.walk(path, &visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
+}
+
+//------------------------------------------
+
+struct NoopVisitor<V> {
+    dummy: std::marker::PhantomData<V>,
+}
+
+impl<V> NoopVisitor<V> {
+    pub fn new() -> NoopVisitor<V> {
+        NoopVisitor {
+            dummy: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _header: &NodeHeader,
+        _keys: &[u64],
+        _values: &[V],
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    //fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn count_btree_blocks<V: Unpack>(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    path: &mut Vec<u64>,
+    root: u64,
+    metadata_sm: ASpaceMap,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let w = BTreeWalker::new_with_sm(engine, metadata_sm, ignore_non_fatal)?;
+    let v = NoopVisitor::<V>::new();
+    w.walk(path, &v, root)
 }
 
 //------------------------------------------
