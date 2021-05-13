@@ -10,6 +10,7 @@ use crate::cache::xml::{self, MetadataVisitor};
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
+use crate::pdata::bitset::{read_bitset, CheckedBitSet};
 
 //------------------------------------------
 
@@ -79,48 +80,11 @@ mod format2 {
     use super::*;
 
     //-------------------
-    // Dirty bitset visitor
-    pub struct DirtyVisitor {
-        nr_entries: usize,
-        bits: Mutex<FixedBitSet>,
-    }
-
-    impl DirtyVisitor {
-        pub fn new(nr_entries: usize) -> Self {
-            DirtyVisitor {
-                nr_entries, // number of bits
-                bits: Mutex::new(FixedBitSet::with_capacity(nr_entries)),
-            }
-        }
-
-        pub fn get_bits(self) -> FixedBitSet {
-            self.bits.into_inner().unwrap()
-        }
-    }
-
-    impl ArrayVisitor<u64> for DirtyVisitor {
-        fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
-            let mut pos = (index as usize * (b.header.max_entries as usize)) << 6;
-            for bits in b.values.iter() {
-                for bi in 0..64u64 {
-                    if pos >= self.nr_entries {
-                        break;
-                    }
-
-                    self.bits.lock().unwrap().set(pos, bits & (1 << bi) != 0);
-                    pos += 1;
-                }
-            }
-            Ok(())
-        }
-    }
-
-    //-------------------
     // Mapping visitor
 
     struct Inner<'a> {
         visitor: &'a mut dyn MetadataVisitor,
-        dirty_bits: FixedBitSet,
+        dirty_bits: CheckedBitSet,
         valid_mappings: FixedBitSet,
     }
 
@@ -131,7 +95,7 @@ mod format2 {
     impl<'a> MappingEmitter<'a> {
         pub fn new(
             nr_entries: usize,
-            dirty_bits: FixedBitSet,
+            dirty_bits: CheckedBitSet,
             visitor: &'a mut dyn MetadataVisitor,
         ) -> MappingEmitter<'a> {
             MappingEmitter {
@@ -159,7 +123,13 @@ mod format2 {
                 }
 
                 let mut inner = self.inner.lock().unwrap();
-                let dirty = inner.dirty_bits.contains(cblock as usize);
+                let dirty;
+                if let Some(bit) = inner.dirty_bits.contains(cblock as usize) {
+                    dirty = bit;
+                } else {
+                    // default to dirty if the bitset is damaged
+                    dirty = true;
+                }
                 let m = xml::Map {
                     cblock,
                     oblock: map.oblock,
@@ -266,17 +236,20 @@ fn dump_metadata(ctx: &Context, sb: &Superblock, _repair: bool) -> anyhow::Resul
         }
         2 => {
             // We need to walk the dirty bitset first.
-            let w = ArrayWalker::new(engine.clone(), false);
-            let mut v = format2::DirtyVisitor::new(sb.cache_blocks as usize);
-
+            let dirty_bits;
             if let Some(root) = sb.dirty_root {
-                w.walk(&mut v, root)?;
+                let (bits, errs) =
+                    read_bitset(engine.clone(), root, sb.cache_blocks as usize, false);
+                // TODO: allow errors in repair mode
+                if errs.is_some() {
+                    return Err(anyhow!("errors in bitset {}", errs.unwrap()));
+                }
+                dirty_bits = bits;
             } else {
                 // FIXME: is there a way this can legally happen?  eg,
                 // a crash of a freshly created cache?
                 return Err(anyhow!("format 2 selected, but no dirty bitset present"));
             }
-            let dirty_bits = v.get_bits();
 
             let w = ArrayWalker::new(engine.clone(), false);
             let mut emitter =
