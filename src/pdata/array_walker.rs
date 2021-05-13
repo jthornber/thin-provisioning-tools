@@ -53,7 +53,9 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
         keys: &[u64],
         values: &[u64],
     ) -> btree::Result<()> {
-        let mut path = path.to_vec();
+        if keys.is_empty() {
+            return Ok(());
+        }
 
         // The ordering of array indices had been verified in unpack_node(),
         // thus checking the upper bound implies key continuity among siblings.
@@ -86,6 +88,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                             array_errs.push(array::io_err(&path, values[i]).index_context(keys[i]));
                         }
                         Ok(b) => {
+                            let mut path = path.to_vec();
                             path.push(b.loc);
                             match unpack_array_block::<V>(&path, b.get_data()) {
                                 Ok(array_block) => {

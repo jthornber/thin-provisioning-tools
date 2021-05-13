@@ -90,9 +90,7 @@ mod format1 {
         fn visit(&self, _index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
             let mut errs: Vec<ArrayError> = Vec::new();
 
-            for i in 0..b.header.nr_entries as usize {
-                let m = b.values[i];
-
+            for m in b.values.iter() {
                 if let Err(e) = self.check_flags(&m) {
                     errs.push(e);
                 }
@@ -180,12 +178,10 @@ mod format2 {
             let mut inner = self.inner.lock().unwrap();
             let mut errs: Vec<ArrayError> = Vec::new();
 
-            let begin = index as usize * b.header.max_entries as usize;
-            for i in 0..b.header.nr_entries {
-                let m = b.values[i as usize];
-
-                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(begin + i as usize))
-                {
+            let cbegin = index as u32 * b.header.max_entries;
+            let cend = cbegin + b.header.nr_entries;
+            for (m, cblock) in b.values.iter().zip(cbegin..cend) {
+                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(cblock as usize)) {
                     errs.push(e);
                 }
                 if let Err(e) = self.check_oblock(&m, &mut inner.seen_oblocks) {

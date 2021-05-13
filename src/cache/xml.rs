@@ -119,7 +119,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn mapping(&mut self, m: &Map) -> Result<Visit> {
-        let tag = b"map";
+        let tag = b"mapping";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
         elem.push_attribute(mk_attr(b"cache_block", m.cblock));
         elem.push_attribute(mk_attr(b"origin_block", m.oblock));

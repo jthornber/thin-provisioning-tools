@@ -104,7 +104,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
             },
             block,
             version,
-            policy_name: policy_name.to_vec(),
+            policy_name: policy_name.splitn(2, |c| *c == 0).next().unwrap().to_vec(),
             policy_version: vec![vsn_major, vsn_minor, vsn_patch],
             policy_hint_size,
             metadata_sm_root: metadata_sm_root.to_vec(),

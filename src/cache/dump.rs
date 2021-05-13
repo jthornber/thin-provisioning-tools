@@ -47,20 +47,21 @@ mod format1 {
 
     impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
         fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
-            for i in 0..b.header.nr_entries as usize {
-                let map = b.values[i];
+            let cbegin = index as u32 * b.header.max_entries;
+            let cend = cbegin + b.header.nr_entries;
+            for (map, cblock) in b.values.iter().zip(cbegin..cend) {
                 if !map.is_valid() {
                     continue;
                 }
 
                 let m = xml::Map {
-                    cblock: index as u32,
+                    cblock,
                     oblock: map.oblock,
                     dirty: map.is_dirty(),
                 };
 
                 let mut inner = self.inner.lock().unwrap();
-                inner.valid_mappings.set(index as usize, true);
+                inner.valid_mappings.set(cblock as usize, true);
                 inner
                     .visitor
                     .mapping(&m)
@@ -100,9 +101,7 @@ mod format2 {
     impl ArrayVisitor<u64> for DirtyVisitor {
         fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
             let mut pos = (index as usize * (b.header.max_entries as usize)) << 6;
-            for i in 0..b.header.nr_entries as usize {
-                let bits = b.values[i];
-
+            for bits in b.values.iter() {
                 for bi in 0..64u64 {
                     if pos >= self.nr_entries {
                         break;
@@ -152,22 +151,22 @@ mod format2 {
 
     impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
         fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
-            for i in 0..b.header.nr_entries as usize {
-                let map = b.values[i];
-
+            let cbegin = index as u32 * b.header.max_entries;
+            let cend = cbegin + b.header.nr_entries;
+            for (map, cblock) in b.values.iter().zip(cbegin..cend) {
                 if !map.is_valid() {
                     continue;
                 }
 
                 let mut inner = self.inner.lock().unwrap();
-                let dirty = inner.dirty_bits.contains(index as usize);
+                let dirty = inner.dirty_bits.contains(cblock as usize);
                 let m = xml::Map {
-                    cblock: index as u32,
+                    cblock,
                     oblock: map.oblock,
                     dirty,
                 };
 
-                inner.valid_mappings.set(index as usize, true);
+                inner.valid_mappings.set(cblock as usize, true);
                 inner
                     .visitor
                     .mapping(&m)
@@ -196,13 +195,13 @@ impl<'a> HintEmitter<'a> {
 
 impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
     fn visit(&self, index: u64, b: ArrayBlock<Hint>) -> array::Result<()> {
-        let mut cblock = index as u32 * b.header.max_entries;
-        for i in 0..b.header.nr_entries as usize {
+        let cbegin = index as u32 * b.header.max_entries;
+        let cend = cbegin + b.header.nr_entries;
+        for (hint, cblock) in b.values.iter().zip(cbegin..cend) {
             if !self.valid_mappings.contains(cblock as usize) {
                 continue;
             }
 
-            let hint = b.values[i];
             let h = xml::Hint {
                 cblock,
                 data: hint.hint.to_vec(),
@@ -213,8 +212,6 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
                 .unwrap()
                 .hint(&h)
                 .map_err(|e| array::value_err(format!("{}", e)))?;
-
-            cblock += 1;
         }
 
         Ok(())
@@ -254,7 +251,7 @@ fn dump_metadata(ctx: &Context, sb: &Superblock, _repair: bool) -> anyhow::Resul
         uuid: "".to_string(),
         block_size: sb.data_block_size,
         nr_cache_blocks: sb.cache_blocks,
-        policy: std::str::from_utf8(&sb.policy_name[..])?.to_string(),
+        policy: std::str::from_utf8(&sb.policy_name)?.to_string(),
         hint_width: sb.policy_hint_size,
     };
     out.superblock_b(&xml_sb)?;
