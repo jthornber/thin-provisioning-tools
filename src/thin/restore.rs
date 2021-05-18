@@ -32,7 +32,7 @@ impl std::fmt::Display for MappedSection {
 }
 
 struct Pass1Result {
-    sb: Option<xml::Superblock>,
+    sb: xml::Superblock,
     devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
 }
 
@@ -45,7 +45,8 @@ struct Pass1<'a> {
     // The builder for the current shared sub tree or device
     map: Option<(MappedSection, NodeBuilder<BlockTime>)>,
 
-    result: Pass1Result,
+    sb: Option<xml::Superblock>,
+    devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
 }
 
 impl<'a> Pass1<'a> {
@@ -55,15 +56,19 @@ impl<'a> Pass1<'a> {
             current_dev: None,
             sub_trees: BTreeMap::new(),
             map: None,
-            result: Pass1Result {
-                sb: None,
-                devices: BTreeMap::new(),
-            },
+            sb: None,
+            devices: BTreeMap::new(),
         }
     }
 
-    fn get_result(self) -> Pass1Result {
-        self.result
+    fn get_result(self) -> Result<Pass1Result> {
+        if self.sb.is_none() {
+            return Err(anyhow!("No superblock found in xml file"));
+        }
+        Ok(Pass1Result {
+            sb: self.sb.unwrap(),
+            devices: self.devices,
+        })
     }
 
     fn begin_section(&mut self, section: MappedSection) -> Result<Visit> {
@@ -97,7 +102,7 @@ impl<'a> Pass1<'a> {
 
 impl<'a> MetadataVisitor for Pass1<'a> {
     fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
-        self.result.sb = Some(sb.clone());
+        self.sb = Some(sb.clone());
         self.w.alloc()?;
         Ok(Visit::Continue)
     }
@@ -132,7 +137,7 @@ impl<'a> MetadataVisitor for Pass1<'a> {
     fn device_e(&mut self) -> Result<Visit> {
         if let Some(detail) = self.current_dev.take() {
             if let (MappedSection::Dev(thin_id), nodes) = self.end_section()? {
-                self.result.devices.insert(thin_id, (detail, nodes));
+                self.devices.insert(thin_id, (detail, nodes));
                 Ok(Visit::Continue)
             } else {
                 Err(anyhow!("internal error, couldn't find device details"))
@@ -246,7 +251,7 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
     let mut pass = Pass1::new(&mut w);
     xml::read(input, &mut pass)?;
-    let pass = pass.get_result();
+    let pass = pass.get_result()?;
 
     // Build the device details tree.
     let mut details_builder: Builder<DeviceDetail> = Builder::new(Box::new(NoopRC {}));
@@ -281,26 +286,21 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     w.flush()?;
 
     // Write the superblock
-    if let Some(xml_sb) = pass.sb {
-        let sb = superblock::Superblock {
-            flags: SuperblockFlags { needs_check: false },
-            block: SUPERBLOCK_LOCATION,
-            version: 2,
-            time: xml_sb.time as u32,
-            transaction_id: xml_sb.transaction,
-            metadata_snap: 0,
-            data_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
-            metadata_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
-            mapping_root,
-            details_root,
-            data_block_size: xml_sb.data_block_size,
-            nr_metadata_blocks: ctx.engine.get_nr_blocks(),
-        };
-
-        write_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
-    } else {
-        return Err(anyhow!("No superblock found in xml file"));
-    }
+    let sb = superblock::Superblock {
+        flags: SuperblockFlags { needs_check: false },
+        block: SUPERBLOCK_LOCATION,
+        version: 2,
+        time: pass.sb.time as u32,
+        transaction_id: pass.sb.transaction,
+        metadata_snap: 0,
+        data_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
+        metadata_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
+        mapping_root,
+        details_root,
+        data_block_size: pass.sb.data_block_size,
+        nr_metadata_blocks: ctx.engine.get_nr_blocks(),
+    };
+    write_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
 
     Ok(())
 }
