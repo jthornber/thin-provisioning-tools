@@ -27,3 +27,4 @@ pub mod shrink;
 pub mod thin;
 pub mod version;
 pub mod write_batcher;
+pub mod xml;

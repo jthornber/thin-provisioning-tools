@@ -1,10 +1,12 @@
-use anyhow::Result;
-use base64::encode;
-use std::{borrow::Cow, fmt::Display, io::Write};
+use anyhow::{anyhow, Result};
+use base64::{decode, encode};
+use std::io::{BufRead, BufReader};
+use std::io::{Read, Write};
 
-use quick_xml::events::attributes::Attribute;
 use quick_xml::events::{BytesEnd, BytesStart, Event};
-use quick_xml::Writer;
+use quick_xml::{Reader, Writer};
+
+use crate::xml::*;
 
 //---------------------------------------
 
@@ -70,18 +72,6 @@ impl<W: Write> XmlWriter<W> {
         XmlWriter {
             w: Writer::new_with_indent(w, 0x20, 2),
         }
-    }
-}
-
-fn mk_attr_<'a, T: Display>(n: T) -> Cow<'a, [u8]> {
-    let str = format!("{}", n);
-    Cow::Owned(str.into_bytes())
-}
-
-fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
-    Attribute {
-        key,
-        value: mk_attr_(value),
     }
 }
 
@@ -175,4 +165,130 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn eof(&mut self) -> Result<Visit> {
         Ok(Visit::Continue)
     }
+}
+
+//------------------------------------------
+
+fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
+    let mut uuid: Option<String> = None;
+    let mut block_size: Option<u32> = None;
+    let mut nr_cache_blocks: Option<u32> = None;
+    let mut policy: Option<String> = None;
+    let mut hint_width: Option<u32> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"uuid" => uuid = Some(string_val(&kv)),
+            b"block_size" => block_size = Some(u32_val(&kv)?),
+            b"nr_cache_blocks" => nr_cache_blocks = Some(u32_val(&kv)?),
+            b"policy" => policy = Some(string_val(&kv)),
+            b"hint_width" => hint_width = Some(u32_val(&kv)?),
+            _ => return bad_attr("superblock", kv.key),
+        }
+    }
+
+    let tag = "cache";
+
+    Ok(Superblock {
+        uuid: check_attr(tag, "uuid", uuid)?,
+        block_size: check_attr(tag, "block_size", block_size)?,
+        nr_cache_blocks: check_attr(tag, "nr_cache_blocks", nr_cache_blocks)?,
+        policy: check_attr(tag, "policy", policy)?,
+        hint_width: check_attr(tag, "hint_width", hint_width)?,
+    })
+}
+
+fn parse_mapping(e: &BytesStart) -> Result<Map> {
+    let mut cblock: Option<u32> = None;
+    let mut oblock: Option<u64> = None;
+    let mut dirty: Option<bool> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"cache_block" => cblock = Some(u32_val(&kv)?),
+            b"origin_block" => oblock = Some(u64_val(&kv)?),
+            b"dirty" => dirty = Some(bool_val(&kv)?),
+            _ => return bad_attr("mapping", kv.key),
+        }
+    }
+
+    let tag = "mapping";
+
+    Ok(Map {
+        cblock: check_attr(tag, "cache_block", cblock)?,
+        oblock: check_attr(tag, "origin_block", oblock)?,
+        dirty: check_attr(tag, "dirty", dirty)?,
+    })
+}
+
+fn parse_hint(e: &BytesStart) -> Result<Hint> {
+    let mut cblock: Option<u32> = None;
+    let mut data: Option<Vec<u8>> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"cache_block" => cblock = Some(u32_val(&kv)?),
+            b"data" => data = Some(decode(bytes_val(&kv))?),
+            _ => return bad_attr("mapping", kv.key),
+        }
+    }
+
+    let tag = "hint";
+
+    Ok(Hint {
+        cblock: check_attr(tag, "cache_block", cblock)?,
+        data: check_attr(tag, "data", data)?,
+    })
+}
+
+fn handle_event<R, M>(reader: &mut Reader<R>, buf: &mut Vec<u8>, visitor: &mut M) -> Result<Visit>
+where
+    R: Read + BufRead,
+    M: MetadataVisitor,
+{
+    match reader.read_event(buf) {
+        Ok(Event::Start(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
+            b"mappings" => visitor.mappings_b(),
+            b"hints" => visitor.hints_b(),
+            _ => todo!(),
+        },
+        Ok(Event::End(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_e(),
+            b"mappings" => visitor.mappings_e(),
+            b"hints" => visitor.hints_e(),
+            _ => todo!(),
+        },
+        Ok(Event::Empty(ref e)) => match e.name() {
+            b"mapping" => visitor.mapping(&parse_mapping(e)?),
+            b"hint" => visitor.hint(&parse_hint(e)?),
+            _ => todo!(),
+        },
+        Ok(Event::Text(_)) => Ok(Visit::Continue),
+        Ok(Event::Comment(_)) => Ok(Visit::Continue),
+        Ok(Event::Eof) => {
+            visitor.eof()?;
+            Ok(Visit::Stop)
+        }
+        Ok(_) => todo!(),
+        Err(e) => Err(anyhow!("{:?}", e)),
+    }
+}
+
+pub fn read<R, M>(input: R, visitor: &mut M) -> Result<()>
+where
+    R: Read,
+    M: MetadataVisitor,
+{
+    let input = BufReader::new(input);
+    let mut reader = Reader::from_reader(input);
+
+    reader.trim_text(true);
+    let mut buf = Vec::new();
+
+    while let Visit::Continue = handle_event(&mut reader, &mut buf, visitor)? {}
+    Ok(())
 }
