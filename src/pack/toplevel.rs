@@ -205,7 +205,9 @@ where
 
 fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
     match kind {
-        BT::SUPERBLOCK => pack_superblock(w, buf).context("unable to pack superblock")?,
+        BT::THIN_SUPERBLOCK | BT::CACHE_SUPERBLOCK | BT::ERA_SUPERBLOCK => {
+            pack_superblock(w, buf).context("unable to pack superblock")?
+        }
         BT::NODE => pack_btree_node(w, buf).context("unable to pack btree node")?,
         BT::INDEX => pack_index(w, buf).context("unable to pack space map index")?,
         BT::BITMAP => pack_bitmap(w, buf).context("unable to pack space map bitmap")?,

@@ -137,7 +137,7 @@ pub fn write_superblock(engine: &dyn IoEngine, _loc: u64, sb: &Superblock) -> Re
     }
 
     // calculate the checksum
-    write_checksum(b.get_data(), BT::SUPERBLOCK)?;
+    write_checksum(b.get_data(), BT::THIN_SUPERBLOCK)?;
 
     // write
     engine.write(&b)?;
