@@ -6,25 +6,24 @@ use std::io::Cursor;
 use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::array::*;
+use crate::pdata::btree_builder::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 
 //------------------------------------------
 
-pub struct ArrayBuilder<V: Unpack + Pack> {
+pub struct ArrayBlockBuilder<V: Unpack + Pack> {
     array_io: ArrayIO<V>,
     max_entries_per_block: usize,
     values: VecDeque<(u64, V)>,
-    array_blocks: Vec<ArraySummary>,
+    array_blocks: Vec<u64>,
     nr_entries: u64,
     nr_emitted: u64,
     nr_queued: u64,
 }
 
-struct ArraySummary {
-    block: u64,
-    index: u64,
-    nr_entries: usize,
+pub struct ArrayBuilder<V: Unpack + Pack> {
+    block_builder: ArrayBlockBuilder<V>,
 }
 
 struct ArrayIO<V: Unpack + Pack> {
@@ -43,9 +42,9 @@ fn calc_max_entries<V: Unpack>() -> usize {
 
 //------------------------------------------
 
-impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
-    pub fn new(nr_entries: u64) -> ArrayBuilder<V> {
-        ArrayBuilder {
+impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
+    pub fn new(nr_entries: u64) -> ArrayBlockBuilder<V> {
+        ArrayBlockBuilder {
             array_io: ArrayIO::new(),
             max_entries_per_block: calc_max_entries::<V>(),
             values: VecDeque::new(),
@@ -56,7 +55,7 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
         }
     }
 
-    fn push_value(&mut self, w: &mut WriteBatcher, index: u64, v: V) -> Result<()> {
+    pub fn push_value(&mut self, w: &mut WriteBatcher, index: u64, v: V) -> Result<()> {
         assert!(index >= self.nr_emitted + self.nr_queued);
         assert!(index < self.nr_entries);
 
@@ -70,8 +69,9 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
         Ok(())
     }
 
-    fn complete(mut self, w: &mut WriteBatcher) -> Result<Vec<ArraySummary>> {
+    pub fn complete(mut self, w: &mut WriteBatcher) -> Result<Vec<u64>> {
         if self.nr_emitted + self.nr_queued < self.nr_entries {
+            // FIXME: flushing with a default values looks confusing
             self.push_value(w, self.nr_entries - 1, Default::default())?;
         }
         self.emit_all(w)?;
@@ -112,28 +112,50 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
             let len = self.values.front().unwrap().0 - self.nr_emitted + 1;
             if len <= nr_free as u64 {
                 let (_, v) = self.values.pop_front().unwrap();
-                values.resize_with(len as usize - 1, Default::default);
+                if len > 1 {
+                    values.resize_with(values.len() + len as usize - 1, Default::default);
+                }
                 values.push(v);
                 nr_free -= len as usize;
                 self.nr_emitted += len;
                 self.nr_queued -= len;
             } else {
-                values.resize_with(nr_free, Default::default);
+                values.resize_with(values.len() + nr_free as usize, Default::default);
                 self.nr_emitted += nr_free as u64;
                 self.nr_queued -= nr_free as u64;
+                nr_free = 0;
             }
         }
 
-        let nr_entries = values.len();
         let wresult = self.array_io.write(w, values)?;
 
-        self.array_blocks.push(ArraySummary {
-            block: wresult.loc,
-            index: self.nr_emitted / self.max_entries_per_block as u64,
-            nr_entries,
-        });
+        self.array_blocks.push(wresult.loc);
 
         Ok(())
+    }
+}
+
+//------------------------------------------
+
+impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
+    pub fn new(nr_entries: u64) -> ArrayBuilder<V> {
+        ArrayBuilder {
+            block_builder: ArrayBlockBuilder::<V>::new(nr_entries),
+        }
+    }
+
+    pub fn push_value(&mut self, w: &mut WriteBatcher, index: u64, v: V) -> Result<()> {
+        self.block_builder.push_value(w, index, v)
+    }
+
+    pub fn complete(self, w: &mut WriteBatcher) -> Result<u64> {
+        let blocks = self.block_builder.complete(w)?;
+        let mut index_builder = Builder::<u64>::new(Box::new(NoopRC {}));
+
+        for (i, b) in blocks.iter().enumerate() {
+            index_builder.push_value(w, i as u64, *b)?;
+        }
+        index_builder.complete(w)
     }
 }
 
