@@ -274,8 +274,11 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // The discard bitset is optional and could be updated during device suspension.
+    // A restored metadata therefore comes with a zero-sized discard bitset,
+    // and also zeroed discard_block_size and discard_nr_blocks.
     let nr_origin_blocks;
-    if sb.flags.clean_shutdown {
+    if sb.flags.clean_shutdown && sb.discard_block_size > 0 && sb.discard_nr_blocks > 0 {
         let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
         nr_origin_blocks = Some(origin_sectors / sb.data_block_size as u64);
     } else {
