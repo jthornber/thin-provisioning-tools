@@ -121,7 +121,7 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     w.write_u64::<LittleEndian>(sb.mapping_root)?;
     w.write_u64::<LittleEndian>(sb.details_root)?;
     w.write_u32::<LittleEndian>(sb.data_block_size)?;
-    w.write_u32::<LittleEndian>(BLOCK_SIZE as u32)?;
+    w.write_u32::<LittleEndian>((BLOCK_SIZE >> SECTOR_SHIFT) as u32)?; // metadata block size
     w.write_u64::<LittleEndian>(sb.nr_metadata_blocks)?;
 
     Ok(())
