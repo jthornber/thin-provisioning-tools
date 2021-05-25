@@ -11,7 +11,7 @@ use crate::pdata::btree::{self, *};
 use crate::pdata::btree_leaf_walker::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_disk::*;
+use crate::pdata::space_map_common::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
