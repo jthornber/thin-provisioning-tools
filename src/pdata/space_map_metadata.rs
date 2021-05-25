@@ -126,6 +126,7 @@ pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRo
     metadata_index.pack(&mut cur)?;
     let loc = bitmap_root.loc;
     w.write(bitmap_root, checksum::BT::INDEX)?;
+    w.flush()?;
 
     Ok(SMRoot {
         nr_blocks: sm.get_nr_blocks()?,

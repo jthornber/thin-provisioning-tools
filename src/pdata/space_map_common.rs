@@ -209,7 +209,7 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
         let mut nr_free: u32 = 0;
         for i in 0..ENTRIES_PER_BITMAP {
             let b: u64 = ((bm * ENTRIES_PER_BITMAP) as u64) + i as u64;
-            if b > sm.get_nr_blocks()? {
+            if b >= sm.get_nr_blocks()? {
                 break;
             }
             let rc = sm.get(b)?;

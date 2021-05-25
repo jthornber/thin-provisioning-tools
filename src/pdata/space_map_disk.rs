@@ -16,6 +16,7 @@ pub fn write_disk_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRoot> 
     }
 
     let bitmap_root = index_builder.complete(w)?;
+    w.flush()?;
 
     Ok(SMRoot {
         nr_blocks: sm.get_nr_blocks()?,
