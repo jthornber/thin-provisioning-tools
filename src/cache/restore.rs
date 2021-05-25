@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 
 use std::convert::TryInto;
 use std::fs::OpenOptions;
+use std::io::Cursor;
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -13,6 +15,8 @@ use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
 use crate::pdata::space_map::*;
+use crate::pdata::space_map_metadata::*;
+use crate::pdata::unpack::Pack;
 use crate::report::*;
 use crate::write_batcher::*;
 
@@ -90,6 +94,8 @@ impl<'a> Restorer<'a> {
     }
 
     fn get_result(self) -> Result<RestoreResult> {
+        self.write_batcher.flush()?;
+
         if self.sb.is_none() || self.discard_root.is_none() {
             return Err(anyhow!("No superblock found in xml file"));
         }
@@ -221,6 +227,18 @@ impl<'a> MetadataVisitor for Restorer<'a> {
 
 //------------------------------------------
 
+fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
+    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
+    let mut cur = Cursor::new(&mut sm_root);
+    let sm_without_meta = clone_space_map(w.sm.lock().unwrap().deref())?;
+    let r = write_metadata_sm(w, sm_without_meta.deref())?;
+    r.pack(&mut cur)?;
+
+    Ok(sm_root)
+}
+
+//------------------------------------------
+
 pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
     let input = OpenOptions::new()
         .read(true)
@@ -232,11 +250,13 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
     let sm = core_sm(ctx.engine.get_nr_blocks(), u32::MAX);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
 
+    // build cache mappings
     let mut restorer = Restorer::new(&mut w);
     xml::read(input, &mut restorer)?;
     let result = restorer.get_result()?;
 
-    w.flush()?;
+    // build metadata space map
+    let metadata_sm_root = build_metadata_sm(&mut w)?;
 
     let sb = Superblock {
         flags: SuperblockFlags {
@@ -248,7 +268,7 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
         policy_name: result.sb.policy.as_bytes().to_vec(),
         policy_version: vec![2, 0, 0],
         policy_hint_size: result.sb.hint_width,
-        metadata_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
+        metadata_sm_root,
         mapping_root: result.mapping_root,
         dirty_root: result.dirty_root,
         hint_root: result.hint_root,

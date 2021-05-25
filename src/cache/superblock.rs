@@ -167,7 +167,7 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     w.write_all(&policy_name)?;
 
     w.write_u32::<LittleEndian>(sb.policy_hint_size)?;
-    w.write_all(&[0; SPACE_MAP_ROOT_SIZE])?; // metadata sm root
+    w.write_all(&sb.metadata_sm_root)?;
     w.write_u64::<LittleEndian>(sb.mapping_root)?;
     w.write_u64::<LittleEndian>(sb.hint_root)?;
 

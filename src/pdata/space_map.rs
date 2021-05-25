@@ -132,6 +132,16 @@ pub fn core_sm_without_mutex(nr_entries: u64, max_count: u32) -> Box<dyn SpaceMa
     }
 }
 
+// FIXME: replace it by using the Clone trait
+pub fn clone_space_map(src: &dyn SpaceMap) -> Result<Box<dyn SpaceMap>> {
+    let nr_blocks = src.get_nr_blocks()?;
+    let mut dest = Box::new(CoreSpaceMap::<u32>::new(nr_blocks));
+    for i in 0..nr_blocks {
+        dest.set(i, src.get(i)?)?;
+    }
+    Ok(dest)
+}
+
 //------------------------------------------
 
 // This in core space map can only count to one, useful when walking
