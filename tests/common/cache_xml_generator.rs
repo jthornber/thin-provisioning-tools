@@ -67,7 +67,7 @@ impl XmlGen for CacheGen {
 
         v.mappings_b()?;
         {
-            let nr_resident = (self.nr_cache_blocks * 100 as u32) / (self.percent_resident as u32);
+            let nr_resident = (self.nr_cache_blocks * 100u32) / (self.percent_resident as u32);
             let mut used = HashSet::new();
             for n in 0..nr_resident {
                 let mut oblock = 0u64;
