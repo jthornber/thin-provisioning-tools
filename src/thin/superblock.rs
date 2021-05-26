@@ -116,8 +116,8 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     w.write_u32::<LittleEndian>(sb.time)?;
     w.write_u64::<LittleEndian>(sb.transaction_id)?;
     w.write_u64::<LittleEndian>(sb.metadata_snap)?;
-    w.write_all(&[0; SPACE_MAP_ROOT_SIZE])?; // data sm root
-    w.write_all(&[0; SPACE_MAP_ROOT_SIZE])?; // metadata sm root
+    w.write_all(&sb.data_sm_root)?;
+    w.write_all(&sb.metadata_sm_root)?;
     w.write_u64::<LittleEndian>(sb.mapping_root)?;
     w.write_u64::<LittleEndian>(sb.details_root)?;
     w.write_u32::<LittleEndian>(sb.data_block_size)?;

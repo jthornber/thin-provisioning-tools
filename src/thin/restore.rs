@@ -2,18 +2,42 @@ use anyhow::{anyhow, Result};
 
 use std::collections::BTreeMap;
 use std::fs::OpenOptions;
+use std::io::Cursor;
+use std::ops::Deref;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::io_engine::*;
 use crate::pdata::btree_builder::*;
 use crate::pdata::space_map::*;
+use crate::pdata::space_map_disk::*;
+use crate::pdata::space_map_metadata::*;
+use crate::pdata::unpack::Pack;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::{self, *};
 use crate::thin::xml::{self, *};
 use crate::write_batcher::*;
+
+//------------------------------------------
+
+struct MappingRC {
+    sm: Arc<Mutex<dyn SpaceMap>>,
+}
+
+impl RefCounter<BlockTime> for MappingRC {
+    fn get(&self, v: &BlockTime) -> Result<u32> {
+        return self.sm.lock().unwrap().get(v.block);
+    }
+    fn inc(&mut self, v: &BlockTime) -> Result<()> {
+        self.sm.lock().unwrap().inc(v.block, 1)
+    }
+    fn dec(&mut self, v: &BlockTime) -> Result<()> {
+        self.sm.lock().unwrap().dec(v.block)?;
+        Ok(())
+    }
+}
 
 //------------------------------------------
 
@@ -31,9 +55,12 @@ impl std::fmt::Display for MappedSection {
     }
 }
 
+//------------------------------------------
+
 struct Pass1Result {
     sb: xml::Superblock,
     devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
+    data_sm: Arc<Mutex<dyn SpaceMap>>,
 }
 
 struct Pass1<'a> {
@@ -47,6 +74,7 @@ struct Pass1<'a> {
 
     sb: Option<xml::Superblock>,
     devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
+    data_sm: Option<Arc<Mutex<dyn SpaceMap>>>,
 }
 
 impl<'a> Pass1<'a> {
@@ -58,6 +86,7 @@ impl<'a> Pass1<'a> {
             map: None,
             sb: None,
             devices: BTreeMap::new(),
+            data_sm: None,
         }
     }
 
@@ -68,6 +97,7 @@ impl<'a> Pass1<'a> {
         Ok(Pass1Result {
             sb: self.sb.unwrap(),
             devices: self.devices,
+            data_sm: self.data_sm.unwrap(),
         })
     }
 
@@ -80,7 +110,9 @@ impl<'a> Pass1<'a> {
             return Err(anyhow!(msg));
         }
 
-        let value_rc = Box::new(NoopRC {});
+        let value_rc = Box::new(MappingRC {
+            sm: self.data_sm.as_ref().unwrap().clone(),
+        });
         let leaf_builder = NodeBuilder::new(Box::new(LeafIO {}), value_rc);
 
         self.map = Some((section, leaf_builder));
@@ -103,6 +135,7 @@ impl<'a> Pass1<'a> {
 impl<'a> MetadataVisitor for Pass1<'a> {
     fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
+        self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
         self.w.alloc()?;
         Ok(Visit::Continue)
     }
@@ -196,13 +229,29 @@ impl<'a> MetadataVisitor for Pass1<'a> {
 }
 
 //------------------------------------------
-/*
+
 /// Writes a data space map to disk.  Returns the space map root that needs
 /// to be written to the superblock.
-fn build_data_sm(batcher: WriteBatcher, sm: Box<dyn SpaceMap>) -> Result<Vec<u8>> {
+fn build_data_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<Vec<u8>> {
+    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
+    let mut cur = Cursor::new(&mut sm_root);
+    let r = write_disk_sm(w, sm)?;
+    r.pack(&mut cur)?;
 
+    Ok(sm_root)
 }
-*/
+
+/// Writes the metadata space map to disk.  Returns the space map root that needs
+/// to be written to the superblock.
+fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
+    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
+    let mut cur = Cursor::new(&mut sm_root);
+    let sm_without_meta = clone_space_map(w.sm.lock().unwrap().deref())?;
+    let r = write_metadata_sm(w, sm_without_meta.deref())?;
+    r.pack(&mut cur)?;
+
+    Ok(sm_root)
+}
 
 //------------------------------------------
 
@@ -279,11 +328,11 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     let mapping_root = builder.complete(&mut w)?;
 
     // Build data space map
+    let data_sm_root = build_data_sm(&mut w, pass.data_sm.lock().unwrap().deref())?;
 
     // FIXME: I think we need to decrement the shared leaves
     // Build metadata space map
-
-    w.flush()?;
+    let metadata_sm_root = build_metadata_sm(&mut w)?;
 
     // Write the superblock
     let sb = superblock::Superblock {
@@ -293,8 +342,8 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
         time: pass.sb.time as u32,
         transaction_id: pass.sb.transaction,
         metadata_snap: 0,
-        data_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
-        metadata_sm_root: vec![0; SPACE_MAP_ROOT_SIZE],
+        data_sm_root,
+        metadata_sm_root,
         mapping_root,
         details_root,
         data_block_size: pass.sb.data_block_size,
