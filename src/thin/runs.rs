@@ -19,6 +19,7 @@ pub struct Gatherer {
     heads: BTreeSet<u64>,
     tails: BTreeSet<u64>,
     entries: BTreeMap<u64, Entry>,
+    back: BTreeMap<u64, u64>,
 }
 
 impl Gatherer {
@@ -28,6 +29,7 @@ impl Gatherer {
             heads: BTreeSet::new(),
             tails: BTreeSet::new(),
             entries: BTreeMap::new(),
+            back: BTreeMap::new(),
         }
     }
 
@@ -59,6 +61,14 @@ impl Gatherer {
         if let Some(prev) = self.prev {
             let e = self.entries.get_mut(&prev).unwrap();
             e.neighbours.insert(b);
+
+            if let Some(back) = self.back.get(&b) {
+                if *back != prev {
+                    self.mark_head(b);
+                }
+            } else {
+                self.back.insert(b, prev);
+            }
         } else {
             self.mark_head(b);
         }
@@ -153,6 +163,8 @@ mod tests {
 
     #[test]
     fn gather() {
+        // the first value defines the input runs,
+        // and the second defines expected sub sequences
         struct Test(Vec<Vec<u64>>, Vec<Vec<u64>>);
 
         let tests = vec![
@@ -176,6 +188,10 @@ mod tests {
                     vec![5, 6],
                 ],
                 vec![vec![1], vec![2], vec![3, 4], vec![5, 6]],
+            ),
+            Test(
+                vec![vec![2, 3, 4, 5], vec![2, 3, 4, 6], vec![1, 3, 4, 5]],
+                vec![vec![1], vec![2], vec![3, 4], vec![5], vec![6]],
             ),
         ];
 
