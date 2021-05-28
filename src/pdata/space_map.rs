@@ -103,6 +103,7 @@ where
             if self.counts[b as usize] == V::from(0u8) {
                 self.counts[b as usize] = V::from(1u8);
                 self.first_free = b + 1;
+                self.nr_allocated += 1;
                 return Ok(Some(b));
             }
         }
