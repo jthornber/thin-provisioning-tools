@@ -1,3 +1,4 @@
+use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{multi::count, number::complete::*, IResult};
 use std::fmt;
 use thiserror::Error;
@@ -5,7 +6,7 @@ use thiserror::Error;
 use crate::checksum;
 use crate::io_engine::BLOCK_SIZE;
 use crate::pdata::btree;
-use crate::pdata::unpack::Unpack;
+use crate::pdata::unpack::{Pack, Unpack};
 
 //------------------------------------------
 
@@ -44,9 +45,29 @@ impl Unpack for ArrayBlockHeader {
     }
 }
 
+impl Pack for ArrayBlockHeader {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
+        // csum needs to be calculated right for the whole metadata block.
+        w.write_u32::<LittleEndian>(0)?;
+        w.write_u32::<LittleEndian>(self.max_entries)?;
+        w.write_u32::<LittleEndian>(self.nr_entries)?;
+        w.write_u32::<LittleEndian>(self.value_size)?;
+        w.write_u64::<LittleEndian>(self.blocknr)?;
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
 pub struct ArrayBlock<V: Unpack> {
     pub header: ArrayBlockHeader,
     pub values: Vec<V>,
+}
+
+impl<V: Unpack> ArrayBlock<V> {
+    pub fn set_block(&mut self, b: u64) {
+        self.header.blocknr = b;
+    }
 }
 
 //------------------------------------------

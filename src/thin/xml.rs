@@ -1,9 +1,10 @@
-use anyhow::{anyhow, Result};
-use std::{borrow::Cow, fmt::Display, io::prelude::*, io::BufReader, io::Write};
+use anyhow::Result;
+use std::{io::prelude::*, io::BufReader, io::Write};
 
-use quick_xml::events::attributes::Attribute;
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
+
+use crate::xml::*;
 
 //---------------------------------------
 
@@ -69,18 +70,6 @@ impl<W: Write> XmlWriter<W> {
         XmlWriter {
             w: Writer::new_with_indent(w, 0x20, 2),
         }
-    }
-}
-
-fn mk_attr_<'a, T: Display>(n: T) -> Cow<'a, [u8]> {
-    let str = format!("{}", n);
-    Cow::Owned(str.into_bytes())
-}
-
-fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
-    Attribute {
-        key,
-        value: mk_attr_(value),
     }
 }
 
@@ -186,40 +175,6 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
 }
 
 //---------------------------------------
-
-// FIXME: nasty unwraps
-fn string_val(kv: &Attribute) -> String {
-    let v = kv.unescaped_value().unwrap();
-    let bytes = v.to_vec();
-    String::from_utf8(bytes).unwrap()
-}
-
-// FIXME: there's got to be a way of doing this without copying the string
-fn u64_val(kv: &Attribute) -> Result<u64> {
-    let n = string_val(kv).parse::<u64>()?;
-    Ok(n)
-}
-
-fn u32_val(kv: &Attribute) -> Result<u32> {
-    let n = string_val(kv).parse::<u32>()?;
-    Ok(n)
-}
-
-fn bad_attr<T>(_tag: &str, _attr: &[u8]) -> Result<T> {
-    todo!();
-}
-
-fn missing_attr<T>(tag: &str, attr: &str) -> Result<T> {
-    let msg = format!("missing attribute '{}' for tag '{}", attr, tag);
-    Err(anyhow!(msg))
-}
-
-fn check_attr<T>(tag: &str, name: &str, maybe_v: Option<T>) -> Result<T> {
-    match maybe_v {
-        None => missing_attr(tag, name),
-        Some(v) => Ok(v),
-    }
-}
 
 fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     let mut uuid: Option<String> = None;

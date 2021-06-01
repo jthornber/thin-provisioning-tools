@@ -1,3 +1,5 @@
+use anyhow::Result;
+use byteorder::WriteBytesExt;
 use nom::IResult;
 use std::convert::TryInto;
 
@@ -23,6 +25,21 @@ impl Unpack for Hint {
                 hint: i[0..size].try_into().unwrap(),
             },
         ))
+    }
+}
+
+impl Pack for Hint {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+        for v in &self.hint {
+            data.write_u8(*v)?;
+        }
+        Ok(())
+    }
+}
+
+impl Default for Hint {
+    fn default() -> Self {
+        Hint { hint: [0; 4] }
     }
 }
 

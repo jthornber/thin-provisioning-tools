@@ -43,6 +43,7 @@ impl WriteBatcher {
             return Err(anyhow!("out of metadata space"));
         }
 
+        self.allocations.insert(b.unwrap());
         Ok(Block::new(b.unwrap()))
     }
 

@@ -1,3 +1,5 @@
+use anyhow::Result;
+use byteorder::WriteBytesExt;
 use nom::number::complete::*;
 use nom::IResult;
 
@@ -48,6 +50,22 @@ impl Unpack for Mapping {
                 flags: flags as u32,
             },
         ))
+    }
+}
+
+impl Pack for Mapping {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+        let m: u64 = (self.oblock << 16) | self.flags as u64;
+        m.pack(data)
+    }
+}
+
+impl Default for Mapping {
+    fn default() -> Self {
+        Mapping {
+            oblock: 0,
+            flags: 0,
+        }
     }
 }
 

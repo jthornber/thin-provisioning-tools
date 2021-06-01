@@ -103,6 +103,7 @@ where
             if self.counts[b as usize] == V::from(0u8) {
                 self.counts[b as usize] = V::from(1u8);
                 self.first_free = b + 1;
+                self.nr_allocated += 1;
                 return Ok(Some(b));
             }
         }
@@ -130,6 +131,16 @@ pub fn core_sm_without_mutex(nr_entries: u64, max_count: u32) -> Box<dyn SpaceMa
     } else {
         Box::new(CoreSpaceMap::<u32>::new(nr_entries))
     }
+}
+
+// FIXME: replace it by using the Clone trait
+pub fn clone_space_map(src: &dyn SpaceMap) -> Result<Box<dyn SpaceMap>> {
+    let nr_blocks = src.get_nr_blocks()?;
+    let mut dest = Box::new(CoreSpaceMap::<u32>::new(nr_blocks));
+    for i in 0..nr_blocks {
+        dest.set(i, src.get(i)?)?;
+    }
+    Ok(dest)
 }
 
 //------------------------------------------
