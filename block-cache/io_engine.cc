@@ -174,9 +174,6 @@ aio_engine::wait_(timespec *ts)
 		cbs_.free(cb);
 		return optional<wait_result>(make_pair(false, context));
 	}
-
-	// shouldn't get here
-	return optional<wait_result>(make_pair(false, 0));
 }
 
 struct timespec
