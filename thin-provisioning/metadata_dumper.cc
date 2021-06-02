@@ -180,7 +180,7 @@ namespace {
 // This is about classifying and summarising btree nodes.  The use of a btree
 // node may not be obvious when inspecting it in isolation.  But more information
 // may be gleaned by examining child and sibling nodes.
-// 
+//
 // So the process is:
 // - scan every metadata block, summarising it's potential uses.
 // - repeatedly iterate those summaries until we can glean no more useful information.
@@ -474,7 +474,7 @@ namespace {
 		node_info get_internal_info(block_manager::read_ref &rr) {
 			node_info info;
 			info.b = rr.get_location();
-			 
+
 			// values refer to blocks, so we should have infos for them.
 			auto n = to_node<block_traits>(rr);
 			::uint64_t key_low = 0;
@@ -524,7 +524,7 @@ namespace {
 			node_info info;
 			info.b = rr.get_location();
 
-			auto vsize = to_cpu<uint32_t>(hdr.value_size); 
+			auto vsize = to_cpu<uint32_t>(hdr.value_size);
 			info.values = to_cpu<uint32_t>(hdr.nr_entries);
 
 			if (vsize == sizeof(device_details_traits::disk_type)) {
@@ -645,6 +645,10 @@ namespace {
 	public:
 		mapping_emit_visitor(emitter::ptr e)
 			: e_(e),
+			  origin_start_(0),
+			  dest_start_(0),
+			  time_(0),
+			  len_(0),
 			  in_range_(false) {
 		}
 
