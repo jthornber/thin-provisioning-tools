@@ -192,9 +192,13 @@ static void printf_aligned(struct global *g, char const *a, char const *b, char 
 {
 	char buf[80];
 
-	strcpy(buf, b);
-	if (units)
-		strcat(buf, mandatory ? "{" :"["), strcat(buf, g->unit.chars), strcat(buf, mandatory ? "}" : "]");
+	if (units) {
+		char left_bracket = mandatory ? '{' : '[';
+		char right_bracket = mandatory ? '}' : ']';
+		snprintf(buf, 80, "%s%c%s%c", b, left_bracket, g->unit.chars, right_bracket);
+	} else {
+		snprintf(buf, 80, "%s", b);
+	}
 
 	printf("\t%-4s%-44s%s\n", a, buf, c);
 }
