@@ -84,10 +84,7 @@ COMMON_SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
-	thin-provisioning/cache_stream.cc \
-	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
-	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -95,7 +92,6 @@ COMMON_SOURCE=\
 	thin-provisioning/metadata_counter.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/override_emitter.cc \
-	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
@@ -137,8 +133,12 @@ DEVTOOLS_SOURCE=\
 	dbg-lib/sm_show_traits.cc \
 	era/devel_commands.cc \
 	era/era_debug.cc \
+	thin-provisioning/cache_stream.cc \
+	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/damage_generator.cc \
 	thin-provisioning/devel_commands.cc \
+	thin-provisioning/fixed_chunk_stream.cc \
+	thin-provisioning/pool_stream.cc \
 	thin-provisioning/thin_debug.cc \
 	thin-provisioning/thin_generate_damage.cc \
 	thin-provisioning/thin_generate_mappings.cc \
@@ -383,4 +383,3 @@ test: functional-test unit-test
 endif
 
 -include $(DEPEND_FILES)
-
