@@ -143,7 +143,6 @@ thin_dump_cmd::run(int argc, char **argv)
 	int c;
 	char const *output = NULL;
 	const char shortopts[] = "hm::o:f:rV";
-	char *end_ptr;
 	block_address metadata_snap = 0;
 	::uint64_t dev_id;
 	struct flags flags;
@@ -181,13 +180,7 @@ thin_dump_cmd::run(int argc, char **argv)
 			flags.use_metadata_snap = true;
 			if (optarg) {
 				// FIXME: deprecate this option
-				metadata_snap = strtoull(optarg, &end_ptr, 10);
-				if (end_ptr == optarg) {
-					cerr << "couldn't parse <metadata-snap>" << endl;
-					usage(cerr);
-					return 1;
-				}
-
+				metadata_snap = parse_uint64(optarg, "metadata-snap");
 				flags.snap_location = metadata_snap;
 			}
 			break;
@@ -197,12 +190,7 @@ thin_dump_cmd::run(int argc, char **argv)
 			break;
 
 		case 1:
-			dev_id = strtoull(optarg, &end_ptr, 10);
-			if (end_ptr == optarg) {
-				cerr << "couldn't parse <dev-id>\n";
-				usage(cerr);
-				return 1;
-			}
+			dev_id = parse_uint64(optarg, "dev-id");
 			flags.opts.select_dev(dev_id);
 			break;
 
