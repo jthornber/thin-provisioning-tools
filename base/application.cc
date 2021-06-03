@@ -25,8 +25,14 @@ command::die(string const &msg)
 }
 
 ::uint64_t
-command::parse_uint64(string const &str, string const &desc)
+command::parse_uint64(char const *str, char const *desc)
 {
+	if (!str) {
+		ostringstream out;
+		out << "Couldn't parse " << desc << ": NULL";
+		die(out.str());
+	}
+
 	try {
 		// FIXME: check trailing garbage is handled
 		return lexical_cast<::uint64_t>(str);

@@ -56,7 +56,7 @@ using namespace thin_provisioning;
 
 namespace {
 	bool factor_of(block_address f, block_address n) {
-		return (n % f) == 0;
+		return f && (n % f) == 0;
 	}
 
 	uint64_t parse_int(string const &str, string const &desc) {
@@ -132,11 +132,15 @@ namespace {
 	class duplicate_detector {
 	public:
 		void scan_with_variable_sized_chunks(chunk_stream &stream) {
+			if (!stream.size())
+				return;
 			variable_chunk_stream vstream(stream, 4096);
 			scan(vstream);
 		}
 
 		void scan_with_fixed_sized_chunks(chunk_stream &stream, block_address chunk_size) {
+			if (!stream.size())
+				return;
 			fixed_chunk_stream fstream(stream, chunk_size);
 			scan(fstream);
 		}
@@ -222,7 +226,7 @@ namespace {
 		if (fs.content_based_chunks)
 			detector.scan_with_variable_sized_chunks(pstream);
 		else {
-			if (*fs.block_size) {
+			if (!!fs.block_size) {
 				if (factor_of(*fs.block_size, block_size))
 					block_size = *fs.block_size;
 				else

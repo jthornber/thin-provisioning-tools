@@ -56,9 +56,6 @@ namespace {
 		default:
 			throw runtime_error("invalid hint width");
 		}
-
-		// never get here
-		return std::shared_ptr<array_base>();
 	}
 
 	//--------------------------------
@@ -93,9 +90,6 @@ namespace {
 		default:
 			throw runtime_error("invalid hint width");
 		}
-
-		// never get here
-		return std::shared_ptr<array_base>();
 	}
 
 	//--------------------------------

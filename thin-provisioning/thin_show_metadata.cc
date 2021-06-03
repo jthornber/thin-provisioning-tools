@@ -206,7 +206,8 @@ namespace {
 
 		void run() {
 			auto line_length = 80;
-			for (block_address b = 0; b < 2000; b++) {
+			block_address nr_blocks = std::min<block_address>(2000, bm_.get_nr_blocks());
+			for (block_address b = 0; b < nr_blocks; b++) {
 				block_manager::read_ref rr = bm_.read_lock(b);
 
 				if (!(b % line_length)) {

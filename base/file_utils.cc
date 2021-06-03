@@ -155,8 +155,10 @@ file_utils::zero_superblock(std::string const &path)
         	throw runtime_error("out of memory");
 
 	memset(buffer, 0, SUPERBLOCK_SIZE);
-	if (::write(fd.fd_, buffer, SUPERBLOCK_SIZE) != SUPERBLOCK_SIZE)
+	if (::write(fd.fd_, buffer, SUPERBLOCK_SIZE) != SUPERBLOCK_SIZE) {
+		free(buffer);
 		throw runtime_error("couldn't zero superblock");
+	}
 }
 
 //----------------------------------------------------------------

@@ -18,7 +18,7 @@ contrib/%.a: contrib/%.o
 	$(V)echo "    [AR] $@"
 	$(V)$(AR) rcs $@ $^
 
-contrib/%.so: contrib/%.a
+contrib/%.so: contrib/%.o
 	$(V)echo "    [LD] $@"
 	$(V)$(CC) -shared -Wl,-soname,$@ -o $@ $<
 

@@ -14,6 +14,7 @@ namespace {
 			: md_(md),
 			  in_superblock_(false),
 			  in_writeset_(false),
+			  era_(0),
 			  in_era_array_(false) {
 		}
 

@@ -19,7 +19,7 @@ namespace base {
 		virtual ~command() {}
 
 		void die(std::string const &msg);
-		uint64_t parse_uint64(std::string const &str, std::string const &desc);
+		uint64_t parse_uint64(char const *str, char const *desc);
 
 
 		virtual void usage(std::ostream &out) const = 0;

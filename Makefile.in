@@ -20,15 +20,18 @@ V=@
 
 PROGRAMS=\
 	bin/pdata_tools
-
-ifeq ("@TESTING@", "yes")
-PROGRAMS += bin/pdata_tools_dev
+DEV_TOOLS=\
+	bin/pdata_tools_dev
 TESTLIBS=\
 	lib/libft.so
-endif
 
-.PHONY: all
-all: $(PROGRAMS) $(TESTLIBS)
+.PHONY: all dev-tools
+all: $(PROGRAMS)
+dev-tools: $(DEV_TOOLS)
+
+ifeq ("@TESTING@", "yes")
+all += $(TESTLIB)
+endif
 
 include contrib/Makefile
 
@@ -84,10 +87,7 @@ COMMON_SOURCE=\
 	persistent-data/space_map.cc \
 	persistent-data/transaction_manager.cc \
 	persistent-data/validators.cc \
-	thin-provisioning/cache_stream.cc \
-	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/device_tree.cc \
-	thin-provisioning/fixed_chunk_stream.cc \
 	thin-provisioning/human_readable_format.cc \
 	thin-provisioning/mapping_tree.cc \
 	thin-provisioning/metadata.cc \
@@ -95,7 +95,6 @@ COMMON_SOURCE=\
 	thin-provisioning/metadata_counter.cc \
 	thin-provisioning/metadata_dumper.cc \
 	thin-provisioning/override_emitter.cc \
-	thin-provisioning/pool_stream.cc \
 	thin-provisioning/restore_emitter.cc \
 	thin-provisioning/rmap_visitor.cc \
 	thin-provisioning/superblock.cc \
@@ -137,8 +136,12 @@ DEVTOOLS_SOURCE=\
 	dbg-lib/sm_show_traits.cc \
 	era/devel_commands.cc \
 	era/era_debug.cc \
+	thin-provisioning/cache_stream.cc \
+	thin-provisioning/chunk_stream.cc \
 	thin-provisioning/damage_generator.cc \
 	thin-provisioning/devel_commands.cc \
+	thin-provisioning/fixed_chunk_stream.cc \
+	thin-provisioning/pool_stream.cc \
 	thin-provisioning/thin_debug.cc \
 	thin-provisioning/thin_generate_damage.cc \
 	thin-provisioning/thin_generate_mappings.cc \
@@ -185,7 +188,8 @@ CXXFLAGS+=@CXXOPTIMISE_FLAG@
 CXXFLAGS+=@CXXDEBUG_FLAG@
 CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
-INCLUDES+=-I$(TOP_BUILDDIR) -I$(TOP_DIR) -I$(TOP_DIR)/thin-provisioning
+CPPFLAGS?=@CPPFLAGS@
+CPPFLAGS+=-I$(TOP_BUILDDIR) -I$(TOP_DIR)
 LIBS:=-laio -lexpat -lboost_iostreams -ldl
 DEV_LIBS:=-lncurses
 
@@ -211,30 +215,21 @@ INSTALL_DIR = $(INSTALL) -m 755 -d
 INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 
-ifeq ("@TESTING@", "yes")
-TEST_INCLUDES=\
-	-I$(TOP_DIR) \
-	-Igoogletest/googlemock/include \
-	-Igoogletest/googletest/include
-else
-TEST_INCLUDES=
-endif
-
 .SUFFIXES: .d .txt .8
 
 %.o: %.cc
 	@echo "    [CXX] $<"
 	@mkdir -p $(dir $@)
-	$(V) $(CXX) -c $(INCLUDES) $(CXXFLAGS) -o $@ $<
-	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CXXFLAGS) $< > $*.$$$$; \
+	$(V) $(CXX) -c $(CPPFLAGS) $(CXXFLAGS) -o $@ $<
+	$(V) $(CXX) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(CXXFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
 %.o: %.c
 	@echo "    [CC] $<"
 	@mkdir -p $(dir $@)
-	$(V) $(CC) -c $(INCLUDES) $(CFLAGS) -o $@ $<
-	$(V) $(CC) -MM -MT $(subst .cc,.o,$<) $(INCLUDES) $(TEST_INCLUDES) $(CFLAGS) $< > $*.$$$$; \
+	$(V) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $<
+	$(V) $(CC) -MM -MT $(subst .cc,.o,$<) $(CPPFLAGS) $(CFLAGS) $< > $*.$$$$; \
 	sed 's,\([^ :]*\)\.o[ :]*,\1.o \1.gmo $* : Makefile ,g' < $*.$$$$ > $*.d; \
 	$(RM) $*.$$$$
 
@@ -275,7 +270,7 @@ clean:
 	find . -name \*.o -delete
 	find . -name \*.gmo -delete
 	find . -name \*.d -delete
-	$(RM) $(PROGRAMS) lib/*.a lib/*.so
+	$(RM) $(PROGRAMS) $(DEV_TOOLS) lib/*.a lib/*.so
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
@@ -360,7 +355,8 @@ install-rust-tools: man8/thin_metadata_pack.8 man8/thin_metadata_unpack.8 rust-t
 	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 
-ifeq ("@TESTING@", "yes")
+#----------------------------------------------------------------
+
 include unit-tests/Makefile
 
 LIBFT_SOURCE=\
@@ -376,11 +372,11 @@ lib/libft.so: $(LIBFT_OBJECTS)
 
 .PHONEY: functional-test unit-test
 
-functional-test: $(PROGRAMS) $(TESTLIBS)
+functional-test: $(PROGRAMS) $(DEV_TOOLS) $(TESTLIBS)
 	cd functional-tests && ./run-tests run
 
 test: functional-test unit-test
-endif
+
+#----------------------------------------------------------------
 
 -include $(DEPEND_FILES)
-
