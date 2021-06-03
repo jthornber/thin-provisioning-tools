@@ -34,6 +34,13 @@ impl Unpack for MetadataIndex {
         let (i, blocknr) = le_u64(i)?;
         let (i, indexes) = nom::multi::count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
 
+        // Filter out unused entries
+        let indexes: Vec<IndexEntry> = indexes
+            .iter()
+            .take_while(|e| e.blocknr != 0)
+            .cloned()
+            .collect();
+
         Ok((i, MetadataIndex { blocknr, indexes }))
     }
 }
@@ -100,7 +107,7 @@ pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRo
     w.clear_allocations();
     let (mut indexes, ref_count_root) = write_common(w, sm)?;
 
-    let bitmap_root = w.alloc()?;
+    let bitmap_root = w.alloc_zeroed()?;
 
     // Now we need to patch up the counts for the metadata that was used for storing
     // the space map itself.  These ref counts all went from 0 to 1.

@@ -47,6 +47,18 @@ impl WriteBatcher {
         Ok(Block::new(b.unwrap()))
     }
 
+    pub fn alloc_zeroed(&mut self) -> Result<Block> {
+        let mut sm = self.sm.lock().unwrap();
+        let b = sm.alloc()?;
+
+        if b.is_none() {
+            return Err(anyhow!("out of metadata space"));
+        }
+
+        self.allocations.insert(b.unwrap());
+        Ok(Block::zeroed(b.unwrap()))
+    }
+
     pub fn clear_allocations(&mut self) -> BTreeSet<u64> {
         let mut tmp = BTreeSet::new();
         std::mem::swap(&mut tmp, &mut self.allocations);
