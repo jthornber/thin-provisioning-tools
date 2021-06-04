@@ -159,6 +159,7 @@ file_utils::zero_superblock(std::string const &path)
 		free(buffer);
 		throw runtime_error("couldn't zero superblock");
 	}
+	free(buffer);
 }
 
 //----------------------------------------------------------------
