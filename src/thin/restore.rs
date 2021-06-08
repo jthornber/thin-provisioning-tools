@@ -330,7 +330,6 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     // Build data space map
     let data_sm_root = build_data_sm(&mut w, pass.data_sm.lock().unwrap().deref())?;
 
-    // FIXME: I think we need to decrement the shared leaves
     // Build metadata space map
     let metadata_sm_root = build_metadata_sm(&mut w)?;
 

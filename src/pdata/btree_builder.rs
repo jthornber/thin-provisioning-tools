@@ -36,8 +36,14 @@ impl<Value> RefCounter<Value> for NoopRC {
 }
 
 /// Wraps a space map up to become a RefCounter.
-struct SMRefCounter {
+pub struct SMRefCounter {
     sm: Arc<Mutex<dyn SpaceMap>>,
+}
+
+impl SMRefCounter {
+    pub fn new(sm: Arc<Mutex<dyn SpaceMap>>) -> SMRefCounter {
+        SMRefCounter { sm }
+    }
 }
 
 impl RefCounter<u64> for SMRefCounter {
@@ -135,12 +141,16 @@ pub struct WriteResult {
     loc: u64,
 }
 
-/// Write a node to a free metadata block.
-fn write_node_<V: Unpack + Pack>(w: &mut WriteBatcher, mut node: Node<V>) -> Result<WriteResult> {
+/// Write a node to a free metadata block, and mark the block as reserved,
+/// without increasing its reference count.
+fn write_reserved_node_<V: Unpack + Pack>(
+    w: &mut WriteBatcher,
+    mut node: Node<V>,
+) -> Result<WriteResult> {
     let keys = node.get_keys();
     let first_key = *keys.first().unwrap_or(&0u64);
 
-    let b = w.alloc()?;
+    let b = w.reserve()?;
     node.set_block(b.loc);
 
     let mut cursor = Cursor::new(b.get_data());
@@ -177,7 +187,7 @@ impl<V: Unpack + Pack> NodeIO<V> for LeafIO {
             values,
         };
 
-        write_node_(w, node)
+        write_reserved_node_(w, node)
     }
 
     fn read(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<V>)> {
@@ -210,7 +220,7 @@ impl NodeIO<u64> for InternalIO {
             values,
         };
 
-        write_node_(w, node)
+        write_reserved_node_(w, node)
     }
 
     fn read(&self, w: &mut WriteBatcher, block: u64) -> Result<(Vec<u64>, Vec<u64>)> {
@@ -314,7 +324,6 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
             // Add the remaining nodes.
             for i in 1..nodes.len() {
                 let n = nodes.get(i).unwrap();
-                w.sm.lock().unwrap().inc(n.block, 1)?;
                 self.nodes.push(n.clone());
             }
         } else {
@@ -323,7 +332,6 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
 
             // add the nodes
             for n in nodes {
-                w.sm.lock().unwrap().inc(n.block, 1)?;
                 self.nodes.push(n.clone());
             }
         }
@@ -425,7 +433,6 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     fn unshift_node(&mut self, w: &mut WriteBatcher) -> Result<()> {
         let ls = self.nodes.pop().unwrap();
         let (keys, values) = self.read_node(w, ls.block)?;
-        w.sm.lock().unwrap().dec(ls.block)?;
 
         let mut vals = VecDeque::new();
 
@@ -473,7 +480,7 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
         while nodes.len() > 1 {
             let mut builder = NodeBuilder::new(
                 Box::new(InternalIO {}),
-                Box::new(SMRefCounter { sm: w.sm.clone() }),
+                Box::new(SMRefCounter::new(w.sm.clone())),
             );
 
             for n in nodes {
@@ -484,7 +491,14 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
         }
 
         assert!(nodes.len() == 1);
-        Ok(nodes[0].block)
+
+        // The root is expected to be referenced by only one parent,
+        // hence the ref count is increased before the availability
+        // of it's parent.
+        let root = nodes[0].block;
+        w.sm.lock().unwrap().inc(root, 1)?;
+
+        Ok(root)
     }
 }
 
