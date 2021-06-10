@@ -200,7 +200,7 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
     use BitmapEntry::*;
 
     let mut index_entries = Vec::new();
-    let mut overflow_builder: Builder<u32> = Builder::new(Box::new(NoopRC {}));
+    let mut overflow_builder: BTreeBuilder<u32> = BTreeBuilder::new(Box::new(NoopRC {}));
 
     // how many bitmaps do we need?
     for bm in 0..div_up(sm.get_nr_blocks()? as usize, ENTRIES_PER_BITMAP) {

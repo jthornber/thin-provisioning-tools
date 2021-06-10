@@ -303,7 +303,7 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     let pass = pass.get_result()?;
 
     // Build the device details tree.
-    let mut details_builder: Builder<DeviceDetail> = Builder::new(Box::new(NoopRC {}));
+    let mut details_builder: BTreeBuilder<DeviceDetail> = BTreeBuilder::new(Box::new(NoopRC {}));
     for (thin_id, (detail, _)) in &pass.devices {
         details_builder.push_value(&mut w, *thin_id as u64, *detail)?;
     }
@@ -314,14 +314,14 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     for (thin_id, (_, nodes)) in &pass.devices {
         ctx.report
             .info(&format!("building btree for device {}", thin_id));
-        let mut builder: Builder<BlockTime> = Builder::new(Box::new(NoopRC {}));
+        let mut builder: BTreeBuilder<BlockTime> = BTreeBuilder::new(Box::new(NoopRC {}));
         builder.push_leaves(&mut w, nodes)?;
         let root = builder.complete(&mut w)?;
         devs.insert(*thin_id, root);
     }
 
     // Build the top level mapping tree
-    let mut builder: Builder<u64> = Builder::new(Box::new(NoopRC {}));
+    let mut builder: BTreeBuilder<u64> = BTreeBuilder::new(Box::new(NoopRC {}));
     for (thin_id, root) in devs {
         builder.push_value(&mut w, thin_id as u64, root)?;
     }

@@ -125,7 +125,7 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBuilder<V> {
 
     pub fn complete(self, w: &mut WriteBatcher) -> Result<u64> {
         let blocks = self.block_builder.complete(w)?;
-        let mut index_builder = Builder::<u64>::new(Box::new(NoopRC {}));
+        let mut index_builder = BTreeBuilder::<u64>::new(Box::new(NoopRC {}));
 
         for (i, b) in blocks.iter().enumerate() {
             index_builder.push_value(w, i as u64, *b)?;

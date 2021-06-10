@@ -453,13 +453,13 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
 
 //------------------------------------------
 
-pub struct Builder<V: Unpack + Pack> {
+pub struct BTreeBuilder<V: Unpack + Pack> {
     leaf_builder: NodeBuilder<V>,
 }
 
-impl<V: Unpack + Pack + Clone> Builder<V> {
-    pub fn new(value_rc: Box<dyn RefCounter<V>>) -> Builder<V> {
-        Builder {
+impl<V: Unpack + Pack + Clone> BTreeBuilder<V> {
+    pub fn new(value_rc: Box<dyn RefCounter<V>>) -> BTreeBuilder<V> {
+        BTreeBuilder {
             leaf_builder: NodeBuilder::new(Box::new(LeafIO {}), value_rc),
         }
     }
@@ -473,33 +473,40 @@ impl<V: Unpack + Pack + Clone> Builder<V> {
     }
 
     pub fn complete(self, w: &mut WriteBatcher) -> Result<u64> {
-        let mut nodes = self.leaf_builder.complete(w)?;
+        let nodes = self.leaf_builder.complete(w)?;
+        build_btree(w, nodes)
+    }
+}
 
-        // Now we iterate, adding layers of internal nodes until we end
-        // up with a single root.
-        while nodes.len() > 1 {
-            let mut builder = NodeBuilder::new(
-                Box::new(InternalIO {}),
-                Box::new(SMRefCounter::new(w.sm.clone())),
-            );
+//------------------------------------------
 
-            for n in nodes {
-                builder.push_value(w, n.key, n.block)?;
-            }
+// Build a btree from a list of pre-built leaves
+pub fn build_btree(w: &mut WriteBatcher, leaves: Vec<NodeSummary>) -> Result<u64> {
+    // Now we iterate, adding layers of internal nodes until we end
+    // up with a single root.
+    let mut nodes = leaves;
+    while nodes.len() > 1 {
+        let mut builder = NodeBuilder::new(
+            Box::new(InternalIO {}),
+            Box::new(SMRefCounter::new(w.sm.clone())),
+        );
 
-            nodes = builder.complete(w)?;
+        for n in nodes {
+            builder.push_value(w, n.key, n.block)?;
         }
 
-        assert!(nodes.len() == 1);
-
-        // The root is expected to be referenced by only one parent,
-        // hence the ref count is increased before the availability
-        // of it's parent.
-        let root = nodes[0].block;
-        w.sm.lock().unwrap().inc(root, 1)?;
-
-        Ok(root)
+        nodes = builder.complete(w)?;
     }
+
+    assert!(nodes.len() == 1);
+
+    // The root is expected to be referenced by only one parent,
+    // hence the ref count is increased before the availability
+    // of it's parent.
+    let root = nodes[0].block;
+    w.sm.lock().unwrap().inc(root, 1)?;
+
+    Ok(root)
 }
 
 //------------------------------------------
