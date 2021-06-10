@@ -57,44 +57,47 @@ impl std::fmt::Display for MappedSection {
 
 //------------------------------------------
 
-struct Pass1Result {
+struct RestoreResult {
     sb: xml::Superblock,
-    devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
+    devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Arc<Mutex<dyn SpaceMap>>,
 }
 
-struct Pass1<'a> {
+struct Restorer<'a> {
     w: &'a mut WriteBatcher,
+    report: Arc<Report>,
 
-    current_dev: Option<DeviceDetail>,
+    // Shared leaves built from the <def> tags
     sub_trees: BTreeMap<String, Vec<NodeSummary>>,
 
     // The builder for the current shared sub tree or device
-    map: Option<(MappedSection, NodeBuilder<BlockTime>)>,
+    current_map: Option<(MappedSection, NodeBuilder<BlockTime>)>,
+    current_dev: Option<DeviceDetail>,
 
     sb: Option<xml::Superblock>,
-    devices: BTreeMap<u32, (DeviceDetail, Vec<NodeSummary>)>,
+    devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Option<Arc<Mutex<dyn SpaceMap>>>,
 }
 
-impl<'a> Pass1<'a> {
-    fn new(w: &'a mut WriteBatcher) -> Self {
-        Pass1 {
+impl<'a> Restorer<'a> {
+    fn new(w: &'a mut WriteBatcher, report: Arc<Report>) -> Self {
+        Restorer {
             w,
-            current_dev: None,
+            report,
             sub_trees: BTreeMap::new(),
-            map: None,
+            current_map: None,
+            current_dev: None,
             sb: None,
             devices: BTreeMap::new(),
             data_sm: None,
         }
     }
 
-    fn get_result(self) -> Result<Pass1Result> {
+    fn get_result(self) -> Result<RestoreResult> {
         if self.sb.is_none() {
             return Err(anyhow!("No superblock found in xml file"));
         }
-        Ok(Pass1Result {
+        Ok(RestoreResult {
             sb: self.sb.unwrap(),
             devices: self.devices,
             data_sm: self.data_sm.unwrap(),
@@ -102,7 +105,7 @@ impl<'a> Pass1<'a> {
     }
 
     fn begin_section(&mut self, section: MappedSection) -> Result<Visit> {
-        if let Some((outer, _)) = self.map.as_ref() {
+        if let Some((outer, _)) = self.current_map.as_ref() {
             let msg = format!(
                 "Nested subtrees are not allowed '{}' within '{}'",
                 section, outer
@@ -115,24 +118,24 @@ impl<'a> Pass1<'a> {
         });
         let leaf_builder = NodeBuilder::new(Box::new(LeafIO {}), value_rc);
 
-        self.map = Some((section, leaf_builder));
+        self.current_map = Some((section, leaf_builder));
         Ok(Visit::Continue)
     }
 
     fn end_section(&mut self) -> Result<(MappedSection, Vec<NodeSummary>)> {
         let mut current = None;
-        std::mem::swap(&mut self.map, &mut current);
+        std::mem::swap(&mut self.current_map, &mut current);
 
         if let Some((name, nodes)) = current {
             Ok((name, nodes.complete(self.w)?))
         } else {
-            let msg = "Unbalanced </def> tag".to_string();
+            let msg = "Unbalanced </def> or </device> tag".to_string();
             Err(anyhow!(msg))
         }
     }
 }
 
-impl<'a> MetadataVisitor for Pass1<'a> {
+impl<'a> MetadataVisitor for Restorer<'a> {
     fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
         self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
@@ -158,6 +161,8 @@ impl<'a> MetadataVisitor for Pass1<'a> {
     }
 
     fn device_b(&mut self, d: &Device) -> Result<Visit> {
+        self.report
+            .info(&format!("building btree for device {}", d.dev_id));
         self.current_dev = Some(DeviceDetail {
             mapped_blocks: d.mapped_blocks,
             transaction_id: d.transaction,
@@ -170,7 +175,8 @@ impl<'a> MetadataVisitor for Pass1<'a> {
     fn device_e(&mut self) -> Result<Visit> {
         if let Some(detail) = self.current_dev.take() {
             if let (MappedSection::Dev(thin_id), nodes) = self.end_section()? {
-                self.devices.insert(thin_id, (detail, nodes));
+                let root = build_btree(self.w, nodes)?;
+                self.devices.insert(thin_id, (detail, root));
                 Ok(Visit::Continue)
             } else {
                 Err(anyhow!("internal error, couldn't find device details"))
@@ -181,13 +187,12 @@ impl<'a> MetadataVisitor for Pass1<'a> {
     }
 
     fn map(&mut self, m: &Map) -> Result<Visit> {
-        if let Some((_name, _builder)) = self.map.as_mut() {
+        if let Some((_, builder)) = self.current_map.as_mut() {
             for i in 0..m.len {
                 let bt = BlockTime {
                     block: m.data_begin + i,
                     time: m.time,
                 };
-                let (_, builder) = self.map.as_mut().unwrap();
                 builder.push_value(self.w, m.thin_begin + i, bt)?;
             }
             Ok(Visit::Continue)
@@ -206,7 +211,7 @@ impl<'a> MetadataVisitor for Pass1<'a> {
 
         if let Some(leaves) = self.sub_trees.get(name) {
             // We could be in a <def> or <device>
-            if let Some((_name, builder)) = self.map.as_mut() {
+            if let Some((_name, builder)) = self.current_map.as_mut() {
                 builder.push_nodes(self.w, leaves)?;
             } else {
                 let msg = format!(
@@ -298,37 +303,22 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
 
     let sm = core_sm(ctx.engine.get_nr_blocks(), max_count);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
-    let mut pass = Pass1::new(&mut w);
-    xml::read(input, &mut pass)?;
-    let pass = pass.get_result()?;
+    let mut restorer = Restorer::new(&mut w, ctx.report.clone());
+    xml::read(input, &mut restorer)?;
+    let result = restorer.get_result()?;
 
-    // Build the device details tree.
+    // Build the device details and top level mapping tree
     let mut details_builder: BTreeBuilder<DeviceDetail> = BTreeBuilder::new(Box::new(NoopRC {}));
-    for (thin_id, (detail, _)) in &pass.devices {
+    let mut dev_builder: BTreeBuilder<u64> = BTreeBuilder::new(Box::new(NoopRC {}));
+    for (thin_id, (detail, root)) in &result.devices {
         details_builder.push_value(&mut w, *thin_id as u64, *detail)?;
+        dev_builder.push_value(&mut w, *thin_id as u64, *root)?;
     }
     let details_root = details_builder.complete(&mut w)?;
-
-    // Build the individual mapping trees that make up the bottom layer.
-    let mut devs: BTreeMap<u32, u64> = BTreeMap::new();
-    for (thin_id, (_, nodes)) in &pass.devices {
-        ctx.report
-            .info(&format!("building btree for device {}", thin_id));
-        let mut builder: BTreeBuilder<BlockTime> = BTreeBuilder::new(Box::new(NoopRC {}));
-        builder.push_leaves(&mut w, nodes)?;
-        let root = builder.complete(&mut w)?;
-        devs.insert(*thin_id, root);
-    }
-
-    // Build the top level mapping tree
-    let mut builder: BTreeBuilder<u64> = BTreeBuilder::new(Box::new(NoopRC {}));
-    for (thin_id, root) in devs {
-        builder.push_value(&mut w, thin_id as u64, root)?;
-    }
-    let mapping_root = builder.complete(&mut w)?;
+    let mapping_root = dev_builder.complete(&mut w)?;
 
     // Build data space map
-    let data_sm_root = build_data_sm(&mut w, pass.data_sm.lock().unwrap().deref())?;
+    let data_sm_root = build_data_sm(&mut w, result.data_sm.lock().unwrap().deref())?;
 
     // Build metadata space map
     let metadata_sm_root = build_metadata_sm(&mut w)?;
@@ -338,14 +328,14 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
         flags: SuperblockFlags { needs_check: false },
         block: SUPERBLOCK_LOCATION,
         version: 2,
-        time: pass.sb.time as u32,
-        transaction_id: pass.sb.transaction,
+        time: result.sb.time as u32,
+        transaction_id: result.sb.transaction,
         metadata_snap: 0,
         data_sm_root,
         metadata_sm_root,
         mapping_root,
         details_root,
-        data_block_size: pass.sb.data_block_size,
+        data_block_size: result.sb.data_block_size,
         nr_metadata_blocks: ctx.engine.get_nr_blocks(),
     };
     write_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
