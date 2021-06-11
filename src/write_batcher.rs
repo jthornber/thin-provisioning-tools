@@ -114,6 +114,13 @@ impl WriteBatcher {
         tmp
     }
 
+    pub fn get_reserved_range(&self) -> std::ops::Range<u64> {
+        std::ops::Range {
+            start: self.reserved.start,
+            end: self.reserved.end,
+        }
+    }
+
     pub fn write(&mut self, b: Block, kind: checksum::BT) -> Result<()> {
         checksum::write_checksum(&mut b.get_data(), kind)?;
 

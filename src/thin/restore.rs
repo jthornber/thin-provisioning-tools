@@ -251,8 +251,7 @@ fn build_data_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<Vec<u8>> {
 fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
     let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
     let mut cur = Cursor::new(&mut sm_root);
-    let sm_without_meta = clone_space_map(w.sm.lock().unwrap().deref())?;
-    let r = write_metadata_sm(w, sm_without_meta.deref())?;
+    let r = write_metadata_sm(w)?;
     r.pack(&mut cur)?;
 
     Ok(sm_root)

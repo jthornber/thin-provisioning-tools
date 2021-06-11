@@ -250,6 +250,90 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
     Ok((index_entries, ref_count_root))
 }
 
+pub fn write_metadata_common(w: &mut WriteBatcher) -> Result<(Vec<IndexEntry>, u64)> {
+    use BitmapEntry::*;
+
+    let mut index_entries = Vec::new();
+    let mut overflow_builder: BTreeBuilder<u32> = BTreeBuilder::new(Box::new(NoopRC {}));
+
+    // how many bitmaps do we need?
+    let nr_blocks = w.sm.lock().unwrap().get_nr_blocks()?;
+    let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+
+    // how many blocks are allocated or reserved so far?
+    let reserved = w.get_reserved_range();
+    if reserved.end < reserved.start {
+        return Err(anyhow!("unsupported allocation pattern"));
+    }
+    let nr_used_bitmaps = div_up(reserved.end, ENTRIES_PER_BITMAP as u64) as usize;
+
+    for bm in 0..nr_used_bitmaps {
+        let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
+        let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
+        let mut entries = Vec::with_capacity(ENTRIES_PER_BITMAP);
+        let mut first_free: Option<u32> = None;
+
+        // blocks beyond the limit won't be checked right now, thus are marked as freed
+        let limit = std::cmp::min(reserved.end - begin, ENTRIES_PER_BITMAP as u64);
+        let mut nr_free: u32 = (len - limit) as u32;
+
+        for i in 0..limit {
+            let b = begin + i;
+            let rc = w.sm.lock().unwrap().get(b)?;
+            let e = match rc {
+                0 => {
+                    nr_free += 1;
+                    if first_free.is_none() {
+                        first_free = Some(i as u32);
+                    }
+                    Small(0)
+                }
+                1 => Small(1),
+                2 => Small(2),
+                _ => {
+                    overflow_builder.push_value(w, b as u64, rc)?;
+                    Overflow
+                }
+            };
+            entries.push(e);
+        }
+
+        // Fill unused entries with zeros
+        if limit < len {
+            entries.resize_with(len as usize, || BitmapEntry::Small(0));
+        }
+
+        let blocknr = write_bitmap(w, entries)?;
+
+        // Insert into the index list
+        let ie = IndexEntry {
+            blocknr,
+            nr_free,
+            none_free_before: first_free.unwrap_or(limit as u32),
+        };
+        index_entries.push(ie);
+    }
+
+    // Fill the rest of the bitmaps with zeros
+    for bm in nr_used_bitmaps..nr_bitmaps {
+        let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
+        let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
+        let entries = vec![BitmapEntry::Small(0); ENTRIES_PER_BITMAP];
+        let blocknr = write_bitmap(w, entries)?;
+
+        // Insert into the index list
+        let ie = IndexEntry {
+            blocknr,
+            nr_free: len as u32,
+            none_free_before: 0,
+        };
+        index_entries.push(ie);
+    }
+
+    let ref_count_root = overflow_builder.complete(w)?;
+    Ok((index_entries, ref_count_root))
+}
+
 fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> Result<u64> {
     // allocate a new block
     let b = w.alloc_zeroed()?;

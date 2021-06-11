@@ -6,7 +6,6 @@ use std::io::Cursor;
 
 use crate::checksum;
 use crate::io_engine::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map_common::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
@@ -103,9 +102,10 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
     })
 }
 
-pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRoot> {
+pub fn write_metadata_sm(w: &mut WriteBatcher) -> Result<SMRoot> {
     w.clear_allocations();
-    let (mut indexes, ref_count_root) = write_common(w, sm)?;
+
+    let (mut indexes, ref_count_root) = write_metadata_common(w)?;
 
     let bitmap_root = w.alloc_zeroed()?;
 
@@ -135,6 +135,7 @@ pub fn write_metadata_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<SMRo
     w.write(bitmap_root, checksum::BT::INDEX)?;
     w.flush()?;
 
+    let sm = w.sm.lock().unwrap();
     Ok(SMRoot {
         nr_blocks: sm.get_nr_blocks()?,
         nr_allocated: sm.get_nr_allocated()?,

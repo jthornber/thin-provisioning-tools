@@ -3,7 +3,6 @@ use anyhow::{anyhow, Result};
 use std::convert::TryInto;
 use std::fs::OpenOptions;
 use std::io::Cursor;
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -230,8 +229,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
 fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
     let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
     let mut cur = Cursor::new(&mut sm_root);
-    let sm_without_meta = clone_space_map(w.sm.lock().unwrap().deref())?;
-    let r = write_metadata_sm(w, sm_without_meta.deref())?;
+    let r = write_metadata_sm(w)?;
     r.pack(&mut cur)?;
 
     Ok(sm_root)
