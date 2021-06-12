@@ -70,7 +70,7 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
     use BitmapEntry::*;
 
     let mut first_free = ie.none_free_before;
-    let mut nr_free = ie.nr_free - allocs.len() as u32;
+    let nr_free = ie.nr_free - allocs.len() as u32;
 
     // Read the bitmap
     let bitmap_block = w.engine.read(ie.blocknr)?;
@@ -80,10 +80,6 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
     for a in allocs {
         if first_free == *a as u32 {
             first_free = *a as u32 + 1;
-        }
-
-        if bitmap.entries[*a as usize] == Small(0) {
-            nr_free -= 1;
         }
 
         bitmap.entries[*a as usize] = Small(1);
