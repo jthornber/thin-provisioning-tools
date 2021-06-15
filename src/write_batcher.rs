@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use std::collections::BTreeSet;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
@@ -18,9 +17,6 @@ pub struct WriteBatcher {
 
     batch_size: usize,
     queue: Vec<Block>,
-
-    // The actual blocks allocated or reserved by this WriteBatcher
-    allocations: BTreeSet<u64>,
 
     // The reserved range covers all the blocks allocated or reserved by this
     // WriteBatcher, and the blocks already occupied. No blocks in this range
@@ -60,7 +56,6 @@ impl WriteBatcher {
             sm,
             batch_size,
             queue: Vec::with_capacity(batch_size),
-            allocations: BTreeSet::new(),
             reserved: std::ops::Range {
                 start: alloc_begin,
                 end: alloc_begin,
@@ -72,7 +67,6 @@ impl WriteBatcher {
         let mut sm = self.sm.lock().unwrap();
         let b = find_free(sm.deref_mut(), &self.reserved)?;
         self.reserved.end = b + 1;
-        self.allocations.insert(b);
 
         sm.set(b, 1)?;
 
@@ -83,7 +77,6 @@ impl WriteBatcher {
         let mut sm = self.sm.lock().unwrap();
         let b = find_free(sm.deref_mut(), &self.reserved)?;
         self.reserved.end = b + 1;
-        self.allocations.insert(b);
 
         sm.set(b, 1)?;
 
@@ -94,7 +87,6 @@ impl WriteBatcher {
         let mut sm = self.sm.lock().unwrap();
         let b = find_free(sm.deref_mut(), &self.reserved)?;
         self.reserved.end = b + 1;
-        self.allocations.insert(b);
 
         Ok(Block::new(b))
     }
@@ -103,15 +95,8 @@ impl WriteBatcher {
         let mut sm = self.sm.lock().unwrap();
         let b = find_free(sm.deref_mut(), &self.reserved)?;
         self.reserved.end = b + 1;
-        self.allocations.insert(b);
 
         Ok(Block::zeroed(b))
-    }
-
-    pub fn clear_allocations(&mut self) -> BTreeSet<u64> {
-        let mut tmp = BTreeSet::new();
-        std::mem::swap(&mut tmp, &mut self.allocations);
-        tmp
     }
 
     pub fn get_reserved_range(&self) -> std::ops::Range<u64> {

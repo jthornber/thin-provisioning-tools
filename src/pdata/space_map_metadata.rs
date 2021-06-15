@@ -1,7 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use crate::checksum;
@@ -66,23 +65,28 @@ fn block_to_bitmap(b: u64) -> usize {
     (b / ENTRIES_PER_BITMAP as u64) as usize
 }
 
-fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Result<IndexEntry> {
+fn adjust_counts(
+    w: &mut WriteBatcher,
+    ie: &IndexEntry,
+    begin: u64,
+    end: u64,
+) -> Result<IndexEntry> {
     use BitmapEntry::*;
 
     let mut first_free = ie.none_free_before;
-    let nr_free = ie.nr_free - allocs.len() as u32;
+    let nr_free = ie.nr_free - (end - begin) as u32;
 
     // Read the bitmap
     let bitmap_block = w.engine.read(ie.blocknr)?;
     let (_, mut bitmap) = Bitmap::unpack(bitmap_block.get_data())?;
 
     // Update all the entries
-    for a in allocs {
-        if first_free == *a as u32 {
-            first_free = *a as u32 + 1;
+    for a in begin..end {
+        if first_free == a as u32 {
+            first_free = a as u32 + 1;
         }
 
-        bitmap.entries[*a as usize] = Small(1);
+        bitmap.entries[a as usize] = Small(1);
     }
 
     // Write the bitmap
@@ -99,25 +103,32 @@ fn adjust_counts(w: &mut WriteBatcher, ie: &IndexEntry, allocs: &[u64]) -> Resul
 }
 
 pub fn write_metadata_sm(w: &mut WriteBatcher) -> Result<SMRoot> {
-    w.clear_allocations();
+    let r1 = w.get_reserved_range();
 
     let (mut indexes, ref_count_root) = write_metadata_common(w)?;
-
     let bitmap_root = w.alloc_zeroed()?;
 
     // Now we need to patch up the counts for the metadata that was used for storing
     // the space map itself.  These ref counts all went from 0 to 1.
-    let allocations = w.clear_allocations();
-
-    // Sort the allocations by bitmap
-    let mut by_bitmap = BTreeMap::new();
-    for b in allocations {
-        let bitmap = block_to_bitmap(b);
-        (*by_bitmap.entry(bitmap).or_insert_with(Vec::new)).push(b % ENTRIES_PER_BITMAP as u64);
+    let r2 = w.get_reserved_range();
+    if r2.end < r1.end {
+        return Err(anyhow!("unsupported allocation pattern"));
     }
 
-    for (bitmap, allocs) in by_bitmap {
-        indexes[bitmap] = adjust_counts(w, &indexes[bitmap], &allocs)?;
+    let bi_begin = block_to_bitmap(r1.end);
+    let bi_end = block_to_bitmap(r2.end) + 1;
+    for (bm, ie) in indexes.iter_mut().enumerate().take(bi_end).skip(bi_begin) {
+        let begin = if bm == bi_begin {
+            r1.end % ENTRIES_PER_BITMAP as u64
+        } else {
+            0
+        };
+        let end = if bm == bi_end - 1 {
+            r2.end % ENTRIES_PER_BITMAP as u64
+        } else {
+            ENTRIES_PER_BITMAP as u64
+        };
+        *ie = adjust_counts(w, ie, begin, end)?
     }
 
     // Write out the metadata index
