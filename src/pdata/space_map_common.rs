@@ -111,8 +111,8 @@ impl Pack for Bitmap {
     fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
         use BitmapEntry::*;
 
-        out.write_u32::<LittleEndian>(0)?;
-        out.write_u32::<LittleEndian>(0)?;
+        out.write_u32::<LittleEndian>(0)?; // csum
+        out.write_u32::<LittleEndian>(0)?; // padding
         out.write_u64::<LittleEndian>(self.blocknr)?;
 
         for chunk in self.entries.chunks(32) {
@@ -135,6 +135,7 @@ impl Pack for Bitmap {
                     }
                 }
             }
+            w >>= 64 - chunk.len() * 2;
 
             u64::pack(&w, out)?;
         }
@@ -203,15 +204,18 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
     let mut overflow_builder: BTreeBuilder<u32> = BTreeBuilder::new(Box::new(NoopRC {}));
 
     // how many bitmaps do we need?
-    for bm in 0..div_up(sm.get_nr_blocks()? as usize, ENTRIES_PER_BITMAP) {
+    let nr_blocks = sm.get_nr_blocks()?;
+    let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+
+    for bm in 0..nr_bitmaps {
+        let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
+        let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
         let mut entries = Vec::with_capacity(ENTRIES_PER_BITMAP);
         let mut first_free: Option<u32> = None;
         let mut nr_free: u32 = 0;
-        for i in 0..ENTRIES_PER_BITMAP {
-            let b: u64 = ((bm * ENTRIES_PER_BITMAP) as u64) + i as u64;
-            if b >= sm.get_nr_blocks()? {
-                break;
-            }
+
+        for i in 0..len {
+            let b = begin + i;
             let rc = sm.get(b)?;
             let e = match rc {
                 0 => {
@@ -231,27 +235,33 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
             entries.push(e);
         }
 
-        // allocate a new block
-        let b = w.alloc()?;
-        let mut cursor = Cursor::new(b.get_data());
+        let blocknr = write_bitmap(w, entries)?;
 
-        // write the bitmap to it
-        let blocknr = b.loc;
-        let bitmap = Bitmap { blocknr, entries };
-        bitmap.pack(&mut cursor)?;
-        w.write(b, checksum::BT::BITMAP)?;
-
-        // Insert into the index tree
+        // Insert into the index list
         let ie = IndexEntry {
             blocknr,
             nr_free,
-            none_free_before: first_free.unwrap_or(ENTRIES_PER_BITMAP as u32),
+            none_free_before: first_free.unwrap_or(len as u32),
         };
         index_entries.push(ie);
     }
 
     let ref_count_root = overflow_builder.complete(w)?;
     Ok((index_entries, ref_count_root))
+}
+
+fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> Result<u64> {
+    // allocate a new block
+    let b = w.alloc_zeroed()?;
+    let mut cursor = Cursor::new(b.get_data());
+
+    // write the bitmap to it
+    let blocknr = b.loc;
+    let bitmap = Bitmap { blocknr, entries };
+    bitmap.pack(&mut cursor)?;
+    w.write(b, checksum::BT::BITMAP)?;
+
+    Ok(blocknr)
 }
 
 //------------------------------------------
