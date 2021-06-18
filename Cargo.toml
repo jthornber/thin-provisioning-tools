@@ -41,3 +41,6 @@ quickcheck_macros = "0.9"
 
 [profile.release]
 debug = true
+
+[features]
+rust_tests = []
