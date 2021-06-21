@@ -53,6 +53,7 @@ fn missing_input_file() -> Result<()> {
     let md = mk_zeroed_md(&mut td)?;
     let stderr = run_fail(thin_repair!("-i", "no-such-file", "-o", &md))?;
     assert!(superblock_all_zeroes(&md)?);
+    // TODO: replace with msg::FILE_NOT_FOUND once the rust version is ready
     assert!(stderr.contains("Couldn't stat file"));
     Ok(())
 }
@@ -72,6 +73,7 @@ fn missing_output_file() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_repair!("-i", &md))?;
+    // TODO: replace with msg::MISSING_OUTPUT_ARG once the rust version is ready
     assert!(stderr.contains("No output file provided."));
     Ok(())
 }

@@ -42,7 +42,7 @@ fn accepts_help() -> Result<()> {
 #[test]
 fn missing_metadata() -> Result<()> {
     let stderr = run_fail(cache_check!())?;
-    assert!(stderr.contains("No input file provided"));
+    assert!(stderr.contains(msg::MISSING_INPUT_ARG));
     Ok(())
 }
 
@@ -66,7 +66,7 @@ fn unreadable_metadata() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     cmd!("chmod", "-r", &md).run()?;
     let stderr = run_fail(cache_check!(&md))?;
-    assert!(stderr.contains("syscall 'open' failed: Permission denied"));
+    assert!(stderr.contains("Permission denied"));
     Ok(())
 }
 

@@ -18,6 +18,22 @@ use test_dir::TestDir;
 
 //------------------------------------------
 
+#[cfg(not(feature = "rust_tests"))]
+pub mod msg {
+    pub const FILE_NOT_FOUND: &str = "Couldn't stat file";
+    pub const MISSING_INPUT_ARG: &str = "No input file provided";
+    pub const MISSING_OUTPUT_ARG: &str = "No output file provided";
+}
+
+#[cfg(feature = "rust_tests")]
+pub mod msg {
+    pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
+    pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided";
+    pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided";
+}
+
+//------------------------------------------
+
 #[macro_export]
 macro_rules! path_to_cpp {
     ($name: literal) => {

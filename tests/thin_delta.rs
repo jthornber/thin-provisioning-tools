@@ -65,6 +65,7 @@ fn snap2_unspecified() -> Result<()> {
 #[test]
 fn dev_unspecified() -> Result<()> {
     let stderr = run_fail(thin_delta!("--snap1", "45", "--snap2", "46"))?;
-    assert!(stderr.contains("No input device provided"));
+    // TODO: replace with msg::MISSING_INPUT_ARG once the rust version is ready
+    assert!(stderr.contains("No input file provided"));
     Ok(())
 }

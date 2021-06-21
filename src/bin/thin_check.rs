@@ -25,14 +25,12 @@ fn main() {
         .arg(
             Arg::with_name("SB_ONLY")
                 .help("Only check the superblock.")
-                .long("super-block-only")
-                .value_name("SB_ONLY"),
+                .long("super-block-only"),
         )
         .arg(
             Arg::with_name("SKIP_MAPPINGS")
                 .help("Don't check the mapping tree")
-                .long("skip-mappings")
-                .value_name("SKIP_MAPPINGS"),
+                .long("skip-mappings"),
         )
         .arg(
             Arg::with_name("AUTO_REPAIR")
@@ -47,7 +45,7 @@ fn main() {
         .arg(
             Arg::with_name("CLEAR_NEEDS_CHECK")
                 .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check"),
+                .long("clear-needs-check-flag"),
         )
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
