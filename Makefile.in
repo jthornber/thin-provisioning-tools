@@ -190,7 +190,7 @@ CXXFLAGS+=@CXX_STRERROR_FLAG@
 CXXFLAGS+=@LFS_FLAGS@
 CPPFLAGS?=@CPPFLAGS@
 CPPFLAGS+=-I$(TOP_BUILDDIR) -I$(TOP_DIR)
-LIBS:=-laio -lexpat -lboost_iostreams -ldl
+LIBS:=-laio -lexpat -ldl
 DEV_LIBS:=-lncurses
 
 ifeq ("@STATIC_CXX@", "yes")
