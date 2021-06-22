@@ -10,14 +10,14 @@ use common::*;
 #[test]
 fn accepts_v() -> Result<()> {
     let stdout = thin_rmap!("-V").read()?;
-    assert_eq!(stdout, tools_version());
+    assert!(stdout.contains(tools_version()));
     Ok(())
 }
 
 #[test]
 fn accepts_version() -> Result<()> {
     let stdout = thin_rmap!("--version").read()?;
-    assert_eq!(stdout, tools_version());
+    assert!(stdout.contains(tools_version()));
     Ok(())
 }
 

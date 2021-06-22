@@ -1,5 +1,8 @@
 use anyhow::anyhow;
 use fixedbitset::FixedBitSet;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -191,7 +194,8 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
 //------------------------------------------
 
 pub struct CacheDumpOptions<'a> {
-    pub dev: &'a Path,
+    pub input: &'a Path,
+    pub output: Option<&'a Path>,
     pub async_io: bool,
     pub repair: bool,
 }
@@ -204,19 +208,24 @@ fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
+        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
+        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
     }
 
     Ok(Context { engine })
 }
 
-fn dump_metadata(ctx: &Context, sb: &Superblock, _repair: bool) -> anyhow::Result<()> {
+fn dump_metadata(
+    ctx: &Context,
+    w: &mut dyn Write,
+    sb: &Superblock,
+    _repair: bool,
+) -> anyhow::Result<()> {
     let engine = &ctx.engine;
 
-    let mut out = xml::XmlWriter::new(std::io::stdout());
+    let mut out = xml::XmlWriter::new(w);
     let xml_sb = xml::Superblock {
         uuid: "".to_string(),
         block_size: sb.data_block_size,
@@ -272,6 +281,7 @@ fn dump_metadata(ctx: &Context, sb: &Superblock, _repair: bool) -> anyhow::Resul
     out.hints_e()?;
 
     out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }
@@ -281,7 +291,14 @@ pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     let engine = &ctx.engine;
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    dump_metadata(&ctx, &sb, opts.repair)
+    let mut writer: Box<dyn Write>;
+    if opts.output.is_some() {
+        writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    } else {
+        writer = Box::new(BufWriter::new(std::io::stdout()));
+    }
+
+    dump_metadata(&ctx, &mut writer, &sb, opts.repair)
 }
 
 //------------------------------------------

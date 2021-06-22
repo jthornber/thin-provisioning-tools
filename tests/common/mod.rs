@@ -18,14 +18,62 @@ use test_dir::TestDir;
 
 //------------------------------------------
 
+#[cfg(not(feature = "rust_tests"))]
+pub mod msg {
+    pub const FILE_NOT_FOUND: &str = "Couldn't stat file";
+    pub const MISSING_INPUT_ARG: &str = "No input file provided";
+    pub const MISSING_OUTPUT_ARG: &str = "No output file provided";
+}
+
+#[cfg(feature = "rust_tests")]
+pub mod msg {
+    pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
+    pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided";
+    pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided";
+}
+
+//------------------------------------------
+
+#[macro_export]
+macro_rules! path_to_cpp {
+    ($name: literal) => {
+        concat!("bin/", $name)
+    };
+}
+
+#[macro_export]
+macro_rules! path_to_rust {
+    ($name: literal) => {
+        env!(concat!("CARGO_BIN_EXE_", $name))
+    };
+}
+
+#[cfg(not(feature = "rust_tests"))]
+#[macro_export]
+macro_rules! path_to {
+    ($name: literal) => {
+        path_to_cpp!($name)
+    };
+}
+
+#[cfg(feature = "rust_tests")]
+#[macro_export]
+macro_rules! path_to {
+    ($name: literal) => {
+        path_to_rust!($name)
+    };
+}
+
 // FIXME: write a macro to generate these commands
+// Known issue of nested macro definition: https://github.com/rust-lang/rust/issues/35853
+// RFC: https://github.com/rust-lang/rfcs/blob/master/text/3086-macro-metavar-expr.md
 #[macro_export]
 macro_rules! thin_check {
     ( $( $arg: expr ),* ) => {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_check", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to!("thin_check"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -36,7 +84,7 @@ macro_rules! thin_restore {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_restore", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to!("thin_restore"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -47,7 +95,7 @@ macro_rules! thin_dump {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_dump", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to!("thin_dump"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -58,7 +106,7 @@ macro_rules! thin_rmap {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_rmap", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_cpp!("thin_rmap"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -69,7 +117,7 @@ macro_rules! thin_repair {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_repair", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_cpp!("thin_repair"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -80,7 +128,7 @@ macro_rules! thin_delta {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_delta", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_cpp!("thin_delta"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -91,7 +139,7 @@ macro_rules! thin_metadata_pack {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_metadata_pack", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_rust!("thin_metadata_pack"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -102,7 +150,7 @@ macro_rules! thin_metadata_unpack {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_metadata_unpack", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_rust!("thin_metadata_unpack"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -113,7 +161,7 @@ macro_rules! cache_check {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/cache_check", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to!("cache_check"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -124,7 +172,7 @@ macro_rules! thin_generate_metadata {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_generate_metadata", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_cpp!("thin_generate_metadata"), args).stdout_capture().stderr_capture()
         }
     };
 }
@@ -135,7 +183,7 @@ macro_rules! thin_generate_mappings {
         {
             use std::ffi::OsString;
             let args: &[OsString] = &[$( Into::<OsString>::into($arg) ),*];
-            duct::cmd("bin/thin_generate_mappings", args).stdout_capture().stderr_capture()
+            duct::cmd(path_to_cpp!("thin_generate_mappings"), args).stdout_capture().stderr_capture()
         }
     };
 }

@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
+use std::io::BufWriter;
 use std::io::Write;
 use std::ops::DerefMut;
 use std::path::Path;
@@ -145,7 +147,8 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
 const MAX_CONCURRENT_IO: u32 = 1024;
 
 pub struct ThinDumpOptions<'a> {
-    pub dev: &'a Path,
+    pub input: &'a Path,
+    pub output: Option<&'a Path>,
     pub async_io: bool,
     pub report: Arc<Report>,
 }
@@ -159,10 +162,10 @@ fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync>;
 
     if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
+        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
+        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
     }
 
     Ok(Context {
@@ -554,9 +557,9 @@ fn emit_entries<W: Write>(
     Ok(())
 }
 
-fn dump_metadata(ctx: &Context, sb: &Superblock, md: &Metadata) -> Result<()> {
+fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadata) -> Result<()> {
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let mut out = xml::XmlWriter::new(std::io::stdout());
+    let mut out = xml::XmlWriter::new(w);
     let xml_sb = xml::Superblock {
         uuid: "".to_string(),
         time: sb.time as u64,
@@ -590,6 +593,7 @@ fn dump_metadata(ctx: &Context, sb: &Superblock, md: &Metadata) -> Result<()> {
         out.device_e()?;
     }
     out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }
@@ -601,11 +605,18 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(&ctx, &sb)?;
 
+    let mut writer: Box<dyn Write>;
+    if opts.output.is_some() {
+        writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    } else {
+        writer = Box::new(BufWriter::new(std::io::stdout()));
+    }
+
     ctx.report
         .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;
 
-    dump_metadata(&ctx, &sb, &md)
+    dump_metadata(&ctx, &mut writer, &sb, &md)
 }
 
 //------------------------------------------

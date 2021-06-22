@@ -12,9 +12,9 @@ use thinp::report::*;
 use thinp::thin::dump::{dump, ThinDumpOptions};
 
 fn main() {
-    let parser = App::new("thin_check")
+    let parser = App::new("thin_dump")
         .version(thinp::version::tools_version())
-        .about("Validates thin provisioning metadata on a device or file.")
+        .about("Dump thin-provisioning metadata to stdout in XML format")
         .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
@@ -22,60 +22,49 @@ fn main() {
                 .long("quiet"),
         )
         .arg(
-            Arg::with_name("SB_ONLY")
-                .help("Only check the superblock.")
-                .long("super-block-only")
-                .value_name("SB_ONLY"),
+            Arg::with_name("REPAIR")
+                .help("Repair the metadata whilst dumping it")
+                .short("r")
+                .long("repair"),
         )
         .arg(
             Arg::with_name("SKIP_MAPPINGS")
-                .help("Don't check the mapping tree")
-                .long("skip-mappings")
-                .value_name("SKIP_MAPPINGS"),
-        )
-        .arg(
-            Arg::with_name("AUTO_REPAIR")
-                .help("Auto repair trivial issues.")
-                .long("auto-repair"),
-        )
-        .arg(
-            Arg::with_name("IGNORE_NON_FATAL")
-                .help("Only return a non-zero exit code if a fatal error is found.")
-                .long("ignore-non-fatal-errors"),
-        )
-        .arg(
-            Arg::with_name("CLEAR_NEEDS_CHECK")
-                .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check"),
-        )
-        .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("METADATA_SNAPSHOT")
-                .help("Check the metadata snapshot on a live pool")
-                .short("m")
-                .long("metadata-snapshot")
-                .value_name("METADATA_SNAPSHOT"),
-        )
-        .arg(
-            Arg::with_name("INPUT")
-                .help("Specify the input device to check")
-                .required(true)
-                .index(1),
+                .help("Do not dump the mappings")
+                .long("skip-mappings"),
         )
         .arg(
             Arg::with_name("SYNC_IO")
                 .help("Force use of synchronous io")
                 .long("sync-io"),
+        )
+        .arg(
+            Arg::with_name("METADATA_SNAPSHOT")
+                .help("Access the metadata snapshot on a live pool")
+                .short("m")
+                .long("metadata-snapshot")
+                .value_name("METADATA_SNAPSHOT"),
+        )
+        .arg(
+            Arg::with_name("OUTPUT")
+                .help("Specify the output file rather than stdout")
+                .short("o")
+                .long("output")
+                .value_name("OUTPUT"),
+        )
+        .arg(
+            Arg::with_name("INPUT")
+                .help("Specify the input device to dump")
+                .required(true)
+                .index(1),
         );
 
     let matches = parser.get_matches();
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
+    let output_file = if matches.is_present("OUTPUT") {
+        Some(Path::new(matches.value_of("OUTPUT").unwrap()))
+    } else {
+        None
+    };
 
     if !file_utils::file_exists(input_file) {
         eprintln!("Couldn't find input file '{:?}'.", &input_file);
@@ -93,7 +82,8 @@ fn main() {
     }
 
     let opts = ThinDumpOptions {
-        dev: &input_file,
+        input: input_file,
+        output: output_file,
         async_io: !matches.is_present("SYNC_IO"),
         report,
     };

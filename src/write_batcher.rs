@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::collections::BTreeSet;
+use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -17,7 +17,30 @@ pub struct WriteBatcher {
 
     batch_size: usize,
     queue: Vec<Block>,
-    allocations: BTreeSet<u64>,
+
+    // The reserved range covers all the blocks allocated or reserved by this
+    // WriteBatcher, and the blocks already occupied. No blocks in this range
+    // are expected to be freed, hence a single range is used for the representation.
+    reserved: std::ops::Range<u64>,
+}
+
+pub fn find_free(sm: &mut dyn SpaceMap, reserved: &std::ops::Range<u64>) -> Result<u64> {
+    let nr_blocks = sm.get_nr_blocks()?;
+    let mut b;
+    if reserved.end >= reserved.start {
+        b = sm.find_free(reserved.end, nr_blocks)?;
+        if b.is_none() {
+            b = sm.find_free(0, reserved.start)?;
+        }
+    } else {
+        b = sm.find_free(reserved.end, reserved.start)?;
+    }
+
+    if b.is_none() {
+        return Err(anyhow!("out of metadata space"));
+    }
+
+    Ok(b.unwrap())
 }
 
 impl WriteBatcher {
@@ -26,31 +49,61 @@ impl WriteBatcher {
         sm: Arc<Mutex<dyn SpaceMap>>,
         batch_size: usize,
     ) -> WriteBatcher {
+        let alloc_begin = sm.lock().unwrap().get_alloc_begin().unwrap_or(0);
+
         WriteBatcher {
             engine,
             sm,
             batch_size,
             queue: Vec::with_capacity(batch_size),
-            allocations: BTreeSet::new(),
+            reserved: std::ops::Range {
+                start: alloc_begin,
+                end: alloc_begin,
+            },
         }
     }
 
     pub fn alloc(&mut self) -> Result<Block> {
         let mut sm = self.sm.lock().unwrap();
-        let b = sm.alloc()?;
+        let b = find_free(sm.deref_mut(), &self.reserved)?;
+        self.reserved.end = b + 1;
 
-        if b.is_none() {
-            return Err(anyhow!("out of metadata space"));
-        }
+        sm.set(b, 1)?;
 
-        self.allocations.insert(b.unwrap());
-        Ok(Block::new(b.unwrap()))
+        Ok(Block::new(b))
     }
 
-    pub fn clear_allocations(&mut self) -> BTreeSet<u64> {
-        let mut tmp = BTreeSet::new();
-        std::mem::swap(&mut tmp, &mut self.allocations);
-        tmp
+    pub fn alloc_zeroed(&mut self) -> Result<Block> {
+        let mut sm = self.sm.lock().unwrap();
+        let b = find_free(sm.deref_mut(), &self.reserved)?;
+        self.reserved.end = b + 1;
+
+        sm.set(b, 1)?;
+
+        Ok(Block::zeroed(b))
+    }
+
+    pub fn reserve(&mut self) -> Result<Block> {
+        let mut sm = self.sm.lock().unwrap();
+        let b = find_free(sm.deref_mut(), &self.reserved)?;
+        self.reserved.end = b + 1;
+
+        Ok(Block::new(b))
+    }
+
+    pub fn reserve_zeroed(&mut self) -> Result<Block> {
+        let mut sm = self.sm.lock().unwrap();
+        let b = find_free(sm.deref_mut(), &self.reserved)?;
+        self.reserved.end = b + 1;
+
+        Ok(Block::zeroed(b))
+    }
+
+    pub fn get_reserved_range(&self) -> std::ops::Range<u64> {
+        std::ops::Range {
+            start: self.reserved.start,
+            end: self.reserved.end,
+        }
     }
 
     pub fn write(&mut self, b: Block, kind: checksum::BT) -> Result<()> {

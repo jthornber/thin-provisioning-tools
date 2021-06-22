@@ -190,14 +190,6 @@ fn gather_metadata_index_entries(
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
     let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
-
-    // Filter out unused entries with block 0
-    let entries: Vec<IndexEntry> = entries
-        .iter()
-        .take_while(|e| e.blocknr != 0)
-        .cloned()
-        .collect();
-
     metadata_sm.lock().unwrap().inc(bitmap_root, 1)?;
     inc_entries(&metadata_sm, &entries[0..])?;
 

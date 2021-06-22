@@ -687,7 +687,7 @@ thin_delta_cmd::run(int argc, char **argv)
 	}
 
 	if (argc == optind)
-		die("No input device provided.");
+		die("No input file provided.");
 	else
 		fs.dev = argv[optind];
 

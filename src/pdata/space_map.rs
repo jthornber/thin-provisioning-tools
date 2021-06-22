@@ -24,9 +24,16 @@ pub trait SpaceMap {
         Ok(old == 1)
     }
 
-    /// Finds a block with a zero reference count.  Increments the
-    /// count.
+    /// Finds a block with a zero reference count. Increments the count.
+    /// Returns Ok(None) if no free block (ENOSPC)
+    /// Returns Err on fatal error
     fn alloc(&mut self) -> Result<Option<u64>>;
+
+    /// Finds a free block within the range
+    fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>>;
+
+    /// Returns the position where allocation starts
+    fn get_alloc_begin(&self) -> Result<u64>;
 }
 
 pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
@@ -35,7 +42,7 @@ pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
 
 pub struct CoreSpaceMap<T> {
     nr_allocated: u64,
-    first_free: u64,
+    alloc_begin: u64,
     counts: Vec<T>,
 }
 
@@ -46,7 +53,7 @@ where
     pub fn new(nr_entries: u64) -> CoreSpaceMap<V> {
         CoreSpaceMap {
             nr_allocated: 0,
-            first_free: 0,
+            alloc_begin: 0,
             counts: vec![V::default(); nr_entries as usize],
         }
     }
@@ -77,9 +84,6 @@ where
             self.nr_allocated += 1;
         } else if old != V::from(0u8) && v == 0 {
             self.nr_allocated -= 1;
-            if b < self.first_free {
-                self.first_free = b;
-            }
         }
 
         Ok(old.into())
@@ -99,17 +103,32 @@ where
     }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
-        for b in self.first_free..(self.counts.len() as u64) {
-            if self.counts[b as usize] == V::from(0u8) {
-                self.counts[b as usize] = V::from(1u8);
-                self.first_free = b + 1;
-                self.nr_allocated += 1;
-                return Ok(Some(b));
+        let mut b = self.find_free(self.alloc_begin, self.counts.len() as u64)?;
+        if b.is_none() {
+            b = self.find_free(0, self.alloc_begin)?;
+            if b.is_none() {
+                return Ok(None);
             }
         }
 
-        self.first_free = self.counts.len() as u64;
+        self.counts[b.unwrap() as usize] = V::from(1u8);
+        self.nr_allocated += 1;
+        self.alloc_begin = b.unwrap() + 1;
+
+        Ok(b)
+    }
+
+    fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>> {
+        for b in begin..end {
+            if self.counts[b as usize] == V::from(0u8) {
+                return Ok(Some(b));
+            }
+        }
         Ok(None)
+    }
+
+    fn get_alloc_begin(&self) -> Result<u64> {
+        Ok(self.alloc_begin as u64)
     }
 }
 
@@ -133,16 +152,6 @@ pub fn core_sm_without_mutex(nr_entries: u64, max_count: u32) -> Box<dyn SpaceMa
     }
 }
 
-// FIXME: replace it by using the Clone trait
-pub fn clone_space_map(src: &dyn SpaceMap) -> Result<Box<dyn SpaceMap>> {
-    let nr_blocks = src.get_nr_blocks()?;
-    let mut dest = Box::new(CoreSpaceMap::<u32>::new(nr_blocks));
-    for i in 0..nr_blocks {
-        dest.set(i, src.get(i)?)?;
-    }
-    Ok(dest)
-}
-
 //------------------------------------------
 
 // This in core space map can only count to one, useful when walking
@@ -150,7 +159,7 @@ pub fn clone_space_map(src: &dyn SpaceMap) -> Result<Box<dyn SpaceMap>> {
 // aren't interested in counting how many times we've visited.
 pub struct RestrictedSpaceMap {
     nr_allocated: u64,
-    first_free: usize,
+    alloc_begin: usize,
     counts: FixedBitSet,
 }
 
@@ -159,7 +168,7 @@ impl RestrictedSpaceMap {
         RestrictedSpaceMap {
             nr_allocated: 0,
             counts: FixedBitSet::with_capacity(nr_entries as usize),
-            first_free: 0,
+            alloc_begin: 0,
         }
     }
 }
@@ -192,9 +201,6 @@ impl SpaceMap for RestrictedSpaceMap {
         } else {
             if old {
                 self.nr_allocated -= 1;
-                if b < self.first_free as u64 {
-                    self.first_free = b as usize;
-                }
             }
             self.counts.set(b as usize, false);
         }
@@ -213,16 +219,32 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
-        for b in self.first_free..self.counts.len() {
-            if !self.counts.contains(b) {
-                self.counts.insert(b);
-                self.first_free = b + 1;
-                return Ok(Some(b as u64));
+        let mut b = self.find_free(self.alloc_begin as u64, self.counts.len() as u64)?;
+        if b.is_none() {
+            b = self.find_free(0, self.alloc_begin as u64)?;
+            if b.is_none() {
+                return Ok(None);
             }
         }
 
-        self.first_free = self.counts.len();
+        self.counts.insert(b.unwrap() as usize);
+        self.nr_allocated += 1;
+        self.alloc_begin = b.unwrap() as usize + 1;
+
+        Ok(b)
+    }
+
+    fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>> {
+        for b in begin..end {
+            if !self.counts.contains(b as usize) {
+                return Ok(Some(b));
+            }
+        }
         Ok(None)
+    }
+
+    fn get_alloc_begin(&self) -> Result<u64> {
+        Ok(self.alloc_begin as u64)
     }
 }
 
