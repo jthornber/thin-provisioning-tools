@@ -77,7 +77,7 @@ fn adjust_counts(
     let nr_free = ie.nr_free - (end - begin) as u32;
 
     // Read the bitmap
-    let bitmap_block = w.engine.read(ie.blocknr)?;
+    let bitmap_block = w.read(ie.blocknr)?;
     let (_, mut bitmap) = Bitmap::unpack(bitmap_block.get_data())?;
 
     // Update all the entries
