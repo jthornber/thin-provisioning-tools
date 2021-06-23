@@ -15,6 +15,13 @@ fn main() {
     let parser = App::new("thin_dump")
         .version(thinp::version::tools_version())
         .about("Dump thin-provisioning metadata to stdout in XML format")
+        // flags
+        .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
         .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
@@ -32,11 +39,7 @@ fn main() {
                 .help("Do not dump the mappings")
                 .long("skip-mappings"),
         )
-        .arg(
-            Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous io")
-                .long("sync-io"),
-        )
+        // options
         .arg(
             Arg::with_name("METADATA_SNAPSHOT")
                 .help("Access the metadata snapshot on a live pool")
@@ -51,6 +54,7 @@ fn main() {
                 .long("output")
                 .value_name("OUTPUT"),
         )
+        // arguments
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to dump")
@@ -84,7 +88,7 @@ fn main() {
     let opts = ThinDumpOptions {
         input: input_file,
         output: output_file,
-        async_io: !matches.is_present("SYNC_IO"),
+        async_io: matches.is_present("ASYNC_IO"),
         report,
     };
 

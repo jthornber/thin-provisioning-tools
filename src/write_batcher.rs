@@ -109,6 +109,14 @@ impl WriteBatcher {
     pub fn write(&mut self, b: Block, kind: checksum::BT) -> Result<()> {
         checksum::write_checksum(&mut b.get_data(), kind)?;
 
+        for blk in self.queue.iter().rev() {
+            if blk.loc == b.loc {
+                // write hit
+                blk.get_data().copy_from_slice(b.get_data());
+                return Ok(());
+            }
+        }
+
         if self.queue.len() == self.batch_size {
             let mut tmp = Vec::new();
             std::mem::swap(&mut tmp, &mut self.queue);

@@ -16,6 +16,28 @@ fn main() {
     let parser = App::new("thin_check")
         .version(thinp::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
+        // flags
+        .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
+        .arg(
+            Arg::with_name("AUTO_REPAIR")
+                .help("Auto repair trivial issues.")
+                .long("auto-repair"),
+        )
+        .arg(
+            Arg::with_name("CLEAR_NEEDS_CHECK")
+                .help("Clears the 'needs_check' flag in the superblock")
+                .long("clear-needs-check-flag"),
+        )
+        .arg(
+            Arg::with_name("IGNORE_NON_FATAL")
+                .help("Only return a non-zero exit code if a fatal error is found.")
+                .long("ignore-non-fatal-errors"),
+        )
         .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
@@ -32,28 +54,7 @@ fn main() {
                 .help("Don't check the mapping tree")
                 .long("skip-mappings"),
         )
-        .arg(
-            Arg::with_name("AUTO_REPAIR")
-                .help("Auto repair trivial issues.")
-                .long("auto-repair"),
-        )
-        .arg(
-            Arg::with_name("IGNORE_NON_FATAL")
-                .help("Only return a non-zero exit code if a fatal error is found.")
-                .long("ignore-non-fatal-errors"),
-        )
-        .arg(
-            Arg::with_name("CLEAR_NEEDS_CHECK")
-                .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check-flag"),
-        )
-        .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
-        )
+        // options
         .arg(
             Arg::with_name("METADATA_SNAPSHOT")
                 .help("Check the metadata snapshot on a live pool")
@@ -62,20 +63,18 @@ fn main() {
                 .value_name("METADATA_SNAPSHOT"),
         )
         .arg(
+            Arg::with_name("OVERRIDE_MAPPING_ROOT")
+                .help("Specify a mapping root to use")
+                .long("override-mapping-root")
+                .value_name("OVERRIDE_MAPPING_ROOT")
+                .takes_value(true),
+        )
+        // arguments
+        .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")
                 .required(true)
                 .index(1),
-        )
-        .arg(
-            Arg::with_name("ASYNC_IO")
-                .help("Force use of io_uring for asynchronous IO")
-                .long("async-io"),
-        )
-        .arg(
-            Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous IO (currently the default)")
-                .long("sync-io"),
         );
 
     let matches = parser.get_matches();
@@ -94,11 +93,6 @@ fn main() {
         report = std::sync::Arc::new(mk_progress_bar_report());
     } else {
         report = Arc::new(mk_simple_report());
-    }
-
-    if matches.is_present("SYNC_IO") && matches.is_present("ASYNC_IO") {
-        eprintln!("--sync-io and --async-io may not be used at the same time.");
-        process::exit(1);
     }
 
     let engine: Arc<dyn IoEngine + Send + Sync>;

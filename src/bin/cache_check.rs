@@ -14,40 +14,12 @@ use thinp::report::*;
 fn main() {
     let parser = App::new("cache_check")
         .version(thinp::version::tools_version())
+        // flags
         .arg(
-            Arg::with_name("INPUT")
-                .help("Specify the input device to check")
-                .required(true)
-                .index(1),
-        )
-        .arg(
-            Arg::with_name("SB_ONLY")
-                .help("Only check the superblock.")
-                .long("super-block-only")
-                .value_name("SB_ONLY"),
-        )
-        .arg(
-            Arg::with_name("SKIP_MAPPINGS")
-                .help("Don't check the mapping array")
-                .long("skip-mappings")
-                .value_name("SKIP_MAPPINGS"),
-        )
-        .arg(
-            Arg::with_name("SKIP_HINTS")
-                .help("Don't check the hint array")
-                .long("skip-hints")
-                .value_name("SKIP_HINTS"),
-        )
-        .arg(
-            Arg::with_name("SKIP_DISCARDS")
-                .help("Don't check the discard bitset")
-                .long("skip-discards")
-                .value_name("SKIP_DISCARDS"),
-        )
-        .arg(
-            Arg::with_name("IGNORE_NON_FATAL")
-                .help("Only return a non-zero exit code if a fatal error is found.")
-                .long("ignore-non-fatal-errors"),
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
         )
         .arg(
             Arg::with_name("AUTO_REPAIR")
@@ -55,10 +27,42 @@ fn main() {
                 .long("auto-repair"),
         )
         .arg(
+            Arg::with_name("IGNORE_NON_FATAL")
+                .help("Only return a non-zero exit code if a fatal error is found.")
+                .long("ignore-non-fatal-errors"),
+        )
+        .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
                 .long("quiet"),
+        )
+        .arg(
+            Arg::with_name("SB_ONLY")
+                .help("Only check the superblock.")
+                .long("super-block-only"),
+        )
+        .arg(
+            Arg::with_name("SKIP_MAPPINGS")
+                .help("Don't check the mapping array")
+                .long("skip-mappings"),
+        )
+        .arg(
+            Arg::with_name("SKIP_HINTS")
+                .help("Don't check the hint array")
+                .long("skip-hints"),
+        )
+        .arg(
+            Arg::with_name("SKIP_DISCARDS")
+                .help("Don't check the discard bitset")
+                .long("skip-discards"),
+        )
+        // arguments
+        .arg(
+            Arg::with_name("INPUT")
+                .help("Specify the input device to check")
+                .required(true)
+                .index(1),
         );
 
     let matches = parser.get_matches();
@@ -75,7 +79,7 @@ fn main() {
 
     let opts = CacheCheckOptions {
         dev: &input_file,
-        async_io: false,
+        async_io: matches.is_present("ASYNC_IO"),
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         skip_hints: matches.is_present("SKIP_HINTS"),

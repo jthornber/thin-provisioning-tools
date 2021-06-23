@@ -15,6 +15,13 @@ fn main() {
     let parser = App::new("cache_restore")
         .version(thinp::version::tools_version())
         .about("Convert XML format metadata to binary.")
+        // flags
+        .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
@@ -22,6 +29,7 @@ fn main() {
                 .value_name("OVERRIDE_MAPPING_ROOT")
                 .takes_value(true),
         )
+        // options
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input xml")
@@ -37,11 +45,6 @@ fn main() {
                 .long("output")
                 .value_name("OUTPUT")
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous io")
-                .long("sync-io"),
         );
 
     let matches = parser.get_matches();
@@ -66,7 +69,7 @@ fn main() {
     let opts = CacheRestoreOptions {
         input: &input_file,
         output: &output_file,
-        async_io: !matches.is_present("SYNC_IO"),
+        async_io: matches.is_present("ASYNC_IO"),
         report,
     };
 
