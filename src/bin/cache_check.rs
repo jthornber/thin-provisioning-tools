@@ -15,6 +15,12 @@ fn main() {
     let parser = App::new("cache_check")
         .version(thinp::version::tools_version())
         .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
+        .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")
                 .required(true)
@@ -75,7 +81,7 @@ fn main() {
 
     let opts = CacheCheckOptions {
         dev: &input_file,
-        async_io: false,
+        async_io: matches.is_present("ASYNC_IO"),
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         skip_hints: matches.is_present("SKIP_HINTS"),

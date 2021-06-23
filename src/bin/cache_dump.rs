@@ -12,6 +12,12 @@ fn main() {
         .version(thinp::version::tools_version())
         .about("Dump the cache metadata to stdout in XML format")
         .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
+        .arg(
             Arg::with_name("REPAIR")
                 .help("Repair the metadata whilst dumping it")
                 .short("r")
@@ -42,7 +48,7 @@ fn main() {
     let opts = CacheDumpOptions {
         input: input_file,
         output: output_file,
-        async_io: false,
+        async_io: matches.is_present("ASYNC_IO"),
         repair: matches.is_present("REPAIR"),
     };
 

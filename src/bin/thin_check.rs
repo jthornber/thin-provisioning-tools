@@ -17,6 +17,12 @@ fn main() {
         .version(thinp::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
         .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
+        .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
@@ -66,16 +72,6 @@ fn main() {
                 .help("Specify the input device to check")
                 .required(true)
                 .index(1),
-        )
-        .arg(
-            Arg::with_name("ASYNC_IO")
-                .help("Force use of io_uring for asynchronous IO")
-                .long("async-io"),
-        )
-        .arg(
-            Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous IO (currently the default)")
-                .long("sync-io"),
         );
 
     let matches = parser.get_matches();
@@ -94,11 +90,6 @@ fn main() {
         report = std::sync::Arc::new(mk_progress_bar_report());
     } else {
         report = Arc::new(mk_simple_report());
-    }
-
-    if matches.is_present("SYNC_IO") && matches.is_present("ASYNC_IO") {
-        eprintln!("--sync-io and --async-io may not be used at the same time.");
-        process::exit(1);
     }
 
     let engine: Arc<dyn IoEngine + Send + Sync>;

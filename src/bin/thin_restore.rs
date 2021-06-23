@@ -16,6 +16,12 @@ fn main() {
         .version(thinp::version::tools_version())
         .about("Convert XML format metadata to binary.")
         .arg(
+            Arg::with_name("ASYNC_IO")
+                .help("Force use of io_uring for synchronous io")
+                .long("async-io")
+                .hidden(true),
+        )
+        .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
                 .long("override-mapping-root")
@@ -37,11 +43,6 @@ fn main() {
                 .long("output")
                 .value_name("OUTPUT")
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("SYNC_IO")
-                .help("Force use of synchronous io")
-                .long("sync-io"),
         );
 
     let matches = parser.get_matches();
@@ -66,7 +67,7 @@ fn main() {
     let opts = ThinRestoreOptions {
         input: &input_file,
         output: &output_file,
-        async_io: !matches.is_present("SYNC_IO"),
+        async_io: matches.is_present("ASYNC_IO"),
         report,
     };
 
