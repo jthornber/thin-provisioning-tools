@@ -11,6 +11,7 @@ fn main() {
     let parser = App::new("cache_dump")
         .version(thinp::version::tools_version())
         .about("Dump the cache metadata to stdout in XML format")
+        // flags
         .arg(
             Arg::with_name("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
@@ -23,6 +24,7 @@ fn main() {
                 .short("r")
                 .long("repair"),
         )
+        // options
         .arg(
             Arg::with_name("OUTPUT")
                 .help("Specify the output file rather than stdout")
@@ -30,6 +32,7 @@ fn main() {
                 .long("output")
                 .value_name("OUTPUT"),
         )
+        // arguments
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to dump")

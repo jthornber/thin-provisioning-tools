@@ -15,6 +15,7 @@ fn main() {
     let parser = App::new("cache_restore")
         .version(thinp::version::tools_version())
         .about("Convert XML format metadata to binary.")
+        // flags
         .arg(
             Arg::with_name("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
@@ -28,6 +29,7 @@ fn main() {
                 .value_name("OVERRIDE_MAPPING_ROOT")
                 .takes_value(true),
         )
+        // options
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input xml")

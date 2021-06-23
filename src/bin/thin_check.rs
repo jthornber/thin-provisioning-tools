@@ -16,11 +16,27 @@ fn main() {
     let parser = App::new("thin_check")
         .version(thinp::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
+        // flags
         .arg(
             Arg::with_name("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
                 .hidden(true),
+        )
+        .arg(
+            Arg::with_name("AUTO_REPAIR")
+                .help("Auto repair trivial issues.")
+                .long("auto-repair"),
+        )
+        .arg(
+            Arg::with_name("CLEAR_NEEDS_CHECK")
+                .help("Clears the 'needs_check' flag in the superblock")
+                .long("clear-needs-check-flag"),
+        )
+        .arg(
+            Arg::with_name("IGNORE_NON_FATAL")
+                .help("Only return a non-zero exit code if a fatal error is found.")
+                .long("ignore-non-fatal-errors"),
         )
         .arg(
             Arg::with_name("QUIET")
@@ -38,20 +54,13 @@ fn main() {
                 .help("Don't check the mapping tree")
                 .long("skip-mappings"),
         )
+        // options
         .arg(
-            Arg::with_name("AUTO_REPAIR")
-                .help("Auto repair trivial issues.")
-                .long("auto-repair"),
-        )
-        .arg(
-            Arg::with_name("IGNORE_NON_FATAL")
-                .help("Only return a non-zero exit code if a fatal error is found.")
-                .long("ignore-non-fatal-errors"),
-        )
-        .arg(
-            Arg::with_name("CLEAR_NEEDS_CHECK")
-                .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check-flag"),
+            Arg::with_name("METADATA_SNAPSHOT")
+                .help("Check the metadata snapshot on a live pool")
+                .short("m")
+                .long("metadata-snapshot")
+                .value_name("METADATA_SNAPSHOT"),
         )
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
@@ -60,13 +69,7 @@ fn main() {
                 .value_name("OVERRIDE_MAPPING_ROOT")
                 .takes_value(true),
         )
-        .arg(
-            Arg::with_name("METADATA_SNAPSHOT")
-                .help("Check the metadata snapshot on a live pool")
-                .short("m")
-                .long("metadata-snapshot")
-                .value_name("METADATA_SNAPSHOT"),
-        )
+        // arguments
         .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device to check")
