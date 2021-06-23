@@ -20,7 +20,7 @@ use test_dir::TestDir;
 
 #[cfg(not(feature = "rust_tests"))]
 pub mod msg {
-    pub const FILE_NOT_FOUND: &str = "Couldn't stat file";
+    pub const FILE_NOT_FOUND: &str = "No such file or directory";
     pub const MISSING_INPUT_ARG: &str = "No input file provided";
     pub const MISSING_OUTPUT_ARG: &str = "No output file provided";
 }

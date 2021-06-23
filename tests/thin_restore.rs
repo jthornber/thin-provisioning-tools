@@ -40,7 +40,7 @@ fn accepts_help() -> Result<()> {
 }
 
 #[test]
-fn no_input_file() -> Result<()> {
+fn missing_input_arg() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
     let stderr = run_fail(thin_restore!("-o", &md))?;
@@ -49,7 +49,7 @@ fn no_input_file() -> Result<()> {
 }
 
 #[test]
-fn missing_input_file() -> Result<()> {
+fn input_file_not_found() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
     let stderr = run_fail(thin_restore!("-i", "no-such-file", "-o", &md))?;
@@ -69,7 +69,7 @@ fn garbage_input_file() -> Result<()> {
 }
 
 #[test]
-fn no_output_file() -> Result<()> {
+fn missing_output_arg() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let stderr = run_fail(thin_restore!("-i", &xml))?;

@@ -71,8 +71,11 @@ void
 file_utils::check_file_exists(string const &file, bool must_be_regular_file) {
 	struct stat info;
 	int r = ::stat(file.c_str(), &info);
-	if (r)
-		throw runtime_error("Couldn't stat file");
+	if (r) {
+		ostringstream msg;
+		msg << file << ": " << base::error_string(errno);
+		throw runtime_error(msg.str());
+	}
 
 	if (must_be_regular_file && !S_ISREG(info.st_mode))
 		throw runtime_error("Not a regular file");
@@ -116,8 +119,11 @@ file_utils::get_file_length(string const &file) {
 	uint64_t nr_bytes;
 
 	int r = ::stat(file.c_str(), &info);
-	if (r)
-		throw runtime_error("Couldn't stat path");
+	if (r) {
+		ostringstream msg;
+		msg << file << ": " << base::error_string(errno);
+		throw runtime_error(msg.str());
+	}
 
 	if (S_ISREG(info.st_mode))
 		// It's okay to cast st_size to a uint64_t value.
@@ -136,9 +142,11 @@ file_utils::get_file_length(string const &file) {
 			throw runtime_error("ioctl BLKGETSIZE64 failed");
 		}
 		::close(fd);
-	} else
-		// FIXME: needs a better message
-		throw runtime_error("bad path");
+	} else {
+		ostringstream msg;
+		msg << file << ": " << "Not a block device or regular file";
+		throw runtime_error(msg.str());
+	}
 
 	return nr_bytes;
 }

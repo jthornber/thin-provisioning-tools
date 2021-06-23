@@ -40,16 +40,16 @@ fn accepts_help() -> Result<()> {
 }
 
 #[test]
-fn missing_metadata() -> Result<()> {
+fn missing_input_arg() -> Result<()> {
     let stderr = run_fail(cache_check!())?;
     assert!(stderr.contains(msg::MISSING_INPUT_ARG));
     Ok(())
 }
 
 #[test]
-fn no_such_metadata() -> Result<()> {
+fn input_file_not_found() -> Result<()> {
     let stderr = run_fail(cache_check!("/arbitrary/filename"))?;
-    assert!(stderr.contains("No such file or directory"));
+    assert!(stderr.contains(msg::FILE_NOT_FOUND));
     Ok(())
 }
 

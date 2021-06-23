@@ -82,9 +82,12 @@
   (define-scenario (cache-restore missing-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (cache-restore "-i no-such-file -o" md)
-        (assert-superblock-all-zeroes md)
-        (assert-starts-with "Couldn't stat file" stderr))))
+      (let ((bad-path "no-such-file"))
+        (run-fail-rcv (_ stderr) (cache-restore "-i" bad-path "-o" md)
+          (assert-superblock-all-zeroes md)
+          (assert-starts-with
+            (string-append bad-path ": No such file or directory")
+            stderr)))))
 
   (define-scenario (cache-restore garbage-input-file)
     "the input file is just zeroes"
@@ -264,9 +267,12 @@
   (define-scenario (cache-repair missing-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (cache-repair "-i no-such-file -o" md)
-        (assert-superblock-all-zeroes md)
-        (assert-starts-with "Couldn't stat path" stderr))))
+      (let ((bad-path "no-such-file"))
+        (run-fail-rcv (_ stderr) (cache-repair "-i no-such-file -o" md)
+          (assert-superblock-all-zeroes md)
+          (assert-starts-with
+            (string-append bad-path ": No such file or directory")
+            stderr)))))
 
   (define-scenario (cache-repair garbage-input-file)
     "the input file is just zeroes"
