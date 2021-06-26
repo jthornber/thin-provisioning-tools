@@ -350,10 +350,12 @@ rust-tools:
 	cargo build --release
 
 install-rust-tools: man8/thin_metadata_pack.8 man8/thin_metadata_unpack.8 rust-tools
+	$(INSTALL_DIR) $(BINDIR)
 	$(INSTALL_PROGRAM) target/release/thin_metadata_pack  $(BINDIR)
 	$(INSTALL_PROGRAM) target/release/thin_metadata_unpack  $(BINDIR)
 	$(STRIP) $(BINDIR)/thin_metadata_pack
 	$(STRIP) $(BINDIR)/thin_metadata_unpack
+	$(INSTALL_DIR) $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
 
