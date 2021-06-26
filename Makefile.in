@@ -236,7 +236,8 @@ INSTALL_DATA = $(INSTALL) -p -m 644
 %.8: %.txt bin/txt2man
 	@echo "    [txt2man] $<"
 	@mkdir -p $(dir $@)
-	$(V) bin/txt2man -p -t $(basename $(notdir $<)) $< > $@
+	$(V) bin/txt2man -t $(basename $(notdir $<)) \
+	-s 8 -v "System Manager's Manual" -r "Device Mapper Tools" $< > $@
 
 #----------------------------------------------------------------
 
@@ -271,6 +272,7 @@ clean:
 	find . -name \*.gmo -delete
 	find . -name \*.d -delete
 	$(RM) $(PROGRAMS) $(DEV_TOOLS) lib/*.a lib/*.so
+	$(RM) man8/*.8
 
 distclean: clean
 	$(RM) config.cache config.log config.status configure.h version.h Makefile unit-tests/Makefile
