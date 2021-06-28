@@ -20,6 +20,7 @@ core
 googletest/
 
 bin/pdata_tools
+bin/pdata_tools_dev
 thin_check
 thin_dump
 thin_restore

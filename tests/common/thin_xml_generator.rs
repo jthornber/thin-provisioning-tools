@@ -133,7 +133,7 @@ fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<T
     while b < total_len {
         let len = u64::min(
             total_len - b,
-            thread_rng().gen_range(run_len.start, run_len.end),
+            thread_rng().gen_range(run_len.start..run_len.end),
         );
         runs.push(ThinRun {
             thin_id,
@@ -230,7 +230,7 @@ impl Allocator {
         while b < total_len {
             let len = u64::min(
                 total_len - b,
-                thread_rng().gen_range(run_len.start, run_len.end),
+                thread_rng().gen_range(run_len.start..run_len.end),
             );
             runs.push(b..(b + len));
             b += len;
@@ -375,8 +375,8 @@ fn mk_origin(thin_id: u32, total_len: u64, allocator: &mut Allocator) -> Result<
     let mut runs = Vec::new();
     let mut b = 0;
     while b < total_len {
-        let len = u64::min(thread_rng().gen_range(16, 64), total_len - b);
-        match thread_rng().gen_range(0, 2) {
+        let len = u64::min(thread_rng().gen_range(16..64), total_len - b);
+        match thread_rng().gen_range(0..2) {
             0 => {
                 for data in allocator.alloc(len)? {
                     assert!(data.end >= data.start);
@@ -416,10 +416,10 @@ fn mk_snap_mapping(
     while b < total_len {
         let len = u64::min(
             total_len - b,
-            thread_rng().gen_range(run_len.start, run_len.end),
+            thread_rng().gen_range(run_len.start..run_len.end),
         );
 
-        let n = thread_rng().gen_range(0, 100);
+        let n = thread_rng().gen_range(0..100);
 
         if n < same_percent {
             runs.push(SnapRun(SnapRunType::Same, len));

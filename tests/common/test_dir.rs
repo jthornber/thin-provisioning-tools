@@ -15,7 +15,7 @@ pub struct TestDir {
 fn mk_dir(prefix: &str) -> Result<PathBuf> {
     for _n in 0..100 {
         let mut p = PathBuf::new();
-        let nr = rand::thread_rng().gen_range(1000000, 9999999);
+        let nr = rand::thread_rng().gen_range(1000000..9999999);
         p.push(format!("./{}_{}", prefix, nr));
         if let Ok(()) = fs::create_dir(&p) {
             return Ok(p);
