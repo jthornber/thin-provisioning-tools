@@ -1,49 +1,50 @@
 use anyhow::Result;
-use thinp::file_utils;
-use thinp::version::tools_version;
 
 mod common;
 
+use common::common_args::*;
+use common::input_arg::*;
 use common::test_dir::*;
-use common::thin_xml_generator::{write_xml, FragmentedS};
 use common::*;
 
 //------------------------------------------
 
-#[test]
-fn accepts_v() -> Result<()> {
-    let stdout = thin_check!("-V").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+const USAGE: &str = "Usage: thin_check [options] {device|file}\n\
+                     Options:\n  \
+                       {-q|--quiet}\n  \
+                       {-h|--help}\n  \
+                       {-V|--version}\n  \
+                       {-m|--metadata-snap}\n  \
+                       {--auto-repair}\n  \
+                       {--override-mapping-root}\n  \
+                       {--clear-needs-check-flag}\n  \
+                       {--ignore-non-fatal-errors}\n  \
+                       {--skip-mappings}\n  \
+                       {--super-block-only}";
 
-#[test]
-fn accepts_version() -> Result<()> {
-    let stdout = thin_check!("--version").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+//------------------------------------------
 
-const USAGE: &str = "Usage: thin_check [options] {device|file}\nOptions:\n  {-q|--quiet}\n  {-h|--help}\n  {-V|--version}\n  {-m|--metadata-snap}\n  {--auto-repair}\n  {--override-mapping-root}\n  {--clear-needs-check-flag}\n  {--ignore-non-fatal-errors}\n  {--skip-mappings}\n  {--super-block-only}";
+test_accepts_help!(THIN_CHECK, USAGE);
+test_accepts_version!(THIN_CHECK);
+test_rejects_bad_option!(THIN_CHECK);
 
-#[test]
-fn accepts_h() -> Result<()> {
-    let stdout = thin_check!("-h").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_missing_input_arg!(THIN_CHECK);
+test_input_file_not_found!(THIN_CHECK, ARG);
+test_input_cannot_be_a_directory!(THIN_CHECK, ARG);
+test_unreadable_input_file!(THIN_CHECK, ARG);
 
-#[test]
-fn accepts_help() -> Result<()> {
-    let stdout = thin_check!("--help").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_help_message_for_tiny_input_file!(THIN_CHECK, ARG);
+test_spot_xml_data!(THIN_CHECK, "thin_check", ARG);
+test_corrupted_input_data!(THIN_CHECK, ARG);
 
-#[test]
-fn rejects_bad_option() -> Result<()> {
-    let stderr = run_fail(thin_check!("--hedgehogs-only"))?;
-    assert!(stderr.contains("unrecognized option \'--hedgehogs-only\'"));
+//------------------------------------------
+// test exclusive flags
+
+fn accepts_flag(flag: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let md_path = md.to_str().unwrap();
+    run_ok(THIN_CHECK, &[flag, md_path])?;
     Ok(())
 }
 
@@ -68,85 +69,73 @@ fn accepts_clear_needs_check_flag() -> Result<()> {
 }
 
 #[test]
+fn accepts_auto_repair() -> Result<()> {
+    accepts_flag("--auto-repair")
+}
+
+//------------------------------------------
+// test the --quiet flag
+
+#[test]
 fn accepts_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
+    let md_path = md.to_str().unwrap();
 
-    let output = thin_check!("--quiet", &md).run()?;
-    assert!(output.status.success());
+    let output = run_ok_raw(THIN_CHECK, &["--quiet", md_path])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
 
-#[test]
-fn accepts_auto_repair() -> Result<()> {
-    accepts_flag("--auto-repair")
-}
+//------------------------------------------
+// test superblock-block-only
 
 #[test]
 fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = thin_check!("--super-block-only", &md).unchecked().run()?;
-    assert!(!output.status.success());
+    let md_path = md.to_str().unwrap();
+    let _stderr = run_fail(THIN_CHECK, &["--super-block-only", md_path])?;
     Ok(())
 }
 
-#[test]
-fn prints_help_message_for_tiny_metadata() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = td.mk_path("meta.bin");
-    let _file = file_utils::create_sized_file(&md, 1024);
-    let stderr = run_fail(thin_check!(&md))?;
-    assert!(stderr.contains("Metadata device/file too small.  Is this binary metadata?"));
-    Ok(())
-}
-
-#[test]
-fn spot_xml_data() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let xml = td.mk_path("meta.xml");
-
-    let mut gen = FragmentedS::new(4, 10240);
-    write_xml(&xml, &mut gen)?;
-
-    let stderr = run_fail(thin_check!(&xml))?;
-    eprintln!("{}", stderr);
-    assert!(
-        stderr.contains("This looks like XML.  thin_check only checks the binary metadata format.")
-    );
-    Ok(())
-}
+//------------------------------------------
+// test info outputs
 
 #[test]
 fn prints_info_fields() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let stdout = thin_check!(&md).read()?;
+    let md_path = md.to_str().unwrap();
+    let stdout = run_ok(THIN_CHECK, &[md_path])?;
     assert!(stdout.contains("TRANSACTION_ID="));
     assert!(stdout.contains("METADATA_FREE_BLOCKS="));
     Ok(())
 }
 
+//------------------------------------------
+// test compatibility between options
+
 #[test]
 fn auto_repair_incompatible_opts() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_fail(thin_check!("--auto-repair", "-m", &md))?;
-    run_fail(thin_check!(
-        "--auto-repair",
-        "--override-mapping-root",
-        "123",
-        &md
-    ))?;
-    run_fail(thin_check!("--auto-repair", "--super-block-only", &md))?;
-    run_fail(thin_check!("--auto-repair", "--skip-mappings", &md))?;
-    run_fail(thin_check!(
-        "--auto-repair",
-        "--ignore-non-fatal-errors",
-        &md
-    ))?;
+    let md_path = md.to_str().unwrap();
+    run_fail(THIN_CHECK, &["--auto-repair", "-m", md_path])?;
+    run_fail(
+        THIN_CHECK,
+        &["--auto-repair", "--override-mapping-root", "123", md_path],
+    )?;
+    run_fail(
+        THIN_CHECK,
+        &["--auto-repair", "--super-block-only", md_path],
+    )?;
+    run_fail(THIN_CHECK, &["--auto-repair", "--skip-mappings", md_path])?;
+    run_fail(
+        THIN_CHECK,
+        &["--auto-repair", "--ignore-non-fatal-errors", md_path],
+    )?;
     Ok(())
 }
 
@@ -154,36 +143,45 @@ fn auto_repair_incompatible_opts() -> Result<()> {
 fn clear_needs_check_incompatible_opts() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_fail(thin_check!("--clear-needs-check-flag", "-m", &md))?;
-    run_fail(thin_check!(
-        "--clear-needs-check-flag",
-        "--override-mapping-root",
-        "123",
-        &md
-    ))?;
-    run_fail(thin_check!(
-        "--clear-needs-check-flag",
-        "--super-block-only",
-        &md
-    ))?;
-    run_fail(thin_check!(
-        "--clear-needs-check-flag",
-        "--ignore-non-fatal-errors",
-        &md
-    ))?;
+    let md_path = md.to_str().unwrap();
+    run_fail(THIN_CHECK, &["--clear-needs-check-flag", "-m", md_path])?;
+    run_fail(
+        THIN_CHECK,
+        &[
+            "--clear-needs-check-flag",
+            "--override-mapping-root",
+            "123",
+            md_path,
+        ],
+    )?;
+    run_fail(
+        THIN_CHECK,
+        &["--clear-needs-check-flag", "--super-block-only", md_path],
+    )?;
+    run_fail(
+        THIN_CHECK,
+        &[
+            "--clear-needs-check-flag",
+            "--ignore-non-fatal-errors",
+            md_path,
+        ],
+    )?;
     Ok(())
 }
 
 //------------------------------------------
+// test clear-needs-check
 
 #[test]
 fn clear_needs_check() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
+
     set_needs_check(&md)?;
 
     assert!(get_needs_check(&md)?);
-    thin_check!("--clear-needs-check-flag", &md).run()?;
+    run_ok(THIN_CHECK, &["--clear-needs-check-flag", md_path])?;
     assert!(!get_needs_check(&md)?);
     Ok(())
 }
@@ -192,9 +190,11 @@ fn clear_needs_check() -> Result<()> {
 fn no_clear_needs_check_if_error() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
+
     set_needs_check(&md)?;
     generate_metadata_leaks(&md, 1, 0, 1)?;
-    run_fail(thin_check!("--clear-needs-check-flag", &md))?;
+    run_fail(THIN_CHECK, &["--clear-needs-check-flag", md_path])?;
     assert!(get_needs_check(&md)?);
     Ok(())
 }
@@ -203,22 +203,31 @@ fn no_clear_needs_check_if_error() -> Result<()> {
 fn clear_needs_check_if_skip_mappings() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
+
     set_needs_check(&md)?;
     generate_metadata_leaks(&md, 1, 0, 1)?;
 
     assert!(get_needs_check(&md)?);
-    thin_check!("--clear-needs-check-flag", "--skip-mappings", &md).run()?;
+    run_ok(
+        THIN_CHECK,
+        &["--clear-needs-check-flag", "--skip-mappings", md_path],
+    )?;
     assert!(!get_needs_check(&md)?);
     Ok(())
 }
+
+//------------------------------------------
+// test ignore-non-fatal-errors
 
 #[test]
 fn metadata_leaks_are_non_fatal() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
     generate_metadata_leaks(&md, 1, 0, 1)?;
-    run_fail(thin_check!(&md))?;
-    thin_check!("--ignore-non-fatal-errors", &md).run()?;
+    run_fail(THIN_CHECK, &[md_path])?;
+    run_ok(THIN_CHECK, &["--ignore-non-fatal-errors", md_path])?;
     Ok(())
 }
 
@@ -226,28 +235,34 @@ fn metadata_leaks_are_non_fatal() -> Result<()> {
 fn fatal_errors_cant_be_ignored() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
+
     generate_metadata_leaks(&md, 1, 1, 0)?;
     ensure_untouched(&md, || {
-        run_fail(thin_check!("--ignore-non-fatal-errors", &md))?;
+        run_fail(THIN_CHECK, &["--ignore-non-fatal-errors", md_path])?;
         Ok(())
     })
 }
+
+//------------------------------------------
+// test auto-repair
 
 #[test]
 fn auto_repair() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
 
     // auto-repair should have no effect on good metadata.
     ensure_untouched(&md, || {
-        thin_check!("--auto-repair", &md).run()?;
+        run_ok(THIN_CHECK, &["--auto-repair", md_path])?;
         Ok(())
     })?;
 
     generate_metadata_leaks(&md, 16, 0, 1)?;
-    run_fail(thin_check!(&md))?;
-    thin_check!("--auto-repair", &md).run()?;
-    thin_check!(&md).run()?;
+    run_fail(THIN_CHECK, &[md_path])?;
+    run_ok(THIN_CHECK, &["--auto-repair", md_path])?;
+    run_ok(THIN_CHECK, &[md_path])?;
     Ok(())
 }
 
@@ -255,10 +270,11 @@ fn auto_repair() -> Result<()> {
 fn auto_repair_has_limits() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
-    generate_metadata_leaks(&md, 16, 1, 0)?;
+    let md_path = md.to_str().unwrap();
 
+    generate_metadata_leaks(&md, 16, 1, 0)?;
     ensure_untouched(&md, || {
-        run_fail(thin_check!("--auto-repair", &md))?;
+        run_fail(THIN_CHECK, &["--auto-repair", md_path])?;
         Ok(())
     })?;
     Ok(())
@@ -268,8 +284,10 @@ fn auto_repair_has_limits() -> Result<()> {
 fn auto_repair_clears_needs_check() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
+    let md_path = md.to_str().unwrap();
+
     set_needs_check(&md)?;
-    thin_check!("--auto-repair", &md).run()?;
+    run_ok(THIN_CHECK, &["--auto-repair", md_path])?;
     assert!(!get_needs_check(&md)?);
     Ok(())
 }

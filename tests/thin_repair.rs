@@ -1,91 +1,67 @@
 use anyhow::Result;
-use std::str::from_utf8;
-use thinp::version::tools_version;
 
 mod common;
+
+use common::common_args::*;
+use common::input_arg::*;
+use common::output_option::*;
 use common::test_dir::*;
 use common::*;
 
 //------------------------------------------
 
-#[test]
-fn accepts_v() -> Result<()> {
-    let stdout = thin_repair!("-V").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+const USAGE: &str = "Usage: thin_repair [options] {device|file}\n\
+                     Options:\n  \
+                       {-h|--help}\n  \
+                       {-i|--input} <input metadata (binary format)>\n  \
+                       {-o|--output} <output metadata (binary format)>\n  \
+                       {--transaction-id} <natural>\n  \
+                       {--data-block-size} <natural>\n  \
+                       {--nr-data-blocks} <natural>\n  \
+                       {-V|--version}";
 
-#[test]
-fn accepts_version() -> Result<()> {
-    let stdout = thin_repair!("--version").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+//-----------------------------------------
 
-const USAGE: &str = "Usage: thin_repair [options] {device|file}\nOptions:\n  {-h|--help}\n  {-i|--input} <input metadata (binary format)>\n  {-o|--output} <output metadata (binary format)>\n  {--transaction-id} <natural>\n  {--data-block-size} <natural>\n  {--nr-data-blocks} <natural>\n  {-V|--version}";
+test_accepts_help!(THIN_REPAIR, USAGE);
+test_accepts_version!(THIN_REPAIR);
+test_rejects_bad_option!(THIN_REPAIR);
 
-#[test]
-fn accepts_h() -> Result<()> {
-    let stdout = thin_repair!("-h").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_input_file_not_found!(THIN_REPAIR, OPTION);
+test_corrupted_input_data!(THIN_REPAIR, OPTION);
 
-#[test]
-fn accepts_help() -> Result<()> {
-    let stdout = thin_repair!("--help").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_missing_output_option!(THIN_REPAIR, mk_valid_md);
+
+//-----------------------------------------
+// test output to a small file
+
+// TODO: share with thin_restore
 
 #[test]
 fn dont_repair_xml() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
     let xml = mk_valid_xml(&mut td)?;
-    run_fail(thin_repair!("-i", &xml, "-o", &md))?;
+    let xml_path = xml.to_str().unwrap();
+    let md_path = md.to_str().unwrap();
+    run_fail(THIN_REPAIR, &["-i", xml_path, "-o", md_path])?;
     Ok(())
 }
 
-#[test]
-fn input_file_not_found() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_repair!("-i", "no-such-file", "-o", &md))?;
-    assert!(superblock_all_zeroes(&md)?);
-    // TODO: replace with msg::FILE_NOT_FOUND once the rust version is ready
-    assert!(stderr.contains("No such file or directory"));
-    Ok(())
-}
+//-----------------------------------------
 
-#[test]
-fn garbage_input_file() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_zeroed_md(&mut td)?;
-    let md2 = mk_zeroed_md(&mut td)?;
-    run_fail(thin_repair!("-i", &md, "-o", &md2))?;
-    assert!(superblock_all_zeroes(&md2)?);
-    Ok(())
-}
-
-#[test]
-fn missing_output_arg() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_valid_md(&mut td)?;
-    let stderr = run_fail(thin_repair!("-i", &md))?;
-    // TODO: replace with msg::MISSING_OUTPUT_ARG once the rust version is ready
-    assert!(stderr.contains("No output file provided."));
-    Ok(())
-}
+// TODO: share with thin_dump
 
 fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let output = thin_repair!(flag, val, "-i", &md1, "-o", &md2).run()?;
+    let md1_path = md1.to_str().unwrap();
+    let md2_path = md2.to_str().unwrap();
+    let output = run_ok_raw(THIN_REPAIR, &[flag, val, "-i", md1_path, "-o", md2_path])?;
     assert_eq!(output.stderr.len(), 0);
-    let output = thin_dump!(&md2).run()?;
-    assert!(from_utf8(&output.stdout[0..])?.contains(pattern));
+    let md2_path = md2.to_str().unwrap();
+    let output = run_ok(THIN_DUMP, &[md2_path])?;
+    assert!(output.contains(pattern));
     Ok(())
 }
 
@@ -104,42 +80,63 @@ fn override_nr_data_blocks() -> Result<()> {
     override_thing("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
 
+// FIXME: that's repair_superblock in thin_dump.rs
 #[test]
 fn superblock_succeeds() -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
-    let original = thin_dump!(
-        "--transaction-id=5",
-        "--data-block-size=128",
-        "--nr-data-blocks=4096000",
-        &md1
-    )
-    .run()?;
+    let md1_path = md1.to_str().unwrap();
+    let original = run_ok_raw(
+        THIN_DUMP,
+        &[
+            "--transaction-id=5",
+            "--data-block-size=128",
+            "--nr-data-blocks=4096000",
+            md1_path,
+        ],
+    )?;
     assert_eq!(original.stderr.len(), 0);
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    thin_repair!(
-        "--transaction-id=5",
-        "--data-block-size=128",
-        "--nr-data-blocks=4096000",
-        "-i",
-        &md1,
-        "-o",
-        &md2
-    )
-    .run()?;
-    let repaired = thin_dump!(&md2).run()?;
+    let md2_path = md2.to_str().unwrap();
+    run_ok(
+        THIN_REPAIR,
+        &[
+            "--transaction-id=5",
+            "--data-block-size=128",
+            "--nr-data-blocks=4096000",
+            "-i",
+            md1_path,
+            "-o",
+            md2_path,
+        ],
+    )?;
+    let repaired = run_ok_raw(THIN_DUMP, &[md2_path])?;
     assert_eq!(repaired.stderr.len(), 0);
     assert_eq!(original.stdout, repaired.stdout);
     Ok(())
 }
+
+//-----------------------------------------
+
+// TODO: share with thin_dump
 
 fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_repair!(flag1, flag2, "-i", &md1, "-o", &md2))?;
+    let stderr = run_fail(
+        THIN_REPAIR,
+        &[
+            flag1,
+            flag2,
+            "-i",
+            md1.to_str().unwrap(),
+            "-o",
+            md2.to_str().unwrap(),
+        ],
+    )?;
     assert!(stderr.contains(pattern));
     Ok(())
 }
@@ -170,3 +167,5 @@ fn missing_nr_data_blocks() -> Result<()> {
         "nr data blocks",
     )
 }
+
+//-----------------------------------------

@@ -1,101 +1,51 @@
 use anyhow::Result;
-use std::str::from_utf8;
-use thinp::file_utils;
-use thinp::version::tools_version;
 
 mod common;
+
+use common::common_args::*;
+use common::input_arg::*;
+use common::output_option::*;
 use common::test_dir::*;
 use common::*;
 
 //------------------------------------------
 
-#[test]
-fn accepts_v() -> Result<()> {
-    let stdout = thin_restore!("-V").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+const USAGE: &str = "Usage: thin_restore [options]\n\
+                     Options:\n  \
+                       {-h|--help}\n  \
+                       {-i|--input} <input xml file>\n  \
+                       {-o|--output} <output device or file>\n  \
+                       {--transaction-id} <natural>\n  \
+                       {--data-block-size} <natural>\n  \
+                       {--nr-data-blocks} <natural>\n  \
+                       {-q|--quiet}\n  \
+                       {-V|--version}";
 
-#[test]
-fn accepts_version() -> Result<()> {
-    let stdout = thin_restore!("--version").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
-}
+//------------------------------------------
 
-const USAGE: &str = "Usage: thin_restore [options]\nOptions:\n  {-h|--help}\n  {-i|--input} <input xml file>\n  {-o|--output} <output device or file>\n  {--transaction-id} <natural>\n  {--data-block-size} <natural>\n  {--nr-data-blocks} <natural>\n  {-q|--quiet}\n  {-V|--version}";
+test_accepts_help!(THIN_RESTORE, USAGE);
+test_accepts_version!(THIN_RESTORE);
 
-#[test]
-fn accepts_h() -> Result<()> {
-    let stdout = thin_restore!("-h").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_missing_input_option!(THIN_RESTORE);
+test_input_file_not_found!(THIN_RESTORE, OPTION);
+test_corrupted_input_data!(THIN_RESTORE, OPTION);
 
-#[test]
-fn accepts_help() -> Result<()> {
-    let stdout = thin_restore!("--help").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_missing_output_option!(THIN_RESTORE, mk_valid_xml);
+test_tiny_output_file!(THIN_RESTORE, mk_valid_xml);
 
-#[test]
-fn missing_input_arg() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_restore!("-o", &md))?;
-    assert!(stderr.contains(msg::MISSING_INPUT_ARG));
-    Ok(())
-}
+//-----------------------------------------
 
-#[test]
-fn input_file_not_found() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_restore!("-i", "no-such-file", "-o", &md))?;
-    assert!(superblock_all_zeroes(&md)?);
-    assert!(stderr.contains(msg::FILE_NOT_FOUND));
-    Ok(())
-}
-
-#[test]
-fn garbage_input_file() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let xml = mk_zeroed_md(&mut td)?;
-    let md = mk_zeroed_md(&mut td)?;
-    let _stderr = run_fail(thin_restore!("-i", &xml, "-o", &md))?;
-    assert!(superblock_all_zeroes(&md)?);
-    Ok(())
-}
-
-#[test]
-fn missing_output_arg() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let xml = mk_valid_xml(&mut td)?;
-    let stderr = run_fail(thin_restore!("-i", &xml))?;
-    assert!(stderr.contains(msg::MISSING_OUTPUT_ARG));
-    Ok(())
-}
-
-#[test]
-fn tiny_output_file() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let xml = mk_valid_xml(&mut td)?;
-    let md = td.mk_path("meta.bin");
-    let _file = file_utils::create_sized_file(&md, 4096);
-    let stderr = run_fail(thin_restore!("-i", &xml, "-o", &md))?;
-    assert!(stderr.contains("Output file too small"));
-    Ok(())
-}
+// TODO: share with cache_restore, era_restore
 
 fn quiet_flag(flag: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    let output = thin_restore!("-i", &xml, "-o", &md, flag).run()?;
+    let xml_path = xml.to_str().unwrap();
+    let md_path = md.to_str().unwrap();
+    let output = run_ok_raw(THIN_RESTORE, &["-i", xml_path, "-o", md_path, flag])?;
 
-    assert!(output.status.success());
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -111,15 +61,21 @@ fn accepts_quiet() -> Result<()> {
     quiet_flag("--quiet")
 }
 
+//-----------------------------------------
+
+// TODO: share with thin_dump
+
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    thin_restore!("-i", &xml, "-o", &md, flag, value).run()?;
+    let xml_path = xml.to_str().unwrap();
+    let md_path = md.to_str().unwrap();
+    run_ok(THIN_RESTORE, &["-i", xml_path, "-o", md_path, flag, value])?;
 
-    let output = thin_dump!(&md).run()?;
-    assert!(from_utf8(&output.stdout)?.contains(pattern));
+    let output = run_ok(THIN_DUMP, &[md_path])?;
+    assert!(output.contains(pattern));
     Ok(())
 }
 
@@ -137,3 +93,5 @@ fn override_data_block_size() -> Result<()> {
 fn override_nr_data_blocks() -> Result<()> {
     override_something("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
+
+//-----------------------------------------
