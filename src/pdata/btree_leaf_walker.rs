@@ -210,14 +210,13 @@ impl<'a> LeafWalker<'a> {
 
         let depth = self.get_depth::<V>(path, root, true)?;
 
+        self.sm_inc(root);
         if depth == 0 {
             // root is a leaf
-            self.sm_inc(root);
             self.leaves.insert(root as usize);
             visitor.visit(&kr, root)?;
             Ok(())
         } else {
-            self.sm_inc(root);
             let root = self.engine.read(root).map_err(|_| io_err(path))?;
 
             self.walk_node(depth - 1, path, visitor, &kr, &root, true)

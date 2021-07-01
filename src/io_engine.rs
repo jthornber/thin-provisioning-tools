@@ -258,8 +258,7 @@ impl AsyncIoEngine {
         let fd_inner = inner.input.as_raw_fd();
 
         for (i, b) in blocks.iter().enumerate() {
-            let read_e = opcode::Read::new(
-                    types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
+            let read_e = opcode::Read::new(types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
@@ -310,8 +309,7 @@ impl AsyncIoEngine {
         let fd_inner = inner.input.as_raw_fd();
 
         for (i, b) in blocks.iter().enumerate() {
-            let write_e = opcode::Write::new(
-                    types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
+            let write_e = opcode::Write::new(types::Fd(fd_inner), b.data, BLOCK_SIZE as u32)
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {

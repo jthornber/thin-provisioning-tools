@@ -59,11 +59,11 @@ fn summarise_node(data: &[u8]) -> IResult<&[u8], NodeSummary> {
 
 pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
     let (_, info) = nom_to_pr(summarise_node(data))?;
+    let (i, hdr) = nom_to_pr(take(32usize)(data))?;
+    let (i, keys) = nom_to_pr(run64(i, info.max_entries))?;
 
     if info.is_leaf {
         if info.value_size == std::mem::size_of::<u64>() {
-            let (i, hdr) = nom_to_pr(take(32usize)(data))?;
-            let (i, keys) = nom_to_pr(run64(i, info.max_entries))?;
             let (tail, values) = nom_to_pr(run64(i, info.max_entries))?;
 
             io_to_pr(pack_literal(w, hdr))?;
@@ -76,8 +76,7 @@ pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
             Ok(())
         } else {
             // We don't bother packing the values if they aren't u64
-            let (i, hdr) = nom_to_pr(take(32usize)(data))?;
-            let (tail, keys) = nom_to_pr(run64(i, info.max_entries))?;
+            let tail = i;
 
             io_to_pr(pack_literal(w, hdr))?;
             io_to_pr(pack_u64s(w, &keys))?;
@@ -87,8 +86,6 @@ pub fn pack_btree_node<W: Write>(w: &mut W, data: &[u8]) -> PResult<()> {
         }
     } else {
         // Internal node, values are also u64s
-        let (i, hdr) = nom_to_pr(take(32usize)(data))?;
-        let (i, keys) = nom_to_pr(run64(i, info.max_entries))?;
         let (tail, values) = nom_to_pr(run64(i, info.max_entries))?;
 
         io_to_pr(pack_literal(w, hdr))?;
