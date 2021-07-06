@@ -23,15 +23,71 @@ const USAGE: &str = "Usage: thin_restore [options]\n\
 
 //------------------------------------------
 
-test_accepts_help!(THIN_RESTORE, USAGE);
-test_accepts_version!(THIN_RESTORE);
+struct ThinRestore;
 
-test_missing_input_option!(THIN_RESTORE);
-test_input_file_not_found!(THIN_RESTORE, OPTION);
-test_corrupted_input_data!(THIN_RESTORE, OPTION);
+impl<'a> Program<'a> for ThinRestore {
+    fn name() -> &'a str {
+        "thin_restore"
+    }
 
-test_missing_output_option!(THIN_RESTORE, mk_valid_xml);
-test_tiny_output_file!(THIN_RESTORE, mk_valid_xml);
+    fn path() -> &'a str {
+        THIN_RESTORE
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::IoOptions
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinRestore {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        "" // we don't intent to verify error messages of XML parsing
+    }
+}
+
+impl<'a> OutputProgram<'a> for ThinRestore {
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_output_arg() -> &'a str {
+        msg::MISSING_OUTPUT_ARG
+    }
+}
+
+impl<'a> BinaryOutputProgram<'_> for ThinRestore {}
+
+//-----------------------------------------
+
+test_accepts_help!(ThinRestore);
+test_accepts_version!(ThinRestore);
+
+test_missing_input_option!(ThinRestore);
+test_input_file_not_found!(ThinRestore);
+test_corrupted_input_data!(ThinRestore);
+
+test_missing_output_option!(ThinRestore);
+test_tiny_output_file!(ThinRestore);
 
 //-----------------------------------------
 

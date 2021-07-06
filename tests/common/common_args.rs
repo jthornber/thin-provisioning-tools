@@ -4,29 +4,35 @@ use thinp::version::tools_version;
 //------------------------------------------
 // help
 
-pub fn test_help_short(program: &str, usage: &str) -> Result<()> {
-    let stdout = run_ok(program, &["-h"])?;
-    assert_eq!(stdout, usage);
+pub fn test_help_short<'a, P>() -> Result<()>
+where
+    P: Program<'a>,
+{
+    let stdout = run_ok(P::path(), &["-h"])?;
+    assert_eq!(stdout, P::usage());
     Ok(())
 }
 
-pub fn test_help_long(program: &str, usage: &str) -> Result<()> {
-    let stdout = run_ok(program, &["--help"])?;
-    assert_eq!(stdout, usage);
+pub fn test_help_long<'a, P>() -> Result<()>
+where
+    P: Program<'a>,
+{
+    let stdout = run_ok(P::path(), &["--help"])?;
+    assert_eq!(stdout, P::usage());
     Ok(())
 }
 
 #[macro_export]
 macro_rules! test_accepts_help {
-    ($program: ident, $usage: expr) => {
+    ($program: ident) => {
         #[test]
         fn accepts_h() -> Result<()> {
-            test_help_short($program, $usage)
+            test_help_short::<$program>()
         }
 
         #[test]
         fn accepts_help() -> Result<()> {
-            test_help_long($program, $usage)
+            test_help_long::<$program>()
         }
     };
 }
@@ -34,14 +40,20 @@ macro_rules! test_accepts_help {
 //------------------------------------------
 // version
 
-pub fn test_version_short(program: &str) -> Result<()> {
-    let stdout = run_ok(program, &["-V"])?;
+pub fn test_version_short<'a, P>() -> Result<()>
+where
+    P: Program<'a>,
+{
+    let stdout = run_ok(P::path(), &["-V"])?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
 
-pub fn test_version_long(program: &str) -> Result<()> {
-    let stdout = run_ok(program, &["--version"])?;
+pub fn test_version_long<'a, P>() -> Result<()>
+where
+    P: Program<'a>,
+{
+    let stdout = run_ok(P::path(), &["--version"])?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
@@ -51,21 +63,25 @@ macro_rules! test_accepts_version {
     ($program: ident) => {
         #[test]
         fn accepts_v() -> Result<()> {
-            test_version_short($program)
+            test_version_short::<$program>()
         }
 
         #[test]
         fn accepts_version() -> Result<()> {
-            test_version_long($program)
+            test_version_long::<$program>()
         }
     };
 }
 
 //------------------------------------------
 
-pub fn test_rejects_bad_option(program: &str) -> Result<()> {
-    let stderr = run_fail(program, &["--hedgehogs-only"])?;
-    assert!(stderr.contains("unrecognized option \'--hedgehogs-only\'"));
+pub fn test_rejects_bad_option<'a, P>() -> Result<()>
+where
+    P: Program<'a>,
+{
+    let option = "--hedgehogs-only";
+    let stderr = run_fail(P::path(), &[option])?;
+    assert!(stderr.contains(&P::bad_option_hint(option)));
     Ok(())
 }
 
@@ -74,7 +90,7 @@ macro_rules! test_rejects_bad_option {
     ($program: ident) => {
         #[test]
         fn rejects_bad_option() -> Result<()> {
-            test_rejects_bad_option($program)
+            test_rejects_bad_option::<$program>()
         }
     };
 }

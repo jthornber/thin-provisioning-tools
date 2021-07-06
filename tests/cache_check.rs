@@ -22,18 +22,64 @@ const USAGE: &str = "Usage: cache_check [options] {device|file}\n\
 
 //------------------------------------------
 
-test_accepts_help!(CACHE_CHECK, USAGE);
-test_accepts_version!(CACHE_CHECK);
-test_rejects_bad_option!(CACHE_CHECK);
+struct CacheCheck;
 
-test_missing_input_arg!(CACHE_CHECK);
-test_input_file_not_found!(CACHE_CHECK, ARG);
-test_input_cannot_be_a_directory!(CACHE_CHECK, ARG);
-test_unreadable_input_file!(CACHE_CHECK, ARG);
+impl<'a> Program<'a> for CacheCheck {
+    fn name() -> &'a str {
+        "cache_check"
+    }
 
-test_help_message_for_tiny_input_file!(CACHE_CHECK, ARG);
-test_spot_xml_data!(CACHE_CHECK, "cache_check", ARG);
-test_corrupted_input_data!(CACHE_CHECK, ARG);
+    fn path() -> &'a str {
+        CACHE_CHECK
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for CacheCheck {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        msg::BAD_SUPERBLOCK
+    }
+}
+
+impl<'a> BinaryInputProgram<'_> for CacheCheck {}
+
+//------------------------------------------
+
+test_accepts_help!(CacheCheck);
+test_accepts_version!(CacheCheck);
+test_rejects_bad_option!(CacheCheck);
+
+test_missing_input_arg!(CacheCheck);
+test_input_file_not_found!(CacheCheck);
+test_input_cannot_be_a_directory!(CacheCheck);
+test_unreadable_input_file!(CacheCheck);
+
+test_help_message_for_tiny_input_file!(CacheCheck);
+test_spot_xml_data!(CacheCheck);
+test_corrupted_input_data!(CacheCheck);
 
 //------------------------------------------
 

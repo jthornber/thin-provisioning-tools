@@ -29,15 +29,69 @@ const USAGE: &str = concat!(
 
 //------------------------------------------
 
-test_accepts_help!(THIN_METADATA_UNPACK, USAGE);
-test_accepts_version!(THIN_METADATA_UNPACK);
-test_rejects_bad_option!(THIN_METADATA_UNPACK);
+struct ThinMetadataUnpack;
 
-test_missing_input_option!(THIN_METADATA_PACK);
-test_input_file_not_found!(THIN_METADATA_UNPACK, OPTION);
-test_corrupted_input_data!(THIN_METADATA_UNPACK, OPTION);
+impl<'a> Program<'a> for ThinMetadataUnpack {
+    fn name() -> &'a str {
+        "thin_metadata_pack"
+    }
 
-test_missing_output_option!(THIN_METADATA_UNPACK, mk_valid_md);
+    fn path() -> &'a str {
+        THIN_METADATA_UNPACK
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::IoOptions
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        rust_msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinMetadataUnpack {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_zeroed_md(td) // FIXME: make a real pack file
+    }
+
+    fn file_not_found() -> &'a str {
+        rust_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        rust_msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        "Not a pack file"
+    }
+}
+
+impl<'a> OutputProgram<'a> for ThinMetadataUnpack {
+    fn file_not_found() -> &'a str {
+        rust_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_output_arg() -> &'a str {
+        rust_msg::MISSING_OUTPUT_ARG
+    }
+}
+
+//------------------------------------------
+
+test_accepts_help!(ThinMetadataUnpack);
+test_accepts_version!(ThinMetadataUnpack);
+test_rejects_bad_option!(ThinMetadataUnpack);
+
+test_missing_input_option!(ThinMetadataUnpack);
+test_input_file_not_found!(ThinMetadataUnpack);
+test_corrupted_input_data!(ThinMetadataUnpack);
+
+test_missing_output_option!(ThinMetadataUnpack);
 
 //------------------------------------------
 

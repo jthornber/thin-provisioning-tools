@@ -19,9 +19,35 @@ const USAGE: &str = "Usage: thin_delta [options] <device or file>\n\
 
 //------------------------------------------
 
-test_accepts_help!(THIN_DELTA, USAGE);
-test_accepts_version!(THIN_DELTA);
-test_rejects_bad_option!(THIN_DELTA);
+struct ThinDelta;
+
+impl<'a> Program<'a> for ThinDelta {
+    fn name() -> &'a str {
+        "thin_delta"
+    }
+
+    fn path() -> &'a str {
+        THIN_DELTA
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        cpp_msg::bad_option_hint(option)
+    }
+}
+
+//------------------------------------------
+
+test_accepts_help!(ThinDelta);
+test_accepts_version!(ThinDelta);
+test_rejects_bad_option!(ThinDelta);
 
 //------------------------------------------
 

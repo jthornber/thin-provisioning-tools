@@ -5,6 +5,7 @@ mod common;
 use common::common_args::*;
 use common::input_arg::*;
 use common::output_option::*;
+use common::test_dir::*;
 use common::*;
 
 //------------------------------------------
@@ -28,12 +29,66 @@ const USAGE: &str = concat!(
 
 //------------------------------------------
 
-test_accepts_help!(THIN_METADATA_PACK, USAGE);
-test_accepts_version!(THIN_METADATA_PACK);
-test_rejects_bad_option!(THIN_METADATA_PACK);
+struct ThinMetadataPack;
 
-test_missing_input_option!(THIN_METADATA_PACK);
-test_missing_output_option!(THIN_METADATA_PACK, mk_valid_md);
-test_input_file_not_found!(THIN_METADATA_PACK, OPTION);
+impl<'a> Program<'a> for ThinMetadataPack {
+    fn name() -> &'a str {
+        "thin_metadata_pack"
+    }
+
+    fn path() -> &'a str {
+        THIN_METADATA_PACK
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::IoOptions
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        rust_msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinMetadataPack {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        rust_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        rust_msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        rust_msg::BAD_SUPERBLOCK
+    }
+}
+
+impl<'a> OutputProgram<'a> for ThinMetadataPack {
+    fn file_not_found() -> &'a str {
+        rust_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_output_arg() -> &'a str {
+        rust_msg::MISSING_OUTPUT_ARG
+    }
+}
 
 //------------------------------------------
+
+test_accepts_help!(ThinMetadataPack);
+test_accepts_version!(ThinMetadataPack);
+test_rejects_bad_option!(ThinMetadataPack);
+
+test_missing_input_option!(ThinMetadataPack);
+test_missing_output_option!(ThinMetadataPack);
+test_input_file_not_found!(ThinMetadataPack);
+
+//-----------------------------------------

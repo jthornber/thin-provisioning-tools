@@ -23,16 +23,60 @@ const USAGE: &str = "Usage: thin_dump [options] {device|file}\n\
                        {--skip-mappings}\n  \
                        {-V|--version}";
 
+//-----------------------------------------
+
+struct ThinDump;
+
+impl<'a> Program<'a> for ThinDump {
+    fn name() -> &'a str {
+        "thin_dump"
+    }
+
+    fn path() -> &'a str {
+        THIN_DUMP
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinDump {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        msg::BAD_SUPERBLOCK
+    }
+}
+
 //------------------------------------------
 
-test_accepts_help!(THIN_DUMP, USAGE);
-test_accepts_version!(THIN_DUMP);
-test_rejects_bad_option!(THIN_DUMP);
+test_accepts_help!(ThinDump);
+test_accepts_version!(ThinDump);
+test_rejects_bad_option!(ThinDump);
 
-test_missing_input_arg!(THIN_DUMP);
-test_input_file_not_found!(THIN_DUMP, ARG);
-test_input_cannot_be_a_directory!(THIN_DUMP, ARG);
-test_unreadable_input_file!(THIN_DUMP, ARG);
+test_missing_input_arg!(ThinDump);
+test_input_file_not_found!(ThinDump);
+test_input_cannot_be_a_directory!(ThinDump);
+test_unreadable_input_file!(ThinDump);
 
 //------------------------------------------
 // test dump & restore cycle

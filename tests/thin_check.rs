@@ -22,20 +22,66 @@ const USAGE: &str = "Usage: thin_check [options] {device|file}\n\
                        {--skip-mappings}\n  \
                        {--super-block-only}";
 
+//-----------------------------------------
+
+struct ThinCheck;
+
+impl<'a> Program<'a> for ThinCheck {
+    fn name() -> &'a str {
+        "thin_check"
+    }
+
+    fn path() -> &'a str {
+        THIN_CHECK
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinCheck {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        msg::BAD_SUPERBLOCK
+    }
+}
+
+impl<'a> BinaryInputProgram<'_> for ThinCheck {}
+
 //------------------------------------------
 
-test_accepts_help!(THIN_CHECK, USAGE);
-test_accepts_version!(THIN_CHECK);
-test_rejects_bad_option!(THIN_CHECK);
+test_accepts_help!(ThinCheck);
+test_accepts_version!(ThinCheck);
+test_rejects_bad_option!(ThinCheck);
 
-test_missing_input_arg!(THIN_CHECK);
-test_input_file_not_found!(THIN_CHECK, ARG);
-test_input_cannot_be_a_directory!(THIN_CHECK, ARG);
-test_unreadable_input_file!(THIN_CHECK, ARG);
+test_missing_input_arg!(ThinCheck);
+test_input_file_not_found!(ThinCheck);
+test_input_cannot_be_a_directory!(ThinCheck);
+test_unreadable_input_file!(ThinCheck);
 
-test_help_message_for_tiny_input_file!(THIN_CHECK, ARG);
-test_spot_xml_data!(THIN_CHECK, "thin_check", ARG);
-test_corrupted_input_data!(THIN_CHECK, ARG);
+test_help_message_for_tiny_input_file!(ThinCheck);
+test_spot_xml_data!(ThinCheck);
+test_corrupted_input_data!(ThinCheck);
 
 //------------------------------------------
 // test exclusive flags

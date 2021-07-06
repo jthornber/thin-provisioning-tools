@@ -19,21 +19,32 @@ use test_dir::TestDir;
 
 //------------------------------------------
 
-#[cfg(not(feature = "rust_tests"))]
-pub mod msg {
+pub mod cpp_msg {
     pub const FILE_NOT_FOUND: &str = "No such file or directory";
     pub const MISSING_INPUT_ARG: &str = "No input file provided";
     pub const MISSING_OUTPUT_ARG: &str = "No output file provided";
+    pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";
+
+    pub fn bad_option_hint(option: &str) -> String {
+        format!("unrecognized option '{}'", option)
+    }
 }
 
-#[cfg(feature = "rust_tests")]
-pub mod msg {
+pub mod rust_msg {
     pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
-    pub const MISSING_INPUT_ARG: &str =
-        "The following required arguments were not provided\n    -i <FILE>";
-    pub const MISSING_OUTPUT_ARG: &str =
-        "The following required arguments were not provided\n    -o <FILE>";
+    pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
+    pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
+    pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";
+
+    pub fn bad_option_hint(option: &str) -> String {
+        format!("Found argument '{}' which wasn't expected", option)
+    }
 }
+
+#[cfg(not(feature = "rust_tests"))]
+pub use cpp_msg as msg;
+#[cfg(feature = "rust_tests")]
+pub use rust_msg as msg;
 
 //------------------------------------------
 
@@ -83,6 +94,42 @@ pub const THIN_RMAP: &str = path_to_cpp!("thin_rmap"); // TODO: rust version
 pub const THIN_GENERATE_METADATA: &str = path_to_cpp!("thin_generate_metadata"); // cpp-only
 pub const THIN_GENERATE_MAPPINGS: &str = path_to_cpp!("thin_generate_mappings"); // cpp-only
 pub const THIN_GENERATE_DAMAGE: &str = path_to_cpp!("thin_generate_damage"); // cpp-only
+
+//------------------------------------------
+
+pub enum ArgType {
+    InputArg,
+    IoOptions,
+}
+
+pub trait Program<'a> {
+    fn name() -> &'a str;
+    fn path() -> &'a str;
+    fn usage() -> &'a str;
+    fn arg_type() -> ArgType;
+
+    // error messages
+    fn bad_option_hint(option: &str) -> String;
+}
+
+pub trait InputProgram<'a>: Program<'a> {
+    fn mk_valid_input(td: &mut TestDir) -> Result<PathBuf>;
+
+    // error messages
+    fn missing_input_arg() -> &'a str;
+    fn file_not_found() -> &'a str;
+    fn corrupted_input() -> &'a str;
+}
+
+pub trait BinaryInputProgram<'a>: InputProgram<'a> {}
+
+pub trait OutputProgram<'a>: InputProgram<'a> {
+    // error messages
+    fn missing_output_arg() -> &'a str;
+    fn file_not_found() -> &'a str;
+}
+
+pub trait BinaryOutputProgram<'a>: OutputProgram<'a> {}
 
 //------------------------------------------
 
@@ -288,6 +335,15 @@ where
     let csum = md5(p)?;
     thunk()?;
     assert_eq!(csum, md5(p)?);
+    Ok(())
+}
+
+pub fn ensure_superblock_zeroed<F>(p: &PathBuf, thunk: F) -> Result<()>
+where
+    F: Fn() -> Result<()>,
+{
+    thunk()?;
+    assert!(superblock_all_zeroes(p)?);
     Ok(())
 }
 

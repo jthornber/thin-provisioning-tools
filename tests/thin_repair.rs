@@ -22,14 +22,68 @@ const USAGE: &str = "Usage: thin_repair [options] {device|file}\n\
 
 //-----------------------------------------
 
-test_accepts_help!(THIN_REPAIR, USAGE);
-test_accepts_version!(THIN_REPAIR);
-test_rejects_bad_option!(THIN_REPAIR);
+struct ThinRepair;
 
-test_input_file_not_found!(THIN_REPAIR, OPTION);
-test_corrupted_input_data!(THIN_REPAIR, OPTION);
+impl<'a> Program<'a> for ThinRepair {
+    fn name() -> &'a str {
+        "thin_repair"
+    }
 
-test_missing_output_option!(THIN_REPAIR, mk_valid_md);
+    fn path() -> &'a str {
+        THIN_REPAIR
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::IoOptions
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        cpp_msg::bad_option_hint(option)
+    }
+}
+
+impl<'a> InputProgram<'a> for ThinRepair {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        cpp_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        cpp_msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        "The following field needs to be provided on the command line due to corruption in the superblock"
+    }
+}
+
+impl<'a> OutputProgram<'a> for ThinRepair {
+    fn file_not_found() -> &'a str {
+        cpp_msg::FILE_NOT_FOUND
+    }
+
+    fn missing_output_arg() -> &'a str {
+        cpp_msg::MISSING_OUTPUT_ARG
+    }
+}
+
+//-----------------------------------------
+
+test_accepts_help!(ThinRepair);
+test_accepts_version!(ThinRepair);
+test_rejects_bad_option!(ThinRepair);
+
+test_input_file_not_found!(ThinRepair);
+test_corrupted_input_data!(ThinRepair);
+
+test_missing_output_option!(ThinRepair);
 
 //-----------------------------------------
 // test output to a small file

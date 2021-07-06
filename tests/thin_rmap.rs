@@ -19,9 +19,35 @@ const USAGE: &str = "Usage: thin_rmap [options] {device|file}\n\
 
 //------------------------------------------
 
-test_accepts_help!(THIN_RMAP, USAGE);
-test_accepts_version!(THIN_RMAP);
-test_rejects_bad_option!(THIN_RMAP);
+struct ThinRmap;
+
+impl<'a> Program<'a> for ThinRmap {
+    fn name() -> &'a str {
+        "thin_rmap"
+    }
+
+    fn path() -> &'a str {
+        THIN_RMAP
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        cpp_msg::bad_option_hint(option)
+    }
+}
+
+//------------------------------------------
+
+test_accepts_help!(ThinRmap);
+test_accepts_version!(ThinRmap);
+test_rejects_bad_option!(ThinRmap);
 
 //------------------------------------------
 
