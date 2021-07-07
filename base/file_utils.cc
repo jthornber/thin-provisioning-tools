@@ -77,8 +77,12 @@ file_utils::check_file_exists(string const &file, bool must_be_regular_file) {
 		throw runtime_error(msg.str());
 	}
 
-	if (must_be_regular_file && !S_ISREG(info.st_mode))
-		throw runtime_error("Not a regular file");
+	if (!S_ISREG(info.st_mode)) {
+		if (must_be_regular_file)
+			throw runtime_error("Not a regular file");
+		if (!S_ISBLK(info.st_mode))
+			throw runtime_error("Not a block device or regular file");
+	}
 }
 
 file_utils::file_descriptor

@@ -81,6 +81,7 @@ test_accepts_version!(ThinRepair);
 test_rejects_bad_option!(ThinRepair);
 
 test_input_file_not_found!(ThinRepair);
+test_input_cannot_be_a_directory!(ThinRepair);
 test_corrupted_input_data!(ThinRepair);
 
 test_missing_output_option!(ThinRepair);
