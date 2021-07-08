@@ -7,9 +7,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::cache::hint::Hint;
+use crate::cache::ir::{self, MetadataVisitor, Visit};
 use crate::cache::mapping::{Mapping, MappingFlags};
 use crate::cache::superblock::*;
-use crate::cache::xml::{self, MetadataVisitor, Visit};
+use crate::cache::xml;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
@@ -56,7 +57,7 @@ fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
 //------------------------------------------
 
 struct RestoreResult {
-    sb: xml::Superblock,
+    sb: ir::Superblock,
     mapping_root: u64,
     dirty_root: Option<u64>,
     hint_root: u64,
@@ -65,7 +66,7 @@ struct RestoreResult {
 
 struct Restorer<'a> {
     write_batcher: &'a mut WriteBatcher,
-    sb: Option<xml::Superblock>,
+    sb: Option<ir::Superblock>,
     mapping_builder: Option<ArrayBuilder<Mapping>>,
     dirty_builder: Option<ArrayBuilder<u64>>,
     hint_builder: Option<ArrayBuilder<Hint>>,
@@ -112,7 +113,7 @@ impl<'a> Restorer<'a> {
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
         self.write_batcher.alloc()?;
         self.mapping_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
@@ -157,7 +158,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn mapping(&mut self, m: &xml::Map) -> Result<Visit> {
+    fn mapping(&mut self, m: &ir::Map) -> Result<Visit> {
         let map = Mapping {
             oblock: m.oblock,
             flags: MappingFlags::Valid as u32,
@@ -198,7 +199,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn hint(&mut self, h: &xml::Hint) -> Result<Visit> {
+    fn hint(&mut self, h: &ir::Hint) -> Result<Visit> {
         let hint = Hint {
             hint: h.data[..].try_into().unwrap(),
         };
@@ -215,7 +216,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn discard(&mut self, _d: &xml::Discard) -> Result<Visit> {
+    fn discard(&mut self, _d: &ir::Discard) -> Result<Visit> {
         Ok(Visit::Continue)
     }
 

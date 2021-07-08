@@ -3,12 +3,13 @@ use rand::prelude::*;
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::path::Path;
+use thinp::cache::ir::{self, MetadataVisitor};
 use thinp::cache::xml;
 
 //------------------------------------------
 
 pub trait XmlGen {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()>;
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()>;
 }
 
 pub fn write_xml(path: &Path, g: &mut dyn XmlGen) -> Result<()> {
@@ -50,8 +51,8 @@ impl CacheGen {
 }
 
 impl XmlGen for CacheGen {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
-        v.superblock_b(&xml::Superblock {
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
+        v.superblock_b(&ir::Superblock {
             uuid: "".to_string(),
             block_size: self.block_size,
             nr_cache_blocks: self.nr_cache_blocks,
@@ -77,7 +78,7 @@ impl XmlGen for CacheGen {
 
                 used.insert(oblock);
                 // FIXME: dirty should vary
-                v.mapping(&xml::Map {
+                v.mapping(&ir::Map {
                     cblock: cblocks[n as usize],
                     oblock,
                     dirty: false,

@@ -4,62 +4,10 @@ use std::{io::prelude::*, io::BufReader, io::Write};
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
 
+use crate::thin::ir::*;
 use crate::xml::*;
 
 //---------------------------------------
-
-#[derive(Clone)]
-pub struct Superblock {
-    pub uuid: String,
-    pub time: u64,
-    pub transaction: u64,
-    pub flags: Option<u32>,
-    pub version: Option<u32>,
-    pub data_block_size: u32,
-    pub nr_data_blocks: u64,
-    pub metadata_snap: Option<u64>,
-}
-
-#[derive(Clone)]
-pub struct Device {
-    pub dev_id: u32,
-    pub mapped_blocks: u64,
-    pub transaction: u64,
-    pub creation_time: u64,
-    pub snap_time: u64,
-}
-
-#[derive(Clone)]
-pub struct Map {
-    pub thin_begin: u64,
-    pub data_begin: u64,
-    pub time: u32,
-    pub len: u64,
-}
-
-#[derive(Clone)]
-pub enum Visit {
-    Continue,
-    Stop,
-}
-
-pub trait MetadataVisitor {
-    fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit>;
-    fn superblock_e(&mut self) -> Result<Visit>;
-
-    // Defines a shared sub tree.  May only contain a 'map' (no 'ref' allowed).
-    fn def_shared_b(&mut self, name: &str) -> Result<Visit>;
-    fn def_shared_e(&mut self) -> Result<Visit>;
-
-    // A device contains a number of 'map' or 'ref' items.
-    fn device_b(&mut self, d: &Device) -> Result<Visit>;
-    fn device_e(&mut self) -> Result<Visit>;
-
-    fn map(&mut self, m: &Map) -> Result<Visit>;
-    fn ref_shared(&mut self, name: &str) -> Result<Visit>;
-
-    fn eof(&mut self) -> Result<Visit>;
-}
 
 pub struct XmlWriter<W: Write> {
     w: Writer<W>,
@@ -178,7 +126,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
 
 fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     let mut uuid: Option<String> = None;
-    let mut time: Option<u64> = None;
+    let mut time: Option<u32> = None;
     let mut transaction: Option<u64> = None;
     let mut flags: Option<u32> = None;
     let mut version: Option<u32> = None;
@@ -190,7 +138,7 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
         let kv = a.unwrap();
         match kv.key {
             b"uuid" => uuid = Some(string_val(&kv)),
-            b"time" => time = Some(u64_val(&kv)?),
+            b"time" => time = Some(u32_val(&kv)?),
             b"transaction" => transaction = Some(u64_val(&kv)?),
             b"flags" => flags = Some(u32_val(&kv)?),
             b"version" => version = Some(u32_val(&kv)?),
@@ -235,8 +183,8 @@ fn parse_device(e: &BytesStart) -> Result<Device> {
     let mut dev_id: Option<u32> = None;
     let mut mapped_blocks: Option<u64> = None;
     let mut transaction: Option<u64> = None;
-    let mut creation_time: Option<u64> = None;
-    let mut snap_time: Option<u64> = None;
+    let mut creation_time: Option<u32> = None;
+    let mut snap_time: Option<u32> = None;
 
     for a in e.attributes() {
         let kv = a.unwrap();
@@ -244,8 +192,8 @@ fn parse_device(e: &BytesStart) -> Result<Device> {
             b"dev_id" => dev_id = Some(u32_val(&kv)?),
             b"mapped_blocks" => mapped_blocks = Some(u64_val(&kv)?),
             b"transaction" => transaction = Some(u64_val(&kv)?),
-            b"creation_time" => creation_time = Some(u64_val(&kv)?),
-            b"snap_time" => snap_time = Some(u64_val(&kv)?),
+            b"creation_time" => creation_time = Some(u32_val(&kv)?),
+            b"snap_time" => snap_time = Some(u32_val(&kv)?),
             _ => return bad_attr("device", kv.key),
         }
     }

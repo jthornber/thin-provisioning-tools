@@ -16,8 +16,9 @@ use crate::pdata::unpack::Pack;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
+use crate::thin::ir::{self, MetadataVisitor, Visit};
 use crate::thin::superblock::{self, *};
-use crate::thin::xml::{self, *};
+use crate::thin::xml;
 use crate::write_batcher::*;
 
 //------------------------------------------
@@ -58,7 +59,7 @@ impl std::fmt::Display for MappedSection {
 //------------------------------------------
 
 struct RestoreResult {
-    sb: xml::Superblock,
+    sb: ir::Superblock,
     devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Arc<Mutex<dyn SpaceMap>>,
 }
@@ -74,7 +75,7 @@ struct Restorer<'a> {
     current_map: Option<(MappedSection, NodeBuilder<BlockTime>)>,
     current_dev: Option<DeviceDetail>,
 
-    sb: Option<xml::Superblock>,
+    sb: Option<ir::Superblock>,
     devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Option<Arc<Mutex<dyn SpaceMap>>>,
 }
@@ -136,7 +137,7 @@ impl<'a> Restorer<'a> {
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
         self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
         self.w.alloc()?;
@@ -160,7 +161,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         }
     }
 
-    fn device_b(&mut self, d: &Device) -> Result<Visit> {
+    fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
         self.report
             .info(&format!("building btree for device {}", d.dev_id));
         self.current_dev = Some(DeviceDetail {
@@ -186,7 +187,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         }
     }
 
-    fn map(&mut self, m: &Map) -> Result<Visit> {
+    fn map(&mut self, m: &ir::Map) -> Result<Visit> {
         if let Some((_, builder)) = self.current_map.as_mut() {
             for i in 0..m.len {
                 let bt = BlockTime {

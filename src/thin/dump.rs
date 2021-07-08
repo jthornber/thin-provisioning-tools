@@ -18,14 +18,15 @@ use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
+use crate::thin::ir::{self, MetadataVisitor};
 use crate::thin::runs::*;
 use crate::thin::superblock::*;
-use crate::thin::xml::{self, MetadataVisitor};
+use crate::thin::xml;
 
 //------------------------------------------
 
 struct RunBuilder {
-    run: Option<xml::Map>,
+    run: Option<ir::Map>,
 }
 
 impl RunBuilder {
@@ -33,12 +34,12 @@ impl RunBuilder {
         RunBuilder { run: None }
     }
 
-    fn next(&mut self, thin_block: u64, data_block: u64, time: u32) -> Option<xml::Map> {
-        use xml::Map;
+    fn next(&mut self, thin_block: u64, data_block: u64, time: u32) -> Option<ir::Map> {
+        use ir::Map;
 
         match self.run {
             None => {
-                self.run = Some(xml::Map {
+                self.run = Some(ir::Map {
                     thin_begin: thin_block,
                     data_begin: data_block,
                     time,
@@ -46,7 +47,7 @@ impl RunBuilder {
                 });
                 None
             }
-            Some(xml::Map {
+            Some(ir::Map {
                 thin_begin,
                 data_begin,
                 time: mtime,
@@ -70,7 +71,7 @@ impl RunBuilder {
         }
     }
 
-    fn complete(&mut self) -> Option<xml::Map> {
+    fn complete(&mut self) -> Option<ir::Map> {
         self.run.take()
     }
 }
@@ -78,7 +79,7 @@ impl RunBuilder {
 //------------------------------------------
 
 struct MVInner<'a> {
-    md_out: &'a mut dyn xml::MetadataVisitor,
+    md_out: &'a mut dyn MetadataVisitor,
     builder: RunBuilder,
 }
 
@@ -89,7 +90,7 @@ struct MappingVisitor<'a> {
 //------------------------------------------
 
 impl<'a> MappingVisitor<'a> {
-    fn new(md_out: &'a mut dyn xml::MetadataVisitor) -> MappingVisitor<'a> {
+    fn new(md_out: &'a mut dyn MetadataVisitor) -> MappingVisitor<'a> {
         MappingVisitor {
             inner: Mutex::new(MVInner {
                 md_out,
@@ -516,7 +517,7 @@ where
     Ok(())
 }
 
-fn emit_leaves(ctx: &Context, out: &mut dyn xml::MetadataVisitor, ls: &[u64]) -> Result<()> {
+fn emit_leaves(ctx: &Context, out: &mut dyn MetadataVisitor, ls: &[u64]) -> Result<()> {
     let mut v = MappingVisitor::new(out);
     let proc = |b| {
         emit_leaf(&mut v, &b)?;
@@ -560,9 +561,9 @@ fn emit_entries<W: Write>(
 fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadata) -> Result<()> {
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let mut out = xml::XmlWriter::new(w);
-    let xml_sb = xml::Superblock {
+    let xml_sb = ir::Superblock {
         uuid: "".to_string(),
-        time: sb.time as u64,
+        time: sb.time,
         transaction: sb.transaction_id,
         flags: None,
         version: Some(2),
@@ -581,12 +582,12 @@ fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadat
 
     ctx.report.set_title("Dumping devices");
     for dev in &md.devs {
-        let device = xml::Device {
+        let device = ir::Device {
             dev_id: dev.thin_id,
             mapped_blocks: dev.detail.mapped_blocks,
             transaction: dev.detail.transaction_id,
-            creation_time: dev.detail.creation_time as u64,
-            snap_time: dev.detail.snapshotted_time as u64,
+            creation_time: dev.detail.creation_time,
+            snap_time: dev.detail.snapshotted_time,
         };
         out.device_b(&device)?;
         emit_entries(ctx, &mut out, &dev.map.entries)?;

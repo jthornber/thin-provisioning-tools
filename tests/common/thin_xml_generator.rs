@@ -4,12 +4,13 @@ use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::ops::Range;
 use std::path::Path;
+use thinp::thin::ir::{self, MetadataVisitor};
 use thinp::thin::xml;
 
 //------------------------------------------
 
 pub trait XmlGen {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()>;
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()>;
 }
 
 pub fn write_xml(path: &Path, g: &mut dyn XmlGen) -> Result<()> {
@@ -24,8 +25,8 @@ pub fn write_xml(path: &Path, g: &mut dyn XmlGen) -> Result<()> {
     g.generate_xml(&mut w)
 }
 
-fn common_sb(nr_blocks: u64) -> xml::Superblock {
-    xml::Superblock {
+fn common_sb(nr_blocks: u64) -> ir::Superblock {
+    ir::Superblock {
         uuid: "".to_string(),
         time: 0,
         transaction: 0,
@@ -42,7 +43,7 @@ fn common_sb(nr_blocks: u64) -> xml::Superblock {
 pub struct EmptyPoolS {}
 
 impl XmlGen for EmptyPoolS {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         v.superblock_b(&common_sb(1024))?;
         v.superblock_e()?;
         Ok(())
@@ -70,16 +71,16 @@ impl SingleThinS {
 }
 
 impl XmlGen for SingleThinS {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
-        v.device_b(&xml::Device {
+        v.device_b(&ir::Device {
             dev_id: 0,
             mapped_blocks: self.len,
             transaction: 0,
             creation_time: 0,
             snap_time: 0,
         })?;
-        v.map(&xml::Map {
+        v.map(&ir::Map {
             thin_begin: 0,
             data_begin: self.offset,
             time: 0,
@@ -146,7 +147,7 @@ fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<T
 }
 
 impl XmlGen for FragmentedS {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         // Allocate each thin fully, in runs between 1 and 16.
         let mut runs = Vec::new();
         for thin in 0..self.nr_thins {
@@ -188,7 +189,7 @@ impl XmlGen for FragmentedS {
         // write the xml
         v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
         for thin in 0..self.nr_thins {
-            v.device_b(&xml::Device {
+            v.device_b(&ir::Device {
                 dev_id: thin,
                 mapped_blocks: self.thin_size,
                 transaction: 0,
@@ -201,7 +202,7 @@ impl XmlGen for FragmentedS {
                     continue;
                 }
 
-                v.map(&xml::Map {
+                v.map(&ir::Map {
                     thin_begin: m.thin_begin,
                     data_begin: m.data_begin,
                     time: 0,
@@ -329,8 +330,8 @@ struct ThinDev {
 }
 
 impl ThinDev {
-    fn emit(&self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
-        v.device_b(&xml::Device {
+    fn emit(&self, v: &mut dyn MetadataVisitor) -> Result<()> {
+        v.device_b(&ir::Device {
             dev_id: self.thin_id,
             mapped_blocks: self.dev_size,
             transaction: 0,
@@ -342,7 +343,7 @@ impl ThinDev {
         for r in &self.runs {
             match r {
                 Run::Mapped { data_begin, len } => {
-                    v.map(&xml::Map {
+                    v.map(&ir::Map {
                         thin_begin: b,
                         data_begin: *data_begin,
                         time: 0,
@@ -522,7 +523,7 @@ impl SnapS {
 }
 
 impl XmlGen for SnapS {
-    fn generate_xml(&mut self, v: &mut dyn xml::MetadataVisitor) -> Result<()> {
+    fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         let mut allocator = Allocator::new_shuffled(self.old_nr_data_blocks, 64..512);
         let origin = mk_origin(0, self.len, &mut allocator)?;
 

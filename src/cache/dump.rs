@@ -7,9 +7,10 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::cache::hint::Hint;
+use crate::cache::ir::{self, MetadataVisitor};
 use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
-use crate::cache::xml::{self, MetadataVisitor};
+use crate::cache::xml;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
@@ -58,7 +59,7 @@ mod format1 {
                     continue;
                 }
 
-                let m = xml::Map {
+                let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
                     dirty: map.is_dirty(),
@@ -133,7 +134,7 @@ mod format2 {
                     // default to dirty if the bitset is damaged
                     dirty = true;
                 }
-                let m = xml::Map {
+                let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
                     dirty,
@@ -175,7 +176,7 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
                 continue;
             }
 
-            let h = xml::Hint {
+            let h = ir::Hint {
                 cblock,
                 data: hint.hint.to_vec(),
             };
@@ -226,7 +227,7 @@ fn dump_metadata(
     let engine = &ctx.engine;
 
     let mut out = xml::XmlWriter::new(w);
-    let xml_sb = xml::Superblock {
+    let xml_sb = ir::Superblock {
         uuid: "".to_string(),
         block_size: sb.data_block_size,
         nr_cache_blocks: sb.cache_blocks,
