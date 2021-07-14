@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -240,29 +239,17 @@ impl LeafVisitor<BlockTime> for CollectLeaves {
 }
 
 fn collect_leaves(
-    ctx: &Context,
+    engine: Arc<dyn IoEngine + Send + Sync>,
     roots: &BTreeSet<u64>,
-    mut sm: Box<dyn SpaceMap>,
 ) -> Result<BTreeMap<u64, Vec<Entry>>> {
     let mut map: BTreeMap<u64, Vec<Entry>> = BTreeMap::new();
+    let mut sm = RestrictedSpaceMap::new(engine.get_nr_blocks());
 
-    ctx.report
-        .set_title(&format!("Collecting leaves for {} roots", roots.len()));
-
-    // FIXME: we don't want any leaves in shared.
-    for r in roots.iter() {
-        let old_count = sm.get(*r).expect("couldn't get count from space map.");
-        sm.set(*r, 0).expect("couldn't set count in space map.");
-
-        let mut w = LeafWalker::new(ctx.engine.clone(), sm.deref_mut(), false);
+    for r in roots {
+        let mut w = LeafWalker::new(engine.clone(), &mut sm, false);
         let mut v = CollectLeaves::new();
-
         let mut path = vec![0];
-
-        // ctx.report.set_title(&format!("collecting {}", *r));
         w.walk::<CollectLeaves, BlockTime>(&mut path, &mut v, *r)?;
-        sm.set(*r, old_count)
-            .expect("couldn't set count in space map.");
 
         map.insert(*r, v.leaves);
     }
@@ -272,59 +259,9 @@ fn collect_leaves(
 
 //------------------------------------------
 
-#[allow(dead_code)]
-fn find_shared_nodes(
-    ctx: &Context,
-    roots: &BTreeMap<u64, (Vec<u64>, u64)>,
-) -> Result<(BTreeSet<u64>, Box<dyn SpaceMap>)> {
-    let nr_metadata_blocks = ctx.engine.get_nr_blocks();
-    let mut sm = core_sm_without_mutex(nr_metadata_blocks, roots.len() as u32);
-    let mut v = NoopLeafVisitor {};
-    let mut w = LeafWalker::new(ctx.engine.clone(), sm.deref_mut(), false);
-
-    for (thin_id, (path, root)) in roots {
-        let mut path = path.clone();
-        ctx.report.info(&format!("scanning {}", thin_id));
-        w.walk::<NoopLeafVisitor, BlockTime>(&mut path, &mut v, *root)?;
-    }
-
-    // We have to get the leaves so w is consumed and the &mut on sm
-    // is dropped.
-    let _leaves = w.get_leaves();
-    let mut shared = BTreeSet::new();
-    {
-        for i in 0..sm.get_nr_blocks().unwrap() {
-            if sm.get(i).expect("couldn't get count from space map.") > 1 {
-                shared.insert(i);
-            }
-        }
-    }
-
-    /*
-    // FIXME: why?!!
-    // we're not interested in leaves (roots will get re-added later).
-    {
-        for i in 0..leaves.len() {
-            if leaves.contains(i) {
-                shared.remove(&(i as u64));
-            }
-        }
-    }
-    */
-
-    Ok((shared, sm))
-}
-
-//------------------------------------------
-
 fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
     let report = &ctx.report;
     let engine = &ctx.engine;
-
-    // superblock
-    report.set_title("Reading superblock");
-    //let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    //let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let mut path = vec![0];
 
     report.set_title("Reading device details");
@@ -338,17 +275,15 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
             btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
     }
 
-    let sm = Box::new(RestrictedSpaceMap::new(engine.get_nr_blocks()));
+    report.set_title(&format!("Collecting leaves for {} roots", roots.len()));
     let mapping_roots = roots.values().map(|(_, root)| *root).collect();
-    let entry_map = collect_leaves(&ctx, &mapping_roots, sm)?;
+    let entry_map = collect_leaves(engine.clone(), &mapping_roots)?;
+
     let defs = Vec::new();
     let mut devs = Vec::new();
-
-    let mut seen = BTreeSet::new();
     for (thin_id, (_path, root)) in roots {
         let id = thin_id as u64;
         let detail = details.get(&id).expect("couldn't find device details");
-        seen.insert(root);
         let es = entry_map.get(&root).unwrap();
         let kr = KeyRange::new(); // FIXME: finish
         devs.push(Device {
@@ -366,7 +301,6 @@ fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
 
 //------------------------------------------
 
-#[allow(dead_code)]
 fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     g.new_seq();
     for e in es {
@@ -381,7 +315,22 @@ fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     }
 }
 
-#[allow(dead_code)]
+fn build_runs(devs: &[Device]) -> BTreeMap<u64, Vec<u64>> {
+    let mut g = Gatherer::new();
+
+    for d in devs {
+        gather_entries(&mut g, &d.map.entries);
+    }
+
+    // The runs become defs that just contain leaves.
+    let mut runs = BTreeMap::new();
+    for run in g.gather() {
+        runs.insert(run[0], run);
+    }
+
+    runs
+}
+
 fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
     use Entry::*;
 
@@ -408,51 +357,28 @@ fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
     result
 }
 
-// FIXME: do we really need to track kr?
-// FIXME: I think this may be better done as part of restore.
-#[allow(dead_code)]
-fn optimise_metadata(md: Metadata) -> Result<Metadata> {
-    use Entry::*;
-
-    let mut g = Gatherer::new();
-    for d in &md.defs {
-        gather_entries(&mut g, &d.map.entries);
-    }
-
-    for d in &md.devs {
-        gather_entries(&mut g, &d.map.entries);
-    }
-
+fn build_defs(runs: BTreeMap<u64, Vec<u64>>) -> Vec<Def> {
     let mut defs = Vec::new();
-    let mut devs = Vec::new();
-    let mut runs = BTreeMap::new();
-    for run in g.gather() {
-        runs.insert(run[0], run);
-    }
-    eprintln!("{} runs", runs.len());
-
-    // The runs become additional defs that just contain leaves.
     for (head, run) in runs.iter() {
         let kr = KeyRange::new();
-        let entries: Vec<Entry> = run.iter().map(|b| Leaf(*b)).collect();
+        let entries: Vec<Entry> = run.iter().map(|b| Entry::Leaf(*b)).collect();
         defs.push(Def {
             def_id: *head,
             map: Mapping { kr, entries },
         });
     }
 
-    // Expand old defs to use the new atomic runs
-    for d in &md.defs {
-        let kr = KeyRange::new();
-        let entries = entries_to_runs(&runs, &d.map.entries);
+    defs
+}
 
-        defs.push(Def {
-            def_id: d.def_id,
-            map: Mapping { kr, entries },
-        });
-    }
+// FIXME: do we really need to track kr?
+// FIXME: I think this may be better done as part of restore.
+fn optimise_metadata(md: Metadata) -> Result<Metadata> {
+    let runs = build_runs(&md.devs);
+    eprintln!("{} runs", runs.len());
 
     // Expand old devs to use the new atomic runs
+    let mut devs = Vec::new();
     for d in &md.devs {
         let kr = KeyRange::new();
         let entries = entries_to_runs(&runs, &d.map.entries);
@@ -462,6 +388,8 @@ fn optimise_metadata(md: Metadata) -> Result<Metadata> {
             map: Mapping { kr, entries },
         });
     }
+
+    let defs = build_defs(runs);
 
     Ok(Metadata { defs, devs })
 }
@@ -606,17 +534,16 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(&ctx, &sb)?;
 
+    ctx.report
+        .set_title("Optimising metadata to improve leaf packing");
+    let md = optimise_metadata(md)?;
+
     let mut writer: Box<dyn Write>;
     if opts.output.is_some() {
         writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
     } else {
         writer = Box::new(BufWriter::new(std::io::stdout()));
     }
-
-    ctx.report
-        .set_title("Optimising metadata to improve leaf packing");
-    let md = optimise_metadata(md)?;
-
     dump_metadata(&ctx, &mut writer, &sb, &md)
 }
 
