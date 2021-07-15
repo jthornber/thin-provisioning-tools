@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -9,16 +8,13 @@ use std::sync::{Arc, Mutex};
 use crate::checksum;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, *};
-use crate::pdata::btree_leaf_walker::*;
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map_common::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
-use crate::thin::device_detail::*;
 use crate::thin::ir::{self, MetadataVisitor};
-use crate::thin::runs::*;
+use crate::thin::metadata::*;
 use crate::thin::superblock::*;
 use crate::thin::xml;
 
@@ -176,226 +172,6 @@ fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
 
 //------------------------------------------
 
-type DefId = u64;
-type ThinId = u32;
-
-#[derive(Clone)]
-enum Entry {
-    Leaf(u64),
-    Ref(DefId),
-}
-
-#[derive(Clone)]
-struct Mapping {
-    kr: KeyRange,
-    entries: Vec<Entry>,
-}
-
-#[derive(Clone)]
-struct Device {
-    thin_id: ThinId,
-    detail: DeviceDetail,
-    map: Mapping,
-}
-
-#[derive(Clone)]
-struct Def {
-    def_id: DefId,
-    map: Mapping,
-}
-
-#[derive(Clone)]
-struct Metadata {
-    defs: Vec<Def>,
-    devs: Vec<Device>,
-}
-
-//------------------------------------------
-
-struct CollectLeaves {
-    leaves: Vec<Entry>,
-}
-
-impl CollectLeaves {
-    fn new() -> CollectLeaves {
-        CollectLeaves { leaves: Vec::new() }
-    }
-}
-
-impl LeafVisitor<BlockTime> for CollectLeaves {
-    fn visit(&mut self, _kr: &KeyRange, b: u64) -> btree::Result<()> {
-        self.leaves.push(Entry::Leaf(b));
-        Ok(())
-    }
-
-    fn visit_again(&mut self, b: u64) -> btree::Result<()> {
-        self.leaves.push(Entry::Ref(b));
-        Ok(())
-    }
-
-    fn end_walk(&mut self) -> btree::Result<()> {
-        Ok(())
-    }
-}
-
-fn collect_leaves(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    roots: &BTreeSet<u64>,
-) -> Result<BTreeMap<u64, Vec<Entry>>> {
-    let mut map: BTreeMap<u64, Vec<Entry>> = BTreeMap::new();
-    let mut sm = RestrictedSpaceMap::new(engine.get_nr_blocks());
-
-    for r in roots {
-        let mut w = LeafWalker::new(engine.clone(), &mut sm, false);
-        let mut v = CollectLeaves::new();
-        let mut path = vec![0];
-        w.walk::<CollectLeaves, BlockTime>(&mut path, &mut v, *r)?;
-
-        map.insert(*r, v.leaves);
-    }
-
-    Ok(map)
-}
-
-//------------------------------------------
-
-fn build_metadata(ctx: &Context, sb: &Superblock) -> Result<Metadata> {
-    let report = &ctx.report;
-    let engine = &ctx.engine;
-    let mut path = vec![0];
-
-    report.set_title("Reading device details");
-    let details = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
-
-    report.set_title("Reading mappings roots");
-    let roots;
-    {
-        let sm = Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())));
-        roots =
-            btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
-    }
-
-    report.set_title(&format!("Collecting leaves for {} roots", roots.len()));
-    let mapping_roots = roots.values().map(|(_, root)| *root).collect();
-    let entry_map = collect_leaves(engine.clone(), &mapping_roots)?;
-
-    let defs = Vec::new();
-    let mut devs = Vec::new();
-    for (thin_id, (_path, root)) in roots {
-        let id = thin_id as u64;
-        let detail = details.get(&id).expect("couldn't find device details");
-        let es = entry_map.get(&root).unwrap();
-        let kr = KeyRange::new(); // FIXME: finish
-        devs.push(Device {
-            thin_id: thin_id as u32,
-            detail: *detail,
-            map: Mapping {
-                kr,
-                entries: es.to_vec(),
-            },
-        });
-    }
-
-    Ok(Metadata { defs, devs })
-}
-
-//------------------------------------------
-
-fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
-    g.new_seq();
-    for e in es {
-        match e {
-            Entry::Leaf(b) => {
-                g.next(*b);
-            }
-            Entry::Ref(_id) => {
-                g.new_seq();
-            }
-        }
-    }
-}
-
-fn build_runs(devs: &[Device]) -> BTreeMap<u64, Vec<u64>> {
-    let mut g = Gatherer::new();
-
-    for d in devs {
-        gather_entries(&mut g, &d.map.entries);
-    }
-
-    // The runs become defs that just contain leaves.
-    let mut runs = BTreeMap::new();
-    for run in g.gather() {
-        runs.insert(run[0], run);
-    }
-
-    runs
-}
-
-fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
-    use Entry::*;
-
-    let mut result = Vec::new();
-    let mut entry_index = 0;
-    while entry_index < es.len() {
-        match es[entry_index] {
-            Ref(id) => {
-                result.push(Ref(id));
-                entry_index += 1;
-            }
-            Leaf(b) => {
-                if let Some(run) = runs.get(&b) {
-                    result.push(Ref(b));
-                    entry_index += run.len();
-                } else {
-                    result.push(Leaf(b));
-                    entry_index += 1;
-                }
-            }
-        }
-    }
-
-    result
-}
-
-fn build_defs(runs: BTreeMap<u64, Vec<u64>>) -> Vec<Def> {
-    let mut defs = Vec::new();
-    for (head, run) in runs.iter() {
-        let kr = KeyRange::new();
-        let entries: Vec<Entry> = run.iter().map(|b| Entry::Leaf(*b)).collect();
-        defs.push(Def {
-            def_id: *head,
-            map: Mapping { kr, entries },
-        });
-    }
-
-    defs
-}
-
-// FIXME: do we really need to track kr?
-// FIXME: I think this may be better done as part of restore.
-fn optimise_metadata(md: Metadata) -> Result<Metadata> {
-    let runs = build_runs(&md.devs);
-    eprintln!("{} runs", runs.len());
-
-    // Expand old devs to use the new atomic runs
-    let mut devs = Vec::new();
-    for d in &md.devs {
-        let kr = KeyRange::new();
-        let entries = entries_to_runs(&runs, &d.map.entries);
-        devs.push(Device {
-            thin_id: d.thin_id,
-            detail: d.detail,
-            map: Mapping { kr, entries },
-        });
-    }
-
-    let defs = build_defs(runs);
-
-    Ok(Metadata { defs, devs })
-}
-
-//------------------------------------------
-
 fn emit_leaf(v: &mut MappingVisitor, b: &Block) -> Result<()> {
     use Node::*;
     let path = Vec::new();
@@ -445,20 +221,20 @@ where
     Ok(())
 }
 
-fn emit_leaves(ctx: &Context, out: &mut dyn MetadataVisitor, ls: &[u64]) -> Result<()> {
+fn emit_leaves(engine: Arc<dyn IoEngine>, out: &mut dyn MetadataVisitor, ls: &[u64]) -> Result<()> {
     let mut v = MappingVisitor::new(out);
     let proc = |b| {
         emit_leaf(&mut v, &b)?;
         Ok(())
     };
 
-    read_for(ctx.engine.clone(), ls, proc)?;
+    read_for(engine, ls, proc)?;
     v.end_walk().map_err(|_| anyhow!("failed to emit leaves"))
 }
 
-fn emit_entries<W: Write>(
-    ctx: &Context,
-    out: &mut xml::XmlWriter<W>,
+fn emit_entries(
+    engine: Arc<dyn IoEngine>,
+    out: &mut dyn MetadataVisitor,
     entries: &[Entry],
 ) -> Result<()> {
     let mut leaves = Vec::new();
@@ -470,7 +246,7 @@ fn emit_entries<W: Write>(
             }
             Entry::Ref(id) => {
                 if !leaves.is_empty() {
-                    emit_leaves(&ctx, out, &leaves[0..])?;
+                    emit_leaves(engine.clone(), out, &leaves[0..])?;
                     leaves.clear();
                 }
                 let str = format!("{}", id);
@@ -480,16 +256,20 @@ fn emit_entries<W: Write>(
     }
 
     if !leaves.is_empty() {
-        emit_leaves(&ctx, out, &leaves[0..])?;
+        emit_leaves(engine, out, &leaves[0..])?;
     }
 
     Ok(())
 }
 
-fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadata) -> Result<()> {
+pub fn dump_metadata(
+    engine: Arc<dyn IoEngine>,
+    out: &mut dyn MetadataVisitor,
+    sb: &Superblock,
+    md: &Metadata,
+) -> Result<()> {
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let mut out = xml::XmlWriter::new(w);
-    let xml_sb = ir::Superblock {
+    let out_sb = ir::Superblock {
         uuid: "".to_string(),
         time: sb.time,
         transaction: sb.transaction_id,
@@ -499,16 +279,16 @@ fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadat
         nr_data_blocks: data_root.nr_blocks,
         metadata_snap: None,
     };
-    out.superblock_b(&xml_sb)?;
+    out.superblock_b(&out_sb)?;
 
-    ctx.report.set_title("Dumping shared regions");
+    // ctx.report.set_title("Dumping shared regions");
     for d in &md.defs {
         out.def_shared_b(&format!("{}", d.def_id))?;
-        emit_entries(ctx, &mut out, &d.map.entries)?;
+        emit_entries(engine.clone(), out, &d.map.entries)?;
         out.def_shared_e()?;
     }
 
-    ctx.report.set_title("Dumping devices");
+    // ctx.report.set_title("Dumping devices");
     for dev in &md.devs {
         let device = ir::Device {
             dev_id: dev.thin_id,
@@ -518,7 +298,7 @@ fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadat
             snap_time: dev.detail.snapshotted_time,
         };
         out.device_b(&device)?;
-        emit_entries(ctx, &mut out, &dev.map.entries)?;
+        emit_entries(engine.clone(), out, &dev.map.entries)?;
         out.device_e()?;
     }
     out.superblock_e()?;
@@ -532,19 +312,21 @@ fn dump_metadata(ctx: &Context, w: &mut dyn Write, sb: &Superblock, md: &Metadat
 pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    let md = build_metadata(&ctx, &sb)?;
+    let md = build_metadata(ctx.engine.clone(), &sb)?;
 
     ctx.report
         .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;
 
-    let mut writer: Box<dyn Write>;
+    let writer: Box<dyn Write>;
     if opts.output.is_some() {
         writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
     } else {
         writer = Box::new(BufWriter::new(std::io::stdout()));
     }
-    dump_metadata(&ctx, &mut writer, &sb, &md)
+    let mut out = xml::XmlWriter::new(writer);
+
+    dump_metadata(ctx.engine, &mut out, &sb, &md)
 }
 
 //------------------------------------------

@@ -3,6 +3,7 @@ pub mod check;
 pub mod device_detail;
 pub mod dump;
 pub mod ir;
+pub mod metadata;
 pub mod restore;
 pub mod runs;
 pub mod superblock;
