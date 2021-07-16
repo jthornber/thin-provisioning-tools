@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use crate::io_engine::*;
 use crate::pdata::btree_builder::*;
 use crate::pdata::space_map::*;
+use crate::pdata::space_map_common::SMRoot;
 use crate::pdata::space_map_disk::*;
 use crate::pdata::space_map_metadata::*;
 use crate::pdata::unpack::Pack;
@@ -58,13 +59,7 @@ impl std::fmt::Display for MappedSection {
 
 //------------------------------------------
 
-struct RestoreResult {
-    sb: ir::Superblock,
-    devices: BTreeMap<u32, (DeviceDetail, u64)>,
-    data_sm: Arc<Mutex<dyn SpaceMap>>,
-}
-
-struct Restorer<'a> {
+pub struct Restorer<'a> {
     w: &'a mut WriteBatcher,
     report: Arc<Report>,
 
@@ -81,7 +76,7 @@ struct Restorer<'a> {
 }
 
 impl<'a> Restorer<'a> {
-    fn new(w: &'a mut WriteBatcher, report: Arc<Report>) -> Self {
+    pub fn new(w: &'a mut WriteBatcher, report: Arc<Report>) -> Self {
         Restorer {
             w,
             report,
@@ -92,17 +87,6 @@ impl<'a> Restorer<'a> {
             devices: BTreeMap::new(),
             data_sm: None,
         }
-    }
-
-    fn get_result(self) -> Result<RestoreResult> {
-        if self.sb.is_none() {
-            return Err(anyhow!("No superblock found in xml file"));
-        }
-        Ok(RestoreResult {
-            sb: self.sb.unwrap(),
-            devices: self.devices,
-            data_sm: self.data_sm.unwrap(),
-        })
     }
 
     fn begin_section(&mut self, section: MappedSection) -> Result<Visit> {
@@ -134,17 +118,65 @@ impl<'a> Restorer<'a> {
             Err(anyhow!(msg))
         }
     }
+
+    // Build the device details and the top level mapping trees
+    fn build_device_details(&mut self) -> Result<(u64, u64)> {
+        let mut details_builder: BTreeBuilder<DeviceDetail> =
+            BTreeBuilder::new(Box::new(NoopRC {}));
+        let mut dev_builder: BTreeBuilder<u64> = BTreeBuilder::new(Box::new(NoopRC {}));
+        for (thin_id, (detail, root)) in self.devices.iter() {
+            details_builder.push_value(self.w, *thin_id as u64, *detail)?;
+            dev_builder.push_value(self.w, *thin_id as u64, *root)?;
+        }
+        let details_root = details_builder.complete(self.w)?;
+        let mapping_root = dev_builder.complete(self.w)?;
+
+        Ok((details_root, mapping_root))
+    }
+
+    fn finalize(&mut self) -> Result<()> {
+        let (details_root, mapping_root) = self.build_device_details()?;
+
+        // Build data space map
+        let data_sm = self.data_sm.as_ref().unwrap();
+        let data_sm_root = build_data_sm(self.w, data_sm.lock().unwrap().deref())?;
+
+        // Build metadata space map
+        let (metadata_sm, metadata_sm_root) = build_metadata_sm(self.w)?;
+
+        // Write the superblock
+        let sb = self.sb.as_ref().unwrap();
+        let sb = superblock::Superblock {
+            flags: SuperblockFlags { needs_check: false },
+            block: SUPERBLOCK_LOCATION,
+            version: 2,
+            time: sb.time as u32,
+            transaction_id: sb.transaction,
+            metadata_snap: 0,
+            data_sm_root,
+            metadata_sm_root,
+            mapping_root,
+            details_root,
+            data_block_size: sb.data_block_size,
+            nr_metadata_blocks: metadata_sm.nr_blocks,
+        };
+        write_superblock(self.w.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+    }
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
         self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
-        self.w.alloc()?;
+        let b = self.w.alloc()?;
+        if b.loc != SUPERBLOCK_LOCATION {
+            return Err(anyhow!("superblock was occupied"));
+        }
         Ok(Visit::Continue)
     }
 
     fn superblock_e(&mut self) -> Result<Visit> {
+        self.finalize()?;
         Ok(Visit::Continue)
     }
 
@@ -249,13 +281,13 @@ fn build_data_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<Vec<u8>> {
 
 /// Writes the metadata space map to disk.  Returns the space map root that needs
 /// to be written to the superblock.
-fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
+fn build_metadata_sm(w: &mut WriteBatcher) -> Result<(SMRoot, Vec<u8>)> {
     let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
     let mut cur = Cursor::new(&mut sm_root);
     let r = write_metadata_sm(w)?;
     r.pack(&mut cur)?;
 
-    Ok(sm_root)
+    Ok((r, sm_root))
 }
 
 //------------------------------------------
@@ -303,42 +335,8 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
 
     let sm = core_sm(ctx.engine.get_nr_blocks(), max_count);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
-    let mut restorer = Restorer::new(&mut w, ctx.report.clone());
+    let mut restorer = Restorer::new(&mut w, ctx.report);
     xml::read(input, &mut restorer)?;
-    let result = restorer.get_result()?;
-
-    // Build the device details and top level mapping tree
-    let mut details_builder: BTreeBuilder<DeviceDetail> = BTreeBuilder::new(Box::new(NoopRC {}));
-    let mut dev_builder: BTreeBuilder<u64> = BTreeBuilder::new(Box::new(NoopRC {}));
-    for (thin_id, (detail, root)) in &result.devices {
-        details_builder.push_value(&mut w, *thin_id as u64, *detail)?;
-        dev_builder.push_value(&mut w, *thin_id as u64, *root)?;
-    }
-    let details_root = details_builder.complete(&mut w)?;
-    let mapping_root = dev_builder.complete(&mut w)?;
-
-    // Build data space map
-    let data_sm_root = build_data_sm(&mut w, result.data_sm.lock().unwrap().deref())?;
-
-    // Build metadata space map
-    let metadata_sm_root = build_metadata_sm(&mut w)?;
-
-    // Write the superblock
-    let sb = superblock::Superblock {
-        flags: SuperblockFlags { needs_check: false },
-        block: SUPERBLOCK_LOCATION,
-        version: 2,
-        time: result.sb.time as u32,
-        transaction_id: result.sb.transaction,
-        metadata_snap: 0,
-        data_sm_root,
-        metadata_sm_root,
-        mapping_root,
-        details_root,
-        data_block_size: result.sb.data_block_size,
-        nr_metadata_blocks: ctx.engine.get_nr_blocks(),
-    };
-    write_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
 
     Ok(())
 }

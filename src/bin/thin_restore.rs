@@ -22,6 +22,12 @@ fn main() {
                 .long("async-io")
                 .hidden(true),
         )
+        .arg(
+            Arg::with_name("QUIET")
+                .help("Suppress output messages, return only exit code.")
+                .short("q")
+                .long("quiet"),
+        )
         // options
         .arg(
             Arg::with_name("INPUT")
@@ -33,7 +39,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("OUTPUT")
-                .help("Specify the output device to check")
+                .help("Specify the output device")
                 .short("o")
                 .long("output")
                 .value_name("OUTPUT")
