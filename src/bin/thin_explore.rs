@@ -183,24 +183,19 @@ impl<'a> StatefulWidget for SBWidget<'a> {
             format!("{}k", sb.data_block_size * 2),
         ];
 
-        let table = Table::new(
-            vec![
-                Row::new(flags),
-                Row::new(block),
-                Row::new(uuid),
-                Row::new(version),
-                Row::new(time),
-                Row::new(transaction_id),
-                Row::new(metadata_snap),
-                Row::new(mapping_root),
-                Row::new(details_root),
-                Row::new(data_block_size),
-            ]
-        )
-        .header(
-            Row::new(vec!["Field", "Value"])
-                .style(Style::default().fg(Color::Yellow))
-        )
+        let table = Table::new(vec![
+            Row::new(flags),
+            Row::new(block),
+            Row::new(uuid),
+            Row::new(version),
+            Row::new(time),
+            Row::new(transaction_id),
+            Row::new(metadata_snap),
+            Row::new(mapping_root),
+            Row::new(details_root),
+            Row::new(data_block_size),
+        ])
+        .header(Row::new(vec!["Field", "Value"]).style(Style::default().fg(Color::Yellow)))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -251,19 +246,14 @@ impl<'a> Widget for HeaderWidget<'a> {
         let max_entries = vec!["max_entries".to_string(), format!("{}", hdr.max_entries)];
         let value_size = vec!["value size".to_string(), format!("{}", hdr.value_size)];
 
-        let table = Table::new(
-            vec![
-                Row::new(block),
-                Row::new(kind),
-                Row::new(nr_entries),
-                Row::new(max_entries),
-                Row::new(value_size),
-            ]
-        )
-        .header(
-            Row::new(vec!["Field", "Value"])
-                .style(Style::default().fg(Color::Yellow))
-        )
+        let table = Table::new(vec![
+            Row::new(block),
+            Row::new(kind),
+            Row::new(nr_entries),
+            Row::new(max_entries),
+            Row::new(value_size),
+        ])
+        .header(Row::new(vec!["Field", "Value"]).style(Style::default().fg(Color::Yellow)))
         .block(Block::default().borders(Borders::ALL).title(self.title))
         .widths(&[Constraint::Length(20), Constraint::Length(60)])
         .style(Style::default().fg(Color::White))

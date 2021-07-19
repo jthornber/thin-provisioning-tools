@@ -152,9 +152,12 @@
   (define-scenario (era-restore missing-input-file)
     "the input file can't be found"
     (with-empty-metadata (md)
-      (run-fail-rcv (_ stderr) (era-restore "-i no-such-file -o" md)
-        (assert-superblock-all-zeroes md)
-        (assert-starts-with "Couldn't stat file" stderr))))
+      (let ((bad-path "no-such-file"))
+        (run-fail-rcv (_ stderr) (era-restore "-i no-such-file -o" md)
+          (assert-superblock-all-zeroes md)
+          (assert-starts-with
+            (string-append bad-path ": No such file or directory")
+            stderr)))))
 
   (define-scenario (era-restore garbage-input-file)
     "the input file is just zeroes"
@@ -197,7 +200,9 @@
       (with-empty-metadata (md)
         (run-fail-rcv (stdout stderr) (era-restore "--quiet" "-i" bad-xml "-o" md)
           (assert-eof stdout)
-          (assert-starts-with "Couldn't stat file" stderr)))))
+          (assert-starts-with
+            (string-append bad-xml ": No such file or directory")
+            stderr)))))
 
   (define-scenario (era-restore q-fail)
     "No output with --q(failing)"
@@ -205,7 +210,9 @@
       (with-empty-metadata (md)
         (run-fail-rcv (stdout stderr) (era-restore "-q" "-i" bad-xml "-o" md)
           (assert-eof stdout)
-          (assert-starts-with "Couldn't stat file" stderr)))))
+          (assert-starts-with
+            (string-append bad-xml ": No such file or directory")
+            stderr)))))
 
   ;;;-----------------------------------------------------------
   ;;; era_dump scenarios

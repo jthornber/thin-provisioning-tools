@@ -163,24 +163,28 @@ fn read_header<R>(mut r: R) -> io::Result<u64>
 where
     R: byteorder::ReadBytesExt,
 {
-    use std::process::exit;
-
     let magic = r.read_u64::<LittleEndian>()?;
     if magic != MAGIC {
-        eprintln!("Not a pack file.");
-        exit(1);
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Not a pack file",
+        ));
     }
 
     let version = r.read_u64::<LittleEndian>()?;
     if version != PACK_VERSION {
-        eprintln!("unsupported pack file version ({}).", PACK_VERSION);
-        exit(1);
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("unsupported pack file version ({}).", PACK_VERSION),
+        ));
     }
 
     let block_size = r.read_u64::<LittleEndian>()?;
     if block_size != BLOCK_SIZE {
-        eprintln!("block size is not {}", BLOCK_SIZE);
-        exit(1);
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("block size is not {}", BLOCK_SIZE),
+        ));
     }
 
     r.read_u64::<LittleEndian>()
@@ -270,14 +274,14 @@ pub fn unpack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error
         .write(false)
         .open(input_file)?;
 
+    let nr_blocks = read_header(&input)?;
+
     let mut output = OpenOptions::new()
         .read(false)
         .write(true)
         .create(true)
         .truncate(true)
         .open(output_file)?;
-
-    let nr_blocks = read_header(&input)?;
 
     // zero the last block to size the file
     write_zero_block(&mut output, nr_blocks - 1)?;

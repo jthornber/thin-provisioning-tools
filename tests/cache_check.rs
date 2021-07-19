@@ -1,89 +1,93 @@
 use anyhow::Result;
-use duct::cmd;
-use thinp::version::tools_version;
 
 mod common;
 
+use common::common_args::*;
+use common::input_arg::*;
 use common::test_dir::*;
 use common::*;
 
 //------------------------------------------
 
-#[test]
-fn accepts_v() -> Result<()> {
-    let stdout = cache_check!("-V").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
+const USAGE: &str = "Usage: cache_check [options] {device|file}\n\
+                     Options:\n  \
+                       {-q|--quiet}\n  \
+                       {-h|--help}\n  \
+                       {-V|--version}\n  \
+                       {--clear-needs-check-flag}\n  \
+                       {--super-block-only}\n  \
+                       {--skip-mappings}\n  \
+                       {--skip-hints}\n  \
+                       {--skip-discards}";
+
+//------------------------------------------
+
+struct CacheCheck;
+
+impl<'a> Program<'a> for CacheCheck {
+    fn name() -> &'a str {
+        "cache_check"
+    }
+
+    fn path() -> &'a str {
+        CACHE_CHECK
+    }
+
+    fn usage() -> &'a str {
+        USAGE
+    }
+
+    fn arg_type() -> ArgType {
+        ArgType::InputArg
+    }
+
+    fn bad_option_hint(option: &str) -> String {
+        msg::bad_option_hint(option)
+    }
 }
 
-#[test]
-fn accepts_version() -> Result<()> {
-    let stdout = cache_check!("--version").read()?;
-    assert!(stdout.contains(tools_version()));
-    Ok(())
+impl<'a> InputProgram<'a> for CacheCheck {
+    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
+        mk_valid_md(td)
+    }
+
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+
+    fn missing_input_arg() -> &'a str {
+        msg::MISSING_INPUT_ARG
+    }
+
+    fn corrupted_input() -> &'a str {
+        msg::BAD_SUPERBLOCK
+    }
 }
 
-const USAGE: &str = "Usage: cache_check [options] {device|file}\nOptions:\n  {-q|--quiet}\n  {-h|--help}\n  {-V|--version}\n  {--clear-needs-check-flag}\n  {--super-block-only}\n  {--skip-mappings}\n  {--skip-hints}\n  {--skip-discards}";
+impl<'a> BinaryInputProgram<'_> for CacheCheck {}
 
-#[test]
-fn accepts_h() -> Result<()> {
-    let stdout = cache_check!("-h").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+//------------------------------------------
 
-#[test]
-fn accepts_help() -> Result<()> {
-    let stdout = cache_check!("--help").read()?;
-    assert_eq!(stdout, USAGE);
-    Ok(())
-}
+test_accepts_help!(CacheCheck);
+test_accepts_version!(CacheCheck);
+test_rejects_bad_option!(CacheCheck);
 
-#[test]
-fn missing_metadata() -> Result<()> {
-    let stderr = run_fail(cache_check!())?;
-    assert!(stderr.contains(msg::MISSING_INPUT_ARG));
-    Ok(())
-}
+test_missing_input_arg!(CacheCheck);
+test_input_file_not_found!(CacheCheck);
+test_input_cannot_be_a_directory!(CacheCheck);
+test_unreadable_input_file!(CacheCheck);
 
-#[test]
-fn no_such_metadata() -> Result<()> {
-    let stderr = run_fail(cache_check!("/arbitrary/filename"))?;
-    assert!(stderr.contains("No such file or directory"));
-    Ok(())
-}
+test_help_message_for_tiny_input_file!(CacheCheck);
+test_spot_xml_data!(CacheCheck);
+test_corrupted_input_data!(CacheCheck);
 
-#[test]
-fn metadata_cannot_be_a_directory() -> Result<()> {
-    let stderr = run_fail(cache_check!("/tmp"))?;
-    assert!(stderr.contains("Not a block device or regular file"));
-    Ok(())
-}
-
-#[test]
-fn unreadable_metadata() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_valid_md(&mut td)?;
-    cmd!("chmod", "-r", &md).run()?;
-    let stderr = run_fail(cache_check!(&md))?;
-    assert!(stderr.contains("Permission denied"));
-    Ok(())
-}
-
-#[test]
-fn corrupt_metadata() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_zeroed_md(&mut td)?;
-    run_fail(cache_check!(&md))?;
-    Ok(())
-}
+//------------------------------------------
 
 #[test]
 fn failing_q() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = cache_check!("-q", &md).unchecked().run()?;
-    assert!(!output.status.success());
+    let output = run_fail_raw(CACHE_CHECK, &["-q", md.to_str().unwrap()])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -93,8 +97,7 @@ fn failing_q() -> Result<()> {
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = cache_check!("--quiet", &md).unchecked().run()?;
-    assert!(!output.status.success());
+    let output = run_fail_raw(CACHE_CHECK, &["--quiet", md.to_str().unwrap()])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())

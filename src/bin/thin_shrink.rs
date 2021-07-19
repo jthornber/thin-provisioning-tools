@@ -18,6 +18,7 @@ fn main() {
             Arg::with_name("INPUT")
                 .help("Specify thinp metadata xml file")
                 .required(true)
+                .short("i")
                 .long("input")
                 .value_name("INPUT")
                 .takes_value(true),
@@ -26,6 +27,7 @@ fn main() {
             Arg::with_name("OUTPUT")
                 .help("Specify output xml file")
                 .required(true)
+                .short("o")
                 .long("output")
                 .value_name("OUTPUT")
                 .takes_value(true),
