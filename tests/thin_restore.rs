@@ -3,10 +3,14 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
 use common::output_option::*;
+use common::process::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
+use common::thin::*;
 
 //------------------------------------------
 

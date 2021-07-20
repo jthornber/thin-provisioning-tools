@@ -5,8 +5,10 @@ mod common;
 use common::common_args::*;
 use common::input_arg::*;
 use common::output_option::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
+use common::thin::*;
 
 //------------------------------------------
 

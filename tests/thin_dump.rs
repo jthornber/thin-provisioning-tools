@@ -6,9 +6,13 @@ use std::str::from_utf8;
 mod common;
 
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
+use common::process::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
+use common::thin::*;
 
 //------------------------------------------
 

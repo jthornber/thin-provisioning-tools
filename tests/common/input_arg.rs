@@ -1,5 +1,11 @@
+use anyhow::Result;
+use thinp::file_utils;
+
+use crate::common::fixture::*;
+use crate::common::process::*;
+use crate::common::program::*;
+use crate::common::test_dir::*;
 use crate::common::thin_xml_generator::{write_xml, FragmentedS};
-use crate::common::*;
 
 //------------------------------------------
 // wrappers
@@ -148,7 +154,7 @@ where
     let mut td = TestDir::new()?;
 
     // input an unreadable file
-    let input = mk_valid_md(&mut td)?;
+    let input = P::mk_valid_input(&mut td)?;
     duct::cmd!("chmod", "-r", &input).run()?;
 
     let wrapper = build_args_fn(P::arg_type())?;
