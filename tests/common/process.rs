@@ -3,6 +3,17 @@ use std::ffi::{OsStr, OsString};
 
 //------------------------------------------
 
+#[macro_export]
+macro_rules! args {
+    ( $( $arg: expr ),* ) => {
+        {
+            use std::ffi::OsStr;
+            let args = [$( OsStr::new($arg) ),*];
+            args
+        }
+    };
+}
+
 // Returns stdout. The command must return zero.
 pub fn run_ok<S, I>(program: S, args: I) -> Result<String>
 where

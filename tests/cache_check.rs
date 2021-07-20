@@ -90,7 +90,7 @@ test_corrupted_input_data!(CacheCheck);
 fn failing_q() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, &["-q", md.to_str().unwrap()])?;
+    let output = run_fail_raw(CACHE_CHECK, args!["-q", &md])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -100,7 +100,7 @@ fn failing_q() -> Result<()> {
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, &["--quiet", md.to_str().unwrap()])?;
+    let output = run_fail_raw(CACHE_CHECK, args!["--quiet", &md])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())

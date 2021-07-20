@@ -58,8 +58,7 @@ test_rejects_bad_option!(ThinRmap);
 fn valid_region_format_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let md_path = md.to_str().unwrap();
-    run_ok(THIN_RMAP, &["--region", "23..7890", md_path])?;
+    run_ok(THIN_RMAP, args!["--region", "23..7890", &md])?;
     Ok(())
 }
 
@@ -78,7 +77,7 @@ fn invalid_regions_should_fail() -> Result<()> {
     for r in &invalid_regions {
         let mut td = TestDir::new()?;
         let md = mk_valid_md(&mut td)?;
-        run_fail(THIN_RMAP, &[&r.to_string(), md.to_str().unwrap()])?;
+        run_fail(THIN_RMAP, args![r, &md])?;
     }
     Ok(())
 }
@@ -89,13 +88,7 @@ fn multiple_regions_should_pass() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     run_ok(
         THIN_RMAP,
-        &[
-            "--region",
-            "1..23",
-            "--region",
-            "45..78",
-            md.to_str().unwrap(),
-        ],
+        args!["--region", "1..23", "--region", "45..78", &md],
     )?;
     Ok(())
 }
@@ -104,7 +97,7 @@ fn multiple_regions_should_pass() -> Result<()> {
 fn junk_input() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
-    run_fail(THIN_RMAP, &["--region", "0..-1", xml.to_str().unwrap()])?;
+    run_fail(THIN_RMAP, args!["--region", "0..-1", &xml])?;
     Ok(())
 }
 

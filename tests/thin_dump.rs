@@ -90,8 +90,7 @@ fn dump_restore_cycle() -> Result<()> {
     let mut td = TestDir::new()?;
 
     let md = mk_valid_md(&mut td)?;
-    let md_path = md.to_str().unwrap();
-    let output = run_ok_raw(THIN_DUMP, &[md_path])?;
+    let output = run_ok_raw(THIN_DUMP, args![&md])?;
 
     let xml = td.mk_path("meta.xml");
     let mut file = OpenOptions::new()
@@ -103,11 +102,9 @@ fn dump_restore_cycle() -> Result<()> {
     drop(file);
 
     let md2 = mk_zeroed_md(&mut td)?;
-    let md2_path = md2.to_str().unwrap();
-    let xml_path = xml.to_str().unwrap();
-    run_ok(THIN_RESTORE, &["-i", xml_path, "-o", md2_path])?;
+    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md2])?;
 
-    let output2 = run_ok_raw(THIN_DUMP, &[md2_path])?;
+    let output2 = run_ok_raw(THIN_DUMP, args![&md2])?;
     assert_eq!(output.stdout, output2.stdout);
 
     Ok(())
@@ -121,8 +118,7 @@ fn no_stderr() -> Result<()> {
     let mut td = TestDir::new()?;
 
     let md = mk_valid_md(&mut td)?;
-    let md_path = md.to_str().unwrap();
-    let output = run_ok_raw(THIN_DUMP, &[md_path])?;
+    let output = run_ok_raw(THIN_DUMP, args![&md])?;
 
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -135,8 +131,7 @@ fn no_stderr() -> Result<()> {
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let md_path = md.to_str().unwrap();
-    let output = run_ok_raw(THIN_DUMP, &[md_path, flag, value])?;
+    let output = run_ok_raw(THIN_DUMP, args![&md, flag, value])?;
 
     assert_eq!(output.stderr.len(), 0);
     assert!(from_utf8(&output.stdout[0..])?.contains(pattern));
@@ -165,23 +160,23 @@ fn repair_superblock() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     let before = run_ok_raw(
         THIN_DUMP,
-        &[
+        args![
             "--transaction-id=5",
             "--data-block-size=128",
             "--nr-data-blocks=4096000",
-            md.to_str().unwrap(),
+            &md
         ],
     )?;
     damage_superblock(&md)?;
 
     let after = run_ok_raw(
         THIN_DUMP,
-        &[
+        args![
             "--repair",
             "--transaction-id=5",
             "--data-block-size=128",
             "--nr-data-blocks=4096000",
-            md.to_str().unwrap(),
+            &md
         ],
     )?;
     assert_eq!(after.stderr.len(), 0);
@@ -201,11 +196,11 @@ fn missing_transaction_id() -> Result<()> {
     damage_superblock(&md)?;
     let stderr = run_fail(
         THIN_DUMP,
-        &[
+        args![
             "--repair",
             "--data-block-size=128",
             "--nr-data-blocks=4096000",
-            md.to_str().unwrap(),
+            &md
         ],
     )?;
     assert!(stderr.contains("transaction id"));
@@ -219,11 +214,11 @@ fn missing_data_block_size() -> Result<()> {
     damage_superblock(&md)?;
     let stderr = run_fail(
         THIN_DUMP,
-        &[
+        args![
             "--repair",
             "--transaction-id=5",
             "--nr-data-blocks=4096000",
-            md.to_str().unwrap(),
+            &md
         ],
     )?;
     assert!(stderr.contains("data block size"));
@@ -237,11 +232,11 @@ fn missing_nr_data_blocks() -> Result<()> {
     damage_superblock(&md)?;
     let stderr = run_fail(
         THIN_DUMP,
-        &[
+        args![
             "--repair",
             "--transaction-id=5",
             "--data-block-size=128",
-            md.to_str().unwrap(),
+            &md
         ],
     )?;
     assert!(stderr.contains("nr data blocks"));

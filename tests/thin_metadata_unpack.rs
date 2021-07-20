@@ -106,17 +106,14 @@ fn end_to_end() -> Result<()> {
     let mut td = TestDir::new()?;
     let md_in = mk_valid_md(&mut td)?;
     let md_out = mk_zeroed_md(&mut td)?;
-    run_ok(
-        THIN_METADATA_PACK,
-        &["-i", md_in.to_str().unwrap(), "-o", "meta.pack"],
-    )?;
+    run_ok(THIN_METADATA_PACK, args!["-i", &md_in, "-o", "meta.pack"])?;
     run_ok(
         THIN_METADATA_UNPACK,
-        &["-i", "meta.pack", "-o", md_out.to_str().unwrap()],
+        args!["-i", "meta.pack", "-o", &md_out],
     )?;
 
-    let dump1 = run_ok(THIN_DUMP, &[md_in.to_str().unwrap()])?;
-    let dump2 = run_ok(THIN_DUMP, &[md_out.to_str().unwrap()])?;
+    let dump1 = run_ok(THIN_DUMP, args![&md_in])?;
+    let dump2 = run_ok(THIN_DUMP, args![&md_out])?;
     assert_eq!(dump1, dump2);
     Ok(())
 }

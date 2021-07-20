@@ -1,6 +1,9 @@
 use anyhow::Result;
+use std::ffi::OsStr;
+
 use thinp::file_utils;
 
+use crate::args;
 use crate::common::fixture::*;
 use crate::common::process::*;
 use crate::common::program::*;
@@ -10,38 +13,38 @@ use crate::common::thin_xml_generator::{write_xml, FragmentedS};
 //------------------------------------------
 // wrappers
 
-type ArgsBuilder = fn(&mut TestDir, &str, &dyn Fn(&[&str]) -> Result<()>) -> Result<()>;
+type ArgsBuilder = fn(&mut TestDir, &OsStr, &dyn Fn(&[&OsStr]) -> Result<()>) -> Result<()>;
 
 fn with_output_md_untouched(
     td: &mut TestDir,
-    input: &str,
-    thunk: &dyn Fn(&[&str]) -> Result<()>,
+    input: &OsStr,
+    thunk: &dyn Fn(&[&OsStr]) -> Result<()>,
 ) -> Result<()> {
     let output = mk_zeroed_md(td)?;
     ensure_untouched(&output, || {
-        let args = ["-i", input, "-o", output.to_str().unwrap()];
+        let args = args!["-i", input, "-o", &output];
         thunk(&args)
     })
 }
 
 fn with_output_superblock_zeroed(
     td: &mut TestDir,
-    input: &str,
-    thunk: &dyn Fn(&[&str]) -> Result<()>,
+    input: &OsStr,
+    thunk: &dyn Fn(&[&OsStr]) -> Result<()>,
 ) -> Result<()> {
     let output = mk_zeroed_md(td)?;
     ensure_superblock_zeroed(&output, || {
-        let args = ["-i", input, "-o", output.to_str().unwrap()];
+        let args = args!["-i", input, "-o", &output];
         thunk(&args)
     })
 }
 
 fn input_arg_only(
     _td: &mut TestDir,
-    input: &str,
-    thunk: &dyn Fn(&[&str]) -> Result<()>,
+    input: &OsStr,
+    thunk: &dyn Fn(&[&OsStr]) -> Result<()>,
 ) -> Result<()> {
-    let args = [input];
+    let args = args![input];
     thunk(&args)
 }
 
@@ -82,7 +85,7 @@ where
     let mut td = TestDir::new()?;
     let output = mk_zeroed_md(&mut td)?;
     ensure_untouched(&output, || {
-        let args = ["-o", output.to_str().unwrap()];
+        let args = args!["-o", &output];
         let stderr = run_fail(P::path(), &args)?;
         assert!(stderr.contains(P::missing_input_arg()));
         Ok(())
@@ -106,7 +109,7 @@ where
     let mut td = TestDir::new()?;
 
     let wrapper = build_args_fn(P::arg_type())?;
-    wrapper(&mut td, "no-such-file", &|args: &[&str]| {
+    wrapper(&mut td, "no-such-file".as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         assert!(stderr.contains(P::file_not_found()));
         Ok(())
@@ -130,7 +133,7 @@ where
     let mut td = TestDir::new()?;
 
     let wrapper = build_args_fn(P::arg_type())?;
-    wrapper(&mut td, "/tmp", &|args: &[&str]| {
+    wrapper(&mut td, "/tmp".as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         assert!(stderr.contains("Not a block device or regular file"));
         Ok(())
@@ -158,7 +161,7 @@ where
     duct::cmd!("chmod", "-r", &input).run()?;
 
     let wrapper = build_args_fn(P::arg_type())?;
-    wrapper(&mut td, input.to_str().unwrap(), &|args: &[&str]| {
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         assert!(stderr.contains("Permission denied"));
         Ok(())
@@ -188,7 +191,7 @@ where
     file_utils::create_sized_file(&input, 1024)?;
 
     let wrapper = build_args_fn(P::arg_type())?;
-    wrapper(&mut td, input.to_str().unwrap(), &|args: &[&str]| {
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         assert!(stderr.contains("Metadata device/file too small.  Is this binary metadata?"));
         Ok(())
@@ -217,7 +220,7 @@ where
     write_xml(&input, &mut gen)?;
 
     let wrapper = build_args_fn(P::arg_type())?;
-    wrapper(&mut td, input.to_str().unwrap(), &|args: &[&str]| {
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         eprintln!("{}", stderr);
         let msg = format!(
@@ -250,7 +253,7 @@ where
         ArgType::InputArg => input_arg_only,
         ArgType::IoOptions => with_output_superblock_zeroed,
     };
-    wrapper(&mut td, input.to_str().unwrap(), &|args: &[&str]| {
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::path(), args)?;
         assert!(stderr.contains(P::corrupted_input()));
         Ok(())

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use thinp::file_utils;
 use thinp::io_engine::*;
 
+use crate::args;
 use crate::common::fixture::*;
 use crate::common::process::*;
 use crate::common::target::*;
@@ -27,7 +28,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     write_xml(&xml, &mut gen)?;
 
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    let args = ["-i", xml.to_str().unwrap(), "-o", md.to_str().unwrap()];
+    let args = args!["-i", &xml, "-o", &md];
     run_ok(THIN_RESTORE, &args)?;
 
     Ok(md)
@@ -38,27 +39,21 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 // FIXME: replace mk_valid_md with this?
 pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
     let md = mk_zeroed_md(td)?;
-    let args = [
-        "-o",
-        md.to_str().unwrap(),
-        "--format",
-        "--nr-data-blocks",
-        "102400",
-    ];
+    let args = args!["-o", &md, "--format", "--nr-data-blocks", "102400"];
     run_ok(THIN_GENERATE_METADATA, &args)?;
 
     // Create a 2GB device
-    let args = ["-o", md.to_str().unwrap(), "--create-thin", "1"];
+    let args = args!["-o", &md, "--create-thin", "1"];
     run_ok(THIN_GENERATE_METADATA, &args)?;
-    let args = [
+    let args = args![
         "-o",
-        md.to_str().unwrap(),
+        &md,
         "--dev-id",
         "1",
         "--size",
         "2097152",
         "--rw=randwrite",
-        "--seq-nr=16",
+        "--seq-nr=16"
     ];
     run_ok(THIN_GENERATE_MAPPINGS, &args)?;
 
@@ -66,20 +61,14 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
     let mut snap_id = 2;
     for _i in 0..10 {
         // take a snapshot
-        let args = [
-            "-o",
-            md.to_str().unwrap(),
-            "--create-snap",
-            &snap_id.to_string(),
-            "--origin",
-            "1",
-        ];
+        let snap_id_str = snap_id.to_string();
+        let args = args!["-o", &md, "--create-snap", &snap_id_str, "--origin", "1"];
         run_ok(THIN_GENERATE_METADATA, &args)?;
 
         // partially overwrite the origin (64MB)
-        let args = [
+        let args = args![
             "-o",
-            md.to_str().unwrap(),
+            &md,
             "--dev-id",
             "1",
             "--size",
@@ -87,7 +76,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
             "--io-size",
             "131072",
             "--rw=randwrite",
-            "--seq-nr=16",
+            "--seq-nr=16"
         ];
         run_ok(THIN_GENERATE_MAPPINGS, &args)?;
         snap_id += 1;
@@ -97,7 +86,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
 }
 
 pub fn set_needs_check(md: &PathBuf) -> Result<()> {
-    let args = ["-o", md.to_str().unwrap(), "--set-needs-check"];
+    let args = args!["-o", &md, "--set-needs-check"];
     run_ok(THIN_GENERATE_METADATA, &args)?;
     Ok(())
 }
@@ -108,16 +97,19 @@ pub fn generate_metadata_leaks(
     expected: u32,
     actual: u32,
 ) -> Result<()> {
-    let args = [
+    let nr_blocks_str = nr_blocks.to_string();
+    let expected_str = expected.to_string();
+    let actual_str = actual.to_string();
+    let args = args![
         "-o",
-        md.to_str().unwrap(),
+        &md,
         "--create-metadata-leaks",
         "--nr-blocks",
-        &nr_blocks.to_string(),
+        &nr_blocks_str,
         "--expected",
-        &expected.to_string(),
+        &expected_str,
         "--actual",
-        &actual.to_string(),
+        &actual_str
     ];
     run_ok(THIN_GENERATE_DAMAGE, &args)?;
 

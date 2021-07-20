@@ -100,9 +100,7 @@ fn dont_repair_xml() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
     let xml = mk_valid_xml(&mut td)?;
-    let xml_path = xml.to_str().unwrap();
-    let md_path = md.to_str().unwrap();
-    run_fail(THIN_REPAIR, &["-i", xml_path, "-o", md_path])?;
+    run_fail(THIN_REPAIR, args!["-i", &xml, "-o", &md])?;
     Ok(())
 }
 
@@ -114,12 +112,9 @@ fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let md1_path = md1.to_str().unwrap();
-    let md2_path = md2.to_str().unwrap();
-    let output = run_ok_raw(THIN_REPAIR, &[flag, val, "-i", md1_path, "-o", md2_path])?;
+    let output = run_ok_raw(THIN_REPAIR, args![flag, val, "-i", &md1, "-o", &md2])?;
     assert_eq!(output.stderr.len(), 0);
-    let md2_path = md2.to_str().unwrap();
-    let output = run_ok(THIN_DUMP, &[md2_path])?;
+    let output = run_ok(THIN_DUMP, args![&md2])?;
     assert!(output.contains(pattern));
     Ok(())
 }
@@ -144,33 +139,31 @@ fn override_nr_data_blocks() -> Result<()> {
 fn superblock_succeeds() -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
-    let md1_path = md1.to_str().unwrap();
     let original = run_ok_raw(
         THIN_DUMP,
-        &[
+        args![
             "--transaction-id=5",
             "--data-block-size=128",
             "--nr-data-blocks=4096000",
-            md1_path,
+            &md1
         ],
     )?;
     assert_eq!(original.stderr.len(), 0);
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let md2_path = md2.to_str().unwrap();
     run_ok(
         THIN_REPAIR,
-        &[
+        args![
             "--transaction-id=5",
             "--data-block-size=128",
             "--nr-data-blocks=4096000",
             "-i",
-            md1_path,
+            &md1,
             "-o",
-            md2_path,
+            &md2
         ],
     )?;
-    let repaired = run_ok_raw(THIN_DUMP, &[md2_path])?;
+    let repaired = run_ok_raw(THIN_DUMP, args![&md2])?;
     assert_eq!(repaired.stderr.len(), 0);
     assert_eq!(original.stdout, repaired.stdout);
     Ok(())
@@ -185,17 +178,7 @@ fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
     let md1 = mk_valid_md(&mut td)?;
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(
-        THIN_REPAIR,
-        &[
-            flag1,
-            flag2,
-            "-i",
-            md1.to_str().unwrap(),
-            "-o",
-            md2.to_str().unwrap(),
-        ],
-    )?;
+    let stderr = run_fail(THIN_REPAIR, args![flag1, flag2, "-i", &md1, "-o", &md2])?;
     assert!(stderr.contains(pattern));
     Ok(())
 }

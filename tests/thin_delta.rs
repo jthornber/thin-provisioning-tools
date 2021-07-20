@@ -58,7 +58,7 @@ test_rejects_bad_option!(ThinDelta);
 fn snap1_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let stderr = run_fail(THIN_DELTA, &["--snap2", "45", md.to_str().unwrap()])?;
+    let stderr = run_fail(THIN_DELTA, args!["--snap2", "45", &md])?;
     assert!(stderr.contains("--snap1 or --root1 not specified"));
     Ok(())
 }
@@ -67,14 +67,14 @@ fn snap1_unspecified() -> Result<()> {
 fn snap2_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let stderr = run_fail(THIN_DELTA, &["--snap1", "45", md.to_str().unwrap()])?;
+    let stderr = run_fail(THIN_DELTA, args!["--snap1", "45", &md])?;
     assert!(stderr.contains("--snap2 or --root2 not specified"));
     Ok(())
 }
 
 #[test]
 fn dev_unspecified() -> Result<()> {
-    let stderr = run_fail(THIN_DELTA, &["--snap1", "45", "--snap2", "46"])?;
+    let stderr = run_fail(THIN_DELTA, args!["--snap1", "45", "--snap2", "46"])?;
     // TODO: replace with msg::MISSING_INPUT_ARG once the rust version is ready
     assert!(stderr.contains("No input file provided"));
     Ok(())
