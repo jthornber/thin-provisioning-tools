@@ -29,8 +29,8 @@ impl<'a> Program<'a> for CacheCheck {
         "cache_check"
     }
 
-    fn path() -> &'a str {
-        CACHE_CHECK
+    fn path() -> &'a std::ffi::OsStr {
+        CACHE_CHECK.as_ref()
     }
 
     fn usage() -> &'a str {

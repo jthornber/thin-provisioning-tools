@@ -53,7 +53,8 @@ pub fn test_missing_input_arg<'a, P>() -> Result<()>
 where
     P: InputProgram<'a>,
 {
-    let stderr = run_fail(P::path(), &[])?;
+    let args: [&str; 0] = [];
+    let stderr = run_fail(P::path(), &args)?;
     assert!(stderr.contains(P::missing_input_arg()));
     Ok(())
 }

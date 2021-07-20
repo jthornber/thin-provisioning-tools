@@ -36,8 +36,8 @@ impl<'a> Program<'a> for ThinMetadataUnpack {
         "thin_metadata_pack"
     }
 
-    fn path() -> &'a str {
-        THIN_METADATA_UNPACK
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_METADATA_UNPACK.as_ref()
     }
 
     fn usage() -> &'a str {

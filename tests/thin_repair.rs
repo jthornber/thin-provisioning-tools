@@ -29,8 +29,8 @@ impl<'a> Program<'a> for ThinRepair {
         "thin_repair"
     }
 
-    fn path() -> &'a str {
-        THIN_REPAIR
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_REPAIR.as_ref()
     }
 
     fn usage() -> &'a str {

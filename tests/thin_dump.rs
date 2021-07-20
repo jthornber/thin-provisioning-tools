@@ -32,8 +32,8 @@ impl<'a> Program<'a> for ThinDump {
         "thin_dump"
     }
 
-    fn path() -> &'a str {
-        THIN_DUMP
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_DUMP.as_ref()
     }
 
     fn usage() -> &'a str {

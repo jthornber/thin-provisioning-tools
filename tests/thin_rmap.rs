@@ -26,8 +26,8 @@ impl<'a> Program<'a> for ThinRmap {
         "thin_rmap"
     }
 
-    fn path() -> &'a str {
-        THIN_RMAP
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_RMAP.as_ref()
     }
 
     fn usage() -> &'a str {

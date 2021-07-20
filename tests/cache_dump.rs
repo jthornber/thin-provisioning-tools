@@ -25,8 +25,8 @@ impl<'a> Program<'a> for CacheDump {
         "cache_dump"
     }
 
-    fn path() -> &'a str {
-        CACHE_DUMP
+    fn path() -> &'a std::ffi::OsStr {
+        CACHE_DUMP.as_ref()
     }
 
     fn usage() -> &'a str {

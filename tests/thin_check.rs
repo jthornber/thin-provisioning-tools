@@ -31,8 +31,8 @@ impl<'a> Program<'a> for ThinCheck {
         "thin_check"
     }
 
-    fn path() -> &'a str {
-        THIN_CHECK
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_CHECK.as_ref()
     }
 
     fn usage() -> &'a str {

@@ -30,8 +30,8 @@ impl<'a> Program<'a> for ThinRestore {
         "thin_restore"
     }
 
-    fn path() -> &'a str {
-        THIN_RESTORE
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_RESTORE.as_ref()
     }
 
     fn usage() -> &'a str {

@@ -26,8 +26,8 @@ impl<'a> Program<'a> for ThinDelta {
         "thin_delta"
     }
 
-    fn path() -> &'a str {
-        THIN_DELTA
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_DELTA.as_ref()
     }
 
     fn usage() -> &'a str {

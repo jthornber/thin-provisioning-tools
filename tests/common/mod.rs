@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
+use std::ffi::{OsStr, OsString};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+
 use thinp::file_utils;
 use thinp::io_engine::*;
 
@@ -104,7 +106,7 @@ pub enum ArgType {
 
 pub trait Program<'a> {
     fn name() -> &'a str;
-    fn path() -> &'a str;
+    fn path() -> &'a OsStr;
     fn usage() -> &'a str;
     fn arg_type() -> ArgType;
 
@@ -134,8 +136,15 @@ pub trait BinaryOutputProgram<'a>: OutputProgram<'a> {}
 //------------------------------------------
 
 // Returns stdout. The command must return zero.
-pub fn run_ok(program: &str, args: &[&str]) -> Result<String> {
-    let command = duct::cmd(program, args).stdout_capture().stderr_capture();
+pub fn run_ok<S, I>(program: S, args: I) -> Result<String>
+where
+    S: AsRef<OsStr>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let command = duct::cmd(program.as_ref(), args)
+        .stdout_capture()
+        .stderr_capture();
     let output = command.run()?;
     assert!(output.status.success());
     let stdout = std::str::from_utf8(&output.stdout[..])
@@ -146,16 +155,30 @@ pub fn run_ok(program: &str, args: &[&str]) -> Result<String> {
 }
 
 // Returns the entire output. The command must return zero.
-pub fn run_ok_raw(program: &str, args: &[&str]) -> Result<std::process::Output> {
-    let command = duct::cmd(program, args).stdout_capture().stderr_capture();
+pub fn run_ok_raw<S, I>(program: S, args: I) -> Result<std::process::Output>
+where
+    S: AsRef<OsStr>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let command = duct::cmd(program.as_ref(), args)
+        .stdout_capture()
+        .stderr_capture();
     let output = command.run()?;
     assert!(output.status.success());
     Ok(output)
 }
 
 // Returns stderr, a non zero status must be returned
-pub fn run_fail(program: &str, args: &[&str]) -> Result<String> {
-    let command = duct::cmd(program, args).stdout_capture().stderr_capture();
+pub fn run_fail<S, I>(program: S, args: I) -> Result<String>
+where
+    S: AsRef<OsStr>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let command = duct::cmd(program.as_ref(), args)
+        .stdout_capture()
+        .stderr_capture();
     let output = command.unchecked().run()?;
     assert!(!output.status.success());
     let stderr = std::str::from_utf8(&output.stderr[..]).unwrap().to_string();
@@ -163,8 +186,15 @@ pub fn run_fail(program: &str, args: &[&str]) -> Result<String> {
 }
 
 // Returns the entire output, a non zero status must be returned
-pub fn run_fail_raw(program: &str, args: &[&str]) -> Result<std::process::Output> {
-    let command = duct::cmd(program, args).stdout_capture().stderr_capture();
+pub fn run_fail_raw<S, I>(program: S, args: I) -> Result<std::process::Output>
+where
+    S: AsRef<OsStr>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let command = duct::cmd(program.as_ref(), args)
+        .stdout_capture()
+        .stderr_capture();
     let output = command.unchecked().run()?;
     assert!(!output.status.success());
     Ok(output)
