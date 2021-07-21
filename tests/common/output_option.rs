@@ -1,4 +1,11 @@
-use crate::common::*;
+use anyhow::Result;
+
+use thinp::file_utils;
+
+use crate::args;
+use crate::common::process::*;
+use crate::common::program::*;
+use crate::common::test_dir::*;
 
 //-----------------------------------------
 // test invalid arguments
@@ -9,7 +16,7 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(P::path(), &["-i", input.to_str().unwrap()])?;
+    let stderr = run_fail(P::path(), args!["-i", &input])?;
     assert!(stderr.contains(P::missing_output_arg()));
     Ok(())
 }
@@ -30,10 +37,7 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(
-        P::path(),
-        &["-i", input.to_str().unwrap(), "-o", "no-such-file"],
-    )?;
+    let stderr = run_fail(P::path(), args!["-i", &input, "-o", "no-such-file"])?;
     assert!(stderr.contains(<P as OutputProgram>::file_not_found()));
     Ok(())
 }
@@ -54,7 +58,7 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(P::path(), &["-i", input.to_str().unwrap(), "-o", "/tmp"])?;
+    let stderr = run_fail(P::path(), args!["-i", &input, "-o", "/tmp"])?;
     assert!(stderr.contains("Not a block device or regular file"));
     Ok(())
 }
@@ -80,15 +84,7 @@ where
     let _file = file_utils::create_sized_file(&output, 4096);
     duct::cmd!("chmod", "-w", &output).run()?;
 
-    let stderr = run_fail(
-        P::path(),
-        &[
-            "-i",
-            input.to_str().unwrap(),
-            "-o",
-            output.to_str().unwrap(),
-        ],
-    )?;
+    let stderr = run_fail(P::path(), args!["-i", &input, "-o", &output])?;
     assert!(stderr.contains("Permission denied"));
     Ok(())
 }
@@ -117,15 +113,7 @@ where
     let output = td.mk_path("meta.bin");
     let _file = file_utils::create_sized_file(&output, 4096);
 
-    let stderr = run_fail(
-        P::path(),
-        &[
-            "-i",
-            input.to_str().unwrap(),
-            "-o",
-            output.to_str().unwrap(),
-        ],
-    )?;
+    let stderr = run_fail(P::path(), args!["-i", &input, "-o", &output])?;
     assert!(stderr.contains("Output file too small"));
     Ok(())
 }

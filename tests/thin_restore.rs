@@ -3,10 +3,14 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
 use common::output_option::*;
+use common::process::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
+use common::thin::*;
 
 //------------------------------------------
 
@@ -30,8 +34,8 @@ impl<'a> Program<'a> for ThinRestore {
         "thin_restore"
     }
 
-    fn path() -> &'a str {
-        THIN_RESTORE
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_RESTORE.as_ref()
     }
 
     fn usage() -> &'a str {
@@ -98,9 +102,7 @@ fn quiet_flag(flag: &str) -> Result<()> {
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    let xml_path = xml.to_str().unwrap();
-    let md_path = md.to_str().unwrap();
-    let output = run_ok_raw(THIN_RESTORE, &["-i", xml_path, "-o", md_path, flag])?;
+    let output = run_ok_raw(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag])?;
 
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
@@ -126,11 +128,9 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    let xml_path = xml.to_str().unwrap();
-    let md_path = md.to_str().unwrap();
-    run_ok(THIN_RESTORE, &["-i", xml_path, "-o", md_path, flag, value])?;
+    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag, value])?;
 
-    let output = run_ok(THIN_DUMP, &[md_path])?;
+    let output = run_ok(THIN_DUMP, args![&md])?;
     assert!(output.contains(pattern));
     Ok(())
 }

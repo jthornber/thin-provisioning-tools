@@ -5,8 +5,10 @@ mod common;
 use common::common_args::*;
 use common::input_arg::*;
 use common::output_option::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
+use common::thin::*;
 
 //------------------------------------------
 
@@ -36,8 +38,8 @@ impl<'a> Program<'a> for ThinMetadataPack {
         "thin_metadata_pack"
     }
 
-    fn path() -> &'a str {
-        THIN_METADATA_PACK
+    fn path() -> &'a std::ffi::OsStr {
+        THIN_METADATA_PACK.as_ref()
     }
 
     fn usage() -> &'a str {

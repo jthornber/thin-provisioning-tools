@@ -3,9 +3,12 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
+use common::process::*;
+use common::program::*;
+use common::target::*;
 use common::test_dir::*;
-use common::*;
 
 //------------------------------------------
 
@@ -29,8 +32,8 @@ impl<'a> Program<'a> for CacheCheck {
         "cache_check"
     }
 
-    fn path() -> &'a str {
-        CACHE_CHECK
+    fn path() -> &'a std::ffi::OsStr {
+        CACHE_CHECK.as_ref()
     }
 
     fn usage() -> &'a str {
@@ -48,7 +51,7 @@ impl<'a> Program<'a> for CacheCheck {
 
 impl<'a> InputProgram<'a> for CacheCheck {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        mk_valid_md(td)
+        common::thin::mk_valid_md(td) // FIXME: create cache metadata
     }
 
     fn file_not_found() -> &'a str {
@@ -87,7 +90,7 @@ test_corrupted_input_data!(CacheCheck);
 fn failing_q() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, &["-q", md.to_str().unwrap()])?;
+    let output = run_fail_raw(CACHE_CHECK, args!["-q", &md])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -97,7 +100,7 @@ fn failing_q() -> Result<()> {
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, &["--quiet", md.to_str().unwrap()])?;
+    let output = run_fail_raw(CACHE_CHECK, args!["--quiet", &md])?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())

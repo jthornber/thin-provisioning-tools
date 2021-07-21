@@ -1,5 +1,10 @@
-use crate::common::*;
+use anyhow::Result;
+
 use thinp::version::tools_version;
+
+use crate::args;
+use crate::common::process::*;
+use crate::common::program::*;
 
 //------------------------------------------
 // help
@@ -8,7 +13,7 @@ pub fn test_help_short<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), &["-h"])?;
+    let stdout = run_ok(P::path(), args!["-h"])?;
     assert_eq!(stdout, P::usage());
     Ok(())
 }
@@ -17,7 +22,7 @@ pub fn test_help_long<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), &["--help"])?;
+    let stdout = run_ok(P::path(), args!["--help"])?;
     assert_eq!(stdout, P::usage());
     Ok(())
 }
@@ -44,7 +49,7 @@ pub fn test_version_short<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), &["-V"])?;
+    let stdout = run_ok(P::path(), args!["-V"])?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
@@ -53,7 +58,7 @@ pub fn test_version_long<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), &["--version"])?;
+    let stdout = run_ok(P::path(), args!["--version"])?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
@@ -80,7 +85,7 @@ where
     P: Program<'a>,
 {
     let option = "--hedgehogs-only";
-    let stderr = run_fail(P::path(), &[option])?;
+    let stderr = run_fail(P::path(), args![option])?;
     assert!(stderr.contains(&P::bad_option_hint(option)));
     Ok(())
 }
