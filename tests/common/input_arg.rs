@@ -63,7 +63,7 @@ where
     P: InputProgram<'a>,
 {
     let args: [&str; 0] = [];
-    let stderr = run_fail(P::path(), &args)?;
+    let stderr = run_fail(P::path(), args)?;
     assert!(stderr.contains(P::missing_input_arg()));
     Ok(())
 }
@@ -85,8 +85,7 @@ where
     let mut td = TestDir::new()?;
     let output = mk_zeroed_md(&mut td)?;
     ensure_untouched(&output, || {
-        let args = args!["-o", &output];
-        let stderr = run_fail(P::path(), &args)?;
+        let stderr = run_fail(P::path(), args!["-o", &output])?;
         assert!(stderr.contains(P::missing_input_arg()));
         Ok(())
     })
