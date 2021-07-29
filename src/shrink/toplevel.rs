@@ -6,7 +6,8 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 use crate::shrink::copier::{self, Region};
-use crate::thin::xml::{self, Visit};
+use crate::thin::ir::{self, MetadataVisitor, Visit};
+use crate::thin::xml;
 
 //---------------------------------------
 
@@ -34,8 +35,8 @@ impl Pass1 {
     }
 }
 
-impl xml::MetadataVisitor for Pass1 {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+impl MetadataVisitor for Pass1 {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.allocated_blocks.grow(sb.nr_data_blocks as usize);
         self.block_size = Some(sb.data_block_size as u64);
         Ok(Visit::Continue)
@@ -53,7 +54,7 @@ impl xml::MetadataVisitor for Pass1 {
         todo!();
     }
 
-    fn device_b(&mut self, _d: &xml::Device) -> Result<Visit> {
+    fn device_b(&mut self, _d: &ir::Device) -> Result<Visit> {
         Ok(Visit::Continue)
     }
 
@@ -61,7 +62,7 @@ impl xml::MetadataVisitor for Pass1 {
         Ok(Visit::Continue)
     }
 
-    fn map(&mut self, m: &xml::Map) -> Result<Visit> {
+    fn map(&mut self, m: &ir::Map) -> Result<Visit> {
         for i in m.data_begin..(m.data_begin + m.len) {
             if i > self.nr_blocks {
                 self.nr_high_blocks += 1;
@@ -99,8 +100,8 @@ impl<W: Write> Pass2<W> {
     }
 }
 
-impl<W: Write> xml::MetadataVisitor for Pass2<W> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+impl<W: Write> MetadataVisitor for Pass2<W> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.writer.superblock_b(sb)
     }
 
@@ -116,7 +117,7 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
         todo!();
     }
 
-    fn device_b(&mut self, d: &xml::Device) -> Result<Visit> {
+    fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
         self.writer.device_b(d)
     }
 
@@ -124,7 +125,7 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
         self.writer.device_e()
     }
 
-    fn map(&mut self, m: &xml::Map) -> Result<Visit> {
+    fn map(&mut self, m: &ir::Map) -> Result<Visit> {
         if m.data_begin + m.len < self.nr_blocks {
             // no remapping needed.
             self.writer.map(m)?;
@@ -134,7 +135,7 @@ impl<W: Write> xml::MetadataVisitor for Pass2<W> {
             let mut written = 0;
 
             for r in remaps {
-                self.writer.map(&xml::Map {
+                self.writer.map(&ir::Map {
                     thin_begin: m.thin_begin + written,
                     data_begin: r.start,
                     time: m.time,
@@ -493,7 +494,7 @@ fn build_copy_regions(remaps: &[(BlockRange, BlockRange)], block_size: u64) -> V
     rs
 }
 
-fn process_xml<MV: xml::MetadataVisitor>(input_path: &Path, pass: &mut MV) -> Result<()> {
+fn process_xml<MV: MetadataVisitor>(input_path: &Path, pass: &mut MV) -> Result<()> {
     let input = OpenOptions::new()
         .read(true)
         .write(false)

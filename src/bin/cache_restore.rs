@@ -29,6 +29,12 @@ fn main() {
                 .value_name("OVERRIDE_MAPPING_ROOT")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("QUIET")
+                .help("Suppress output messages, return only exit code.")
+                .short("q")
+                .long("quiet"),
+        )
         // options
         .arg(
             Arg::with_name("INPUT")

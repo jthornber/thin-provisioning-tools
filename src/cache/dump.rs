@@ -7,9 +7,10 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::cache::hint::Hint;
+use crate::cache::ir::{self, MetadataVisitor};
 use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
-use crate::cache::xml::{self, MetadataVisitor};
+use crate::cache::xml;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
@@ -58,7 +59,7 @@ mod format1 {
                     continue;
                 }
 
-                let m = xml::Map {
+                let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
                     dirty: map.is_dirty(),
@@ -133,7 +134,7 @@ mod format2 {
                     // default to dirty if the bitset is damaged
                     dirty = true;
                 }
-                let m = xml::Map {
+                let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
                     dirty,
@@ -175,7 +176,7 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
                 continue;
             }
 
-            let h = xml::Hint {
+            let h = ir::Hint {
                 cblock,
                 data: hint.hint.to_vec(),
             };
@@ -217,16 +218,13 @@ fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<Context> {
     Ok(Context { engine })
 }
 
-fn dump_metadata(
-    ctx: &Context,
-    w: &mut dyn Write,
+pub fn dump_metadata(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
     sb: &Superblock,
     _repair: bool,
 ) -> anyhow::Result<()> {
-    let engine = &ctx.engine;
-
-    let mut out = xml::XmlWriter::new(w);
-    let xml_sb = xml::Superblock {
+    let xml_sb = ir::Superblock {
         uuid: "".to_string(),
         block_size: sb.data_block_size,
         nr_cache_blocks: sb.cache_blocks,
@@ -239,7 +237,7 @@ fn dump_metadata(
     let valid_mappings = match sb.version {
         1 => {
             let w = ArrayWalker::new(engine.clone(), false);
-            let mut emitter = format1::MappingEmitter::new(sb.cache_blocks as usize, &mut out);
+            let mut emitter = format1::MappingEmitter::new(sb.cache_blocks as usize, out);
             w.walk(&mut emitter, sb.mapping_root)?;
             emitter.get_valid()
         }
@@ -262,7 +260,7 @@ fn dump_metadata(
 
             let w = ArrayWalker::new(engine.clone(), false);
             let mut emitter =
-                format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, &mut out);
+                format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, out);
             w.walk(&mut emitter, sb.mapping_root)?;
             emitter.get_valid()
         }
@@ -275,7 +273,7 @@ fn dump_metadata(
     out.hints_b()?;
     {
         let w = ArrayWalker::new(engine.clone(), false);
-        let mut emitter = HintEmitter::new(&mut out, valid_mappings);
+        let mut emitter = HintEmitter::new(out, valid_mappings);
         w.walk(&mut emitter, sb.hint_root)?;
     }
     out.hints_e()?;
@@ -288,17 +286,17 @@ fn dump_metadata(
 
 pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
-    let engine = &ctx.engine;
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let mut writer: Box<dyn Write>;
+    let writer: Box<dyn Write>;
     if opts.output.is_some() {
         writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
     } else {
         writer = Box::new(BufWriter::new(std::io::stdout()));
     }
+    let mut out = xml::XmlWriter::new(writer);
 
-    dump_metadata(&ctx, &mut writer, &sb, opts.repair)
+    dump_metadata(ctx.engine.clone(), &mut out, &sb, opts.repair)
 }
 
 //------------------------------------------

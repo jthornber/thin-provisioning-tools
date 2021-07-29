@@ -9,12 +9,12 @@ use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
-use thinp::thin::restore::{restore, ThinRestoreOptions};
+use thinp::thin::repair::{repair, ThinRepairOptions};
 
 fn main() {
-    let parser = App::new("thin_restore")
+    let parser = App::new("thin_repair")
         .version(thinp::version::tools_version())
-        .about("Convert XML format metadata to binary.")
+        .about("Repair thin-provisioning metadata, and write it to different device or file")
         // flags
         .arg(
             Arg::with_name("ASYNC_IO")
@@ -31,7 +31,7 @@ fn main() {
         // options
         .arg(
             Arg::with_name("INPUT")
-                .help("Specify the input xml")
+                .help("Specify the input device")
                 .short("i")
                 .long("input")
                 .value_name("INPUT")
@@ -72,15 +72,15 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
-    let opts = ThinRestoreOptions {
+    let opts = ThinRepairOptions {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report,
     };
 
-    if let Err(reason) = restore(opts) {
-        println!("{}", reason);
+    if let Err(reason) = repair(opts) {
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }

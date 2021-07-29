@@ -6,7 +6,8 @@ use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use thinp::file_utils;
-use thinp::thin::xml::{self, Visit};
+use thinp::thin::ir::{self, MetadataVisitor, Visit};
+use thinp::thin::xml;
 
 mod common;
 use common::test_dir::*;
@@ -91,8 +92,8 @@ struct ThinXmlVisitor<'a, V: ThinVisitor> {
     thin_id: Option<u32>,
 }
 
-impl<'a, V: ThinVisitor> xml::MetadataVisitor for ThinXmlVisitor<'a, V> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+impl<'a, V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'a, V> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.block_size = Some(sb.data_block_size);
         Ok(Visit::Continue)
     }
@@ -109,7 +110,7 @@ impl<'a, V: ThinVisitor> xml::MetadataVisitor for ThinXmlVisitor<'a, V> {
         todo!();
     }
 
-    fn device_b(&mut self, d: &xml::Device) -> Result<Visit> {
+    fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
         self.thin_id = Some(d.dev_id);
         Ok(Visit::Continue)
     }
@@ -118,7 +119,7 @@ impl<'a, V: ThinVisitor> xml::MetadataVisitor for ThinXmlVisitor<'a, V> {
         Ok(Visit::Continue)
     }
 
-    fn map(&mut self, m: &xml::Map) -> Result<Visit> {
+    fn map(&mut self, m: &ir::Map) -> Result<Visit> {
         for i in 0..m.len {
             let block = ThinBlock {
                 thin_id: self.thin_id.unwrap(),

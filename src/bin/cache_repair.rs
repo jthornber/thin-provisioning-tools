@@ -7,14 +7,14 @@ use std::path::Path;
 use std::process;
 use std::process::exit;
 use std::sync::Arc;
+use thinp::cache::repair::{repair, CacheRepairOptions};
 use thinp::file_utils;
 use thinp::report::*;
-use thinp::thin::restore::{restore, ThinRestoreOptions};
 
 fn main() {
-    let parser = App::new("thin_restore")
+    let parser = App::new("cache_repair")
         .version(thinp::version::tools_version())
-        .about("Convert XML format metadata to binary.")
+        .about("Repair binary cache metadata, and write it to a different device or file")
         // flags
         .arg(
             Arg::with_name("ASYNC_IO")
@@ -31,7 +31,7 @@ fn main() {
         // options
         .arg(
             Arg::with_name("INPUT")
-                .help("Specify the input xml")
+                .help("Specify the input device")
                 .short("i")
                 .long("input")
                 .value_name("INPUT")
@@ -44,13 +44,6 @@ fn main() {
                 .long("output")
                 .value_name("OUTPUT")
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
         );
 
     let matches = parser.get_matches();
@@ -72,15 +65,15 @@ fn main() {
         report = Arc::new(mk_simple_report());
     }
 
-    let opts = ThinRestoreOptions {
+    let opts = CacheRepairOptions {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report,
     };
 
-    if let Err(reason) = restore(opts) {
-        println!("{}", reason);
+    if let Err(reason) = repair(opts) {
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }

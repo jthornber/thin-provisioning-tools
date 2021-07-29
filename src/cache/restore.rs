@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use std::convert::TryInto;
 use std::fs::OpenOptions;
@@ -7,9 +7,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::cache::hint::Hint;
+use crate::cache::ir::{self, MetadataVisitor, Visit};
 use crate::cache::mapping::{Mapping, MappingFlags};
 use crate::cache::superblock::*;
-use crate::cache::xml::{self, MetadataVisitor, Visit};
+use crate::cache::xml;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
@@ -55,17 +56,9 @@ fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
 
 //------------------------------------------
 
-struct RestoreResult {
-    sb: xml::Superblock,
-    mapping_root: u64,
-    dirty_root: Option<u64>,
-    hint_root: u64,
-    discard_root: u64,
-}
-
-struct Restorer<'a> {
+pub struct Restorer<'a> {
     write_batcher: &'a mut WriteBatcher,
-    sb: Option<xml::Superblock>,
+    sb: Option<ir::Superblock>,
     mapping_builder: Option<ArrayBuilder<Mapping>>,
     dirty_builder: Option<ArrayBuilder<u64>>,
     hint_builder: Option<ArrayBuilder<Hint>>,
@@ -77,7 +70,7 @@ struct Restorer<'a> {
 }
 
 impl<'a> Restorer<'a> {
-    fn new(w: &'a mut WriteBatcher) -> Restorer<'a> {
+    pub fn new(w: &'a mut WriteBatcher) -> Restorer<'a> {
         Restorer {
             write_batcher: w,
             sb: None,
@@ -92,27 +85,47 @@ impl<'a> Restorer<'a> {
         }
     }
 
-    fn get_result(self) -> Result<RestoreResult> {
-        self.write_batcher.flush()?;
+    fn finalize(&mut self) -> Result<()> {
+        // build metadata space map
+        let metadata_sm_root = build_metadata_sm(self.write_batcher)?;
 
-        if self.sb.is_none() || self.discard_root.is_none() {
-            return Err(anyhow!("No superblock found in xml file"));
-        }
-        if self.mapping_root.is_none() || self.hint_root.is_none() {
-            return Err(anyhow!("No mappings or hints sections in xml file"));
-        }
-        Ok(RestoreResult {
-            sb: self.sb.unwrap(),
-            mapping_root: self.mapping_root.unwrap(),
-            dirty_root: self.dirty_root,
-            hint_root: self.hint_root.unwrap(),
-            discard_root: self.discard_root.unwrap(),
-        })
+        let sb = self.sb.as_ref().unwrap();
+        let mapping_root = self.mapping_root.as_ref().unwrap();
+        let hint_root = self.hint_root.as_ref().unwrap();
+        let discard_root = self.discard_root.as_ref().unwrap();
+        let sb = Superblock {
+            flags: SuperblockFlags {
+                clean_shutdown: true,
+                needs_check: false,
+            },
+            block: SUPERBLOCK_LOCATION,
+            version: 2,
+            policy_name: sb.policy.as_bytes().to_vec(),
+            policy_version: vec![2, 0, 0],
+            policy_hint_size: sb.hint_width,
+            metadata_sm_root,
+            mapping_root: *mapping_root,
+            dirty_root: self.dirty_root, // dirty_root is optional
+            hint_root: *hint_root,
+            discard_root: *discard_root,
+            discard_block_size: 0,
+            discard_nr_blocks: 0,
+            data_block_size: sb.block_size,
+            cache_blocks: sb.nr_cache_blocks,
+            compat_flags: 0,
+            compat_ro_flags: 0,
+            incompat_flags: 0,
+            read_hits: 0,
+            read_misses: 9,
+            write_hits: 0,
+            write_misses: 0,
+        };
+        write_superblock(self.write_batcher.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
     }
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
-    fn superblock_b(&mut self, sb: &xml::Superblock) -> Result<Visit> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.sb = Some(sb.clone());
         self.write_batcher.alloc()?;
         self.mapping_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
@@ -126,6 +139,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn superblock_e(&mut self) -> Result<Visit> {
+        self.finalize()?;
         Ok(Visit::Continue)
     }
 
@@ -157,7 +171,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn mapping(&mut self, m: &xml::Map) -> Result<Visit> {
+    fn mapping(&mut self, m: &ir::Map) -> Result<Visit> {
         let map = Mapping {
             oblock: m.oblock,
             flags: MappingFlags::Valid as u32,
@@ -198,7 +212,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn hint(&mut self, h: &xml::Hint) -> Result<Visit> {
+    fn hint(&mut self, h: &ir::Hint) -> Result<Visit> {
         let hint = Hint {
             hint: h.data[..].try_into().unwrap(),
         };
@@ -215,7 +229,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn discard(&mut self, _d: &xml::Discard) -> Result<Visit> {
+    fn discard(&mut self, _d: &ir::Discard) -> Result<Visit> {
         Ok(Visit::Continue)
     }
 
@@ -251,39 +265,6 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
     // build cache mappings
     let mut restorer = Restorer::new(&mut w);
     xml::read(input, &mut restorer)?;
-    let result = restorer.get_result()?;
-
-    // build metadata space map
-    let metadata_sm_root = build_metadata_sm(&mut w)?;
-
-    let sb = Superblock {
-        flags: SuperblockFlags {
-            clean_shutdown: true,
-            needs_check: false,
-        },
-        block: SUPERBLOCK_LOCATION,
-        version: 2,
-        policy_name: result.sb.policy.as_bytes().to_vec(),
-        policy_version: vec![2, 0, 0],
-        policy_hint_size: result.sb.hint_width,
-        metadata_sm_root,
-        mapping_root: result.mapping_root,
-        dirty_root: result.dirty_root,
-        hint_root: result.hint_root,
-        discard_root: result.discard_root,
-        discard_block_size: 0,
-        discard_nr_blocks: 0,
-        data_block_size: result.sb.block_size,
-        cache_blocks: result.sb.nr_cache_blocks,
-        compat_flags: 0,
-        compat_ro_flags: 0,
-        incompat_flags: 0,
-        read_hits: 0,
-        read_misses: 9,
-        write_hits: 0,
-        write_misses: 0,
-    };
-    write_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
 
     Ok(())
 }

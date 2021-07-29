@@ -28,8 +28,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     write_xml(&xml, &mut gen)?;
 
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    let args = args!["-i", &xml, "-o", &md];
-    run_ok(THIN_RESTORE, &args)?;
+    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md])?;
 
     Ok(md)
 }
@@ -40,11 +39,11 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
     let md = mk_zeroed_md(td)?;
     let args = args!["-o", &md, "--format", "--nr-data-blocks", "102400"];
-    run_ok(THIN_GENERATE_METADATA, &args)?;
+    run_ok(THIN_GENERATE_METADATA, args)?;
 
     // Create a 2GB device
     let args = args!["-o", &md, "--create-thin", "1"];
-    run_ok(THIN_GENERATE_METADATA, &args)?;
+    run_ok(THIN_GENERATE_METADATA, args)?;
     let args = args![
         "-o",
         &md,
@@ -55,7 +54,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
         "--rw=randwrite",
         "--seq-nr=16"
     ];
-    run_ok(THIN_GENERATE_MAPPINGS, &args)?;
+    run_ok(THIN_GENERATE_MAPPINGS, args)?;
 
     // Take a few snapshots.
     let mut snap_id = 2;
@@ -63,7 +62,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
         // take a snapshot
         let snap_id_str = snap_id.to_string();
         let args = args!["-o", &md, "--create-snap", &snap_id_str, "--origin", "1"];
-        run_ok(THIN_GENERATE_METADATA, &args)?;
+        run_ok(THIN_GENERATE_METADATA, args)?;
 
         // partially overwrite the origin (64MB)
         let args = args![
@@ -78,7 +77,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
             "--rw=randwrite",
             "--seq-nr=16"
         ];
-        run_ok(THIN_GENERATE_MAPPINGS, &args)?;
+        run_ok(THIN_GENERATE_MAPPINGS, args)?;
         snap_id += 1;
     }
 
@@ -87,7 +86,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
 
 pub fn set_needs_check(md: &PathBuf) -> Result<()> {
     let args = args!["-o", &md, "--set-needs-check"];
-    run_ok(THIN_GENERATE_METADATA, &args)?;
+    run_ok(THIN_GENERATE_METADATA, args)?;
     Ok(())
 }
 
@@ -111,7 +110,7 @@ pub fn generate_metadata_leaks(
         "--actual",
         &actual_str
     ];
-    run_ok(THIN_GENERATE_DAMAGE, &args)?;
+    run_ok(THIN_GENERATE_DAMAGE, args)?;
 
     Ok(())
 }
