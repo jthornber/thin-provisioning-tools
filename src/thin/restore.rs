@@ -101,7 +101,8 @@ impl<'a> Restorer<'a> {
         let value_rc = Box::new(MappingRC {
             sm: self.data_sm.as_ref().unwrap().clone(),
         });
-        let leaf_builder = NodeBuilder::new(Box::new(LeafIO {}), value_rc);
+        let shared = matches!(section, MappedSection::Def(_));
+        let leaf_builder = NodeBuilder::new(Box::new(LeafIO {}), value_rc, shared);
 
         self.current_map = Some((section, leaf_builder));
         Ok(Visit::Continue)
@@ -134,8 +135,25 @@ impl<'a> Restorer<'a> {
         Ok((details_root, mapping_root))
     }
 
+    // Release the temporary references to the leaves of pre-built subtrees.
+    // The contained child values will also be decreased if the leaf is
+    // no longer referenced.
+    fn release_subtrees(&mut self) -> Result<()> {
+        let mut value_rc = MappingRC {
+            sm: self.data_sm.as_ref().unwrap().clone(),
+        };
+
+        for (_, leaves) in self.sub_trees.iter() {
+            release_leaves(self.w, &leaves, &mut value_rc)?;
+        }
+
+        Ok(())
+    }
+
     fn finalize(&mut self) -> Result<()> {
         let (details_root, mapping_root) = self.build_device_details()?;
+
+        self.release_subtrees()?;
 
         // Build data space map
         let data_sm = self.data_sm.as_ref().unwrap();
