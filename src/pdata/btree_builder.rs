@@ -272,18 +272,37 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
             shared,
         }
     }
+
     /// Push a single value.  This may emit a new node, hence the Result
     /// return type.  The value's ref count will be incremented.
     pub fn push_value(&mut self, w: &mut WriteBatcher, key: u64, val: V) -> Result<()> {
+        // Unshift the previously pushed node since it is not the root
+        let half_full = self.max_entries_per_node / 2;
+        if self.nodes.len() == 1 && (self.nodes.last().unwrap().nr_entries < half_full) {
+            self.unshift_node(w)?;
+        }
         // Have we got enough values to emit a node?  We try and keep
         // at least max_entries_per_node entries unflushed so we
         // can ensure the final node is balanced properly.
-        if self.values.len() == self.max_entries_per_node * 2 {
+        else if self.values.len() == self.max_entries_per_node * 2 {
             self.emit_node(w)?;
         }
 
         self.value_rc.inc(&val)?;
         self.values.push_back((key, val));
+        Ok(())
+    }
+
+    // To avoid writing an under populated node we have to grab some
+    // values from the first of the shared nodes.
+    fn append_values(&mut self, w: &mut WriteBatcher, node: &NodeSummary) -> Result<()> {
+        let (keys, values) = self.read_node(w, node.block)?;
+
+        for i in 0..keys.len() {
+            self.value_rc.inc(&values[i])?;
+            self.values.push_back((keys[i], values[i].clone()));
+        }
+
         Ok(())
     }
 
@@ -296,43 +315,67 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
     pub fn push_nodes(&mut self, w: &mut WriteBatcher, nodes: &[NodeSummary]) -> Result<()> {
         assert!(!nodes.is_empty());
 
+        // Assume that the node is a shared root if it is the first comer.
+        // A rooted leaf could have any number of entries.
+        let maybe_root = (nodes.len() == 1) && self.nodes.is_empty() && self.values.is_empty();
+        if maybe_root {
+            let n = &nodes[0];
+            w.sm.lock().unwrap().inc(n.block, 1)?;
+            self.nodes.push(n.clone());
+            return Ok(());
+        }
+
         // As a sanity check we make sure that all the shared nodes contain the
         // minimum nr of entries.
+        // A single shared node could be possibly under populated (less than half-full)
+        // due to btree removal, or even underfull (<33% residency) due to kernel issues.
+        // Those kinds of nodes will be merged into their siblings.
         let half_full = self.max_entries_per_node / 2;
-        for n in nodes {
-            if n.nr_entries < half_full {
-                panic!("under populated node");
+        if nodes.len() > 1 {
+            for n in nodes {
+                if n.nr_entries < half_full {
+                    panic!("under populated node");
+                }
             }
+        }
+
+        // Unshift the previously pushed node since it is not the root
+        if self.nodes.len() == 1 && (self.nodes.last().unwrap().nr_entries < half_full) {
+            self.unshift_node(w)?;
         }
 
         // Decide if we're going to use the pre-built nodes.
         if !self.values.is_empty() && (self.values.len() < half_full) {
-            // To avoid writing an under populated node we have to grab some
-            // values from the first of the shared nodes.
-            let (keys, values) = self.read_node(w, nodes.get(0).unwrap().block)?;
+            let mut nodes_iter = nodes.iter();
+            let n = nodes_iter.next();
+            self.append_values(w, n.unwrap())?;
 
-            for i in 0..keys.len() {
-                self.value_rc.inc(&values[i])?;
-                self.values.push_back((keys[i], values[i].clone()));
-            }
+            // Do not flush if there's no succeeding nodes,
+            // so that it could produce a more compact metadata.
+            if nodes.len() > 1 {
+                // Flush all the values.
+                self.emit_all(w)?;
 
-            // Flush all the values.
-            self.emit_all(w)?;
-
-            // Add the remaining nodes.
-            for i in 1..nodes.len() {
-                let n = nodes.get(i).unwrap();
-                w.sm.lock().unwrap().inc(n.block, 1)?;
-                self.nodes.push(n.clone());
+                // Add the remaining nodes.
+                for n in nodes_iter {
+                    w.sm.lock().unwrap().inc(n.block, 1)?;
+                    self.nodes.push(n.clone());
+                }
             }
         } else {
             // Flush all the values.
             self.emit_all(w)?;
 
-            // add the nodes
-            for n in nodes {
-                w.sm.lock().unwrap().inc(n.block, 1)?;
-                self.nodes.push(n.clone());
+            if nodes[0].nr_entries < half_full {
+                // An under populated nodes[0] implies nodes.len() == 1,
+                // and that has to be merged into their siblings.
+                self.append_values(w, &nodes[0])?;
+            } else {
+                // Add the nodes.
+                for n in nodes {
+                    w.sm.lock().unwrap().inc(n.block, 1)?;
+                    self.nodes.push(n.clone());
+                }
             }
         }
 
