@@ -1,6 +1,8 @@
 use anyhow::Result;
 use fixedbitset::FixedBitSet;
+use num_traits::Bounded;
 use std::boxed::Box;
+use std::convert::{TryFrom, TryInto};
 use std::sync::{Arc, Mutex};
 
 //------------------------------------------
@@ -61,7 +63,16 @@ where
 
 impl<V> SpaceMap for CoreSpaceMap<V>
 where
-    V: Copy + Default + Eq + std::ops::AddAssign + From<u8> + Into<u32>,
+    V: Copy
+        + Default
+        + Eq
+        + std::ops::AddAssign
+        + From<u8>
+        + Into<u32>
+        + Bounded
+        + TryFrom<u32>
+        + std::cmp::PartialOrd,
+    <V as TryFrom<u32>>::Error: std::fmt::Debug,
 {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
@@ -77,8 +88,8 @@ where
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
         let old = self.counts[b as usize];
-        assert!(v < 0xff); // FIXME: we can't assume this
-        self.counts[b as usize] = V::from(v as u8);
+        assert!(v <= V::max_value().into());
+        self.counts[b as usize] = v.try_into().unwrap(); // FIXME: do not panic
 
         if old == V::from(0u8) && v != 0 {
             self.nr_allocated += 1;
@@ -91,12 +102,14 @@ where
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
         for b in begin..(begin + len) {
-            if self.counts[b as usize] == V::from(0u8) {
+            let c = &mut self.counts[b as usize];
+            assert!(*c < V::max_value());
+            if *c == V::from(0u8) {
                 // FIXME: can we get a ref to save dereferencing counts twice?
                 self.nr_allocated += 1;
-                self.counts[b as usize] = V::from(1u8);
+                *c = V::from(1u8);
             } else {
-                self.counts[b as usize] += V::from(1u8);
+                *c += V::from(1u8);
             }
         }
         Ok(())
