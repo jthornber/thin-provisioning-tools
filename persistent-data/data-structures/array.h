@@ -104,7 +104,7 @@ namespace persistent_data {
 	template <typename ValueTraits>
 	class array : public array_base {
 	public:
-		class block_ref_counter : public ref_counter<uint64_t> {
+		class block_ref_counter : public persistent_data::ref_counter<uint64_t> {
 		public:
 			block_ref_counter(space_map::ptr sm,
 					  array<ValueTraits> &a)
