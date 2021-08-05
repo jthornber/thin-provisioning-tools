@@ -6,7 +6,7 @@ use crate::cache::dump::*;
 use crate::cache::restore::*;
 use crate::cache::superblock::*;
 use crate::io_engine::*;
-use crate::pdata::space_map::*;
+use crate::pdata::space_map_metadata::*;
 use crate::report::*;
 use crate::write_batcher::*;
 
@@ -54,7 +54,7 @@ pub fn repair(opts: CacheRepairOptions) -> Result<()> {
 
     let sb = read_superblock(ctx.engine_in.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let sm = core_sm(ctx.engine_out.get_nr_blocks(), u32::MAX);
+    let sm = core_metadata_sm(ctx.engine_out.get_nr_blocks(), u32::MAX);
     let mut w = WriteBatcher::new(
         ctx.engine_out.clone(),
         sm.clone(),

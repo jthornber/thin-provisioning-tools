@@ -2,9 +2,11 @@ use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
 use std::io::Cursor;
+use std::sync::{Arc, Mutex};
 
 use crate::checksum;
 use crate::io_engine::*;
+use crate::pdata::space_map::*;
 use crate::pdata::space_map_common::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
@@ -12,6 +14,7 @@ use crate::write_batcher::*;
 //------------------------------------------
 
 const MAX_METADATA_BITMAPS: usize = 255;
+const MAX_METADATA_BLOCKS: usize = MAX_METADATA_BITMAPS * ENTRIES_PER_BITMAP;
 
 //------------------------------------------
 
@@ -100,6 +103,15 @@ fn adjust_counts(
         nr_free,
         none_free_before: first_free,
     })
+}
+
+//------------------------------------------
+
+pub fn core_metadata_sm(nr_blocks: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMap + Send + Sync>> {
+    core_sm(
+        std::cmp::min(nr_blocks, MAX_METADATA_BLOCKS as u64),
+        max_count,
+    )
 }
 
 pub fn write_metadata_sm(w: &mut WriteBatcher) -> Result<SMRoot> {

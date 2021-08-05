@@ -351,7 +351,7 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
     let ctx = new_context(&opts)?;
     let max_count = u32::MAX;
 
-    let sm = core_sm(ctx.engine.get_nr_blocks(), max_count);
+    let sm = core_metadata_sm(ctx.engine.get_nr_blocks(), max_count);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
     let mut restorer = Restorer::new(&mut w, ctx.report);
     xml::read(input, &mut restorer)?;

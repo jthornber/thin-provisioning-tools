@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::io_engine::*;
-use crate::pdata::space_map::*;
+use crate::pdata::space_map_metadata::*;
 use crate::report::*;
 use crate::thin::dump::*;
 use crate::thin::metadata::*;
@@ -57,7 +57,7 @@ pub fn repair(opts: ThinRepairOptions) -> Result<()> {
     let md = build_metadata(ctx.engine_in.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 
-    let sm = core_sm(ctx.engine_out.get_nr_blocks(), u32::MAX);
+    let sm = core_metadata_sm(ctx.engine_out.get_nr_blocks(), u32::MAX);
     let mut w = WriteBatcher::new(
         ctx.engine_out.clone(),
         sm.clone(),
