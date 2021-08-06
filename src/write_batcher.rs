@@ -18,9 +18,11 @@ pub struct WriteBatcher {
     batch_size: usize,
     queue: Vec<Block>,
 
-    // The reserved range covers all the blocks allocated or reserved by this
-    // WriteBatcher, and the blocks already occupied. No blocks in this range
-    // are expected to be freed, hence a single range is used for the representation.
+    // The reserved range keeps track of all the blocks allocated.
+    // An allocated block won't be reused even though it was freed.
+    // In other words, the WriteBatcher performs allocation in
+    // transactional fashion, that simplifies block allocationas
+    // as well as tracking.
     reserved: std::ops::Range<u64>,
 }
 
@@ -79,22 +81,6 @@ impl WriteBatcher {
         self.reserved.end = b + 1;
 
         sm.set(b, 1)?;
-
-        Ok(Block::zeroed(b))
-    }
-
-    pub fn reserve(&mut self) -> Result<Block> {
-        let mut sm = self.sm.lock().unwrap();
-        let b = find_free(sm.deref_mut(), &self.reserved)?;
-        self.reserved.end = b + 1;
-
-        Ok(Block::new(b))
-    }
-
-    pub fn reserve_zeroed(&mut self) -> Result<Block> {
-        let mut sm = self.sm.lock().unwrap();
-        let b = find_free(sm.deref_mut(), &self.reserved)?;
-        self.reserved.end = b + 1;
 
         Ok(Block::zeroed(b))
     }

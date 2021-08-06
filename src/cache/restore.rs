@@ -14,7 +14,6 @@ use crate::cache::xml;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map_metadata::*;
 use crate::pdata::unpack::Pack;
 use crate::report::*;
@@ -259,7 +258,7 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
 
     let ctx = mk_context(&opts)?;
 
-    let sm = core_sm(ctx.engine.get_nr_blocks(), u32::MAX);
+    let sm = core_metadata_sm(ctx.engine.get_nr_blocks(), u32::MAX);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
 
     // build cache mappings
