@@ -252,26 +252,33 @@ namespace {
 
 	bool cmp_time_counts(pair<node_info, node_info> const &lhs_pair,
                              pair<node_info, node_info> const &rhs_pair) {
-	        auto const &lhs = lhs_pair.first.time_counts;
-	        auto const &rhs = rhs_pair.first.time_counts;
+	        auto const &lhs = lhs_pair.second.time_counts;
+	        auto const &rhs = rhs_pair.second.time_counts;
 
-	        for (auto lhs_it = lhs.crbegin(); lhs_it != lhs.crend(); lhs_it++) {
-		        for (auto rhs_it = rhs.crbegin(); rhs_it != rhs.crend(); rhs_it++) {
-			        if (lhs_it->first > rhs_it->first)
-				        return true;
 
-			        else if (rhs_it->first > lhs_it->first)
-				        return false;
+		auto lhs_it = lhs.crbegin();
+		auto rhs_it = rhs.crbegin();
+		while (lhs_it != lhs.crend() && rhs_it != rhs.crend()) {
 
-				else if (lhs_it->second > rhs_it->second)
-					return true;
+			auto lhs_time = lhs_it->first;
+			auto rhs_time = rhs_it->first;
+			auto lhs_count = lhs_it->second;
+			auto rhs_count = rhs_it->second;
 
-				else if (rhs_it->second > lhs_it->second)
-					return false;
-		        }
-	        }
+			if (lhs_time > rhs_time)
+				return true;
+			else if (rhs_time > lhs_time)
+				return false;
+			else if (lhs_count > rhs_count)
+				return true;
+			else if (rhs_count > lhs_count)
+				return false;
 
-	        return true;
+			lhs_it++;
+			rhs_it++;
+		}
+
+		return (lhs_it != lhs.crend()) ? true : false;
         }
 
 	class gatherer {
