@@ -790,7 +790,7 @@ namespace {
 
 	void
 	emit_trees_(block_manager::ptr bm, superblock_detail::superblock const &sb,
-                    emitter::ptr e, override_options const &ropts)
+                    emitter::ptr e)
 	{
 		metadata md(bm, sb);
 		dump_options opts;
@@ -882,7 +882,7 @@ namespace {
 	            !get_map_ids(*tm, msb->data_mapping_root_))
 			find_better_roots_(bm, *msb);
 
-		emit_trees_(bm, *msb, e, opts);
+		emit_trees_(bm, *msb, e);
 	}
 }
 
