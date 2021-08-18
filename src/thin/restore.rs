@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 
 use std::collections::BTreeMap;
 use std::fs::OpenOptions;
-use std::io::Cursor;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -10,10 +9,9 @@ use std::sync::{Arc, Mutex};
 use crate::io_engine::*;
 use crate::pdata::btree_builder::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_common::SMRoot;
+use crate::pdata::space_map_common::pack_root;
 use crate::pdata::space_map_disk::*;
 use crate::pdata::space_map_metadata::*;
-use crate::pdata::unpack::Pack;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -160,7 +158,8 @@ impl<'a> Restorer<'a> {
         let data_sm_root = build_data_sm(self.w, data_sm.lock().unwrap().deref())?;
 
         // Build metadata space map
-        let (metadata_sm, metadata_sm_root) = build_metadata_sm(self.w)?;
+        let metadata_sm = write_metadata_sm(self.w)?;
+        let metadata_sm_root = pack_root(&metadata_sm, SPACE_MAP_ROOT_SIZE)?;
 
         // Write the superblock
         let sb = self.sb.as_ref().unwrap();
@@ -289,23 +288,10 @@ impl<'a> MetadataVisitor for Restorer<'a> {
 /// Writes a data space map to disk.  Returns the space map root that needs
 /// to be written to the superblock.
 fn build_data_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<Vec<u8>> {
-    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
-    let mut cur = Cursor::new(&mut sm_root);
     let r = write_disk_sm(w, sm)?;
-    r.pack(&mut cur)?;
+    let sm_root = pack_root(&r, SPACE_MAP_ROOT_SIZE)?;
 
     Ok(sm_root)
-}
-
-/// Writes the metadata space map to disk.  Returns the space map root that needs
-/// to be written to the superblock.
-fn build_metadata_sm(w: &mut WriteBatcher) -> Result<(SMRoot, Vec<u8>)> {
-    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
-    let mut cur = Cursor::new(&mut sm_root);
-    let r = write_metadata_sm(w)?;
-    r.pack(&mut cur)?;
-
-    Ok((r, sm_root))
 }
 
 //------------------------------------------

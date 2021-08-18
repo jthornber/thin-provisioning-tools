@@ -2,7 +2,6 @@ use anyhow::Result;
 
 use std::convert::TryInto;
 use std::fs::OpenOptions;
-use std::io::Cursor;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -14,8 +13,8 @@ use crate::cache::xml;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
+use crate::pdata::space_map_common::pack_root;
 use crate::pdata::space_map_metadata::*;
-use crate::pdata::unpack::Pack;
 use crate::report::*;
 use crate::write_batcher::*;
 
@@ -240,10 +239,8 @@ impl<'a> MetadataVisitor for Restorer<'a> {
 //------------------------------------------
 
 fn build_metadata_sm(w: &mut WriteBatcher) -> Result<Vec<u8>> {
-    let mut sm_root = vec![0u8; SPACE_MAP_ROOT_SIZE];
-    let mut cur = Cursor::new(&mut sm_root);
     let r = write_metadata_sm(w)?;
-    r.pack(&mut cur)?;
+    let sm_root = pack_root(&r, SPACE_MAP_ROOT_SIZE)?;
 
     Ok(sm_root)
 }

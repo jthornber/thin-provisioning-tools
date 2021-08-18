@@ -195,6 +195,13 @@ impl Pack for SMRoot {
     }
 }
 
+pub fn pack_root(root: &SMRoot, size: usize) -> Result<Vec<u8>> {
+    let mut sm_root = vec![0u8; size];
+    let mut cur = Cursor::new(&mut sm_root);
+    root.pack(&mut cur)?;
+    Ok(sm_root)
+}
+
 //------------------------------------------
 
 pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<IndexEntry>, u64)> {
