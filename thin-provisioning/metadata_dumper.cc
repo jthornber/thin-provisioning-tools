@@ -438,6 +438,14 @@ namespace {
 		// in the bottom 24 bits.  This means every block/time apart from block 0
 		// will result in a value that's outside the range of the metadata device.
 		bool is_top_level(node_ref<uint64_traits> &n) {
+			// A leaf node of value-size 8 and without mappings should be
+			// treated as a bottom-level leaf, so that it could be referenced
+			// by top-level nodes, if any. On the other hand, an empty
+			// top-level leaf doesn't help repairing.
+			if (!n.get_nr_entries()) {
+				return false;
+			}
+
 			auto nr_metadata_blocks = bm_.get_nr_blocks();
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
