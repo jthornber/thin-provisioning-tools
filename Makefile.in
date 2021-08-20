@@ -204,10 +204,9 @@ LDFLAGS+=-static
 endif
 
 INSTALL:=@INSTALL@
-PREFIX:=@prefix@
-BINDIR:=$(DESTDIR)$(PREFIX)/sbin
-DATADIR:=$(DESTDIR)$(PREFIX)/share
-MANPATH:=$(DATADIR)/man
+BINDIR:=$(DESTDIR)@sbindir@
+DATADIR:=$(DESTDIR)@datarootdir@
+MANPATH:=$(DESTDIR)@mandir@
 
 vpath %.cc $(TOP_DIR)
 
