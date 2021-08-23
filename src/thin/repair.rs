@@ -7,6 +7,7 @@ use crate::pdata::space_map_metadata::*;
 use crate::report::*;
 use crate::thin::dump::*;
 use crate::thin::metadata::*;
+use crate::thin::metadata_repair::*;
 use crate::thin::restore::*;
 use crate::thin::superblock::*;
 use crate::write_batcher::*;
@@ -18,6 +19,7 @@ pub struct ThinRepairOptions<'a> {
     pub output: &'a Path,
     pub async_io: bool,
     pub report: Arc<Report>,
+    pub overrides: SuperblockOverrides,
 }
 
 struct Context {
@@ -53,7 +55,8 @@ fn new_context(opts: &ThinRepairOptions) -> Result<Context> {
 pub fn repair(opts: ThinRepairOptions) -> Result<()> {
     let ctx = new_context(&opts)?;
 
-    let sb = read_superblock(ctx.engine_in.as_ref(), SUPERBLOCK_LOCATION)?;
+    let sb =
+        read_or_rebuild_superblock(ctx.engine_in.clone(), SUPERBLOCK_LOCATION, &opts.overrides)?;
     let md = build_metadata(ctx.engine_in.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 

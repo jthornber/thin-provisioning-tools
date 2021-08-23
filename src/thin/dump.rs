@@ -15,6 +15,7 @@ use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::ir::{self, MetadataVisitor};
 use crate::thin::metadata::*;
+use crate::thin::metadata_repair::*;
 use crate::thin::superblock::*;
 use crate::thin::xml;
 
@@ -147,6 +148,8 @@ pub struct ThinDumpOptions<'a> {
     pub output: Option<&'a Path>,
     pub async_io: bool,
     pub report: Arc<Report>,
+    pub repair: bool,
+    pub overrides: SuperblockOverrides,
 }
 
 struct Context {
@@ -311,7 +314,12 @@ pub fn dump_metadata(
 
 pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
-    let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let sb;
+    if opts.repair {
+        sb = read_or_rebuild_superblock(ctx.engine.clone(), SUPERBLOCK_LOCATION, &opts.overrides)?;
+    } else {
+        sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    }
     let md = build_metadata(ctx.engine.clone(), &sb)?;
 
     ctx.report
