@@ -34,7 +34,7 @@ fn main() {
                 .help("Specify the input device")
                 .short("i")
                 .long("input")
-                .value_name("INPUT")
+                .value_name("FILE")
                 .required(true),
         )
         .arg(
@@ -42,7 +42,7 @@ fn main() {
                 .help("Specify the output device")
                 .short("o")
                 .long("output")
-                .value_name("OUTPUT")
+                .value_name("FILE")
                 .required(true),
         )
         .arg(

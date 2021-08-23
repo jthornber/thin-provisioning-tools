@@ -20,7 +20,7 @@ fn main() {
                 .required(true)
                 .short("i")
                 .long("input")
-                .value_name("INPUT")
+                .value_name("FILE")
                 .takes_value(true),
         )
         .arg(
@@ -29,7 +29,7 @@ fn main() {
                 .required(true)
                 .short("o")
                 .long("output")
-                .value_name("OUTPUT")
+                .value_name("FILE")
                 .takes_value(true),
         )
         .arg(

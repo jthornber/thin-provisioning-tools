@@ -30,7 +30,7 @@ fn main() {
                 .help("Specify the output file rather than stdout")
                 .short("o")
                 .long("output")
-                .value_name("OUTPUT"),
+                .value_name("FILE"),
         )
         // arguments
         .arg(
