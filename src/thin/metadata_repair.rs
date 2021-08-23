@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::Arc;
 
 use crate::checksum;
@@ -26,6 +27,8 @@ pub struct FoundRoots {
     mapping_root: u64,
     details_root: u64,
     time: u32,
+    transaction_id: u64,
+    nr_data_blocks: u64,
 }
 
 fn merge_time_counts(lhs: &mut BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Result<()> {
@@ -43,6 +46,7 @@ struct DevInfo {
     key_high: u64, // max dev_id, inclusive
     time_counts: BTreeMap<u32, u32>,
     age: u32,
+    highest_mapped_data_block: u64,
     pushed: bool,
 }
 
@@ -56,6 +60,7 @@ impl DevInfo {
             key_high: 0,
             time_counts: BTreeMap::<u32, u32>::new(),
             age: 0,
+            highest_mapped_data_block: 0,
             pushed: false,
         }
     }
@@ -73,6 +78,10 @@ impl DevInfo {
         self.nr_mappings += child.nr_mappings;
         merge_time_counts(&mut self.time_counts, &child.time_counts)?;
         self.age = std::cmp::max(self.age, child.age);
+        self.highest_mapped_data_block = std::cmp::max(
+            self.highest_mapped_data_block,
+            child.highest_mapped_data_block,
+        );
 
         Ok(())
     }
@@ -85,6 +94,7 @@ struct MappingsInfo {
     key_high: u64, // max mapped block, inclusive
     time_counts: BTreeMap<u32, u32>,
     age: u32,
+    highest_mapped_data_block: u64,
     pushed: bool,
 }
 
@@ -97,6 +107,7 @@ impl MappingsInfo {
             key_high: 0,
             time_counts: BTreeMap::<u32, u32>::new(),
             age: 0,
+            highest_mapped_data_block: 0,
             pushed: false,
         }
     }
@@ -113,6 +124,10 @@ impl MappingsInfo {
         self.nr_mappings += child.nr_mappings;
         merge_time_counts(&mut self.time_counts, &child.time_counts)?;
         self.age = std::cmp::max(self.age, child.age);
+        self.highest_mapped_data_block = std::cmp::max(
+            self.highest_mapped_data_block,
+            child.highest_mapped_data_block,
+        );
 
         Ok(())
     }
@@ -122,8 +137,9 @@ struct DetailsInfo {
     _b: u64,
     nr_devices: u64,
     nr_mappings: u64,
-    key_low: u64,
-    key_high: u64, // inclusive
+    key_low: u64,  // min dev_id
+    key_high: u64, // max dev_id, inclusive
+    max_tid: u64,
     age: u32,
     pushed: bool,
 }
@@ -136,6 +152,7 @@ impl DetailsInfo {
             nr_mappings: 0,
             key_low: 0,
             key_high: 0,
+            max_tid: 0,
             age: 0,
             pushed: false,
         }
@@ -152,6 +169,7 @@ impl DetailsInfo {
         self.key_high = child.key_high;
         self.nr_devices += child.nr_devices;
         self.nr_mappings += child.nr_mappings;
+        self.max_tid = std::cmp::max(self.max_tid, child.max_tid);
         self.age = std::cmp::max(self.age, child.age);
 
         Ok(())
@@ -291,6 +309,10 @@ impl NodeCollector {
                 info.nr_mappings += child.nr_mappings;
                 merge_time_counts(&mut info.time_counts, &child.time_counts)?;
                 info.age = std::cmp::max(info.age, child.age);
+                info.highest_mapped_data_block = std::cmp::max(
+                    info.highest_mapped_data_block,
+                    child.highest_mapped_data_block,
+                );
             } else {
                 return Err(anyhow!("not a data mapping subtree root"));
             }
@@ -315,12 +337,12 @@ impl NodeCollector {
         }
 
         for bt in values {
+            info.highest_mapped_data_block =
+                std::cmp::max(bt.block, info.highest_mapped_data_block);
             *info.time_counts.entry(bt.time).or_insert(0) += 1;
             info.age = std::cmp::max(info.age, bt.time);
         }
 
-        // TODO: propagate the low & high data block address upward,
-        // for rebuilding the nr_data_blocks in superblock?
         Ok(NodeInfo::Mappings(info))
     }
 
@@ -341,6 +363,7 @@ impl NodeCollector {
 
         for details in values {
             info.nr_mappings += details.mapped_blocks;
+            info.max_tid = std::cmp::max(info.max_tid, details.transaction_id);
             info.age = std::cmp::max(info.age, details.creation_time);
             info.age = std::cmp::max(info.age, details.snapshotted_time);
         }
@@ -635,6 +658,8 @@ impl NodeCollector {
             mapping_root: dev_root,
             details_root,
             time: std::cmp::max(dev_info.age, details_info.age),
+            transaction_id: details_info.max_tid + 1, // tid in superblock is ahead by 1
+            nr_data_blocks: dev_info.highest_mapped_data_block + 1,
         })
     }
 
@@ -651,20 +676,43 @@ impl NodeCollector {
     }
 }
 
+fn check_data_block_size(bs: u32) -> Result<u32> {
+    if !(128..=2097152).contains(&bs) || (bs & 0x7F != 0) {
+        return Err(anyhow!("invalid data block size"));
+    }
+    Ok(bs)
+}
+
 //------------------------------------------
+
+#[derive(Debug)]
+struct SuperblockError {
+    failed_sb: Option<Superblock>,
+}
+
+impl fmt::Display for SuperblockError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.failed_sb)
+    }
+}
+
+impl std::error::Error for SuperblockError {}
 
 pub fn is_superblock_consistent(
     sb: Superblock,
     engine: Arc<dyn IoEngine + Send + Sync>,
 ) -> Result<Superblock> {
     let mut path = vec![0];
-    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), true, sb.mapping_root)?;
+    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), true, sb.mapping_root);
 
     path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
+    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root);
 
-    if ids1 != ids2 {
-        return Err(anyhow!("inconsistent device ids"));
+    if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
+        return Err(anyhow::Error::new(SuperblockError {
+            failed_sb: Some(sb),
+        })
+        .context("inconsistent device ids"));
     }
 
     Ok(sb)
@@ -672,15 +720,42 @@ pub fn is_superblock_consistent(
 
 pub fn rebuild_superblock(
     engine: Arc<dyn IoEngine + Send + Sync>,
+    ref_sb: Option<Superblock>,
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
-    // Check parameters
-    let nr_data_blocks = opts.nr_data_blocks.ok_or_else(|| anyhow!(""))?;
-    let transaction_id = opts.transaction_id.ok_or_else(|| anyhow!(""))?;
-    let data_block_size = opts.data_block_size.ok_or_else(|| anyhow!(""))?;
+    // 1. Takes the user overrides
+    // 2. Takes the reference if there's no user overrides
+    // 3. Returns Err if none of the values above are present
+    // 4. Validates the taken value
+    let data_block_size = opts
+        .data_block_size
+        .or_else(|| ref_sb.as_ref().map(|sb| sb.data_block_size))
+        .ok_or_else(|| {
+            anyhow!("data block size needs to be provided due to corruption in the superblock")
+        })
+        .and_then(check_data_block_size)?;
 
     let c = NodeCollector::new(engine.clone());
     let roots = c.find_roots()?;
+
+    let transaction_id = opts
+        .transaction_id
+        .or_else(|| ref_sb.as_ref().map(|sb| sb.transaction_id))
+        .filter(|tid| *tid > roots.transaction_id)
+        .unwrap_or(roots.transaction_id);
+
+    let nr_data_blocks = opts
+        .nr_data_blocks
+        .or_else(|| {
+            ref_sb.as_ref().and_then(|sb| {
+                unpack_root(&sb.data_sm_root)
+                    .ok()
+                    .map(|root| root.nr_blocks)
+            })
+        })
+        .filter(|n| *n > roots.nr_data_blocks)
+        .unwrap_or(roots.nr_data_blocks);
+
     let sm_root = SMRoot {
         nr_blocks: nr_data_blocks,
         nr_allocated: 0,
@@ -712,7 +787,12 @@ pub fn read_or_rebuild_superblock(
 ) -> Result<Superblock> {
     read_superblock(engine.as_ref(), loc)
         .and_then(|sb| is_superblock_consistent(sb, engine.clone()))
-        .or_else(|_| rebuild_superblock(engine, &opts))
+        .or_else(|e| {
+            let ref_sb = e
+                .downcast_ref::<SuperblockError>()
+                .and_then(|err| err.failed_sb.clone());
+            rebuild_superblock(engine, ref_sb, opts)
+        })
 }
 
 //------------------------------------------
