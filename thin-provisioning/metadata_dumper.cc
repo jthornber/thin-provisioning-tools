@@ -412,6 +412,9 @@ namespace {
 				if (rhs == ms.end())
 					continue;
 
+				if (lhs->second != rhs->second)
+					continue;
+
 				filtered.push_back(make_pair(p.first.b, p.second.b));
 			}
 
@@ -886,8 +889,9 @@ namespace {
 
 		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 
-		if (!get_dev_ids(*tm, msb->device_details_root_) ||
-	            !get_map_ids(*tm, msb->data_mapping_root_))
+		auto maybe_dev_ids = get_dev_ids(*tm, msb->device_details_root_);
+		auto maybe_map_ids = get_map_ids(*tm, msb->data_mapping_root_);
+		if (!maybe_dev_ids || !maybe_map_ids || (*maybe_dev_ids) != (*maybe_map_ids))
 			find_better_roots_(bm, *msb);
 
 		emit_trees_(bm, *msb, e);
