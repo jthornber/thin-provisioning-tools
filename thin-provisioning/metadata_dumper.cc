@@ -597,6 +597,8 @@ namespace {
 
 					info.nr_mappings = n.get_nr_entries();
 				}
+			} else {
+				fail(info, "not the value size of interest");
 			}
 
 			return info;
