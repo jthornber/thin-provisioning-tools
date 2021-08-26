@@ -252,26 +252,33 @@ namespace {
 
 	bool cmp_time_counts(pair<node_info, node_info> const &lhs_pair,
                              pair<node_info, node_info> const &rhs_pair) {
-	        auto const &lhs = lhs_pair.first.time_counts;
-	        auto const &rhs = rhs_pair.first.time_counts;
+	        auto const &lhs = lhs_pair.second.time_counts;
+	        auto const &rhs = rhs_pair.second.time_counts;
 
-	        for (auto lhs_it = lhs.crbegin(); lhs_it != lhs.crend(); lhs_it++) {
-		        for (auto rhs_it = rhs.crbegin(); rhs_it != rhs.crend(); rhs_it++) {
-			        if (lhs_it->first > rhs_it->first)
-				        return true;
 
-			        else if (rhs_it->first > lhs_it->first)
-				        return false;
+		auto lhs_it = lhs.crbegin();
+		auto rhs_it = rhs.crbegin();
+		while (lhs_it != lhs.crend() && rhs_it != rhs.crend()) {
 
-				else if (lhs_it->second > rhs_it->second)
-					return true;
+			auto lhs_time = lhs_it->first;
+			auto rhs_time = rhs_it->first;
+			auto lhs_count = lhs_it->second;
+			auto rhs_count = rhs_it->second;
 
-				else if (rhs_it->second > lhs_it->second)
-					return false;
-		        }
-	        }
+			if (lhs_time > rhs_time)
+				return true;
+			else if (rhs_time > lhs_time)
+				return false;
+			else if (lhs_count > rhs_count)
+				return true;
+			else if (rhs_count > lhs_count)
+				return false;
 
-	        return true;
+			lhs_it++;
+			rhs_it++;
+		}
+
+		return (lhs_it != lhs.crend()) ? true : false;
         }
 
 	class gatherer {
@@ -405,6 +412,9 @@ namespace {
 				if (rhs == ms.end())
 					continue;
 
+				if (lhs->second != rhs->second)
+					continue;
+
 				filtered.push_back(make_pair(p.first.b, p.second.b));
 			}
 
@@ -431,6 +441,14 @@ namespace {
 		// in the bottom 24 bits.  This means every block/time apart from block 0
 		// will result in a value that's outside the range of the metadata device.
 		bool is_top_level(node_ref<uint64_traits> &n) {
+			// A leaf node of value-size 8 and without mappings should be
+			// treated as a bottom-level leaf, so that it could be referenced
+			// by top-level nodes, if any. On the other hand, an empty
+			// top-level leaf doesn't help repairing.
+			if (!n.get_nr_entries()) {
+				return false;
+			}
+
 			auto nr_metadata_blocks = bm_.get_nr_blocks();
 
 			for (unsigned i = 0; i < n.get_nr_entries(); i++)
@@ -579,6 +597,8 @@ namespace {
 
 					info.nr_mappings = n.get_nr_entries();
 				}
+			} else {
+				fail(info, "not the value size of interest");
 			}
 
 			return info;
@@ -783,7 +803,7 @@ namespace {
 
 	void
 	emit_trees_(block_manager::ptr bm, superblock_detail::superblock const &sb,
-                    emitter::ptr e, override_options const &ropts)
+                    emitter::ptr e)
 	{
 		metadata md(bm, sb);
 		dump_options opts;
@@ -871,11 +891,12 @@ namespace {
 
 		auto tm = open_tm(bm, superblock_detail::SUPERBLOCK_LOCATION);
 
-		if (!get_dev_ids(*tm, msb->device_details_root_) ||
-	            !get_map_ids(*tm, msb->data_mapping_root_))
+		auto maybe_dev_ids = get_dev_ids(*tm, msb->device_details_root_);
+		auto maybe_map_ids = get_map_ids(*tm, msb->data_mapping_root_);
+		if (!maybe_dev_ids || !maybe_map_ids || (*maybe_dev_ids) != (*maybe_map_ids))
 			find_better_roots_(bm, *msb);
 
-		emit_trees_(bm, *msb, e, opts);
+		emit_trees_(bm, *msb, e);
 	}
 }
 
