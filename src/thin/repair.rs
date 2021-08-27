@@ -55,8 +55,12 @@ fn new_context(opts: &ThinRepairOptions) -> Result<Context> {
 pub fn repair(opts: ThinRepairOptions) -> Result<()> {
     let ctx = new_context(&opts)?;
 
-    let sb =
-        read_or_rebuild_superblock(ctx.engine_in.clone(), SUPERBLOCK_LOCATION, &opts.overrides)?;
+    let sb = read_or_rebuild_superblock(
+        ctx.engine_in.clone(),
+        ctx.report.clone(),
+        SUPERBLOCK_LOCATION,
+        &opts.overrides,
+    )?;
     let md = build_metadata(ctx.engine_in.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 

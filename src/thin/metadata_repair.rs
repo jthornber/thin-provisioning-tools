@@ -11,6 +11,7 @@ use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map_common::*;
 use crate::pdata::unpack::Unpack;
+use crate::report::Report;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
@@ -188,10 +189,11 @@ struct NodeCollector {
     examined: FixedBitSet,
     referenced: FixedBitSet,
     infos: BTreeMap<u64, NodeInfo>,
+    report: Arc<Report>,
 }
 
 impl NodeCollector {
-    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>) -> NodeCollector {
+    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> NodeCollector {
         let nr_blocks = engine.get_nr_blocks();
         NodeCollector {
             engine,
@@ -199,6 +201,7 @@ impl NodeCollector {
             examined: FixedBitSet::with_capacity(nr_blocks as usize),
             referenced: FixedBitSet::with_capacity(nr_blocks as usize),
             infos: BTreeMap::<u64, NodeInfo>::new(),
+            report,
         }
     }
 
@@ -663,10 +666,39 @@ impl NodeCollector {
         })
     }
 
+    fn log_results(&self, dev_roots: &[u64], details_roots: &[u64], pairs: &[(u64, u64)]) {
+        self.report
+            .info(&format!("mapping candidates ({}):", dev_roots.len()));
+        for dev_root in dev_roots {
+            if let Ok(NodeInfo::Dev(info)) = self.read_info(*dev_root) {
+                self.report.info(&format!("b={}, nr_devices={}, nr_mappings={}, highest_mapped={}, age={}, time_counts={:?}",
+                info.b, info.nr_devices, info.nr_mappings, info.highest_mapped_data_block, info.age, info.time_counts));
+            }
+        }
+
+        self.report
+            .info(&format!("\ndevice candidates ({}):", details_roots.len()));
+        for details_root in details_roots {
+            if let Ok(NodeInfo::Details(info)) = self.read_info(*details_root) {
+                self.report.info(&format!(
+                    "b={}, nr_devices={}, nr_mappings={}, max_tid={}, age={}",
+                    info._b, info.nr_devices, info.nr_mappings, info.max_tid, info.age
+                ));
+            }
+        }
+
+        self.report
+            .info(&format!("\ncompatible roots ({}):", pairs.len()));
+        for pair in pairs {
+            self.report.info(&format!("({}, {})", pair.0, pair.1));
+        }
+    }
+
     pub fn find_roots(mut self) -> Result<FoundRoots> {
         self.collect_infos()?;
         let (dev_roots, details_roots) = self.gather_roots()?;
         let pairs = self.find_root_pairs(&dev_roots, &details_roots)?;
+        self.log_results(&dev_roots, &details_roots, &pairs);
 
         if pairs.is_empty() {
             return Err(anyhow!("no compatible roots found"));
@@ -720,6 +752,7 @@ pub fn is_superblock_consistent(
 
 pub fn rebuild_superblock(
     engine: Arc<dyn IoEngine + Send + Sync>,
+    report: Arc<Report>,
     ref_sb: Option<Superblock>,
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
@@ -735,7 +768,7 @@ pub fn rebuild_superblock(
         })
         .and_then(check_data_block_size)?;
 
-    let c = NodeCollector::new(engine.clone());
+    let c = NodeCollector::new(engine.clone(), report);
     let roots = c.find_roots()?;
 
     let transaction_id = opts
@@ -782,6 +815,7 @@ pub fn rebuild_superblock(
 
 pub fn read_or_rebuild_superblock(
     engine: Arc<dyn IoEngine + Send + Sync>,
+    report: Arc<Report>,
     loc: u64,
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
@@ -791,7 +825,7 @@ pub fn read_or_rebuild_superblock(
             let ref_sb = e
                 .downcast_ref::<SuperblockError>()
                 .and_then(|err| err.failed_sb.clone());
-            rebuild_superblock(engine, ref_sb, opts)
+            rebuild_superblock(engine, report, ref_sb, opts)
         })
 }
 

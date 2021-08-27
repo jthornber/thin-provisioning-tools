@@ -316,7 +316,12 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
     let sb;
     if opts.repair {
-        sb = read_or_rebuild_superblock(ctx.engine.clone(), SUPERBLOCK_LOCATION, &opts.overrides)?;
+        sb = read_or_rebuild_superblock(
+            ctx.engine.clone(),
+            ctx.report.clone(),
+            SUPERBLOCK_LOCATION,
+            &opts.overrides,
+        )?;
     } else {
         sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     }
