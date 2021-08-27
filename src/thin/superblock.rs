@@ -89,7 +89,11 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
 pub fn read_superblock(engine: &dyn IoEngine, loc: u64) -> Result<Superblock> {
     let b = engine.read(loc)?;
 
-    if let Ok((_, sb)) = unpack(&b.get_data()) {
+    if metadata_block_type(b.get_data()) != BT::THIN_SUPERBLOCK {
+        return Err(anyhow!("bad checksum in superblock"));
+    }
+
+    if let Ok((_, sb)) = unpack(b.get_data()) {
         Ok(sb)
     } else {
         Err(anyhow!("couldn't unpack superblock"))
