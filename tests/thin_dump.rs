@@ -114,6 +114,7 @@ fn dump_restore_cycle() -> Result<()> {
 // test no stderr with a normal dump
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn no_stderr() -> Result<()> {
     let mut td = TestDir::new()?;
 
@@ -133,7 +134,9 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     let output = run_ok_raw(THIN_DUMP, args![&md, flag, value])?;
 
-    assert_eq!(output.stderr.len(), 0);
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(output.stderr.len(), 0);
+    }
     assert!(from_utf8(&output.stdout[0..])?.contains(pattern));
     Ok(())
 }
@@ -179,7 +182,9 @@ fn repair_superblock() -> Result<()> {
             &md
         ],
     )?;
-    assert_eq!(after.stderr.len(), 0);
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(after.stderr.len(), 0);
+    }
     assert_eq!(before.stdout, after.stdout);
 
     Ok(())

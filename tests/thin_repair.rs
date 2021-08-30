@@ -148,7 +148,9 @@ fn superblock_succeeds() -> Result<()> {
             &md1
         ],
     )?;
-    assert_eq!(original.stderr.len(), 0);
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(original.stderr.len(), 0);
+    }
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
     run_ok(
@@ -164,7 +166,9 @@ fn superblock_succeeds() -> Result<()> {
         ],
     )?;
     let repaired = run_ok_raw(THIN_DUMP, args![&md2])?;
-    assert_eq!(repaired.stderr.len(), 0);
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(repaired.stderr.len(), 0);
+    }
     assert_eq!(original.stdout, repaired.stdout);
     Ok(())
 }
