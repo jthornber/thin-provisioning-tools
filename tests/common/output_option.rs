@@ -33,12 +33,12 @@ macro_rules! test_missing_output_option {
 
 pub fn test_output_file_not_found<'a, P>() -> Result<()>
 where
-    P: OutputProgram<'a>,
+    P: MetadataWriter<'a>,
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
     let stderr = run_fail(P::path(), args!["-i", &input, "-o", "no-such-file"])?;
-    assert!(stderr.contains(<P as OutputProgram>::file_not_found()));
+    assert!(stderr.contains(<P as MetadataWriter>::file_not_found()));
     Ok(())
 }
 
@@ -105,7 +105,7 @@ macro_rules! test_unwritable_output_file {
 // currently thin/cache_restore only
 pub fn test_tiny_output_file<'a, P>() -> Result<()>
 where
-    P: BinaryOutputProgram<'a>,
+    P: MetadataWriter<'a>,
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;

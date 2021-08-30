@@ -70,7 +70,7 @@ impl<'a> InputProgram<'a> for ThinCheck {
     }
 }
 
-impl<'a> BinaryInputProgram<'_> for ThinCheck {}
+impl<'a> MetadataReader<'_> for ThinCheck {}
 
 //------------------------------------------
 

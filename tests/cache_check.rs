@@ -67,7 +67,7 @@ impl<'a> InputProgram<'a> for CacheCheck {
     }
 }
 
-impl<'a> BinaryInputProgram<'_> for CacheCheck {}
+impl<'a> MetadataReader<'a> for CacheCheck {}
 
 //------------------------------------------
 

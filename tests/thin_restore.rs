@@ -70,16 +70,16 @@ impl<'a> InputProgram<'a> for ThinRestore {
 }
 
 impl<'a> OutputProgram<'a> for ThinRestore {
-    fn file_not_found() -> &'a str {
-        msg::FILE_NOT_FOUND
-    }
-
     fn missing_output_arg() -> &'a str {
         msg::MISSING_OUTPUT_ARG
     }
 }
 
-impl<'a> BinaryOutputProgram<'_> for ThinRestore {}
+impl<'a> MetadataWriter<'a> for ThinRestore {
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
+    }
+}
 
 //-----------------------------------------
 
@@ -92,6 +92,8 @@ test_corrupted_input_data!(ThinRestore);
 
 test_missing_output_option!(ThinRestore);
 test_tiny_output_file!(ThinRestore);
+
+test_unwritable_output_file!(ThinRestore);
 
 //-----------------------------------------
 

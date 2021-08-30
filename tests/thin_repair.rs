@@ -69,12 +69,14 @@ impl<'a> InputProgram<'a> for ThinRepair {
 }
 
 impl<'a> OutputProgram<'a> for ThinRepair {
-    fn file_not_found() -> &'a str {
-        cpp_msg::FILE_NOT_FOUND
-    }
-
     fn missing_output_arg() -> &'a str {
         cpp_msg::MISSING_OUTPUT_ARG
+    }
+}
+
+impl<'a> MetadataWriter<'a> for ThinRepair {
+    fn file_not_found() -> &'a str {
+        cpp_msg::FILE_NOT_FOUND
     }
 }
 
