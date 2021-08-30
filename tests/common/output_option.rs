@@ -81,7 +81,7 @@ where
     let input = P::mk_valid_input(&mut td)?;
 
     let output = td.mk_path("meta.bin");
-    let _file = file_utils::create_sized_file(&output, 4096);
+    let _file = file_utils::create_sized_file(&output, 4_194_304);
     duct::cmd!("chmod", "-w", &output).run()?;
 
     let stderr = run_fail(P::path(), args!["-i", &input, "-o", &output])?;
