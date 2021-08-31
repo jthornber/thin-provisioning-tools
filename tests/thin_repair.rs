@@ -46,7 +46,7 @@ impl<'a> Program<'a> for ThinRepair {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        cpp_msg::bad_option_hint(option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -56,27 +56,33 @@ impl<'a> InputProgram<'a> for ThinRepair {
     }
 
     fn file_not_found() -> &'a str {
-        cpp_msg::FILE_NOT_FOUND
+        msg::FILE_NOT_FOUND
     }
 
     fn missing_input_arg() -> &'a str {
-        cpp_msg::MISSING_INPUT_ARG
+        msg::MISSING_INPUT_ARG
     }
 
+    #[cfg(not(feature = "rust_tests"))]
     fn corrupted_input() -> &'a str {
         "The following field needs to be provided on the command line due to corruption in the superblock"
+    }
+
+    #[cfg(feature = "rust_tests")]
+    fn corrupted_input() -> &'a str {
+        "data block size needs to be provided due to corruption in the superblock"
     }
 }
 
 impl<'a> OutputProgram<'a> for ThinRepair {
     fn missing_output_arg() -> &'a str {
-        cpp_msg::MISSING_OUTPUT_ARG
+        msg::MISSING_OUTPUT_ARG
     }
 }
 
 impl<'a> MetadataWriter<'a> for ThinRepair {
     fn file_not_found() -> &'a str {
-        cpp_msg::FILE_NOT_FOUND
+        msg::FILE_NOT_FOUND
     }
 }
 
