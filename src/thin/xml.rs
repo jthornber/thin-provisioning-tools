@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::{io::prelude::*, io::BufReader, io::Write};
 
 use quick_xml::events::{BytesEnd, BytesStart, Event};
@@ -271,19 +271,19 @@ where
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"device" => visitor.device_b(&parse_device(e)?),
             b"def" => visitor.def_shared_b(&parse_def(e, "def")?),
-            _ => todo!(),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::End(ref e)) => match e.name() {
             b"superblock" => visitor.superblock_e(),
             b"device" => visitor.device_e(),
             b"def" => visitor.def_shared_e(),
-            _ => todo!(),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::Empty(ref e)) => match e.name() {
             b"single_mapping" => visitor.map(&parse_single_map(e)?),
             b"range_mapping" => visitor.map(&parse_range_map(e)?),
             b"ref" => visitor.ref_shared(&parse_def(e, "ref")?),
-            _ => todo!(),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -291,10 +291,14 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => todo!(),
-
-        // FIXME: don't panic!
-        Err(e) => panic!("error parsing xml {:?}", e),
+        Ok(_) => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Err(e) => {
+            return Err(anyhow!(
+                "Parse error at byte {}: {:?}",
+                reader.buffer_position(),
+                e
+            ))
+        }
     }
 }
 

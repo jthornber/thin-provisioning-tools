@@ -53,7 +53,7 @@ impl<'a> Program<'a> for ThinRestore {
 
 impl<'a> InputProgram<'a> for ThinRestore {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        mk_valid_md(td)
+        mk_valid_xml(td)
     }
 
     fn file_not_found() -> &'a str {

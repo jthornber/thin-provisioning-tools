@@ -62,6 +62,11 @@ fn main() {
         exit(1);
     }
 
+    if let Err(e) = file_utils::check_output_file_requirements(output_file) {
+        eprintln!("{}", e);
+        exit(1);
+    }
+
     let report;
 
     if matches.is_present("QUIET") {
@@ -80,7 +85,7 @@ fn main() {
     };
 
     if let Err(reason) = restore(opts) {
-        println!("{}", reason);
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }

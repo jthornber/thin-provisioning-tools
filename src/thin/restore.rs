@@ -57,6 +57,15 @@ impl std::fmt::Display for MappedSection {
 
 //------------------------------------------
 
+#[derive(PartialEq)]
+enum Section {
+    None,
+    Superblock,
+    Device,
+    Def,
+    Finalized,
+}
+
 pub struct Restorer<'a> {
     w: &'a mut WriteBatcher,
     report: Arc<Report>,
@@ -71,6 +80,7 @@ pub struct Restorer<'a> {
     sb: Option<ir::Superblock>,
     devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Option<Arc<Mutex<dyn SpaceMap>>>,
+    in_section: Section,
 }
 
 impl<'a> Restorer<'a> {
@@ -84,6 +94,7 @@ impl<'a> Restorer<'a> {
             sb: None,
             devices: BTreeMap::new(),
             data_sm: None,
+            in_section: Section::None,
         }
     }
 
@@ -149,6 +160,13 @@ impl<'a> Restorer<'a> {
     }
 
     fn finalize(&mut self) -> Result<()> {
+        let src_sb;
+        if let Some(sb) = self.sb.take() {
+            src_sb = sb;
+        } else {
+            return Err(anyhow!("missing superblock"));
+        }
+
         let (details_root, mapping_root) = self.build_device_details()?;
 
         self.release_subtrees()?;
@@ -162,33 +180,41 @@ impl<'a> Restorer<'a> {
         let metadata_sm_root = pack_root(&metadata_sm, SPACE_MAP_ROOT_SIZE)?;
 
         // Write the superblock
-        let sb = self.sb.as_ref().unwrap();
         let sb = superblock::Superblock {
             flags: SuperblockFlags { needs_check: false },
             block: SUPERBLOCK_LOCATION,
             version: 2,
-            time: sb.time as u32,
-            transaction_id: sb.transaction,
+            time: src_sb.time as u32,
+            transaction_id: src_sb.transaction,
             metadata_snap: 0,
             data_sm_root,
             metadata_sm_root,
             mapping_root,
             details_root,
-            data_block_size: sb.data_block_size,
+            data_block_size: src_sb.data_block_size,
             nr_metadata_blocks: metadata_sm.nr_blocks,
         };
-        write_superblock(self.w.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+        write_superblock(self.w.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
+        self.in_section = Section::Finalized;
+
+        Ok(())
     }
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
+        if self.in_section != Section::None {
+            return Err(anyhow!("duplicated superblock"));
+        }
+
         self.sb = Some(sb.clone());
         self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
         let b = self.w.alloc()?;
         if b.loc != SUPERBLOCK_LOCATION {
             return Err(anyhow!("superblock was occupied"));
         }
+        self.in_section = Section::Superblock;
+
         Ok(Visit::Continue)
     }
 
@@ -198,12 +224,17 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn def_shared_b(&mut self, name: &str) -> Result<Visit> {
+        if self.in_section != Section::Superblock {
+            return Err(anyhow!("missing superblock"));
+        }
+        self.in_section = Section::Def;
         self.begin_section(MappedSection::Def(name.to_string()))
     }
 
     fn def_shared_e(&mut self) -> Result<Visit> {
         if let (MappedSection::Def(name), nodes) = self.end_section()? {
             self.sub_trees.insert(name, nodes);
+            self.in_section = Section::Superblock;
             Ok(Visit::Continue)
         } else {
             Err(anyhow!("unexpected </def>"))
@@ -211,6 +242,9 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
+        if self.in_section != Section::Superblock {
+            return Err(anyhow!("missing superblock"));
+        }
         self.report
             .info(&format!("building btree for device {}", d.dev_id));
         self.current_dev = Some(DeviceDetail {
@@ -219,6 +253,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
             creation_time: d.creation_time as u32,
             snapshotted_time: d.snap_time as u32,
         });
+        self.in_section = Section::Device;
         self.begin_section(MappedSection::Dev(d.dev_id))
     }
 
@@ -227,6 +262,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
             if let (MappedSection::Dev(thin_id), nodes) = self.end_section()? {
                 let root = build_btree(self.w, nodes)?;
                 self.devices.insert(thin_id, (detail, root));
+                self.in_section = Section::Superblock;
                 Ok(Visit::Continue)
             } else {
                 Err(anyhow!("internal error, couldn't find device details"))
@@ -278,7 +314,9 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn eof(&mut self) -> Result<Visit> {
-        // FIXME: build the rest of the device trees
+        if self.in_section != Section::Finalized {
+            return Err(anyhow!("incomplete source metadata"));
+        }
         Ok(Visit::Continue)
     }
 }

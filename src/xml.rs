@@ -32,8 +32,8 @@ pub fn bool_val(kv: &Attribute) -> anyhow::Result<bool> {
     Ok(n)
 }
 
-pub fn bad_attr<T>(_tag: &str, _attr: &[u8]) -> anyhow::Result<T> {
-    todo!();
+pub fn bad_attr<T>(tag: &str, _attr: &[u8]) -> anyhow::Result<T> {
+    Err(anyhow!("unknown attribute in tag '{}'", tag))
 }
 
 pub fn check_attr<T>(tag: &str, name: &str, maybe_v: Option<T>) -> anyhow::Result<T> {

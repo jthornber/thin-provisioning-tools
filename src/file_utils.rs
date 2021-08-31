@@ -98,3 +98,13 @@ pub fn create_sized_file(path: &Path, nr_bytes: u64) -> io::Result<std::fs::File
 }
 
 //---------------------------------------
+
+pub fn check_output_file_requirements(path: &Path) -> io::Result<()> {
+    // minimal thin metadata size is 10 blocks, with one device
+    if file_size(path)? < 40960 {
+        return fail("Output file too small.");
+    }
+    Ok(())
+}
+
+//---------------------------------------
