@@ -2,6 +2,7 @@ use anyhow::Result;
 
 mod common;
 
+use common::cache::*;
 use common::common_args::*;
 use common::fixture::*;
 use common::input_arg::*;
@@ -51,7 +52,7 @@ impl<'a> Program<'a> for CacheCheck {
 
 impl<'a> InputProgram<'a> for CacheCheck {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        common::thin::mk_valid_md(td) // FIXME: create cache metadata
+        mk_valid_md(td)
     }
 
     fn file_not_found() -> &'a str {
