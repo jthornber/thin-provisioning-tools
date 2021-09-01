@@ -34,6 +34,7 @@ macro_rules! path_to {
 
 pub const CACHE_CHECK: &str = path_to!("cache_check");
 pub const CACHE_DUMP: &str = path_to!("cache_dump");
+pub const CACHE_RESTORE: &str = path_to!("cache_restore");
 
 pub const THIN_CHECK: &str = path_to!("thin_check");
 pub const THIN_DELTA: &str = path_to_cpp!("thin_delta"); // TODO: rust version
