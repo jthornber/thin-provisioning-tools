@@ -202,18 +202,33 @@ where
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"mappings" => visitor.mappings_b(),
             b"hints" => visitor.hints_b(),
-            _ => todo!(),
+            _ => {
+                return Err(anyhow!(
+                    "Parse error 1 at byte {}",
+                    reader.buffer_position()
+                ))
+            }
         },
         Ok(Event::End(ref e)) => match e.name() {
             b"superblock" => visitor.superblock_e(),
             b"mappings" => visitor.mappings_e(),
             b"hints" => visitor.hints_e(),
-            _ => todo!(),
+            _ => {
+                return Err(anyhow!(
+                    "Parse error 2 at byte {}",
+                    reader.buffer_position()
+                ))
+            }
         },
         Ok(Event::Empty(ref e)) => match e.name() {
             b"mapping" => visitor.mapping(&parse_mapping(e)?),
             b"hint" => visitor.hint(&parse_hint(e)?),
-            _ => todo!(),
+            _ => {
+                return Err(anyhow!(
+                    "Parse error 3 at byte {}",
+                    reader.buffer_position()
+                ))
+            }
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -221,8 +236,19 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => todo!(),
-        Err(e) => Err(anyhow!("{:?}", e)),
+        Ok(_) => {
+            return Err(anyhow!(
+                "Parse error 4 at byte {}",
+                reader.buffer_position()
+            ))
+        }
+        Err(e) => {
+            return Err(anyhow!(
+                "Parse error 5 at byte {}: {:?}",
+                reader.buffer_position(),
+                e
+            ))
+        }
     }
 }
 

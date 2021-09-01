@@ -23,13 +23,6 @@ fn main() {
                 .hidden(true),
         )
         .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
-        )
-        .arg(
             Arg::with_name("QUIET")
                 .help("Suppress output messages, return only exit code.")
                 .short("q")
@@ -62,6 +55,11 @@ fn main() {
         exit(1);
     }
 
+    if let Err(e) = file_utils::check_output_file_requirements(output_file) {
+        eprintln!("{}", e);
+        exit(1);
+    }
+
     let report;
 
     if matches.is_present("QUIET") {
@@ -80,7 +78,7 @@ fn main() {
     };
 
     if let Err(reason) = restore(opts) {
-        println!("{}", reason);
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }
