@@ -62,7 +62,7 @@ pub mod cpp_msg {
 }
 
 pub mod rust_msg {
-    pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
+    pub const FILE_NOT_FOUND: &str = "No such file or directory";
     pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";

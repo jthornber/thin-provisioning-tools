@@ -5,7 +5,6 @@ use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
@@ -57,14 +56,14 @@ fn main() {
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if !file_utils::file_exists(input_file) {
-        eprintln!("Couldn't find input file '{:?}'.", &input_file);
-        exit(1);
+    if let Err(e) = file_utils::is_file(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
+        process::exit(1);
     }
 
     if let Err(e) = file_utils::check_output_file_requirements(output_file) {
         eprintln!("{}", e);
-        exit(1);
+        process::exit(1);
     }
 
     let report;

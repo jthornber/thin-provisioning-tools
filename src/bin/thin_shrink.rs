@@ -66,8 +66,8 @@ fn main() {
     let data_file = Path::new(matches.value_of("DATA").unwrap());
     let do_copy = !matches.is_present("NOCOPY");
 
-    if !file_utils::file_exists(input_file) {
-        eprintln!("Couldn't find input file '{}'.", input_file.display());
+    if let Err(e) = file_utils::is_file_or_blk(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
         exit(1);
     }
 

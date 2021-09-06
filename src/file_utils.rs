@@ -1,5 +1,5 @@
 use nix::sys::stat;
-use nix::sys::stat::{FileStat, SFlag};
+use nix::sys::stat::FileStat;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{Seek, Write};
@@ -9,22 +9,46 @@ use tempfile::tempfile;
 
 //---------------------------------------
 
-fn check_bits(mode: u32, flag: &SFlag) -> bool {
-    (mode & flag.bits()) != 0
+#[inline(always)]
+pub fn s_isreg(info: &FileStat) -> bool {
+    (info.st_mode & stat::SFlag::S_IFMT.bits()) == stat::SFlag::S_IFREG.bits()
 }
 
-pub fn is_file_or_blk(info: FileStat) -> bool {
-    check_bits(info.st_mode, &stat::SFlag::S_IFBLK)
-        || check_bits(info.st_mode, &stat::SFlag::S_IFREG)
+#[inline(always)]
+pub fn s_isblk(info: &FileStat) -> bool {
+    (info.st_mode & stat::SFlag::S_IFMT.bits()) == stat::SFlag::S_IFBLK.bits()
 }
 
-pub fn file_exists(path: &Path) -> bool {
+pub fn is_file(path: &Path) -> io::Result<()> {
     match stat::stat(path) {
-        Ok(info) => is_file_or_blk(info),
+        Ok(info) => {
+            if s_isreg(&info) {
+                Ok(())
+            } else {
+                fail("Not a regular file")
+            }
+        }
         _ => {
             // FIXME: assuming all errors indicate the file doesn't
             // exist.
-            false
+            fail("No such file or directory")
+        }
+    }
+}
+
+pub fn is_file_or_blk(path: &Path) -> io::Result<()> {
+    match stat::stat(path) {
+        Ok(info) => {
+            if s_isreg(&info) || s_isblk(&info) {
+                Ok(())
+            } else {
+                fail("Not a block device or regular file")
+            }
+        }
+        _ => {
+            // FIXME: assuming all errors indicate the file doesn't
+            // exist.
+            fail("No such file or directory")
         }
     }
 }
@@ -55,12 +79,12 @@ fn get_device_size(path: &Path) -> io::Result<u64> {
 pub fn file_size(path: &Path) -> io::Result<u64> {
     match stat::stat(path) {
         Ok(info) => {
-            if check_bits(info.st_mode, &SFlag::S_IFREG) {
+            if s_isreg(&info) {
                 Ok(info.st_size as u64)
-            } else if check_bits(info.st_mode, &SFlag::S_IFBLK) {
+            } else if s_isblk(&info) {
                 get_device_size(path)
             } else {
-                fail("not a regular file or block device")
+                fail("Not a block device or regular file")
             }
         }
         _ => fail("stat failed"),

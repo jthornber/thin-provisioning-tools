@@ -4,9 +4,11 @@ extern crate thinp;
 use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
+use std::process;
 use std::sync::Arc;
 
 use thinp::cache::check::{check, CacheCheckOptions};
+use thinp::file_utils;
 use thinp::report::*;
 
 //------------------------------------------
@@ -68,6 +70,11 @@ fn main() {
     let matches = parser.get_matches();
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
+    if let Err(e) = file_utils::is_file_or_blk(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
+        process::exit(1);
+    }
+
     let report;
     if matches.is_present("QUIET") {
         report = std::sync::Arc::new(mk_quiet_report());
@@ -91,7 +98,7 @@ fn main() {
 
     if let Err(reason) = check(opts) {
         eprintln!("{}", reason);
-        std::process::exit(1);
+        process::exit(1);
     }
 }
 

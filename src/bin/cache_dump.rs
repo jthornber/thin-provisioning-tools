@@ -3,7 +3,9 @@ extern crate thinp;
 
 use clap::{App, Arg};
 use std::path::Path;
+use std::process;
 use thinp::cache::dump::{dump, CacheDumpOptions};
+use thinp::file_utils;
 
 //------------------------------------------
 
@@ -48,6 +50,11 @@ fn main() {
         None
     };
 
+    if let Err(e) = file_utils::is_file_or_blk(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
+        process::exit(1);
+    }
+
     let opts = CacheDumpOptions {
         input: input_file,
         output: output_file,
@@ -57,7 +64,7 @@ fn main() {
 
     if let Err(reason) = dump(opts) {
         eprintln!("{}", reason);
-        std::process::exit(1);
+        process::exit(1);
     }
 }
 
