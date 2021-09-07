@@ -59,8 +59,7 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
         let bi = index / self.entries_per_block as u64;
         let i = (index % self.entries_per_block as u64) as usize;
 
-        if bi < self.array_blocks.len() as u64 || i < self.values.len() || index >= self.nr_entries
-        {
+        if index >= self.nr_entries {
             return Err(anyhow!("array index out of bounds"));
         }
 
@@ -68,8 +67,12 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
             self.emit_block(w)?;
         }
 
-        if i > self.values.len() + 1 {
-            self.values.resize_with(i - 1, Default::default);
+        if bi < self.array_blocks.len() as u64 || i < self.values.len() {
+            return Err(anyhow!("unordered array index"));
+        }
+
+        if i > self.values.len() {
+            self.values.resize_with(i, Default::default);
         }
         self.values.push(v);
 
