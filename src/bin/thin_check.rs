@@ -25,17 +25,38 @@ fn main() {
         .arg(
             Arg::with_name("AUTO_REPAIR")
                 .help("Auto repair trivial issues.")
-                .long("auto-repair"),
+                .long("auto-repair")
+                .conflicts_with_all(&[
+                    "IGNORE_NON_FATAL",
+                    "METADATA_SNAPSHOT",
+                    "OVERRIDE_MAPPING_ROOT",
+                    "SB_ONLY",
+                    "SKIP_MAPPINGS",
+                ]),
         )
         .arg(
+            // Using --clear-needs-check along with --skip-mappings is allowed
+            // (but not recommended) for backward compatibility (commit 1fe8a0d)
             Arg::with_name("CLEAR_NEEDS_CHECK")
                 .help("Clears the 'needs_check' flag in the superblock")
-                .long("clear-needs-check-flag"),
+                .long("clear-needs-check-flag")
+                .conflicts_with_all(&[
+                    "IGNORE_NON_FATAL",
+                    "METADATA_SNAPSHOT",
+                    "OVERRIDE_MAPPING_ROOT",
+                    "SB_ONLY",
+                ]),
         )
         .arg(
             Arg::with_name("IGNORE_NON_FATAL")
                 .help("Only return a non-zero exit code if a fatal error is found.")
                 .long("ignore-non-fatal-errors"),
+        )
+        .arg(
+            Arg::with_name("METADATA_SNAPSHOT")
+                .help("Check the metadata snapshot on a live pool")
+                .short("m")
+                .long("metadata-snapshot"),
         )
         .arg(
             Arg::with_name("QUIET")
@@ -54,13 +75,6 @@ fn main() {
                 .long("skip-mappings"),
         )
         // options
-        .arg(
-            Arg::with_name("METADATA_SNAPSHOT")
-                .help("Check the metadata snapshot on a live pool")
-                .short("m")
-                .long("metadata-snapshot")
-                .value_name("METADATA_SNAPSHOT"),
-        )
         .arg(
             Arg::with_name("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
