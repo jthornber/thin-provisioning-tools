@@ -22,6 +22,14 @@ namespace era {
 		uint64_t writeset_root;
 	};
 
+	inline bool operator==(era_detail const& lhs, era_detail const& rhs) {
+		return lhs.nr_bits == rhs.nr_bits && lhs.writeset_root == rhs.writeset_root;
+	}
+
+	inline bool operator!=(era_detail const& lhs, era_detail const& rhs) {
+		return !(lhs == rhs);
+	}
+
 	struct era_detail_ref_counter {
 		era_detail_ref_counter(persistent_data::transaction_manager::ptr tm)
 			: tm_(tm) {
@@ -31,7 +39,7 @@ namespace era {
 			tm_->get_sm()->inc(d.writeset_root);
 		}
 
-		void dec(persistent_data::block_address b) {
+		void dec(era_detail const &d) {
 			// I don't think we ever do this in the tools
 			throw std::runtime_error("not implemented");
 		}

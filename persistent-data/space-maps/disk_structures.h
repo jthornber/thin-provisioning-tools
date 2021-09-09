@@ -42,6 +42,16 @@ namespace persistent_data {
 			uint32_t none_free_before_;
 		};
 
+		inline bool operator==(index_entry const& lhs, index_entry const& rhs) {
+			// The return value doesn't matter, since the ref-counts of bitmap blocks
+			// are managed by shadow operations.
+			return false;
+		}
+
+		inline bool operator!=(index_entry const& lhs, index_entry const& rhs) {
+			return !(lhs == rhs);
+		}
+
 		struct index_entry_traits {
 			typedef index_entry_disk disk_type;
 			typedef index_entry value_type;

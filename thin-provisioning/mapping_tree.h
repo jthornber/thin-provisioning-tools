@@ -24,6 +24,14 @@ namespace thin_provisioning {
 			uint32_t time_;
 		};
 
+		inline bool operator==(block_time const& lhs, block_time const& rhs) {
+			return lhs.block_ == rhs.block_;
+		}
+
+		inline bool operator!=(block_time const& lhs, block_time const& rhs) {
+			return !(lhs == rhs);
+		}
+
 		class block_time_ref_counter {
 		public:
 			block_time_ref_counter(space_map::ptr sm);
