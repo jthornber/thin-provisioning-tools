@@ -109,16 +109,18 @@ fn main() {
     }
 
     let engine: Arc<dyn IoEngine + Send + Sync>;
+    let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");
 
     if matches.is_present("ASYNC_IO") {
         engine = Arc::new(
-            AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, false)
+            AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, writable)
                 .expect("unable to open input file"),
         );
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(
-            SyncIoEngine::new(&input_file, nr_threads, false).expect("unable to open input file"),
+            SyncIoEngine::new(&input_file, nr_threads, writable)
+                .expect("unable to open input file"),
         );
     }
 
@@ -128,6 +130,7 @@ fn main() {
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         auto_repair: matches.is_present("AUTO_REPAIR"),
+        clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
         report,
     };
 

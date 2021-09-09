@@ -309,7 +309,12 @@ pub fn repair_space_map(
         }
     }
 
-    engine.write_many(&write_blocks[0..])?;
+    let results = engine.write_many(&write_blocks[0..])?;
+    for ret in results {
+        if ret.is_err() {
+            return Err(anyhow!("Unable to repair space map: {:?}", ret));
+        }
+    }
     Ok(())
 }
 

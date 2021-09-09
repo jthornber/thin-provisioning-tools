@@ -87,6 +87,7 @@ pub struct ThinCheckOptions {
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
+    pub clear_needs_check: bool,
     pub report: Arc<Report>,
 }
 
@@ -276,6 +277,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     if opts.skip_mappings {
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
         return Ok(());
     }
 
@@ -331,12 +336,41 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             ctx.report.info("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         }
+
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
+    } else if !opts.ignore_non_fatal {
+        if !data_leaks.is_empty() {
+            return Err(anyhow!("data space map contains leaks"));
+        }
+
+        if !metadata_leaks.is_empty() {
+            return Err(anyhow!("metadata space map contains leaks"));
+        }
+
+        if opts.clear_needs_check {
+            let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+            if cleared {
+                ctx.report.info("Cleared needs_check flag");
+            }
+        }
     }
 
     stop_progress.store(true, Ordering::Relaxed);
     tid.join().unwrap();
 
     Ok(())
+}
+
+pub fn clear_needs_check_flag(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<bool> {
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    if !sb.flags.needs_check {
+        return Ok(false);
+    }
+    sb.flags.needs_check = false;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb).map(|_| true)
 }
 
 //------------------------------------------

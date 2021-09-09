@@ -131,16 +131,16 @@ impl<'a> Drop for FileGuard<'a> {
 }
 
 impl SyncIoEngine {
-    fn open_file(path: &Path, writeable: bool) -> Result<File> {
-        let file = OpenOptions::new().read(true).write(writeable).open(path)?;
+    fn open_file(path: &Path, writable: bool) -> Result<File> {
+        let file = OpenOptions::new().read(true).write(writable).open(path)?;
 
         Ok(file)
     }
 
-    pub fn new(path: &Path, nr_files: usize, writeable: bool) -> Result<SyncIoEngine> {
+    pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<SyncIoEngine> {
         let mut files = Vec::with_capacity(nr_files);
         for _n in 0..nr_files {
-            files.push(SyncIoEngine::open_file(path, writeable)?);
+            files.push(SyncIoEngine::open_file(path, writable)?);
         }
 
         Ok(SyncIoEngine {
@@ -231,10 +231,10 @@ pub struct AsyncIoEngine {
 }
 
 impl AsyncIoEngine {
-    pub fn new(path: &Path, queue_len: u32, writeable: bool) -> Result<AsyncIoEngine> {
+    pub fn new(path: &Path, queue_len: u32, writable: bool) -> Result<AsyncIoEngine> {
         let input = OpenOptions::new()
             .read(true)
-            .write(writeable)
+            .write(writable)
             .custom_flags(libc::O_DIRECT)
             .open(path)?;
 
