@@ -136,13 +136,14 @@ fn check_mapping_bottom_level(
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     roots: &BTreeMap<u64, (Vec<u64>, u64)>,
+    ignore_non_fatal: bool,
 ) -> Result<()> {
     ctx.report.set_sub_title("mapping tree");
 
     let w = Arc::new(BTreeWalker::new_with_sm(
         ctx.engine.clone(),
         metadata_sm.clone(),
-        false,
+        ignore_non_fatal,
     )?);
 
     // We want to print out errors as we progress, so we aggregate for each thin and print
@@ -287,7 +288,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, opts.ignore_non_fatal)?;
     bail_out(&ctx, "mapping tree")?;
 
     //-----------------------------------------
@@ -432,7 +433,7 @@ pub fn check_with_maps(
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, false)?;
     bail_out(&ctx, "mapping tree")?;
 
     //-----------------------------------------
