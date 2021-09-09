@@ -276,7 +276,7 @@ pub fn dump_metadata(
         uuid: "".to_string(),
         time: sb.time,
         transaction: sb.transaction_id,
-        flags: None,
+        flags: if sb.flags.needs_check { Some(1) } else { None },
         version: Some(2),
         data_block_size: sb.data_block_size,
         nr_data_blocks: data_root.nr_blocks,
