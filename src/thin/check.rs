@@ -206,18 +206,6 @@ fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> R
     })
 }
 
-fn bail_out(ctx: &Context, task: &str) -> Result<()> {
-    use ReportOutcome::*;
-
-    match ctx.report.get_outcome() {
-        Fatal => Err(anyhow!(format!(
-            "Check of {} failed, ending check early.",
-            task
-        ))),
-        _ => Ok(()),
-    }
-}
-
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(opts.engine.clone(), opts.report.clone())?;
 
@@ -289,7 +277,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, opts.ignore_non_fatal)?;
-    bail_out(&ctx, "mapping tree")?;
 
     //-----------------------------------------
 
@@ -303,7 +290,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         metadata_sm.clone(),
         opts.ignore_non_fatal,
     )?;
-    bail_out(&ctx, "data space map")?;
 
     //-----------------------------------------
 
@@ -322,8 +308,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         metadata_sm.clone(),
         opts.ignore_non_fatal,
     )?;
-
-    bail_out(&ctx, "metadata space map")?;
 
     //-----------------------------------------
 
@@ -434,7 +418,6 @@ pub fn check_with_maps(
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, false)?;
-    bail_out(&ctx, "mapping tree")?;
 
     //-----------------------------------------
 
@@ -448,7 +431,6 @@ pub fn check_with_maps(
         metadata_sm.clone(),
         false,
     )?;
-    bail_out(&ctx, "data space map")?;
 
     //-----------------------------------------
 
@@ -462,7 +444,6 @@ pub fn check_with_maps(
     // Now the counts should be correct and we can check it.
     let _metadata_leaks =
         check_metadata_space_map(engine.clone(), report, root, metadata_sm.clone(), false)?;
-    bail_out(&ctx, "metadata space map")?;
 
     //-----------------------------------------
 
