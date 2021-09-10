@@ -138,7 +138,7 @@ fn main() {
     };
 
     if let Err(reason) = dump(opts) {
-        println!("{}", reason);
+        eprintln!("{}", reason);
         process::exit(1);
     }
 }

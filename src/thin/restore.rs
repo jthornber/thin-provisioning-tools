@@ -207,6 +207,10 @@ impl<'a> MetadataVisitor for Restorer<'a> {
             return Err(anyhow!("duplicated superblock"));
         }
 
+        if !(128..=2097152).contains(&sb.data_block_size) || (sb.data_block_size & 0x7F != 0) {
+            return Err(anyhow!("invalid data block size"));
+        }
+
         self.sb = Some(sb.clone());
         self.data_sm = Some(core_sm(sb.nr_data_blocks, u32::MAX));
         let b = self.w.alloc()?;

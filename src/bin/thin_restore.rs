@@ -43,13 +43,6 @@ fn main() {
                 .long("output")
                 .value_name("FILE")
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
         );
 
     let matches = parser.get_matches();
