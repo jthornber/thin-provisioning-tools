@@ -93,11 +93,11 @@ fn main() {
         skip_discards: matches.is_present("SKIP_DISCARDS"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         auto_repair: matches.is_present("AUTO_REPAIR"),
-        report,
+        report: report.clone(),
     };
 
     if let Err(reason) = check(opts) {
-        eprintln!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }

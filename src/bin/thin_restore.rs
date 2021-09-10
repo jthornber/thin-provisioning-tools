@@ -73,11 +73,11 @@ fn main() {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
-        report,
+        report: report.clone(),
     };
 
     if let Err(reason) = restore(opts) {
-        eprintln!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }

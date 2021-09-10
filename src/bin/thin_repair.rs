@@ -108,7 +108,7 @@ fn main() {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
-        report,
+        report: report.clone(),
         overrides: SuperblockOverrides {
             transaction_id,
             data_block_size,
@@ -117,7 +117,7 @@ fn main() {
     };
 
     if let Err(reason) = repair(opts) {
-        eprintln!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }

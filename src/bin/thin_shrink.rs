@@ -74,7 +74,7 @@ fn main() {
     if let Err(reason) =
         thinp::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size, do_copy)
     {
-        println!("Application error: {}\n", reason);
+        eprintln!("Application error: {}\n", reason);
         exit(1);
     }
 }

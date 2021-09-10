@@ -131,11 +131,11 @@ fn main() {
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         auto_repair: matches.is_present("AUTO_REPAIR"),
         clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
-        report,
+        report: report.clone(),
     };
 
     if let Err(reason) = check(opts) {
-        eprintln!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }
