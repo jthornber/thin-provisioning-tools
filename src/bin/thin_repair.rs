@@ -9,6 +9,7 @@ use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
+use thinp::thin::metadata_repair::SuperblockOverrides;
 use thinp::thin::repair::{repair, ThinRepairOptions};
 
 fn main() {
@@ -30,27 +31,38 @@ fn main() {
         )
         // options
         .arg(
+            Arg::with_name("DATA_BLOCK_SIZE")
+                .help("Provide the data block size for repairing")
+                .long("data-block-size")
+                .value_name("SECTORS"),
+        )
+        .arg(
             Arg::with_name("INPUT")
                 .help("Specify the input device")
                 .short("i")
                 .long("input")
-                .value_name("INPUT")
+                .value_name("FILE")
                 .required(true),
+        )
+        .arg(
+            Arg::with_name("NR_DATA_BLOCKS")
+                .help("Override the number of data blocks if needed")
+                .long("nr-data-blocks")
+                .value_name("NUM"),
         )
         .arg(
             Arg::with_name("OUTPUT")
                 .help("Specify the output device")
                 .short("o")
                 .long("output")
-                .value_name("OUTPUT")
+                .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
+            Arg::with_name("TRANSACTION_ID")
+                .help("Override the transaction id if needed")
+                .long("transaction-id")
+                .value_name("NUM"),
         );
 
     let matches = parser.get_matches();
@@ -61,6 +73,27 @@ fn main() {
         eprintln!("Couldn't find input file '{:?}'.", &input_file);
         exit(1);
     }
+
+    let transaction_id = matches.value_of("TRANSACTION_ID").map(|s| {
+        s.parse::<u64>().unwrap_or_else(|_| {
+            eprintln!("Couldn't parse transaction_id");
+            exit(1);
+        })
+    });
+
+    let data_block_size = matches.value_of("DATA_BLOCK_SIZE").map(|s| {
+        s.parse::<u32>().unwrap_or_else(|_| {
+            eprintln!("Couldn't parse data_block_size");
+            exit(1);
+        })
+    });
+
+    let nr_data_blocks = matches.value_of("NR_DATA_BLOCKS").map(|s| {
+        s.parse::<u64>().unwrap_or_else(|_| {
+            eprintln!("Couldn't parse nr_data_blocks");
+            exit(1);
+        })
+    });
 
     let report;
 
@@ -77,6 +110,11 @@ fn main() {
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report,
+        overrides: SuperblockOverrides {
+            transaction_id,
+            data_block_size,
+            nr_data_blocks,
+        },
     };
 
     if let Err(reason) = repair(opts) {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
@@ -561,6 +561,58 @@ pub fn btree_to_map_with_path<V: Unpack + Copy>(
 
     walker.walk(path, &visitor, root)?;
     Ok(visitor.values.into_inner().unwrap())
+}
+
+//------------------------------------------
+
+struct KeyCollector {
+    keys: Mutex<BTreeSet<u64>>,
+}
+
+impl KeyCollector {
+    fn new() -> KeyCollector {
+        KeyCollector {
+            keys: Mutex::new(BTreeSet::new()),
+        }
+    }
+}
+
+impl<V: Unpack + Copy> NodeVisitor<V> for KeyCollector {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        keys: &[u64],
+        _values: &[V],
+    ) -> Result<()> {
+        let mut keyset = self.keys.lock().unwrap();
+        for k in keys {
+            keyset.insert(*k);
+        }
+
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn btree_to_key_set<V: Unpack + Copy>(
+    path: &mut Vec<u64>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    ignore_non_fatal: bool,
+    root: u64,
+) -> Result<BTreeSet<u64>> {
+    let walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let visitor = KeyCollector::new();
+    walker.walk::<_, V>(path, &visitor, root)?;
+    Ok(visitor.keys.into_inner().unwrap())
 }
 
 //------------------------------------------

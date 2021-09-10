@@ -4,6 +4,7 @@ pub mod device_detail;
 pub mod dump;
 pub mod ir;
 pub mod metadata;
+pub mod metadata_repair;
 pub mod repair;
 pub mod restore;
 pub mod runs;
