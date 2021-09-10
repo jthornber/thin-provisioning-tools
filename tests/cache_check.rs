@@ -107,28 +107,30 @@ fn failing_quiet() -> Result<()> {
     Ok(())
 }
 
-//  (define-scenario (cache-check valid-metadata-passes)
-//    "A valid metadata area passes"
-//    (with-valid-metadata (md)
-//      (run-ok (cache-check md))))
-//
-//  (define-scenario (cache-check bad-metadata-version)
-//    "Invalid metadata version fails"
-//    (with-cache-xml (xml)
-//      (with-empty-metadata (md)
-//        (cache-restore "-i" xml "-o" md "--debug-override-metadata-version" "12345")
-//        (run-fail (cache-check md)))))
-//
-//  (define-scenario (cache-check tiny-metadata)
-//    "Prints helpful message in case tiny metadata given"
-//    (with-temp-file-sized ((md "cache.bin" 1024))
-//      (run-fail-rcv (_ stderr) (cache-check md)
-//        (assert-starts-with "Metadata device/file too small.  Is this binary metadata?" stderr))))
-//
-//  (define-scenario (cache-check spot-accidental-xml-data)
-//    "Prints helpful message if XML metadata given"
-//    (with-cache-xml (xml)
-//      (system (fmt #f "man bash >> " xml))
-//      (run-fail-rcv (_ stderr) (cache-check xml)
-//        (assert-matches ".*This looks like XML.  cache_check only checks the binary metadata format." stderr))))
-//
+#[test]
+fn valid_metadata_passes() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(CACHE_CHECK, args![&md])?;
+    Ok(())
+}
+
+#[test]
+fn bad_metadata_version() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(
+        CACHE_RESTORE,
+        args![
+            "-i",
+            &xml,
+            "-o",
+            &md,
+            "--debug-override-metadata-version",
+            "12345"
+        ],
+    )?;
+    run_fail(CACHE_CHECK, args![&md])?;
+    Ok(())
+}

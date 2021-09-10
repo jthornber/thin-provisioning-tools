@@ -53,45 +53,11 @@
   ;;; cache_dump scenarios
   ;;;-----------------------------------------------------------
 
-  (define-scenario (cache-dump v)
-    "print version (-V flag)"
-    (run-ok-rcv (stdout _) (cache-dump "-V")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (cache-dump version)
-    "print version (--version flags)"
-    (run-ok-rcv (stdout _) (cache-dump "--version")
-      (assert-equal tools-version stdout)))
-
-  (define-scenario (cache-dump h)
-    "cache_dump -h"
-    (run-ok-rcv (stdout _) (cache-dump "-h")
-      (assert-equal cache-dump-help stdout)))
-
-  (define-scenario (cache-dump help)
-    "cache_dump --help"
-    (run-ok-rcv (stdout _) (cache-dump "--help")
-      (assert-equal cache-dump-help stdout)))
-
-  (define-scenario (cache-dump missing-input-file)
-    "Fails with missing input file."
-    (run-fail-rcv (stdout stderr) (cache-dump)
-      (assert-starts-with "No input file provided." stderr)))
-
   (define-scenario (cache-dump small-input-file)
     "Fails with small input file"
     (with-temp-file-sized ((md "cache.bin" 512))
       (run-fail
         (cache-dump md))))
-
-  (define-scenario (cache-dump restore-is-noop)
-    "cache_dump followed by cache_restore is a noop."
-    (with-valid-metadata (md)
-      (run-ok-rcv (d1-stdout _) (cache-dump md)
-        (with-temp-file-containing ((xml "cache.xml" d1-stdout))
-          (run-ok (cache-restore "-i" xml "-o" md))
-          (run-ok-rcv (d2-stdout _) (cache-dump md)
-            (assert-equal d1-stdout d2-stdout))))))
 
   ;;;-----------------------------------------------------------
   ;;; cache_metadata_size scenarios
@@ -164,31 +130,4 @@
     (run-ok-rcv (stdout stderr) (cache-metadata-size "--nr-blocks 67108864")
       (assert-equal "3678208 sectors" stdout)
       (assert-eof stderr)))
-
-  ;;;-----------------------------------------------------------
-  ;;; cache_repair scenarios
-  ;;;-----------------------------------------------------------
-  (define-scenario (cache-repair missing-input-file)
-    "the input file can't be found"
-    (with-empty-metadata (md)
-      (let ((bad-path "no-such-file"))
-        (run-fail-rcv (_ stderr) (cache-repair "-i no-such-file -o" md)
-          (assert-superblock-all-zeroes md)
-          (assert-starts-with
-            (string-append bad-path ": No such file or directory")
-            stderr)))))
-
-  (define-scenario (cache-repair garbage-input-file)
-    "the input file is just zeroes"
-    (with-empty-metadata (md1)
-      (with-corrupt-metadata (md2)
-        (run-fail-rcv (_ stderr) (cache-repair "-i" md1 "-o" md2)
-          (assert-superblock-all-zeroes md2)))))
-
-  (define-scenario (cache-repair missing-output-file)
-    "the output file can't be found"
-    (with-cache-xml (xml)
-      (run-fail-rcv (_ stderr) (cache-repair "-i" xml)
-        (assert-starts-with "No output file provided." stderr))))
-
 )
