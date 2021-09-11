@@ -132,19 +132,24 @@ impl<'a> Drop for FileGuard<'a> {
 
 impl SyncIoEngine {
     fn open_file(path: &Path, writable: bool) -> Result<File> {
-        let file = OpenOptions::new().read(true).write(writable).open(path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .write(writable)
+            .custom_flags(libc::O_EXCL)
+            .open(path)?;
 
         Ok(file)
     }
 
     pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<SyncIoEngine> {
+        let nr_blocks = get_nr_blocks(path)?; // check file mode eariler
         let mut files = Vec::with_capacity(nr_files);
         for _n in 0..nr_files {
             files.push(SyncIoEngine::open_file(path, writable)?);
         }
 
         Ok(SyncIoEngine {
-            nr_blocks: get_nr_blocks(path)?,
+            nr_blocks,
             files: Mutex::new(files),
             cvar: Condvar::new(),
         })
@@ -232,17 +237,18 @@ pub struct AsyncIoEngine {
 
 impl AsyncIoEngine {
     pub fn new(path: &Path, queue_len: u32, writable: bool) -> Result<AsyncIoEngine> {
+        let nr_blocks = get_nr_blocks(path)?; // check file mode earlier
         let input = OpenOptions::new()
             .read(true)
             .write(writable)
-            .custom_flags(libc::O_DIRECT)
+            .custom_flags(libc::O_DIRECT | libc::O_EXCL)
             .open(path)?;
 
         Ok(AsyncIoEngine {
             inner: Mutex::new(AsyncIoEngine_ {
                 queue_len,
                 ring: IoUring::new(queue_len)?,
-                nr_blocks: get_nr_blocks(path)?,
+                nr_blocks,
                 fd: input.as_raw_fd(),
                 input: Arc::new(input),
             }),
