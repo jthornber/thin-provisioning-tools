@@ -34,6 +34,8 @@ fn main_() -> Result<()> {
         cache_repair::run(&new_args);
     } else if name_eq(name, "cache_restore") {
         cache_restore::run(&new_args);
+    } else if name_eq(name, "era_check") {
+        era_check::run(&new_args);
     } else if name_eq(name, "thin_check") {
         thin_check::run(&new_args);
     } else if name_eq(name, "thin_dump") {
