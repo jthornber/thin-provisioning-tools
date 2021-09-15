@@ -222,7 +222,7 @@ pub fn dump_metadata(
     engine: Arc<dyn IoEngine + Send + Sync>,
     out: &mut dyn MetadataVisitor,
     sb: &Superblock,
-    _repair: bool,
+    repair: bool,
 ) -> anyhow::Result<()> {
     let xml_sb = ir::Superblock {
         uuid: "".to_string(),
@@ -236,7 +236,7 @@ pub fn dump_metadata(
     out.mappings_b()?;
     let valid_mappings = match sb.version {
         1 => {
-            let w = ArrayWalker::new(engine.clone(), false);
+            let w = ArrayWalker::new(engine.clone(), repair);
             let mut emitter = format1::MappingEmitter::new(sb.cache_blocks as usize, out);
             w.walk(&mut emitter, sb.mapping_root)?;
             emitter.get_valid()
@@ -246,9 +246,8 @@ pub fn dump_metadata(
             let dirty_bits;
             if let Some(root) = sb.dirty_root {
                 let (bits, errs) =
-                    read_bitset(engine.clone(), root, sb.cache_blocks as usize, false);
-                // TODO: allow errors in repair mode
-                if errs.is_some() {
+                    read_bitset(engine.clone(), root, sb.cache_blocks as usize, repair);
+                if errs.is_some() && !repair {
                     return Err(anyhow!("errors in bitset {}", errs.unwrap()));
                 }
                 dirty_bits = bits;
@@ -258,7 +257,7 @@ pub fn dump_metadata(
                 return Err(anyhow!("format 2 selected, but no dirty bitset present"));
             }
 
-            let w = ArrayWalker::new(engine.clone(), false);
+            let w = ArrayWalker::new(engine.clone(), repair);
             let mut emitter =
                 format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, out);
             w.walk(&mut emitter, sb.mapping_root)?;
@@ -272,7 +271,7 @@ pub fn dump_metadata(
 
     out.hints_b()?;
     {
-        let w = ArrayWalker::new(engine.clone(), false);
+        let w = ArrayWalker::new(engine.clone(), repair);
         let mut emitter = HintEmitter::new(out, valid_mappings);
         w.walk(&mut emitter, sb.hint_root)?;
     }
@@ -296,7 +295,7 @@ pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     }
     let mut out = xml::XmlWriter::new(writer);
 
-    dump_metadata(ctx.engine.clone(), &mut out, &sb, opts.repair)
+    dump_metadata(ctx.engine, &mut out, &sb, opts.repair)
 }
 
 //------------------------------------------
