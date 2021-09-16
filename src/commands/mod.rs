@@ -3,6 +3,7 @@ pub mod cache_dump;
 pub mod cache_repair;
 pub mod cache_restore;
 pub mod era_check;
+pub mod era_dump;
 pub mod thin_check;
 pub mod thin_dump;
 pub mod thin_metadata_pack;
