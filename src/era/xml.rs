@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use quick_xml::events::{BytesEnd, BytesStart, Event};
-use quick_xml::Writer;
-use std::io::Write;
+use quick_xml::{Reader, Writer};
+use std::io::{BufRead, BufReader};
+use std::io::{Read, Write};
 
 use crate::era::ir::*;
 use crate::xml::*;
@@ -88,6 +89,149 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn eof(&mut self) -> Result<Visit> {
         Ok(Visit::Continue)
     }
+}
+
+//------------------------------------------
+
+fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
+    let tag = "superblock";
+    let mut uuid: Option<String> = None;
+    let mut block_size: Option<u32> = None;
+    let mut nr_blocks: Option<u32> = None;
+    let mut current_era: Option<u32> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"uuid" => uuid = Some(string_val(&kv)),
+            b"block_size" => block_size = Some(u32_val(&kv)?),
+            b"nr_blocks" => nr_blocks = Some(u32_val(&kv)?),
+            b"current_era" => current_era = Some(u32_val(&kv)?),
+            _ => return bad_attr(tag, kv.key),
+        }
+    }
+
+    Ok(Superblock {
+        uuid: check_attr(tag, "uuid", uuid)?,
+        block_size: check_attr(tag, "block_size", block_size)?,
+        nr_blocks: check_attr(tag, "nr_cache_blocks", nr_blocks)?,
+        current_era: check_attr(tag, "current_era", current_era)?,
+    })
+}
+
+fn parse_writeset(e: &BytesStart) -> Result<Writeset> {
+    let tag = "writeset";
+    let mut era: Option<u32> = None;
+    let mut nr_bits: Option<u32> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"era" => era = Some(u32_val(&kv)?),
+            b"nr_bits" => nr_bits = Some(u32_val(&kv)?),
+            _ => return bad_attr(tag, kv.key),
+        }
+    }
+
+    Ok(Writeset {
+        era: check_attr(tag, "era", era)?,
+        nr_bits: check_attr(tag, "nr_bits", nr_bits)?,
+    })
+}
+
+fn parse_writeset_bit(e: &BytesStart) -> Result<WritesetBit> {
+    let tag = "bit";
+    let mut block: Option<u32> = None;
+    let mut value: Option<bool> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"block" => block = Some(u32_val(&kv)?),
+            b"value" => value = Some(bool_val(&kv)?),
+            _ => return bad_attr(tag, kv.key),
+        }
+    }
+
+    Ok(WritesetBit {
+        block: check_attr(tag, "block", block)?,
+        value: check_attr(tag, "value", value)?,
+    })
+}
+
+fn parse_era(e: &BytesStart) -> Result<Era> {
+    let tag = "era";
+    let mut block: Option<u32> = None;
+    let mut era: Option<u32> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"block" => block = Some(u32_val(&kv)?),
+            b"era" => era = Some(u32_val(&kv)?),
+            _ => return bad_attr(tag, kv.key),
+        }
+    }
+
+    Ok(Era {
+        block: check_attr(tag, "block", block)?,
+        era: check_attr(tag, "era", era)?,
+    })
+}
+
+fn handle_event<R, M>(reader: &mut Reader<R>, buf: &mut Vec<u8>, visitor: &mut M) -> Result<Visit>
+where
+    R: Read + BufRead,
+    M: MetadataVisitor,
+{
+    match reader.read_event(buf) {
+        Ok(Event::Start(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
+            b"writeset" => visitor.writeset_b(&parse_writeset(e)?),
+            b"era_array" => visitor.era_b(),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        },
+        Ok(Event::End(ref e)) => match e.name() {
+            b"superblock" => visitor.superblock_e(),
+            b"writeset" => visitor.writeset_e(),
+            b"era_array" => visitor.era_e(),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        },
+        Ok(Event::Empty(ref e)) => match e.name() {
+            b"bit" => visitor.writeset_bit(&parse_writeset_bit(e)?),
+            b"era" => visitor.era(&parse_era(e)?),
+            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        },
+        Ok(Event::Text(_)) => Ok(Visit::Continue),
+        Ok(Event::Comment(_)) => Ok(Visit::Continue),
+        Ok(Event::Eof) => {
+            visitor.eof()?;
+            Ok(Visit::Stop)
+        }
+        Ok(_) => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Err(e) => {
+            return Err(anyhow!(
+                "Parse error at byte {}: {:?}",
+                reader.buffer_position(),
+                e
+            ))
+        }
+    }
+}
+
+pub fn read<R, M>(input: R, visitor: &mut M) -> Result<()>
+where
+    R: Read,
+    M: MetadataVisitor,
+{
+    let input = BufReader::new(input);
+    let mut reader = Reader::from_reader(input);
+
+    reader.trim_text(true);
+    let mut buf = Vec::new();
+
+    while let Visit::Continue = handle_event(&mut reader, &mut buf, visitor)? {}
+    Ok(())
 }
 
 //------------------------------------------
