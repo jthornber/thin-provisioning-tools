@@ -70,7 +70,8 @@ pub struct Restorer<'a> {
     writeset_builder: Option<ArrayBuilder<u64>>, // bitset
     current_writeset: Option<ir::Writeset>,
     era_array_builder: Option<ArrayBuilder<u32>>,
-    writeset_buf: (u32, u64), // (index in u64 array, value)
+    writeset_entry: u64,
+    entry_index: u32,
     in_section: Section,
 }
 
@@ -83,7 +84,8 @@ impl<'a> Restorer<'a> {
             writeset_builder: None,
             current_writeset: None,
             era_array_builder: None,
-            writeset_buf: (0, 0),
+            writeset_entry: 0,
+            entry_index: 0,
             in_section: Section::None,
         }
     }
@@ -170,8 +172,8 @@ impl<'a> MetadataVisitor for Restorer<'a> {
             return Err(anyhow!("not in superblock"));
         }
         self.writeset_builder = Some(ArrayBuilder::new(div_up(ws.nr_bits as u64, 64)));
-        self.writeset_buf.0 = 0;
-        self.writeset_buf.1 = 0;
+        self.entry_index = 0;
+        self.writeset_entry = 0;
         self.current_writeset = Some(ws.clone());
         self.in_section = Section::Writeset;
         Ok(Visit::Continue)
@@ -185,7 +187,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         if let Some(mut builder) = self.writeset_builder.take() {
             if let Some(ws) = self.current_writeset.take() {
                 // push the trailing bits
-                builder.push_value(self.w, self.writeset_buf.0 as u64, self.writeset_buf.1)?;
+                builder.push_value(self.w, self.entry_index as u64, self.writeset_entry)?;
 
                 let root = builder.complete(self.w)?;
                 self.writesets.insert(
@@ -206,19 +208,46 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         Ok(Visit::Continue)
     }
 
-    fn writeset_bit(&mut self, wbit: &ir::WritesetBit) -> Result<Visit> {
-        if wbit.value {
-            let index = wbit.block >> 6;
-            let mask = 1 << (wbit.block & 63);
-            if index == self.writeset_buf.0 {
-                self.writeset_buf.1 |= mask;
-            } else {
-                let builder = self.writeset_builder.as_mut().unwrap();
-                builder.push_value(self.w, self.writeset_buf.0 as u64, self.writeset_buf.1)?;
-                self.writeset_buf.0 = index;
-                self.writeset_buf.1 = mask;
-            }
+    fn writeset_blocks(&mut self, blocks: &ir::MarkedBlocks) -> Result<Visit> {
+        let first = blocks.begin;
+        let last = first + blocks.len - 1; // inclusive
+        let mut idx = first >> 6;
+        let last_idx = last >> 6; // inclusive
+        let builder = self.writeset_builder.as_mut().unwrap();
+
+        // emit the bufferred bits
+        if idx > self.entry_index {
+            builder.push_value(self.w, self.entry_index as u64, self.writeset_entry)?;
+            self.entry_index = idx;
+            self.writeset_entry = 0;
         }
+
+        // buffer the bits of the first entry
+        let bi_first = first & 63;
+        if idx == last_idx {
+            let bi_last = last & 63;
+            let mask = 1u64 << bi_last;
+            self.writeset_entry |= (mask ^ mask.wrapping_sub(1)) & (u64::MAX << bi_first);
+
+            return Ok(Visit::Continue);
+        }
+
+        self.writeset_entry |= u64::MAX << bi_first;
+
+        // emit the all-1 entries if necessary
+        while idx < last_idx {
+            builder.push_value(self.w, self.entry_index as u64, self.writeset_entry)?;
+            self.entry_index += 1;
+            self.writeset_entry = u64::MAX;
+            idx += 1;
+        }
+
+        // buffer the bits of the last entry
+        builder.push_value(self.w, self.entry_index as u64, self.writeset_entry)?;
+        let bi_last = last & 63;
+        let mask = 1u64 << bi_last;
+        self.entry_index += 1;
+        self.writeset_entry |= mask ^ mask.wrapping_sub(1);
 
         Ok(Visit::Continue)
     }

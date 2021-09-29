@@ -2,9 +2,12 @@ use fixedbitset::FixedBitSet;
 use std::sync::{Arc, Mutex};
 
 use crate::io_engine::IoEngine;
+use crate::math::div_up;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
 use crate::pdata::space_map::*;
+
+//------------------------------------------
 
 pub struct CheckedBitSet {
     bits: FixedBitSet,
@@ -29,6 +32,8 @@ impl CheckedBitSet {
         Some(self.bits.contains((bit << 1) + 1))
     }
 }
+
+//------------------------------------------
 
 struct BitsetVisitor {
     nr_bits: usize,
@@ -72,6 +77,55 @@ impl ArrayVisitor<u64> for BitsetVisitor {
     }
 }
 
+//------------------------------------------
+
+struct BitsetCollector {
+    bits: Mutex<FixedBitSet>,
+    nr_bits: usize,
+}
+
+impl BitsetCollector {
+    fn new(nr_bits: usize) -> BitsetCollector {
+        BitsetCollector {
+            bits: Mutex::new(FixedBitSet::with_capacity(nr_bits)),
+            nr_bits,
+        }
+    }
+
+    pub fn get_bitset(self) -> FixedBitSet {
+        self.bits.into_inner().unwrap()
+    }
+}
+
+impl ArrayVisitor<u64> for BitsetCollector {
+    fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
+        let mut bitset = self.bits.lock().unwrap();
+        let mut idx = (index as usize * b.header.max_entries as usize) << 1; // index of u32 in bitset array
+        let idx_end = div_up(self.nr_bits, 32);
+        let mut dest = bitset.as_mut_slice().iter_mut().skip(idx);
+        for entry in b.values.iter() {
+            let lower = (*entry & (u32::MAX as u64)) as u32;
+            *(dest.next().ok_or_else(|| {
+                array::value_err(format!("bitset size exceeds limit: {} bits", self.nr_bits))
+            })?) = lower;
+            idx += 1;
+
+            if idx == idx_end {
+                break;
+            }
+
+            let upper = (*entry >> 32) as u32;
+            *(dest.next().ok_or_else(|| {
+                array::value_err(format!("bitset size exceeds limit: {} bits", self.nr_bits))
+            })?) = upper;
+            idx += 1;
+        }
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
 // TODO: multi-threaded is possible
 pub fn read_bitset(
     engine: Arc<dyn IoEngine + Send + Sync>,
@@ -105,4 +159,16 @@ pub fn read_bitset_with_sm(
         Err(e) => Some(e),
     };
     Ok((v.get_bitset(), e))
+}
+
+pub fn read_bitset_no_err(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    root: u64,
+    nr_bits: usize,
+    ignore_none_fatal: bool,
+) -> array::Result<FixedBitSet> {
+    let w = ArrayWalker::new(engine, ignore_none_fatal);
+    let mut v = BitsetCollector::new(nr_bits);
+    w.walk(&mut v, root)?;
+    Ok(v.get_bitset())
 }

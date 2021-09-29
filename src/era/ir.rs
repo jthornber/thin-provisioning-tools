@@ -17,9 +17,9 @@ pub struct Writeset {
 }
 
 #[derive(Clone)]
-pub struct WritesetBit {
-    pub block: u32,
-    pub value: bool,
+pub struct MarkedBlocks {
+    pub begin: u32,
+    pub len: u32,
 }
 
 #[derive(Clone)]
@@ -42,7 +42,7 @@ pub trait MetadataVisitor {
 
     fn writeset_b(&mut self, ws: &Writeset) -> Result<Visit>;
     fn writeset_e(&mut self) -> Result<Visit>;
-    fn writeset_bit(&mut self, wbit: &WritesetBit) -> Result<Visit>;
+    fn writeset_blocks(&mut self, blocks: &MarkedBlocks) -> Result<Visit>;
 
     fn era_b(&mut self) -> Result<Visit>;
     fn era_e(&mut self) -> Result<Visit>;

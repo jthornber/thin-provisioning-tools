@@ -11,12 +11,18 @@ use crate::xml::*;
 
 pub struct XmlWriter<W: Write> {
     w: Writer<W>,
+    compact: bool,
+    nr_blocks: u32,
+    emitted_blocks: u32,
 }
 
 impl<W: Write> XmlWriter<W> {
-    pub fn new(w: W) -> XmlWriter<W> {
+    pub fn new(w: W, compact: bool) -> XmlWriter<W> {
         XmlWriter {
             w: Writer::new_with_indent(w, 0x20, 2),
+            compact,
+            nr_blocks: 0,
+            emitted_blocks: 0,
         }
     }
 }
@@ -29,8 +35,10 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         elem.push_attribute(mk_attr(b"block_size", sb.block_size));
         elem.push_attribute(mk_attr(b"nr_blocks", sb.nr_blocks));
         elem.push_attribute(mk_attr(b"current_era", sb.current_era));
-
         self.w.write_event(Event::Start(elem))?;
+
+        self.nr_blocks = sb.nr_blocks;
+
         Ok(Visit::Continue)
     }
 
@@ -46,21 +54,55 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         elem.push_attribute(mk_attr(b"era", ws.era));
         elem.push_attribute(mk_attr(b"nr_bits", ws.nr_bits));
         self.w.write_event(Event::Start(elem))?;
+
+        self.emitted_blocks = 0;
+
         Ok(Visit::Continue)
     }
 
     fn writeset_e(&mut self) -> Result<Visit> {
+        if !self.compact {
+            for b in self.emitted_blocks..self.nr_blocks {
+                let tag = b"bit";
+                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                elem.push_attribute(mk_attr(b"block", b));
+                elem.push_attribute(mk_attr(b"value", "false"));
+                self.w.write_event(Event::Empty(elem))?;
+            }
+        }
         self.w
             .write_event(Event::End(BytesEnd::borrowed(b"writeset")))?;
         Ok(Visit::Continue)
     }
 
-    fn writeset_bit(&mut self, wbit: &WritesetBit) -> Result<Visit> {
-        let tag = b"bit";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
-        elem.push_attribute(mk_attr(b"block", wbit.block));
-        elem.push_attribute(mk_attr(b"value", wbit.value));
-        self.w.write_event(Event::Empty(elem))?;
+    fn writeset_blocks(&mut self, blocks: &MarkedBlocks) -> Result<Visit> {
+        if self.compact {
+            let tag = b"marked";
+            let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+            elem.push_attribute(mk_attr(b"block_begin", blocks.begin));
+            elem.push_attribute(mk_attr(b"len", blocks.len));
+            self.w.write_event(Event::Empty(elem))?;
+        } else {
+            for b in self.emitted_blocks..blocks.begin {
+                let tag = b"bit";
+                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                elem.push_attribute(mk_attr(b"block", b));
+                elem.push_attribute(mk_attr(b"value", "false"));
+                self.w.write_event(Event::Empty(elem))?;
+            }
+
+            let end = blocks.begin + blocks.len;
+            for b in blocks.begin..end {
+                let tag = b"bit";
+                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                elem.push_attribute(mk_attr(b"block", b));
+                elem.push_attribute(mk_attr(b"value", "true"));
+                self.w.write_event(Event::Empty(elem))?;
+            }
+
+            self.emitted_blocks = end;
+        }
+
         Ok(Visit::Continue)
     }
 
@@ -139,7 +181,7 @@ fn parse_writeset(e: &BytesStart) -> Result<Writeset> {
     })
 }
 
-fn parse_writeset_bit(e: &BytesStart) -> Result<WritesetBit> {
+fn parse_writeset_bit(e: &BytesStart) -> Result<Option<MarkedBlocks>> {
     let tag = "bit";
     let mut block: Option<u32> = None;
     let mut value: Option<bool> = None;
@@ -153,9 +195,36 @@ fn parse_writeset_bit(e: &BytesStart) -> Result<WritesetBit> {
         }
     }
 
-    Ok(WritesetBit {
-        block: check_attr(tag, "block", block)?,
-        value: check_attr(tag, "value", value)?,
+    check_attr(tag, "block", block)?;
+    check_attr(tag, "value", value)?;
+
+    if let Some(true) = value {
+        Ok(Some(MarkedBlocks {
+            begin: block.unwrap(),
+            len: 1,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_writeset_blocks(e: &BytesStart) -> Result<MarkedBlocks> {
+    let tag = "marked";
+    let mut begin: Option<u32> = None;
+    let mut len: Option<u32> = None;
+
+    for a in e.attributes() {
+        let kv = a.unwrap();
+        match kv.key {
+            b"block_begin" => begin = Some(u32_val(&kv)?),
+            b"len" => len = Some(u32_val(&kv)?),
+            _ => return bad_attr(tag, kv.key),
+        }
+    }
+
+    Ok(MarkedBlocks {
+        begin: check_attr(tag, "block_begin", begin)?,
+        len: check_attr(tag, "len", len)?,
     })
 }
 
@@ -198,7 +267,14 @@ where
             _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::Empty(ref e)) => match e.name() {
-            b"bit" => visitor.writeset_bit(&parse_writeset_bit(e)?),
+            b"bit" => {
+                if let Some(b) = parse_writeset_bit(e)? {
+                    visitor.writeset_blocks(&b)
+                } else {
+                    Ok(Visit::Continue)
+                }
+            }
+            b"marked" => visitor.writeset_blocks(&parse_writeset_blocks(e)?),
             b"era" => visitor.era(&parse_era(e)?),
             _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },

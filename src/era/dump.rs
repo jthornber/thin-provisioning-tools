@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -12,7 +11,7 @@ use crate::era::xml;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
-use crate::pdata::bitset::read_bitset;
+use crate::pdata::bitset::read_bitset_no_err;
 use crate::pdata::btree_walker::btree_to_map;
 
 //------------------------------------------
@@ -78,6 +77,7 @@ fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<Context> {
     Ok(Context { engine })
 }
 
+// notify the visitor about the marked blocks only
 fn dump_writeset(
     engine: Arc<dyn IoEngine + Send + Sync>,
     out: &mut dyn MetadataVisitor,
@@ -85,27 +85,68 @@ fn dump_writeset(
     ws: &Writeset,
     repair: bool,
 ) -> anyhow::Result<()> {
-    let (bits, errs) = read_bitset(engine.clone(), ws.root, ws.nr_bits as usize, repair);
     // TODO: deal with broken writeset
-    if errs.is_some() {
-        return Err(anyhow!(
-            "errors in writeset of era {}: {}",
-            era,
-            errs.unwrap()
-        ));
-    }
+    let bits = read_bitset_no_err(engine.clone(), ws.root, ws.nr_bits as usize, repair)?;
 
     out.writeset_b(&ir::Writeset {
         era,
         nr_bits: ws.nr_bits,
     })?;
-    for b in 0..ws.nr_bits {
-        let wbit = ir::WritesetBit {
-            block: b,
-            value: bits.contains(b as usize).unwrap_or(false),
-        };
-        out.writeset_bit(&wbit)?;
+
+    // [begin, end) denotes the range of set bits.
+    let mut begin: u32 = 0;
+    let mut end: u32 = 0;
+    for (index, entry) in bits.as_slice().iter().enumerate() {
+        let mut n = *entry;
+
+        if n == u32::MAX {
+            end = std::cmp::min(end + 32, ws.nr_bits);
+            continue;
+        }
+
+        while n > 0 {
+            let zeros = n.trailing_zeros();
+            if zeros > 0 {
+                if end > begin {
+                    let m = ir::MarkedBlocks {
+                        begin,
+                        len: end - begin,
+                    };
+                    out.writeset_blocks(&m)?;
+                }
+                n >>= zeros;
+                end += zeros;
+                begin = end;
+            }
+
+            let ones = n.trailing_ones();
+            n >>= ones;
+            end = std::cmp::min(end + ones, ws.nr_bits);
+        }
+
+        // emit the range if it ends before the entry boundary
+        let endpos = ((index as u32) << 5) + 32;
+        if end < endpos {
+            if end > begin {
+                let m = ir::MarkedBlocks {
+                    begin,
+                    len: end - begin,
+                };
+                out.writeset_blocks(&m)?;
+            }
+            begin = endpos;
+            end = begin;
+        }
     }
+
+    if end > begin {
+        let m = ir::MarkedBlocks {
+            begin,
+            len: end - begin,
+        };
+        out.writeset_blocks(&m)?;
+    }
+
     out.writeset_e()?;
 
     Ok(())
@@ -164,7 +205,7 @@ pub fn dump(opts: EraDumpOptions) -> anyhow::Result<()> {
     } else {
         writer = Box::new(BufWriter::new(std::io::stdout()));
     }
-    let mut out = xml::XmlWriter::new(writer);
+    let mut out = xml::XmlWriter::new(writer, false);
 
     if opts.logical {
         dump_metadata_logical(ctx.engine, &mut out, &sb, opts.repair)
