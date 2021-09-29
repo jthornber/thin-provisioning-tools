@@ -66,7 +66,6 @@ pub struct EraCheckOptions<'a> {
     pub async_io: bool,
     pub sb_only: bool,
     pub ignore_non_fatal: bool,
-    pub auto_repair: bool,
     pub report: Arc<Report>,
 }
 

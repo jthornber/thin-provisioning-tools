@@ -23,11 +23,6 @@ pub fn run(args: &[std::ffi::OsString]) {
                 .hidden(true),
         )
         .arg(
-            Arg::with_name("AUTO_REPAIR")
-                .help("Auto repair trivial issues.")
-                .long("auto-repair"),
-        )
-        .arg(
             Arg::with_name("IGNORE_NON_FATAL")
                 .help("Only return a non-zero exit code if a fatal error is found.")
                 .long("ignore-non-fatal-errors"),
@@ -71,7 +66,6 @@ pub fn run(args: &[std::ffi::OsString]) {
         async_io: matches.is_present("ASYNC_IO"),
         sb_only: matches.is_present("SB_ONLY"),
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
-        auto_repair: matches.is_present("AUTO_REPAIR"),
         report: report.clone(),
     };
 
