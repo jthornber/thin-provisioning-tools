@@ -2,6 +2,7 @@
 // https://github.com/rust-lang/rust/issues/46379
 #![allow(dead_code)]
 
+pub mod cache;
 pub mod cache_xml_generator;
 pub mod common_args;
 pub mod fixture;

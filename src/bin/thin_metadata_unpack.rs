@@ -33,8 +33,8 @@ fn main() {
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if !file_utils::file_exists(input_file) {
-        eprintln!("Couldn't find input file '{}'.", &input_file.display());
+    if let Err(e) = file_utils::is_file(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
         exit(1);
     }
 

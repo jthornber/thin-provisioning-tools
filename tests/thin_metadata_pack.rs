@@ -74,10 +74,6 @@ impl<'a> InputProgram<'a> for ThinMetadataPack {
 }
 
 impl<'a> OutputProgram<'a> for ThinMetadataPack {
-    fn file_not_found() -> &'a str {
-        rust_msg::FILE_NOT_FOUND
-    }
-
     fn missing_output_arg() -> &'a str {
         rust_msg::MISSING_OUTPUT_ARG
     }

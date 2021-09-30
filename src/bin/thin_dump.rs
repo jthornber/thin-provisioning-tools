@@ -5,7 +5,6 @@ use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
@@ -89,29 +88,29 @@ fn main() {
         None
     };
 
-    if !file_utils::file_exists(input_file) {
-        eprintln!("Couldn't find input file '{:?}'.", &input_file);
-        exit(1);
+    if let Err(e) = file_utils::is_file_or_blk(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
+        process::exit(1);
     }
 
     let transaction_id = matches.value_of("TRANSACTION_ID").map(|s| {
         s.parse::<u64>().unwrap_or_else(|_| {
             eprintln!("Couldn't parse transaction_id");
-            exit(1);
+            process::exit(1);
         })
     });
 
     let data_block_size = matches.value_of("DATA_BLOCK_SIZE").map(|s| {
         s.parse::<u32>().unwrap_or_else(|_| {
             eprintln!("Couldn't parse data_block_size");
-            exit(1);
+            process::exit(1);
         })
     });
 
     let nr_data_blocks = matches.value_of("NR_DATA_BLOCKS").map(|s| {
         s.parse::<u64>().unwrap_or_else(|_| {
             eprintln!("Couldn't parse nr_data_blocks");
-            exit(1);
+            process::exit(1);
         })
     });
 
@@ -129,7 +128,7 @@ fn main() {
         input: input_file,
         output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
-        report,
+        report: report.clone(),
         repair: matches.is_present("REPAIR"),
         overrides: SuperblockOverrides {
             transaction_id,
@@ -139,7 +138,7 @@ fn main() {
     };
 
     if let Err(reason) = dump(opts) {
-        println!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }

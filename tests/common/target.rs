@@ -34,13 +34,15 @@ macro_rules! path_to {
 
 pub const CACHE_CHECK: &str = path_to!("cache_check");
 pub const CACHE_DUMP: &str = path_to!("cache_dump");
+pub const CACHE_REPAIR: &str = path_to!("cache_repair");
+pub const CACHE_RESTORE: &str = path_to!("cache_restore");
 
 pub const THIN_CHECK: &str = path_to!("thin_check");
 pub const THIN_DELTA: &str = path_to_cpp!("thin_delta"); // TODO: rust version
 pub const THIN_DUMP: &str = path_to!("thin_dump");
 pub const THIN_METADATA_PACK: &str = path_to_rust!("thin_metadata_pack"); // rust-only
 pub const THIN_METADATA_UNPACK: &str = path_to_rust!("thin_metadata_unpack"); // rust-only
-pub const THIN_REPAIR: &str = path_to_cpp!("thin_repair"); // TODO: rust version
+pub const THIN_REPAIR: &str = path_to!("thin_repair");
 pub const THIN_RESTORE: &str = path_to!("thin_restore");
 pub const THIN_RMAP: &str = path_to_cpp!("thin_rmap"); // TODO: rust version
 pub const THIN_GENERATE_METADATA: &str = path_to_cpp!("thin_generate_metadata"); // cpp-only
@@ -61,7 +63,7 @@ pub mod cpp_msg {
 }
 
 pub mod rust_msg {
-    pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
+    pub const FILE_NOT_FOUND: &str = "No such file or directory";
     pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";

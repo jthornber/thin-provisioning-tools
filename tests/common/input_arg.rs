@@ -182,7 +182,7 @@ macro_rules! test_unreadable_input_file {
 
 pub fn test_help_message_for_tiny_input_file<'a, P>() -> Result<()>
 where
-    P: BinaryInputProgram<'a>,
+    P: MetadataReader<'a>,
 {
     let mut td = TestDir::new()?;
 
@@ -209,7 +209,7 @@ macro_rules! test_help_message_for_tiny_input_file {
 
 pub fn test_spot_xml_data<'a, P>() -> Result<()>
 where
-    P: BinaryInputProgram<'a>,
+    P: MetadataReader<'a>,
 {
     let mut td = TestDir::new()?;
 

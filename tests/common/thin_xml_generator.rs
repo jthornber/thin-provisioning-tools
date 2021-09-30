@@ -29,10 +29,10 @@ fn common_sb(nr_blocks: u64) -> ir::Superblock {
     ir::Superblock {
         uuid: "".to_string(),
         time: 0,
-        transaction: 0,
+        transaction: 1,
         flags: None,
         version: None,
-        data_block_size: 32,
+        data_block_size: 128,
         nr_data_blocks: nr_blocks,
         metadata_snap: None,
     }

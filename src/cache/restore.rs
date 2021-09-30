@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use std::convert::TryInto;
 use std::fs::OpenOptions;
@@ -54,6 +54,15 @@ fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
 
 //------------------------------------------
 
+#[derive(PartialEq)]
+enum Section {
+    None,
+    Superblock,
+    Mappings,
+    Hints,
+    Finalized,
+}
+
 pub struct Restorer<'a> {
     write_batcher: &'a mut WriteBatcher,
     sb: Option<ir::Superblock>,
@@ -64,7 +73,8 @@ pub struct Restorer<'a> {
     dirty_root: Option<u64>,
     hint_root: Option<u64>,
     discard_root: Option<u64>,
-    dirty_bits: (u32, u64),
+    dirty_bits: (u32, u64), // (index in u64 array, value)
+    in_section: Section,
 }
 
 impl<'a> Restorer<'a> {
@@ -80,14 +90,43 @@ impl<'a> Restorer<'a> {
             hint_root: None,
             discard_root: None,
             dirty_bits: (0, 0),
+            in_section: Section::None,
         }
     }
 
     fn finalize(&mut self) -> Result<()> {
+        let src_sb;
+        if let Some(sb) = self.sb.take() {
+            src_sb = sb;
+        } else {
+            return Err(anyhow!("not in superblock"));
+        }
+
+        // complete the mapping array
+        if let Some(builder) = self.mapping_builder.take() {
+            self.mapping_root = Some(builder.complete(self.write_batcher)?);
+        }
+
+        // complete the dirty array
+        if let Some(mut builder) = self.dirty_builder.take() {
+            // push the bufferred trailing bits
+            builder.push_value(
+                self.write_batcher,
+                self.dirty_bits.0 as u64,
+                self.dirty_bits.1,
+            )?;
+
+            self.dirty_root = Some(builder.complete(self.write_batcher)?);
+        }
+
+        // complete the hint array
+        if let Some(builder) = self.hint_builder.take() {
+            self.hint_root = Some(builder.complete(self.write_batcher)?);
+        }
+
         // build metadata space map
         let metadata_sm_root = build_metadata_sm(self.write_batcher)?;
 
-        let sb = self.sb.as_ref().unwrap();
         let mapping_root = self.mapping_root.as_ref().unwrap();
         let hint_root = self.hint_root.as_ref().unwrap();
         let discard_root = self.discard_root.as_ref().unwrap();
@@ -98,9 +137,9 @@ impl<'a> Restorer<'a> {
             },
             block: SUPERBLOCK_LOCATION,
             version: 2,
-            policy_name: sb.policy.as_bytes().to_vec(),
+            policy_name: src_sb.policy.as_bytes().to_vec(),
             policy_version: vec![2, 0, 0],
-            policy_hint_size: sb.hint_width,
+            policy_hint_size: src_sb.hint_width,
             metadata_sm_root,
             mapping_root: *mapping_root,
             dirty_root: self.dirty_root, // dirty_root is optional
@@ -108,8 +147,8 @@ impl<'a> Restorer<'a> {
             discard_root: *discard_root,
             discard_block_size: 0,
             discard_nr_blocks: 0,
-            data_block_size: sb.block_size,
-            cache_blocks: sb.nr_cache_blocks,
+            data_block_size: src_sb.block_size,
+            cache_blocks: src_sb.nr_cache_blocks,
             compat_flags: 0,
             compat_ro_flags: 0,
             incompat_flags: 0,
@@ -118,20 +157,32 @@ impl<'a> Restorer<'a> {
             write_hits: 0,
             write_misses: 0,
         };
-        write_superblock(self.write_batcher.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+        write_superblock(self.write_batcher.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
+
+        self.in_section = Section::Finalized;
+        Ok(())
     }
 }
 
 impl<'a> MetadataVisitor for Restorer<'a> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
+        if self.in_section != Section::None {
+            return Err(anyhow!("duplicated superblock"));
+        }
+
         self.sb = Some(sb.clone());
-        self.write_batcher.alloc()?;
+        let b = self.write_batcher.alloc()?;
+        if b.loc != SUPERBLOCK_LOCATION {
+            return Err(anyhow!("superblock was occupied"));
+        }
+
         self.mapping_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
         self.dirty_builder = Some(ArrayBuilder::new(div_up(sb.nr_cache_blocks as u64, 64)));
         self.hint_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
 
         let discard_builder = ArrayBuilder::<u64>::new(0); // discard bitset is optional
         self.discard_root = Some(discard_builder.complete(self.write_batcher)?);
+        self.in_section = Section::Superblock;
 
         Ok(Visit::Continue)
     }
@@ -142,30 +193,18 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn mappings_b(&mut self) -> Result<Visit> {
+        if self.in_section != Section::Superblock {
+            return Err(anyhow!("not in superblock"));
+        }
+        self.in_section = Section::Mappings;
         Ok(Visit::Continue)
     }
 
     fn mappings_e(&mut self) -> Result<Visit> {
-        let mut mapping_builder = None;
-        std::mem::swap(&mut self.mapping_builder, &mut mapping_builder);
-        if let Some(builder) = mapping_builder {
-            self.mapping_root = Some(builder.complete(self.write_batcher)?);
+        if self.in_section != Section::Mappings {
+            return Err(anyhow!("not in mappings"));
         }
-
-        // push the bufferred trailing bits
-        let b = self.dirty_builder.as_mut().unwrap();
-        b.push_value(
-            self.write_batcher,
-            self.dirty_bits.0 as u64,
-            self.dirty_bits.1,
-        )?;
-
-        let mut dirty_builder = None;
-        std::mem::swap(&mut self.dirty_builder, &mut dirty_builder);
-        if let Some(builder) = dirty_builder {
-            self.dirty_root = Some(builder.complete(self.write_batcher)?);
-        }
-
+        self.in_section = Section::Superblock;
         Ok(Visit::Continue)
     }
 
@@ -198,15 +237,18 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn hints_b(&mut self) -> Result<Visit> {
+        if self.in_section != Section::Superblock {
+            return Err(anyhow!("not in superblock"));
+        }
+        self.in_section = Section::Hints;
         Ok(Visit::Continue)
     }
 
     fn hints_e(&mut self) -> Result<Visit> {
-        let mut hint_builder = None;
-        std::mem::swap(&mut self.hint_builder, &mut hint_builder);
-        if let Some(builder) = hint_builder {
-            self.hint_root = Some(builder.complete(self.write_batcher)?);
+        if self.in_section != Section::Hints {
+            return Err(anyhow!("not in hints"));
         }
+        self.in_section = Section::Superblock;
         Ok(Visit::Continue)
     }
 
@@ -232,6 +274,9 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn eof(&mut self) -> Result<Visit> {
+        if self.in_section != Section::Finalized {
+            return Err(anyhow!("incompleted source metadata"));
+        }
         Ok(Visit::Continue)
     }
 }

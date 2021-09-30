@@ -87,6 +87,7 @@ pub struct ThinCheckOptions {
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
+    pub clear_needs_check: bool,
     pub report: Arc<Report>,
 }
 
@@ -135,13 +136,14 @@ fn check_mapping_bottom_level(
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     roots: &BTreeMap<u64, (Vec<u64>, u64)>,
+    ignore_non_fatal: bool,
 ) -> Result<()> {
     ctx.report.set_sub_title("mapping tree");
 
     let w = Arc::new(BTreeWalker::new_with_sm(
         ctx.engine.clone(),
         metadata_sm.clone(),
-        false,
+        ignore_non_fatal,
     )?);
 
     // We want to print out errors as we progress, so we aggregate for each thin and print
@@ -204,18 +206,6 @@ fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> R
     })
 }
 
-fn bail_out(ctx: &Context, task: &str) -> Result<()> {
-    use ReportOutcome::*;
-
-    match ctx.report.get_outcome() {
-        Fatal => Err(anyhow!(format!(
-            "Check of {} failed, ending check early.",
-            task
-        ))),
-        _ => Ok(()),
-    }
-}
-
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(opts.engine.clone(), opts.report.clone())?;
 
@@ -276,14 +266,17 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     if opts.skip_mappings {
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
         return Ok(());
     }
 
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
-    bail_out(&ctx, "mapping tree")?;
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, opts.ignore_non_fatal)?;
 
     //-----------------------------------------
 
@@ -297,7 +290,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         metadata_sm.clone(),
         opts.ignore_non_fatal,
     )?;
-    bail_out(&ctx, "data space map")?;
 
     //-----------------------------------------
 
@@ -317,8 +309,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         opts.ignore_non_fatal,
     )?;
 
-    bail_out(&ctx, "metadata space map")?;
-
     //-----------------------------------------
 
     if opts.auto_repair {
@@ -331,12 +321,41 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             ctx.report.info("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         }
+
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
+    } else if !opts.ignore_non_fatal {
+        if !data_leaks.is_empty() {
+            return Err(anyhow!("data space map contains leaks"));
+        }
+
+        if !metadata_leaks.is_empty() {
+            return Err(anyhow!("metadata space map contains leaks"));
+        }
+
+        if opts.clear_needs_check {
+            let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+            if cleared {
+                ctx.report.info("Cleared needs_check flag");
+            }
+        }
     }
 
     stop_progress.store(true, Ordering::Relaxed);
     tid.join().unwrap();
 
     Ok(())
+}
+
+pub fn clear_needs_check_flag(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<bool> {
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    if !sb.flags.needs_check {
+        return Ok(false);
+    }
+    sb.flags.needs_check = false;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb).map(|_| true)
 }
 
 //------------------------------------------
@@ -398,8 +417,7 @@ pub fn check_with_maps(
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots)?;
-    bail_out(&ctx, "mapping tree")?;
+    check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, false)?;
 
     //-----------------------------------------
 
@@ -413,7 +431,6 @@ pub fn check_with_maps(
         metadata_sm.clone(),
         false,
     )?;
-    bail_out(&ctx, "data space map")?;
 
     //-----------------------------------------
 
@@ -427,7 +444,6 @@ pub fn check_with_maps(
     // Now the counts should be correct and we can check it.
     let _metadata_leaks =
         check_metadata_space_map(engine.clone(), report, root, metadata_sm.clone(), false)?;
-    bail_out(&ctx, "metadata space map")?;
 
     //-----------------------------------------
 

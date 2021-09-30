@@ -2,6 +2,7 @@ use anyhow::Result;
 
 mod common;
 
+use common::cache::*;
 use common::common_args::*;
 use common::fixture::*;
 use common::input_arg::*;
@@ -10,32 +11,32 @@ use common::process::*;
 use common::program::*;
 use common::target::*;
 use common::test_dir::*;
-use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_restore [options]\n\
+const USAGE: &str = "Usage: cache_restore [options]\n\
                      Options:\n  \
                        {-h|--help}\n  \
                        {-i|--input} <input xml file>\n  \
                        {-o|--output} <output device or file>\n  \
-                       {--transaction-id} <natural>\n  \
-                       {--data-block-size} <natural>\n  \
-                       {--nr-data-blocks} <natural>\n  \
                        {-q|--quiet}\n  \
-                       {-V|--version}";
+                       {--metadata-version} <1 or 2>\n  \
+                       {-V|--version}\n\
+                     \n  \
+                       {--debug-override-metadata-version} <integer>\n  \
+                       {--omit-clean-shutdown}";
 
 //------------------------------------------
 
-struct ThinRestore;
+struct CacheRestore;
 
-impl<'a> Program<'a> for ThinRestore {
+impl<'a> Program<'a> for CacheRestore {
     fn name() -> &'a str {
         "thin_restore"
     }
 
     fn path() -> &'a std::ffi::OsStr {
-        THIN_RESTORE.as_ref()
+        CACHE_RESTORE.as_ref()
     }
 
     fn usage() -> &'a str {
@@ -51,7 +52,7 @@ impl<'a> Program<'a> for ThinRestore {
     }
 }
 
-impl<'a> InputProgram<'a> for ThinRestore {
+impl<'a> InputProgram<'a> for CacheRestore {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
         mk_valid_xml(td)
     }
@@ -69,13 +70,13 @@ impl<'a> InputProgram<'a> for ThinRestore {
     }
 }
 
-impl<'a> OutputProgram<'a> for ThinRestore {
+impl<'a> OutputProgram<'a> for CacheRestore {
     fn missing_output_arg() -> &'a str {
         msg::MISSING_OUTPUT_ARG
     }
 }
 
-impl<'a> MetadataWriter<'a> for ThinRestore {
+impl<'a> MetadataWriter<'a> for CacheRestore {
     fn file_not_found() -> &'a str {
         msg::FILE_NOT_FOUND
     }
@@ -83,28 +84,28 @@ impl<'a> MetadataWriter<'a> for ThinRestore {
 
 //-----------------------------------------
 
-test_accepts_help!(ThinRestore);
-test_accepts_version!(ThinRestore);
+test_accepts_help!(CacheRestore);
+test_accepts_version!(CacheRestore);
 
-test_missing_input_option!(ThinRestore);
-test_input_file_not_found!(ThinRestore);
-test_corrupted_input_data!(ThinRestore);
+test_missing_input_option!(CacheRestore);
+test_input_file_not_found!(CacheRestore);
+test_corrupted_input_data!(CacheRestore);
 
-test_missing_output_option!(ThinRestore);
-test_tiny_output_file!(ThinRestore);
+test_missing_output_option!(CacheRestore);
+test_tiny_output_file!(CacheRestore);
 
-test_unwritable_output_file!(ThinRestore);
+test_unwritable_output_file!(CacheRestore);
 
 //-----------------------------------------
 
-// TODO: share with cache_restore, era_restore
+// TODO: share with thin_restore, era_restore
 
 fn quiet_flag(flag: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    let output = run_ok_raw(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag])?;
+    let output = run_ok_raw(CACHE_RESTORE, args!["-i", &xml, "-o", &md, flag])?;
 
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
@@ -123,36 +124,44 @@ fn accepts_quiet() -> Result<()> {
 
 //-----------------------------------------
 
-// TODO: share with thin_dump
-#[cfg(not(feature = "rust_tests"))]
-fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
+#[test]
+fn successfully_restores() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
-
-    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag, value])?;
-
-    let output = run_ok(THIN_DUMP, args![&md])?;
-    assert!(output.contains(pattern));
+    run_ok(CACHE_RESTORE, args!["-i", &xml, "-o", &md])?;
     Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
-fn override_transaction_id() -> Result<()> {
-    override_something("--transaction-id", "2345", "transaction=\"2345\"")
+fn override_metadata_version() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(
+        CACHE_RESTORE,
+        args![
+            "-i",
+            &xml,
+            "-o",
+            &md,
+            "--debug-override-metadata-version",
+            "10298"
+        ],
+    )?;
+    Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
-fn override_data_block_size() -> Result<()> {
-    override_something("--data-block-size", "8192", "data_block_size=\"8192\"")
-}
-
-#[test]
-#[cfg(not(feature = "rust_tests"))]
-fn override_nr_data_blocks() -> Result<()> {
-    override_something("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
+fn accepts_omit_clean_shutdown() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(
+        CACHE_RESTORE,
+        args!["-i", &xml, "-o", &md, "--omit-clean-shutdown"],
+    )?;
+    Ok(())
 }
 
 //-----------------------------------------

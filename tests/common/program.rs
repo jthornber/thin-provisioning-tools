@@ -30,14 +30,20 @@ pub trait InputProgram<'a>: Program<'a> {
     fn corrupted_input() -> &'a str;
 }
 
-pub trait BinaryInputProgram<'a>: InputProgram<'a> {}
+pub trait MetadataReader<'a>: InputProgram<'a> {}
 
 pub trait OutputProgram<'a>: InputProgram<'a> {
     // error messages
     fn missing_output_arg() -> &'a str;
+}
+
+// programs that write existed files
+pub trait MetadataWriter<'a>: OutputProgram<'a> {
+    // error messages
     fn file_not_found() -> &'a str;
 }
 
-pub trait BinaryOutputProgram<'a>: OutputProgram<'a> {}
+// programs that create output files (O_CREAT)
+pub trait MetadataCreator<'a>: OutputProgram<'a> {}
 
 //------------------------------------------

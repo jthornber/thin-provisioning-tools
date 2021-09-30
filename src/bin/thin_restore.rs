@@ -5,7 +5,6 @@ use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use std::process::exit;
 use std::sync::Arc;
 use thinp::file_utils;
 use thinp::report::*;
@@ -44,22 +43,20 @@ fn main() {
                 .long("output")
                 .value_name("FILE")
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
-                .help("Specify a mapping root to use")
-                .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
-                .takes_value(true),
         );
 
     let matches = parser.get_matches();
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if !file_utils::file_exists(input_file) {
-        eprintln!("Couldn't find input file '{:?}'.", &input_file);
-        exit(1);
+    if let Err(e) = file_utils::is_file(input_file) {
+        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
+        process::exit(1);
+    }
+
+    if let Err(e) = file_utils::check_output_file_requirements(output_file) {
+        eprintln!("{}", e);
+        process::exit(1);
     }
 
     let report;
@@ -76,11 +73,11 @@ fn main() {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
-        report,
+        report: report.clone(),
     };
 
     if let Err(reason) = restore(opts) {
-        println!("{}", reason);
+        report.fatal(&format!("{}", reason));
         process::exit(1);
     }
 }

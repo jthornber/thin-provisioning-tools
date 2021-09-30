@@ -1,10 +1,14 @@
 use anyhow::Result;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 mod common;
 
+use common::cache::*;
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
-
+use common::process::*;
 use common::program::*;
 use common::target::*;
 use common::test_dir::*;
@@ -46,7 +50,7 @@ impl<'a> Program<'a> for CacheDump {
 
 impl<'a> InputProgram<'a> for CacheDump {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        common::thin::mk_valid_md(td) // FIXME: generate cache metadata
+        mk_valid_md(td)
     }
 
     fn file_not_found() -> &'a str {
@@ -75,13 +79,27 @@ test_unreadable_input_file!(CacheDump);
 
 //------------------------------------------
 
-/*
-  (define-scenario (cache-dump restore-is-noop)
-    "cache_dump followed by cache_restore is a noop."
-    (with-valid-metadata (md)
-      (run-ok-rcv (d1-stdout _) (cache-dump md)
-        (with-temp-file-containing ((xml "cache.xml" d1-stdout))
-          (run-ok (cache-restore "-i" xml "-o" md))
-          (run-ok-rcv (d2-stdout _) (cache-dump md)
-            (assert-equal d1-stdout d2-stdout))))))
-*/
+// TODO: share with thin_dump
+#[test]
+fn dump_restore_cycle() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let output = run_ok_raw(CACHE_DUMP, args![&md])?;
+
+    let xml = td.mk_path("meta.xml");
+    let mut file = OpenOptions::new()
+        .read(false)
+        .write(true)
+        .create(true)
+        .open(&xml)?;
+    file.write_all(&output.stdout[0..])?;
+    drop(file);
+
+    let md2 = mk_zeroed_md(&mut td)?;
+    run_ok(CACHE_RESTORE, args!["-i", &xml, "-o", &md2])?;
+
+    let output2 = run_ok_raw(CACHE_DUMP, args![&md2])?;
+    assert_eq!(output.stdout, output2.stdout);
+
+    Ok(())
+}

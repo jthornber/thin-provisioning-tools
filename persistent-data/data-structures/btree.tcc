@@ -693,9 +693,15 @@ namespace persistent_data {
 		leaf_node n = spine.template get_node<ValueTraits>();
 		if (need_insert)
 			n.insert_at(index, key[Levels - 1], value);
-		else
-			// FIXME: check if we're overwriting with the same value.
-			n.set_value(index, value);
+		else {
+			typename ValueTraits::value_type old_value = n.value_at(index);
+			if (value != old_value) {
+				// do decrement the old value if it already exists
+				rc_.dec(old_value);
+
+				n.set_value(index, value);
+			}
+		}
 
 		root_ = spine.get_root();
 
@@ -981,11 +987,6 @@ namespace persistent_data {
 		if (i < 0 || leaf.key_at(i) != key)
 			i++;
 
-		// do decrement the old value if it already exists
-		// FIXME: I'm not sure about this, I don't understand the |inc| reference
-		if (static_cast<unsigned>(i) < leaf.get_nr_entries() && leaf.key_at(i) == key && inc) {
-			// dec old entry
-		}
 		*index = i;
 
 		return ((static_cast<unsigned>(i) >= leaf.get_nr_entries()) ||

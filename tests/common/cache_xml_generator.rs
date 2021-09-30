@@ -60,26 +60,26 @@ impl XmlGen for CacheGen {
             hint_width: 4,
         })?;
 
-        let mut cblocks = Vec::new();
-        for n in 0..self.nr_cache_blocks {
-            cblocks.push(n);
-        }
+        let nr_resident = (self.nr_cache_blocks * self.percent_resident as u32) / 100u32;
+        let mut cblocks = (0..self.nr_cache_blocks).collect::<Vec<u32>>();
         cblocks.shuffle(&mut rand::thread_rng());
+        cblocks.truncate(nr_resident as usize);
+        cblocks.sort();
 
         v.mappings_b()?;
         {
-            let nr_resident = (self.nr_cache_blocks * 100u32) / (self.percent_resident as u32);
             let mut used = HashSet::new();
-            for n in 0..nr_resident {
+            let mut rng = rand::thread_rng();
+            for cblock in cblocks {
                 let mut oblock = 0u64;
                 while used.contains(&oblock) {
-                    oblock = rand::thread_rng().gen();
+                    oblock = rng.gen_range(0..self.nr_origin_blocks);
                 }
 
                 used.insert(oblock);
                 // FIXME: dirty should vary
                 v.mapping(&ir::Map {
-                    cblock: cblocks[n as usize],
+                    cblock,
                     oblock,
                     dirty: false,
                 })?;

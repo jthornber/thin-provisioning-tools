@@ -46,7 +46,7 @@ impl<'a> Program<'a> for ThinRepair {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        cpp_msg::bad_option_hint(option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -56,25 +56,33 @@ impl<'a> InputProgram<'a> for ThinRepair {
     }
 
     fn file_not_found() -> &'a str {
-        cpp_msg::FILE_NOT_FOUND
+        msg::FILE_NOT_FOUND
     }
 
     fn missing_input_arg() -> &'a str {
-        cpp_msg::MISSING_INPUT_ARG
+        msg::MISSING_INPUT_ARG
     }
 
+    #[cfg(not(feature = "rust_tests"))]
     fn corrupted_input() -> &'a str {
         "The following field needs to be provided on the command line due to corruption in the superblock"
+    }
+
+    #[cfg(feature = "rust_tests")]
+    fn corrupted_input() -> &'a str {
+        "data block size needs to be provided due to corruption in the superblock"
     }
 }
 
 impl<'a> OutputProgram<'a> for ThinRepair {
-    fn file_not_found() -> &'a str {
-        cpp_msg::FILE_NOT_FOUND
-    }
-
     fn missing_output_arg() -> &'a str {
-        cpp_msg::MISSING_OUTPUT_ARG
+        msg::MISSING_OUTPUT_ARG
+    }
+}
+
+impl<'a> MetadataWriter<'a> for ThinRepair {
+    fn file_not_found() -> &'a str {
+        msg::FILE_NOT_FOUND
     }
 }
 
@@ -108,6 +116,7 @@ fn dont_repair_xml() -> Result<()> {
 
 // TODO: share with thin_dump
 
+#[cfg(not(feature = "rust_tests"))]
 fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
@@ -120,16 +129,19 @@ fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn override_transaction_id() -> Result<()> {
     override_thing("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn override_data_block_size() -> Result<()> {
     override_thing("--data-block-size", "8192", "data_block_size=\"8192\"")
 }
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn override_nr_data_blocks() -> Result<()> {
     override_thing("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
@@ -139,24 +151,18 @@ fn override_nr_data_blocks() -> Result<()> {
 fn superblock_succeeds() -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
-    let original = run_ok_raw(
-        THIN_DUMP,
-        args![
-            "--transaction-id=5",
-            "--data-block-size=128",
-            "--nr-data-blocks=4096000",
-            &md1
-        ],
-    )?;
-    assert_eq!(original.stderr.len(), 0);
+    let original = run_ok_raw(THIN_DUMP, args![&md1])?;
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(original.stderr.len(), 0);
+    }
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
     run_ok(
         THIN_REPAIR,
         args![
-            "--transaction-id=5",
+            "--transaction-id=1",
             "--data-block-size=128",
-            "--nr-data-blocks=4096000",
+            "--nr-data-blocks=20480",
             "-i",
             &md1,
             "-o",
@@ -164,7 +170,9 @@ fn superblock_succeeds() -> Result<()> {
         ],
     )?;
     let repaired = run_ok_raw(THIN_DUMP, args![&md2])?;
-    assert_eq!(repaired.stderr.len(), 0);
+    if !cfg!(feature = "rust_tests") {
+        assert_eq!(repaired.stderr.len(), 0);
+    }
     assert_eq!(original.stdout, repaired.stdout);
     Ok(())
 }
@@ -184,10 +192,11 @@ fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn missing_transaction_id() -> Result<()> {
     missing_thing(
         "--data-block-size=128",
-        "--nr-data-blocks=4096000",
+        "--nr-data-blocks=20480",
         "transaction id",
     )
 }
@@ -195,16 +204,17 @@ fn missing_transaction_id() -> Result<()> {
 #[test]
 fn missing_data_block_size() -> Result<()> {
     missing_thing(
-        "--transaction-id=5",
-        "--nr-data-blocks=4096000",
+        "--transaction-id=1",
+        "--nr-data-blocks=20480",
         "data block size",
     )
 }
 
 #[test]
+#[cfg(not(feature = "rust_tests"))]
 fn missing_nr_data_blocks() -> Result<()> {
     missing_thing(
-        "--transaction-id=5",
+        "--transaction-id=1",
         "--data-block-size=128",
         "nr data blocks",
     )

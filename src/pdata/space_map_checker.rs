@@ -98,6 +98,7 @@ fn check_low_ref_counts(
 
     // compare ref-counts in bitmap blocks
     let mut leaks = 0;
+    let mut failed = false;
     let mut blocknr = 0;
     let mut bitmap_leaks = Vec::new();
     let sm = sm.lock().unwrap();
@@ -113,6 +114,7 @@ fn check_low_ref_counts(
                         "Index entry points to block ({}) that isn't a bitmap",
                         b.loc
                     ));
+                    failed = true;
 
                     // FIXME: revert the ref-count at b.loc?
                 }
@@ -134,6 +136,7 @@ fn check_low_ref_counts(
                             } else if *actual != expected as u8 {
                                 report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map contains {}.",
                                           kind, blocknr, expected, actual));
+                                failed = true;
                             }
                         }
                         BitmapEntry::Overflow => {
@@ -141,6 +144,7 @@ fn check_low_ref_counts(
                             if expected < 3 {
                                 report.fatal(&format!("Bad reference count for {} block {}.  Expected {}, but space map says it's >= 3.",
                                                   kind, blocknr, expected));
+                                failed = true;
                             }
                         }
                     }
@@ -160,7 +164,11 @@ fn check_low_ref_counts(
         report.non_fatal(&format!("{} {} blocks have leaked.", leaks, kind));
     }
 
-    Ok(bitmap_leaks)
+    if failed {
+        Err(anyhow!("Fatal errors in {} space map", kind))
+    } else {
+        Ok(bitmap_leaks)
+    }
 }
 
 fn gather_disk_index_entries(
@@ -309,7 +317,12 @@ pub fn repair_space_map(
         }
     }
 
-    engine.write_many(&write_blocks[0..])?;
+    let results = engine.write_many(&write_blocks[0..])?;
+    for ret in results {
+        if ret.is_err() {
+            return Err(anyhow!("Unable to repair space map: {:?}", ret));
+        }
+    }
     Ok(())
 }
 

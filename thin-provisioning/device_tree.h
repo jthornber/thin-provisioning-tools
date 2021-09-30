@@ -25,6 +25,14 @@ namespace thin_provisioning {
 			uint32_t snapshotted_time_;
 		};
 
+		inline bool operator==(device_details const& lhs, device_details const& rhs) {
+			return false; // device_details are not compariable
+		}
+
+		inline bool operator!=(device_details const& lhs, device_details const& rhs) {
+			return !(lhs == rhs);
+		}
+
 		struct device_details_traits {
 			typedef device_details_disk disk_type;
 			typedef device_details value_type;
