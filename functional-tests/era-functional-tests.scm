@@ -66,21 +66,4 @@
           (assert-starts-with
             (string-append bad-xml ": No such file or directory")
             stderr)))))
-
-  ;;;-----------------------------------------------------------
-  ;;; era_dump scenarios
-  ;;;-----------------------------------------------------------
-  (define-scenario (era-dump small-input-file)
-    "Fails with small input file"
-    (with-temp-file-sized ((md "era.bin" 512))
-      (run-fail (era-dump md))))
-
-  (define-scenario (era-dump restore-is-noop)
-    "era_dump followed by era_restore is a noop."
-    (with-valid-metadata (md)
-      (run-ok-rcv (d1-stdout _) (era-dump md)
-        (with-temp-file-containing ((xml "era.xml" d1-stdout))
-          (run-ok (era-restore "-i" xml "-o" md))
-          (run-ok-rcv (d2-stdout _) (era-dump md)
-            (assert-equal d1-stdout d2-stdout))))))
   )

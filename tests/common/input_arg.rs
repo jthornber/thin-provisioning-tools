@@ -180,6 +180,32 @@ macro_rules! test_unreadable_input_file {
 //------------------------------------------
 // test invalid content
 
+pub fn test_tiny_input_file<'a, P>() -> Result<()>
+where
+    P: MetadataReader<'a>,
+{
+    let mut td = TestDir::new()?;
+
+    let input = td.mk_path("meta.bin");
+    file_utils::create_sized_file(&input, 1024)?;
+
+    let wrapper = build_args_fn(P::arg_type())?;
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
+        run_fail(P::cmd(args))?;
+        Ok(())
+    })
+}
+
+#[macro_export]
+macro_rules! test_tiny_input_file {
+    ($program: ident) => {
+        #[test]
+        fn tiny_input_file() -> Result<()> {
+            test_tiny_input_file::<$program>()
+        }
+    };
+}
+
 pub fn test_help_message_for_tiny_input_file<'a, P>() -> Result<()>
 where
     P: MetadataReader<'a>,
