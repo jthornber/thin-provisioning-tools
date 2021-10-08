@@ -277,9 +277,7 @@ pub fn dump_metadata(
     };
     out.superblock_b(&xml_sb)?;
 
-    let mut path = vec![0];
-    let writesets =
-        btree_to_map::<Writeset>(&mut path, engine.clone(), repair, sb.writeset_tree_root)?;
+    let writesets = get_writesets_ordered(engine.clone(), sb, repair)?;
     for (era, ws) in writesets.iter() {
         dump_writeset(engine.clone(), out, *era as u32, ws, repair)?;
     }
