@@ -1,5 +1,6 @@
 pub mod cache_check;
 pub mod cache_dump;
+pub mod cache_metadata_size;
 pub mod cache_repair;
 pub mod cache_restore;
 pub mod era_check;

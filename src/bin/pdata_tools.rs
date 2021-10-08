@@ -30,6 +30,8 @@ fn main_() -> Result<()> {
         cache_check::run(&new_args);
     } else if name_eq(name, "cache_dump") {
         cache_dump::run(&new_args);
+    } else if name_eq(name, "cache_metadata_size") {
+        cache_metadata_size::run(&new_args);
     } else if name_eq(name, "cache_repair") {
         cache_repair::run(&new_args);
     } else if name_eq(name, "cache_restore") {
