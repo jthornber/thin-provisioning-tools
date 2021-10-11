@@ -13,7 +13,7 @@ pub fn test_help_short<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), args!["-h"])?;
+    let stdout = run_ok(P::cmd(args!["-h"]))?;
     assert_eq!(stdout, P::usage());
     Ok(())
 }
@@ -22,7 +22,7 @@ pub fn test_help_long<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), args!["--help"])?;
+    let stdout = run_ok(P::cmd(vec!["--help"]))?;
     assert_eq!(stdout, P::usage());
     Ok(())
 }
@@ -49,7 +49,7 @@ pub fn test_version_short<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), args!["-V"])?;
+    let stdout = run_ok(P::cmd(args!["-V"]))?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
@@ -58,7 +58,7 @@ pub fn test_version_long<'a, P>() -> Result<()>
 where
     P: Program<'a>,
 {
-    let stdout = run_ok(P::path(), args!["--version"])?;
+    let stdout = run_ok(P::cmd(args!["--version"]))?;
     assert!(stdout.contains(tools_version()));
     Ok(())
 }
@@ -85,7 +85,7 @@ where
     P: Program<'a>,
 {
     let option = "--hedgehogs-only";
-    let stderr = run_fail(P::path(), args![option])?;
+    let stderr = run_fail(P::cmd(args![option]))?;
     assert!(stderr.contains(&P::bad_option_hint(option)));
     Ok(())
 }

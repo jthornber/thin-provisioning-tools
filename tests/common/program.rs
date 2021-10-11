@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::ffi::OsStr;
 use std::path::PathBuf;
 
 use crate::common::test_dir::TestDir;
@@ -13,7 +12,10 @@ pub enum ArgType {
 
 pub trait Program<'a> {
     fn name() -> &'a str;
-    fn path() -> &'a OsStr;
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>;
     fn usage() -> &'a str;
     fn arg_type() -> ArgType;
 

@@ -16,7 +16,7 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(P::path(), args!["-i", &input])?;
+    let stderr = run_fail(P::cmd(args!["-i", &input]))?;
     assert!(stderr.contains(P::missing_output_arg()));
     Ok(())
 }
@@ -37,7 +37,9 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(P::path(), args!["-i", &input, "-o", "no-such-file"])?;
+    let cmd = P::cmd(args!["-i", &input, "-o", "no-such-file"]);
+    let stderr = run_fail(cmd)?;
+
     assert!(stderr.contains(<P as MetadataWriter>::file_not_found()));
     Ok(())
 }
@@ -58,7 +60,7 @@ where
 {
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
-    let stderr = run_fail(P::path(), args!["-i", &input, "-o", "/tmp"])?;
+    let stderr = run_fail(P::cmd(args!["-i", &input, "-o", "/tmp"]))?;
     assert!(stderr.contains("Not a block device or regular file"));
     Ok(())
 }
@@ -84,7 +86,7 @@ where
     let _file = file_utils::create_sized_file(&output, 4_194_304);
     duct::cmd!("chmod", "-w", &output).run()?;
 
-    let stderr = run_fail(P::path(), args!["-i", &input, "-o", &output])?;
+    let stderr = run_fail(P::cmd(args!["-i", &input, "-o", &output]))?;
     assert!(stderr.contains("Permission denied"));
     Ok(())
 }
@@ -113,7 +115,7 @@ where
     let output = td.mk_path("meta.bin");
     let _file = file_utils::create_sized_file(&output, 4096);
 
-    let stderr = run_fail(P::path(), args!["-i", &input, "-o", &output])?;
+    let stderr = run_fail(P::cmd(args!["-i", &input, "-o", &output]))?;
     assert!(stderr.contains("Output file too small"));
     Ok(())
 }

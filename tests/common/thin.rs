@@ -28,7 +28,7 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     write_xml(&xml, &mut gen)?;
 
     let _file = file_utils::create_sized_file(&md, 4096 * 4096);
-    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md])?;
+    run_ok(thin_restore_cmd(args!["-i", &xml, "-o", &md]))?;
 
     Ok(md)
 }
@@ -39,11 +39,11 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
     let md = mk_zeroed_md(td)?;
     let args = args!["-o", &md, "--format", "--nr-data-blocks", "102400"];
-    run_ok(THIN_GENERATE_METADATA, args)?;
+    run_ok(thin_generate_metadata_cmd(args))?;
 
     // Create a 2GB device
     let args = args!["-o", &md, "--create-thin", "1"];
-    run_ok(THIN_GENERATE_METADATA, args)?;
+    run_ok(thin_generate_metadata_cmd(args))?;
     let args = args![
         "-o",
         &md,
@@ -54,7 +54,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
         "--rw=randwrite",
         "--seq-nr=16"
     ];
-    run_ok(THIN_GENERATE_MAPPINGS, args)?;
+    run_ok(thin_generate_mappings_cmd(args))?;
 
     // Take a few snapshots.
     let mut snap_id = 2;
@@ -62,7 +62,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
         // take a snapshot
         let snap_id_str = snap_id.to_string();
         let args = args!["-o", &md, "--create-snap", &snap_id_str, "--origin", "1"];
-        run_ok(THIN_GENERATE_METADATA, args)?;
+        run_ok(thin_generate_metadata_cmd(args))?;
 
         // partially overwrite the origin (64MB)
         let args = args![
@@ -77,7 +77,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
             "--rw=randwrite",
             "--seq-nr=16"
         ];
-        run_ok(THIN_GENERATE_MAPPINGS, args)?;
+        run_ok(thin_generate_mappings_cmd(args))?;
         snap_id += 1;
     }
 
@@ -86,7 +86,7 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
 
 pub fn set_needs_check(md: &PathBuf) -> Result<()> {
     let args = args!["-o", &md, "--set-needs-check"];
-    run_ok(THIN_GENERATE_METADATA, args)?;
+    run_ok(thin_generate_metadata_cmd(args))?;
     Ok(())
 }
 
@@ -110,7 +110,7 @@ pub fn generate_metadata_leaks(
         "--actual",
         &actual_str
     ];
-    run_ok(THIN_GENERATE_DAMAGE, args)?;
+    run_ok(thin_generate_damage_cmd(args))?;
 
     Ok(())
 }

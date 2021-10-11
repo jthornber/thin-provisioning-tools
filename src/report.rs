@@ -34,6 +34,7 @@ pub trait ReportInner {
     fn set_sub_title(&mut self, txt: &str);
     fn progress(&mut self, percent: u8);
     fn log(&mut self, txt: &str);
+    fn to_stdout(&mut self, txt: &str);
     fn complete(&mut self);
 }
 
@@ -91,6 +92,13 @@ impl Report {
         let outcome = self.outcome.lock().unwrap();
         outcome.clone()
     }
+
+    // Force a message to be printed to stdout.  eg,
+    // TRANSACTION_ID = <blah>
+    pub fn to_stdout(&self, txt: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.to_stdout(txt)
+    }
 }
 
 //------------------------------------------
@@ -124,6 +132,10 @@ impl ReportInner for PBInner {
 
     fn log(&mut self, txt: &str) {
         self.bar.println(txt);
+    }
+
+    fn to_stdout(&mut self, txt: &str) {
+        println!("{}", txt);
     }
 
     fn complete(&mut self) {
@@ -173,6 +185,10 @@ impl ReportInner for SimpleInner {
         eprintln!("{}", txt);
     }
 
+    fn to_stdout(&mut self, txt: &str) {
+        println!("{}", txt);
+    }
+
     fn complete(&mut self) {}
 }
 
@@ -192,6 +208,7 @@ impl ReportInner for QuietInner {
     fn progress(&mut self, _percent: u8) {}
 
     fn log(&mut self, _txt: &str) {}
+    fn to_stdout(&mut self, _txt: &str) {}
 
     fn complete(&mut self) {}
 }

@@ -12,12 +12,21 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: cache_repair [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-i|--input} <input metadata (binary format)>\n  \
-                       {-o|--output} <output metadata (binary format)>\n  \
-                       {-V|--version}";
+const USAGE: &str = 
+"cache_repair 0.9.0
+Repair binary cache metadata, and write it to a different device or file
+
+USAGE:
+    cache_repair [FLAGS] --input <FILE> --output <FILE>
+
+FLAGS:
+    -q, --quiet      Suppress output messages, return only exit code.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -i, --input <FILE>     Specify the input device
+    -o, --output <FILE>    Specify the output device";
 
 //-----------------------------------------
 
@@ -28,8 +37,12 @@ impl<'a> Program<'a> for CacheRepair {
         "cache_repair"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        CACHE_REPAIR.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        cache_repair_cmd(args)
     }
 
     fn usage() -> &'a str {

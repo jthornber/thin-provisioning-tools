@@ -38,8 +38,12 @@ impl<'a> Program<'a> for ThinMetadataPack {
         "thin_metadata_pack"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_METADATA_PACK.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_metadata_pack_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -51,7 +55,7 @@ impl<'a> Program<'a> for ThinMetadataPack {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        rust_msg::bad_option_hint(option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -61,21 +65,21 @@ impl<'a> InputProgram<'a> for ThinMetadataPack {
     }
 
     fn file_not_found() -> &'a str {
-        rust_msg::FILE_NOT_FOUND
+        msg::FILE_NOT_FOUND
     }
 
     fn missing_input_arg() -> &'a str {
-        rust_msg::MISSING_INPUT_ARG
+        msg::MISSING_INPUT_ARG
     }
 
     fn corrupted_input() -> &'a str {
-        rust_msg::BAD_SUPERBLOCK
+        msg::BAD_SUPERBLOCK
     }
 }
 
 impl<'a> OutputProgram<'a> for ThinMetadataPack {
     fn missing_output_arg() -> &'a str {
-        rust_msg::MISSING_OUTPUT_ARG
+        msg::MISSING_OUTPUT_ARG
     }
 }
 

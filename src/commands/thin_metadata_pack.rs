@@ -1,14 +1,15 @@
 extern crate clap;
-extern crate thinp;
 
 use clap::{App, Arg};
 use std::path::Path;
 use std::process::exit;
-use thinp::file_utils;
 
-fn main() {
+use crate::commands::utils::*;
+use crate::report::*;
+
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_metadata_pack")
-	.version(thinp::version::tools_version())
+	.version(crate::version::tools_version())
         .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
         .arg(Arg::with_name("INPUT")
             .help("Specify thinp metadata binary device/file")
@@ -23,17 +24,15 @@ fn main() {
             .value_name("FILE")
             .takes_value(true));
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        exit(1);
-    }
+    let report = std::sync::Arc::new(mk_simple_report());
+    check_input_file(input_file, &report);
 
-    if let Err(reason) = thinp::pack::toplevel::pack(&input_file, &output_file) {
-        println!("Application error: {}\n", reason);
+    if let Err(reason) = crate::pack::toplevel::pack(&input_file, &output_file) {
+        report.fatal(&format!("Application error: {}\n", reason));
         exit(1);
     }
 }

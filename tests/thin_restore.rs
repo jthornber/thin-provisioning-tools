@@ -34,8 +34,12 @@ impl<'a> Program<'a> for ThinRestore {
         "thin_restore"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_RESTORE.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_restore_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -104,7 +108,7 @@ fn quiet_flag(flag: &str) -> Result<()> {
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    let output = run_ok_raw(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag])?;
+    let output = run_ok_raw(thin_restore_cmd(args!["-i", &xml, "-o", &md, flag]))?;
 
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
@@ -130,9 +134,9 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
 
-    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md, flag, value])?;
+    run_ok(thin_restore_cmd(args!["-i", &xml, "-o", &md, flag, value]))?;
 
-    let output = run_ok(THIN_DUMP, args![&md])?;
+    let output = run_ok(thin_dump_cmd(args![&md]))?;
     assert!(output.contains(pattern));
     Ok(())
 }

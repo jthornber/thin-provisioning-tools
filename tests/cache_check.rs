@@ -13,16 +13,24 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: cache_check [options] {device|file}\n\
-                     Options:\n  \
-                       {-q|--quiet}\n  \
-                       {-h|--help}\n  \
-                       {-V|--version}\n  \
-                       {--clear-needs-check-flag}\n  \
-                       {--super-block-only}\n  \
-                       {--skip-mappings}\n  \
-                       {--skip-hints}\n  \
-                       {--skip-discards}";
+const USAGE: &str =
+"cache_check 0.9.0
+
+USAGE:
+    cache_check [FLAGS] <INPUT>
+
+FLAGS:
+        --auto-repair                Auto repair trivial issues.
+        --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
+    -q, --quiet                      Suppress output messages, return only exit code.
+        --super-block-only           Only check the superblock.
+        --skip-discards              Don't check the discard bitset
+        --skip-hints                 Don't check the hint array
+    -h, --help                       Prints help information
+    -V, --version                    Prints version information
+
+ARGS:
+    <INPUT>    Specify the input device to check";
 
 //------------------------------------------
 
@@ -33,8 +41,12 @@ impl<'a> Program<'a> for CacheCheck {
         "cache_check"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        CACHE_CHECK.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        cache_check_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -91,8 +103,9 @@ test_corrupted_input_data!(CacheCheck);
 fn failing_q() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, args!["-q", &md])?;
+    let output = run_fail_raw(cache_check_cmd(args!["-q", &md]))?;
     assert_eq!(output.stdout.len(), 0);
+    eprintln!("stderr = '{}'", std::str::from_utf8(&output.stderr).unwrap());
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
@@ -101,7 +114,7 @@ fn failing_q() -> Result<()> {
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(CACHE_CHECK, args!["--quiet", &md])?;
+    let output = run_fail_raw(cache_check_cmd(args!["--quiet", &md]))?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -111,17 +124,23 @@ fn failing_quiet() -> Result<()> {
 fn valid_metadata_passes() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_ok(CACHE_CHECK, args![&md])?;
+    run_ok(cache_check_cmd(args![&md]))?;
     Ok(())
 }
 
+
+// FIXME: put back in, I don't want to add the --debug- arg to the
+// tool again, so we should have a little library function for tweaking
+// metadata version.
+
+/*
 #[test]
 fn bad_metadata_version() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
     run_ok(
-        CACHE_RESTORE,
+        cache_restore_cmd(
         args![
             "-i",
             &xml,
@@ -130,7 +149,8 @@ fn bad_metadata_version() -> Result<()> {
             "--debug-override-metadata-version",
             "12345"
         ],
-    )?;
-    run_fail(CACHE_CHECK, args![&md])?;
+    ))?;
+    run_fail(cache_check_cmd(args![&md]))?;
     Ok(())
 }
+*/

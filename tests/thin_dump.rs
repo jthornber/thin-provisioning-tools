@@ -35,8 +35,12 @@ impl<'a> Program<'a> for ThinDump {
         "thin_dump"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_DUMP.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_dump_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -89,7 +93,7 @@ fn dump_restore_cycle() -> Result<()> {
     let mut td = TestDir::new()?;
 
     let md = mk_valid_md(&mut td)?;
-    let output = run_ok_raw(THIN_DUMP, args![&md])?;
+    let output = run_ok_raw(thin_dump_cmd(args![&md]))?;
 
     let xml = td.mk_path("meta.xml");
     let mut file = OpenOptions::new()
@@ -101,9 +105,9 @@ fn dump_restore_cycle() -> Result<()> {
     drop(file);
 
     let md2 = mk_zeroed_md(&mut td)?;
-    run_ok(THIN_RESTORE, args!["-i", &xml, "-o", &md2])?;
+    run_ok(thin_restore_cmd(args!["-i", &xml, "-o", &md2]))?;
 
-    let output2 = run_ok_raw(THIN_DUMP, args![&md2])?;
+    let output2 = run_ok_raw(thin_dump_cmd(args![&md2]))?;
     assert_eq!(output.stdout, output2.stdout);
 
     Ok(())
@@ -118,7 +122,7 @@ fn no_stderr() -> Result<()> {
     let mut td = TestDir::new()?;
 
     let md = mk_valid_md(&mut td)?;
-    let output = run_ok_raw(THIN_DUMP, args![&md])?;
+    let output = run_ok_raw(thin_dump_cmd(args![&md]))?;
 
     assert_eq!(output.stderr.len(), 0);
     Ok(())
@@ -132,7 +136,7 @@ fn no_stderr() -> Result<()> {
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let output = run_ok_raw(THIN_DUMP, args![&md, flag, value])?;
+    let output = run_ok_raw(thin_dump_cmd(args![&md, flag, value]))?;
 
     if !cfg!(feature = "rust_tests") {
         assert_eq!(output.stderr.len(), 0);
@@ -164,11 +168,10 @@ fn override_nr_data_blocks() -> Result<()> {
 fn repair_superblock() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let before = run_ok_raw(THIN_DUMP, args![&md])?;
+    let before = run_ok_raw(thin_dump_cmd(args![&md]))?;
     damage_superblock(&md)?;
 
-    let after = run_ok_raw(
-        THIN_DUMP,
+    let after = run_ok_raw(thin_dump_cmd(
         args![
             "--repair",
             "--transaction-id=1",
@@ -176,7 +179,7 @@ fn repair_superblock() -> Result<()> {
             "--nr-data-blocks=20480",
             &md
         ],
-    )?;
+    ))?;
     if !cfg!(feature = "rust_tests") {
         assert_eq!(after.stderr.len(), 0);
     }
@@ -196,14 +199,14 @@ fn missing_transaction_id() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
     let stderr = run_fail(
-        THIN_DUMP,
+        thin_dump_cmd(
         args![
             "--repair",
             "--data-block-size=128",
             "--nr-data-blocks=20480",
             &md
         ],
-    )?;
+    ))?;
     assert!(stderr.contains("transaction id"));
     Ok(())
 }
@@ -214,14 +217,14 @@ fn missing_data_block_size() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
     let stderr = run_fail(
-        THIN_DUMP,
+        thin_dump_cmd(
         args![
             "--repair",
             "--transaction-id=1",
             "--nr-data-blocks=20480",
             &md
         ],
-    )?;
+    ))?;
     assert!(stderr.contains("data block size"));
     Ok(())
 }
@@ -233,14 +236,14 @@ fn missing_nr_data_blocks() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
     let stderr = run_fail(
-        THIN_DUMP,
+        thin_dump_cmd(
         args![
             "--repair",
             "--transaction-id=1",
             "--data-block-size=128",
             &md
         ],
-    )?;
+    ))?;
     assert!(stderr.contains("nr data blocks"));
     Ok(())
 }

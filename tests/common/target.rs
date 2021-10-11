@@ -1,69 +1,159 @@
-//------------------------------------------
-
-#[macro_export]
-macro_rules! path_to_cpp {
-    ($name: literal) => {
-        concat!("bin/", $name)
-    };
-}
-
-#[macro_export]
-macro_rules! path_to_rust {
-    ($name: literal) => {
-        env!(concat!("CARGO_BIN_EXE_", $name))
-    };
-}
-
-#[cfg(not(feature = "rust_tests"))]
-#[macro_export]
-macro_rules! path_to {
-    ($name: literal) => {
-        path_to_cpp!($name)
-    };
-}
-
-#[cfg(feature = "rust_tests")]
-#[macro_export]
-macro_rules! path_to {
-    ($name: literal) => {
-        path_to_rust!($name)
-    };
-}
+use std::ffi::OsString;
+use std::path::PathBuf;
 
 //------------------------------------------
 
-pub const CACHE_CHECK: &str = path_to!("cache_check");
-pub const CACHE_DUMP: &str = path_to!("cache_dump");
-pub const CACHE_REPAIR: &str = path_to!("cache_repair");
-pub const CACHE_RESTORE: &str = path_to!("cache_restore");
+pub fn cpp_cmd<S, I>(cmd: S, args: I) -> duct::Expression
+where
+    S: Into<OsString>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let mut bin = PathBuf::from("./bin");
+    bin.push(Into::<OsString>::into(cmd));
+    duct::cmd(bin.as_path(), args)
+}
 
-pub const THIN_CHECK: &str = path_to!("thin_check");
-pub const THIN_DELTA: &str = path_to_cpp!("thin_delta"); // TODO: rust version
-pub const THIN_DUMP: &str = path_to!("thin_dump");
-pub const THIN_METADATA_PACK: &str = path_to_rust!("thin_metadata_pack"); // rust-only
-pub const THIN_METADATA_UNPACK: &str = path_to_rust!("thin_metadata_unpack"); // rust-only
-pub const THIN_REPAIR: &str = path_to!("thin_repair");
-pub const THIN_RESTORE: &str = path_to!("thin_restore");
-pub const THIN_RMAP: &str = path_to_cpp!("thin_rmap"); // TODO: rust version
-pub const THIN_GENERATE_METADATA: &str = path_to_cpp!("thin_generate_metadata"); // cpp-only
-pub const THIN_GENERATE_MAPPINGS: &str = path_to_cpp!("thin_generate_mappings"); // cpp-only
-pub const THIN_GENERATE_DAMAGE: &str = path_to_cpp!("thin_generate_damage"); // cpp-only
+pub fn rust_cmd<S, I>(cmd: S, args: I) -> duct::Expression
+where
+    S: Into<OsString>,
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    const RUST_PATH: &str = env!(concat!("CARGO_BIN_EXE_", "pdata_tools"));
 
-//------------------------------------------
-
-pub mod cpp_msg {
-    pub const FILE_NOT_FOUND: &str = "No such file or directory";
-    pub const MISSING_INPUT_ARG: &str = "No input file provided";
-    pub const MISSING_OUTPUT_ARG: &str = "No output file provided";
-    pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";
-
-    pub fn bad_option_hint(option: &str) -> String {
-        format!("unrecognized option '{}'", option)
+    let mut all_args = vec![Into::<OsString>::into(cmd)];
+    for a in args {
+        all_args.push(Into::<OsString>::into(a));
     }
+
+    duct::cmd(RUST_PATH, &all_args)
 }
 
-pub mod rust_msg {
-    pub const FILE_NOT_FOUND: &str = "No such file or directory";
+pub fn thin_check_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_check", args)
+}
+
+pub fn thin_rmap_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    cpp_cmd("thin_rmap", args)
+}
+
+pub fn thin_generate_metadata_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    cpp_cmd("thin_generate_metadata", args)
+}
+
+pub fn thin_generate_mappings_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    cpp_cmd("thin_generate_mappings", args)
+}
+
+pub fn thin_generate_damage_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    cpp_cmd("thin_generate_damage", args)
+}
+
+pub fn thin_restore_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_restore", args)
+}
+
+pub fn thin_repair_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_restore", args)
+}
+
+pub fn thin_dump_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_dump", args)
+}
+
+pub fn thin_delta_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    cpp_cmd("thin_delta", args)
+}
+
+pub fn thin_metadata_pack_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_metadata_pack", args)
+}
+
+pub fn thin_metadata_unpack_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_metadata_unpack", args)
+}
+
+pub fn cache_check_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_check", args)
+}
+
+pub fn cache_dump_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_dump", args)
+}
+
+pub fn cache_restore_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_restore", args)
+}
+
+pub fn cache_repair_cmd<I>(args: I) -> duct::Expression
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_repair", args)
+}
+
+//------------------------------------------
+
+pub mod msg {
+    pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
     pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
     pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";
@@ -72,10 +162,5 @@ pub mod rust_msg {
         format!("Found argument '{}' which wasn't expected", option)
     }
 }
-
-#[cfg(not(feature = "rust_tests"))]
-pub use cpp_msg as msg;
-#[cfg(feature = "rust_tests")]
-pub use rust_msg as msg;
 
 //------------------------------------------

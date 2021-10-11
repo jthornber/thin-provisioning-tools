@@ -33,8 +33,12 @@ impl<'a> Program<'a> for ThinRepair {
         "thin_repair"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_REPAIR.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_repair_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -108,7 +112,7 @@ fn dont_repair_xml() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
     let xml = mk_valid_xml(&mut td)?;
-    run_fail(THIN_REPAIR, args!["-i", &xml, "-o", &md])?;
+    run_fail(thin_repair_cmd(args!["-i", &xml, "-o", &md]))?;
     Ok(())
 }
 
@@ -121,9 +125,9 @@ fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let output = run_ok_raw(THIN_REPAIR, args![flag, val, "-i", &md1, "-o", &md2])?;
+    let output = run_ok_raw(thin_repair_cmd(args![flag, val, "-i", &md1, "-o", &md2]))?;
     assert_eq!(output.stderr.len(), 0);
-    let output = run_ok(THIN_DUMP, args![&md2])?;
+    let output = run_ok(thin_dump_cmd(args![&md2]))?;
     assert!(output.contains(pattern));
     Ok(())
 }
@@ -151,14 +155,14 @@ fn override_nr_data_blocks() -> Result<()> {
 fn superblock_succeeds() -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
-    let original = run_ok_raw(THIN_DUMP, args![&md1])?;
+    let original = run_ok_raw(thin_dump_cmd(args![&md1]))?;
     if !cfg!(feature = "rust_tests") {
         assert_eq!(original.stderr.len(), 0);
     }
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
     run_ok(
-        THIN_REPAIR,
+        thin_repair_cmd(
         args![
             "--transaction-id=1",
             "--data-block-size=128",
@@ -168,8 +172,8 @@ fn superblock_succeeds() -> Result<()> {
             "-o",
             &md2
         ],
-    )?;
-    let repaired = run_ok_raw(THIN_DUMP, args![&md2])?;
+    ))?;
+    let repaired = run_ok_raw(thin_dump_cmd(args![&md2]))?;
     if !cfg!(feature = "rust_tests") {
         assert_eq!(repaired.stderr.len(), 0);
     }
@@ -186,7 +190,7 @@ fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
     let md1 = mk_valid_md(&mut td)?;
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(THIN_REPAIR, args![flag1, flag2, "-i", &md1, "-o", &md2])?;
+    let stderr = run_fail(thin_repair_cmd(args![flag1, flag2, "-i", &md1, "-o", &md2]))?;
     assert!(stderr.contains(pattern));
     Ok(())
 }

@@ -63,7 +63,7 @@ where
     P: InputProgram<'a>,
 {
     let args: [&str; 0] = [];
-    let stderr = run_fail(P::path(), args)?;
+    let stderr = run_fail(P::cmd(args))?;
     assert!(stderr.contains(P::missing_input_arg()));
     Ok(())
 }
@@ -85,7 +85,7 @@ where
     let mut td = TestDir::new()?;
     let output = mk_zeroed_md(&mut td)?;
     ensure_untouched(&output, || {
-        let stderr = run_fail(P::path(), args!["-o", &output])?;
+        let stderr = run_fail(P::cmd(args!["-o", &output]))?;
         assert!(stderr.contains(P::missing_input_arg()));
         Ok(())
     })
@@ -109,7 +109,7 @@ where
 
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, "no-such-file".as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
+        let stderr = run_fail(P::cmd(args))?;
         assert!(stderr.contains(P::file_not_found()));
         Ok(())
     })
@@ -133,7 +133,7 @@ where
 
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, "/tmp".as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
+        let stderr = run_fail(P::cmd(args))?;
         assert!(stderr.contains("Not a block device or regular file"));
         Ok(())
     })
@@ -161,7 +161,7 @@ where
 
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
+        let stderr = run_fail(P::cmd(args))?;
         assert!(stderr.contains("Permission denied"));
         Ok(())
     })
@@ -191,7 +191,8 @@ where
 
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
+        let stderr = run_fail(P::cmd(args))?;
+        eprintln!("actual: {:?}", stderr);
         assert!(stderr.contains("Metadata device/file too small.  Is this binary metadata?"));
         Ok(())
     })
@@ -220,11 +221,9 @@ where
 
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
-        eprintln!("{}", stderr);
+        let stderr = run_fail(P::cmd(args))?;
         let msg = format!(
-            "This looks like XML.  {} only checks the binary metadata format.",
-            P::name()
+            "This looks like XML.  This tool only checks the binary metadata format.",
         );
         assert!(stderr.contains(&msg));
         Ok(())
@@ -253,7 +252,7 @@ where
         ArgType::IoOptions => with_output_superblock_zeroed,
     };
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
-        let stderr = run_fail(P::path(), args)?;
+        let stderr = run_fail(P::cmd(args))?;
         assert!(stderr.contains(P::corrupted_input()));
         Ok(())
     })

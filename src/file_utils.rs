@@ -1,5 +1,5 @@
 use nix::sys::stat;
-use nix::sys::stat::FileStat;
+use nix::sys::stat::{FileStat, SFlag};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{Seek, Write};
@@ -9,47 +9,38 @@ use tempfile::tempfile;
 
 //---------------------------------------
 
-#[inline(always)]
-pub fn s_isreg(info: &FileStat) -> bool {
-    (info.st_mode & stat::SFlag::S_IFMT.bits()) == stat::SFlag::S_IFREG.bits()
+fn test_bit(mode: u32, flag: SFlag) -> bool {
+    SFlag::from_bits_truncate(mode).contains(flag)
 }
 
-#[inline(always)]
-pub fn s_isblk(info: &FileStat) -> bool {
-    (info.st_mode & stat::SFlag::S_IFMT.bits()) == stat::SFlag::S_IFBLK.bits()
+pub fn is_file_or_blk_(info: FileStat) -> bool {
+    test_bit(info.st_mode, SFlag::S_IFBLK) || test_bit(info.st_mode, SFlag::S_IFREG)
 }
 
-pub fn is_file(path: &Path) -> io::Result<()> {
+pub fn file_exists(path: &Path) -> bool {
     match stat::stat(path) {
-        Ok(info) => {
-            if s_isreg(&info) {
-                Ok(())
-            } else {
-                fail("Not a regular file")
-            }
-        }
-        _ => {
-            // FIXME: assuming all errors indicate the file doesn't
-            // exist.
-            fail("No such file or directory")
-        }
+        Ok(_) => true,
+        _ => false,
     }
 }
 
-pub fn is_file_or_blk(path: &Path) -> io::Result<()> {
+pub fn is_file_or_blk(path: &Path) -> bool {
+    match stat::stat(path) {
+        Ok(info) =>is_file_or_blk_(info),
+        _ => false,
+    }
+}
+
+pub fn is_file(path: &Path) -> bool {
     match stat::stat(path) {
         Ok(info) => {
-            if s_isreg(&info) || s_isblk(&info) {
-                Ok(())
+            if test_bit(info.st_mode, SFlag::S_IFREG) {
+                true
             } else {
-                fail("Not a block device or regular file")
+                false
             }
         }
-        _ => {
-            // FIXME: assuming all errors indicate the file doesn't
-            // exist.
-            fail("No such file or directory")
-        }
+        _ => false,
     }
 }
 
@@ -79,9 +70,9 @@ fn get_device_size(path: &Path) -> io::Result<u64> {
 pub fn file_size(path: &Path) -> io::Result<u64> {
     match stat::stat(path) {
         Ok(info) => {
-            if s_isreg(&info) {
+            if test_bit(info.st_mode, SFlag::S_IFREG) {
                 Ok(info.st_size as u64)
-            } else if s_isblk(&info) {
+            } else if test_bit(info.st_mode, SFlag::S_IFBLK) {
                 get_device_size(path)
             } else {
                 fail("Not a block device or regular file")
@@ -123,12 +114,4 @@ pub fn create_sized_file(path: &Path, nr_bytes: u64) -> io::Result<std::fs::File
 
 //---------------------------------------
 
-pub fn check_output_file_requirements(path: &Path) -> io::Result<()> {
-    // minimal thin metadata size is 10 blocks, with one device
-    if file_size(path)? < 40960 {
-        return fail("Output file too small.");
-    }
-    Ok(())
-}
 
-//---------------------------------------

@@ -1,19 +1,19 @@
 extern crate clap;
-extern crate thinp;
 
 use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
-use thinp::file_utils;
-use thinp::report::*;
-use thinp::thin::dump::{dump, ThinDumpOptions};
-use thinp::thin::metadata_repair::SuperblockOverrides;
 
-fn main() {
+use crate::commands::utils::*;
+use crate::report::*;
+use crate::thin::dump::{dump, ThinDumpOptions};
+use crate::thin::metadata_repair::SuperblockOverrides;
+
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_dump")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("Dump thin-provisioning metadata to stdout in XML format")
         // flags
         .arg(
@@ -80,7 +80,7 @@ fn main() {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = if matches.is_present("OUTPUT") {
         Some(Path::new(matches.value_of("OUTPUT").unwrap()))
@@ -88,10 +88,8 @@ fn main() {
         None
     };
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
+    let report = std::sync::Arc::new(mk_simple_report());
+    check_input_file(input_file, &report);
 
     let transaction_id = matches.value_of("TRANSACTION_ID").map(|s| {
         s.parse::<u64>().unwrap_or_else(|_| {

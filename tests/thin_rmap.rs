@@ -29,8 +29,12 @@ impl<'a> Program<'a> for ThinRmap {
         "thin_rmap"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_RMAP.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_rmap_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -42,7 +46,7 @@ impl<'a> Program<'a> for ThinRmap {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        cpp_msg::bad_option_hint(option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -58,7 +62,7 @@ test_rejects_bad_option!(ThinRmap);
 fn valid_region_format_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_ok(THIN_RMAP, args!["--region", "23..7890", &md])?;
+    run_ok(thin_rmap_cmd(args!["--region", "23..7890", &md]))?;
     Ok(())
 }
 
@@ -77,7 +81,7 @@ fn invalid_regions_should_fail() -> Result<()> {
     for r in &invalid_regions {
         let mut td = TestDir::new()?;
         let md = mk_valid_md(&mut td)?;
-        run_fail(THIN_RMAP, args![r, &md])?;
+        run_fail(thin_rmap_cmd(args![r, &md]))?;
     }
     Ok(())
 }
@@ -86,10 +90,9 @@ fn invalid_regions_should_fail() -> Result<()> {
 fn multiple_regions_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_ok(
-        THIN_RMAP,
-        args!["--region", "1..23", "--region", "45..78", &md],
-    )?;
+    run_ok(thin_rmap_cmd(args![
+        "--region", "1..23", "--region", "45..78", &md
+    ]))?;
     Ok(())
 }
 
@@ -97,7 +100,7 @@ fn multiple_regions_should_pass() -> Result<()> {
 fn junk_input() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
-    run_fail(THIN_RMAP, args!["--region", "0..-1", &xml])?;
+    run_fail(thin_rmap_cmd(args!["--region", "0..-1", &xml]))?;
     Ok(())
 }
 

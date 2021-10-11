@@ -15,12 +15,22 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: cache_dump [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-o <xml file>}\n  \
-                       {-V|--version}\n  \
-                       {--repair}";
+const USAGE: &str = "cache_dump 0.9.0
+Dump the cache metadata to stdout in XML format
+
+USAGE:
+    cache_dump [FLAGS] [OPTIONS] <INPUT>
+
+FLAGS:
+    -r, --repair     Repair the metadata whilst dumping it
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -o, --output <FILE>    Specify the output file rather than stdout
+
+ARGS:
+    <INPUT>    Specify the input device to dump";
 
 //------------------------------------------
 
@@ -31,8 +41,12 @@ impl<'a> Program<'a> for CacheDump {
         "cache_dump"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        CACHE_DUMP.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        cache_dump_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -84,7 +98,7 @@ test_unreadable_input_file!(CacheDump);
 fn dump_restore_cycle() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    let output = run_ok_raw(CACHE_DUMP, args![&md])?;
+    let output = run_ok_raw(cache_dump_cmd(args![&md]))?;
 
     let xml = td.mk_path("meta.xml");
     let mut file = OpenOptions::new()
@@ -96,9 +110,9 @@ fn dump_restore_cycle() -> Result<()> {
     drop(file);
 
     let md2 = mk_zeroed_md(&mut td)?;
-    run_ok(CACHE_RESTORE, args!["-i", &xml, "-o", &md2])?;
+    run_ok(cache_restore_cmd(args!["-i", &xml, "-o", &md2]))?;
 
-    let output2 = run_ok_raw(CACHE_DUMP, args![&md2])?;
+    let output2 = run_ok_raw(cache_dump_cmd(args![&md2]))?;
     assert_eq!(output.stdout, output2.stdout);
 
     Ok(())

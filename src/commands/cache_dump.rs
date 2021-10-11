@@ -1,17 +1,17 @@
 extern crate clap;
-extern crate thinp;
 
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use thinp::cache::dump::{dump, CacheDumpOptions};
-use thinp::file_utils;
+
+use crate::cache::dump::{dump, CacheDumpOptions};
+use crate::commands::utils::*;
 
 //------------------------------------------
 
-fn main() {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_dump")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("Dump the cache metadata to stdout in XML format")
         // flags
         .arg(
@@ -42,7 +42,7 @@ fn main() {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = if matches.is_present("OUTPUT") {
         Some(Path::new(matches.value_of("OUTPUT").unwrap()))
@@ -50,10 +50,12 @@ fn main() {
         None
     };
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
+    // Create a temporary report just in case these checks
+    // need to report anything.
+    let report = std::sync::Arc::new(crate::report::mk_simple_report());
+    check_input_file(input_file, &report);
+    check_file_not_tiny(input_file, &report);
+    drop(report);
 
     let opts = CacheDumpOptions {
         input: input_file,

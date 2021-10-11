@@ -218,7 +218,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
+    report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {
         return Ok(());
@@ -295,7 +295,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    report.info(&format!(
+    report.to_stdout(&format!(
         "METADATA_FREE_BLOCKS={}",
         root.nr_blocks - root.nr_allocated
     ));

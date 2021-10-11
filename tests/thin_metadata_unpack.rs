@@ -40,8 +40,12 @@ impl<'a> Program<'a> for ThinMetadataUnpack {
         "thin_metadata_pack"
     }
 
-    fn path() -> &'a std::ffi::OsStr {
-        THIN_METADATA_UNPACK.as_ref()
+    fn cmd<I>(args: I) -> duct::Expression
+    where
+        I: IntoIterator,
+        I::Item: Into<std::ffi::OsString>,
+    {
+        thin_metadata_unpack_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -53,7 +57,7 @@ impl<'a> Program<'a> for ThinMetadataUnpack {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        rust_msg::bad_option_hint(option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -63,11 +67,11 @@ impl<'a> InputProgram<'a> for ThinMetadataUnpack {
     }
 
     fn file_not_found() -> &'a str {
-        rust_msg::FILE_NOT_FOUND
+        msg::FILE_NOT_FOUND
     }
 
     fn missing_input_arg() -> &'a str {
-        rust_msg::MISSING_INPUT_ARG
+        msg::MISSING_INPUT_ARG
     }
 
     fn corrupted_input() -> &'a str {
@@ -77,7 +81,7 @@ impl<'a> InputProgram<'a> for ThinMetadataUnpack {
 
 impl<'a> OutputProgram<'a> for ThinMetadataUnpack {
     fn missing_output_arg() -> &'a str {
-        rust_msg::MISSING_OUTPUT_ARG
+        msg::MISSING_OUTPUT_ARG
     }
 }
 
@@ -102,14 +106,11 @@ fn end_to_end() -> Result<()> {
     let mut td = TestDir::new()?;
     let md_in = mk_valid_md(&mut td)?;
     let md_out = mk_zeroed_md(&mut td)?;
-    run_ok(THIN_METADATA_PACK, args!["-i", &md_in, "-o", "meta.pack"])?;
-    run_ok(
-        THIN_METADATA_UNPACK,
-        args!["-i", "meta.pack", "-o", &md_out],
-    )?;
+    run_ok(thin_metadata_pack_cmd(args!["-i", &md_in, "-o", "meta.pack"]))?;
+    run_ok(thin_metadata_unpack_cmd(args!["-i", "meta.pack", "-o", &md_out]))?;
 
-    let dump1 = run_ok(THIN_DUMP, args![&md_in])?;
-    let dump2 = run_ok(THIN_DUMP, args![&md_out])?;
+    let dump1 = run_ok(thin_dump_cmd(args![&md_in]))?;
+    let dump2 = run_ok(thin_dump_cmd(args![&md_out]))?;
     assert_eq!(dump1, dump2);
     Ok(())
 }

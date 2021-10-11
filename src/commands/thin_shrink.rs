@@ -3,16 +3,16 @@
 //    https://github.com/nkshirsagar/thinpool_shrink/blob/split_ranges/thin_shrink.py
 
 extern crate clap;
-extern crate thinp;
 
 use clap::{App, Arg};
 use std::path::Path;
 use std::process::exit;
-use thinp::file_utils;
 
-fn main() {
+use crate::commands::utils::*;
+
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_shrink")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("Rewrite xml metadata and move data in an inactive pool.")
         .arg(
             Arg::with_name("INPUT")
@@ -57,7 +57,7 @@ fn main() {
                 .takes_value(true),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
 
     // FIXME: check these look like xml
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -66,13 +66,11 @@ fn main() {
     let data_file = Path::new(matches.value_of("DATA").unwrap());
     let do_copy = !matches.is_present("NOCOPY");
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        exit(1);
-    }
+    let report = mk_report(false);
+    check_input_file(input_file, &report);
 
     if let Err(reason) =
-        thinp::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size, do_copy)
+        crate::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size, do_copy)
     {
         eprintln!("Application error: {}\n", reason);
         exit(1);

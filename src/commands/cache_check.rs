@@ -1,5 +1,4 @@
 extern crate clap;
-extern crate thinp;
 
 use atty::Stream;
 use clap::{App, Arg};
@@ -7,15 +6,15 @@ use std::path::Path;
 use std::process;
 use std::sync::Arc;
 
-use thinp::cache::check::{check, CacheCheckOptions};
-use thinp::file_utils;
-use thinp::report::*;
+use crate::cache::check::{check, CacheCheckOptions};
+use crate::report::*;
+use crate::commands::utils::*;
 
 //------------------------------------------
 
-fn main() {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_check")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         // flags
         .arg(
             Arg::with_name("ASYNC_IO")
@@ -45,11 +44,6 @@ fn main() {
                 .long("super-block-only"),
         )
         .arg(
-            Arg::with_name("SKIP_MAPPINGS")
-                .help("Don't check the mapping array")
-                .long("skip-mappings"),
-        )
-        .arg(
             Arg::with_name("SKIP_HINTS")
                 .help("Don't check the hint array")
                 .long("skip-hints"),
@@ -67,22 +61,19 @@ fn main() {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
-
-    let report;
-    if matches.is_present("QUIET") {
-        report = std::sync::Arc::new(mk_quiet_report());
+    let report = if matches.is_present("QUIET") {
+        std::sync::Arc::new(mk_quiet_report())
     } else if atty::is(Stream::Stdout) {
-        report = std::sync::Arc::new(mk_progress_bar_report());
+        std::sync::Arc::new(mk_progress_bar_report())
     } else {
-        report = Arc::new(mk_simple_report());
-    }
+        Arc::new(mk_simple_report())
+    };
+
+    check_input_file(input_file, &report);
+    check_file_not_tiny(input_file, &report);
 
     let opts = CacheCheckOptions {
         dev: &input_file,

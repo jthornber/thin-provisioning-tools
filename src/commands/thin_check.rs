@@ -1,19 +1,17 @@
 extern crate clap;
-extern crate thinp;
 
-use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
-use thinp::file_utils;
-use thinp::io_engine::*;
-use thinp::report::*;
-use thinp::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
 
-fn main() {
+use crate::io_engine::*;
+use crate::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
+use crate::commands::utils::*;
+
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_check")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
         // flags
         .arg(
@@ -90,23 +88,13 @@ fn main() {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args.into_iter());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
-
-    let report;
-
-    if matches.is_present("QUIET") {
-        report = std::sync::Arc::new(mk_quiet_report());
-    } else if atty::is(Stream::Stdout) {
-        report = std::sync::Arc::new(mk_progress_bar_report());
-    } else {
-        report = Arc::new(mk_simple_report());
-    }
+    let report = mk_report(matches.is_present("QUIET"));
+    check_input_file(input_file, &report);
+    check_file_not_tiny(input_file, &report);
+    check_not_xml(input_file, &report);
 
     let engine: Arc<dyn IoEngine + Send + Sync>;
     let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");

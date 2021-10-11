@@ -1,19 +1,16 @@
 extern crate clap;
-extern crate thinp;
 
-use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use std::sync::Arc;
-use thinp::file_utils;
-use thinp::report::*;
-use thinp::thin::metadata_repair::SuperblockOverrides;
-use thinp::thin::repair::{repair, ThinRepairOptions};
 
-fn main() {
+use crate::commands::utils::*;
+use crate::thin::metadata_repair::SuperblockOverrides;
+use crate::thin::repair::{repair, ThinRepairOptions};
+
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_repair")
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("Repair thin-provisioning metadata, and write it to different device or file")
         // flags
         .arg(
@@ -64,45 +61,34 @@ fn main() {
                 .value_name("NUM"),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if let Err(e) = file_utils::is_file_or_blk(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
+    let report = mk_report(matches.is_present("QUIET"));
+    check_input_file(input_file, &report);
+    check_output_file(output_file, &report);
 
     let transaction_id = matches.value_of("TRANSACTION_ID").map(|s| {
         s.parse::<u64>().unwrap_or_else(|_| {
-            eprintln!("Couldn't parse transaction_id");
+            report.fatal("Couldn't parse transaction_id");
             process::exit(1);
         })
     });
 
     let data_block_size = matches.value_of("DATA_BLOCK_SIZE").map(|s| {
         s.parse::<u32>().unwrap_or_else(|_| {
-            eprintln!("Couldn't parse data_block_size");
+            report.fatal("Couldn't parse data_block_size");
             process::exit(1);
         })
     });
 
     let nr_data_blocks = matches.value_of("NR_DATA_BLOCKS").map(|s| {
         s.parse::<u64>().unwrap_or_else(|_| {
-            eprintln!("Couldn't parse nr_data_blocks");
+            report.fatal("Couldn't parse nr_data_blocks");
             process::exit(1);
         })
     });
-
-    let report;
-
-    if matches.is_present("QUIET") {
-        report = std::sync::Arc::new(mk_quiet_report());
-    } else if atty::is(Stream::Stdout) {
-        report = std::sync::Arc::new(mk_progress_bar_report());
-    } else {
-        report = Arc::new(mk_simple_report());
-    }
 
     let opts = ThinRepairOptions {
         input: &input_file,

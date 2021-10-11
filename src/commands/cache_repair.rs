@@ -1,19 +1,19 @@
 extern crate clap;
-extern crate thinp;
 
 use atty::Stream;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
-use thinp::file_utils;
-use thinp::report::*;
-use thinp::thin::restore::{restore, ThinRestoreOptions};
 
-fn main() {
-    let parser = App::new("thin_restore")
-        .version(thinp::version::tools_version())
-        .about("Convert XML format metadata to binary.")
+use crate::cache::repair::{repair, CacheRepairOptions};
+use crate::commands::utils::*;
+use crate::report::*;
+
+pub fn run(args: &[std::ffi::OsString]) {
+    let parser = App::new("cache_repair")
+        .version(crate::version::tools_version())
+        .about("Repair binary cache metadata, and write it to a different device or file")
         // flags
         .arg(
             Arg::with_name("ASYNC_IO")
@@ -30,7 +30,7 @@ fn main() {
         // options
         .arg(
             Arg::with_name("INPUT")
-                .help("Specify the input xml")
+                .help("Specify the input device")
                 .short("i")
                 .long("input")
                 .value_name("FILE")
@@ -45,38 +45,28 @@ fn main() {
                 .required(true),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if let Err(e) = file_utils::is_file(input_file) {
-        eprintln!("Invalid input file '{}': {}.", input_file.display(), e);
-        process::exit(1);
-    }
-
-    if let Err(e) = file_utils::check_output_file_requirements(output_file) {
-        eprintln!("{}", e);
-        process::exit(1);
-    }
-
-    let report;
-
-    if matches.is_present("QUIET") {
-        report = std::sync::Arc::new(mk_quiet_report());
+    let report = if matches.is_present("QUIET") {
+        std::sync::Arc::new(mk_quiet_report())
     } else if atty::is(Stream::Stdout) {
-        report = std::sync::Arc::new(mk_progress_bar_report());
+        std::sync::Arc::new(mk_progress_bar_report())
     } else {
-        report = Arc::new(mk_simple_report());
-    }
+        Arc::new(mk_simple_report())
+    };
 
-    let opts = ThinRestoreOptions {
+    check_input_file(input_file, &report);
+
+    let opts = CacheRepairOptions {
         input: &input_file,
         output: &output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report: report.clone(),
     };
 
-    if let Err(reason) = restore(opts) {
+    if let Err(reason) = repair(opts) {
         report.fatal(&format!("{}", reason));
         process::exit(1);
     }

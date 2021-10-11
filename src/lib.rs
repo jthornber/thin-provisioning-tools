@@ -17,6 +17,7 @@ extern crate quickcheck_macros;
 
 pub mod cache;
 pub mod checksum;
+pub mod commands;
 pub mod file_utils;
 pub mod io_engine;
 pub mod math;
