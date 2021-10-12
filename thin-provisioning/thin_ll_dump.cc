@@ -135,7 +135,9 @@ namespace {
 	public:
 		ll_mapping_tree_emitter(block_manager::ptr bm,
 					indented_stream &out)
-			: bm_(bm), out_(out) {
+			: bm_(bm),
+			  nv_(create_btree_node_validator()),
+			  out_(out) {
 		}
 
 		void visit(btree_path const &path, block_address tree_root) {
@@ -147,6 +149,7 @@ namespace {
 			try {
 				block_manager::read_ref rr = bm_->read_lock(tree_root);
 				node_ref<uint64_traits> n = btree_detail::to_node<uint64_traits>(rr);
+				nv_->check(n.raw(), tree_root);
 				node_info ni;
 				convert_to_node_info(n, ni);
 				output_node_info(out_, ni);
@@ -160,6 +163,7 @@ namespace {
 		}
 	private:
 		block_manager::ptr bm_;
+		bcache::validator::ptr nv_;
 		indented_stream& out_;
 	};
 
