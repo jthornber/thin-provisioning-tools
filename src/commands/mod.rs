@@ -11,6 +11,7 @@ pub mod era_restore;
 pub mod thin_check;
 pub mod thin_dump;
 pub mod thin_metadata_pack;
+pub mod thin_metadata_size;
 pub mod thin_metadata_unpack;
 pub mod thin_repair;
 pub mod thin_restore;

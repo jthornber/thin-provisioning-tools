@@ -5,6 +5,7 @@ pub mod dump;
 pub mod ir;
 pub mod metadata;
 pub mod metadata_repair;
+pub mod metadata_size;
 pub mod repair;
 pub mod restore;
 pub mod runs;

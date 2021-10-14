@@ -48,6 +48,8 @@ fn main_() -> Result<()> {
         thin_dump::run(&new_args);
     } else if name_eq(name, "thin_metadata_pack") {
         thin_metadata_pack::run(&new_args);
+    } else if name_eq(name, "thin_metadata_size") {
+        thin_metadata_size::run(&new_args);
     } else if name_eq(name, "thin_metadata_unpack") {
         thin_metadata_unpack::run(&new_args);
     } else if name_eq(name, "thin_repair") {
