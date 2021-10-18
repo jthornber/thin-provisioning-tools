@@ -45,7 +45,7 @@ impl<'a> Program<'a> for ThinCheck {
         "thin_check"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,
@@ -315,17 +315,26 @@ fn fatal_errors_cant_be_ignored() -> Result<()> {
 #[test]
 fn auto_repair() -> Result<()> {
     let mut td = TestDir::new()?;
+    td.dont_clean_up();
     let md = prep_metadata(&mut td)?;
+
+    eprintln!("here 0");
 
     // auto-repair should have no effect on good metadata.
     ensure_untouched(&md, || {
-        run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+        // run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+        run_ok(thin_check_cmd(args![&md]))?;
         Ok(())
     })?;
+    eprintln!("here 0.5");
 
     generate_metadata_leaks(&md, 16, 0, 1)?;
+    eprintln!("here 1");
     run_fail(thin_check_cmd(args![&md]))?;
+    eprintln!("here 2");
     run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+    eprintln!("here 3");
+
     run_ok(thin_check_cmd(args![&md]))?;
     Ok(())
 }

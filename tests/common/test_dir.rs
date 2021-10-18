@@ -36,6 +36,10 @@ impl TestDir {
         })
     }
 
+    pub fn dont_clean_up(&mut self) {
+        self.clean_up = false;
+    }
+
     pub fn mk_path(&mut self, file: &str) -> PathBuf {
         let mut p = PathBuf::new();
         p.push(&self.dir);
@@ -54,6 +58,8 @@ impl Drop for TestDir {
                 let _ignore = fs::remove_file(f);
             }
             fs::remove_dir(&self.dir).expect("couldn't remove test directory");
+        } else {
+            eprintln!("leaving test directory: {:?}", self.dir);
         }
     }
 }

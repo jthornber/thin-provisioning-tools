@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+pub use crate::common::process::*;
 use crate::common::test_dir::TestDir;
 
 //------------------------------------------
@@ -12,7 +13,7 @@ pub enum ArgType {
 
 pub trait Program<'a> {
     fn name() -> &'a str;
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>;

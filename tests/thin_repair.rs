@@ -33,7 +33,7 @@ impl<'a> Program<'a> for ThinRepair {
         "thin_repair"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,

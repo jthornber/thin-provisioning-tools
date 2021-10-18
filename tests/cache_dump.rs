@@ -41,7 +41,7 @@ impl<'a> Program<'a> for CacheDump {
         "cache_dump"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,

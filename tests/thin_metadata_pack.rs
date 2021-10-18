@@ -38,7 +38,7 @@ impl<'a> Program<'a> for ThinMetadataPack {
         "thin_metadata_pack"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,

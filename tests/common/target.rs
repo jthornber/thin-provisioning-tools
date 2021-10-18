@@ -1,20 +1,28 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+use crate::common::process::*;
+
 //------------------------------------------
 
-pub fn cpp_cmd<S, I>(cmd: S, args: I) -> duct::Expression
+pub fn cpp_cmd<S, I>(cmd: S, args: I) -> Command
 where
     S: Into<OsString>,
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    let mut bin = PathBuf::from("./bin");
+    let mut bin = PathBuf::from("bin");
     bin.push(Into::<OsString>::into(cmd));
-    duct::cmd(bin.as_path(), args)
+
+    let mut args_ = Vec::new();
+    for a in args {
+        args_.push(Into::<OsString>::into(a));
+    }
+
+    Command::new(Into::<OsString>::into(bin.as_path()), args_)
 }
 
-pub fn rust_cmd<S, I>(cmd: S, args: I) -> duct::Expression
+pub fn rust_cmd<S, I>(cmd: S, args: I) -> Command
 where
     S: Into<OsString>,
     I: IntoIterator,
@@ -27,10 +35,10 @@ where
         all_args.push(Into::<OsString>::into(a));
     }
 
-    duct::cmd(RUST_PATH, &all_args)
+    Command::new(Into::<OsString>::into(RUST_PATH), all_args)
 }
 
-pub fn thin_check_cmd<I>(args: I) -> duct::Expression
+pub fn thin_check_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -38,7 +46,7 @@ where
     rust_cmd("thin_check", args)
 }
 
-pub fn thin_rmap_cmd<I>(args: I) -> duct::Expression
+pub fn thin_rmap_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -46,7 +54,7 @@ where
     cpp_cmd("thin_rmap", args)
 }
 
-pub fn thin_generate_metadata_cmd<I>(args: I) -> duct::Expression
+pub fn thin_generate_metadata_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -54,7 +62,7 @@ where
     cpp_cmd("thin_generate_metadata", args)
 }
 
-pub fn thin_generate_mappings_cmd<I>(args: I) -> duct::Expression
+pub fn thin_generate_mappings_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -62,7 +70,7 @@ where
     cpp_cmd("thin_generate_mappings", args)
 }
 
-pub fn thin_generate_damage_cmd<I>(args: I) -> duct::Expression
+pub fn thin_generate_damage_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -70,7 +78,16 @@ where
     cpp_cmd("thin_generate_damage", args)
 }
 
-pub fn thin_restore_cmd<I>(args: I) -> duct::Expression
+pub fn thin_restore_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    // rust_cmd("thin_restore", args)
+    cpp_cmd("thin_restore", args)
+}
+
+pub fn thin_repair_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -78,15 +95,7 @@ where
     rust_cmd("thin_restore", args)
 }
 
-pub fn thin_repair_cmd<I>(args: I) -> duct::Expression
-where
-    I: IntoIterator,
-    I::Item: Into<OsString>,
-{
-    rust_cmd("thin_restore", args)
-}
-
-pub fn thin_dump_cmd<I>(args: I) -> duct::Expression
+pub fn thin_dump_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -94,7 +103,7 @@ where
     rust_cmd("thin_dump", args)
 }
 
-pub fn thin_delta_cmd<I>(args: I) -> duct::Expression
+pub fn thin_delta_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -102,7 +111,7 @@ where
     cpp_cmd("thin_delta", args)
 }
 
-pub fn thin_metadata_pack_cmd<I>(args: I) -> duct::Expression
+pub fn thin_metadata_pack_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -110,7 +119,7 @@ where
     rust_cmd("thin_metadata_pack", args)
 }
 
-pub fn thin_metadata_unpack_cmd<I>(args: I) -> duct::Expression
+pub fn thin_metadata_unpack_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -118,7 +127,7 @@ where
     rust_cmd("thin_metadata_unpack", args)
 }
 
-pub fn cache_check_cmd<I>(args: I) -> duct::Expression
+pub fn cache_check_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -126,7 +135,7 @@ where
     rust_cmd("cache_check", args)
 }
 
-pub fn cache_dump_cmd<I>(args: I) -> duct::Expression
+pub fn cache_dump_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -134,7 +143,7 @@ where
     rust_cmd("cache_dump", args)
 }
 
-pub fn cache_restore_cmd<I>(args: I) -> duct::Expression
+pub fn cache_restore_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,
@@ -142,7 +151,7 @@ where
     rust_cmd("cache_restore", args)
 }
 
-pub fn cache_repair_cmd<I>(args: I) -> duct::Expression
+pub fn cache_repair_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
     I::Item: Into<OsString>,

@@ -39,7 +39,7 @@ impl<'a> Program<'a> for CacheRestore {
         "thin_restore"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,

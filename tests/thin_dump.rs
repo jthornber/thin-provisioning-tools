@@ -35,7 +35,7 @@ impl<'a> Program<'a> for ThinDump {
         "thin_dump"
     }
 
-    fn cmd<I>(args: I) -> duct::Expression
+    fn cmd<I>(args: I) -> Command
     where
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,
