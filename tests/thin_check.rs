@@ -315,7 +315,6 @@ fn fatal_errors_cant_be_ignored() -> Result<()> {
 #[test]
 fn auto_repair() -> Result<()> {
     let mut td = TestDir::new()?;
-    td.dont_clean_up();
     let md = prep_metadata(&mut td)?;
 
     eprintln!("here 0");
