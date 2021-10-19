@@ -15,16 +15,29 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_dump [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-f|--format} {xml|human_readable|custom}\n  \
-                       {-r|--repair}\n  \
-                       {-m|--metadata-snap} [block#]\n  \
-                       {-o <xml file>}\n  \
-                       {--dev-id} <dev-id>\n  \
-                       {--skip-mappings}\n  \
-                       {-V|--version}";
+const USAGE: &str =
+"thin_dump 0.9.0
+Dump thin-provisioning metadata to stdout in XML format
+
+USAGE:
+    thin_dump [FLAGS] [OPTIONS] <INPUT>
+
+FLAGS:
+    -q, --quiet            Suppress output messages, return only exit code.
+    -r, --repair           Repair the metadata whilst dumping it
+        --skip-mappings    Do not dump the mappings
+    -h, --help             Prints help information
+    -V, --version          Prints version information
+
+OPTIONS:
+        --data-block-size <SECTORS>                Provide the data block size for repairing
+    -m, --metadata-snapshot <METADATA_SNAPSHOT>    Access the metadata snapshot on a live pool
+        --nr-data-blocks <NUM>                     Override the number of data blocks if needed
+    -o, --output <FILE>                            Specify the output file rather than stdout
+        --transaction-id <NUM>                     Override the transaction id if needed
+
+ARGS:
+    <INPUT>    Specify the input device to dump";
 
 //-----------------------------------------
 
