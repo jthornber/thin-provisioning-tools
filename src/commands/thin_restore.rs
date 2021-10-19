@@ -51,8 +51,8 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_output_file(output_file, &report);
 
     let opts = ThinRestoreOptions {
-        input: &input_file,
-        output: &output_file,
+        input: input_file,
+        output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report: report.clone(),
     };

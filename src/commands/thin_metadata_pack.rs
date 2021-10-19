@@ -31,7 +31,7 @@ pub fn run(args: &[std::ffi::OsString]) {
     let report = std::sync::Arc::new(mk_simple_report());
     check_input_file(input_file, &report);
 
-    if let Err(reason) = crate::pack::toplevel::pack(&input_file, &output_file) {
+    if let Err(reason) = crate::pack::toplevel::pack(input_file, output_file) {
         report.fatal(&format!("Application error: {}\n", reason));
         exit(1);
     }

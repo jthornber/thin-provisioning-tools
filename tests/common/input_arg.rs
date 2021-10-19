@@ -222,9 +222,8 @@ where
     let wrapper = build_args_fn(P::arg_type())?;
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::cmd(args))?;
-        let msg = format!(
-            "This looks like XML.  This tool only checks the binary metadata format.",
-        );
+        let msg =
+            "This looks like XML.  This tool only checks the binary metadata format.".to_string();
         assert!(stderr.contains(&msg));
         Ok(())
     })

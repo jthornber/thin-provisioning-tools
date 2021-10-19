@@ -109,7 +109,7 @@ impl<'a> Deref for FileGuard<'a> {
     type Target = File;
 
     fn deref(&self) -> &File {
-        &self.file.as_ref().expect("empty file guard")
+        self.file.as_ref().expect("empty file guard")
     }
 }
 
@@ -180,7 +180,7 @@ impl SyncIoEngine {
 
     fn write_(output: &mut File, b: &Block) -> Result<()> {
         output.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        output.write_all(&b.get_data())?;
+        output.write_all(b.get_data())?;
         Ok(())
     }
 }

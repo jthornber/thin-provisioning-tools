@@ -161,18 +161,15 @@ fn superblock_succeeds() -> Result<()> {
     }
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    run_ok(
-        thin_repair_cmd(
-        args![
-            "--transaction-id=1",
-            "--data-block-size=128",
-            "--nr-data-blocks=20480",
-            "-i",
-            &md1,
-            "-o",
-            &md2
-        ],
-    ))?;
+    run_ok(thin_repair_cmd(args![
+        "--transaction-id=1",
+        "--data-block-size=128",
+        "--nr-data-blocks=20480",
+        "-i",
+        &md1,
+        "-o",
+        &md2
+    ]))?;
     let repaired = run_ok_raw(thin_dump_cmd(args![&md2]))?;
     if !cfg!(feature = "rust_tests") {
         assert_eq!(repaired.stderr.len(), 0);

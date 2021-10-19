@@ -15,8 +15,7 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str =
-"thin_dump 0.9.0
+const USAGE: &str = "thin_dump 0.9.0
 Dump thin-provisioning metadata to stdout in XML format
 
 USAGE:
@@ -178,15 +177,13 @@ fn repair_superblock() -> Result<()> {
     let before = run_ok_raw(thin_dump_cmd(args![&md]))?;
     damage_superblock(&md)?;
 
-    let after = run_ok_raw(thin_dump_cmd(
-        args![
-            "--repair",
-            "--transaction-id=1",
-            "--data-block-size=128",
-            "--nr-data-blocks=20480",
-            &md
-        ],
-    ))?;
+    let after = run_ok_raw(thin_dump_cmd(args![
+        "--repair",
+        "--transaction-id=1",
+        "--data-block-size=128",
+        "--nr-data-blocks=20480",
+        &md
+    ]))?;
     if !cfg!(feature = "rust_tests") {
         assert_eq!(after.stderr.len(), 0);
     }
@@ -204,15 +201,12 @@ fn missing_transaction_id() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(
-        thin_dump_cmd(
-        args![
-            "--repair",
-            "--data-block-size=128",
-            "--nr-data-blocks=20480",
-            &md
-        ],
-    ))?;
+    let stderr = run_fail(thin_dump_cmd(args![
+        "--repair",
+        "--data-block-size=128",
+        "--nr-data-blocks=20480",
+        &md
+    ]))?;
     assert!(stderr.contains("transaction id"));
     Ok(())
 }
@@ -222,15 +216,12 @@ fn missing_data_block_size() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(
-        thin_dump_cmd(
-        args![
-            "--repair",
-            "--transaction-id=1",
-            "--nr-data-blocks=20480",
-            &md
-        ],
-    ))?;
+    let stderr = run_fail(thin_dump_cmd(args![
+        "--repair",
+        "--transaction-id=1",
+        "--nr-data-blocks=20480",
+        &md
+    ]))?;
     assert!(stderr.contains("data block size"));
     Ok(())
 }
@@ -240,15 +231,12 @@ fn missing_nr_data_blocks() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(
-        thin_dump_cmd(
-        args![
-            "--repair",
-            "--transaction-id=1",
-            "--data-block-size=128",
-            &md
-        ],
-    ))?;
+    let stderr = run_fail(thin_dump_cmd(args![
+        "--repair",
+        "--transaction-id=1",
+        "--data-block-size=128",
+        &md
+    ]))?;
     assert!(stderr.contains("nr data blocks"));
     Ok(())
 }

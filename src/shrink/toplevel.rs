@@ -343,16 +343,16 @@ fn find_first(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Option<usi
         Err(n) => {
             if n == 0 {
                 let (from, _) = &remaps[n];
-                overlaps(&r, &from, n)
+                overlaps(r, from, n)
             } else if n == remaps.len() {
                 let (from, _) = &remaps[n - 1];
-                overlaps(&r, from, n - 1)
+                overlaps(r, from, n - 1)
             } else {
                 // Need to check the previous entry
                 let (from, _) = &remaps[n - 1];
-                overlaps(&r, &from, n - 1).or_else(|| {
+                overlaps(r, from, n - 1).or_else(|| {
                     let (from, _) = &remaps[n];
-                    overlaps(&r, &from, n)
+                    overlaps(r, from, n)
                 })
             }
         }
@@ -368,7 +368,7 @@ fn remap(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Vec<BlockRange>
     let mut remap = Vec::new();
     let mut r = r.start..r.end;
 
-    if let Some(index) = find_first(&r, &remaps) {
+    if let Some(index) = find_first(&r, remaps) {
         let mut index = index;
         loop {
             let (from, to) = &remaps[index];
@@ -487,7 +487,7 @@ fn build_copy_regions(remaps: &[(BlockRange, BlockRange)], block_size: u64) -> V
         rs.push(Region {
             src: from.start * block_size,
             dest: to.start * block_size,
-            len: range_len(&from) * block_size,
+            len: range_len(from) * block_size,
         });
     }
 

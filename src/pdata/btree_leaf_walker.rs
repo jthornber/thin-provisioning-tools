@@ -132,10 +132,10 @@ impl<'a> LeafWalker<'a> {
             .keys_context(kr));
         }
 
-        let node = unpack_node::<V>(path, &b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
 
         if let Internal { keys, values, .. } = node {
-            let krs = split_key_ranges(path, &kr, &keys)?;
+            let krs = split_key_ranges(path, kr, &keys)?;
             if depth == 0 {
                 // it is the lowest internal
                 for i in 0..krs.len() {
@@ -187,7 +187,7 @@ impl<'a> LeafWalker<'a> {
             ));
         }
 
-        let node = unpack_node::<V>(path, &b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
 
         match node {
             Internal { values, .. } => {

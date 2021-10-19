@@ -92,10 +92,10 @@ mod format1 {
             let mut errs: Vec<ArrayError> = Vec::new();
 
             for m in b.values.iter() {
-                if let Err(e) = self.check_flags(&m) {
+                if let Err(e) = self.check_flags(m) {
                     errs.push(e);
                 }
-                if let Err(e) = self.check_oblock(&m) {
+                if let Err(e) = self.check_oblock(m) {
                     errs.push(e);
                 }
             }
@@ -182,10 +182,10 @@ mod format2 {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
             for (m, cblock) in b.values.iter().zip(cbegin..cend) {
-                if let Err(e) = self.check_flags(&m, inner.dirty_bits.contains(cblock as usize)) {
+                if let Err(e) = self.check_flags(m, inner.dirty_bits.contains(cblock as usize)) {
                     errs.push(e);
                 }
-                if let Err(e) = self.check_oblock(&m, &mut inner.seen_oblocks) {
+                if let Err(e) = self.check_oblock(m, &mut inner.seen_oblocks) {
                     errs.push(e);
                 }
             }
@@ -271,7 +271,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     let sb = match read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION) {
         Ok(sb) => sb,
         Err(e) => {
-            check_not_xml(&opts.dev, &opts.report);
+            check_not_xml(opts.dev, &opts.report);
             return Err(e);
         }
     };

@@ -195,11 +195,11 @@ impl BTreeWalker {
             .keys_context(kr));
         }
 
-        let node = unpack_node::<V>(path, &b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
 
         match node {
             Internal { keys, values, .. } => {
-                let krs = split_key_ranges(path, &kr, &keys)?;
+                let krs = split_key_ranges(path, kr, &keys)?;
                 let errs = self.walk_nodes(path, visitor, &krs, &values);
                 return self.build_aggregate(b.loc, errs);
             }
@@ -208,7 +208,7 @@ impl BTreeWalker {
                 keys,
                 values,
             } => {
-                if let Err(e) = visitor.visit(path, &kr, &header, &keys, &values) {
+                if let Err(e) = visitor.visit(path, kr, &header, &keys, &values) {
                     let e = BTreeError::Path(path.clone(), Box::new(e));
                     self.set_fail(b.loc, e.clone());
                     return Err(e);
@@ -286,11 +286,11 @@ where
         .keys_context(kr));
     }
 
-    let node = unpack_node::<V>(path, &b.get_data(), w.ignore_non_fatal, is_root)?;
+    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root)?;
 
     match node {
         Internal { keys, values, .. } => {
-            let krs = split_key_ranges(path, &kr, &keys)?;
+            let krs = split_key_ranges(path, kr, &keys)?;
             let errs = walk_nodes_threaded(w.clone(), path, pool, visitor, &krs, &values);
             return w.build_aggregate(b.loc, errs);
         }

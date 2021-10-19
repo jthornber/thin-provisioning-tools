@@ -1,9 +1,9 @@
 extern crate clap;
 
+use crate::file_utils;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
-use crate::file_utils;
 
 use std::process::exit;
 
@@ -37,7 +37,7 @@ pub fn run(args: &[std::ffi::OsString]) {
         exit(1);
     }
 
-    if let Err(reason) = crate::pack::toplevel::unpack(&input_file, &output_file) {
+    if let Err(reason) = crate::pack::toplevel::unpack(input_file, output_file) {
         eprintln!("Application error: {}", reason);
         process::exit(1);
     }

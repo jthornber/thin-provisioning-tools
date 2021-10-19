@@ -23,7 +23,7 @@ fn main_() -> Result<()> {
 
     let mut new_args = vec![OsString::from(&name)];
     for a in args.into_iter() {
-        new_args.push(OsString::from(a));
+        new_args.push(a);
     }
 
     if name_eq(name, "cache_check") {

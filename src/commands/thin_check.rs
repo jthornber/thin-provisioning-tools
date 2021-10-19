@@ -5,9 +5,9 @@ use std::path::Path;
 use std::process;
 use std::sync::Arc;
 
+use crate::commands::utils::*;
 use crate::io_engine::*;
 use crate::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
-use crate::commands::utils::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_check")
@@ -88,7 +88,7 @@ pub fn run(args: &[std::ffi::OsString]) {
                 .index(1),
         );
 
-    let matches = parser.get_matches_from(args.into_iter());
+    let matches = parser.get_matches_from(args.iter());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
     let report = mk_report(matches.is_present("QUIET"));
@@ -101,14 +101,13 @@ pub fn run(args: &[std::ffi::OsString]) {
 
     if matches.is_present("ASYNC_IO") {
         engine = Arc::new(
-            AsyncIoEngine::new(&input_file, MAX_CONCURRENT_IO, writable)
+            AsyncIoEngine::new(input_file, MAX_CONCURRENT_IO, writable)
                 .expect("unable to open input file"),
         );
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(
-            SyncIoEngine::new(&input_file, nr_threads, writable)
-                .expect("unable to open input file"),
+            SyncIoEngine::new(input_file, nr_threads, writable).expect("unable to open input file"),
         );
     }
 

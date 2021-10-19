@@ -442,7 +442,7 @@ mod tests {
         let mut r = Cursor::new(&mut bs);
         let unpacked = unpack(&mut r, ns.len() * 8).unwrap();
 
-        check_u64s_match(&ns, &unpacked[0..])
+        check_u64s_match(ns, &unpacked[0..])
     }
 
     #[test]
@@ -457,7 +457,7 @@ mod tests {
         ];
 
         for t in &cases {
-            assert!(check_pack_u64s(&t));
+            assert!(check_pack_u64s(t));
         }
     }
 

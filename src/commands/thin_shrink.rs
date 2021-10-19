@@ -70,7 +70,7 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_input_file(input_file, &report);
 
     if let Err(reason) =
-        crate::shrink::toplevel::shrink(&input_file, &output_file, &data_file, size, do_copy)
+        crate::shrink::toplevel::shrink(input_file, output_file, data_file, size, do_copy)
     {
         eprintln!("Application error: {}\n", reason);
         exit(1);

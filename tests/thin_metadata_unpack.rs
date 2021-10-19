@@ -106,8 +106,18 @@ fn end_to_end() -> Result<()> {
     let mut td = TestDir::new()?;
     let md_in = mk_valid_md(&mut td)?;
     let md_out = mk_zeroed_md(&mut td)?;
-    run_ok(thin_metadata_pack_cmd(args!["-i", &md_in, "-o", "meta.pack"]))?;
-    run_ok(thin_metadata_unpack_cmd(args!["-i", "meta.pack", "-o", &md_out]))?;
+    run_ok(thin_metadata_pack_cmd(args![
+        "-i",
+        &md_in,
+        "-o",
+        "meta.pack"
+    ]))?;
+    run_ok(thin_metadata_unpack_cmd(args![
+        "-i",
+        "meta.pack",
+        "-o",
+        &md_out
+    ]))?;
 
     let dump1 = run_ok(thin_dump_cmd(args![&md_in]))?;
     let dump2 = run_ok(thin_dump_cmd(args![&md_out]))?;

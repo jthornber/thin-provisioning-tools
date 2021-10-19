@@ -12,8 +12,7 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = 
-"cache_repair 0.9.0
+const USAGE: &str = "cache_repair 0.9.0
 Repair binary cache metadata, and write it to a different device or file
 
 USAGE:

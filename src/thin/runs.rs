@@ -125,7 +125,7 @@ impl Gatherer {
         // Now we need to mark entries that follow a tail as heads.
         let mut heads = mem::take(&mut self.heads);
         for t in &self.tails {
-            if let Some(e) = self.entries.get(&t) {
+            if let Some(e) = self.entries.get(t) {
                 for n in &e.neighbours {
                     heads.insert(*n);
                 }
