@@ -326,9 +326,6 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
         sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
     }
     let md = build_metadata(ctx.engine.clone(), &sb)?;
-
-    ctx.report
-        .set_title("Optimising metadata to improve leaf packing");
     let md = optimise_metadata(md)?;
 
     let writer: Box<dyn Write>;

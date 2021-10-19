@@ -214,7 +214,6 @@ fn build_defs(runs: BTreeMap<u64, Vec<u64>>) -> Vec<Def> {
 // FIXME: I think this may be better done as part of restore.
 pub fn optimise_metadata(md: Metadata) -> Result<Metadata> {
     let runs = build_runs(&md.devs);
-    eprintln!("{} runs", runs.len());
 
     // Expand old devs to use the new atomic runs
     let mut devs = Vec::new();
