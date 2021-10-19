@@ -58,10 +58,10 @@ fn log_output(output: &process::Output) {
     use std::str::from_utf8;
 
     if output.stdout.len() > 0 {
-        eprintln!("stdout: {:?}", from_utf8(&output.stdout));
+        eprintln!("stdout: \n{}<<END>>", from_utf8(&output.stdout).unwrap());
     }
     if output.stderr.len() > 0 {
-        eprintln!("stderr: {:?}", from_utf8(&output.stderr));
+        eprintln!("stderr: \n{}<<END>>", from_utf8(&output.stderr).unwrap());
     }
 }
 
