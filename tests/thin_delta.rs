@@ -34,7 +34,7 @@ impl<'a> Program<'a> for ThinDelta {
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,
     {
-        rust_cmd("thin_delta", args)
+        cpp_cmd("thin_delta", args)
     }
 
     fn usage() -> &'a str {
