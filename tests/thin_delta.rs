@@ -46,7 +46,7 @@ impl<'a> Program<'a> for ThinDelta {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        msg::bad_option_hint(option)
+        format!("unrecognized option '{}'", option)
     }
 }
 
