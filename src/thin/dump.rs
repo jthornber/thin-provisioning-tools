@@ -265,33 +265,40 @@ fn emit_entries(
     Ok(())
 }
 
+// FIXME: surely this is a standard fun?
+fn override_<'a, T>(opt: &'a Option<T>, default: &'a T) -> &'a T {
+    match opt {
+        Some(v) => v,
+        None => default,
+    }
+}
+
 pub fn dump_metadata(
     engine: Arc<dyn IoEngine>,
     out: &mut dyn MetadataVisitor,
     sb: &Superblock,
     md: &Metadata,
+    overrides: &SuperblockOverrides,
 ) -> Result<()> {
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let out_sb = ir::Superblock {
         uuid: "".to_string(),
         time: sb.time,
-        transaction: sb.transaction_id,
+        transaction: *override_(&overrides.transaction_id, &sb.transaction_id),
         flags: if sb.flags.needs_check { Some(1) } else { None },
         version: Some(2),
-        data_block_size: sb.data_block_size,
-        nr_data_blocks: data_root.nr_blocks,
+        data_block_size: *override_(&overrides.data_block_size, &sb.data_block_size),
+        nr_data_blocks: *override_(&overrides.nr_data_blocks, &data_root.nr_blocks),
         metadata_snap: None,
     };
     out.superblock_b(&out_sb)?;
 
-    // ctx.report.set_title("Dumping shared regions");
     for d in &md.defs {
         out.def_shared_b(&format!("{}", d.def_id))?;
         emit_entries(engine.clone(), out, &d.map.entries)?;
         out.def_shared_e()?;
     }
 
-    // ctx.report.set_title("Dumping devices");
     for dev in &md.devs {
         let device = ir::Device {
             dev_id: dev.thin_id,
@@ -336,7 +343,7 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     }
     let mut out = xml::XmlWriter::new(writer);
 
-    dump_metadata(ctx.engine, &mut out, &sb, &md)
+    dump_metadata(ctx.engine, &mut out, &sb, &md, &opts.overrides)
 }
 
 //------------------------------------------

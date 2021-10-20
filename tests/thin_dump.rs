@@ -145,33 +145,27 @@ fn no_stderr() -> Result<()> {
 // test superblock overriding & repair
 // TODO: share with thin_repair
 
-#[cfg(not(feature = "rust_tests"))]
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let output = run_ok_raw(thin_dump_cmd(args![&md, flag, value]))?;
 
-    if !cfg!(feature = "rust_tests") {
-        assert_eq!(output.stderr.len(), 0);
-    }
+    assert_eq!(output.stderr.len(), 0);
     assert!(std::str::from_utf8(&output.stdout[0..])?.contains(pattern));
     Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_transaction_id() -> Result<()> {
     override_something("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_data_block_size() -> Result<()> {
     override_something("--data-block-size", "8192", "data_block_size=\"8192\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_nr_data_blocks() -> Result<()> {
     override_something("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
@@ -206,7 +200,6 @@ fn repair_superblock() -> Result<()> {
 // TODO: share with thin_repair
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn missing_transaction_id() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
@@ -243,7 +236,6 @@ fn missing_data_block_size() -> Result<()> {
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn missing_nr_data_blocks() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
