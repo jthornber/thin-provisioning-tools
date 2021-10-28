@@ -16,4 +16,5 @@ pub mod thin_metadata_unpack;
 pub mod thin_repair;
 pub mod thin_restore;
 pub mod thin_shrink;
+pub mod thin_trim;
 pub mod utils;

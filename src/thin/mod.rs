@@ -10,4 +10,5 @@ pub mod repair;
 pub mod restore;
 pub mod runs;
 pub mod superblock;
+pub mod trim;
 pub mod xml;

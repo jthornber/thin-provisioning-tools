@@ -58,6 +58,8 @@ fn main_() -> Result<()> {
         thin_restore::run(&new_args);
     } else if name_eq(name, "thin_shrink") {
         thin_shrink::run(&new_args);
+    } else if name_eq(name, "thin_trim") {
+        thin_trim::run(&new_args);
     } else {
         return Err(anyhow!("unrecognised command"));
     }
