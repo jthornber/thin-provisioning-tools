@@ -13,8 +13,7 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str =
-"cache_check 0.9.0
+const USAGE: &str = "cache_check 0.9.0
 
 USAGE:
     cache_check [FLAGS] <INPUT>
@@ -105,7 +104,10 @@ fn failing_q() -> Result<()> {
     let md = mk_zeroed_md(&mut td)?;
     let output = run_fail_raw(cache_check_cmd(args!["-q", &md]))?;
     assert_eq!(output.stdout.len(), 0);
-    eprintln!("stderr = '{}'", std::str::from_utf8(&output.stderr).unwrap());
+    eprintln!(
+        "stderr = '{}'",
+        std::str::from_utf8(&output.stderr).unwrap()
+    );
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
@@ -127,7 +129,6 @@ fn valid_metadata_passes() -> Result<()> {
     run_ok(cache_check_cmd(args![&md]))?;
     Ok(())
 }
-
 
 // FIXME: put back in, I don't want to add the --debug- arg to the
 // tool again, so we should have a little library function for tweaking

@@ -96,7 +96,7 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     if version >= 2 {
         let (m, root) = le_u64(i)?;
         dirty_root = Some(root);
-        i = &m;
+        i = m;
     }
 
     Ok((

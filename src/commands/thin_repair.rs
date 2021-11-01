@@ -91,8 +91,8 @@ pub fn run(args: &[std::ffi::OsString]) {
     });
 
     let opts = ThinRepairOptions {
-        input: &input_file,
-        output: &output_file,
+        input: input_file,
+        output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report: report.clone(),
         overrides: SuperblockOverrides {

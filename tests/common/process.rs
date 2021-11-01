@@ -57,10 +57,10 @@ impl fmt::Display for Command {
 fn log_output(output: &process::Output) {
     use std::str::from_utf8;
 
-    if output.stdout.len() > 0 {
+    if !output.stdout.is_empty() {
         eprintln!("stdout: \n{}<<END>>", from_utf8(&output.stdout).unwrap());
     }
-    if output.stderr.len() > 0 {
+    if !output.stderr.is_empty() {
         eprintln!("stderr: \n{}<<END>>", from_utf8(&output.stderr).unwrap());
     }
 }
@@ -100,7 +100,11 @@ pub fn run_fail(command: Command) -> Result<String> {
     let output = command.unchecked().run()?;
     log_output(&output);
     assert!(!output.status.success());
-    let stderr = std::str::from_utf8(&output.stderr[..]).unwrap().to_string();
+    let stderr = std::str::from_utf8(&output.stderr[..])
+        .unwrap()
+        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .to_string();
+
     Ok(stderr)
 }
 

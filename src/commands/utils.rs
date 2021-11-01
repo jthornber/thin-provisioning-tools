@@ -10,10 +10,7 @@ use crate::report::*;
 
 pub fn check_input_file(input_file: &Path, report: &Report) {
     if !file_utils::file_exists(input_file) {
-        report.fatal(&format!(
-            "Couldn't find input file '{:?}'.",
-            &input_file
-        ));
+        report.fatal(&format!("Couldn't find input file '{:?}'.", &input_file));
         exit(1);
     }
 
@@ -62,15 +59,11 @@ pub fn mk_report(quiet: bool) -> std::sync::Arc<Report> {
 }
 
 fn is_xml(line: &[u8]) -> bool {
-    line.starts_with(b"<superblock") ||
-        line.starts_with(b"?xml") ||
-            line.starts_with(b"<!DOCTYPE")
+    line.starts_with(b"<superblock") || line.starts_with(b"?xml") || line.starts_with(b"<!DOCTYPE")
 }
 
 pub fn check_not_xml_(input_file: &Path, report: &Report) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .open(input_file)?;
+    let mut file = OpenOptions::new().read(true).open(input_file)?;
     let mut data = vec![0; 16];
     file.read_exact(&mut data)?;
 

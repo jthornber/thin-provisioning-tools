@@ -26,7 +26,7 @@ namespace thin_provisioning {
 		};
 
 		inline bool operator==(device_details const& lhs, device_details const& rhs) {
-			return false; // device_details are not compariable
+			return false; // device_details are not comparable
 		}
 
 		inline bool operator!=(device_details const& lhs, device_details const& rhs) {

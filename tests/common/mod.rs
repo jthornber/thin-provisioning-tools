@@ -5,6 +5,8 @@
 pub mod cache;
 pub mod cache_xml_generator;
 pub mod common_args;
+pub mod era;
+pub mod era_xml_generator;
 pub mod fixture;
 pub mod input_arg;
 pub mod output_option;

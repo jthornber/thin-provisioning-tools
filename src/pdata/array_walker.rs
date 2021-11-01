@@ -77,7 +77,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                 for (i, b) in values.iter().enumerate() {
                     // TODO: report indices of array entries based on the type size
                     let mut array_errs = self.array_errs.lock().unwrap();
-                    array_errs.push(array::io_err(&path, *b).index_context(keys[i]));
+                    array_errs.push(array::io_err(path, *b).index_context(keys[i]));
                 }
             }
             Ok(rblocks) => {
@@ -85,7 +85,7 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                     match rb {
                         Err(_) => {
                             let mut array_errs = self.array_errs.lock().unwrap();
-                            array_errs.push(array::io_err(&path, values[i]).index_context(keys[i]));
+                            array_errs.push(array::io_err(path, values[i]).index_context(keys[i]));
                         }
                         Ok(b) => {
                             let mut path = path.to_vec();

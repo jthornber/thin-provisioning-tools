@@ -14,8 +14,7 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str =
-"cache_restore 0.9.0
+const USAGE: &str = "cache_restore 0.9.0
 Convert XML format metadata to binary.
 
 USAGE:

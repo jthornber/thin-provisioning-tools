@@ -266,7 +266,7 @@ impl<'a> Widget for HeaderWidget<'a> {
 fn read_node<V: Unpack>(engine: &dyn IoEngine, loc: u64) -> Result<btree::Node<V>> {
     let b = engine.read(loc)?;
     let path = Vec::new();
-    btree::unpack_node(&path, &b.get_data(), true, false)
+    btree::unpack_node(&path, b.get_data(), true, false)
         .map_err(|_| anyhow!("couldn't unpack btree node"))
 }
 
@@ -765,7 +765,7 @@ fn perform_action(
 }
 
 fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
-    let engine = SyncIoEngine::new(&path, 1, false)?;
+    let engine = SyncIoEngine::new(path, 1, false)?;
 
     let mut panels: Vec<Box<dyn Panel>> = Vec::new();
 
@@ -861,7 +861,7 @@ fn main() -> Result<()> {
         .map(|text| btree::decode_node_path(text).unwrap());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    explore(&input_file, node_path)
+    explore(input_file, node_path)
 }
 
 //------------------------------------

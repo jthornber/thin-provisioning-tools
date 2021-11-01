@@ -561,7 +561,7 @@ pub fn unpack_node<V: Unpack>(
         if let Some(l) = last {
             if k <= l {
                 return Err(node_err(
-                    &path,
+                    path,
                     &format!("keys out of order: {} <= {}", k, l),
                 ));
             }
@@ -582,7 +582,7 @@ pub fn unpack_node<V: Unpack>(
             values,
         })
     } else {
-        let (_i, values) = convert_result(&path, count(le_u64, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
         Ok(Node::Internal {
             header,
             keys,

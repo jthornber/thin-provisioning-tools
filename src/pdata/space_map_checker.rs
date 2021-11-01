@@ -109,7 +109,7 @@ fn check_low_ref_counts(
                 return Err(anyhow!("Unable to read bitmap block"));
             }
             Ok(b) => {
-                if checksum::metadata_block_type(&b.get_data()) != checksum::BT::BITMAP {
+                if checksum::metadata_block_type(b.get_data()) != checksum::BT::BITMAP {
                     report.fatal(&format!(
                         "Index entry points to block ({}) that isn't a bitmap",
                         b.loc

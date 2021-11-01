@@ -143,6 +143,14 @@ where
     rust_cmd("cache_dump", args)
 }
 
+pub fn cache_metadata_size_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_metadata_size", args)
+}
+
 pub fn cache_restore_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,
@@ -157,6 +165,38 @@ where
     I::Item: Into<OsString>,
 {
     rust_cmd("cache_repair", args)
+}
+
+pub fn era_check_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("era_check", args)
+}
+
+pub fn era_dump_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("era_dump", args)
+}
+
+pub fn era_restore_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("era_restore", args)
+}
+
+pub fn era_repair_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("era_repair", args)
 }
 
 //------------------------------------------

@@ -109,7 +109,7 @@ impl<'a> Deref for FileGuard<'a> {
     type Target = File;
 
     fn deref(&self) -> &File {
-        &self.file.as_ref().expect("empty file guard")
+        self.file.as_ref().expect("empty file guard")
     }
 }
 
@@ -131,21 +131,30 @@ impl<'a> Drop for FileGuard<'a> {
 }
 
 impl SyncIoEngine {
-    fn open_file(path: &Path, writable: bool) -> Result<File> {
+    fn open_file(path: &Path, writable: bool, excl: bool) -> Result<File> {
         let file = OpenOptions::new()
             .read(true)
             .write(writable)
-            .custom_flags(libc::O_EXCL)
+            .custom_flags(if excl { libc::O_EXCL } else { 0 })
             .open(path)?;
 
         Ok(file)
     }
 
     pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<SyncIoEngine> {
+        SyncIoEngine::new_with(path, nr_files, writable, true)
+    }
+
+    pub fn new_with(
+        path: &Path,
+        nr_files: usize,
+        writable: bool,
+        excl: bool,
+    ) -> Result<SyncIoEngine> {
         let nr_blocks = get_nr_blocks(path)?; // check file mode eariler
         let mut files = Vec::with_capacity(nr_files);
         for _n in 0..nr_files {
-            files.push(SyncIoEngine::open_file(path, writable)?);
+            files.push(SyncIoEngine::open_file(path, writable, excl)?);
         }
 
         Ok(SyncIoEngine {
@@ -180,7 +189,7 @@ impl SyncIoEngine {
 
     fn write_(output: &mut File, b: &Block) -> Result<()> {
         output.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        output.write_all(&b.get_data())?;
+        output.write_all(b.get_data())?;
         Ok(())
     }
 }
@@ -237,11 +246,24 @@ pub struct AsyncIoEngine {
 
 impl AsyncIoEngine {
     pub fn new(path: &Path, queue_len: u32, writable: bool) -> Result<AsyncIoEngine> {
+        AsyncIoEngine::new_with(path, queue_len, writable, true)
+    }
+
+    pub fn new_with(
+        path: &Path,
+        queue_len: u32,
+        writable: bool,
+        excl: bool,
+    ) -> Result<AsyncIoEngine> {
         let nr_blocks = get_nr_blocks(path)?; // check file mode earlier
+        let mut flags = libc::O_DIRECT;
+        if excl {
+            flags |= libc::O_EXCL;
+        }
         let input = OpenOptions::new()
             .read(true)
             .write(writable)
-            .custom_flags(libc::O_DIRECT | libc::O_EXCL)
+            .custom_flags(flags)
             .open(path)?;
 
         Ok(AsyncIoEngine {

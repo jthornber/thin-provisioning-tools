@@ -218,9 +218,9 @@ impl<'a> MetadataVisitor for Restorer<'a> {
 
         if m.dirty {
             let index = m.cblock >> 6;
-            let bi = m.cblock & 63;
+            let mask = 1 << (m.cblock & 63);
             if index == self.dirty_bits.0 {
-                self.dirty_bits.1 |= 1 << bi;
+                self.dirty_bits.1 |= mask;
             } else {
                 let dirty_builder = self.dirty_builder.as_mut().unwrap();
                 dirty_builder.push_value(

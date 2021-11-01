@@ -32,8 +32,14 @@ pub fn bool_val(kv: &Attribute) -> anyhow::Result<bool> {
     Ok(n)
 }
 
-pub fn bad_attr<T>(tag: &str, _attr: &[u8]) -> anyhow::Result<T> {
-    Err(anyhow!("unknown attribute in tag '{}'", tag))
+pub fn bad_attr<T>(tag: &str, attr: &[u8]) -> anyhow::Result<T> {
+    Err(anyhow!(
+        "unknown attribute {}in tag '{}'",
+        std::str::from_utf8(attr)
+            .map(|s| format!("'{}' ", s))
+            .unwrap_or_default(),
+        tag
+    ))
 }
 
 pub fn check_attr<T>(tag: &str, name: &str, maybe_v: Option<T>) -> anyhow::Result<T> {

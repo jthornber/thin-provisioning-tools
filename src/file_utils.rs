@@ -18,28 +18,19 @@ pub fn is_file_or_blk_(info: FileStat) -> bool {
 }
 
 pub fn file_exists(path: &Path) -> bool {
-    match stat::stat(path) {
-        Ok(_) => true,
-        _ => false,
-    }
+    matches!(stat::stat(path), Ok(_))
 }
 
 pub fn is_file_or_blk(path: &Path) -> bool {
     match stat::stat(path) {
-        Ok(info) =>is_file_or_blk_(info),
+        Ok(info) => is_file_or_blk_(info),
         _ => false,
     }
 }
 
 pub fn is_file(path: &Path) -> bool {
     match stat::stat(path) {
-        Ok(info) => {
-            if test_bit(info.st_mode, SFlag::S_IFREG) {
-                true
-            } else {
-                false
-            }
-        }
+        Ok(info) => test_bit(info.st_mode, SFlag::S_IFREG),
         _ => false,
     }
 }
@@ -113,5 +104,3 @@ pub fn create_sized_file(path: &Path, nr_bytes: u64) -> io::Result<std::fs::File
 }
 
 //---------------------------------------
-
-

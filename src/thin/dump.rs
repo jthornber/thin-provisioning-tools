@@ -188,7 +188,7 @@ fn emit_leaf(v: &mut MappingVisitor, b: &Block) -> Result<()> {
         )));
     }
 
-    let node = unpack_node::<BlockTime>(&path, &b.get_data(), true, true)?;
+    let node = unpack_node::<BlockTime>(&path, b.get_data(), true, true)?;
 
     match node {
         Internal { .. } => {

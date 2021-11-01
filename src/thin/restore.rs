@@ -153,7 +153,7 @@ impl<'a> Restorer<'a> {
         };
 
         for (_, leaves) in self.sub_trees.iter() {
-            release_leaves(self.w, &leaves, &mut value_rc)?;
+            release_leaves(self.w, leaves, &mut value_rc)?;
         }
 
         Ok(())

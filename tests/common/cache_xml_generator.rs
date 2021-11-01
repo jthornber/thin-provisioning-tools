@@ -64,7 +64,7 @@ impl XmlGen for CacheGen {
         let mut cblocks = (0..self.nr_cache_blocks).collect::<Vec<u32>>();
         cblocks.shuffle(&mut rand::thread_rng());
         cblocks.truncate(nr_resident as usize);
-        cblocks.sort();
+        cblocks.sort_unstable();
 
         v.mappings_b()?;
         {

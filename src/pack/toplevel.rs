@@ -66,7 +66,7 @@ fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
 }
 
 pub fn pack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>> {
-    let nr_blocks = get_nr_blocks(&input_file)?;
+    let nr_blocks = get_nr_blocks(input_file)?;
     let nr_jobs = std::cmp::max(1, std::cmp::min(num_cpus::get() as u64, nr_blocks / 128));
     let chunk_vecs = mk_chunk_vecs(nr_blocks, nr_jobs);
 
@@ -122,7 +122,7 @@ where
             let kind = metadata_block_type(data);
             if kind != BT::UNKNOWN {
                 z.write_u64::<LittleEndian>(b)?;
-                pack_block(&mut z, kind, &data)?;
+                pack_block(&mut z, kind, data)?;
 
                 written += 1;
                 if written == 1024 {

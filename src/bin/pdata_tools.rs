@@ -23,23 +23,33 @@ fn main_() -> Result<()> {
 
     let mut new_args = vec![OsString::from(&name)];
     for a in args.into_iter() {
-        new_args.push(OsString::from(a));
+        new_args.push(a);
     }
 
     if name_eq(name, "cache_check") {
         cache_check::run(&new_args);
     } else if name_eq(name, "cache_dump") {
         cache_dump::run(&new_args);
+    } else if name_eq(name, "cache_metadata_size") {
+        cache_metadata_size::run(&new_args);
     } else if name_eq(name, "cache_repair") {
         cache_repair::run(&new_args);
     } else if name_eq(name, "cache_restore") {
         cache_restore::run(&new_args);
+    } else if name_eq(name, "era_check") {
+        era_check::run(&new_args);
+    } else if name_eq(name, "era_dump") {
+        era_dump::run(&new_args);
+    } else if name_eq(name, "era_restore") {
+        era_restore::run(&new_args);
     } else if name_eq(name, "thin_check") {
         thin_check::run(&new_args);
     } else if name_eq(name, "thin_dump") {
         thin_dump::run(&new_args);
     } else if name_eq(name, "thin_metadata_pack") {
         thin_metadata_pack::run(&new_args);
+    } else if name_eq(name, "thin_metadata_size") {
+        thin_metadata_size::run(&new_args);
     } else if name_eq(name, "thin_metadata_unpack") {
         thin_metadata_unpack::run(&new_args);
     } else if name_eq(name, "thin_repair") {

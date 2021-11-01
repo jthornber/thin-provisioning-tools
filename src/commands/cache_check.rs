@@ -7,8 +7,8 @@ use std::process;
 use std::sync::Arc;
 
 use crate::cache::check::{check, CacheCheckOptions};
-use crate::report::*;
 use crate::commands::utils::*;
+use crate::report::*;
 
 //------------------------------------------
 
@@ -76,7 +76,7 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_file_not_tiny(input_file, &report);
 
     let opts = CacheCheckOptions {
-        dev: &input_file,
+        dev: input_file,
         async_io: matches.is_present("ASYNC_IO"),
         sb_only: matches.is_present("SB_ONLY"),
         skip_mappings: matches.is_present("SKIP_MAPPINGS"),
