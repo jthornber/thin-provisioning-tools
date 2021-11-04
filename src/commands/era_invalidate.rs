@@ -73,7 +73,7 @@ pub fn run(args: &[std::ffi::OsString]) {
         output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
         threshold,
-        metadata_snap: matches.is_present("METADATA_SNAP"),
+        use_metadata_snap: matches.is_present("METADATA_SNAP"),
     };
 
     if let Err(reason) = invalidate(&opts) {
