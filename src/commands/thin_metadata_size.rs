@@ -81,7 +81,7 @@ pub fn run(args: &[std::ffi::OsString]) {
 
     match metadata_size(&opts) {
         Ok(size) => {
-            let size = to_units(size * 512, unit.clone());
+            let size = to_units(size * 512, unit);
             if numeric_only {
                 println!("{}", size);
             } else {

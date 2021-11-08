@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 //------------------------------------------
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum Units {
     Byte,
     Sector,
@@ -23,23 +23,25 @@ pub enum Units {
 
 impl Units {
     fn size_bytes(&self) -> u64 {
+        use Units::*;
+
         match self {
-            Units::Byte => 1,
-            Units::Sector => 512,
+            Byte => 1,
+            Sector => 512,
             // base 2
-            Units::Kibibyte => 1024,
-            Units::Mebibyte => 1048576,
-            Units::Gibibyte => 1073741824,
-            Units::Tebibyte => 1099511627776,
-            Units::Pebibyte => 1125899906842624,
-            Units::Exbibyte => 1152921504606846976,
+            Kibibyte => 1024,
+            Mebibyte => 1048576,
+            Gibibyte => 1073741824,
+            Tebibyte => 1099511627776,
+            Pebibyte => 1125899906842624,
+            Exbibyte => 1152921504606846976,
             // base 10
-            Units::Kilobyte => 1000,
-            Units::Megabyte => 1000000,
-            Units::Gigabyte => 1000000000,
-            Units::Terabyte => 1000000000000,
-            Units::Petabyte => 1000000000000000,
-            Units::Exabyte => 1000000000000000000,
+            Kilobyte => 1000,
+            Megabyte => 1000000,
+            Gigabyte => 1000000000,
+            Terabyte => 1000000000000,
+            Petabyte => 1000000000000000,
+            Exabyte => 1000000000000000000,
         }
     }
 }
@@ -72,23 +74,25 @@ impl FromStr for Units {
 
 impl ToString for Units {
     fn to_string(&self) -> String {
+        use Units::*;
+
         String::from(match self {
-            Units::Byte => "byte",
-            Units::Sector => "sector",
+            Byte => "byte",
+            Sector => "sector",
             // base 2
-            Units::Kibibyte => "kibibyte",
-            Units::Mebibyte => "mibibyte",
-            Units::Gibibyte => "gibibyte",
-            Units::Tebibyte => "terabyte",
-            Units::Pebibyte => "pebibyte",
-            Units::Exbibyte => "exbibyte",
+            Kibibyte => "kibibyte",
+            Mebibyte => "mibibyte",
+            Gibibyte => "gibibyte",
+            Tebibyte => "terabyte",
+            Pebibyte => "pebibyte",
+            Exbibyte => "exbibyte",
             // base 10
-            Units::Kilobyte => "kilobyte",
-            Units::Megabyte => "megabyte",
-            Units::Gigabyte => "gigabyte",
-            Units::Terabyte => "terabyte",
-            Units::Petabyte => "petabyte",
-            Units::Exabyte => "exabyte",
+            Kilobyte => "kilobyte",
+            Megabyte => "megabyte",
+            Gigabyte => "gigabyte",
+            Terabyte => "terabyte",
+            Petabyte => "petabyte",
+            Exabyte => "exabyte",
         })
     }
 }
