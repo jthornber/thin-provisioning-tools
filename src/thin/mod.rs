@@ -3,6 +3,7 @@ pub mod check;
 pub mod device_detail;
 pub mod dump;
 pub mod ir;
+pub mod ls;
 pub mod metadata;
 pub mod metadata_repair;
 pub mod metadata_size;

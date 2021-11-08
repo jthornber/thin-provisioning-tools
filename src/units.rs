@@ -44,6 +44,29 @@ impl Units {
             Exabyte => 1000000000000000000,
         }
     }
+
+    pub fn to_string_short(&self) -> String {
+        use Units::*;
+
+        String::from(match self {
+            Byte => "",
+            Sector => "s",
+            // base 2
+            Kibibyte => "KiB",
+            Mebibyte => "MiB",
+            Gibibyte => "GiB",
+            Tebibyte => "Tib",
+            Pebibyte => "PiB",
+            Exbibyte => "EiB",
+            // base 10
+            Kilobyte => "kB",
+            Megabyte => "MB",
+            Gigabyte => "GB",
+            Terabyte => "TB",
+            Petabyte => "PB",
+            Exabyte => "EB",
+        })
+    }
 }
 
 impl FromStr for Units {
@@ -103,6 +126,26 @@ pub fn to_bytes(size: u64, unit: Units) -> u64 {
 
 pub fn to_units(bytes: u64, unit: Units) -> f64 {
     bytes as f64 / unit.size_bytes() as f64
+}
+
+pub fn to_pretty_print_units(bytes: u64) -> (u64, Units) {
+    use Units::*;
+    let units = [
+        Byte, Kibibyte, Mebibyte, Gibibyte, Tebibyte, Pebibyte, Exbibyte,
+    ];
+
+    // choose the unit that fits the input value
+    let mut val = bytes;
+    let mut i = 0;
+    while val > 8192 {
+        val = match val {
+            8193..=1048575 => (val as f64 / 1024.0).round() as u64,
+            _ => val / 1024,
+        };
+        i += 1;
+    }
+
+    (val, units[i])
 }
 
 //------------------------------------------

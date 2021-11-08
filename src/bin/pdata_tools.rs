@@ -46,6 +46,8 @@ fn main_() -> Result<()> {
         thin_check::run(&new_args);
     } else if name_eq(name, "thin_dump") {
         thin_dump::run(&new_args);
+    } else if name_eq(name, "thin_ls") {
+        thin_ls::run(&new_args);
     } else if name_eq(name, "thin_metadata_pack") {
         thin_metadata_pack::run(&new_args);
     } else if name_eq(name, "thin_metadata_size") {
