@@ -2,13 +2,19 @@ use anyhow::{anyhow, Result};
 use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use threadpool::ThreadPool;
 
 use crate::grid_layout::GridLayout;
 use crate::io_engine::SECTOR_SHIFT;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::btree_walker::btree_to_map;
+use crate::pdata::btree::{self, *};
+use crate::pdata::btree_walker::*;
+use crate::pdata::space_map::*;
+use crate::pdata::space_map_common::SMRoot;
+use crate::pdata::unpack::unpack;
 use crate::report::Report;
+use crate::thin::block_time::BlockTime;
 use crate::thin::device_detail::DeviceDetail;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::{read_superblock, Superblock, SUPERBLOCK_LOCATION};
@@ -99,6 +105,102 @@ impl ToString for OutputField {
             CreationTime => "CREATE_TIME",
             SnapshottedTime => "SNAP_TIME",
         })
+    }
+}
+
+//------------------------------------------
+
+// FIXME: duplication of thin::check
+struct BottomLevelVisitor {
+    data_sm: ASpaceMap,
+}
+
+impl NodeVisitor<BlockTime> for BottomLevelVisitor {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        _k: &[u64],
+        values: &[BlockTime],
+    ) -> btree::Result<()> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let mut data_sm = self.data_sm.lock().unwrap();
+
+        let mut start = values[0].block;
+        let mut len = 1;
+
+        for b in values.iter().skip(1) {
+            let block = b.block;
+            if block == start + len {
+                len += 1;
+            } else {
+                data_sm.inc(start, len).unwrap();
+                start = block;
+                len = 1;
+            }
+        }
+
+        data_sm.inc(start, len).unwrap();
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
+struct SharedBlockCounter {
+    data_sm: ASpaceMap,
+    nr_shared: Arc<Mutex<u64>>, // FIXME: combine the mutexes
+}
+
+impl NodeVisitor<BlockTime> for SharedBlockCounter {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        _k: &[u64],
+        values: &[BlockTime],
+    ) -> btree::Result<()> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let data_sm = self.data_sm.lock().unwrap();
+
+        let mut nr_shared = 0;
+        for bt in values.iter() {
+            if data_sm
+                .get(bt.block)
+                .map_err(|e| btree::value_err(e.to_string()))?
+                > 1
+            {
+                nr_shared += 1;
+            }
+        }
+
+        *self.nr_shared.lock().unwrap() += nr_shared;
+
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
+        Ok(())
     }
 }
 
@@ -195,34 +297,66 @@ pub struct ThinLsOptions<'a> {
 
 struct Context {
     engine: Arc<dyn IoEngine + Send + Sync>,
+    pool: ThreadPool,
     _report: Arc<Report>, // TODO: report the scanning progress
 }
 
 fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
+    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
 
+    let engine: Arc<dyn IoEngine + Send + Sync>;
     if opts.async_io {
         engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
     }
 
+    let pool = ThreadPool::new(nr_threads);
+
     Ok(Context {
         engine,
+        pool,
         _report: opts.report.clone(),
     })
 }
 
-fn count_shared_blocks(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    sb: &Superblock,
-) -> Result<Vec<u64>> {
+fn count_shared_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<u64>> {
     let mut path = vec![0];
-    let roots = btree_to_map::<u64>(&mut path, engine.clone(), false, sb.mapping_root)?;
+    let sm_root = unpack::<SMRoot>(&sb.data_sm_root[..])?;
+    let data_sm = Arc::new(Mutex::new(RestrictedTwoSpaceMap::new(sm_root.nr_blocks)));
+    let metadata_sm = Arc::new(Mutex::new(NoopSpaceMap::new(ctx.engine.get_nr_blocks())));
 
-    // TODO
-    Ok(vec![0; roots.len()])
+    // 1st pass
+    let w = Arc::new(BTreeWalker::new_with_sm(
+        ctx.engine.clone(),
+        metadata_sm.clone(),
+        false,
+    )?);
+    let roots = btree_to_map::<u64>(&mut path, ctx.engine.clone(), false, sb.mapping_root)?;
+    for root in roots.values() {
+        let v = Arc::new(BottomLevelVisitor {
+            data_sm: data_sm.clone(),
+        });
+        walk_threaded(&mut path, w.clone(), &ctx.pool, v, *root)?;
+    }
+
+    // 2nd pass
+    let w = Arc::new(BTreeWalker::new_with_sm(
+        ctx.engine.clone(),
+        metadata_sm,
+        false,
+    )?);
+    let mut shared = Vec::with_capacity(roots.len());
+    for root in roots.values() {
+        let v = Arc::new(SharedBlockCounter {
+            data_sm: data_sm.clone(),
+            nr_shared: Arc::new(Mutex::new(0)),
+        });
+        walk_threaded(&mut path, w.clone(), &ctx.pool, v.clone(), *root)?;
+        shared.push(*v.nr_shared.lock().unwrap());
+    }
+
+    Ok(shared)
 }
 
 pub fn ls(opts: ThinLsOptions) -> Result<()> {
@@ -239,7 +373,7 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
     let mut path = vec![0];
     let details =
         btree_to_map::<DeviceDetail>(&mut path, ctx.engine.clone(), false, sb.details_root)?;
-    let shared = count_shared_blocks(ctx.engine.clone(), &sb)?;
+    let shared = count_shared_blocks(&ctx, &sb)?;
 
     let mut table = LsTable::new(&opts.fields, details.len(), sb.data_block_size);
     if !opts.no_headers {
