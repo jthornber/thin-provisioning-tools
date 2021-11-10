@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::io::Write;
+use std::ops::Deref;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -159,53 +160,6 @@ impl NodeVisitor<BlockTime> for BottomLevelVisitor {
 
 //------------------------------------------
 
-struct SharedBlockCounter {
-    data_sm: ASpaceMap,
-    nr_shared: Arc<Mutex<u64>>, // FIXME: combine the mutexes
-}
-
-impl NodeVisitor<BlockTime> for SharedBlockCounter {
-    fn visit(
-        &self,
-        _path: &[u64],
-        _kr: &KeyRange,
-        _h: &NodeHeader,
-        _k: &[u64],
-        values: &[BlockTime],
-    ) -> btree::Result<()> {
-        if values.is_empty() {
-            return Ok(());
-        }
-
-        let data_sm = self.data_sm.lock().unwrap();
-
-        let mut nr_shared = 0;
-        for bt in values.iter() {
-            if data_sm
-                .get(bt.block)
-                .map_err(|e| btree::value_err(e.to_string()))?
-                > 1
-            {
-                nr_shared += 1;
-            }
-        }
-
-        *self.nr_shared.lock().unwrap() += nr_shared;
-
-        Ok(())
-    }
-
-    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
-        Ok(())
-    }
-
-    fn end_walk(&self) -> btree::Result<()> {
-        Ok(())
-    }
-}
-
-//------------------------------------------
-
 pub struct LsTable<'a> {
     fields: &'a [OutputField],
     grid: GridLayout,
@@ -234,7 +188,13 @@ impl<'a> LsTable<'a> {
         self.grid.new_row();
     }
 
-    fn push_row(&mut self, dev_id: u64, detail: &DeviceDetail, shared_blocks: u64) {
+    fn push_row(
+        &mut self,
+        dev_id: u64,
+        detail: &DeviceDetail,
+        mapped_blocks: u64,
+        shared_blocks: u64,
+    ) {
         use OutputField::*;
 
         if self.fields.is_empty() {
@@ -242,7 +202,7 @@ impl<'a> LsTable<'a> {
         }
 
         let bs = self.data_block_size;
-        let ex_blocks = detail.mapped_blocks - shared_blocks;
+        let ex_blocks = mapped_blocks - shared_blocks;
 
         for field in self.fields {
             let val: u64 = match field {
@@ -250,9 +210,9 @@ impl<'a> LsTable<'a> {
                 TransactionId => detail.transaction_id,
                 CreationTime => detail.creation_time as u64,
                 SnapshottedTime => detail.snapshotted_time as u64,
-                MappedBlocks => detail.mapped_blocks,
-                MappedSectors => detail.mapped_blocks * bs,
-                MappedBytes | Mapped => (detail.mapped_blocks * bs) << SECTOR_SHIFT as u64,
+                MappedBlocks => mapped_blocks,
+                MappedSectors => mapped_blocks * bs,
+                MappedBytes | Mapped => (mapped_blocks * bs) << SECTOR_SHIFT as u64,
                 ExclusiveBlocks => ex_blocks,
                 ExclusiveSectors => ex_blocks * bs,
                 ExclusiveBytes | Exclusive => (ex_blocks * bs) << SECTOR_SHIFT as u64,
@@ -320,11 +280,112 @@ fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
     })
 }
 
-fn count_shared_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<u64>> {
+#[derive(Clone, Copy)]
+struct NodeInfo {
+    nr_mapped: u64,
+    nr_shared: u64,
+}
+
+impl NodeInfo {
+    #[inline]
+    fn is_initialized(&self) -> bool {
+        self.nr_shared <= self.nr_mapped
+    }
+}
+
+impl Default for NodeInfo {
+    fn default() -> Self {
+        NodeInfo {
+            nr_mapped: 0,
+            nr_shared: 1, // set to uninitialized
+        }
+    }
+}
+
+struct MappingsCollator<'a> {
+    engine: Arc<dyn IoEngine>,
+    info: Vec<NodeInfo>,
+    metadata_sm: &'a dyn SpaceMap,
+    data_sm: &'a dyn SpaceMap,
+}
+
+impl<'a> MappingsCollator<'a> {
+    fn new(
+        engine: Arc<dyn IoEngine>,
+        metadata_sm: &'a dyn SpaceMap,
+        data_sm: &'a dyn SpaceMap,
+    ) -> MappingsCollator<'a> {
+        let info = vec![NodeInfo::default(); engine.get_nr_blocks() as usize];
+        MappingsCollator {
+            engine,
+            info,
+            metadata_sm,
+            data_sm,
+        }
+    }
+
+    fn get_info(&mut self, blocknr: u64) -> Result<(u64, u64)> {
+        let info = self.info[blocknr as usize];
+        if info.is_initialized() {
+            return Ok((info.nr_mapped, info.nr_shared));
+        }
+
+        let blk = self.engine.read(blocknr)?;
+        let node = unpack_node::<BlockTime>(&[0], blk.get_data(), false, true)?;
+        let (nr_mapped, nr_shared) = match node {
+            Node::Internal {
+                header: _,
+                keys: _,
+                ref values,
+            } => {
+                let mut nr_mapped = 0;
+                let mut nr_shared = 0;
+                for b in values {
+                    let r = self.get_info(*b)?;
+                    nr_mapped += r.0;
+                    nr_shared += r.1;
+                }
+                if self.metadata_sm.get(blocknr)? > 1 {
+                    nr_shared = nr_mapped;
+                }
+                (nr_mapped, nr_shared)
+            }
+            Node::Leaf {
+                header: _,
+                keys: _,
+                ref values,
+            } => {
+                let nr_shared = if self.metadata_sm.get(blocknr)? > 1 {
+                    values.len() as u64
+                } else {
+                    let mut cnt: u64 = 0;
+                    for bt in values {
+                        if self.data_sm.get(bt.block)? > 1 {
+                            cnt += 1;
+                        }
+                    }
+                    cnt
+                };
+                (values.len() as u64, nr_shared)
+            }
+        };
+
+        self.info[blocknr as usize] = NodeInfo {
+            nr_mapped,
+            nr_shared,
+        };
+
+        Ok((nr_mapped, nr_shared))
+    }
+}
+
+fn count_mapped_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<(u64, u64)>> {
     let mut path = vec![0];
     let sm_root = unpack::<SMRoot>(&sb.data_sm_root[..])?;
     let data_sm = Arc::new(Mutex::new(RestrictedTwoSpaceMap::new(sm_root.nr_blocks)));
-    let metadata_sm = Arc::new(Mutex::new(NoopSpaceMap::new(ctx.engine.get_nr_blocks())));
+    let metadata_sm = Arc::new(Mutex::new(RestrictedTwoSpaceMap::new(
+        ctx.engine.get_nr_blocks(),
+    )));
 
     // 1st pass
     let w = Arc::new(BTreeWalker::new_with_sm(
@@ -341,22 +402,33 @@ fn count_shared_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<u64>> {
     }
 
     // 2nd pass
-    let w = Arc::new(BTreeWalker::new_with_sm(
-        ctx.engine.clone(),
-        metadata_sm,
-        false,
-    )?);
-    let mut shared = Vec::with_capacity(roots.len());
+    // TODO: multi-threaded?
+    let metadata_sm = metadata_sm.lock().unwrap();
+    let data_sm = data_sm.lock().unwrap();
+    let mut c = MappingsCollator::new(ctx.engine.clone(), metadata_sm.deref(), data_sm.deref());
+    let mut mapped = Vec::with_capacity(roots.len());
     for root in roots.values() {
-        let v = Arc::new(SharedBlockCounter {
-            data_sm: data_sm.clone(),
-            nr_shared: Arc::new(Mutex::new(0)),
-        });
-        walk_threaded(&mut path, w.clone(), &ctx.pool, v.clone(), *root)?;
-        shared.push(*v.nr_shared.lock().unwrap());
+        mapped.push(c.get_info(*root)?);
     }
 
-    Ok(shared)
+    Ok(mapped)
+}
+
+fn some_counting_fields(fields: &[OutputField]) -> bool {
+    use OutputField::*;
+
+    for field in fields.iter() {
+        match field {
+            DeviceId | TransactionId | CreationTime | SnapshottedTime => {
+                continue;
+            }
+            _ => {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 pub fn ls(opts: ThinLsOptions) -> Result<()> {
@@ -373,15 +445,21 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
     let mut path = vec![0];
     let details =
         btree_to_map::<DeviceDetail>(&mut path, ctx.engine.clone(), false, sb.details_root)?;
-    let shared = count_shared_blocks(&ctx, &sb)?;
 
     let mut table = LsTable::new(&opts.fields, details.len(), sb.data_block_size);
     if !opts.no_headers {
         table.push_headers();
     }
 
-    for ((dev_id, detail), nr_shared) in details.iter().zip(shared) {
-        table.push_row(*dev_id, detail, nr_shared);
+    if some_counting_fields(&opts.fields) {
+        let mapped = count_mapped_blocks(&ctx, &sb)?;
+        for ((dev_id, detail), (actual_mapped, nr_shared)) in details.iter().zip(mapped) {
+            table.push_row(*dev_id, detail, actual_mapped, nr_shared);
+        }
+    } else {
+        for (dev_id, detail) in details.iter() {
+            table.push_row(*dev_id, detail, 0, 0);
+        }
     }
 
     table.render(&mut std::io::stdout())
