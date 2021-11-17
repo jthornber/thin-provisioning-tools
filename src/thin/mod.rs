@@ -9,6 +9,7 @@ pub mod metadata_repair;
 pub mod metadata_size;
 pub mod repair;
 pub mod restore;
+pub mod rmap;
 pub mod runs;
 pub mod superblock;
 pub mod trim;

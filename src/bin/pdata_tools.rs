@@ -58,6 +58,8 @@ fn main_() -> Result<()> {
         thin_repair::run(&new_args);
     } else if name_eq(name, "thin_restore") {
         thin_restore::run(&new_args);
+    } else if name_eq(name, "thin_rmap") {
+        thin_rmap::run(&new_args);
     } else if name_eq(name, "thin_shrink") {
         thin_shrink::run(&new_args);
     } else if name_eq(name, "thin_trim") {
