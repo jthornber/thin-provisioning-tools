@@ -440,7 +440,7 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
     }
 
     // ensure the metadata is consistent
-    is_superblock_consistent(sb.clone(), ctx.engine.clone())?;
+    is_superblock_consistent(sb.clone(), ctx.engine.clone(), false)?;
 
     let mut path = vec![0];
     let details =

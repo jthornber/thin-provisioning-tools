@@ -733,12 +733,19 @@ impl std::error::Error for SuperblockError {}
 pub fn is_superblock_consistent(
     sb: Superblock,
     engine: Arc<dyn IoEngine + Send + Sync>,
+    ignore_non_fatal: bool,
 ) -> Result<Superblock> {
     let mut path = vec![0];
-    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), true, sb.mapping_root);
+    let ids1 =
+        btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, sb.mapping_root);
 
     path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root);
+    let ids2 = btree_to_key_set::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        ignore_non_fatal,
+        sb.details_root,
+    );
 
     if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
         return Err(anyhow::Error::new(SuperblockError {
@@ -820,7 +827,7 @@ pub fn read_or_rebuild_superblock(
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
     read_superblock(engine.as_ref(), loc)
-        .and_then(|sb| is_superblock_consistent(sb, engine.clone()))
+        .and_then(|sb| is_superblock_consistent(sb, engine.clone(), true))
         .or_else(|e| {
             let ref_sb = e
                 .downcast_ref::<SuperblockError>()
