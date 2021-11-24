@@ -44,6 +44,8 @@ fn main_() -> Result<()> {
         era_restore::run(&new_args);
     } else if name_eq(name, "thin_check") {
         thin_check::run(&new_args);
+    } else if name_eq(name, "thin_delta") {
+        thin_delta::run(&new_args);
     } else if name_eq(name, "thin_dump") {
         thin_dump::run(&new_args);
     } else if name_eq(name, "thin_ls") {

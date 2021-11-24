@@ -9,6 +9,7 @@ pub mod era_invalidate;
 pub mod era_repair;
 pub mod era_restore;
 pub mod thin_check;
+pub mod thin_delta;
 pub mod thin_dump;
 pub mod thin_ls;
 pub mod thin_metadata_pack;
