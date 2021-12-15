@@ -7,4 +7,5 @@ pub mod metadata_size;
 pub mod repair;
 pub mod restore;
 pub mod superblock;
+pub mod writeback;
 pub mod xml;

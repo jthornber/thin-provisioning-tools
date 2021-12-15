@@ -176,7 +176,7 @@ fn write_array_block<V: Unpack + Pack>(
     Ok(WriteResult { loc })
 }
 
-fn pack_array_block<W: WriteBytesExt, V: Pack + Unpack>(
+pub fn pack_array_block<W: WriteBytesExt, V: Pack + Unpack>(
     ablock: &ArrayBlock<V>,
     w: &mut W,
 ) -> Result<()> {

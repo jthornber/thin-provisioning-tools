@@ -36,6 +36,8 @@ fn main_() -> Result<()> {
         cache_repair::run(&new_args);
     } else if name_eq(name, "cache_restore") {
         cache_restore::run(&new_args);
+    } else if name_eq(name, "cache_writeback") {
+        cache_writeback::run(&new_args);
     } else if name_eq(name, "era_check") {
         era_check::run(&new_args);
     } else if name_eq(name, "era_dump") {
