@@ -49,13 +49,13 @@ namespace {
 
 		using maybe_string = boost::optional<string>;
 
-		size_t cache_size;
+		size_t cache_size; // bytes
 		unsigned sort_buffers;
 		maybe_string metadata_dev;
 		maybe_string origin_dev;
 		maybe_string fast_dev;
-		sector_t origin_dev_offset;
-		sector_t fast_dev_offset;
+		sector_t origin_dev_offset; // sectors
+		sector_t fast_dev_offset; // sectors
 		bool list_failed_blocks;
 		bool update_metadata;
 	};
@@ -308,8 +308,8 @@ namespace {
 		aio_engine engine(max_ios);
 		copier c(engine, *f.fast_dev, *f.origin_dev,
 			 md.sb_.data_block_size, f.cache_size,
-			 f.fast_dev_offset >> SECTOR_SHIFT,
-			 f.origin_dev_offset >> SECTOR_SHIFT);
+			 f.fast_dev_offset,
+			 f.origin_dev_offset);
 
 		auto bar = create_progress_bar("Copying data");
 		copy_visitor cv(c, f.sort_buffers, clean_shutdown(md), f.list_failed_blocks,
@@ -466,13 +466,6 @@ cache_writeback_cmd::run(int argc, char **argv)
 
 	if (!fs.fast_dev) {
 		cerr << "No fast device provided.\n\n";
-		usage(cerr);
-		return 1;
-	}
-
-	if (fs.origin_dev_offset & (SECTOR_SHIFT - 1) ||
-	    fs.fast_dev_offset & (SECTOR_SHIFT - 1)) {
-		cerr << "Offset must be sector-aligned\n\n";
 		usage(cerr);
 		return 1;
 	}
