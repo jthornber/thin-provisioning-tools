@@ -88,6 +88,7 @@ pub struct ThinCheckOptions {
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
     pub clear_needs_check: bool,
+    pub use_metadata_snap: bool,
     pub report: Arc<Report>,
 }
 
@@ -216,7 +217,11 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     report.set_title("Checking thin metadata");
 
     // superblock
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(engine.as_ref())?
+    } else {
+        read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
 
     report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 

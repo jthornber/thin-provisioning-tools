@@ -149,6 +149,7 @@ pub struct ThinDumpOptions<'a> {
     pub async_io: bool,
     pub report: Arc<Report>,
     pub repair: bool,
+    pub use_metadata_snap: bool,
     pub overrides: SuperblockOverrides,
 }
 
@@ -321,17 +322,18 @@ pub fn dump_metadata(
 
 pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
-    let sb;
-    if opts.repair {
-        sb = read_or_rebuild_superblock(
+    let sb = if opts.repair {
+        read_or_rebuild_superblock(
             ctx.engine.clone(),
             ctx.report.clone(),
             SUPERBLOCK_LOCATION,
             &opts.overrides,
-        )?;
+        )?
+    } else if opts.use_metadata_snap {
+        read_superblock_snap(ctx.engine.as_ref())?
     } else {
-        sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    }
+        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
     let md = build_metadata(ctx.engine.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 

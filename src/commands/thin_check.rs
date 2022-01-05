@@ -98,16 +98,18 @@ pub fn run(args: &[std::ffi::OsString]) {
 
     let engine: Arc<dyn IoEngine + Send + Sync>;
     let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");
+    let exclusive = matches.is_present("METADATA_SNAPSHOT");
 
     if matches.is_present("ASYNC_IO") {
         engine = Arc::new(
-            AsyncIoEngine::new(input_file, MAX_CONCURRENT_IO, writable)
+            AsyncIoEngine::new_with(input_file, MAX_CONCURRENT_IO, writable, exclusive)
                 .expect("unable to open input file"),
         );
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         engine = Arc::new(
-            SyncIoEngine::new(input_file, nr_threads, writable).expect("unable to open input file"),
+            SyncIoEngine::new_with(input_file, nr_threads, writable, exclusive)
+                .expect("unable to open input file"),
         );
     }
 
@@ -118,6 +120,7 @@ pub fn run(args: &[std::ffi::OsString]) {
         ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
         auto_repair: matches.is_present("AUTO_REPAIR"),
         clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
+        use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
         report: report.clone(),
     };
 
