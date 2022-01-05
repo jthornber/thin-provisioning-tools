@@ -44,7 +44,7 @@ metadata::metadata(block_manager::ptr bm, open_type ot)
 
 metadata::metadata(block_manager::ptr bm, block_address metadata_snap)
 {
-	open_metadata(bm);
+	open_metadata(bm, metadata_snap);
 }
 
 void
