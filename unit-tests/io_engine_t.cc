@@ -112,10 +112,10 @@ TEST_F(IOEngineTests, you_cannot_write_to_a_read_only_handle)
 TEST_F(IOEngineTests, you_can_write_to_a_read_write_handle)
 {
 	unsigned nr_sectors = 8;
-	auto src_handle = engine_->open_file(src_file_.get_path(), io_engine::M_READ_ONLY);
+	auto dest_handle = engine_->open_file(dest_file_.get_path(), io_engine::M_READ_WRITE);
 	void *data = pool_.alloc();
-	bool r = engine_->issue_io(src_handle,
-				   io_engine::D_READ,
+	bool r = engine_->issue_io(dest_handle,
+				   io_engine::D_WRITE,
 				   0, nr_sectors,
 				   data,
 				   123);
@@ -124,7 +124,7 @@ TEST_F(IOEngineTests, you_can_write_to_a_read_write_handle)
 	ASSERT_TRUE(wr->first);
 	ASSERT_TRUE(wr->second == 123);
 
-	engine_->close_file(src_handle);
+	engine_->close_file(dest_handle);
 	pool_.free(data);
 }
 
