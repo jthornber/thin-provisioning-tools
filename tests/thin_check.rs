@@ -215,24 +215,67 @@ fn auto_repair_incompatible_opts() -> Result<()> {
 }
 
 #[test]
-fn clear_needs_check_incompatible_opts() -> Result<()> {
+fn accepts_clear_needs_check_with_superblock_only() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", "-m", &md]))?;
-    run_fail(thin_check_cmd(args![
-        "--clear-needs-check-flag",
-        "--override-mapping-root",
-        "123",
-        &md
-    ]))?;
-    run_fail(thin_check_cmd(args![
+    run_ok(thin_check_cmd(args![
         "--clear-needs-check-flag",
         "--super-block-only",
         &md
     ]))?;
-    run_fail(thin_check_cmd(args![
+    Ok(())
+}
+
+#[test]
+fn accepts_clear_needs_check_with_skip_mappings() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(thin_check_cmd(args![
+        "--clear-needs-check-flag",
+        "--skip-mappings",
+        &md
+    ]))?;
+    Ok(())
+}
+
+#[test]
+fn accepts_clear_needs_check_with_ignore_non_fatal_errors() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(thin_check_cmd(args![
         "--clear-needs-check-flag",
         "--ignore-non-fatal-errors",
+        &md
+    ]))?;
+    Ok(())
+}
+
+#[test]
+fn rejects_clear_needs_check_with_metadata_snap() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    reserve_metadata_snap(&md)?;
+    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", "-m", &md]))?;
+    Ok(())
+}
+
+#[test]
+fn rejects_clear_needs_check_with_override_mapping_root() -> Result<()> {
+    use std::io::{Read, Seek};
+
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    let mut f = std::fs::File::open(&md)?;
+    let mut buf = [0; 8];
+    f.seek(std::io::SeekFrom::Start(320))?;
+    f.read(&mut buf)?;
+    let mapping_root = u64::from_le_bytes(buf).to_string();
+
+    run_fail(thin_check_cmd(args![
+        "--clear-needs-check-flag",
+        "--override-mapping-root",
+        &mapping_root,
         &md
     ]))?;
     Ok(())
@@ -260,9 +303,28 @@ fn no_clear_needs_check_if_error() -> Result<()> {
     let md = prep_metadata(&mut td)?;
 
     set_needs_check(&md)?;
-    generate_metadata_leaks(&md, 1, 0, 1)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?; // non-fatal error
+
     run_fail(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
     assert!(get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn clear_needs_check_if_superblock_only() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+
+    set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?; // non-fatal error
+
+    assert!(get_needs_check(&md)?);
+    run_ok(thin_check_cmd(args![
+        "--clear-needs-check-flag",
+        "--super-block-only",
+        &md
+    ]))?;
+    assert!(!get_needs_check(&md)?);
     Ok(())
 }
 
@@ -272,12 +334,30 @@ fn clear_needs_check_if_skip_mappings() -> Result<()> {
     let md = prep_metadata(&mut td)?;
 
     set_needs_check(&md)?;
-    generate_metadata_leaks(&md, 1, 0, 1)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?; // non-fatal error
 
     assert!(get_needs_check(&md)?);
     run_ok(thin_check_cmd(args![
         "--clear-needs-check-flag",
         "--skip-mappings",
+        &md
+    ]))?;
+    assert!(!get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn clear_needs_check_if_ignore_non_fatal_errors() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+
+    set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 1, 0, 1)?; // non-fatal error
+
+    assert!(get_needs_check(&md)?);
+    run_ok(thin_check_cmd(args![
+        "--clear-needs-check-flag",
+        "--ignore-non-fatal-errors",
         &md
     ]))?;
     assert!(!get_needs_check(&md)?);

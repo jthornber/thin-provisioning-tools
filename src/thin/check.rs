@@ -226,6 +226,12 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {
+        if opts.clear_needs_check {
+            let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+            if cleared {
+                ctx.report.info("Cleared needs_check flag");
+            }
+        }
         return Ok(());
     }
 
@@ -316,22 +322,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     //-----------------------------------------
 
-    if opts.auto_repair {
-        if !data_leaks.is_empty() {
-            ctx.report.info("Repairing data leaks.");
-            repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
-        }
-
-        if !metadata_leaks.is_empty() {
-            ctx.report.info("Repairing metadata leaks.");
-            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
-        }
-
-        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
-        if cleared {
-            ctx.report.info("Cleared needs_check flag");
-        }
-    } else if !opts.ignore_non_fatal {
+    if !opts.auto_repair && !opts.ignore_non_fatal {
         if !data_leaks.is_empty() {
             return Err(anyhow!("data space map contains leaks"));
         }
@@ -339,8 +330,21 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         if !metadata_leaks.is_empty() {
             return Err(anyhow!("metadata space map contains leaks"));
         }
+    }
 
-        if opts.clear_needs_check {
+    // TODO: check override-mapping-root
+    if !opts.use_metadata_snap {
+        if !data_leaks.is_empty() && opts.auto_repair {
+            ctx.report.info("Repairing data leaks.");
+            repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
+        }
+
+        if !metadata_leaks.is_empty() && opts.auto_repair {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+        }
+
+        if opts.auto_repair || opts.clear_needs_check {
             let cleared = clear_needs_check_flag(ctx.engine.clone())?;
             if cleared {
                 ctx.report.info("Cleared needs_check flag");

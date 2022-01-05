@@ -38,12 +38,7 @@ pub fn run(args: &[std::ffi::OsString]) {
             Arg::with_name("CLEAR_NEEDS_CHECK")
                 .help("Clears the 'needs_check' flag in the superblock")
                 .long("clear-needs-check-flag")
-                .conflicts_with_all(&[
-                    "IGNORE_NON_FATAL",
-                    "METADATA_SNAPSHOT",
-                    "OVERRIDE_MAPPING_ROOT",
-                    "SB_ONLY",
-                ]),
+                .conflicts_with_all(&["METADATA_SNAPSHOT", "OVERRIDE_MAPPING_ROOT"]),
         )
         .arg(
             Arg::with_name("IGNORE_NON_FATAL")

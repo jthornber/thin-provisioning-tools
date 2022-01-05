@@ -123,4 +123,16 @@ pub fn get_needs_check(md: &PathBuf) -> Result<bool> {
     Ok(sb.flags.needs_check)
 }
 
+pub fn reserve_metadata_snap(md: &PathBuf) -> Result<()> {
+    let args = args!["-o", &md, "--reserve-metadata-snap"];
+    run_ok(thin_generate_metadata_cmd(args))?;
+    Ok(())
+}
+
+pub fn release_metadata_snap(md: &PathBuf) -> Result<()> {
+    let args = args!["-o", &md, "--release-metadata-snap"];
+    run_ok(thin_generate_metadata_cmd(args))?;
+    Ok(())
+}
+
 //-----------------------------------------------
