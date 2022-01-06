@@ -384,11 +384,17 @@ namespace {
 		}
 
 		void check_and_repair() {
-			check();
-			if (options_.fix_metadata_leaks_)
-				fix_metadata_leaks(options_.open_transaction_);
-			if (options_.clear_needs_check_)
-				clear_needs_check_flag();
+			if (!check())
+				return;
+
+			if (!options_.use_metadata_snap_ &&
+			    !options_.override_mapping_root_) {
+				if (options_.sm_opts_ == check_options::SPACE_MAP_FULL &&
+				    options_.fix_metadata_leaks_)
+					fix_metadata_leaks(options_.open_transaction_);
+				if (options_.clear_needs_check_)
+					clear_needs_check_flag();
+			}
 		}
 
 		bool get_status() const {
@@ -399,7 +405,7 @@ namespace {
 		}
 
 	private:
-		void check() {
+		bool check() {
 			block_manager::ptr bm = open_bm(path_, block_manager::READ_ONLY,
 							!options_.use_metadata_snap_);
 
@@ -407,7 +413,7 @@ namespace {
 			if (err_ == FATAL) {
 				if (check_for_xml(bm))
 					out_ << "This looks like XML.  thin_check only checks the binary metadata format." << end_message();
-				return;
+				return false;
 			}
 
 			transaction_manager::ptr tm = open_tm(bm, sb_location_);
@@ -425,7 +431,7 @@ namespace {
 				err_ << examine_data_mappings(tm, sb, options_.data_mapping_opts_, out_, core_sm);
 
 				if (err_ == FATAL)
-					return;
+					return false;
 
 				// if we're checking everything, and there were no errors,
 				// then we should check the space maps too.
@@ -439,6 +445,8 @@ namespace {
 							      optional<space_map::ptr>());
 
 			metadata_checked_ = true;
+
+			return true;
 		}
 
 		bool fix_metadata_leaks(bool open_transaction) {
@@ -483,7 +491,8 @@ namespace {
 				return false;
 			}
 
-			if (err_ != NO_ERROR)
+			if (err_ == FATAL ||
+			    (err_ == NON_FATAL && !options_.ignore_non_fatal_))
 				return false;
 
 			block_manager::ptr bm = open_bm(path_, block_manager::READ_WRITE);
@@ -615,11 +624,6 @@ void check_options::set_clear_needs_check() {
 
 bool check_options::check_conformance() {
 	if (fix_metadata_leaks_ || clear_needs_check_) {
-		if (ignore_non_fatal_) {
-			cerr << "cannot perform fix by ignoring non-fatal errors" << endl;
-			return false;
-		}
-
 		if (use_metadata_snap_) {
 			cerr << "cannot perform fix within metadata snap" << endl;
 			return false;
@@ -631,20 +635,16 @@ bool check_options::check_conformance() {
 		}
 	}
 
-	if (fix_metadata_leaks_ &&
-	    (data_mapping_opts_ != DATA_MAPPING_LEVEL2 || sm_opts_ != SPACE_MAP_FULL)) {
-		cerr << "cannot perform fix without a full examination" << endl;
-		return false;
-	}
-
-	if (clear_needs_check_) {
-		if (data_mapping_opts_ == DATA_MAPPING_NONE) {
-			cerr << "cannot perform fix without partially examination" << endl;
+	if (fix_metadata_leaks_) {
+		if (ignore_non_fatal_) {
+			cerr << "cannot perform fix by ignoring non-fatal errors" << endl;
 			return false;
 		}
 
-		if (data_mapping_opts_ != DATA_MAPPING_LEVEL2 || sm_opts_ != SPACE_MAP_FULL)
-			cerr << "clearing needs_check without a full examination is not suggested" << endl;
+		if (data_mapping_opts_ != DATA_MAPPING_LEVEL2 || sm_opts_ != SPACE_MAP_FULL) {
+			cerr << "cannot perform fix without a full examination" << endl;
+			return false;
+		}
 	}
 
 	return true;
