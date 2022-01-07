@@ -83,8 +83,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    // rust_cmd("thin_restore", args)
-    cpp_cmd("thin_restore", args)
+    rust_cmd("thin_restore", args)
 }
 
 pub fn thin_repair_cmd<I>(args: I) -> Command
@@ -92,7 +91,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    rust_cmd("thin_restore", args)
+    rust_cmd("thin_repair", args)
 }
 
 pub fn thin_dump_cmd<I>(args: I) -> Command
