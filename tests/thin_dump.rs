@@ -129,7 +129,6 @@ fn dump_restore_cycle() -> Result<()> {
 // test no stderr with a normal dump
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn no_stderr() -> Result<()> {
     let mut td = TestDir::new()?;
 
@@ -184,9 +183,6 @@ fn repair_superblock() -> Result<()> {
         "--nr-data-blocks=20480",
         &md
     ]))?;
-    if !cfg!(feature = "rust_tests") {
-        assert_eq!(after.stderr.len(), 0);
-    }
     assert_eq!(before.stdout, after.stdout);
 
     Ok(())

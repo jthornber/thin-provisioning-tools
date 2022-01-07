@@ -128,7 +128,6 @@ fn accepts_quiet() -> Result<()> {
 //-----------------------------------------
 
 // TODO: share with thin_dump
-#[cfg(not(feature = "rust_tests"))]
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
@@ -142,19 +141,16 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_transaction_id() -> Result<()> {
     override_something("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_data_block_size() -> Result<()> {
     override_something("--data-block-size", "8192", "data_block_size=\"8192\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_nr_data_blocks() -> Result<()> {
     override_something("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
