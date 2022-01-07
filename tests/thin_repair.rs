@@ -182,43 +182,60 @@ fn superblock_succeeds() -> Result<()> {
 
 // TODO: share with thin_dump
 
-fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
+#[test]
+fn missing_data_block_size() -> Result<()> {
     let mut td = TestDir::new()?;
-    let md1 = mk_valid_md(&mut td)?;
-    damage_superblock(&md1)?;
-    let md2 = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_repair_cmd(args![flag1, flag2, "-i", &md1, "-o", &md2]))?;
-    assert!(stderr.contains(pattern));
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    let stderr = run_fail(thin_repair_cmd(args![
+        "--transaction-id=1",
+        "--nr-data-blocks=20480",
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    assert!(stderr.contains("data block size"));
     Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
-fn missing_transaction_id() -> Result<()> {
-    missing_thing(
+fn recovers_transaction_id_from_damaged_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args![
         "--data-block-size=128",
         "--nr-data-blocks=20480",
-        "transaction id",
-    )
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    let repaired = run_ok(thin_dump_cmd(args![&dest]))?;
+    assert!(repaired.contains("transaction=\"1\""));
+    Ok(())
 }
 
 #[test]
-fn missing_data_block_size() -> Result<()> {
-    missing_thing(
-        "--transaction-id=1",
-        "--nr-data-blocks=20480",
-        "data block size",
-    )
-}
-
-#[test]
-#[cfg(not(feature = "rust_tests"))]
-fn missing_nr_data_blocks() -> Result<()> {
-    missing_thing(
+fn recovers_nr_data_blocks_from_damaged_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args![
         "--transaction-id=1",
         "--data-block-size=128",
-        "nr data blocks",
-    )
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    let repaired = run_ok(thin_dump_cmd(args![&dest]))?;
+    assert!(repaired.contains("nr_data_blocks=\"1024\""));
+    Ok(())
 }
 
 //-----------------------------------------
