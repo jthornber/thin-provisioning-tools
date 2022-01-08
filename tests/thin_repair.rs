@@ -14,15 +14,23 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_repair [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-i|--input} <input metadata (binary format)>\n  \
-                       {-o|--output} <output metadata (binary format)>\n  \
-                       {--transaction-id} <natural>\n  \
-                       {--data-block-size} <natural>\n  \
-                       {--nr-data-blocks} <natural>\n  \
-                       {-V|--version}";
+const USAGE: &str = "thin_repair 0.9.0
+Repair thin-provisioning metadata, and write it to different device or file
+
+USAGE:
+    thin_repair [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
+
+FLAGS:
+    -q, --quiet      Suppress output messages, return only exit code.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+        --data-block-size <SECTORS>    Provide the data block size for repairing
+    -i, --input <FILE>                 Specify the input device
+        --nr-data-blocks <NUM>         Override the number of data blocks if needed
+    -o, --output <FILE>                Specify the output device
+        --transaction-id <NUM>         Override the transaction id if needed";
 
 //-----------------------------------------
 
@@ -67,12 +75,6 @@ impl<'a> InputProgram<'a> for ThinRepair {
         msg::MISSING_INPUT_ARG
     }
 
-    #[cfg(not(feature = "rust_tests"))]
-    fn corrupted_input() -> &'a str {
-        "The following field needs to be provided on the command line due to corruption in the superblock"
-    }
-
-    #[cfg(feature = "rust_tests")]
     fn corrupted_input() -> &'a str {
         "data block size needs to be provided due to corruption in the superblock"
     }

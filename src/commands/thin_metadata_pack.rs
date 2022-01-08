@@ -2,7 +2,7 @@ extern crate clap;
 
 use clap::{App, Arg};
 use std::path::Path;
-use std::process::exit;
+use std::process;
 
 use crate::commands::utils::*;
 use crate::report::*;
@@ -28,11 +28,11 @@ pub fn run(args: &[std::ffi::OsString]) {
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    let report = std::sync::Arc::new(mk_simple_report());
+    let report = mk_simple_report();
     check_input_file(input_file, &report);
 
     if let Err(reason) = crate::pack::toplevel::pack(input_file, output_file) {
         report.fatal(&format!("Application error: {}\n", reason));
-        exit(1);
+        process::exit(1);
     }
 }

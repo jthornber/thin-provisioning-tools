@@ -14,16 +14,20 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_restore [options]\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-i|--input} <input xml file>\n  \
-                       {-o|--output} <output device or file>\n  \
-                       {--transaction-id} <natural>\n  \
-                       {--data-block-size} <natural>\n  \
-                       {--nr-data-blocks} <natural>\n  \
-                       {-q|--quiet}\n  \
-                       {-V|--version}";
+const USAGE: &str = "thin_restore 0.9.0
+Convert XML format metadata to binary.
+
+USAGE:
+    thin_restore [FLAGS] --input <FILE> --output <FILE>
+
+FLAGS:
+    -q, --quiet      Suppress output messages, return only exit code.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -i, --input <FILE>     Specify the input xml
+    -o, --output <FILE>    Specify the output device";
 
 //------------------------------------------
 
