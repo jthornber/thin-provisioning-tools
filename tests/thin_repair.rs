@@ -126,8 +126,7 @@ fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let output = run_ok_raw(thin_repair_cmd(args![flag, val, "-i", &md1, "-o", &md2]))?;
-    assert_eq!(output.stderr.len(), 0);
+    run_ok(thin_repair_cmd(args![flag, val, "-i", &md1, "-o", &md2]))?;
     let output = run_ok(thin_dump_cmd(args![&md2]))?;
     assert!(output.contains(pattern));
     Ok(())

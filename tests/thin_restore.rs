@@ -18,7 +18,7 @@ const USAGE: &str = "thin_restore 0.9.0
 Convert XML format metadata to binary.
 
 USAGE:
-    thin_restore [FLAGS] --input <FILE> --output <FILE>
+    thin_restore [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
 
 FLAGS:
     -q, --quiet      Suppress output messages, return only exit code.
@@ -26,8 +26,11 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -i, --input <FILE>     Specify the input xml
-    -o, --output <FILE>    Specify the output device";
+        --data-block-size <SECTORS>    Override the data block size if needed
+    -i, --input <FILE>                 Specify the input xml
+        --nr-data-blocks <NUM>         Override the number of data blocks if needed
+    -o, --output <FILE>                Specify the output device
+        --transaction-id <NUM>         Override the transaction id if needed";
 
 //------------------------------------------
 
