@@ -11,14 +11,21 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_rmap [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-V|--version}\n  \
-                       {--region <block range>}*\n\
-                     Where:\n  \
-                       <block range> is of the form <begin>..<one-past-the-end>\n  \
-                       for example 5..45 denotes blocks 5 to 44 inclusive, but not block 45";
+const USAGE: &str = "thin_rmap 0.9.0
+Output reverse map of a thin provisioned region of blocks
+
+USAGE:
+    thin_rmap <INPUT> --region <BLOCK_RANGE>...
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+        --region <BLOCK_RANGE>...    Specify range of blocks on the data device
+
+ARGS:
+    <INPUT>    Specify the input device";
 
 //------------------------------------------
 
@@ -62,7 +69,7 @@ test_rejects_bad_option!(ThinRmap);
 fn valid_region_format_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
-    run_ok(thin_rmap_cmd(args!["--region", "23..7890", &md]))?;
+    run_ok(thin_rmap_cmd(args![&md, "--region", "23..7890"]))?;
     Ok(())
 }
 
@@ -81,7 +88,7 @@ fn invalid_regions_should_fail() -> Result<()> {
     for r in &invalid_regions {
         let mut td = TestDir::new()?;
         let md = mk_valid_md(&mut td)?;
-        run_fail(thin_rmap_cmd(args![r, &md]))?;
+        run_fail(thin_rmap_cmd(args![&md, r]))?;
     }
     Ok(())
 }
@@ -91,7 +98,7 @@ fn multiple_regions_should_pass() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     run_ok(thin_rmap_cmd(args![
-        "--region", "1..23", "--region", "45..78", &md
+        &md, "--region", "1..23", "--region", "45..78"
     ]))?;
     Ok(())
 }
@@ -100,7 +107,7 @@ fn multiple_regions_should_pass() -> Result<()> {
 fn junk_input() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
-    run_fail(thin_rmap_cmd(args!["--region", "0..-1", &xml]))?;
+    run_fail(thin_rmap_cmd(args![&xml, "--region", "0..-1"]))?;
     Ok(())
 }
 
