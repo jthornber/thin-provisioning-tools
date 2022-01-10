@@ -232,7 +232,7 @@ pub struct EraInvalidateOptions<'a> {
     pub output: Option<&'a Path>,
     pub async_io: bool,
     pub threshold: u32,
-    pub metadata_snap: bool,
+    pub use_metadata_snap: bool,
 }
 
 struct Context {
@@ -247,7 +247,7 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
             opts.input,
             MAX_CONCURRENT_IO,
             false,
-            !opts.metadata_snap,
+            !opts.use_metadata_snap,
         )?);
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
@@ -255,7 +255,7 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
             opts.input,
             nr_threads,
             false,
-            !opts.metadata_snap,
+            !opts.use_metadata_snap,
         )?);
     }
 
@@ -266,7 +266,7 @@ pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
     let ctx = mk_context(opts)?;
 
     let mut sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    if opts.metadata_snap {
+    if opts.use_metadata_snap {
         sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
     }
 

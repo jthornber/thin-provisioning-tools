@@ -31,6 +31,14 @@ impl Mapping {
     pub fn is_dirty(&self) -> bool {
         (self.flags & MappingFlags::Dirty as u32) != 0
     }
+
+    pub fn set_dirty(&mut self, dirty: bool) {
+        if dirty {
+            self.flags |= MappingFlags::Dirty as u32;
+        } else {
+            self.flags &= !(MappingFlags::Dirty as u32);
+        }
+    }
 }
 
 impl Unpack for Mapping {

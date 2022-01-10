@@ -16,6 +16,7 @@ use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::ir::{self, MetadataVisitor, Visit};
+use crate::thin::metadata_repair::{Override, SuperblockOverrides};
 use crate::thin::superblock::{self, *};
 use crate::thin::xml;
 use crate::write_batcher::*;
@@ -81,6 +82,7 @@ pub struct Restorer<'a> {
     devices: BTreeMap<u32, (DeviceDetail, u64)>,
     data_sm: Option<Arc<Mutex<dyn SpaceMap>>>,
     in_section: Section,
+    overrides: SuperblockOverrides,
 }
 
 impl<'a> Restorer<'a> {
@@ -95,6 +97,26 @@ impl<'a> Restorer<'a> {
             devices: BTreeMap::new(),
             data_sm: None,
             in_section: Section::None,
+            overrides: SuperblockOverrides::default(),
+        }
+    }
+
+    pub fn new_with(
+        w: &'a mut WriteBatcher,
+        overrides: &'a SuperblockOverrides,
+        report: Arc<Report>,
+    ) -> Self {
+        Restorer {
+            w,
+            report,
+            sub_trees: BTreeMap::new(),
+            current_map: None,
+            current_dev: None,
+            sb: None,
+            devices: BTreeMap::new(),
+            data_sm: None,
+            in_section: Section::None,
+            overrides: *overrides,
         }
     }
 
@@ -193,7 +215,8 @@ impl<'a> Restorer<'a> {
             details_root,
             data_block_size: src_sb.data_block_size,
             nr_metadata_blocks: metadata_sm.nr_blocks,
-        };
+        }
+        .overrides(&self.overrides)?;
         write_superblock(self.w.engine.as_ref(), SUPERBLOCK_LOCATION, &sb)?;
         self.in_section = Section::Finalized;
 
@@ -343,6 +366,7 @@ pub struct ThinRestoreOptions<'a> {
     pub output: &'a Path,
     pub async_io: bool,
     pub report: Arc<Report>,
+    pub overrides: SuperblockOverrides,
 }
 
 struct Context {
@@ -381,7 +405,7 @@ pub fn restore(opts: ThinRestoreOptions) -> Result<()> {
 
     let sm = core_metadata_sm(ctx.engine.get_nr_blocks(), max_count);
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
-    let mut restorer = Restorer::new(&mut w, ctx.report);
+    let mut restorer = Restorer::new_with(&mut w, &opts.overrides, ctx.report);
     xml::read(input, &mut restorer)?;
 
     Ok(())

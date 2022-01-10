@@ -32,7 +32,8 @@ pub fn run(args: &[std::ffi::OsString]) {
             Arg::with_name("REPAIR")
                 .help("Repair the metadata whilst dumping it")
                 .short("r")
-                .long("repair"),
+                .long("repair")
+                .conflicts_with("METADATA_SNAPSHOT"),
         )
         .arg(
             Arg::with_name("SKIP_MAPPINGS")
@@ -128,6 +129,7 @@ pub fn run(args: &[std::ffi::OsString]) {
         async_io: matches.is_present("ASYNC_IO"),
         report: report.clone(),
         repair: matches.is_present("REPAIR"),
+        use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
         overrides: SuperblockOverrides {
             transaction_id,
             data_block_size,

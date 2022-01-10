@@ -17,7 +17,7 @@ duct = "0.13"
 fixedbitset = "0.4"
 futures = "0.3"
 flate2 = "1.0"
-io-uring = "0.4"
+io-uring = "0.5"
 indicatif = "0.16"
 libc = "0.2"
 nix = "0.22"
@@ -41,6 +41,3 @@ quickcheck_macros = "0.9"
 
 [profile.release]
 debug = true
-
-[features]
-rust_tests = []

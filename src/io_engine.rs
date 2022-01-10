@@ -1,4 +1,5 @@
-use io_uring::opcode::{self, types};
+use io_uring::opcode;
+use io_uring::types;
 use io_uring::IoUring;
 use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
@@ -290,17 +291,17 @@ impl AsyncIoEngine {
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
-                let mut queue = inner.ring.submission().available();
-                queue
-                    .push(read_e.build().user_data(i as u64))
-                    .ok()
+                inner
+                    .ring
+                    .submission()
+                    .push(&read_e.build().user_data(i as u64))
                     .expect("queue is full");
             }
         }
 
         inner.ring.submit_and_wait(count)?;
 
-        let mut cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let mut cqes = inner.ring.completion().collect::<Vec<_>>();
 
         if cqes.len() != count {
             return Err(Error::new(
@@ -341,17 +342,17 @@ impl AsyncIoEngine {
                 .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
             unsafe {
-                let mut queue = inner.ring.submission().available();
-                queue
-                    .push(write_e.build().user_data(i as u64))
-                    .ok()
+                inner
+                    .ring
+                    .submission()
+                    .push(&write_e.build().user_data(i as u64))
                     .expect("queue is full");
             }
         }
 
         inner.ring.submit_and_wait(count)?;
 
-        let mut cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let mut cqes = inner.ring.completion().collect::<Vec<_>>();
 
         // reorder cqes
         cqes.sort_by(|a, b| a.user_data().partial_cmp(&b.user_data()).unwrap());
@@ -406,16 +407,16 @@ impl IoEngine for AsyncIoEngine {
             .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
         unsafe {
-            let mut queue = inner.ring.submission().available();
-            queue
-                .push(read_e.build().user_data(0))
-                .ok()
+            inner
+                .ring
+                .submission()
+                .push(&read_e.build().user_data(0))
                 .expect("queue is full");
         }
 
         inner.ring.submit_and_wait(1)?;
 
-        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let cqes = inner.ring.completion().collect::<Vec<_>>();
 
         let r = cqes[0].result();
         use std::io::*;
@@ -454,16 +455,16 @@ impl IoEngine for AsyncIoEngine {
             .offset(b.loc as i64 * BLOCK_SIZE as i64);
 
         unsafe {
-            let mut queue = inner.ring.submission().available();
-            queue
-                .push(write_e.build().user_data(0))
-                .ok()
+            inner
+                .ring
+                .submission()
+                .push(&write_e.build().user_data(0))
                 .expect("queue is full");
         }
 
         inner.ring.submit_and_wait(1)?;
 
-        let cqes = inner.ring.completion().available().collect::<Vec<_>>();
+        let cqes = inner.ring.completion().collect::<Vec<_>>();
 
         let r = cqes[0].result();
         use std::io::*;

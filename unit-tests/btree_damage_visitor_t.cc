@@ -31,6 +31,10 @@ namespace {
 			return (x == rhs.x) && (y == rhs.y);
 		}
 
+		bool operator !=(thing const &rhs) const {
+			return !(*this == rhs);
+		}
+
 		uint32_t x;
 		uint64_t y;
 	};

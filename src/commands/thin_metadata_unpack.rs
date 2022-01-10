@@ -1,11 +1,11 @@
 extern crate clap;
 
-use crate::file_utils;
 use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 
-use std::process::exit;
+use crate::commands::utils::check_input_file;
+use crate::report::mk_simple_report;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_metadata_unpack")
@@ -32,13 +32,11 @@ pub fn run(args: &[std::ffi::OsString]) {
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    if !file_utils::is_file(input_file) {
-        eprintln!("Invalid input file '{}'.", input_file.display());
-        exit(1);
-    }
+    let report = mk_simple_report();
+    check_input_file(input_file, &report);
 
     if let Err(reason) = crate::pack::toplevel::unpack(input_file, output_file) {
-        eprintln!("Application error: {}", reason);
+        report.fatal(&format!("Application error: {}", reason));
         process::exit(1);
     }
 }

@@ -11,14 +11,26 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_delta [options] <device or file>\n\
-                     Options:\n  \
-                       {--thin1, --snap1, --root1}\n  \
-                       {--thin2, --snap2, --root2}\n  \
-                       {-m, --metadata-snap} [block#]\n  \
-                       {--verbose}\n  \
-                       {-h|--help}\n  \
-                       {-V|--version}";
+const USAGE: &str = "thin_delta 0.9.0
+Print the differences in the mappings between two thin devices
+
+USAGE:
+    thin_delta [FLAGS] [OPTIONS] <INPUT> <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>>
+
+FLAGS:
+    -m, --metadata-snap    Use metadata snapshot
+        --verbose          Provide extra information on the mappings
+    -h, --help             Prints help information
+    -V, --version          Prints version information
+
+OPTIONS:
+        --root1 <BLOCKNR>    The root block for the first thin volume to diff
+        --root2 <BLOCKNR>    The root block for the second thin volume to diff
+        --thin1 <DEV_ID>     The numeric identifier for the first thin volume to diff [aliases: snap1]
+        --thin2 <DEV_ID>     The numeric identifier for the second thin volume to diff [aliases: snap2]
+
+ARGS:
+    <INPUT>    Specify the input device to dump";
 
 //------------------------------------------
 
@@ -34,7 +46,7 @@ impl<'a> Program<'a> for ThinDelta {
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,
     {
-        cpp_cmd("thin_delta", args)
+        thin_delta_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -46,7 +58,7 @@ impl<'a> Program<'a> for ThinDelta {
     }
 
     fn bad_option_hint(option: &str) -> String {
-        format!("unrecognized option '{}'", option)
+        msg::bad_option_hint(option)
     }
 }
 
@@ -63,7 +75,10 @@ fn snap1_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap2", "45", &md]))?;
-    assert!(stderr.contains("--snap1 or --root1 not specified"));
+    assert!(stderr.contains(
+        "The following required arguments were not provided:
+    <--root1 <BLOCKNR>|--thin1 <DEV_ID>>"
+    ));
     Ok(())
 }
 
@@ -72,15 +87,17 @@ fn snap2_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap1", "45", &md]))?;
-    assert!(stderr.contains("--snap2 or --root2 not specified"));
+    assert!(stderr.contains(
+        "The following required arguments were not provided:
+    <--root2 <BLOCKNR>|--thin2 <DEV_ID>>"
+    ));
     Ok(())
 }
 
 #[test]
-fn dev_unspecified() -> Result<()> {
+fn missing_input_arg() -> Result<()> {
     let stderr = run_fail(thin_delta_cmd(args!["--snap1", "45", "--snap2", "46"]))?;
-    // TODO: replace with msg::MISSING_INPUT_ARG once the rust version is ready
-    assert!(stderr.contains("No input file provided"));
+    assert!(stderr.contains(msg::MISSING_INPUT_ARG));
     Ok(())
 }
 

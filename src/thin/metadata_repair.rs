@@ -18,10 +18,21 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
+#[derive(Copy, Clone)]
 pub struct SuperblockOverrides {
     pub transaction_id: Option<u64>,
     pub data_block_size: Option<u32>,
     pub nr_data_blocks: Option<u64>,
+}
+
+impl Default for SuperblockOverrides {
+    fn default() -> Self {
+        SuperblockOverrides {
+            transaction_id: None,
+            data_block_size: None,
+            nr_data_blocks: None,
+        }
+    }
 }
 
 pub struct FoundRoots {
@@ -733,12 +744,19 @@ impl std::error::Error for SuperblockError {}
 pub fn is_superblock_consistent(
     sb: Superblock,
     engine: Arc<dyn IoEngine + Send + Sync>,
+    ignore_non_fatal: bool,
 ) -> Result<Superblock> {
     let mut path = vec![0];
-    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), true, sb.mapping_root);
+    let ids1 =
+        btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, sb.mapping_root);
 
     path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root);
+    let ids2 = btree_to_key_set::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        ignore_non_fatal,
+        sb.details_root,
+    );
 
     if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
         return Err(anyhow::Error::new(SuperblockError {
@@ -813,6 +831,52 @@ pub fn rebuild_superblock(
     })
 }
 
+pub trait Override {
+    fn overrides(self, opts: &SuperblockOverrides) -> Result<Superblock>;
+}
+
+impl Override for Superblock {
+    fn overrides(mut self, opts: &SuperblockOverrides) -> Result<Superblock> {
+        if let Some(tid) = opts.transaction_id {
+            self.transaction_id = std::cmp::max(tid, self.transaction_id);
+        }
+
+        if let Some(bs) = opts.data_block_size {
+            self.data_block_size = bs;
+        }
+
+        if let Some(nr_data_blocks) = opts.nr_data_blocks {
+            let sm_root = unpack_root(&self.data_sm_root).map(|mut root| {
+                root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
+                root
+            })?;
+            self.data_sm_root = pack_root(&sm_root, SPACE_MAP_ROOT_SIZE)?;
+        }
+
+        Ok(self)
+    }
+}
+
+pub fn override_superblock(mut sb: Superblock, opts: &SuperblockOverrides) -> Result<Superblock> {
+    if let Some(tid) = opts.transaction_id {
+        sb.transaction_id = std::cmp::max(tid, sb.transaction_id);
+    }
+
+    if let Some(bs) = opts.data_block_size {
+        sb.data_block_size = bs;
+    }
+
+    if let Some(nr_data_blocks) = opts.nr_data_blocks {
+        let sm_root = unpack_root(&sb.data_sm_root).map(|mut root| {
+            root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
+            root
+        })?;
+        sb.data_sm_root = pack_root(&sm_root, SPACE_MAP_ROOT_SIZE)?;
+    }
+
+    Ok(sb)
+}
+
 pub fn read_or_rebuild_superblock(
     engine: Arc<dyn IoEngine + Send + Sync>,
     report: Arc<Report>,
@@ -820,7 +884,8 @@ pub fn read_or_rebuild_superblock(
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
     read_superblock(engine.as_ref(), loc)
-        .and_then(|sb| is_superblock_consistent(sb, engine.clone()))
+        .and_then(|sb| is_superblock_consistent(sb, engine.clone(), true))
+        .and_then(|sb| sb.overrides(opts))
         .or_else(|e| {
             let ref_sb = e
                 .downcast_ref::<SuperblockError>()

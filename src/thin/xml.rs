@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::{io::prelude::*, io::BufReader, io::Write};
+use std::io::{prelude::*, BufReader, Write};
 
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
@@ -21,7 +21,7 @@ impl<W: Write> XmlWriter<W> {
     }
 }
 
-const XML_VERSION: u32 = 2;
+pub const XML_VERSION: u32 = 2;
 
 impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {

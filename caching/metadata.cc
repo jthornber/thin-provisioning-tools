@@ -45,9 +45,9 @@ metadata::metadata(block_manager::ptr bm, open_type ot, unsigned metadata_versio
 	}
 }
 
-metadata::metadata(block_manager::ptr bm)
+metadata::metadata(block_manager::ptr bm, bool read_space_map)
 {
-	open_metadata(bm);
+	open_metadata(bm, read_space_map);
 }
 
 void
@@ -90,10 +90,15 @@ metadata::create_metadata(block_manager::ptr bm, unsigned metadata_version)
 }
 
 void
-metadata::open_metadata(block_manager::ptr bm)
+metadata::open_metadata(block_manager::ptr bm, bool read_space_map)
 {
 	tm_ = open_tm(bm);
 	sb_ = read_superblock(tm_->get_bm());
+
+	if (read_space_map) {
+		metadata_sm_ = open_metadata_sm(*tm_, &sb_.metadata_space_map_root);
+		tm_->set_sm(metadata_sm_);
+	}
 
 	mappings_ = mapping_array::ptr(
 		new mapping_array(*tm_,

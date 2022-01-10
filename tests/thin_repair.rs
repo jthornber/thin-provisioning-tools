@@ -14,15 +14,23 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_repair [options] {device|file}\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-i|--input} <input metadata (binary format)>\n  \
-                       {-o|--output} <output metadata (binary format)>\n  \
-                       {--transaction-id} <natural>\n  \
-                       {--data-block-size} <natural>\n  \
-                       {--nr-data-blocks} <natural>\n  \
-                       {-V|--version}";
+const USAGE: &str = "thin_repair 0.9.0
+Repair thin-provisioning metadata, and write it to different device or file
+
+USAGE:
+    thin_repair [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
+
+FLAGS:
+    -q, --quiet      Suppress output messages, return only exit code.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+        --data-block-size <SECTORS>    Provide the data block size for repairing
+    -i, --input <FILE>                 Specify the input device
+        --nr-data-blocks <NUM>         Override the number of data blocks if needed
+    -o, --output <FILE>                Specify the output device
+        --transaction-id <NUM>         Override the transaction id if needed";
 
 //-----------------------------------------
 
@@ -67,12 +75,6 @@ impl<'a> InputProgram<'a> for ThinRepair {
         msg::MISSING_INPUT_ARG
     }
 
-    #[cfg(not(feature = "rust_tests"))]
-    fn corrupted_input() -> &'a str {
-        "The following field needs to be provided on the command line due to corruption in the superblock"
-    }
-
-    #[cfg(feature = "rust_tests")]
     fn corrupted_input() -> &'a str {
         "data block size needs to be provided due to corruption in the superblock"
     }
@@ -120,32 +122,27 @@ fn dont_repair_xml() -> Result<()> {
 
 // TODO: share with thin_dump
 
-#[cfg(not(feature = "rust_tests"))]
 fn override_thing(flag: &str, val: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let md2 = mk_zeroed_md(&mut td)?;
-    let output = run_ok_raw(thin_repair_cmd(args![flag, val, "-i", &md1, "-o", &md2]))?;
-    assert_eq!(output.stderr.len(), 0);
+    run_ok(thin_repair_cmd(args![flag, val, "-i", &md1, "-o", &md2]))?;
     let output = run_ok(thin_dump_cmd(args![&md2]))?;
     assert!(output.contains(pattern));
     Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_transaction_id() -> Result<()> {
     override_thing("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_data_block_size() -> Result<()> {
     override_thing("--data-block-size", "8192", "data_block_size=\"8192\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_nr_data_blocks() -> Result<()> {
     override_thing("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }
@@ -156,9 +153,6 @@ fn superblock_succeeds() -> Result<()> {
     let mut td = TestDir::new()?;
     let md1 = mk_valid_md(&mut td)?;
     let original = run_ok_raw(thin_dump_cmd(args![&md1]))?;
-    if !cfg!(feature = "rust_tests") {
-        assert_eq!(original.stderr.len(), 0);
-    }
     damage_superblock(&md1)?;
     let md2 = mk_zeroed_md(&mut td)?;
     run_ok(thin_repair_cmd(args![
@@ -171,9 +165,6 @@ fn superblock_succeeds() -> Result<()> {
         &md2
     ]))?;
     let repaired = run_ok_raw(thin_dump_cmd(args![&md2]))?;
-    if !cfg!(feature = "rust_tests") {
-        assert_eq!(repaired.stderr.len(), 0);
-    }
     assert_eq!(original.stdout, repaired.stdout);
     Ok(())
 }
@@ -182,43 +173,60 @@ fn superblock_succeeds() -> Result<()> {
 
 // TODO: share with thin_dump
 
-fn missing_thing(flag1: &str, flag2: &str, pattern: &str) -> Result<()> {
+#[test]
+fn missing_data_block_size() -> Result<()> {
     let mut td = TestDir::new()?;
-    let md1 = mk_valid_md(&mut td)?;
-    damage_superblock(&md1)?;
-    let md2 = mk_zeroed_md(&mut td)?;
-    let stderr = run_fail(thin_repair_cmd(args![flag1, flag2, "-i", &md1, "-o", &md2]))?;
-    assert!(stderr.contains(pattern));
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    let stderr = run_fail(thin_repair_cmd(args![
+        "--transaction-id=1",
+        "--nr-data-blocks=20480",
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    assert!(stderr.contains("data block size"));
     Ok(())
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
-fn missing_transaction_id() -> Result<()> {
-    missing_thing(
+fn recovers_transaction_id_from_damaged_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args![
         "--data-block-size=128",
         "--nr-data-blocks=20480",
-        "transaction id",
-    )
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    let repaired = run_ok(thin_dump_cmd(args![&dest]))?;
+    assert!(repaired.contains("transaction=\"1\""));
+    Ok(())
 }
 
 #[test]
-fn missing_data_block_size() -> Result<()> {
-    missing_thing(
-        "--transaction-id=1",
-        "--nr-data-blocks=20480",
-        "data block size",
-    )
-}
-
-#[test]
-#[cfg(not(feature = "rust_tests"))]
-fn missing_nr_data_blocks() -> Result<()> {
-    missing_thing(
+fn recovers_nr_data_blocks_from_damaged_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_valid_md(&mut td)?;
+    damage_superblock(&src)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args![
         "--transaction-id=1",
         "--data-block-size=128",
-        "nr data blocks",
-    )
+        "-i",
+        &src,
+        "-o",
+        &dest
+    ]))?;
+    let repaired = run_ok(thin_dump_cmd(args![&dest]))?;
+    assert!(repaired.contains("nr_data_blocks=\"1024\""));
+    Ok(())
 }
 
 //-----------------------------------------

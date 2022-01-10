@@ -72,7 +72,7 @@ pub fn repair(opts: ThinRepairOptions) -> Result<()> {
     );
     let mut restorer = Restorer::new(&mut w, ctx.report);
 
-    dump_metadata(ctx.engine_in, &mut restorer, &sb, &md, &opts.overrides)
+    dump_metadata(ctx.engine_in, &mut restorer, &sb, &md)
 }
 
 //------------------------------------------

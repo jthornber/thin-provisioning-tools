@@ -36,6 +36,8 @@ fn main_() -> Result<()> {
         cache_repair::run(&new_args);
     } else if name_eq(name, "cache_restore") {
         cache_restore::run(&new_args);
+    } else if name_eq(name, "cache_writeback") {
+        cache_writeback::run(&new_args);
     } else if name_eq(name, "era_check") {
         era_check::run(&new_args);
     } else if name_eq(name, "era_dump") {
@@ -44,8 +46,12 @@ fn main_() -> Result<()> {
         era_restore::run(&new_args);
     } else if name_eq(name, "thin_check") {
         thin_check::run(&new_args);
+    } else if name_eq(name, "thin_delta") {
+        thin_delta::run(&new_args);
     } else if name_eq(name, "thin_dump") {
         thin_dump::run(&new_args);
+    } else if name_eq(name, "thin_ls") {
+        thin_ls::run(&new_args);
     } else if name_eq(name, "thin_metadata_pack") {
         thin_metadata_pack::run(&new_args);
     } else if name_eq(name, "thin_metadata_size") {
@@ -56,8 +62,12 @@ fn main_() -> Result<()> {
         thin_repair::run(&new_args);
     } else if name_eq(name, "thin_restore") {
         thin_restore::run(&new_args);
+    } else if name_eq(name, "thin_rmap") {
+        thin_rmap::run(&new_args);
     } else if name_eq(name, "thin_shrink") {
         thin_shrink::run(&new_args);
+    } else if name_eq(name, "thin_trim") {
+        thin_trim::run(&new_args);
     } else {
         return Err(anyhow!("unrecognised command"));
     }

@@ -14,16 +14,23 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "Usage: thin_restore [options]\n\
-                     Options:\n  \
-                       {-h|--help}\n  \
-                       {-i|--input} <input xml file>\n  \
-                       {-o|--output} <output device or file>\n  \
-                       {--transaction-id} <natural>\n  \
-                       {--data-block-size} <natural>\n  \
-                       {--nr-data-blocks} <natural>\n  \
-                       {-q|--quiet}\n  \
-                       {-V|--version}";
+const USAGE: &str = "thin_restore 0.9.0
+Convert XML format metadata to binary.
+
+USAGE:
+    thin_restore [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
+
+FLAGS:
+    -q, --quiet      Suppress output messages, return only exit code.
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+        --data-block-size <SECTORS>    Override the data block size if needed
+    -i, --input <FILE>                 Specify the input xml
+        --nr-data-blocks <NUM>         Override the number of data blocks if needed
+    -o, --output <FILE>                Specify the output device
+        --transaction-id <NUM>         Override the transaction id if needed";
 
 //------------------------------------------
 
@@ -128,7 +135,6 @@ fn accepts_quiet() -> Result<()> {
 //-----------------------------------------
 
 // TODO: share with thin_dump
-#[cfg(not(feature = "rust_tests"))]
 fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
@@ -142,19 +148,16 @@ fn override_something(flag: &str, value: &str, pattern: &str) -> Result<()> {
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_transaction_id() -> Result<()> {
     override_something("--transaction-id", "2345", "transaction=\"2345\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_data_block_size() -> Result<()> {
     override_something("--data-block-size", "8192", "data_block_size=\"8192\"")
 }
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn override_nr_data_blocks() -> Result<()> {
     override_something("--nr-data-blocks", "234500", "nr_data_blocks=\"234500\"")
 }

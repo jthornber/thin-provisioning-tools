@@ -129,7 +129,6 @@ fn dump_restore_cycle() -> Result<()> {
 // test no stderr with a normal dump
 
 #[test]
-#[cfg(not(feature = "rust_tests"))]
 fn no_stderr() -> Result<()> {
     let mut td = TestDir::new()?;
 
@@ -184,9 +183,6 @@ fn repair_superblock() -> Result<()> {
         "--nr-data-blocks=20480",
         &md
     ]))?;
-    if !cfg!(feature = "rust_tests") {
-        assert_eq!(after.stderr.len(), 0);
-    }
     assert_eq!(before.stdout, after.stdout);
 
     Ok(())
@@ -197,17 +193,17 @@ fn repair_superblock() -> Result<()> {
 // TODO: share with thin_repair
 
 #[test]
-fn missing_transaction_id() -> Result<()> {
+fn recovers_transaction_id_from_damaged_superblock() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(thin_dump_cmd(args![
+    let stdout = run_ok(thin_dump_cmd(args![
         "--repair",
         "--data-block-size=128",
         "--nr-data-blocks=20480",
         &md
     ]))?;
-    assert!(stderr.contains("transaction id"));
+    assert!(stdout.contains("transaction=\"1\""));
     Ok(())
 }
 
@@ -227,17 +223,17 @@ fn missing_data_block_size() -> Result<()> {
 }
 
 #[test]
-fn missing_nr_data_blocks() -> Result<()> {
+fn recovers_nr_data_blocks_from_damaged_superblock() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     damage_superblock(&md)?;
-    let stderr = run_fail(thin_dump_cmd(args![
+    let stdout = run_ok(thin_dump_cmd(args![
         "--repair",
         "--transaction-id=1",
         "--data-block-size=128",
         &md
     ]))?;
-    assert!(stderr.contains("nr data blocks"));
+    assert!(stdout.contains("nr_data_blocks=\"1024\""));
     Ok(())
 }
 
