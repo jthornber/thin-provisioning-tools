@@ -11,31 +11,32 @@ use crate::thin::trim::{trim, ThinTrimOptions};
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_trim")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Issue discard requests for free pool space (offline tool).")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("QUIET")
+            Arg::new("QUIET")
                 .help("Suppress output messages, return only exit code.")
-                .short("q")
+                .short('q')
                 .long("quiet"),
         )
         // options
         .arg(
-            Arg::with_name("METADATA_DEV")
+            Arg::new("METADATA_DEV")
                 .help("Specify the pool metadata device")
                 .long("metadata-dev")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("DATA_DEV")
+            Arg::new("DATA_DEV")
                 .help("Specify the pool data device")
                 .long("data-dev")
                 .value_name("FILE")

@@ -1,7 +1,7 @@
 extern crate clap;
 
 use anyhow::anyhow;
-use clap::{values_t_or_exit, App, Arg};
+use clap::{App, Arg};
 use std::ops::Range;
 use std::path::Path;
 use std::process;
@@ -38,30 +38,31 @@ impl FromStr for RangeU64 {
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_rmap")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Output reverse map of a thin provisioned region of blocks")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         // options
         .arg(
             // FIXME: clap doesn't support placing the index argument
             //        after the multiple arguments, e.g.,
             //        thin_rmap --region 0..1 --region 2..3 tmeta.bin
-            Arg::with_name("REGION")
+            Arg::new("REGION")
                 .help("Specify range of blocks on the data device")
                 .long("region")
-                .multiple(true)
+                .multiple_occurrences(true)
                 .required(true)
                 .value_name("BLOCK_RANGE"),
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device")
                 .required(true)
                 .index(1),
@@ -74,7 +75,9 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_input_file(input_file, &report);
     check_file_not_tiny(input_file, &report);
 
-    let regions: Vec<Range<u64>> = values_t_or_exit!(matches.values_of("REGION"), RangeU64)
+    // FIXME: get rid of the intermediate RangeU64 struct
+    let regions: Vec<Range<u64>> = matches
+        .values_of_t_or_exit::<RangeU64>("REGION")
         .iter()
         .map(|v| Range::<u64> {
             start: v.start,

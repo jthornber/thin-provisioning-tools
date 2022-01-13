@@ -14,20 +14,21 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "era_restore 0.9.0
-Convert XML format metadata to binary.
+const USAGE: &str = concat!(
+    "era_restore ",
+    include_str!("../VERSION"),
+    "Convert XML format metadata to binary.
 
 USAGE:
-    era_restore [FLAGS] --input <FILE> --output <FILE>
-
-FLAGS:
-    -q, --quiet      Suppress output messages, return only exit code.
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    era_restore [OPTIONS] --input <FILE> --output <FILE>
 
 OPTIONS:
+    -h, --help             Print help information
     -i, --input <FILE>     Specify the input xml
-    -o, --output <FILE>    Specify the output device to check";
+    -o, --output <FILE>    Specify the output device to check
+    -q, --quiet            Suppress output messages, return only exit code.
+    -V, --version          Print version information"
+);
 
 //------------------------------------------
 

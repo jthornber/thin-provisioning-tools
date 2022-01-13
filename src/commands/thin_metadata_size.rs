@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{value_t_or_exit, App, Arg};
+use clap::{App, Arg};
 use std::ffi::OsString;
 use std::process;
 
@@ -15,55 +15,56 @@ where
     T: Into<OsString> + Clone,
 {
     let parser = App::new("thin_metadata_size")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Estimate the size of the metadata device needed for a given configuration.")
         // options
         .arg(
-            Arg::with_name("BLOCK_SIZE")
+            Arg::new("BLOCK_SIZE")
                 .help("Specify the data block size")
-                .short("b")
+                .short('b')
                 .long("block-size")
                 .required(true)
                 .value_name("SECTORS"),
         )
         .arg(
-            Arg::with_name("POOL_SIZE")
+            Arg::new("POOL_SIZE")
                 .help("Specify the size of pool device")
-                .short("s")
+                .short('s')
                 .long("pool-size")
                 .required(true)
                 .value_name("SECTORS"),
         )
         .arg(
-            Arg::with_name("MAX_THINS")
+            Arg::new("MAX_THINS")
                 .help("Maximum number of thin devices and snapshots")
-                .short("m")
+                .short('m')
                 .long("max-thins")
                 .required(true)
                 .value_name("NUM"),
         )
         .arg(
-            Arg::with_name("UNIT")
+            Arg::new("UNIT")
                 .help("Specify the output unit")
-                .short("u")
+                .short('u')
                 .long("unit")
                 .value_name("UNIT")
                 .default_value("sector"),
         )
         .arg(
-            Arg::with_name("NUMERIC_ONLY")
+            Arg::new("NUMERIC_ONLY")
                 .help("Output numeric value only")
-                .short("n")
+                .short('n')
                 .long("numeric-only"),
         );
 
     let matches = parser.get_matches_from(args);
 
     // TODO: handle unit suffix
-    let pool_size = value_t_or_exit!(matches.value_of("POOL_SIZE"), u64);
-    let block_size = value_t_or_exit!(matches.value_of("BLOCK_SIZE"), u32);
-    let max_thins = value_t_or_exit!(matches.value_of("MAX_THINS"), u64);
-    let unit = value_t_or_exit!(matches.value_of("UNIT"), Units);
+    let pool_size = matches.value_of_t_or_exit::<u64>("POOL_SIZE");
+    let block_size = matches.value_of_t_or_exit::<u32>("BLOCK_SIZE");
+    let max_thins = matches.value_of_t_or_exit::<u64>("MAX_THINS");
+    let unit = matches.value_of_t_or_exit::<Units>("UNIT");
     let numeric_only = matches.is_present("NUMERIC_ONLY");
 
     (

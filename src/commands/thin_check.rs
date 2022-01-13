@@ -11,17 +11,18 @@ use crate::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_check")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("AUTO_REPAIR")
+            Arg::new("AUTO_REPAIR")
                 .help("Auto repair trivial issues.")
                 .long("auto-repair")
                 .conflicts_with_all(&[
@@ -35,41 +36,41 @@ pub fn run(args: &[std::ffi::OsString]) {
         .arg(
             // Using --clear-needs-check along with --skip-mappings is allowed
             // (but not recommended) for backward compatibility (commit 1fe8a0d)
-            Arg::with_name("CLEAR_NEEDS_CHECK")
+            Arg::new("CLEAR_NEEDS_CHECK")
                 .help("Clears the 'needs_check' flag in the superblock")
                 .long("clear-needs-check-flag")
                 .conflicts_with_all(&["METADATA_SNAPSHOT", "OVERRIDE_MAPPING_ROOT"]),
         )
         .arg(
-            Arg::with_name("IGNORE_NON_FATAL")
+            Arg::new("IGNORE_NON_FATAL")
                 .help("Only return a non-zero exit code if a fatal error is found.")
                 .long("ignore-non-fatal-errors"),
         )
         .arg(
-            Arg::with_name("METADATA_SNAPSHOT")
+            Arg::new("METADATA_SNAPSHOT")
                 .help("Check the metadata snapshot on a live pool")
-                .short("m")
+                .short('m')
                 .long("metadata-snapshot"),
         )
         .arg(
-            Arg::with_name("QUIET")
+            Arg::new("QUIET")
                 .help("Suppress output messages, return only exit code.")
-                .short("q")
+                .short('q')
                 .long("quiet"),
         )
         .arg(
-            Arg::with_name("SB_ONLY")
+            Arg::new("SB_ONLY")
                 .help("Only check the superblock.")
                 .long("super-block-only"),
         )
         .arg(
-            Arg::with_name("SKIP_MAPPINGS")
+            Arg::new("SKIP_MAPPINGS")
                 .help("Don't check the mapping tree")
                 .long("skip-mappings"),
         )
         // options
         .arg(
-            Arg::with_name("OVERRIDE_MAPPING_ROOT")
+            Arg::new("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
                 .long("override-mapping-root")
                 .value_name("OVERRIDE_MAPPING_ROOT")
@@ -77,7 +78,7 @@ pub fn run(args: &[std::ffi::OsString]) {
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to check")
                 .required(true)
                 .index(1),

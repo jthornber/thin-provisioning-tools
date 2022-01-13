@@ -842,14 +842,14 @@ fn main() -> Result<()> {
         .version(thinp::version::tools_version())
         .about("A text user interface for examining thin metadata.")
         .arg(
-            Arg::with_name("NODE_PATH")
+            Arg::new("NODE_PATH")
                 .help("Pass in a node path as output by thin_check")
-                .short("p")
+                .short('p')
                 .long("node-path")
                 .value_name("NODE_PATH"),
         )
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to check")
                 .required(true)
                 .index(1),

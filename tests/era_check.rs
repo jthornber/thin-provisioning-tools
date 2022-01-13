@@ -13,20 +13,24 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "era_check 0.9.0
+const USAGE: &str = concat!(
+    "era_check ",
+    include_str!("../VERSION"),
+    "Validate era metadata on device or file.
 
 USAGE:
-    era_check [FLAGS] <INPUT>
+    era_check [OPTIONS] <INPUT>
 
-FLAGS:
+ARGS:
+    <INPUT>    Specify the input device to check
+
+OPTIONS:
+    -h, --help                       Print help information
         --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
     -q, --quiet                      Suppress output messages, return only exit code.
         --super-block-only           Only check the superblock.
-    -h, --help                       Prints help information
-    -V, --version                    Prints version information
-
-ARGS:
-    <INPUT>    Specify the input device to check";
+    -V, --version                    Print version information"
+);
 
 //------------------------------------------
 

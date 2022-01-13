@@ -14,63 +14,63 @@ pub fn run(args: &[std::ffi::OsString]) {
         .about("Repair binary cache metadata, and write it to a different device or file")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("QUIET")
+            Arg::new("QUIET")
                 .help("Suppress output messages, return only exit code.")
-                .short("q")
+                .short('q')
                 .long("quiet"),
         )
         .arg(
-            Arg::with_name("NO_METADATA_UPDATE")
+            Arg::new("NO_METADATA_UPDATE")
                 .help("Do not clear the dirty flags in metadata")
                 .long("no-metadata-update"),
         )
         .arg(
-            Arg::with_name("LIST_FAILED_BLOCKS")
+            Arg::new("LIST_FAILED_BLOCKS")
                 .help("List any blocks that failed the writeback process")
                 .long("list-failed-blocks"),
         )
         // options
         .arg(
-            Arg::with_name("METADATA_DEV")
+            Arg::new("METADATA_DEV")
                 .help("Specify the cache metadata device")
                 .long("metadata-device")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("ORIGIN_DEV")
+            Arg::new("ORIGIN_DEV")
                 .help("Specify the slow device begin cached")
                 .long("origin-device")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("FAST_DEV")
+            Arg::new("FAST_DEV")
                 .help("Specify the fast device containing the data that needs to be written back")
                 .long("fast-device")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("ORIGIN_DEV_OFFSET")
+            Arg::new("ORIGIN_DEV_OFFSET")
                 .help("Specify the data offset within the slow device")
                 .long("origin-device-offset")
                 .value_name("SECTORS"),
         )
         .arg(
-            Arg::with_name("FAST_DEV_OFFSET")
+            Arg::new("FAST_DEV_OFFSET")
                 .help("Specify the data offset within the fast device")
                 .long("fast-device-offset")
                 .value_name("SECTORS"),
         )
         .arg(
-            Arg::with_name("BUFFER_SIZE_MEG")
+            Arg::new("BUFFER_SIZE_MEG")
                 .help("Specify the size for the data cache, in megabytes")
                 .long("buffer-size-meg")
                 .value_name("MB"),

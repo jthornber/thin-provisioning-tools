@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{value_t_or_exit, App, Arg, ArgGroup};
+use clap::{App, Arg, ArgGroup};
 use std::path::Path;
 use std::process;
 
@@ -12,43 +12,44 @@ use crate::thin::delta_visitor::Snap;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_delta")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Print the differences in the mappings between two thin devices")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("METADATA_SNAP")
+            Arg::new("METADATA_SNAP")
                 .help("Use metadata snapshot")
-                .short("m")
+                .short('m')
                 .long("metadata-snap"),
         )
         .arg(
-            Arg::with_name("VERBOSE")
+            Arg::new("VERBOSE")
                 .help("Provide extra information on the mappings")
                 .long("verbose"),
         )
         // options
         .arg(
-            Arg::with_name("ROOT1")
+            Arg::new("ROOT1")
                 .help("The root block for the first thin volume to diff")
                 .long("root1")
                 .value_name("BLOCKNR")
                 .group("SNAP1"),
         )
         .arg(
-            Arg::with_name("ROOT2")
+            Arg::new("ROOT2")
                 .help("The root block for the second thin volume to diff")
                 .long("root2")
                 .value_name("BLOCKNR")
                 .group("SNAP2"),
         )
         .arg(
-            Arg::with_name("THIN1")
+            Arg::new("THIN1")
                 .help("The numeric identifier for the first thin volume to diff")
                 .long("thin1")
                 .value_name("DEV_ID")
@@ -56,7 +57,7 @@ pub fn run(args: &[std::ffi::OsString]) {
                 .group("SNAP1"),
         )
         .arg(
-            Arg::with_name("THIN2")
+            Arg::new("THIN2")
                 .help("The numeric identifier for the second thin volume to diff")
                 .long("thin2")
                 .value_name("DEV_ID")
@@ -65,14 +66,14 @@ pub fn run(args: &[std::ffi::OsString]) {
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to dump")
                 .required(true)
                 .index(1),
         )
         // groups
-        .group(ArgGroup::with_name("SNAP1").required(true))
-        .group(ArgGroup::with_name("SNAP2").required(true));
+        .group(ArgGroup::new("SNAP1").required(true))
+        .group(ArgGroup::new("SNAP2").required(true));
 
     let matches = parser.get_matches_from(args);
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -82,15 +83,15 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_file_not_tiny(input_file, &report);
 
     let snap1 = if matches.is_present("THIN1") {
-        Snap::DeviceId(value_t_or_exit!(matches.value_of("THIN1"), u64))
+        Snap::DeviceId(matches.value_of_t_or_exit::<u64>("THIN1"))
     } else {
-        Snap::RootBlock(value_t_or_exit!(matches.value_of("ROOT1"), u64))
+        Snap::RootBlock(matches.value_of_t_or_exit::<u64>("ROOT1"))
     };
 
     let snap2 = if matches.is_present("THIN2") {
-        Snap::DeviceId(value_t_or_exit!(matches.value_of("THIN2"), u64))
+        Snap::DeviceId(matches.value_of_t_or_exit::<u64>("THIN2"))
     } else {
-        Snap::RootBlock(value_t_or_exit!(matches.value_of("ROOT2"), u64))
+        Snap::RootBlock(matches.value_of_t_or_exit::<u64>("ROOT2"))
     };
 
     let opts = ThinDeltaOptions {

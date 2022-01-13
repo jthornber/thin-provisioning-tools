@@ -9,18 +9,19 @@ use crate::report::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_metadata_pack")
+        .color(clap::ColorChoice::Never)
 	.version(crate::version::tools_version())
         .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
-        .arg(Arg::with_name("INPUT")
+        .arg(Arg::new("INPUT")
             .help("Specify thinp metadata binary device/file")
             .required(true)
-            .short("i")
+            .short('i')
             .value_name("DEV")
             .takes_value(true))
-        .arg(Arg::with_name("OUTPUT")
+        .arg(Arg::new("OUTPUT")
             .help("Specify packed output file")
             .required(true)
-            .short("o")
+            .short('o')
             .value_name("FILE")
             .takes_value(true));
 

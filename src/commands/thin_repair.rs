@@ -10,52 +10,53 @@ use crate::thin::repair::{repair, ThinRepairOptions};
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_repair")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Repair thin-provisioning metadata, and write it to different device or file")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("QUIET")
+            Arg::new("QUIET")
                 .help("Suppress output messages, return only exit code.")
-                .short("q")
+                .short('q')
                 .long("quiet"),
         )
         // options
         .arg(
-            Arg::with_name("DATA_BLOCK_SIZE")
+            Arg::new("DATA_BLOCK_SIZE")
                 .help("Provide the data block size for repairing")
                 .long("data-block-size")
                 .value_name("SECTORS"),
         )
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device")
-                .short("i")
+                .short('i')
                 .long("input")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("NR_DATA_BLOCKS")
+            Arg::new("NR_DATA_BLOCKS")
                 .help("Override the number of data blocks if needed")
                 .long("nr-data-blocks")
                 .value_name("NUM"),
         )
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Specify the output device")
-                .short("o")
+                .short('o')
                 .long("output")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("TRANSACTION_ID")
+            Arg::new("TRANSACTION_ID")
                 .help("Override the transaction id if needed")
                 .long("transaction-id")
                 .value_name("NUM"),

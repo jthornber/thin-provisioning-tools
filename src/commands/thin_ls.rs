@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{values_t_or_exit, App, Arg};
+use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 
@@ -11,38 +11,39 @@ pub fn run(args: &[std::ffi::OsString]) {
     use OutputField::*;
 
     let parser = App::new("thin_ls")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("List thin volumes within a pool")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("NO_HEADERS")
+            Arg::new("NO_HEADERS")
                 .help("Don't output headers")
                 .long("no-headers"),
         )
         .arg(
-            Arg::with_name("METADATA_SNAP")
+            Arg::new("METADATA_SNAP")
                 .help("Use metadata snapshot")
-                .short("m")
+                .short('m')
                 .long("metadata-snap"),
         )
         // options
         .arg(
-            Arg::with_name("FORMAT")
+            Arg::new("FORMAT")
                 .help("Give a comma separated list of fields to be output")
-                .short("o")
+                .short('o')
                 .long("format")
-                .value_delimiter(",")
+                .value_delimiter(',')
                 .value_name("FIELDS"),
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to dump")
                 .required(true)
                 .index(1),
@@ -56,7 +57,7 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_file_not_tiny(input_file, &report);
 
     let fields = if matches.is_present("FORMAT") {
-        values_t_or_exit!(matches.values_of("FORMAT"), OutputField)
+        matches.values_of_t_or_exit::<OutputField>("FORMAT")
     } else {
         vec![DeviceId, Mapped, CreationTime, SnapshottedTime]
     };

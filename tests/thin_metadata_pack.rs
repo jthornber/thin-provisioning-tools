@@ -12,22 +12,18 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_metadata_pack ",
-    include_str!("../VERSION"),
-    "Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.\n\
-     \n\
-     USAGE:\n    \
-         thin_metadata_pack -i <DEV> -o <FILE>\n\
-     \n\
-     FLAGS:\n    \
-         -h, --help       Prints help information\n    \
-         -V, --version    Prints version information\n\
-     \n\
-     OPTIONS:\n    \
-         -i <DEV>         Specify thinp metadata binary device/file\n    \
-         -o <FILE>        Specify packed output file"
-);
+const USAGE: &str = concat!("thin_metadata_pack ",
+include_str!("../VERSION"),
+"Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
+
+USAGE:
+    thin_metadata_pack -i <DEV> -o <FILE>
+
+OPTIONS:
+    -h, --help       Print help information
+    -i <DEV>         Specify thinp metadata binary device/file
+    -o <FILE>        Specify packed output file
+    -V, --version    Print version information");
 
 //------------------------------------------
 

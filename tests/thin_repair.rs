@@ -14,23 +14,24 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "thin_repair 0.9.0
-Repair thin-provisioning metadata, and write it to different device or file
+const USAGE: &str = concat!(
+    "thin_repair ",
+    include_str!("../VERSION"),
+    "Repair thin-provisioning metadata, and write it to different device or file
 
 USAGE:
-    thin_repair [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
-
-FLAGS:
-    -q, --quiet      Suppress output messages, return only exit code.
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    thin_repair [OPTIONS] --input <FILE> --output <FILE>
 
 OPTIONS:
         --data-block-size <SECTORS>    Provide the data block size for repairing
+    -h, --help                         Print help information
     -i, --input <FILE>                 Specify the input device
         --nr-data-blocks <NUM>         Override the number of data blocks if needed
     -o, --output <FILE>                Specify the output device
-        --transaction-id <NUM>         Override the transaction id if needed";
+    -q, --quiet                        Suppress output messages, return only exit code.
+        --transaction-id <NUM>         Override the transaction id if needed
+    -V, --version                      Print version information"
+);
 
 //-----------------------------------------
 

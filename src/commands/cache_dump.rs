@@ -11,32 +11,33 @@ use crate::commands::utils::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_dump")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Dump the cache metadata to stdout in XML format")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("REPAIR")
+            Arg::new("REPAIR")
                 .help("Repair the metadata whilst dumping it")
-                .short("r")
+                .short('r')
                 .long("repair"),
         )
         // options
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Specify the output file rather than stdout")
-                .short("o")
+                .short('o')
                 .long("output")
                 .value_name("FILE"),
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to dump")
                 .required(true)
                 .index(1),

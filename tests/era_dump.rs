@@ -15,23 +15,24 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "era_dump 0.9.0
-Dump the era metadata to stdout in XML format
+const USAGE: &str = concat!(
+    "era_dump ",
+    include_str!("../VERSION"),
+    "Dump the era metadata to stdout in XML format
 
 USAGE:
-    era_dump [FLAGS] [OPTIONS] <INPUT>
-
-FLAGS:
-        --logical    Fold any unprocessed write sets into the final era array
-    -r, --repair     Repair the metadata whilst dumping it
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -o, --output <FILE>    Specify the output file rather than stdout
+    era_dump [OPTIONS] <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device to dump";
+    <INPUT>    Specify the input device to dump
+
+OPTIONS:
+    -h, --help             Print help information
+        --logical          Fold any unprocessed write sets into the final era array
+    -o, --output <FILE>    Specify the output file rather than stdout
+    -r, --repair           Repair the metadata whilst dumping it
+    -V, --version          Print version information"
+);
 
 //------------------------------------------
 
