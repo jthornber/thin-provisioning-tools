@@ -18,21 +18,11 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct SuperblockOverrides {
     pub transaction_id: Option<u64>,
     pub data_block_size: Option<u32>,
     pub nr_data_blocks: Option<u64>,
-}
-
-impl Default for SuperblockOverrides {
-    fn default() -> Self {
-        SuperblockOverrides {
-            transaction_id: None,
-            data_block_size: None,
-            nr_data_blocks: None,
-        }
-    }
 }
 
 pub struct FoundRoots {
