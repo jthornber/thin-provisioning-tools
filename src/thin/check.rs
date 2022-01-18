@@ -289,6 +289,42 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &roots, opts.ignore_non_fatal)?;
 
+    // trees in metadata snap
+    if sb.metadata_snap > 0 {
+        {
+            let mut metadata_sm = metadata_sm.lock().unwrap();
+            metadata_sm.inc(sb.metadata_snap, 1)?;
+        }
+        let sb_snap = read_superblock(engine.as_ref(), sb.metadata_snap)?;
+
+        // device details
+        btree_to_map_with_sm::<DeviceDetail>(
+            &mut path,
+            engine.clone(),
+            metadata_sm.clone(),
+            opts.ignore_non_fatal,
+            sb_snap.details_root,
+        )?;
+
+        // mapping top level
+        let roots_snap = btree_to_map_with_path::<u64>(
+            &mut path,
+            engine.clone(),
+            metadata_sm.clone(),
+            opts.ignore_non_fatal,
+            sb_snap.mapping_root,
+        )?;
+
+        // mapping bottom level
+        check_mapping_bottom_level(
+            &ctx,
+            &metadata_sm,
+            &data_sm,
+            &roots_snap,
+            opts.ignore_non_fatal,
+        )?;
+    }
+
     //-----------------------------------------
 
     report.set_sub_title("data space map");
