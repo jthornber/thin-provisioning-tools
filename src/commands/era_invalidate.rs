@@ -11,32 +11,33 @@ use crate::era::invalidate::{invalidate, EraInvalidateOptions};
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("era_invalidate")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("List blocks that may have changed since a given era")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         // options
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Specify the output file rather than stdout")
-                .short("o")
+                .short('o')
                 .long("output")
                 .value_name("FILE"),
         )
         // arguments
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input device to dump")
                 .required(true)
                 .index(1),
         )
         .arg(
-            Arg::with_name("WRITTEN_SINCE")
+            Arg::new("WRITTEN_SINCE")
                 .help("Blocks written since the given era will be listed")
                 .long("written-since")
                 .required(true)

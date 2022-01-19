@@ -229,7 +229,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
                     self.dirty_bits.1,
                 )?;
                 self.dirty_bits.0 = index;
-                self.dirty_bits.1 = 0;
+                self.dirty_bits.1 = mask;
             }
         }
 

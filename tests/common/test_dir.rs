@@ -52,7 +52,7 @@ impl TestDir {
 
 impl Drop for TestDir {
     fn drop(&mut self) {
-        if self.clean_up {
+        if !std::thread::panicking() && self.clean_up {
             while let Some(f) = self.files.pop() {
                 // It's not guaranteed that the path generated was actually created.
                 let _ignore = fs::remove_file(f);

@@ -14,23 +14,24 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "thin_restore 0.9.0
-Convert XML format metadata to binary.
+const USAGE: &str = concat!(
+    "thin_restore ",
+    include_str!("../VERSION"),
+    "Convert XML format metadata to binary.
 
 USAGE:
-    thin_restore [FLAGS] [OPTIONS] --input <FILE> --output <FILE>
-
-FLAGS:
-    -q, --quiet      Suppress output messages, return only exit code.
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    thin_restore [OPTIONS] --input <FILE> --output <FILE>
 
 OPTIONS:
         --data-block-size <SECTORS>    Override the data block size if needed
+    -h, --help                         Print help information
     -i, --input <FILE>                 Specify the input xml
         --nr-data-blocks <NUM>         Override the number of data blocks if needed
     -o, --output <FILE>                Specify the output device
-        --transaction-id <NUM>         Override the transaction id if needed";
+    -q, --quiet                        Suppress output messages, return only exit code.
+        --transaction-id <NUM>         Override the transaction id if needed
+    -V, --version                      Print version information"
+);
 
 //------------------------------------------
 

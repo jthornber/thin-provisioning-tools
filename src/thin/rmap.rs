@@ -18,7 +18,7 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct RmapRegion {
     begin: u64,
     end: u64,
@@ -75,17 +75,6 @@ impl RmapRegion {
             Ordering::Greater
         } else {
             Ordering::Equal
-        }
-    }
-}
-
-impl Default for RmapRegion {
-    fn default() -> Self {
-        RmapRegion {
-            begin: 0,
-            end: 0,
-            dev_id: 0,
-            thin_begin: 0,
         }
     }
 }

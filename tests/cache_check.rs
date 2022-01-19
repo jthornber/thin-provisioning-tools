@@ -13,23 +13,28 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "cache_check 0.9.0
+const USAGE: &str = concat!(
+    "cache_check ",
+    include_str!("../VERSION"),
+    "Validates cache metadata on a device or file.
 
 USAGE:
-    cache_check [FLAGS] <INPUT>
-
-FLAGS:
-        --auto-repair                Auto repair trivial issues.
-        --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
-    -q, --quiet                      Suppress output messages, return only exit code.
-        --super-block-only           Only check the superblock.
-        --skip-discards              Don't check the discard bitset
-        --skip-hints                 Don't check the hint array
-    -h, --help                       Prints help information
-    -V, --version                    Prints version information
+    cache_check [OPTIONS] <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device to check";
+    <INPUT>    Specify the input device to check
+
+OPTIONS:
+        --auto-repair                Auto repair trivial issues.
+    -h, --help                       Print help information
+        --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
+    -q, --quiet                      Suppress output messages, return only exit code.
+        --skip-discards              Don't check the discard bitset
+        --skip-hints                 Don't check the hint array
+        --skip-mappings              Don't check the mapping tree
+        --super-block-only           Only check the superblock.
+    -V, --version                    Print version information"
+);
 
 //------------------------------------------
 

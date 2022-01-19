@@ -93,7 +93,7 @@ impl WriteBatcher {
     }
 
     pub fn write(&mut self, b: Block, kind: checksum::BT) -> Result<()> {
-        checksum::write_checksum(&mut b.get_data(), kind)?;
+        checksum::write_checksum(b.get_data(), kind)?;
 
         for blk in self.queue.iter().rev() {
             if blk.loc == b.loc {

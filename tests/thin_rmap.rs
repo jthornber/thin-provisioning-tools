@@ -11,21 +11,22 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "thin_rmap 0.9.0
-Output reverse map of a thin provisioned region of blocks
+const USAGE: &str = concat!(
+    "thin_rmap ",
+    include_str!("../VERSION"),
+    "Output reverse map of a thin provisioned region of blocks
 
 USAGE:
-    thin_rmap <INPUT> --region <BLOCK_RANGE>...
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-        --region <BLOCK_RANGE>...    Specify range of blocks on the data device
+    thin_rmap --region <BLOCK_RANGE> <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device";
+    <INPUT>    Specify the input device
+
+OPTIONS:
+    -h, --help                    Print help information
+        --region <BLOCK_RANGE>    Specify range of blocks on the data device
+    -V, --version                 Print version information"
+);
 
 //------------------------------------------
 

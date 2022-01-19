@@ -17,18 +17,16 @@ use common::thin::*;
 const USAGE: &str = concat!(
     "thin_metadata_unpack ",
     include_str!("../VERSION"),
-    "Unpack a compressed file of thin metadata.\n\
-     \n\
-     USAGE:\n    \
-         thin_metadata_unpack -i <DEV> -o <FILE>\n\
-     \n\
-     FLAGS:\n    \
-         -h, --help       Prints help information\n    \
-         -V, --version    Prints version information\n\
-     \n\
-     OPTIONS:\n    \
-         -i <DEV>         Specify thinp metadata binary device/file\n    \
-         -o <FILE>        Specify packed output file"
+    "Unpack a compressed file of thin metadata.
+
+USAGE:
+    thin_metadata_unpack -i <DEV> -o <FILE>
+
+OPTIONS:
+    -h, --help       Print help information
+    -i <DEV>         Specify thinp metadata binary device/file
+    -o <FILE>        Specify packed output file
+    -V, --version    Print version information"
 );
 
 //------------------------------------------

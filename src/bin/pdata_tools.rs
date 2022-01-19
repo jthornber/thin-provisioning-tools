@@ -22,7 +22,7 @@ fn main_() -> Result<()> {
     }
 
     let mut new_args = vec![OsString::from(&name)];
-    for a in args.into_iter() {
+    for a in args {
         new_args.push(a);
     }
 

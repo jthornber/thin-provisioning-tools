@@ -12,20 +12,21 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "cache_repair 0.9.0
-Repair binary cache metadata, and write it to a different device or file
+const USAGE: &str = concat!(
+    "cache_repair ",
+    include_str!("../VERSION"),
+    "Repair binary cache metadata, and write it to a different device or file
 
 USAGE:
-    cache_repair [FLAGS] --input <FILE> --output <FILE>
-
-FLAGS:
-    -q, --quiet      Suppress output messages, return only exit code.
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    cache_repair [OPTIONS] --input <FILE> --output <FILE>
 
 OPTIONS:
+    -h, --help             Print help information
     -i, --input <FILE>     Specify the input device
-    -o, --output <FILE>    Specify the output device";
+    -o, --output <FILE>    Specify the output device
+    -q, --quiet            Suppress output messages, return only exit code.
+    -V, --version          Print version information"
+);
 
 //-----------------------------------------
 

@@ -7,7 +7,7 @@ use crate::pdata::unpack::*;
 
 //------------------------------------------
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Hint {
     pub hint: [u8; 4],
 }
@@ -34,12 +34,6 @@ impl Pack for Hint {
             data.write_u8(*v)?;
         }
         Ok(())
-    }
-}
-
-impl Default for Hint {
-    fn default() -> Self {
-        Hint { hint: [0; 4] }
     }
 }
 

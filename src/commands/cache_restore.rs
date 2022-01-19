@@ -9,34 +9,35 @@ use crate::commands::utils::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_restore")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Convert XML format metadata to binary.")
         // flags
         .arg(
-            Arg::with_name("ASYNC_IO")
+            Arg::new("ASYNC_IO")
                 .help("Force use of io_uring for synchronous io")
                 .long("async-io")
-                .hidden(true),
+                .hide(true),
         )
         .arg(
-            Arg::with_name("QUIET")
+            Arg::new("QUIET")
                 .help("Suppress output messages, return only exit code.")
-                .short("q")
+                .short('q')
                 .long("quiet"),
         )
         // options
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify the input xml")
-                .short("i")
+                .short('i')
                 .long("input")
                 .value_name("FILE")
                 .required(true),
         )
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Specify the output device to check")
-                .short("o")
+                .short('o')
                 .long("output")
                 .value_name("FILE")
                 .required(true),

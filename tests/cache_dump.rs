@@ -15,22 +15,23 @@ use common::test_dir::*;
 
 //------------------------------------------
 
-const USAGE: &str = "cache_dump 0.9.0
-Dump the cache metadata to stdout in XML format
+const USAGE: &str = concat!(
+    "cache_dump ",
+    include_str!("../VERSION"),
+    "Dump the cache metadata to stdout in XML format
 
 USAGE:
-    cache_dump [FLAGS] [OPTIONS] <INPUT>
-
-FLAGS:
-    -r, --repair     Repair the metadata whilst dumping it
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -o, --output <FILE>    Specify the output file rather than stdout
+    cache_dump [OPTIONS] <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device to dump";
+    <INPUT>    Specify the input device to dump
+
+OPTIONS:
+    -h, --help             Print help information
+    -o, --output <FILE>    Specify the output file rather than stdout
+    -r, --repair           Repair the metadata whilst dumping it
+    -V, --version          Print version information"
+);
 
 //------------------------------------------
 

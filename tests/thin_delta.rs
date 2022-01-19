@@ -11,26 +11,27 @@ use common::thin::*;
 
 //------------------------------------------
 
-const USAGE: &str = "thin_delta 0.9.0
-Print the differences in the mappings between two thin devices
+const USAGE: &str = concat!("thin_delta ",
+include_str!("../VERSION"),
+"Print the differences in the mappings between two thin devices
 
 USAGE:
-    thin_delta [FLAGS] [OPTIONS] <INPUT> <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>>
-
-FLAGS:
-    -m, --metadata-snap    Use metadata snapshot
-        --verbose          Provide extra information on the mappings
-    -h, --help             Prints help information
-    -V, --version          Prints version information
-
-OPTIONS:
-        --root1 <BLOCKNR>    The root block for the first thin volume to diff
-        --root2 <BLOCKNR>    The root block for the second thin volume to diff
-        --thin1 <DEV_ID>     The numeric identifier for the first thin volume to diff [aliases: snap1]
-        --thin2 <DEV_ID>     The numeric identifier for the second thin volume to diff [aliases: snap2]
+    thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device to dump";
+    <INPUT>    Specify the input device to dump
+
+OPTIONS:
+    -h, --help               Print help information
+    -m, --metadata-snap      Use metadata snapshot
+        --root1 <BLOCKNR>    The root block for the first thin volume to diff
+        --root2 <BLOCKNR>    The root block for the second thin volume to diff
+        --thin1 <DEV_ID>     The numeric identifier for the first thin volume to diff [aliases:
+                             snap1]
+        --thin2 <DEV_ID>     The numeric identifier for the second thin volume to diff [aliases:
+                             snap2]
+    -V, --version            Print version information
+        --verbose            Provide extra information on the mappings");
 
 //------------------------------------------
 

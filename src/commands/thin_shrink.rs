@@ -12,28 +12,29 @@ use crate::commands::utils::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_shrink")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Rewrite xml metadata and move data in an inactive pool.")
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Specify thinp metadata xml file")
                 .required(true)
-                .short("i")
+                .short('i')
                 .long("input")
                 .value_name("FILE")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Specify output xml file")
                 .required(true)
-                .short("o")
+                .short('o')
                 .long("output")
                 .value_name("FILE")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("DATA")
+            Arg::new("DATA")
                 .help("Specify pool data device where data will be moved")
                 .required(true)
                 .long("data")
@@ -41,7 +42,7 @@ pub fn run(args: &[std::ffi::OsString]) {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("NOCOPY")
+            Arg::new("NOCOPY")
                 .help("Skip the copying of data, useful for benchmarking")
                 .required(false)
                 .long("no-copy")
@@ -49,7 +50,7 @@ pub fn run(args: &[std::ffi::OsString]) {
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("SIZE")
+            Arg::new("SIZE")
                 .help("Specify new size for the pool (in data blocks)")
                 .required(true)
                 .long("nr-blocks")
