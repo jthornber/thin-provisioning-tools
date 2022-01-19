@@ -73,7 +73,7 @@ pub fn run(args: &[std::ffi::OsString]) {
             Arg::new("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
                 .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
+                .value_name("BLOCKNR")
                 .takes_value(true),
         )
         // arguments
