@@ -147,6 +147,9 @@ impl CopyVisitor {
     }
 }
 
+// TODO: Avoid visiting clean mappings in v2 metadata.
+//       The CopyVisitor should not read an mapping array block,
+//       if all the mappings in this block are clean.
 impl ArrayVisitor<Mapping> for CopyVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
         let mut inner = self.inner.lock().unwrap();
@@ -269,10 +272,10 @@ fn update_v2_metadata(
             .iter_mut()
             .zip(cleaned_blocks.as_slice().chunks(2))
         {
-            if c[0] == 0 || c[1] == 0 {
+            if c[0] == 0 && c[1] == 0 {
                 continue;
             }
-            *bits &= !(c[1] as u64) << 32 | !(c[0] as u64);
+            *bits &= !((c[1] as u64) << 32 | (c[0] as u64));
             needs_update = true;
         }
 
@@ -282,6 +285,7 @@ fn update_v2_metadata(
 
         let mut cursor = Cursor::new(b.get_data());
         pack_array_block(&bitmap, &mut cursor)?;
+        checksum::write_checksum(b.get_data(), checksum::BT::ARRAY)?;
 
         ctx.engine.write(&b)?;
     }

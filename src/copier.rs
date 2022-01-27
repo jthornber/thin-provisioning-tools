@@ -211,7 +211,8 @@ impl Copier {
     }
 
     fn gen_key(&mut self) -> u64 {
-        self.key_counter.wrapping_add(1)
+        self.key_counter = self.key_counter.wrapping_add(1);
+        self.key_counter
     }
 
     pub fn queue_depth(&self) -> u32 {
