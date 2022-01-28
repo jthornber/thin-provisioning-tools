@@ -5,10 +5,9 @@ use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::Result;
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Result};
 use std::ops::{Deref, DerefMut};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
@@ -183,14 +182,12 @@ impl SyncIoEngine {
 
     fn read_(input: &mut File, loc: u64) -> Result<Block> {
         let b = Block::new(loc);
-        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        input.read_exact(b.get_data())?;
+        input.read_exact_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
         Ok(b)
     }
 
     fn write_(output: &mut File, b: &Block) -> Result<()> {
-        output.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        output.write_all(b.get_data())?;
+        output.write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
         Ok(())
     }
 }
