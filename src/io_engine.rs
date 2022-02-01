@@ -151,11 +151,13 @@ impl SyncIoEngine {
         writable: bool,
         excl: bool,
     ) -> Result<SyncIoEngine> {
-        let nr_blocks = get_nr_blocks(path)?; // check file mode eariler
+        let nr_blocks = get_nr_blocks(path)?; // check file mode before opening it
         let mut files = Vec::with_capacity(nr_files);
-        for _n in 0..nr_files {
-            files.push(SyncIoEngine::open_file(path, writable, excl)?);
+        let file = SyncIoEngine::open_file(path, writable, excl)?;
+        for _n in 0..nr_files - 1 {
+            files.push(file.try_clone()?);
         }
+        files.push(file);
 
         Ok(SyncIoEngine {
             nr_blocks,
