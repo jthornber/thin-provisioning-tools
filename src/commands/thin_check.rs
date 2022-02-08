@@ -73,7 +73,7 @@ pub fn run(args: &[std::ffi::OsString]) {
             Arg::new("OVERRIDE_MAPPING_ROOT")
                 .help("Specify a mapping root to use")
                 .long("override-mapping-root")
-                .value_name("OVERRIDE_MAPPING_ROOT")
+                .value_name("BLOCKNR")
                 .takes_value(true),
         )
         // arguments
@@ -94,7 +94,7 @@ pub fn run(args: &[std::ffi::OsString]) {
 
     let engine: Arc<dyn IoEngine + Send + Sync>;
     let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");
-    let exclusive = matches.is_present("METADATA_SNAPSHOT");
+    let exclusive = !matches.is_present("METADATA_SNAPSHOT");
 
     if matches.is_present("ASYNC_IO") {
         engine = Arc::new(

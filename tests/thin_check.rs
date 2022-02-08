@@ -40,7 +40,7 @@ OPTIONS:
     -m, --metadata-snapshot
             Check the metadata snapshot on a live pool
 
-        --override-mapping-root <OVERRIDE_MAPPING_ROOT>
+        --override-mapping-root <BLOCKNR>
             Specify a mapping root to use
 
     -q, --quiet

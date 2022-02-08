@@ -5,10 +5,9 @@ use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::Result;
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Result};
 use std::ops::{Deref, DerefMut};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
@@ -152,11 +151,13 @@ impl SyncIoEngine {
         writable: bool,
         excl: bool,
     ) -> Result<SyncIoEngine> {
-        let nr_blocks = get_nr_blocks(path)?; // check file mode eariler
+        let nr_blocks = get_nr_blocks(path)?; // check file mode before opening it
         let mut files = Vec::with_capacity(nr_files);
-        for _n in 0..nr_files {
-            files.push(SyncIoEngine::open_file(path, writable, excl)?);
+        let file = SyncIoEngine::open_file(path, writable, excl)?;
+        for _n in 0..nr_files - 1 {
+            files.push(file.try_clone()?);
         }
+        files.push(file);
 
         Ok(SyncIoEngine {
             nr_blocks,
@@ -183,14 +184,12 @@ impl SyncIoEngine {
 
     fn read_(input: &mut File, loc: u64) -> Result<Block> {
         let b = Block::new(loc);
-        input.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        input.read_exact(b.get_data())?;
+        input.read_exact_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
         Ok(b)
     }
 
     fn write_(output: &mut File, b: &Block) -> Result<()> {
-        output.seek(io::SeekFrom::Start(b.loc * BLOCK_SIZE as u64))?;
-        output.write_all(b.get_data())?;
+        output.write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
         Ok(())
     }
 }

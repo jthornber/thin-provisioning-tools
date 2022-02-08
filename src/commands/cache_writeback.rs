@@ -10,6 +10,7 @@ use crate::report::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_writeback")
+        .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Repair binary cache metadata, and write it to a different device or file")
         // flags

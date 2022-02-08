@@ -839,6 +839,7 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 fn main() -> Result<()> {
     let parser = App::new("thin_explore")
+        .color(clap::ColorChoice::Never)
         .version(thinp::version::tools_version())
         .about("A text user interface for examining thin metadata.")
         .arg(
