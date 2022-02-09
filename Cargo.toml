@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/thinp",
+    "src/thinp_dev",
 ]
 
 [profile.release]
