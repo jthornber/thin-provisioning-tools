@@ -16,7 +16,7 @@ use common::thin::*;
 
 const USAGE: &str = concat!(
     "thin_repair ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Repair thin-provisioning metadata, and write it to different device or file
 
 USAGE:

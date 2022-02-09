@@ -12,7 +12,7 @@ use common::thin::*;
 //------------------------------------------
 
 const USAGE: &str = concat!("thin_delta ",
-include_str!("../VERSION"),
+thinp::tools_version!(),
 "Print the differences in the mappings between two thin devices
 
 USAGE:

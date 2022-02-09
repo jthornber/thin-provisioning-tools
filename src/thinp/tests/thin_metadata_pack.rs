@@ -13,7 +13,7 @@ use common::thin::*;
 //------------------------------------------
 
 const USAGE: &str = concat!("thin_metadata_pack ",
-include_str!("../VERSION"),
+thinp::tools_version!(),
 "Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
 USAGE:

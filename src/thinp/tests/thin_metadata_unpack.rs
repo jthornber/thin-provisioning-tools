@@ -16,7 +16,7 @@ use common::thin::*;
 
 const USAGE: &str = concat!(
     "thin_metadata_unpack ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Unpack a compressed file of thin metadata.
 
 USAGE:

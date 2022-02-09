@@ -134,7 +134,7 @@ impl<'a> Iterator for RangeIterator<'a> {
 // defined in include/uapi/linux/fs.h
 const BLK_IOC_CODE: u8 = 0x12;
 const BLKDISCARD_SEQ: u8 = 119;
-ioctl_write_ptr_bad!(
+nix::ioctl_write_ptr_bad!(
     ioctl_blkdiscard,
     nix::request_code_none!(BLK_IOC_CODE, BLKDISCARD_SEQ),
     [u64; 2]

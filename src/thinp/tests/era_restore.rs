@@ -16,7 +16,7 @@ use common::test_dir::*;
 
 const USAGE: &str = concat!(
     "era_restore ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Convert XML format metadata to binary.
 
 USAGE:

@@ -17,7 +17,7 @@ use common::thin::*;
 
 const USAGE: &str = concat!(
     "thin_dump ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Dump thin-provisioning metadata to stdout in XML format
 
 USAGE:

@@ -13,7 +13,7 @@ use common::thin::*;
 
 const USAGE: &str = concat!(
     "thin_rmap ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Output reverse map of a thin provisioned region of blocks
 
 USAGE:

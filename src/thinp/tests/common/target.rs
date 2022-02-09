@@ -11,7 +11,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    let mut bin = PathBuf::from("bin");
+    let mut bin = PathBuf::from("../../bin");
     bin.push(Into::<OsString>::into(cmd));
 
     let mut args_ = Vec::new();

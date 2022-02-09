@@ -14,31 +14,35 @@ use common::test_dir::*;
 //------------------------------------------
 
 const USAGE: &str = concat!(
-    "era_check ",
-    include_str!("../VERSION"),
-    "Validate era metadata on device or file.
+    "cache_check ",
+    thinp::tools_version!(),
+    "Validates cache metadata on a device or file.
 
 USAGE:
-    era_check [OPTIONS] <INPUT>
+    cache_check [OPTIONS] <INPUT>
 
 ARGS:
     <INPUT>    Specify the input device to check
 
 OPTIONS:
+        --auto-repair                Auto repair trivial issues.
     -h, --help                       Print help information
         --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
     -q, --quiet                      Suppress output messages, return only exit code.
+        --skip-discards              Don't check the discard bitset
+        --skip-hints                 Don't check the hint array
+        --skip-mappings              Don't check the mapping tree
         --super-block-only           Only check the superblock.
     -V, --version                    Print version information"
 );
 
 //------------------------------------------
 
-struct EraCheck;
+struct CacheCheck;
 
-impl<'a> Program<'a> for EraCheck {
+impl<'a> Program<'a> for CacheCheck {
     fn name() -> &'a str {
-        "era_check"
+        "cache_check"
     }
 
     fn cmd<I>(args: I) -> Command
@@ -46,7 +50,7 @@ impl<'a> Program<'a> for EraCheck {
         I: IntoIterator,
         I::Item: Into<std::ffi::OsString>,
     {
-        era_check_cmd(args)
+        cache_check_cmd(args)
     }
 
     fn usage() -> &'a str {
@@ -62,7 +66,7 @@ impl<'a> Program<'a> for EraCheck {
     }
 }
 
-impl<'a> InputProgram<'a> for EraCheck {
+impl<'a> InputProgram<'a> for CacheCheck {
     fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
         mk_valid_md(td)
     }
@@ -80,22 +84,22 @@ impl<'a> InputProgram<'a> for EraCheck {
     }
 }
 
-impl<'a> MetadataReader<'a> for EraCheck {}
+impl<'a> MetadataReader<'a> for CacheCheck {}
 
 //------------------------------------------
 
-test_accepts_help!(EraCheck);
-test_accepts_version!(EraCheck);
-test_rejects_bad_option!(EraCheck);
+test_accepts_help!(CacheCheck);
+test_accepts_version!(CacheCheck);
+test_rejects_bad_option!(CacheCheck);
 
-test_missing_input_arg!(EraCheck);
-test_input_file_not_found!(EraCheck);
-test_input_cannot_be_a_directory!(EraCheck);
-test_unreadable_input_file!(EraCheck);
+test_missing_input_arg!(CacheCheck);
+test_input_file_not_found!(CacheCheck);
+test_input_cannot_be_a_directory!(CacheCheck);
+test_unreadable_input_file!(CacheCheck);
 
-test_help_message_for_tiny_input_file!(EraCheck);
-test_spot_xml_data!(EraCheck);
-test_corrupted_input_data!(EraCheck);
+test_help_message_for_tiny_input_file!(CacheCheck);
+test_spot_xml_data!(CacheCheck);
+test_corrupted_input_data!(CacheCheck);
 
 //------------------------------------------
 
@@ -103,8 +107,12 @@ test_corrupted_input_data!(EraCheck);
 fn failing_q() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(era_check_cmd(args!["-q", &md]))?;
+    let output = run_fail_raw(cache_check_cmd(args!["-q", &md]))?;
     assert_eq!(output.stdout.len(), 0);
+    eprintln!(
+        "stderr = '{}'",
+        std::str::from_utf8(&output.stderr).unwrap()
+    );
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
@@ -113,10 +121,42 @@ fn failing_q() -> Result<()> {
 fn failing_quiet() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_zeroed_md(&mut td)?;
-    let output = run_fail_raw(era_check_cmd(args!["--quiet", &md]))?;
+    let output = run_fail_raw(cache_check_cmd(args!["--quiet", &md]))?;
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
     Ok(())
 }
 
-//------------------------------------------
+#[test]
+fn valid_metadata_passes() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(cache_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+// FIXME: put back in, I don't want to add the --debug- arg to the
+// tool again, so we should have a little library function for tweaking
+// metadata version.
+
+/*
+#[test]
+fn bad_metadata_version() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(
+        cache_restore_cmd(
+        args![
+            "-i",
+            &xml,
+            "-o",
+            &md,
+            "--debug-override-metadata-version",
+            "12345"
+        ],
+    ))?;
+    run_fail(cache_check_cmd(args![&md]))?;
+    Ok(())
+}
+*/

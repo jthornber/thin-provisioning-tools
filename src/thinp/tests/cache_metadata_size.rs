@@ -10,7 +10,7 @@ use common::target::*;
 //------------------------------------------
 
 const USAGE: &str = concat!("cache_metadata_size ",
-include_str!("../VERSION"),
+thinp::tools_version!(),
 "Estimate the size of the metadata device needed for a given configuration.
 
 USAGE:

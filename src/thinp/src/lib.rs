@@ -1,13 +1,3 @@
-extern crate anyhow;
-extern crate byteorder;
-extern crate crc32c;
-extern crate flate2;
-extern crate nom;
-extern crate num_cpus;
-
-#[macro_use]
-extern crate nix;
-
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]

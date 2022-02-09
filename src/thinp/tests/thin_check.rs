@@ -15,7 +15,7 @@ use common::thin::*;
 
 const USAGE: &str = concat!(
     "thin_check ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Validates thin provisioning metadata on a device or file.
 
 USAGE:

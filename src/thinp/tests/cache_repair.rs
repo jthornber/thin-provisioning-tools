@@ -14,7 +14,7 @@ use common::test_dir::*;
 
 const USAGE: &str = concat!(
     "cache_repair ",
-    include_str!("../VERSION"),
+    thinp::tools_version!(),
     "Repair binary cache metadata, and write it to a different device or file
 
 USAGE:
