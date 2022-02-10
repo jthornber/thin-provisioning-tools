@@ -24,6 +24,24 @@ pub struct CacheGenerator {
     pub percent_dirty: u8,
 }
 
+impl CacheGenerator {
+    pub fn new(
+        block_size: u32,
+        nr_cache_blocks: u32,
+        nr_origin_blocks: u64,
+        percent_resident: u8,
+        percent_dirty: u8,
+    ) -> Self {
+        CacheGenerator {
+            block_size,
+            nr_cache_blocks,
+            nr_origin_blocks,
+            percent_resident,
+            percent_dirty,
+        }
+    }
+}
+
 impl MetadataGenerator for CacheGenerator {
     fn generate_metadata(&self, v: &mut dyn MetadataVisitor) -> Result<()> {
         if self.nr_origin_blocks > usize::MAX as u64 {
@@ -56,7 +74,7 @@ impl MetadataGenerator for CacheGenerator {
             let mut used = FixedBitSet::with_capacity(nr_origin_blocks);
             let mut rng = rand::thread_rng();
             let mut dirty_rng = rand::thread_rng();
-            for cblock in cblocks {
+            for cblock in cblocks.iter() {
                 // FIXME: getting slower as the collision rate raised
                 let mut oblock = rng.gen_range(0..nr_origin_blocks);
                 while used.contains(oblock) {
@@ -65,13 +83,24 @@ impl MetadataGenerator for CacheGenerator {
 
                 used.set(oblock, true);
                 v.mapping(&ir::Map {
-                    cblock,
+                    cblock: *cblock,
                     oblock: oblock as u64,
                     dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
                 })?;
             }
         }
         v.mappings_e()?;
+
+        let mut hint = ir::Hint {
+            cblock: 0,
+            data: thinp::cache::hint::Hint::default().hint.to_vec(),
+        };
+        v.hints_b()?;
+        for cblock in cblocks {
+            hint.cblock = cblock;
+            v.hint(&hint)?;
+        }
+        v.hints_e()?;
 
         v.superblock_e()?;
         v.eof()?;

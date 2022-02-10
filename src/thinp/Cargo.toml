@@ -36,3 +36,4 @@ thiserror = "1.0"
 json = "0.12"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+thinp_dev = { path = "../thinp_dev" }
