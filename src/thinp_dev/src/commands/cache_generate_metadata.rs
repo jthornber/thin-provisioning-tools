@@ -3,9 +3,9 @@ use clap::{App, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
-
 use thinp::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use thinp_dev::cache::metadata_generator::*;
+
+use crate::cache::metadata_generator::*;
 
 //------------------------------------------
 
@@ -53,7 +53,7 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
 
 //------------------------------------------
 
-fn main() -> Result<()> {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("cache_generate_metadata")
         .color(clap::ColorChoice::Never)
         .version(thinp::version::tools_version())
@@ -120,7 +120,7 @@ fn main() -> Result<()> {
                 .required(true),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
     let opts = CacheGenerateOpts {
@@ -139,8 +139,6 @@ fn main() -> Result<()> {
         eprintln!("{}", reason);
         process::exit(1)
     }
-
-    Ok(())
 }
 
 //------------------------------------------

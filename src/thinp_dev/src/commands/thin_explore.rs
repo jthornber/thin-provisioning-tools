@@ -5,6 +5,7 @@ use clap::{App, Arg};
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
+use std::process;
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -837,7 +838,7 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 //------------------------------------
 
-fn main() -> Result<()> {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_explore")
         .color(clap::ColorChoice::Never)
         .version(thinp::version::tools_version())
@@ -856,13 +857,15 @@ fn main() -> Result<()> {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let node_path = matches
         .value_of("NODE_PATH")
         .map(|text| btree::decode_node_path(text).unwrap());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    explore(input_file, node_path)
+    if explore(input_file, node_path).is_err() {
+        process::exit(1);
+    }
 }
 
 //------------------------------------
