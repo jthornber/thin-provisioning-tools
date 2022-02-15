@@ -1,7 +1,7 @@
-use anyhow::Result;
 use byteorder::WriteBytesExt;
 use nom::IResult;
 use std::convert::TryInto;
+use std::io;
 
 use crate::pdata::unpack::*;
 
@@ -29,7 +29,7 @@ impl Unpack for Hint {
 }
 
 impl Pack for Hint {
-    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> io::Result<()> {
         for v in &self.hint {
             data.write_u8(*v)?;
         }

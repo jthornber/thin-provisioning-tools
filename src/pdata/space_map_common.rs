@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::io::Cursor;
+use std::io::{self, Cursor};
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -48,11 +48,10 @@ impl Unpack for IndexEntry {
 }
 
 impl Pack for IndexEntry {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.blocknr)?;
         w.write_u32::<LittleEndian>(self.nr_free)?;
-        w.write_u32::<LittleEndian>(self.none_free_before)?;
-        Ok(())
+        w.write_u32::<LittleEndian>(self.none_free_before)
     }
 }
 
@@ -108,7 +107,7 @@ impl Unpack for Bitmap {
 }
 
 impl Pack for Bitmap {
-    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> io::Result<()> {
         use BitmapEntry::*;
 
         out.write_u32::<LittleEndian>(0)?; // csum
@@ -128,7 +127,7 @@ impl Pack for Bitmap {
                         w |= 0x1 << 62;
                     }
                     Small(_) => {
-                        return Err(anyhow!("Bad small value in bitmap entry"));
+                        return Err(io::Error::from(io::ErrorKind::InvalidData));
                     }
                     Overflow => {
                         w |= 0x3 << 62;
@@ -177,7 +176,7 @@ impl Unpack for SMRoot {
     }
 }
 
-pub fn unpack_root(data: &[u8]) -> Result<SMRoot> {
+pub fn unpack_root(data: &[u8]) -> anyhow::Result<SMRoot> {
     match SMRoot::unpack(data) {
         Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
         Ok((_i, v)) => Ok(v),
@@ -185,17 +184,15 @@ pub fn unpack_root(data: &[u8]) -> Result<SMRoot> {
 }
 
 impl Pack for SMRoot {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.nr_blocks)?;
         w.write_u64::<LittleEndian>(self.nr_allocated)?;
         w.write_u64::<LittleEndian>(self.bitmap_root)?;
-        w.write_u64::<LittleEndian>(self.ref_count_root)?;
-
-        Ok(())
+        w.write_u64::<LittleEndian>(self.ref_count_root)
     }
 }
 
-pub fn pack_root(root: &SMRoot, size: usize) -> Result<Vec<u8>> {
+pub fn pack_root(root: &SMRoot, size: usize) -> anyhow::Result<Vec<u8>> {
     let mut sm_root = vec![0u8; size];
     let mut cur = Cursor::new(&mut sm_root);
     root.pack(&mut cur)?;
@@ -204,7 +201,10 @@ pub fn pack_root(root: &SMRoot, size: usize) -> Result<Vec<u8>> {
 
 //------------------------------------------
 
-pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<IndexEntry>, u64)> {
+pub fn write_common(
+    w: &mut WriteBatcher,
+    sm: &dyn SpaceMap,
+) -> anyhow::Result<(Vec<IndexEntry>, u64)> {
     use BitmapEntry::*;
 
     let mut index_entries = Vec::new();
@@ -257,7 +257,7 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
     Ok((index_entries, ref_count_root))
 }
 
-pub fn write_metadata_common(w: &mut WriteBatcher) -> Result<(Vec<IndexEntry>, u64)> {
+pub fn write_metadata_common(w: &mut WriteBatcher) -> anyhow::Result<(Vec<IndexEntry>, u64)> {
     use BitmapEntry::*;
 
     let mut index_entries = Vec::new();
@@ -341,7 +341,7 @@ pub fn write_metadata_common(w: &mut WriteBatcher) -> Result<(Vec<IndexEntry>, u
     Ok((index_entries, ref_count_root))
 }
 
-fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> Result<u64> {
+fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> anyhow::Result<u64> {
     // allocate a new block
     let b = w.alloc_zeroed()?;
     let mut cursor = Cursor::new(b.get_data());

@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{multi::count, number::complete::*, IResult};
 use std::fmt;
+use std::io;
 use thiserror::Error;
 
 use crate::checksum;
@@ -46,14 +47,13 @@ impl Unpack for ArrayBlockHeader {
 }
 
 impl Pack for ArrayBlockHeader {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         // csum needs to be calculated right for the whole metadata block.
         w.write_u32::<LittleEndian>(0)?;
         w.write_u32::<LittleEndian>(self.max_entries)?;
         w.write_u32::<LittleEndian>(self.nr_entries)?;
         w.write_u32::<LittleEndian>(self.value_size)?;
-        w.write_u64::<LittleEndian>(self.blocknr)?;
-        Ok(())
+        w.write_u64::<LittleEndian>(self.blocknr)
     }
 }
 

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::io::Cursor;
+use std::io::{self, Cursor};
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -47,7 +47,7 @@ impl Unpack for MetadataIndex {
 }
 
 impl Pack for MetadataIndex {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u32::<LittleEndian>(0)?; // csum
         w.write_u32::<LittleEndian>(0)?; // padding
         w.write_u64::<LittleEndian>(self.blocknr)?;

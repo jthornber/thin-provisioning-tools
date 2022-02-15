@@ -1,7 +1,7 @@
 use anyhow::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::VecDeque;
-use std::io::Cursor;
+use std::io::{self, Cursor};
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -83,7 +83,7 @@ impl RefCounter<u64> for SMRefCounter {
 //------------------------------------------
 
 /// Pack the given node ready to write to disk.
-pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
+pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> io::Result<()> {
     match node {
         Node::Internal {
             header,

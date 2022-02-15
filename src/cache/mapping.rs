@@ -1,7 +1,7 @@
-use anyhow::Result;
 use byteorder::WriteBytesExt;
 use nom::number::complete::*;
 use nom::IResult;
+use std::io;
 
 use crate::pdata::unpack::*;
 
@@ -62,7 +62,7 @@ impl Unpack for Mapping {
 }
 
 impl Pack for Mapping {
-    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> io::Result<()> {
         let m: u64 = (self.oblock << 16) | self.flags as u64;
         m.pack(data)
     }

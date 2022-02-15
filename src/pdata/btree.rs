@@ -3,6 +3,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use data_encoding::BASE64;
 use nom::{number::complete::*, IResult};
 use std::fmt;
+use std::io;
 use thiserror::Error;
 
 use crate::io_engine::*;
@@ -426,7 +427,7 @@ impl Unpack for NodeHeader {
 }
 
 impl Pack for NodeHeader {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         // csum needs to be calculated right for the whole metadata block.
         w.write_u32::<LittleEndian>(0)?;
 
@@ -440,8 +441,7 @@ impl Pack for NodeHeader {
         w.write_u32::<LittleEndian>(self.nr_entries)?;
         w.write_u32::<LittleEndian>(self.max_entries)?;
         w.write_u32::<LittleEndian>(self.value_size)?;
-        w.write_u32::<LittleEndian>(0)?;
-        Ok(())
+        w.write_u32::<LittleEndian>(0)
     }
 }
 

@@ -63,7 +63,7 @@ fn find_first_unset(entries: &[BitmapEntry]) -> usize {
 }
 
 impl<'a> Iterator for RangeIterator<'a> {
-    type Item = Result<std::ops::Range<u64>>;
+    type Item = std::io::Result<std::ops::Range<u64>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.nr_blocks {
