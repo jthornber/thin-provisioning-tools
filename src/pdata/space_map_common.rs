@@ -176,13 +176,6 @@ impl Unpack for SMRoot {
     }
 }
 
-pub fn unpack_root(data: &[u8]) -> anyhow::Result<SMRoot> {
-    match SMRoot::unpack(data) {
-        Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
-        Ok((_i, v)) => Ok(v),
-    }
-}
-
 impl Pack for SMRoot {
     fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.nr_blocks)?;
