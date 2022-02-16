@@ -589,4 +589,58 @@ pub fn unpack_node<V: Unpack>(
     }
 }
 
+/// Pack the given node ready to write to disk.
+pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> io::Result<()> {
+    match node {
+        Node::Internal {
+            header,
+            keys,
+            values,
+        } => {
+            header.pack(w)?;
+            for k in keys {
+                w.write_u64::<LittleEndian>(*k)?;
+            }
+
+            // pad with zeroes
+            for _i in keys.len()..header.max_entries as usize {
+                w.write_u64::<LittleEndian>(0)?;
+            }
+
+            for v in values {
+                v.pack(w)?;
+            }
+        }
+        Node::Leaf {
+            header,
+            keys,
+            values,
+        } => {
+            header.pack(w)?;
+            for k in keys {
+                w.write_u64::<LittleEndian>(*k)?;
+            }
+
+            // pad with zeroes
+            for _i in keys.len()..header.max_entries as usize {
+                w.write_u64::<LittleEndian>(0)?;
+            }
+
+            for v in values {
+                v.pack(w)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+//------------------------------------------
+
+pub fn calc_max_entries<V: Unpack>() -> usize {
+    let elt_size = 8 + V::disk_size() as usize;
+    let total = ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize;
+    total / 3 * 3
+}
+
 //------------------------------------------
