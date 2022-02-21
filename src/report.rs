@@ -109,6 +109,22 @@ struct PBInner {
     bar: ProgressBar,
 }
 
+impl PBInner {
+    fn new(title: String) -> Self {
+        let fmt = "[{bar:40}] {eta} remaining".to_string();
+        let bar = ProgressBar::new(100);
+        bar.set_style(
+            ProgressStyle::default_bar()
+                .template(&fmt)
+                .progress_chars("=> "),
+        );
+        Self {
+            title,
+            bar,
+        }
+    }
+}
+
 impl ReportInner for PBInner {
     fn set_title(&mut self, txt: &str) {
         self.title = txt.to_string();
@@ -144,10 +160,7 @@ impl ReportInner for PBInner {
 }
 
 pub fn mk_progress_bar_report() -> Report {
-    Report::new(Box::new(PBInner {
-        title: "".to_string(),
-        bar: ProgressBar::new(100),
-    }))
+    Report::new(Box::new(PBInner::new("".to_string())))
 }
 
 //------------------------------------------
