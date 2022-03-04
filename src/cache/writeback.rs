@@ -313,22 +313,20 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(
             opts.metadata_dev,
             MAX_CONCURRENT_IO,
             opts.update_metadata,
-        )?);
+        )?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(
+        Arc::new(SyncIoEngine::new(
             opts.metadata_dev,
             nr_threads,
             opts.update_metadata,
-        )?);
-    }
+        )?)
+    };
 
     Ok(Context {
         report: opts.report.clone(),

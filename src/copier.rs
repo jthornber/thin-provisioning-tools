@@ -268,14 +268,13 @@ impl Copier {
         for r in rets {
             let (context, cq_err) = r.map(|c| (c, None)).unwrap_or_else(|(c, e)| (c, Some(e)));
 
-            let job;
-            match self.jobs.get_mut(&context) {
-                Some(j) => job = j,
+            let job = match self.jobs.get_mut(&context) {
+                Some(j) => j,
                 None => {
                     completion.push(Err(IoError::LostTracking(context)));
                     continue;
                 }
-            }
+            };
 
             if let Some(err) = cq_err {
                 let j = self.jobs.remove(&context).unwrap();

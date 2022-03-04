@@ -37,14 +37,12 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?)
+    };
 
     Ok(Context {
         _report: opts.report.clone(),
@@ -95,12 +93,11 @@ impl<'a> Restorer<'a> {
     }
 
     fn finalize(&mut self) -> Result<()> {
-        let src_sb;
-        if let Some(sb) = self.sb.take() {
-            src_sb = sb;
+        let src_sb = if let Some(sb) = self.sb.take() {
+            sb
         } else {
             return Err(anyhow!("not in superblock"));
-        }
+        };
 
         // complete the mapping array
         if let Some(builder) = self.mapping_builder.take() {

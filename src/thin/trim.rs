@@ -225,18 +225,16 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinTrimOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(
             opts.metadata_dev,
             MAX_CONCURRENT_IO,
             false,
-        )?);
+        )?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.metadata_dev, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.metadata_dev, nr_threads, false)?)
+    };
 
     Ok(Context {
         _report: opts.report.clone(),

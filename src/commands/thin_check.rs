@@ -92,22 +92,21 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_file_not_tiny(input_file, &report);
     check_not_xml(input_file, &report);
 
-    let engine: Arc<dyn IoEngine + Send + Sync>;
     let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");
     let exclusive = !matches.is_present("METADATA_SNAPSHOT");
 
-    if matches.is_present("ASYNC_IO") {
-        engine = Arc::new(
+    let engine: Arc<dyn IoEngine + Send + Sync> = if matches.is_present("ASYNC_IO") {
+        Arc::new(
             AsyncIoEngine::new_with(input_file, MAX_CONCURRENT_IO, writable, exclusive)
                 .expect("unable to open input file"),
-        );
+        )
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(
+        Arc::new(
             SyncIoEngine::new_with(input_file, nr_threads, writable, exclusive)
                 .expect("unable to open input file"),
-        );
-    }
+        )
+    };
 
     let opts = ThinCheckOptions {
         engine,

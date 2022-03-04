@@ -93,14 +93,12 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
     fn emit_block(&mut self, w: &mut WriteBatcher) -> Result<()> {
         let nr_blocks = self.array_blocks.capacity();
         let cur_bi = self.array_blocks.len();
-        let next_cap;
-        if cur_bi < nr_blocks - 1 {
+        let next_cap = if cur_bi < nr_blocks - 1 {
             let next_begin = (cur_bi as u64 + 1) * self.entries_per_block as u64;
-            next_cap =
-                std::cmp::min(self.nr_entries - next_begin, self.entries_per_block as u64) as usize;
+            std::cmp::min(self.nr_entries - next_begin, self.entries_per_block as u64) as usize
         } else {
-            next_cap = 0;
-        }
+            0
+        };
 
         let mut values = Vec::<V>::with_capacity(next_cap);
         std::mem::swap(&mut self.values, &mut values);

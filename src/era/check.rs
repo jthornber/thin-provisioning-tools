@@ -75,14 +75,12 @@ struct Context {
 }
 
 fn mk_context(opts: &EraCheckOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?)
+    };
 
     Ok(Context {
         report: opts.report.clone(),

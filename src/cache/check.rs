@@ -239,14 +239,12 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?)
+    };
 
     Ok(Context {
         report: opts.report.clone(),
@@ -285,13 +283,13 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // The discard bitset is optional and could be updated during device suspension.
     // A restored metadata therefore comes with a zero-sized discard bitset,
     // and also zeroed discard_block_size and discard_nr_blocks.
-    let nr_origin_blocks;
-    if sb.flags.clean_shutdown && sb.discard_block_size > 0 && sb.discard_nr_blocks > 0 {
-        let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
-        nr_origin_blocks = Some(origin_sectors / sb.data_block_size as u64);
-    } else {
-        nr_origin_blocks = None;
-    }
+    let nr_origin_blocks =
+        if sb.flags.clean_shutdown && sb.discard_block_size > 0 && sb.discard_nr_blocks > 0 {
+            let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
+            Some(origin_sectors / sb.data_block_size as u64)
+        } else {
+            None
+        };
 
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
