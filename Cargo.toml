@@ -38,6 +38,7 @@ termion = { version = "1.5", optional = true }
 json = "0.12"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+thinp = { path = ".", features = ["devtools"] }
 
 [features]
 devtools = ["tui", "termion"]
