@@ -5,6 +5,7 @@ use clap::{App, Arg};
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
+use std::process;
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -28,12 +29,12 @@ use tui::{
     Terminal,
 };
 
-use thinp::io_engine::*;
-use thinp::pdata::btree;
-use thinp::pdata::unpack::*;
-use thinp::thin::block_time::*;
-use thinp::thin::device_detail::*;
-use thinp::thin::superblock::*;
+use crate::io_engine::*;
+use crate::pdata::btree;
+use crate::pdata::unpack::*;
+use crate::thin::block_time::*;
+use crate::thin::device_detail::*;
+use crate::thin::superblock::*;
 
 //------------------------------------
 
@@ -837,10 +838,10 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 //------------------------------------
 
-fn main() -> Result<()> {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = App::new("thin_explore")
         .color(clap::ColorChoice::Never)
-        .version(thinp::version::tools_version())
+        .version(crate::version::tools_version())
         .about("A text user interface for examining thin metadata.")
         .arg(
             Arg::new("NODE_PATH")
@@ -856,13 +857,15 @@ fn main() -> Result<()> {
                 .index(1),
         );
 
-    let matches = parser.get_matches();
+    let matches = parser.get_matches_from(args);
     let node_path = matches
         .value_of("NODE_PATH")
         .map(|text| btree::decode_node_path(text).unwrap());
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-    explore(input_file, node_path)
+    if explore(input_file, node_path).is_err() {
+        process::exit(1);
+    }
 }
 
 //------------------------------------

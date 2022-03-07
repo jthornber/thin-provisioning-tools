@@ -46,9 +46,5 @@ devtools = ["tui", "termion"]
 debug = true
 
 [[bin]]
-name = "cache_generate_metadata"
-required-features = ["devtools"]
-
-[[bin]]
-name = "thin_explore"
+name = "pdata_tools_dev"
 required-features = ["devtools"]
