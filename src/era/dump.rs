@@ -141,14 +141,13 @@ impl<'a> ArrayVisitor<u32> for LogicalEraEmitter<'a> {
         let begin = index as u32 * b.header.max_entries;
         let end = begin + b.header.nr_entries;
         for (v, block) in b.values.iter().zip(begin..end) {
-            let era;
-            if let Some(archived) = inner.era_archive.get(block) {
-                era = ir::Era {
+            let era = if let Some(archived) = inner.era_archive.get(block) {
+                ir::Era {
                     block,
                     era: archived,
                 }
             } else {
-                era = ir::Era { block, era: *v }
+                ir::Era { block, era: *v }
             };
 
             inner
@@ -176,14 +175,12 @@ struct Context {
 }
 
 fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+    };
 
     Ok(Context { engine })
 }
@@ -401,12 +398,11 @@ pub fn dump(opts: EraDumpOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let writer: Box<dyn Write>;
-    if opts.output.is_some() {
-        writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    let writer: Box<dyn Write> = if opts.output.is_some() {
+        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
     } else {
-        writer = Box::new(BufWriter::new(std::io::stdout()));
-    }
+        Box::new(BufWriter::new(std::io::stdout()))
+    };
     let mut out = xml::XmlWriter::new(writer, false);
 
     let writesets = get_writesets_ordered(ctx.engine.clone(), &sb, opts.repair)?;

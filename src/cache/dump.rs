@@ -127,13 +127,12 @@ mod format2 {
                 }
 
                 let mut inner = self.inner.lock().unwrap();
-                let dirty;
-                if let Some(bit) = inner.dirty_bits.contains(cblock as usize) {
-                    dirty = bit;
+                let dirty = if let Some(bit) = inner.dirty_bits.contains(cblock as usize) {
+                    bit
                 } else {
                     // default to dirty if the bitset is damaged
-                    dirty = true;
-                }
+                    true
+                };
                 let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
@@ -206,14 +205,12 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+    };
 
     Ok(Context { engine })
 }
@@ -243,19 +240,18 @@ pub fn dump_metadata(
         }
         2 => {
             // We need to walk the dirty bitset first.
-            let dirty_bits;
-            if let Some(root) = sb.dirty_root {
+            let dirty_bits = if let Some(root) = sb.dirty_root {
                 let (bits, errs) =
                     read_bitset(engine.clone(), root, sb.cache_blocks as usize, repair);
                 if errs.is_some() && !repair {
                     return Err(anyhow!("errors in bitset {}", errs.unwrap()));
                 }
-                dirty_bits = bits;
+                bits
             } else {
                 // FIXME: is there a way this can legally happen?  eg,
                 // a crash of a freshly created cache?
                 return Err(anyhow!("format 2 selected, but no dirty bitset present"));
-            }
+            };
 
             let w = ArrayWalker::new(engine.clone(), repair);
             let mut emitter =
@@ -287,12 +283,11 @@ pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let writer: Box<dyn Write>;
-    if opts.output.is_some() {
-        writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    let writer: Box<dyn Write> = if opts.output.is_some() {
+        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
     } else {
-        writer = Box::new(BufWriter::new(std::io::stdout()));
-    }
+        Box::new(BufWriter::new(std::io::stdout()))
+    };
     let mut out = xml::XmlWriter::new(writer);
 
     dump_metadata(ctx.engine, &mut out, &sb, opts.repair)

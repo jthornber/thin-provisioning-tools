@@ -542,19 +542,17 @@ impl NodeCollector {
         let mut filtered = Vec::<(u64, u64)>::new();
 
         for (dev_root, details_root) in root_pairs {
-            let dev_info;
-            if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
-                dev_info = i;
+            let dev_info = if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
+                i
             } else {
                 continue;
-            }
+            };
 
-            let details_info;
-            if let NodeInfo::Details(i) = self.read_info(*details_root)? {
-                details_info = i;
+            let details_info = if let NodeInfo::Details(i) = self.read_info(*details_root)? {
+                i
             } else {
                 continue;
-            }
+            };
 
             // FIXME: compare the ages
             if dev_info.nr_devices != details_info.nr_devices
@@ -613,12 +611,11 @@ impl NodeCollector {
         let mut infos = Vec::<(&DevInfo, u64)>::new();
 
         for (dev_root, details_root) in root_pairs {
-            let dev_info;
-            if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
-                dev_info = i;
+            let dev_info = if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
+                i
             } else {
                 continue;
-            }
+            };
 
             infos.push((dev_info, *details_root));
         }
@@ -644,19 +641,17 @@ impl NodeCollector {
     }
 
     fn to_found_roots(&self, dev_root: u64, details_root: u64) -> Result<FoundRoots> {
-        let dev_info;
-        if let NodeInfo::Dev(i) = self.read_info(dev_root)? {
-            dev_info = i;
+        let dev_info = if let NodeInfo::Dev(i) = self.read_info(dev_root)? {
+            i
         } else {
             return Err(anyhow!("not a top-level root"));
-        }
+        };
 
-        let details_info;
-        if let NodeInfo::Details(i) = self.read_info(details_root)? {
-            details_info = i;
+        let details_info = if let NodeInfo::Details(i) = self.read_info(details_root)? {
+            i
         } else {
             return Err(anyhow!("not a details root"));
-        }
+        };
 
         Ok(FoundRoots {
             mapping_root: dev_root,

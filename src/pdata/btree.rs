@@ -264,9 +264,8 @@ pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
     count >>= 1;
 
     let count = count as usize;
-    let mut path;
-    if count == 0 {
-        path = vec![];
+    let mut path = if count == 0 {
+        vec![]
     } else {
         let mut output = Vec::with_capacity(count * 8);
         let mut cursor = std::io::Cursor::new(&mut output);
@@ -276,8 +275,8 @@ pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
         assert_eq!(written, count * 8);
 
         let mut cursor = std::io::Cursor::new(&mut output);
-        path = vm::unpack_u64s(&mut cursor, count)?;
-    }
+        vm::unpack_u64s(&mut cursor, count)?
+    };
 
     if prepend_zero {
         let mut full_path = vec![0u64];
@@ -431,12 +430,11 @@ impl Pack for NodeHeader {
         // csum needs to be calculated right for the whole metadata block.
         w.write_u32::<LittleEndian>(0)?;
 
-        let flags;
-        if self.is_leaf {
-            flags = LEAF_NODE;
+        let flags = if self.is_leaf {
+            LEAF_NODE
         } else {
-            flags = INTERNAL_NODE;
-        }
+            INTERNAL_NODE
+        };
         w.write_u32::<LittleEndian>(flags)?;
         w.write_u64::<LittleEndian>(self.block)?;
         w.write_u32::<LittleEndian>(self.nr_entries)?;

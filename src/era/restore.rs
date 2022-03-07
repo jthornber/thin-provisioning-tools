@@ -37,14 +37,12 @@ struct Context {
 }
 
 fn mk_context(opts: &EraRestoreOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?)
+    };
 
     Ok(Context {
         _report: opts.report.clone(),
@@ -91,12 +89,11 @@ impl<'a> Restorer<'a> {
     }
 
     fn finalize(&mut self) -> Result<()> {
-        let src_sb;
-        if let Some(sb) = self.sb.take() {
-            src_sb = sb;
+        let src_sb = if let Some(sb) = self.sb.take() {
+            sb
         } else {
             return Err(anyhow!("not in superblock"));
-        }
+        };
 
         // build the writeset tree
         let mut tree_builder = BTreeBuilder::<Writeset>::new(Box::new(NoopRC {}));
@@ -108,12 +105,11 @@ impl<'a> Restorer<'a> {
         let writeset_tree_root = tree_builder.complete(self.w)?;
 
         // complete the era array
-        let era_array_root;
-        if let Some(builder) = self.era_array_builder.take() {
-            era_array_root = builder.complete(self.w)?;
+        let era_array_root = if let Some(builder) = self.era_array_builder.take() {
+            builder.complete(self.w)?
         } else {
             return Err(anyhow!("internal error. couldn't find era array"));
-        }
+        };
 
         // build metadata space map
         let metadata_sm_root = build_metadata_sm(self.w)?;

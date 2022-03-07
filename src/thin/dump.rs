@@ -159,14 +159,12 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+    };
 
     Ok(Context {
         report: opts.report.clone(),
@@ -329,12 +327,11 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let md = build_metadata(ctx.engine.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 
-    let writer: Box<dyn Write>;
-    if opts.output.is_some() {
-        writer = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    let writer: Box<dyn Write> = if opts.output.is_some() {
+        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
     } else {
-        writer = Box::new(BufWriter::new(std::io::stdout()));
-    }
+        Box::new(BufWriter::new(std::io::stdout()))
+    };
     let mut out = xml::XmlWriter::new(writer);
 
     dump_metadata(ctx.engine, &mut out, &sb, &md)

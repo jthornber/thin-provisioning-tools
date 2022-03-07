@@ -9,3 +9,6 @@ pub mod restore;
 pub mod superblock;
 pub mod writeback;
 pub mod xml;
+
+#[cfg(feature = "devtools")]
+pub mod metadata_generator;

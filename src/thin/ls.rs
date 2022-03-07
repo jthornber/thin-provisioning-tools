@@ -264,12 +264,11 @@ struct Context {
 fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
     let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
 
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
-        engine = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+    };
 
     let pool = ThreadPool::new(nr_threads);
 

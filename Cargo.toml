@@ -31,13 +31,21 @@ safemem = "0.3"
 tempfile = "3.3"
 threadpool = "1.8"
 thiserror = "1.0"
-tui = "0.14"
-termion = "1.5"
+tui = { version = "0.14", optional = true }
+termion = { version = "1.5", optional = true }
 
 [dev-dependencies]
 json = "0.12"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+thinp = { path = ".", features = ["devtools"] }
+
+[features]
+devtools = ["tui", "termion"]
 
 [profile.release]
 debug = true
+
+[[bin]]
+name = "pdata_tools_dev"
+required-features = ["devtools"]

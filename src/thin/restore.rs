@@ -182,12 +182,11 @@ impl<'a> Restorer<'a> {
     }
 
     fn finalize(&mut self) -> Result<()> {
-        let src_sb;
-        if let Some(sb) = self.sb.take() {
-            src_sb = sb;
+        let src_sb = if let Some(sb) = self.sb.take() {
+            sb
         } else {
             return Err(anyhow!("missing superblock"));
-        }
+        };
 
         let (details_root, mapping_root) = self.build_device_details()?;
 
@@ -377,14 +376,12 @@ struct Context {
 const MAX_CONCURRENT_IO: u32 = 1024;
 
 fn new_context(opts: &ThinRestoreOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?);
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?);
-    }
+        Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?)
+    };
 
     Ok(Context {
         report: opts.report.clone(),

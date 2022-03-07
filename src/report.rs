@@ -118,10 +118,7 @@ impl PBInner {
                 .template(&fmt)
                 .progress_chars("=> "),
         );
-        Self {
-            title,
-            bar,
-        }
+        Self { title, bar }
     }
 }
 

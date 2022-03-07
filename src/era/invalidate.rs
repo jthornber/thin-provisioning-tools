@@ -240,24 +240,22 @@ struct Context {
 }
 
 fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine = Arc::new(AsyncIoEngine::new_with(
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(AsyncIoEngine::new_with(
             opts.input,
             MAX_CONCURRENT_IO,
             false,
             !opts.use_metadata_snap,
-        )?);
+        )?)
     } else {
         let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine = Arc::new(SyncIoEngine::new_with(
+        Arc::new(SyncIoEngine::new_with(
             opts.input,
             nr_threads,
             false,
             !opts.use_metadata_snap,
-        )?);
-    }
+        )?)
+    };
 
     Ok(Context { engine })
 }
@@ -270,12 +268,11 @@ pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
         sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
     }
 
-    let w: Box<dyn Write>;
-    if opts.output.is_some() {
-        w = Box::new(BufWriter::new(File::create(opts.output.unwrap())?));
+    let w: Box<dyn Write> = if opts.output.is_some() {
+        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
     } else {
-        w = Box::new(BufWriter::new(std::io::stdout()));
-    }
+        Box::new(BufWriter::new(std::io::stdout()))
+    };
     let mut writer = Writer::new_with_indent(w, 0x20, 2);
 
     let marked_bits = mark_blocks_since(ctx.engine, &sb, opts.threshold)?;
