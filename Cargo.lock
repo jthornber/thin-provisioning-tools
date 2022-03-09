@@ -649,6 +649,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rangemap"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4556ba17699ec8276a2e73e22c5b846666e06fe9db1228a9d4377e67b5d35fcb"
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -825,6 +831,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand 0.8.4",
+ "rangemap",
  "safemem",
  "tempfile",
  "termion",

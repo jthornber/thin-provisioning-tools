@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::ops::DerefMut;
+use rangemap::RangeSet;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -18,31 +18,8 @@ pub struct WriteBatcher {
     batch_size: usize,
     queue: Vec<Block>,
 
-    // The reserved range keeps track of all the blocks allocated.
-    // An allocated block won't be reused even though it was freed.
-    // In other words, the WriteBatcher performs allocation in
-    // transactional fashion, that simplifies block allocationas
-    // as well as tracking.
-    reserved: std::ops::Range<u64>,
-}
-
-pub fn find_free(sm: &mut dyn SpaceMap, reserved: &std::ops::Range<u64>) -> Result<u64> {
-    let nr_blocks = sm.get_nr_blocks()?;
-    let mut b;
-    if reserved.end >= reserved.start {
-        b = sm.find_free(reserved.end, nr_blocks)?;
-        if b.is_none() {
-            b = sm.find_free(0, reserved.start)?;
-        }
-    } else {
-        b = sm.find_free(reserved.end, reserved.start)?;
-    }
-
-    if b.is_none() {
-        return Err(anyhow!("out of metadata space"));
-    }
-
-    Ok(b.unwrap())
+    // The allocations could be a hint of potentially modified blocks
+    allocations: RangeSet<u64>,
 }
 
 impl WriteBatcher {
@@ -51,45 +28,51 @@ impl WriteBatcher {
         sm: Arc<Mutex<dyn SpaceMap>>,
         batch_size: usize,
     ) -> WriteBatcher {
-        let alloc_begin = sm.lock().unwrap().get_alloc_begin().unwrap_or(0);
-
         WriteBatcher {
             engine,
             sm,
             batch_size,
             queue: Vec::with_capacity(batch_size),
-            reserved: std::ops::Range {
-                start: alloc_begin,
-                end: alloc_begin,
-            },
+            allocations: RangeSet::<u64>::new(),
         }
     }
 
     pub fn alloc(&mut self) -> Result<Block> {
         let mut sm = self.sm.lock().unwrap();
-        let b = find_free(sm.deref_mut(), &self.reserved)?;
-        self.reserved.end = b + 1;
+        let b = sm.alloc()?;
+        if b.is_none() {
+            return Err(anyhow!("out of metadata space"));
+        }
 
-        sm.set(b, 1)?;
+        let loc = b.unwrap();
+        self.allocations.insert(std::ops::Range {
+            start: loc,
+            end: loc + 1,
+        });
 
-        Ok(Block::new(b))
+        Ok(Block::new(loc))
     }
 
     pub fn alloc_zeroed(&mut self) -> Result<Block> {
         let mut sm = self.sm.lock().unwrap();
-        let b = find_free(sm.deref_mut(), &self.reserved)?;
-        self.reserved.end = b + 1;
+        let b = sm.alloc()?;
+        if b.is_none() {
+            return Err(anyhow!("out of metadata space"));
+        }
 
-        sm.set(b, 1)?;
+        let loc = b.unwrap();
+        self.allocations.insert(std::ops::Range {
+            start: loc,
+            end: loc + 1,
+        });
 
-        Ok(Block::zeroed(b))
+        Ok(Block::zeroed(loc))
     }
 
-    pub fn get_reserved_range(&self) -> std::ops::Range<u64> {
-        std::ops::Range {
-            start: self.reserved.start,
-            end: self.reserved.end,
-        }
+    pub fn clear_allocations(&mut self) -> RangeSet<u64> {
+        let mut tmp = RangeSet::<u64>::new();
+        std::mem::swap(&mut tmp, &mut self.allocations);
+        tmp
     }
 
     pub fn write(&mut self, b: Block, kind: checksum::BT) -> Result<()> {
