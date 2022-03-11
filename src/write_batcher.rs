@@ -110,16 +110,25 @@ impl WriteBatcher {
             .map_err(|_| anyhow!("read block error"))
     }
 
-    pub fn flush_(&mut self, queue: Vec<Block>) -> Result<()> {
+    fn flush_(&mut self, queue: Vec<Block>) -> Result<()> {
         self.engine.write_many(&queue)?;
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
+        if self.queue.is_empty() {
+            return Ok(());
+        }
         let mut tmp = Vec::new();
         std::mem::swap(&mut tmp, &mut self.queue);
         self.flush_(tmp)?;
         Ok(())
+    }
+}
+
+impl Drop for WriteBatcher {
+    fn drop(&mut self) {
+        assert!(self.flush().is_ok());
     }
 }
 
