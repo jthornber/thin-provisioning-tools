@@ -1,11 +1,9 @@
 use anyhow::Result;
-use byteorder::{LittleEndian, WriteBytesExt};
 use std::collections::VecDeque;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
-use crate::io_engine::*;
 use crate::pdata::btree::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
@@ -81,60 +79,6 @@ impl RefCounter<u64> for SMRefCounter {
 // ii) Build the upper levels of the btree above the leaves.
 
 //------------------------------------------
-
-/// Pack the given node ready to write to disk.
-pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> Result<()> {
-    match node {
-        Node::Internal {
-            header,
-            keys,
-            values,
-        } => {
-            header.pack(w)?;
-            for k in keys {
-                w.write_u64::<LittleEndian>(*k)?;
-            }
-
-            // pad with zeroes
-            for _i in keys.len()..header.max_entries as usize {
-                w.write_u64::<LittleEndian>(0)?;
-            }
-
-            for v in values {
-                v.pack(w)?;
-            }
-        }
-        Node::Leaf {
-            header,
-            keys,
-            values,
-        } => {
-            header.pack(w)?;
-            for k in keys {
-                w.write_u64::<LittleEndian>(*k)?;
-            }
-
-            // pad with zeroes
-            for _i in keys.len()..header.max_entries as usize {
-                w.write_u64::<LittleEndian>(0)?;
-            }
-
-            for v in values {
-                v.pack(w)?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-//------------------------------------------
-
-pub fn calc_max_entries<V: Unpack>() -> usize {
-    let elt_size = 8 + V::disk_size() as usize;
-    let total = ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize;
-    total / 3 * 3
-}
 
 pub struct WriteResult {
     first_key: u64,

@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
+use std::io::{self, ErrorKind};
 
 //------------------------------------------
 
@@ -12,9 +12,9 @@ pub trait Unpack {
         Self: std::marker::Sized;
 }
 
-pub fn unpack<U: Unpack>(data: &[u8]) -> Result<U> {
+pub fn unpack<U: Unpack>(data: &[u8]) -> io::Result<U> {
     match U::unpack(data) {
-        Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
+        Err(_e) => Err(io::Error::from(ErrorKind::InvalidData)),
         Ok((_i, v)) => Ok(v),
     }
 }
@@ -22,7 +22,7 @@ pub fn unpack<U: Unpack>(data: &[u8]) -> Result<U> {
 //------------------------------------------
 
 pub trait Pack {
-    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()>;
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> io::Result<()>;
 }
 
 //------------------------------------------
@@ -38,9 +38,8 @@ impl Unpack for u64 {
 }
 
 impl Pack for u64 {
-    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
-        out.write_u64::<LittleEndian>(*self)?;
-        Ok(())
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> io::Result<()> {
+        out.write_u64::<LittleEndian>(*self)
     }
 }
 
@@ -55,9 +54,8 @@ impl Unpack for u32 {
 }
 
 impl Pack for u32 {
-    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
-        out.write_u32::<LittleEndian>(*self)?;
-        Ok(())
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> io::Result<()> {
+        out.write_u32::<LittleEndian>(*self)
     }
 }
 

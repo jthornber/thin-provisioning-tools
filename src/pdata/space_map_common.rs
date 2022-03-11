@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::io::Cursor;
+use std::io::{self, Cursor};
 
 use crate::checksum;
 use crate::io_engine::*;
@@ -48,11 +47,10 @@ impl Unpack for IndexEntry {
 }
 
 impl Pack for IndexEntry {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.blocknr)?;
         w.write_u32::<LittleEndian>(self.nr_free)?;
-        w.write_u32::<LittleEndian>(self.none_free_before)?;
-        Ok(())
+        w.write_u32::<LittleEndian>(self.none_free_before)
     }
 }
 
@@ -108,7 +106,7 @@ impl Unpack for Bitmap {
 }
 
 impl Pack for Bitmap {
-    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, out: &mut W) -> io::Result<()> {
         use BitmapEntry::*;
 
         out.write_u32::<LittleEndian>(0)?; // csum
@@ -128,7 +126,7 @@ impl Pack for Bitmap {
                         w |= 0x1 << 62;
                     }
                     Small(_) => {
-                        return Err(anyhow!("Bad small value in bitmap entry"));
+                        return Err(io::Error::from(io::ErrorKind::InvalidData));
                     }
                     Overflow => {
                         w |= 0x3 << 62;
@@ -177,25 +175,16 @@ impl Unpack for SMRoot {
     }
 }
 
-pub fn unpack_root(data: &[u8]) -> Result<SMRoot> {
-    match SMRoot::unpack(data) {
-        Err(_e) => Err(anyhow!("couldn't parse SMRoot")),
-        Ok((_i, v)) => Ok(v),
-    }
-}
-
 impl Pack for SMRoot {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.nr_blocks)?;
         w.write_u64::<LittleEndian>(self.nr_allocated)?;
         w.write_u64::<LittleEndian>(self.bitmap_root)?;
-        w.write_u64::<LittleEndian>(self.ref_count_root)?;
-
-        Ok(())
+        w.write_u64::<LittleEndian>(self.ref_count_root)
     }
 }
 
-pub fn pack_root(root: &SMRoot, size: usize) -> Result<Vec<u8>> {
+pub fn pack_root(root: &SMRoot, size: usize) -> anyhow::Result<Vec<u8>> {
     let mut sm_root = vec![0u8; size];
     let mut cur = Cursor::new(&mut sm_root);
     root.pack(&mut cur)?;
@@ -204,7 +193,10 @@ pub fn pack_root(root: &SMRoot, size: usize) -> Result<Vec<u8>> {
 
 //------------------------------------------
 
-pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<IndexEntry>, u64)> {
+pub fn write_common(
+    w: &mut WriteBatcher,
+    sm: &dyn SpaceMap,
+) -> anyhow::Result<(Vec<IndexEntry>, u64)> {
     use BitmapEntry::*;
 
     let mut index_entries = Vec::new();
@@ -257,71 +249,91 @@ pub fn write_common(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<(Vec<Inde
     Ok((index_entries, ref_count_root))
 }
 
-pub fn write_metadata_common(w: &mut WriteBatcher) -> Result<(Vec<IndexEntry>, u64)> {
+pub fn write_metadata_common(w: &mut WriteBatcher) -> anyhow::Result<(Vec<IndexEntry>, u64)> {
     use BitmapEntry::*;
 
     let mut index_entries = Vec::new();
     let mut overflow_builder: BTreeBuilder<u32> = BTreeBuilder::new(Box::new(NoopRC {}));
 
-    // how many bitmaps do we need?
-    let nr_blocks = w.sm.lock().unwrap().get_nr_blocks()?;
-    let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+    let mut bm = 0;
+    let mut nr_free = ENTRIES_PER_BITMAP as u32;
+    let mut none_free_before: u32 = 0;
+    let mut entries = Vec::with_capacity(ENTRIES_PER_BITMAP);
+    entries.resize(ENTRIES_PER_BITMAP, Small(0));
 
-    // how many blocks are allocated or reserved so far?
-    let reserved = w.get_reserved_range();
-    if reserved.end < reserved.start {
-        return Err(anyhow!("unsupported allocation pattern"));
-    }
-    let nr_used_bitmaps = div_up(reserved.end, ENTRIES_PER_BITMAP as u64) as usize;
+    // Write the bitmaps in corresponding to the allocations
+    let allocations = w.clear_allocations();
+    for range in allocations.iter() {
+        for b in range.start..range.end {
+            if b / ENTRIES_PER_BITMAP as u64 != bm {
+                // write out bitmap
+                let mut out = Vec::new();
+                std::mem::swap(&mut out, &mut entries);
+                let blocknr = write_bitmap(w, out)?;
 
-    for bm in 0..nr_used_bitmaps {
-        let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
-        let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
-        let mut entries = Vec::with_capacity(ENTRIES_PER_BITMAP);
-        let mut first_free: Option<u32> = None;
+                // Insert into the index list
+                let ie = IndexEntry {
+                    blocknr,
+                    nr_free,
+                    none_free_before,
+                };
+                index_entries.push(ie);
 
-        // blocks beyond the limit won't be checked right now, thus are marked as freed
-        let limit = std::cmp::min(reserved.end - begin, ENTRIES_PER_BITMAP as u64);
-        let mut nr_free: u32 = (len - limit) as u32;
+                // reset buffers
+                bm = b / ENTRIES_PER_BITMAP as u64;
+                nr_free = ENTRIES_PER_BITMAP as u32;
+                none_free_before = 0;
+                entries.resize(ENTRIES_PER_BITMAP, Small(0));
+            }
 
-        for i in 0..limit {
-            let b = begin + i;
             let rc = w.sm.lock().unwrap().get(b)?;
+            let i = (b % ENTRIES_PER_BITMAP as u64) as u32;
             let e = match rc {
-                0 => {
-                    nr_free += 1;
-                    if first_free.is_none() {
-                        first_free = Some(i as u32);
+                0 => Small(0),
+                1 => {
+                    nr_free -= 1;
+                    if i == none_free_before {
+                        none_free_before = i + 1;
                     }
-                    Small(0)
+                    Small(1)
                 }
-                1 => Small(1),
-                2 => Small(2),
+                2 => {
+                    nr_free -= 1;
+                    if i == none_free_before {
+                        none_free_before = i + 1;
+                    }
+                    Small(2)
+                }
                 _ => {
+                    nr_free -= 1;
+                    if i == none_free_before {
+                        none_free_before = i + 1;
+                    }
                     overflow_builder.push_value(w, b as u64, rc)?;
                     Overflow
                 }
             };
-            entries.push(e);
+            entries[i as usize] = e;
         }
-
-        // Fill unused entries with zeros
-        if limit < len {
-            entries.resize_with(len as usize, || BitmapEntry::Small(0));
-        }
-
-        let blocknr = write_bitmap(w, entries)?;
-
-        // Insert into the index list
-        let ie = IndexEntry {
-            blocknr,
-            nr_free,
-            none_free_before: first_free.unwrap_or(limit as u32),
-        };
-        index_entries.push(ie);
     }
 
+    // Write out the last non-empty bitmap
+    let mut out = Vec::new();
+    std::mem::swap(&mut out, &mut entries);
+    let blocknr = write_bitmap(w, out)?;
+
+    // Insert into the index list
+    let ie = IndexEntry {
+        blocknr,
+        nr_free,
+        none_free_before,
+    };
+    index_entries.push(ie);
+
     // Fill the rest of the bitmaps with zeros
+    let nr_blocks = w.sm.lock().unwrap().get_nr_blocks()?;
+    let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+    let nr_used_bitmaps = index_entries.len();
     for bm in nr_used_bitmaps..nr_bitmaps {
         let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
         let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
@@ -341,7 +353,7 @@ pub fn write_metadata_common(w: &mut WriteBatcher) -> Result<(Vec<IndexEntry>, u
     Ok((index_entries, ref_count_root))
 }
 
-fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> Result<u64> {
+fn write_bitmap(w: &mut WriteBatcher, entries: Vec<BitmapEntry>) -> anyhow::Result<u64> {
     // allocate a new block
     let b = w.alloc_zeroed()?;
     let mut cursor = Cursor::new(b.get_data());

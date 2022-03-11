@@ -1,7 +1,7 @@
-use anyhow::Result;
 use byteorder::WriteBytesExt;
 use nom::{number::complete::*, IResult};
 use std::fmt;
+use std::io;
 
 use crate::pdata::unpack::*;
 
@@ -34,7 +34,7 @@ impl Unpack for BlockTime {
 }
 
 impl Pack for BlockTime {
-    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, data: &mut W) -> io::Result<()> {
         let bt: u64 = (self.block << 24) | self.time as u64;
         bt.pack(data)
     }

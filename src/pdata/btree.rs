@@ -3,6 +3,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use data_encoding::BASE64;
 use nom::{number::complete::*, IResult};
 use std::fmt;
+use std::io;
 use thiserror::Error;
 
 use crate::io_engine::*;
@@ -385,7 +386,7 @@ pub type Result<T> = std::result::Result<T, BTreeError>;
 
 //------------------------------------------
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NodeHeader {
     pub block: u64,
     pub is_leaf: bool,
@@ -426,7 +427,7 @@ impl Unpack for NodeHeader {
 }
 
 impl Pack for NodeHeader {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> anyhow::Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         // csum needs to be calculated right for the whole metadata block.
         w.write_u32::<LittleEndian>(0)?;
 
@@ -440,8 +441,7 @@ impl Pack for NodeHeader {
         w.write_u32::<LittleEndian>(self.nr_entries)?;
         w.write_u32::<LittleEndian>(self.max_entries)?;
         w.write_u32::<LittleEndian>(self.value_size)?;
-        w.write_u32::<LittleEndian>(0)?;
-        Ok(())
+        w.write_u32::<LittleEndian>(0)
     }
 }
 
@@ -586,6 +586,124 @@ pub fn unpack_node<V: Unpack>(
             keys,
             values,
         })
+    }
+}
+
+/// Pack the given node ready to write to disk.
+pub fn pack_node<W: WriteBytesExt, V: Pack + Unpack>(node: &Node<V>, w: &mut W) -> io::Result<()> {
+    match node {
+        Node::Internal {
+            header,
+            keys,
+            values,
+        } => {
+            header.pack(w)?;
+            for k in keys {
+                w.write_u64::<LittleEndian>(*k)?;
+            }
+
+            // pad with zeroes
+            for _i in keys.len()..header.max_entries as usize {
+                w.write_u64::<LittleEndian>(0)?;
+            }
+
+            for v in values {
+                v.pack(w)?;
+            }
+        }
+        Node::Leaf {
+            header,
+            keys,
+            values,
+        } => {
+            header.pack(w)?;
+            for k in keys {
+                w.write_u64::<LittleEndian>(*k)?;
+            }
+
+            // pad with zeroes
+            for _i in keys.len()..header.max_entries as usize {
+                w.write_u64::<LittleEndian>(0)?;
+            }
+
+            for v in values {
+                v.pack(w)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+//------------------------------------------
+
+pub fn calc_max_entries<V: Unpack>() -> usize {
+    let elt_size = 8 + V::disk_size() as usize;
+    let total = ((BLOCK_SIZE - NodeHeader::disk_size() as usize) / elt_size) as usize;
+    total / 3 * 3
+}
+
+//------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mk_random_leaf(nr_entries: usize) -> Node<u64> {
+        use rand::{thread_rng, Rng};
+
+        let mut keys = vec![0u64; nr_entries];
+        let mut values = vec![0u64; nr_entries];
+        thread_rng().fill(&mut keys[..]);
+        thread_rng().fill(&mut values[..]);
+        keys.sort();
+
+        Node::Leaf {
+            header: NodeHeader {
+                block: 0,
+                is_leaf: true,
+                nr_entries: nr_entries as u32,
+                max_entries: nr_entries as u32,
+                value_size: u64::disk_size(),
+            },
+            keys,
+            values,
+        }
+    }
+
+    #[test]
+    fn pack_unpack_empty_node() {
+        let node = mk_random_leaf(0);
+
+        let mut buffer: Vec<u8> = Vec::with_capacity(BLOCK_SIZE);
+        let mut cursor = std::io::Cursor::new(&mut buffer);
+        assert!(pack_node(&node, &mut cursor).is_ok());
+
+        let path = vec![0];
+        let unpacked = unpack_node::<u64>(&path, buffer.as_slice(), false, true).unwrap();
+        assert!(
+            matches!(unpacked, Node::Leaf {header, keys, values} if header.eq(node.get_header()) && keys.is_empty() && values.is_empty())
+        );
+    }
+
+    #[test]
+    fn pack_unpack_fully_populated_node() {
+        let node = mk_random_leaf(calc_max_entries::<u64>());
+        let v = if let Node::Leaf { ref values, .. } = node {
+            values.clone()
+        } else {
+            Vec::new()
+        };
+
+        let mut buffer: Vec<u8> = Vec::with_capacity(BLOCK_SIZE);
+        let mut cursor = std::io::Cursor::new(&mut buffer);
+        assert!(pack_node(&node, &mut cursor).is_ok());
+
+        let path = vec![0];
+        let unpacked = unpack_node::<u64>(&path, buffer.as_slice(), false, true).unwrap();
+        assert!(
+            matches!(unpacked, Node::Leaf {header, keys, values} if header.eq(node.get_header()) && keys.eq(node.get_keys()) && values.eq(&v))
+        );
     }
 }
 

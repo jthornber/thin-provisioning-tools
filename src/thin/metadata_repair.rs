@@ -10,7 +10,7 @@ use crate::io_engine::IoEngine;
 use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map_common::*;
-use crate::pdata::unpack::Unpack;
+use crate::pdata::unpack::{unpack, Unpack};
 use crate::report::Report;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -784,7 +784,7 @@ pub fn rebuild_superblock(
         .nr_data_blocks
         .or_else(|| {
             ref_sb.as_ref().and_then(|sb| {
-                unpack_root(&sb.data_sm_root)
+                unpack::<SMRoot>(&sb.data_sm_root)
                     .ok()
                     .map(|root| root.nr_blocks)
             })
@@ -831,7 +831,7 @@ impl Override for Superblock {
         }
 
         if let Some(nr_data_blocks) = opts.nr_data_blocks {
-            let sm_root = unpack_root(&self.data_sm_root).map(|mut root| {
+            let sm_root = unpack::<SMRoot>(&self.data_sm_root).map(|mut root| {
                 root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
                 root
             })?;
@@ -852,7 +852,7 @@ pub fn override_superblock(mut sb: Superblock, opts: &SuperblockOverrides) -> Re
     }
 
     if let Some(nr_data_blocks) = opts.nr_data_blocks {
-        let sm_root = unpack_root(&sb.data_sm_root).map(|mut root| {
+        let sm_root = unpack::<SMRoot>(&sb.data_sm_root).map(|mut root| {
             root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
             root
         })?;

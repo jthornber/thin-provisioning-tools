@@ -27,6 +27,7 @@ num-derive = "0.3"
 num-traits = "0.2"
 quick-xml = "0.22"
 rand = "0.8"
+rangemap = "1.0"
 safemem = "0.3"
 tempfile = "3.3"
 threadpool = "1.8"
@@ -36,8 +37,10 @@ termion = { version = "1.5", optional = true }
 
 [dev-dependencies]
 json = "0.12"
+mockall = "0.11"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+rand = { version = "0.8", features = ["small_rng"] }
 thinp = { path = ".", features = ["devtools"] }
 
 [features]

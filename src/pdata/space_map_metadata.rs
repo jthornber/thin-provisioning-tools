@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
-use std::io::Cursor;
+use std::io::{self, Cursor};
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -47,7 +47,7 @@ impl Unpack for MetadataIndex {
 }
 
 impl Pack for MetadataIndex {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u32::<LittleEndian>(0)?; // csum
         w.write_u32::<LittleEndian>(0)?; // padding
         w.write_u64::<LittleEndian>(self.blocknr)?;
@@ -115,32 +115,28 @@ pub fn core_metadata_sm(nr_blocks: u64, max_count: u32) -> Arc<Mutex<dyn SpaceMa
 }
 
 pub fn write_metadata_sm(w: &mut WriteBatcher) -> Result<SMRoot> {
-    let r1 = w.get_reserved_range();
-
     let (mut indexes, ref_count_root) = write_metadata_common(w)?;
     let bitmap_root = w.alloc_zeroed()?;
 
     // Now we need to patch up the counts for the metadata that was used for storing
     // the space map itself.  These ref counts all went from 0 to 1.
-    let r2 = w.get_reserved_range();
-    if r2.end < r1.end {
-        return Err(anyhow!("unsupported allocation pattern"));
-    }
-
-    let bi_begin = block_to_bitmap(r1.end);
-    let bi_end = block_to_bitmap(r2.end) + 1;
-    for (bm, ie) in indexes.iter_mut().enumerate().take(bi_end).skip(bi_begin) {
-        let begin = if bm == bi_begin {
-            r1.end % ENTRIES_PER_BITMAP as u64
-        } else {
-            0
-        };
-        let end = if bm == bi_end - 1 {
-            r2.end % ENTRIES_PER_BITMAP as u64
-        } else {
-            ENTRIES_PER_BITMAP as u64
-        };
-        *ie = adjust_counts(w, ie, begin, end)?
+    let allocations = w.clear_allocations();
+    for range in allocations {
+        let bi_begin = block_to_bitmap(range.start);
+        let bi_end = block_to_bitmap(range.end) + 1;
+        for (bm, ie) in indexes.iter_mut().enumerate().take(bi_end).skip(bi_begin) {
+            let begin = if bm == bi_begin {
+                range.start % ENTRIES_PER_BITMAP as u64
+            } else {
+                0
+            };
+            let end = if bm == bi_end - 1 {
+                range.end % ENTRIES_PER_BITMAP as u64
+            } else {
+                ENTRIES_PER_BITMAP as u64
+            };
+            *ie = adjust_counts(w, ie, begin, end)?
+        }
     }
 
     // Write out the metadata index

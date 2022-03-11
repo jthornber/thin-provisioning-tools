@@ -1,7 +1,7 @@
-use anyhow::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
 use std::fmt;
+use std::io;
 
 use crate::pdata::unpack::*;
 
@@ -50,12 +50,11 @@ impl Unpack for DeviceDetail {
 }
 
 impl Pack for DeviceDetail {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u64::<LittleEndian>(self.mapped_blocks)?;
         w.write_u64::<LittleEndian>(self.transaction_id)?;
         w.write_u32::<LittleEndian>(self.creation_time)?;
-        w.write_u32::<LittleEndian>(self.snapshotted_time)?;
-        Ok(())
+        w.write_u32::<LittleEndian>(self.snapshotted_time)
     }
 }
 

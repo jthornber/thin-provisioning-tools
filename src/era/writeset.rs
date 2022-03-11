@@ -1,6 +1,6 @@
-use anyhow::Result;
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
+use std::io;
 
 use crate::pdata::unpack::*;
 
@@ -25,10 +25,9 @@ impl Unpack for Writeset {
 }
 
 impl Pack for Writeset {
-    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> Result<()> {
+    fn pack<W: WriteBytesExt>(&self, w: &mut W) -> io::Result<()> {
         w.write_u32::<LittleEndian>(self.nr_bits)?;
-        w.write_u64::<LittleEndian>(self.root)?;
-        Ok(())
+        w.write_u64::<LittleEndian>(self.root)
     }
 }
 
