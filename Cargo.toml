@@ -37,8 +37,10 @@ termion = { version = "1.5", optional = true }
 
 [dev-dependencies]
 json = "0.12"
+mockall = "0.11"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+rand = { version = "0.8", features = ["small_rng"] }
 thinp = { path = ".", features = ["devtools"] }
 
 [features]
