@@ -9,6 +9,12 @@ use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 
+#[cfg(test)]
+pub mod test_utils;
+
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 /// A little ref counter abstraction.  Used to manage counts for btree
