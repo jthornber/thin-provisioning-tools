@@ -537,7 +537,6 @@ pub fn unpack_node<V: Unpack>(
         }
 
         if !is_root {
-            /*
             let min = header.max_entries / 3;
             if header.nr_entries < min {
                 return Err(node_err_s(
@@ -548,7 +547,6 @@ pub fn unpack_node<V: Unpack>(
                     ),
                 ));
             }
-            */
         }
     }
 
