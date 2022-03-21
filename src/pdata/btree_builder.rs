@@ -290,30 +290,26 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
         }
 
         // Unshift the previously pushed node since it is not the root
-        if self.nodes.len() == 1 && (self.nodes.last().unwrap().nr_entries < half_full) {
+        if self.nodes.len() == 1 && (self.nodes[0].nr_entries < half_full) {
             self.unshift_node(w)?;
         }
 
         // Decide if we're going to use the pre-built nodes.
         if !self.values.is_empty() && (self.values.len() < half_full) {
-            let mut nodes_iter = nodes.iter();
-            let n = nodes_iter.next();
-            self.append_values(w, n.unwrap())?;
+            self.append_values(w, &nodes[0])?;
 
-            // Do not flush if there's no succeeding nodes,
-            // so that it could produce a more compact metadata.
             if nodes.len() > 1 {
-                // Flush all the values.
+                // Flush all the values while there are succeeding nodes.
                 self.emit_all(w)?;
 
                 // Add the remaining nodes.
-                for n in nodes_iter {
+                for n in &nodes[1..] {
                     w.sm.lock().unwrap().inc(n.block, 1)?;
                     self.nodes.push(n.clone());
                 }
             }
         } else {
-            // Flush all the values.
+            // Flush all the values since we've collected sufficient numbers of entries.
             self.emit_all(w)?;
 
             if nodes[0].nr_entries < half_full {
