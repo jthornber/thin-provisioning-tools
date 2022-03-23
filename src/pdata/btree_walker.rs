@@ -8,6 +8,9 @@ use crate::pdata::btree::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub trait NodeVisitor<V: Unpack> {
