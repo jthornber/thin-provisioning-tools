@@ -1,7 +1,7 @@
 extern crate clap;
 
 use atty::Stream;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use crate::thin::dump::{dump, ThinDumpOptions};
 use crate::thin::metadata_repair::SuperblockOverrides;
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_dump")
+    let parser = Command::new("thin_dump")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Dump thin-provisioning metadata to stdout in XML format")

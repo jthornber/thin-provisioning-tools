@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -8,7 +8,7 @@ use crate::commands::utils::*;
 use crate::report::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_metadata_pack")
+    let parser = Command::new("thin_metadata_pack")
         .color(clap::ColorChoice::Never)
 	.version(crate::version::tools_version())
         .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")

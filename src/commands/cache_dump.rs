@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -10,7 +10,7 @@ use crate::commands::utils::*;
 //------------------------------------------
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("cache_dump")
+    let parser = Command::new("cache_dump")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Dump the cache metadata to stdout in XML format")

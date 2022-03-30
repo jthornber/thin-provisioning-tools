@@ -1,5 +1,5 @@
 use atty::Stream;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use crate::commands::utils::*;
 use crate::report::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("cache_writeback")
+    let parser = Command::new("cache_writeback")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Repair binary cache metadata, and write it to a different device or file")

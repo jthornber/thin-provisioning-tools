@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use crate::io_engine::*;
 use crate::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_check")
+    let parser = Command::new("thin_check")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Validates thin provisioning metadata on a device or file.")

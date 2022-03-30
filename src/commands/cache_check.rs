@@ -1,7 +1,7 @@
 extern crate clap;
 
 use atty::Stream;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use crate::report::*;
 //------------------------------------------
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("cache_check")
+    let parser = Command::new("cache_check")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Validates cache metadata on a device or file.")

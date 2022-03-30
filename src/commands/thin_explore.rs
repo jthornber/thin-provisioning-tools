@@ -1,7 +1,7 @@
 extern crate clap;
 
 use anyhow::{anyhow, Result};
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
@@ -838,8 +838,8 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 //------------------------------------
 
-pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_explore")
+fn main() -> Result<()> {
+    let parser = Command::new("thin_explore")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("A text user interface for examining thin metadata.")

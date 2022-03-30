@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -10,7 +10,7 @@ use crate::thin::ls::*;
 pub fn run(args: &[std::ffi::OsString]) {
     use OutputField::*;
 
-    let parser = App::new("thin_ls")
+    let parser = Command::new("thin_ls")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("List thin volumes within a pool")

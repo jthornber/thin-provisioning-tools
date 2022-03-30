@@ -1,7 +1,7 @@
 extern crate clap;
 
 use atty::Stream;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -11,7 +11,7 @@ use crate::era::repair::{repair, EraRepairOptions};
 use crate::report::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("era_repair")
+    let parser = Command::new("era_repair")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Repair binary era metadata, and write it to a different device or file")

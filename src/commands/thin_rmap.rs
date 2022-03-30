@@ -1,7 +1,7 @@
 extern crate clap;
 
 use anyhow::anyhow;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::ops::Range;
 use std::path::Path;
 use std::process;
@@ -37,7 +37,7 @@ impl FromStr for RangeU64 {
 //------------------------------------------
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_rmap")
+    let parser = Command::new("thin_rmap")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Output reverse map of a thin provisioned region of blocks")

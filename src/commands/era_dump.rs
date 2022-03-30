@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -10,7 +10,7 @@ use crate::era::dump::{dump, EraDumpOptions};
 //------------------------------------------
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("era_dump")
+    let parser = Command::new("era_dump")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Dump the era metadata to stdout in XML format")

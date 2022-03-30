@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg, ArgGroup};
+use clap::{Command, Arg, ArgGroup};
 use std::ffi::OsString;
 use std::process;
 
@@ -14,7 +14,7 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    let parser = App::new("cache_metadata_size")
+    let parser = Command::new("cache_metadata_size")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Estimate the size of the metadata device needed for a given configuration.")

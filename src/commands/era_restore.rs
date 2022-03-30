@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -8,7 +8,7 @@ use crate::commands::utils::*;
 use crate::era::restore::{restore, EraRestoreOptions};
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("era_restore")
+    let parser = Command::new("era_restore")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Convert XML format metadata to binary.")

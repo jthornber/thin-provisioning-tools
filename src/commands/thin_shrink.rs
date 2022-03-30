@@ -4,14 +4,14 @@
 
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process::exit;
 
 use crate::commands::utils::*;
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_shrink")
+    let parser = Command::new("thin_shrink")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Rewrite xml metadata and move data in an inactive pool.")

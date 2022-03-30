@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -10,7 +10,7 @@ use crate::era::invalidate::{invalidate, EraInvalidateOptions};
 //------------------------------------------
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("era_invalidate")
+    let parser = Command::new("era_invalidate")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("List blocks that may have changed since a given era")

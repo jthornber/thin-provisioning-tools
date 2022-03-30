@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use std::path::Path;
 use std::process;
 
@@ -9,7 +9,7 @@ use crate::thin::metadata_repair::SuperblockOverrides;
 use crate::thin::restore::{restore, ThinRestoreOptions};
 
 pub fn run(args: &[std::ffi::OsString]) {
-    let parser = App::new("thin_restore")
+    let parser = Command::new("thin_restore")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())
         .about("Convert XML format metadata to binary.")
