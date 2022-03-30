@@ -7,7 +7,7 @@ use crate::pdata::unpack::*;
 
 //------------------------------------------
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct DeviceDetail {
     pub mapped_blocks: u64,
     pub transaction_id: u64,
