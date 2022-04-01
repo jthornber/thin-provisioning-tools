@@ -224,7 +224,7 @@ fn rejects_auto_repair_with_override_mapping_root() -> Result<()> {
     let mut f = std::fs::File::open(&md)?;
     let mut buf = [0; 8];
     f.seek(std::io::SeekFrom::Start(320))?;
-    f.read(&mut buf)?;
+    f.read_exact(&mut buf)?;
     let mapping_root = u64::from_le_bytes(buf).to_string();
 
     run_fail(thin_check_cmd(args![
@@ -329,7 +329,7 @@ fn rejects_clear_needs_check_with_override_mapping_root() -> Result<()> {
     let mut f = std::fs::File::open(&md)?;
     let mut buf = [0; 8];
     f.seek(std::io::SeekFrom::Start(320))?;
-    f.read(&mut buf)?;
+    f.read_exact(&mut buf)?;
     let mapping_root = u64::from_le_bytes(buf).to_string();
 
     run_fail(thin_check_cmd(args![

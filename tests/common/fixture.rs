@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thinp::file_utils;
 
@@ -16,7 +16,7 @@ pub fn mk_zeroed_md(td: &mut TestDir) -> Result<PathBuf> {
     Ok(md)
 }
 
-pub fn damage_superblock(path: &PathBuf) -> Result<()> {
+pub fn damage_superblock(path: &Path) -> Result<()> {
     let mut output = OpenOptions::new().read(false).write(true).open(path)?;
     let buf = [0u8; 512];
     output.write_all(&buf)?;
@@ -25,7 +25,7 @@ pub fn damage_superblock(path: &PathBuf) -> Result<()> {
 
 //------------------------------------------
 
-pub fn md5(md: &PathBuf) -> Result<String> {
+pub fn md5(md: &Path) -> Result<String> {
     let output = duct::cmd!("md5sum", "-b", &md).stdout_capture().run()?;
     let csum = std::str::from_utf8(&output.stdout[0..])?.to_string();
     let csum = csum.split_ascii_whitespace().next().unwrap().to_string();
@@ -34,7 +34,7 @@ pub fn md5(md: &PathBuf) -> Result<String> {
 
 // This checksums the file before and after the thunk is run to
 // ensure it is unchanged.
-pub fn ensure_untouched<F>(p: &PathBuf, thunk: F) -> Result<()>
+pub fn ensure_untouched<F>(p: &Path, thunk: F) -> Result<()>
 where
     F: Fn() -> Result<()>,
 {
@@ -44,7 +44,7 @@ where
     Ok(())
 }
 
-pub fn superblock_all_zeroes(path: &PathBuf) -> Result<bool> {
+pub fn superblock_all_zeroes(path: &Path) -> Result<bool> {
     let mut input = OpenOptions::new().read(true).write(false).open(path)?;
     let mut buf = vec![0; 4096];
     input.read_exact(&mut buf[0..])?;
@@ -57,7 +57,7 @@ pub fn superblock_all_zeroes(path: &PathBuf) -> Result<bool> {
     Ok(true)
 }
 
-pub fn ensure_superblock_zeroed<F>(p: &PathBuf, thunk: F) -> Result<()>
+pub fn ensure_superblock_zeroed<F>(p: &Path, thunk: F) -> Result<()>
 where
     F: Fn() -> Result<()>,
 {

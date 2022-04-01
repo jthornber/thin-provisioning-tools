@@ -292,7 +292,7 @@ mod tests {
 
         let loc = 123;
         let b = Block::zeroed(loc);
-        b.get_data()[4..].copy_from_slice(&mut src[4..]);
+        b.get_data()[4..].copy_from_slice(&src[4..]);
         assert!(w.write(b, BT::NODE).is_ok());
 
         let actual = w.read(loc).unwrap();
