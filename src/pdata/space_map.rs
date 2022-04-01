@@ -474,11 +474,11 @@ mod tests {
 
         for i in (2..=255).rev() {
             assert_eq!(sm.get(b).unwrap(), i);
-            assert_eq!(sm.dec(b).unwrap(), false);
+            assert!(!sm.dec(b).unwrap());
         }
 
         assert_eq!(sm.get(b).unwrap(), 1);
-        assert_eq!(sm.dec(b).unwrap(), true);
+        assert!(sm.dec(b).unwrap());
         assert_eq!(sm.get(b).unwrap(), 0);
     }
 

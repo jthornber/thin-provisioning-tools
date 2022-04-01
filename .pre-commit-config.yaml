@@ -11,3 +11,12 @@ repos:
     hooks:
     -   id: fmt
     -   id: clippy
+-   repo: local
+    hooks:
+    -   id: clippy-tests
+        name: clippy-tests
+        description: Run the Clippy linter on tests
+        entry: cargo clippy --tests -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false

@@ -34,3 +34,6 @@ pub mod units;
 pub mod version;
 pub mod write_batcher;
 pub mod xml;
+
+#[cfg(test)]
+pub mod core_io_engine;

@@ -139,7 +139,6 @@ mod tests {
     use super::*;
 
     use mockall::*;
-    //use rand::seq::SliceRandom;
     use rand::prelude::*;
     use std::io;
 
@@ -189,10 +188,9 @@ mod tests {
         let mut sm = MockTestSpaceMap::new();
         let mut blocks: Vec<u64> = (0..65536).collect();
         blocks.shuffle(&mut rand::thread_rng());
-        let mut i = 0;
+        let mut b_iter = blocks.into_iter();
         sm.expect_alloc().times(65536).returning(move || {
-            let b = blocks[i];
-            i += 1;
+            let b = b_iter.next().unwrap();
             Ok(Some(b))
         });
 
@@ -248,7 +246,7 @@ mod tests {
                 }
 
                 let b = blocks.iter().last().unwrap();
-                b.get_data()[..] == expected[..]
+                b.get_data() == expected
             })
             .times(1)
             .returning(|_| Ok(vec![Ok(())]));
@@ -294,11 +292,11 @@ mod tests {
 
         let loc = 123;
         let b = Block::zeroed(loc);
-        b.get_data()[4..].copy_from_slice(&mut src[4..]);
+        b.get_data()[4..].copy_from_slice(&src[4..]);
         assert!(w.write(b, BT::NODE).is_ok());
 
         let actual = w.read(loc).unwrap();
-        assert_eq!(actual.get_data()[..], src[..]);
+        assert_eq!(actual.get_data(), src);
     }
 }
 

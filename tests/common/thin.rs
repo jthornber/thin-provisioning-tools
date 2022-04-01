@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thinp::file_utils;
 use thinp::io_engine::*;
@@ -84,14 +84,14 @@ pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
     Ok(md)
 }
 
-pub fn set_needs_check(md: &PathBuf) -> Result<()> {
+pub fn set_needs_check(md: &Path) -> Result<()> {
     let args = args!["-o", &md, "--set-needs-check"];
     run_ok(thin_generate_metadata_cmd(args))?;
     Ok(())
 }
 
 pub fn generate_metadata_leaks(
-    md: &PathBuf,
+    md: &Path,
     nr_blocks: u64,
     expected: u32,
     actual: u32,
@@ -115,7 +115,7 @@ pub fn generate_metadata_leaks(
     Ok(())
 }
 
-pub fn get_needs_check(md: &PathBuf) -> Result<bool> {
+pub fn get_needs_check(md: &Path) -> Result<bool> {
     use thinp::thin::superblock::*;
 
     let engine = SyncIoEngine::new(md, 1, false)?;
@@ -123,13 +123,13 @@ pub fn get_needs_check(md: &PathBuf) -> Result<bool> {
     Ok(sb.flags.needs_check)
 }
 
-pub fn reserve_metadata_snap(md: &PathBuf) -> Result<()> {
+pub fn reserve_metadata_snap(md: &Path) -> Result<()> {
     let args = args!["-o", &md, "--reserve-metadata-snap"];
     run_ok(thin_generate_metadata_cmd(args))?;
     Ok(())
 }
 
-pub fn release_metadata_snap(md: &PathBuf) -> Result<()> {
+pub fn release_metadata_snap(md: &Path) -> Result<()> {
     let args = args!["-o", &md, "--release-metadata-snap"];
     run_ok(thin_generate_metadata_cmd(args))?;
     Ok(())
