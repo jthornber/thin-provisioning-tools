@@ -70,36 +70,15 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_input_file(input_file, &report);
     check_output_file(output_file, &report);
 
-    let transaction_id = matches.value_of("TRANSACTION_ID").map(|s| {
-        s.parse::<u64>().unwrap_or_else(|_| {
-            report.fatal("Couldn't parse transaction_id");
-            process::exit(1);
-        })
-    });
-
-    let data_block_size = matches.value_of("DATA_BLOCK_SIZE").map(|s| {
-        s.parse::<u32>().unwrap_or_else(|_| {
-            report.fatal("Couldn't parse data_block_size");
-            process::exit(1);
-        })
-    });
-
-    let nr_data_blocks = matches.value_of("NR_DATA_BLOCKS").map(|s| {
-        s.parse::<u64>().unwrap_or_else(|_| {
-            report.fatal("Couldn't parse nr_data_blocks");
-            process::exit(1);
-        })
-    });
-
     let opts = ThinRepairOptions {
         input: input_file,
         output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
         report: report.clone(),
         overrides: SuperblockOverrides {
-            transaction_id,
-            data_block_size,
-            nr_data_blocks,
+            transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
+            data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
+            nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
         },
     };
 

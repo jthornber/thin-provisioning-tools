@@ -59,21 +59,11 @@ pub fn run(args: &[std::ffi::OsString]) {
     check_file_not_tiny(input_file, &report);
     drop(report);
 
-    let threshold = matches
-        .value_of("WRITTEN_SINCE")
-        .map(|s| {
-            s.parse::<u32>().unwrap_or_else(|_| {
-                eprintln!("Couldn't parse written_since");
-                process::exit(1);
-            })
-        })
-        .unwrap_or(0);
-
     let opts = EraInvalidateOptions {
         input: input_file,
         output: output_file,
         async_io: matches.is_present("ASYNC_IO"),
-        threshold,
+        threshold: optional_value_or_exit::<u32>(&matches, "WRITTEN_SINCE").unwrap_or(0),
         use_metadata_snap: matches.is_present("METADATA_SNAP"),
     };
 
