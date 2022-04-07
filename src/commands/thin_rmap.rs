@@ -1,7 +1,7 @@
 extern crate clap;
 
 use anyhow::anyhow;
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::ops::Range;
 use std::path::Path;
 use std::process;

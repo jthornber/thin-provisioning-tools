@@ -1,7 +1,7 @@
 extern crate clap;
 
 use atty::Stream;
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;

@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Result};
-use clap::{Command, Arg};
-use fixedbitset::FixedBitSet;
-use rand::prelude::*;
+use anyhow::Result;
+use clap::{Arg, Command};
+
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -55,7 +54,7 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
 
 //------------------------------------------
 
-fn main() -> Result<()> {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = Command::new("cache_generate_metadata")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())

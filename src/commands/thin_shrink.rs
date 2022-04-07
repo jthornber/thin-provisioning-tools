@@ -4,7 +4,7 @@
 
 extern crate clap;
 
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process::exit;
 
