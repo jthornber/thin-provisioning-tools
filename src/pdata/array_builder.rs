@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
-use byteorder::WriteBytesExt;
+
 use std::io::Cursor;
 
 use crate::checksum;
-use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array::*;
 use crate::pdata::btree_builder::*;
@@ -30,12 +29,6 @@ struct ArrayIO<V: Unpack + Pack> {
 
 struct WriteResult {
     loc: u64,
-}
-
-//------------------------------------------
-
-fn calc_max_entries<V: Unpack>() -> usize {
-    (BLOCK_SIZE - ArrayBlockHeader::disk_size() as usize) / V::disk_size() as usize
 }
 
 //------------------------------------------
@@ -146,7 +139,6 @@ impl<V: Unpack + Pack> ArrayIO<V> {
 
     fn write(&self, w: &mut WriteBatcher, values: Vec<V>) -> Result<WriteResult> {
         let header = ArrayBlockHeader {
-            csum: 0,
             max_entries: calc_max_entries::<V>() as u32,
             nr_entries: values.len() as u32,
             value_size: V::disk_size(),
@@ -172,17 +164,6 @@ fn write_array_block<V: Unpack + Pack>(
     w.write(b, checksum::BT::ARRAY)?;
 
     Ok(WriteResult { loc })
-}
-
-pub fn pack_array_block<W: WriteBytesExt, V: Pack + Unpack>(
-    ablock: &ArrayBlock<V>,
-    w: &mut W,
-) -> Result<()> {
-    ablock.header.pack(w)?;
-    for v in ablock.values.iter() {
-        v.pack(w)?;
-    }
-    Ok(())
 }
 
 //------------------------------------------

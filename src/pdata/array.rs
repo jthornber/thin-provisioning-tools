@@ -4,17 +4,19 @@ use std::fmt;
 use std::io;
 use thiserror::Error;
 
-use crate::checksum;
 use crate::io_engine::BLOCK_SIZE;
 use crate::pdata::btree;
 use crate::pdata::unpack::{Pack, Unpack};
+
+#[cfg(test)]
+mod tests;
 
 //------------------------------------------
 
 const ARRAY_BLOCK_HEADER_SIZE: u32 = 24;
 
+#[derive(Debug, PartialEq)]
 pub struct ArrayBlockHeader {
-    pub csum: u32,
     pub max_entries: u32,
     pub nr_entries: u32,
     pub value_size: u32,
@@ -27,7 +29,7 @@ impl Unpack for ArrayBlockHeader {
     }
 
     fn unpack(data: &[u8]) -> IResult<&[u8], ArrayBlockHeader> {
-        let (i, csum) = le_u32(data)?;
+        let (i, _csum) = le_u32(data)?;
         let (i, max_entries) = le_u32(i)?;
         let (i, nr_entries) = le_u32(i)?;
         let (i, value_size) = le_u32(i)?;
@@ -36,7 +38,6 @@ impl Unpack for ArrayBlockHeader {
         Ok((
             i,
             ArrayBlockHeader {
-                csum,
                 max_entries,
                 nr_entries,
                 value_size,
@@ -152,18 +153,6 @@ fn convert_result<'a, V>(path: &[u64], r: IResult<&'a [u8], V>) -> Result<(&'a [
 }
 
 pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayBlock<V>> {
-    let bt = checksum::metadata_block_type(data);
-    if bt != checksum::BT::ARRAY {
-        return Err(array_block_err(
-            path,
-            &format!(
-                "checksum failed for array block {}, {:?}",
-                path.last().unwrap(),
-                bt
-            ),
-        ));
-    }
-
     let (i, header) = ArrayBlockHeader::unpack(data)
         .map_err(|_| array_block_err(path, "Couldn't parse array block header"))?;
 
@@ -187,13 +176,31 @@ pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayB
         ));
     }
 
-    // TODO: check nr_entries < max_entries
-
-    // TODO: check block_nr
+    // check nr_entries
+    if header.nr_entries > header.max_entries {
+        return Err(array_block_err(path, "nr_entries > max_entries"));
+    }
 
     let (_i, values) = convert_result(path, count(V::unpack, header.nr_entries as usize)(i))?;
 
     Ok(ArrayBlock { header, values })
+}
+
+pub fn pack_array_block<W: WriteBytesExt, V: Pack + Unpack>(
+    ablock: &ArrayBlock<V>,
+    w: &mut W,
+) -> io::Result<()> {
+    ablock.header.pack(w)?;
+    for v in ablock.values.iter() {
+        v.pack(w)?;
+    }
+    Ok(())
+}
+
+//------------------------------------------
+
+pub fn calc_max_entries<V: Unpack>() -> usize {
+    (BLOCK_SIZE - ArrayBlockHeader::disk_size() as usize) / V::disk_size() as usize
 }
 
 //------------------------------------------

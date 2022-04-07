@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::array::{self, *};
 use crate::pdata::btree::{self, *};
@@ -42,6 +43,22 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
             array_errs: Mutex::new(Vec::new()),
         }
     }
+
+    fn visit_array_block(&self, path: &[u64], index: u64, b: &Block) -> array::Result<()> {
+        let mut array_path = path.to_vec();
+        array_path.push(b.loc);
+
+        let bt = checksum::metadata_block_type(b.get_data());
+        if bt != checksum::BT::ARRAY {
+            return Err(array_block_err(
+                &array_path,
+                &format!("checksum failed for array block {}, {:?}", b.loc, bt),
+            ));
+        }
+
+        let array_block = unpack_array_block::<V>(&array_path, b.get_data())?;
+        self.array_visitor.visit(index, array_block)
+    }
 }
 
 impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
@@ -57,20 +74,20 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
             return Ok(());
         }
 
-        // The ordering of array indices had been verified in unpack_node(),
-        // thus checking the upper bound implies key continuity among siblings.
+        // Verify key's continuity.
+        // The ordering of keys had been verified in unpack_node(),
+        // so comparing the keys against its context is sufficient.
         if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
             return Err(btree::value_err("gaps in array indicies".to_string()));
         }
         if let Some(end) = kr.end {
             if *keys.last().unwrap() + 1 != end {
                 return Err(btree::value_err(
-                    "gaps or overlaps in array indicies".to_string(),
+                    "non-contiguous array indicies".to_string(),
                 ));
             }
         }
 
-        // FIXME: will the returned blocks be reordered?
         match self.engine.read_many(values) {
             Err(_) => {
                 // IO completely failed on all the child blocks
@@ -88,21 +105,12 @@ impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
                             array_errs.push(array::io_err(path, values[i]).index_context(keys[i]));
                         }
                         Ok(b) => {
-                            let mut path = path.to_vec();
-                            path.push(b.loc);
-                            match unpack_array_block::<V>(&path, b.get_data()) {
-                                Ok(array_block) => {
-                                    if let Err(e) = self.array_visitor.visit(keys[i], array_block) {
-                                        self.array_errs.lock().unwrap().push(e);
-                                    }
-                                    let mut sm = self.sm.lock().unwrap();
-                                    sm.inc(b.loc, 1).unwrap();
-                                }
-                                Err(e) => {
-                                    self.array_errs.lock().unwrap().push(e);
-                                }
+                            if let Err(e) = self.visit_array_block(path, keys[i], &b) {
+                                self.array_errs.lock().unwrap().push(e);
+                            } else {
+                                let mut sm = self.sm.lock().unwrap();
+                                sm.inc(b.loc, 1).unwrap();
                             }
-                            path.pop();
                         }
                     }
                 }

@@ -53,7 +53,7 @@ impl IoEngine for CoreIoEngine {
         if b >= self.nr_blocks {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
-        let block = Block::new(0);
+        let block = Block::new(b);
         unsafe {
             let off = b as isize * BLOCK_SIZE as isize;
             std::ptr::copy(
