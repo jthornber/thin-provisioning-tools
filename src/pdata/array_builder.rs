@@ -9,6 +9,9 @@ use crate::pdata::btree_builder::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub struct ArrayBlockBuilder<V: Unpack + Pack> {
