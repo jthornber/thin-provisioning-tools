@@ -4,7 +4,7 @@ use mockall::*;
 use rangemap::RangeSet;
 use std::ops::Range;
 
-use crate::core_io_engine::CoreIoEngine;
+use crate::core_io_engine::*;
 use crate::pdata::btree_builder::test_utils::*;
 use crate::write_batcher::WriteBatcher;
 
@@ -24,13 +24,6 @@ mock! {
         fn visit_again(&self, path: &[u64], b: u64) -> Result<()>;
         fn end_walk(&self) -> Result<()>;
     }
-}
-
-//------------------------------------------
-
-fn trash_block(engine: &dyn IoEngine, b: u64) {
-    let block = Block::zeroed(b);
-    assert!(engine.write(&block).is_ok());
 }
 
 //------------------------------------------
@@ -89,7 +82,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         self.damage_nodes(0, indices)
     }
 
-    fn build_expected_leaves(&mut self) -> Vec<NodeInfo> {
+    fn build_expected_leaves(&self) -> Vec<NodeInfo> {
         assert!(self.layout.is_some());
         let layout = self.layout.as_ref().unwrap();
         let leaves = layout.leaves();
@@ -105,7 +98,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         expected
     }
 
-    fn build_expected_mappings(&mut self) -> Vec<(u64, V)> {
+    fn build_expected_mappings(&self) -> Vec<(u64, V)> {
         assert!(self.layout.is_some());
         let layout = self.layout.as_ref().unwrap();
         let leaves = layout.leaves();
@@ -125,7 +118,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         expected
     }
 
-    fn run(&mut self) {
+    fn run(&self) {
         assert!(self.layout.is_some());
         let expected_leaves = self.build_expected_leaves();
         let nr_good_leaves = expected_leaves.len();

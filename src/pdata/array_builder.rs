@@ -37,14 +37,14 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
     pub fn new(nr_entries: u64) -> ArrayBlockBuilder<V> {
         let entries_per_block = calc_max_entries::<V>();
         let nr_blocks = div_up(nr_entries, entries_per_block as u64) as usize;
-        let next_cap = std::cmp::min(nr_entries, entries_per_block as u64) as usize;
+        let cap_first = std::cmp::min(nr_entries, entries_per_block as u64) as usize;
 
         ArrayBlockBuilder {
             array_io: ArrayIO::new(),
             nr_entries,
             entries_per_block,
             array_blocks: Vec::with_capacity(nr_blocks),
-            values: Vec::<V>::with_capacity(next_cap),
+            values: Vec::<V>::with_capacity(cap_first),
         }
     }
 
@@ -86,14 +86,17 @@ impl<V: Unpack + Pack + Clone + Default> ArrayBlockBuilder<V> {
     fn emit_block(&mut self, w: &mut WriteBatcher) -> Result<()> {
         let nr_blocks = self.array_blocks.capacity();
         let cur_bi = self.array_blocks.len();
-        let next_cap = if cur_bi < nr_blocks - 1 {
-            let next_begin = (cur_bi as u64 + 1) * self.entries_per_block as u64;
-            std::cmp::min(self.nr_entries - next_begin, self.entries_per_block as u64) as usize
+        let cap_next = if cur_bi < nr_blocks - 1 {
+            let entries_before = (cur_bi as u64 + 1) * self.entries_per_block as u64;
+            std::cmp::min(
+                self.nr_entries - entries_before,
+                self.entries_per_block as u64,
+            ) as usize
         } else {
             0
         };
 
-        let mut values = Vec::<V>::with_capacity(next_cap);
+        let mut values = Vec::<V>::with_capacity(cap_next);
         std::mem::swap(&mut self.values, &mut values);
 
         values.resize_with(values.capacity(), Default::default);

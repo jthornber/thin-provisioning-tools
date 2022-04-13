@@ -94,3 +94,10 @@ impl IoEngine for CoreIoEngine {
 }
 
 //------------------------------------------
+
+pub fn trash_block(engine: &dyn IoEngine, b: u64) {
+    let block = Block::zeroed(b);
+    assert!(engine.write(&block).is_ok());
+}
+
+//------------------------------------------
