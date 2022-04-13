@@ -10,6 +10,9 @@ use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 
 #[cfg(test)]
+pub mod test_utils;
+
+#[cfg(test)]
 mod tests;
 
 //------------------------------------------

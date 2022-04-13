@@ -8,6 +8,9 @@ use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub struct ArrayWalker {
@@ -30,7 +33,7 @@ struct BlockValueVisitor<'a, V> {
     array_errs: Mutex<Vec<ArrayError>>,
 }
 
-impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
+impl<'a, V: Unpack> BlockValueVisitor<'a, V> {
     pub fn new(
         e: Arc<dyn IoEngine + Send + Sync>,
         sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
@@ -61,7 +64,7 @@ impl<'a, V: Unpack + Copy> BlockValueVisitor<'a, V> {
     }
 }
 
-impl<'a, V: Unpack + Copy> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
+impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
     fn visit(
         &self,
         path: &[u64],
@@ -161,7 +164,7 @@ impl ArrayWalker {
 
     pub fn walk<V>(&self, visitor: &mut dyn ArrayVisitor<V>, root: u64) -> array::Result<()>
     where
-        V: Unpack + Copy,
+        V: Unpack,
     {
         let w =
             BTreeWalker::new_with_sm(self.engine.clone(), self.sm.clone(), self.ignore_non_fatal)?;
