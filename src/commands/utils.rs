@@ -1,9 +1,11 @@
 use anyhow::Result;
 use atty::Stream;
+use clap::ArgMatches;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::Path;
 use std::process::exit;
+use std::str::FromStr;
 
 use crate::file_utils;
 use crate::report::*;
@@ -79,6 +81,18 @@ pub fn check_not_xml_(input_file: &Path, report: &Report) -> Result<()> {
 /// then it fails silently.
 pub fn check_not_xml(input_file: &Path, report: &Report) {
     let _ = check_not_xml_(input_file, report);
+}
+
+pub fn optional_value_or_exit<R>(matches: &ArgMatches, name: &str) -> Option<R>
+where
+    R: FromStr,
+    <R as FromStr>::Err: std::fmt::Display,
+{
+    if matches.is_present(name) {
+        Some(matches.value_of_t_or_exit::<R>(name))
+    } else {
+        None
+    }
 }
 
 //---------------------------------------

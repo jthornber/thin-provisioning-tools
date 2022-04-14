@@ -1,7 +1,7 @@
 extern crate clap;
 
 use anyhow::{anyhow, Result};
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
@@ -838,7 +838,7 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 //------------------------------------
 
-fn main() -> Result<()> {
+pub fn run(args: &[std::ffi::OsString]) {
     let parser = Command::new("thin_explore")
         .color(clap::ColorChoice::Never)
         .version(crate::version::tools_version())

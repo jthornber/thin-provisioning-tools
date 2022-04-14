@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{Command, Arg, ArgGroup};
+use clap::{Arg, ArgGroup, Command};
 use std::path::Path;
 use std::process;
 

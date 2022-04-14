@@ -14,7 +14,7 @@ pub struct NodeInfo {
 pub struct BTreeLayout {
     height: usize,
     nodes: Vec<NodeInfo>,
-    nr_entries: Vec<u64>, // numbers of childrens at different heights
+    nr_entries: Vec<u64>, // numbers of children at different heights
 }
 
 impl BTreeLayout {
@@ -102,7 +102,7 @@ impl BTreeLayout {
     }
 
     // Returns the index of the first leave under a specific node
-    pub fn first_leave(&self, height: usize, index: u64) -> u64 {
+    pub fn first_leaf(&self, height: usize, index: u64) -> u64 {
         assert!(height <= self.height);
         let nodes = &self.nodes(height);
         assert!(index <= nodes.len() as u64);

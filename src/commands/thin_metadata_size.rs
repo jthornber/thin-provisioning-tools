@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::ffi::OsString;
 use std::process;
 

@@ -74,8 +74,8 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
             self.damaged_nodes.insert((height, i)); // FIXME: damaged nodes should be sorted in DFS ordering
         }
 
-        let leaves_begin = layout.first_leave(height, indices.start);
-        let leaves_end = layout.first_leave(height, indices.end);
+        let leaves_begin = layout.first_leaf(height, indices.start);
+        let leaves_end = layout.first_leaf(height, indices.end);
         self.affected_leaves.insert(leaves_begin..leaves_end);
     }
 

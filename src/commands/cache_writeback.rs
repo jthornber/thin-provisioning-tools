@@ -1,5 +1,5 @@
 use atty::Stream;
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -99,24 +99,9 @@ pub fn run(args: &[std::ffi::OsString]) {
         async_io: matches.is_present("ASYNC_IO"),
         origin_dev,
         fast_dev,
-        origin_dev_offset: matches.value_of("ORIGIN_DEV_OFFSET").map(|s| {
-            s.parse::<u64>().unwrap_or_else(|_| {
-                report.fatal("Couldn't parse origin_dev_offset");
-                process::exit(1);
-            })
-        }),
-        fast_dev_offset: matches.value_of("FAST_DEV_OFFSET").map(|s| {
-            s.parse::<u64>().unwrap_or_else(|_| {
-                report.fatal("Couldn't parse fast_dev_offset");
-                process::exit(1);
-            })
-        }),
-        buffer_size: matches.value_of("BUFFER_SIZE_MEG").map(|s| {
-            s.parse::<usize>().map(|v| v * 2048).unwrap_or_else(|_| {
-                report.fatal("Couldn't parse buffer_size_meg");
-                process::exit(1);
-            })
-        }),
+        origin_dev_offset: optional_value_or_exit::<u64>(&matches, "ORIGIN_DEV_OFFSET"),
+        fast_dev_offset: optional_value_or_exit::<u64>(&matches, "FAST_DEV_OFFSET"),
+        buffer_size: optional_value_or_exit::<usize>(&matches, "BUFFER_SIZE_MEG").map(|v| v * 2048),
         list_failed_blocks: matches.is_present("LIST_FAILED_BLOCKS"),
         update_metadata: !matches.is_present("NO_METADATA_UPDATE"),
         report: report.clone(),

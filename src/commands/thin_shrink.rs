@@ -4,7 +4,7 @@
 
 extern crate clap;
 
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process::exit;
 
@@ -63,7 +63,7 @@ pub fn run(args: &[std::ffi::OsString]) {
     // FIXME: check these look like xml
     let input_file = Path::new(matches.value_of("INPUT").unwrap());
     let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
-    let size = matches.value_of("SIZE").unwrap().parse::<u64>().unwrap();
+    let size = matches.value_of_t_or_exit::<u64>("SIZE");
     let data_file = Path::new(matches.value_of("DATA").unwrap());
     let do_copy = !matches.is_present("NOCOPY");
 

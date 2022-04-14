@@ -1,7 +1,7 @@
 extern crate clap;
 
 use atty::Stream;
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
@@ -93,33 +93,13 @@ pub fn run(args: &[std::ffi::OsString]) {
     let report = std::sync::Arc::new(mk_simple_report());
     check_input_file(input_file, &report);
 
-    let transaction_id = if matches.is_present("TRANSACTION_ID") {
-        Some(matches.value_of_t_or_exit::<u64>("TRANSACTION_ID"))
-    } else {
-        None
-    };
-
-    let data_block_size = if matches.is_present("DATA_BLOCK_SIZE") {
-        Some(matches.value_of_t_or_exit::<u32>("DATA_BLOCK_SIZE"))
-    } else {
-        None
-    };
-
-    let nr_data_blocks = if matches.is_present("NR_DATA_BLOCKS") {
-        Some(matches.value_of_t_or_exit::<u64>("NR_DATA_BLOCKS"))
-    } else {
-        None
-    };
-
-    let report;
-
-    if matches.is_present("QUIET") {
-        report = std::sync::Arc::new(mk_quiet_report());
+    let report = if matches.is_present("QUIET") {
+        std::sync::Arc::new(mk_quiet_report())
     } else if atty::is(Stream::Stdout) {
-        report = std::sync::Arc::new(mk_progress_bar_report());
+        std::sync::Arc::new(mk_progress_bar_report())
     } else {
-        report = Arc::new(mk_simple_report());
-    }
+        Arc::new(mk_simple_report())
+    };
 
     let opts = ThinDumpOptions {
         input: input_file,
@@ -129,9 +109,9 @@ pub fn run(args: &[std::ffi::OsString]) {
         repair: matches.is_present("REPAIR"),
         use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
         overrides: SuperblockOverrides {
-            transaction_id,
-            data_block_size,
-            nr_data_blocks,
+            transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
+            data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
+            nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
         },
     };
 
