@@ -20,7 +20,7 @@ pub const BLOCK_SIZE: usize = 4096;
 pub const SECTOR_SHIFT: usize = 9;
 const ALIGN: usize = 4096;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Block {
     pub loc: u64,
     data: *mut u8,
