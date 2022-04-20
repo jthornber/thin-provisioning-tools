@@ -138,6 +138,7 @@ impl BTreeWalker {
                     }
                     Some(e) => {
                         // ... there was an error
+                        // TODO: revisit the node if the key context is different
                         errs.push(e.clone());
                     }
                 }
@@ -211,10 +212,15 @@ impl BTreeWalker {
                 keys,
                 values,
             } => {
-                if let Err(e) = visitor.visit(path, kr, &header, &keys, &values) {
-                    let e = BTreeError::Path(path.clone(), Box::new(e));
-                    self.set_fail(b.loc, e.clone());
-                    return Err(e);
+                let ret = visitor.visit(path, kr, &header, &keys, &values);
+                match ret {
+                    Err(BTreeError::Aggregate(_)) => return ret,
+                    Err(e) => {
+                        let e = BTreeError::Path(path.clone(), Box::new(e)).keys_context(kr);
+                        self.set_fail(b.loc, e.clone());
+                        return Err(e);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -363,6 +369,7 @@ where
                 }
                 Some(e) => {
                     // ... there was an error
+                    // TODO: revisit the node if the key context is different
                     errs.push(e.clone());
                 }
             }

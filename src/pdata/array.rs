@@ -79,7 +79,7 @@ pub enum ArrayError {
     IoError(u64),
 
     //#[error("block error: {0}")]
-    BlockError(String),
+    ArrayBlockError(String),
 
     //#[error("value error: {0}")]
     ValueError(String),
@@ -92,16 +92,15 @@ pub enum ArrayError {
 
     //#[error("{0:?}, {1}")]
     Path(Vec<u64>, Box<ArrayError>),
-
-    #[error(transparent)]
-    BTreeError(#[from] btree::BTreeError),
 }
+
+impl btree::AnyError for ArrayError {}
 
 impl fmt::Display for ArrayError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ArrayError::IoError(b) => write!(f, "io error {}", b),
-            ArrayError::BlockError(msg) => write!(f, "block error: {}", msg),
+            ArrayError::ArrayBlockError(msg) => write!(f, "array block error: {}", msg),
             ArrayError::ValueError(msg) => write!(f, "value error: {}", msg),
             ArrayError::IndexContext(idx, e) => {
                 write!(f, "{}, effecting index {}", e, idx)?;
@@ -114,7 +113,6 @@ impl fmt::Display for ArrayError {
                 Ok(())
             }
             ArrayError::Path(path, e) => write!(f, "{} {}", e, btree::encode_node_path(path)),
-            ArrayError::BTreeError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -126,7 +124,7 @@ pub fn io_err(path: &[u64], blocknr: u64) -> ArrayError {
 pub fn array_block_err(path: &[u64], msg: &str) -> ArrayError {
     ArrayError::Path(
         path.to_vec(),
-        Box::new(ArrayError::BlockError(msg.to_string())),
+        Box::new(ArrayError::ArrayBlockError(msg.to_string())),
     )
 }
 

@@ -5,6 +5,7 @@ use crate::io_engine::IoEngine;
 use crate::math::div_up;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
+use crate::pdata::btree;
 use crate::pdata::space_map::*;
 
 //------------------------------------------
@@ -132,15 +133,14 @@ pub fn read_bitset(
     root: u64,
     nr_bits: usize,
     ignore_none_fatal: bool,
-) -> (CheckedBitSet, Option<array::ArrayError>) {
+) -> (CheckedBitSet, Option<btree::BTreeError>) {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
     let mut v = BitsetVisitor::new(nr_bits);
-    let err = w.walk(&mut v, root);
-    let e = match err {
+    let err = match w.walk(&mut v, root) {
         Ok(()) => None,
         Err(e) => Some(e),
     };
-    (v.get_bitset(), e)
+    (v.get_bitset(), err)
 }
 
 // TODO: multi-threaded is possible
@@ -150,15 +150,14 @@ pub fn read_bitset_with_sm(
     nr_bits: usize,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_none_fatal: bool,
-) -> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
+) -> array::Result<(CheckedBitSet, Option<btree::BTreeError>)> {
     let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
     let mut v = BitsetVisitor::new(nr_bits);
-    let err = w.walk(&mut v, root);
-    let e = match err {
+    let err = match w.walk(&mut v, root) {
         Ok(()) => None,
         Err(e) => Some(e),
     };
-    Ok((v.get_bitset(), e))
+    Ok((v.get_bitset(), err))
 }
 
 pub fn read_bitset_no_err(
@@ -166,7 +165,7 @@ pub fn read_bitset_no_err(
     root: u64,
     nr_bits: usize,
     ignore_none_fatal: bool,
-) -> array::Result<FixedBitSet> {
+) -> btree::Result<FixedBitSet> {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
     let mut v = BitsetCollector::new(nr_bits);
     w.walk(&mut v, root)?;
