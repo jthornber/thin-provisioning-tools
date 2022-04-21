@@ -14,18 +14,18 @@ pub fn run(args: &[std::ffi::OsString]) {
         .about("Unpack a compressed file of thin metadata.")
         .arg(
             Arg::new("INPUT")
-                .help("Specify thinp metadata binary device/file")
+                .help("Specify packed input file")
                 .required(true)
                 .short('i')
-                .value_name("DEV")
+                .value_name("FILE")
                 .takes_value(true),
         )
         .arg(
             Arg::new("OUTPUT")
-                .help("Specify packed output file")
+                .help("Specify thinp metadata binary device/file")
                 .required(true)
                 .short('o')
-                .value_name("FILE")
+                .value_name("DEV")
                 .takes_value(true),
         );
 
