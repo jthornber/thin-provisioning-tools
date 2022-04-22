@@ -60,8 +60,8 @@ impl<'a> Program<'a> for ThinMetadataUnpack {
 }
 
 impl<'a> InputProgram<'a> for ThinMetadataUnpack {
-    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        mk_zeroed_md(td) // FIXME: make a real pack file
+    fn mk_valid_input(_td: &mut TestDir) -> Result<std::path::PathBuf> {
+        path_to(TestData::PackedMetadata)
     }
 
     fn file_not_found() -> &'a str {

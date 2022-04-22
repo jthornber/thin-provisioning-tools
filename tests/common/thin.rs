@@ -5,7 +5,6 @@ use thinp::file_utils;
 use thinp::io_engine::*;
 
 use crate::args;
-use crate::common::fixture::*;
 use crate::common::process::*;
 use crate::common::target::*;
 use crate::common::test_dir::TestDir;
@@ -35,53 +34,55 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 
 //-----------------------------------------------
 
+pub enum TestData {
+    PackedMetadata,
+    PackedMetadataWithMetadataSnap,
+}
+
+pub fn path_to(t: TestData) -> Result<PathBuf> {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/testdata");
+    match t {
+        TestData::PackedMetadata => path.push("tmeta.pack"),
+        TestData::PackedMetadataWithMetadataSnap => path.push("tmeta_with_metadata_snap.pack"),
+    }
+    Ok(path)
+}
+
+fn unpack_metadata(input: &Path, output: &Path) -> Result<()> {
+    let args = args!["-i", input, "-o", output];
+    run_ok(thin_metadata_unpack_cmd(args))?;
+    Ok(())
+}
+
 // FIXME: replace mk_valid_md with this?
 pub fn prep_metadata(td: &mut TestDir) -> Result<PathBuf> {
-    let md = mk_zeroed_md(td)?;
-    let args = args!["-o", &md, "--format", "--nr-data-blocks", "102400"];
-    run_ok(thin_generate_metadata_cmd(args))?;
+    let input = path_to(TestData::PackedMetadata)?;
+    let output = td.mk_path("tmeta.bin");
+    unpack_metadata(&input, &output)?;
+    Ok(output)
+}
 
-    // Create a 2GB device
-    let args = args!["-o", &md, "--create-thin", "1"];
-    run_ok(thin_generate_metadata_cmd(args))?;
-    let args = args![
-        "-o",
-        &md,
-        "--dev-id",
-        "1",
-        "--size",
-        "2097152",
-        "--rw=randwrite",
-        "--seq-nr=16"
-    ];
-    run_ok(thin_generate_mappings_cmd(args))?;
+pub fn prep_metadata_with_metadata_snap(td: &mut TestDir) -> Result<PathBuf> {
+    let input = path_to(TestData::PackedMetadataWithMetadataSnap)?;
+    let output = td.mk_path("tmeta.bin");
+    unpack_metadata(&input, &output)?;
+    Ok(output)
+}
 
-    // Take a few snapshots.
-    let mut snap_id = 2;
-    for _i in 0..10 {
-        // take a snapshot
-        let snap_id_str = snap_id.to_string();
-        let args = args!["-o", &md, "--create-snap", &snap_id_str, "--origin", "1"];
-        run_ok(thin_generate_metadata_cmd(args))?;
+// Sometimes we need a rebuilt metadata in order to produce binary identical metadata
+// between dump-restore cycles.
+pub fn prep_rebuilt_metadata(td: &mut TestDir) -> Result<PathBuf> {
+    let input = path_to(TestData::PackedMetadata)?;
+    let unpacked = td.mk_path("unpacked.bin");
+    unpack_metadata(&input, &unpacked)?;
 
-        // partially overwrite the origin (64MB)
-        let args = args![
-            "-o",
-            &md,
-            "--dev-id",
-            "1",
-            "--size",
-            "2097152",
-            "--io-size",
-            "131072",
-            "--rw=randwrite",
-            "--seq-nr=16"
-        ];
-        run_ok(thin_generate_mappings_cmd(args))?;
-        snap_id += 1;
-    }
+    let rebuilt = td.mk_path("rebuilt.bin");
+    let _file = file_utils::create_sized_file(&rebuilt, file_utils::file_size(&unpacked)?)?;
+    let args = args!["-i", &unpacked, "-o", &rebuilt];
+    run_ok(thin_repair_cmd(args))?;
 
-    Ok(md)
+    Ok(rebuilt)
 }
 
 pub fn set_needs_check(md: &Path) -> Result<()> {
@@ -121,18 +122,6 @@ pub fn get_needs_check(md: &Path) -> Result<bool> {
     let engine = SyncIoEngine::new(md, 1, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     Ok(sb.flags.needs_check)
-}
-
-pub fn reserve_metadata_snap(md: &Path) -> Result<()> {
-    let args = args!["-o", &md, "--reserve-metadata-snap"];
-    run_ok(thin_generate_metadata_cmd(args))?;
-    Ok(())
-}
-
-pub fn release_metadata_snap(md: &Path) -> Result<()> {
-    let args = args!["-o", &md, "--release-metadata-snap"];
-    run_ok(thin_generate_metadata_cmd(args))?;
-    Ok(())
 }
 
 //-----------------------------------------------

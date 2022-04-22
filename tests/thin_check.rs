@@ -208,8 +208,7 @@ fn prints_info_fields() -> Result<()> {
 #[test]
 fn rejects_auto_repair_with_metadata_snap() -> Result<()> {
     let mut td = TestDir::new()?;
-    let md = mk_valid_md(&mut td)?;
-    reserve_metadata_snap(&md)?;
+    let md = prep_metadata_with_metadata_snap(&mut td)?;
     run_fail(thin_check_cmd(args!["--auto-repair", "-m", &md]))?;
     Ok(())
 }
@@ -313,8 +312,7 @@ fn accepts_clear_needs_check_with_ignore_non_fatal_errors() -> Result<()> {
 #[test]
 fn rejects_clear_needs_check_with_metadata_snap() -> Result<()> {
     let mut td = TestDir::new()?;
-    let md = mk_valid_md(&mut td)?;
-    reserve_metadata_snap(&md)?;
+    let md = prep_metadata_with_metadata_snap(&mut td)?;
     run_fail(thin_check_cmd(args!["--clear-needs-check-flag", "-m", &md]))?;
     Ok(())
 }
