@@ -25,6 +25,7 @@ fn main_() -> Result<()> {
     match cmd_name.as_os_str().to_str() {
         Some("cache_generate_metadata") => cache_generate_metadata::run(&new_args),
         Some("thin_explore") => thin_explore::run(&new_args),
+        Some("thin_generate_metadata") => thin_generate_metadata::run(&new_args),
         _ => return Err(anyhow!("unrecognised command")),
     }
 
