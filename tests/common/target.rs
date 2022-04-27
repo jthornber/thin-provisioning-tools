@@ -1,25 +1,23 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
 
 use crate::common::process::*;
 
 //------------------------------------------
 
-pub fn cpp_cmd<S, I>(cmd: S, args: I) -> Command
+pub fn rust_devel_cmd<S, I>(cmd: S, args: I) -> Command
 where
     S: Into<OsString>,
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    let mut bin = PathBuf::from("bin");
-    bin.push(Into::<OsString>::into(cmd));
+    const DEVTOOLS: &str = env!("CARGO_BIN_EXE_pdata_tools_dev");
 
-    let mut args_ = Vec::new();
+    let mut all_args = vec![Into::<OsString>::into(cmd)];
     for a in args {
-        args_.push(Into::<OsString>::into(a));
+        all_args.push(Into::<OsString>::into(a));
     }
 
-    Command::new(Into::<OsString>::into(bin.as_path()), args_)
+    Command::new(Into::<OsString>::into(DEVTOOLS), all_args)
 }
 
 pub fn rust_cmd<S, I>(cmd: S, args: I) -> Command
@@ -28,7 +26,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    const RUST_PATH: &str = env!(concat!("CARGO_BIN_EXE_", "pdata_tools"));
+    const RUST_PATH: &str = env!("CARGO_BIN_EXE_pdata_tools");
 
     let mut all_args = vec![Into::<OsString>::into(cmd)];
     for a in args {
@@ -59,15 +57,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    cpp_cmd("thin_generate_metadata", args)
-}
-
-pub fn thin_generate_mappings_cmd<I>(args: I) -> Command
-where
-    I: IntoIterator,
-    I::Item: Into<OsString>,
-{
-    cpp_cmd("thin_generate_mappings", args)
+    rust_devel_cmd("thin_generate_metadata", args)
 }
 
 pub fn thin_generate_damage_cmd<I>(args: I) -> Command
@@ -75,7 +65,7 @@ where
     I: IntoIterator,
     I::Item: Into<OsString>,
 {
-    cpp_cmd("thin_generate_damage", args)
+    rust_devel_cmd("thin_generate_damage", args)
 }
 
 pub fn thin_restore_cmd<I>(args: I) -> Command
