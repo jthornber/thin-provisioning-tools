@@ -144,7 +144,7 @@ impl Pack for Bitmap {
 
 //------------------------------------------
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SMRoot {
     pub nr_blocks: u64,
     pub nr_allocated: u64,

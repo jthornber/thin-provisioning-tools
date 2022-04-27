@@ -26,6 +26,7 @@ fn main_() -> Result<()> {
         Some("cache_generate_metadata") => cache_generate_metadata::run(&new_args),
         Some("thin_explore") => thin_explore::run(&new_args),
         Some("thin_generate_metadata") => thin_generate_metadata::run(&new_args),
+        Some("thin_generate_damage") => thin_generate_damage::run(&new_args),
         _ => return Err(anyhow!("unrecognised command")),
     }
 

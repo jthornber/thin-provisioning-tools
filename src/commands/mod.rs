@@ -28,4 +28,6 @@ pub mod cache_generate_metadata;
 #[cfg(feature = "devtools")]
 pub mod thin_explore;
 #[cfg(feature = "devtools")]
+pub mod thin_generate_damage;
+#[cfg(feature = "devtools")]
 pub mod thin_generate_metadata;

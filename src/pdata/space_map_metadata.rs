@@ -64,8 +64,25 @@ impl Pack for MetadataIndex {
 
 //------------------------------------------
 
-fn block_to_bitmap(b: u64) -> usize {
+pub fn block_to_bitmap(b: u64) -> usize {
     (b / ENTRIES_PER_BITMAP as u64) as usize
+}
+
+pub fn blocks_to_bitmaps(blocks: &[u64]) -> Vec<usize> {
+    let mut bitmaps = Vec::new();
+
+    let mut last = MAX_METADATA_BITMAPS;
+    for b in blocks {
+        let bitmap = block_to_bitmap(*b);
+        assert!(bitmap < MAX_METADATA_BITMAPS);
+
+        if bitmap != last {
+            bitmaps.push(bitmap);
+            last = bitmap;
+        }
+    }
+
+    bitmaps
 }
 
 fn adjust_counts(
