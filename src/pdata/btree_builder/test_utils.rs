@@ -54,10 +54,8 @@ impl BTreeLayout {
     }
 
     fn complete(&mut self) {
-        // a tree comprised by an only leaf
-        if self.height == 0 {
-            self.nodes[0].key_range.start = None; // there's no parent key for a root node
-        }
+        // there's no parent key for a root node
+        self.nodes.last_mut().unwrap().key_range.start = None;
     }
 
     pub fn height(&self) -> usize {

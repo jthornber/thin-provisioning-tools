@@ -4,7 +4,7 @@ use mockall::*;
 use rangemap::RangeSet;
 use std::ops::Range;
 
-use crate::core_io_engine::CoreIoEngine;
+use crate::core_io_engine::*;
 use crate::pdata::btree_builder::test_utils::*;
 use crate::write_batcher::WriteBatcher;
 
@@ -28,18 +28,11 @@ mock! {
 
 //------------------------------------------
 
-fn trash_block(engine: &dyn IoEngine, b: u64) {
-    let block = Block::zeroed(b);
-    assert!(engine.write(&block).is_ok());
-}
-
-//------------------------------------------
-
 struct BTreeWalkerTests<V> {
     w: WriteBatcher,
     layout: Option<BTreeLayout>,
     mappings: Vec<(u64, V)>,
-    damaged_nodes: BTreeSet<(usize, u64)>,
+    damaged_nodes: BTreeMap<(u64, usize), u64>, // maps (key_begin, level) to index
     affected_leaves: RangeSet<u64>,
 }
 
@@ -53,7 +46,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
             w: WriteBatcher::new(engine, sm, 16),
             layout: None,
             mappings: Vec::new(),
-            damaged_nodes: BTreeSet::new(),
+            damaged_nodes: BTreeMap::new(),
             affected_leaves: RangeSet::new(),
         }
     }
@@ -70,8 +63,11 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         let engine = self.w.engine.as_ref();
 
         for i in indices.start..indices.end {
-            trash_block(engine, nodes[i as usize].block);
-            self.damaged_nodes.insert((height, i)); // FIXME: damaged nodes should be sorted in DFS ordering
+            let n = &nodes[i as usize];
+            trash_block(engine, n.block);
+            let level = layout.height() - height;
+            self.damaged_nodes
+                .insert((n.key_range.start.unwrap_or(0), level), i);
         }
 
         let leaves_begin = layout.first_leaf(height, indices.start);
@@ -89,7 +85,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         self.damage_nodes(0, indices)
     }
 
-    fn build_expected_leaves(&mut self) -> Vec<NodeInfo> {
+    fn build_expected_leaves(&self) -> Vec<NodeInfo> {
         assert!(self.layout.is_some());
         let layout = self.layout.as_ref().unwrap();
         let leaves = layout.leaves();
@@ -105,7 +101,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         expected
     }
 
-    fn build_expected_mappings(&mut self) -> Vec<(u64, V)> {
+    fn build_expected_mappings(&self) -> Vec<(u64, V)> {
         assert!(self.layout.is_some());
         let layout = self.layout.as_ref().unwrap();
         let leaves = layout.leaves();
@@ -125,7 +121,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         expected
     }
 
-    fn run(&mut self) {
+    fn run(&self) {
         assert!(self.layout.is_some());
         let expected_leaves = self.build_expected_leaves();
         let nr_good_leaves = expected_leaves.len();
@@ -164,33 +160,46 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         let root = layout.root().block;
         let ret = walker.walk(&mut path, &visitor, root);
 
+        let mut damage_iter = self.damaged_nodes.iter();
         match self.damaged_nodes.len() {
             0 => assert!(ret.is_ok()),
-            1 => self.verify_single_error(ret.unwrap_err()),
-            _ => self.verify_aggregated_errors(ret.unwrap_err()),
+            1 => self.verify_single_error(ret.unwrap_err(), &mut damage_iter),
+            _ => self.verify_aggregated_errors(ret.unwrap_err(), &mut damage_iter),
         }
     }
 
-    fn verify_aggregated_errors(&self, e: BTreeError) {
+    fn verify_aggregated_errors(
+        &self,
+        e: BTreeError,
+        iter: &mut dyn Iterator<Item = (&(u64, usize), &u64)>,
+    ) {
         match e {
             BTreeError::Aggregate(errs) => {
                 for err in errs {
-                    self.verify_aggregated_errors(err);
+                    self.verify_aggregated_errors(err, iter);
                 }
             }
-            _ => self.verify_single_error(e),
+            _ => self.verify_single_error(e, iter),
         }
     }
 
-    // TODO: Verify the parameters
-    fn verify_single_error(&self, e: BTreeError) {
-        if let BTreeError::KeyContext(_range, e1) = e {
-            if let BTreeError::Path(_p, e2) = *e1 {
-                if let BTreeError::NodeError(_) = *e2 {
-                    // TODO: Verify the context?
-                } else {
-                    panic!();
-                }
+    fn verify_single_error(
+        &self,
+        e: BTreeError,
+        iter: &mut dyn Iterator<Item = (&(u64, usize), &u64)>,
+    ) {
+        let ((_key_begin, level), index) = iter.next().unwrap();
+        let layout = self.layout.as_ref().unwrap();
+        let height = layout.height() - level;
+        let n = &layout.nodes(height)[*index as usize];
+
+        if let BTreeError::KeyContext(kr, e1) = e {
+            assert_eq!(kr, n.key_range);
+
+            if let BTreeError::Path(p, e2) = *e1 {
+                assert_eq!(*p.last().unwrap(), n.block);
+                assert!(matches!(*e2, BTreeError::NodeError(_)));
+                // TODO: Verify the string?
             } else {
                 panic!();
             }

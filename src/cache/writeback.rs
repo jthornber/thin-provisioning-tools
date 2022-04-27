@@ -10,7 +10,6 @@ use crate::checksum;
 use crate::copier::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, *};
-use crate::pdata::array_builder::pack_array_block;
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset, CheckedBitSet};
 use crate::pdata::btree_walker::btree_to_map;
