@@ -154,7 +154,7 @@ fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     }
 }
 
-fn build_runs(devs: &[Device]) -> BTreeMap<u64, Vec<u64>> {
+fn build_runs(devs: &[Device]) -> BTreeMap<u64, (Vec<u64>, bool)> {
     let mut g = Gatherer::new();
 
     for d in devs {
@@ -163,14 +163,14 @@ fn build_runs(devs: &[Device]) -> BTreeMap<u64, Vec<u64>> {
 
     // The runs become defs that just contain leaves.
     let mut runs = BTreeMap::new();
-    for run in g.gather() {
-        runs.insert(run[0], run);
+    for (run, shared) in g.gather() {
+        runs.insert(run[0], (run, shared));
     }
 
     runs
 }
 
-fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
+fn entries_to_runs(runs: &BTreeMap<u64, (Vec<u64>, bool)>, es: &[Entry]) -> Vec<Entry> {
     use Entry::*;
 
     let mut result = Vec::new();
@@ -182,8 +182,12 @@ fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
                 entry_index += 1;
             }
             Leaf(b) => {
-                if let Some(run) = runs.get(&b) {
-                    result.push(Ref(b));
+                if let Some((run, shared)) = runs.get(&b) {
+                    if *shared {
+                        result.push(Ref(b));
+                    } else {
+                        run.iter().for_each(|v| result.push(Leaf(*v)));
+                    }
                     entry_index += run.len();
                 } else {
                     result.push(Leaf(b));
@@ -196,9 +200,12 @@ fn entries_to_runs(runs: &BTreeMap<u64, Vec<u64>>, es: &[Entry]) -> Vec<Entry> {
     result
 }
 
-fn build_defs(runs: BTreeMap<u64, Vec<u64>>) -> Vec<Def> {
+fn build_defs(runs: BTreeMap<u64, (Vec<u64>, bool)>) -> Vec<Def> {
     let mut defs = Vec::new();
-    for (head, run) in runs.iter() {
+    for (head, (run, shared)) in runs.iter() {
+        if !shared {
+            continue;
+        }
         let kr = KeyRange::new();
         let entries: Vec<Entry> = run.iter().map(|b| Entry::Leaf(*b)).collect();
         defs.push(Def {
