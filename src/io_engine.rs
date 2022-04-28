@@ -135,7 +135,11 @@ impl SyncIoEngine {
         let file = OpenOptions::new()
             .read(true)
             .write(writable)
-            .custom_flags(if excl { libc::O_EXCL | libc::O_DIRECT } else { libc::O_DIRECT })
+            .custom_flags(if excl {
+                libc::O_EXCL | libc::O_DIRECT
+            } else {
+                libc::O_DIRECT
+            })
             .open(path)?;
 
         Ok(file)
