@@ -31,3 +31,8 @@ pub mod thin_explore;
 pub mod thin_generate_damage;
 #[cfg(feature = "devtools")]
 pub mod thin_generate_metadata;
+
+pub trait Command<'a> {
+    fn name(&self) -> &'a str;
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()>;
+}

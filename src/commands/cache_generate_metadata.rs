@@ -1,11 +1,12 @@
 use anyhow::Result;
-use clap::{Arg, Command};
+use clap::Arg;
 
 use std::path::Path;
-use std::process;
+
 use std::sync::Arc;
 
 use crate::cache::metadata_generator::*;
+use crate::commands::Command;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 
 //------------------------------------------
@@ -54,91 +55,104 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
 
 //------------------------------------------
 
-pub fn run(args: &[std::ffi::OsString]) {
-    let parser = Command::new("cache_generate_metadata")
-        .color(clap::ColorChoice::Never)
-        .version(crate::version::tools_version())
-        .about("A tool for creating synthetic cache metadata.")
-        // flags
-        .arg(
-            Arg::new("ASYNC_IO")
-                .help("Force use of io_uring for synchronous io")
-                .long("async-io")
-                .hide(true),
-        )
-        .arg(
-            Arg::new("FORMAT")
-                .help("Format the metadata")
-                .long("format"),
-        )
-        .arg(
-            Arg::new("SET_NEEDS_CHECK")
-                .help("Set the NEEDS_CHECK flag")
-                .long("set-needs-check"),
-        )
-        // options
-        .arg(
-            Arg::new("CACHE_BLOCK_SIZE")
-                .help("Specify the cache block size while formatting")
-                .long("cache-block-size")
-                .value_name("SECTORS")
-                .default_value("128"),
-        )
-        .arg(
-            Arg::new("NR_CACHE_BLOCKS")
-                .help("Specify the number of cache blocks")
-                .long("nr-cache-blocks")
-                .value_name("NUM")
-                .default_value("10240"),
-        )
-        .arg(
-            Arg::new("NR_ORIGIN_BLOCKS")
-                .help("Specify the number of origin blocks")
-                .long("nr-origin-blocks")
-                .value_name("NUM")
-                .default_value("1048576"),
-        )
-        .arg(
-            Arg::new("PERCENT_DIRTY")
-                .help("Specify the percentage of dirty blocks")
-                .long("percent-dirty")
-                .value_name("NUM")
-                .default_value("50"),
-        )
-        .arg(
-            Arg::new("PERCENT_RESIDENT")
-                .help("Specify the percentage of valid blocks")
-                .long("percent-resident")
-                .value_name("NUM")
-                .default_value("80"),
-        )
-        .arg(
-            Arg::new("OUTPUT")
-                .help("Specify the output device")
-                .short('o')
-                .long("output")
-                .value_name("FILE")
-                .required(true),
-        );
+pub struct CacheGenerateMetadataCommand;
 
-    let matches = parser.get_matches_from(args);
-    let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+impl CacheGenerateMetadataCommand {
+    fn cli<'a>(&self) -> clap::Command<'a> {
+        clap::Command::new(self.name())
+            .color(clap::ColorChoice::Never)
+            .version(crate::version::tools_version())
+            .about("A tool for creating synthetic cache metadata.")
+            // flags
+            .arg(
+                Arg::new("ASYNC_IO")
+                    .help("Force use of io_uring for synchronous io")
+                    .long("async-io")
+                    .hide(true),
+            )
+            .arg(
+                Arg::new("FORMAT")
+                    .help("Format the metadata")
+                    .long("format"),
+            )
+            .arg(
+                Arg::new("SET_NEEDS_CHECK")
+                    .help("Set the NEEDS_CHECK flag")
+                    .long("set-needs-check"),
+            )
+            // options
+            .arg(
+                Arg::new("CACHE_BLOCK_SIZE")
+                    .help("Specify the cache block size while formatting")
+                    .long("cache-block-size")
+                    .value_name("SECTORS")
+                    .default_value("128"),
+            )
+            .arg(
+                Arg::new("NR_CACHE_BLOCKS")
+                    .help("Specify the number of cache blocks")
+                    .long("nr-cache-blocks")
+                    .value_name("NUM")
+                    .default_value("10240"),
+            )
+            .arg(
+                Arg::new("NR_ORIGIN_BLOCKS")
+                    .help("Specify the number of origin blocks")
+                    .long("nr-origin-blocks")
+                    .value_name("NUM")
+                    .default_value("1048576"),
+            )
+            .arg(
+                Arg::new("PERCENT_DIRTY")
+                    .help("Specify the percentage of dirty blocks")
+                    .long("percent-dirty")
+                    .value_name("NUM")
+                    .default_value("50"),
+            )
+            .arg(
+                Arg::new("PERCENT_RESIDENT")
+                    .help("Specify the percentage of valid blocks")
+                    .long("percent-resident")
+                    .value_name("NUM")
+                    .default_value("80"),
+            )
+            .arg(
+                Arg::new("OUTPUT")
+                    .help("Specify the output device")
+                    .short('o')
+                    .long("output")
+                    .value_name("FILE")
+                    .required(true),
+            )
+    }
+}
 
-    let opts = CacheGenerateOpts {
-        block_size: matches.value_of_t_or_exit::<u32>("CACHE_BLOCK_SIZE"),
-        nr_cache_blocks: matches.value_of_t_or_exit::<u32>("NR_CACHE_BLOCKS"),
-        nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
-        percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
-        percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
-        async_io: matches.is_present("ASYNC_IO"),
-        format: matches.is_present("FORMAT"),
-        set_needs_check: matches.is_present("SET_NEEDS_CHECK"),
-        output: output_file,
-    };
+impl<'a> Command<'a> for CacheGenerateMetadataCommand {
+    fn name(&self) -> &'a str {
+        "cache_generate_metadata"
+    }
 
-    if let Err(reason) = generate_metadata(&opts) {
-        eprintln!("{}", reason);
-        process::exit(1)
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+        let matches = self.cli().get_matches_from(args);
+
+        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+
+        let opts = CacheGenerateOpts {
+            block_size: matches.value_of_t_or_exit::<u32>("CACHE_BLOCK_SIZE"),
+            nr_cache_blocks: matches.value_of_t_or_exit::<u32>("NR_CACHE_BLOCKS"),
+            nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
+            percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
+            percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
+            async_io: matches.is_present("ASYNC_IO"),
+            format: matches.is_present("FORMAT"),
+            set_needs_check: matches.is_present("SET_NEEDS_CHECK"),
+            output: output_file,
+        };
+
+        generate_metadata(&opts).map_err(|reason| {
+            eprintln!("{}", reason);
+            std::io::Error::from_raw_os_error(libc::EPERM)
+        })
     }
 }
 

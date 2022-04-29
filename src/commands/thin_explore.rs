@@ -1,11 +1,11 @@
 extern crate clap;
 
 use anyhow::{anyhow, Result};
-use clap::{Arg, Command};
+use clap::Arg;
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;
-use std::process;
+
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -29,6 +29,7 @@ use tui::{
     Terminal,
 };
 
+use crate::commands::Command;
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::unpack::*;
@@ -838,33 +839,44 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 
 //------------------------------------
 
-pub fn run(args: &[std::ffi::OsString]) {
-    let parser = Command::new("thin_explore")
-        .color(clap::ColorChoice::Never)
-        .version(crate::version::tools_version())
-        .about("A text user interface for examining thin metadata.")
-        .arg(
-            Arg::new("NODE_PATH")
-                .help("Pass in a node path as output by thin_check")
-                .short('p')
-                .long("node-path")
-                .value_name("NODE_PATH"),
-        )
-        .arg(
-            Arg::new("INPUT")
-                .help("Specify the input device to check")
-                .required(true)
-                .index(1),
-        );
+pub struct ThinExploreCommand;
 
-    let matches = parser.get_matches_from(args);
-    let node_path = matches
-        .value_of("NODE_PATH")
-        .map(|text| btree::decode_node_path(text).unwrap());
-    let input_file = Path::new(matches.value_of("INPUT").unwrap());
+impl ThinExploreCommand {
+    fn cli<'a>(&self) -> clap::Command<'a> {
+        clap::Command::new(self.name())
+            .color(clap::ColorChoice::Never)
+            .version(crate::version::tools_version())
+            .about("A text user interface for examining thin metadata.")
+            .arg(
+                Arg::new("NODE_PATH")
+                    .help("Pass in a node path as output by thin_check")
+                    .short('p')
+                    .long("node-path")
+                    .value_name("NODE_PATH"),
+            )
+            .arg(
+                Arg::new("INPUT")
+                    .help("Specify the input device to check")
+                    .required(true)
+                    .index(1),
+            )
+    }
+}
 
-    if explore(input_file, node_path).is_err() {
-        process::exit(1);
+impl<'a> Command<'a> for ThinExploreCommand {
+    fn name(&self) -> &'a str {
+        "thin_explore"
+    }
+
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+        let matches = self.cli().get_matches_from(args);
+
+        let node_path = matches
+            .value_of("NODE_PATH")
+            .map(|text| btree::decode_node_path(text).unwrap());
+        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+
+        explore(input_file, node_path).map_err(|_| std::io::Error::from_raw_os_error(libc::EPERM))
     }
 }
 
