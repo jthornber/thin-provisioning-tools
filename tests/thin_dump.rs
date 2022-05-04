@@ -105,7 +105,7 @@ test_unreadable_input_file!(ThinDump);
 fn dump_restore_cycle() -> Result<()> {
     let mut td = TestDir::new()?;
 
-    let md = mk_valid_md(&mut td)?;
+    let md = prep_rebuilt_metadata(&mut td)?;
     let output = run_ok_raw(thin_dump_cmd(args![&md]))?;
 
     let xml = td.mk_path("meta.xml");

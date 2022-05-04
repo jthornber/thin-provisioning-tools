@@ -20,7 +20,7 @@ pub const BLOCK_SIZE: usize = 4096;
 pub const SECTOR_SHIFT: usize = 9;
 const ALIGN: usize = 4096;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Block {
     pub loc: u64,
     data: *mut u8,
@@ -135,7 +135,11 @@ impl SyncIoEngine {
         let file = OpenOptions::new()
             .read(true)
             .write(writable)
-            .custom_flags(if excl { libc::O_EXCL | libc::O_DIRECT } else { libc::O_DIRECT })
+            .custom_flags(if excl {
+                libc::O_EXCL | libc::O_DIRECT
+            } else {
+                libc::O_DIRECT
+            })
             .open(path)?;
 
         Ok(file)

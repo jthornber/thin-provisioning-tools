@@ -11,7 +11,6 @@ mod tests;
 
 //------------------------------------------
 
-#[derive(Clone)]
 pub struct WriteBatcher {
     pub engine: Arc<dyn IoEngine + Send + Sync>,
 

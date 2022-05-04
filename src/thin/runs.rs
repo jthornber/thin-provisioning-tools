@@ -16,7 +16,7 @@ impl Entry {
 
 pub struct Gatherer {
     prev: Option<u64>,
-    heads: BTreeSet<u64>,
+    heads: BTreeMap<u64, bool>,
     tails: BTreeSet<u64>,
     entries: BTreeMap<u64, Entry>,
     back: BTreeMap<u64, u64>,
@@ -26,7 +26,7 @@ impl Gatherer {
     pub fn new() -> Gatherer {
         Gatherer {
             prev: None,
-            heads: BTreeSet::new(),
+            heads: BTreeMap::new(),
             tails: BTreeSet::new(),
             entries: BTreeMap::new(),
             back: BTreeMap::new(),
@@ -34,11 +34,14 @@ impl Gatherer {
     }
 
     fn is_head(&self, b: u64) -> bool {
-        self.heads.contains(&b)
+        self.heads.contains_key(&b)
     }
 
     fn mark_head(&mut self, b: u64) {
-        self.heads.insert(b);
+        self.heads
+            .entry(b)
+            .and_modify(|shared| *shared = true)
+            .or_insert(false);
     }
 
     fn is_tail(&self, b: u64) -> bool {
@@ -127,23 +130,26 @@ impl Gatherer {
         for t in &self.tails {
             if let Some(e) = self.entries.get(t) {
                 for n in &e.neighbours {
-                    heads.insert(*n);
+                    heads
+                        .entry(*n)
+                        .and_modify(|shared| *shared = true)
+                        .or_insert(false);
                 }
             }
         }
         mem::swap(&mut heads, &mut self.heads);
     }
 
-    // Returns atomic subsequences.
-    pub fn gather(&mut self) -> Vec<Vec<u64>> {
+    // Returns atomic subsequences and their sharing states.
+    pub fn gather(&mut self) -> Vec<(Vec<u64>, bool)> {
         // close the last sequence.
         self.new_seq();
         self.complete_heads_and_tails();
 
         // FIXME: there must be a 'map'
-        let mut seqs = Vec::new();
-        for b in &self.heads {
-            seqs.push(self.extract_seq(*b));
+        let mut seqs: Vec<(Vec<u64>, bool)> = Vec::new();
+        for (b, shared) in &self.heads {
+            seqs.push((self.extract_seq(*b), *shared));
         }
         seqs
     }
@@ -164,21 +170,28 @@ mod tests {
     #[test]
     fn gather() {
         // the first value defines the input runs,
-        // and the second defines expected sub sequences
-        struct Test(Vec<Vec<u64>>, Vec<Vec<u64>>);
+        // and the second defines expected sub sequences and their sharing states
+        struct Test(Vec<Vec<u64>>, Vec<(Vec<u64>, bool)>);
 
         let tests = vec![
             Test(vec![], vec![]),
-            Test(vec![vec![1]], vec![vec![1]]),
-            Test(vec![vec![1, 2, 3]], vec![vec![1, 2, 3]]),
-            Test(vec![vec![1, 2], vec![1, 2, 3]], vec![vec![1, 2], vec![3]]),
+            Test(vec![vec![1]], vec![(vec![1], false)]),
+            Test(vec![vec![1, 2, 3]], vec![(vec![1, 2, 3], false)]),
+            Test(
+                vec![vec![1, 2], vec![1, 2, 3]],
+                vec![(vec![1, 2], true), (vec![3], false)],
+            ),
+            Test(
+                vec![vec![2, 3], vec![1, 2, 3]],
+                vec![(vec![1], false), (vec![2, 3], true)],
+            ),
             Test(
                 vec![vec![1, 2, 3, 4], vec![2, 3, 4, 5]],
-                vec![vec![1], vec![2, 3, 4], vec![5]],
+                vec![(vec![1], false), (vec![2, 3, 4], true), (vec![5], false)],
             ),
             Test(
                 vec![vec![2, 3, 4, 5], vec![1, 2, 3, 4]],
-                vec![vec![1], vec![2, 3, 4], vec![5]],
+                vec![(vec![1], false), (vec![2, 3, 4], true), (vec![5], false)],
             ),
             Test(
                 vec![
@@ -187,11 +200,22 @@ mod tests {
                     vec![3, 4],
                     vec![5, 6],
                 ],
-                vec![vec![1], vec![2], vec![3, 4], vec![5, 6]],
+                vec![
+                    (vec![1], false),
+                    (vec![2], true),
+                    (vec![3, 4], true),
+                    (vec![5, 6], true),
+                ],
             ),
             Test(
                 vec![vec![2, 3, 4, 5], vec![2, 3, 4, 6], vec![1, 3, 4, 5]],
-                vec![vec![1], vec![2], vec![3, 4], vec![5], vec![6]],
+                vec![
+                    (vec![1], false),
+                    (vec![2], true),
+                    (vec![3, 4], true),
+                    (vec![5], false),
+                    (vec![6], false),
+                ],
             ),
         ];
 

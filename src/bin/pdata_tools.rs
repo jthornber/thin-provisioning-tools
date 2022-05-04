@@ -1,87 +1,75 @@
-use anyhow::{anyhow, ensure, Result};
-use std::ffi::OsString;
+use std::ffi::OsStr;
+use std::io;
 use std::path::Path;
 use std::process::exit;
+
 use thinp::commands::*;
 
-fn name_eq(name: &Path, cmd: &str) -> bool {
-    name == Path::new(cmd)
+fn get_basename(path: &OsStr) -> &Path {
+    let p = Path::new(path);
+    Path::new(p.file_name().unwrap())
 }
 
-fn main_() -> Result<()> {
-    let mut args = std::env::args_os();
-    ensure!(args.len() > 0);
+fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
+    vec![
+        Box::new(cache_check::CacheCheckCommand),
+        Box::new(cache_dump::CacheDumpCommand),
+        Box::new(cache_metadata_size::CacheMetadataSizeCommand),
+        Box::new(cache_repair::CacheRepairCommand),
+        Box::new(cache_restore::CacheRestoreCommand),
+        Box::new(cache_writeback::CacheWritebackCommand),
+        Box::new(era_check::EraCheckCommand),
+        Box::new(era_dump::EraDumpCommand),
+        Box::new(era_invalidate::EraInvalidateCommand),
+        Box::new(era_repair::EraRepairCommand),
+        Box::new(era_restore::EraRestoreCommand),
+        Box::new(thin_check::ThinCheckCommand),
+        Box::new(thin_delta::ThinDeltaCommand),
+        Box::new(thin_dump::ThinDumpCommand),
+        Box::new(thin_ls::ThinLsCommand),
+        Box::new(thin_metadata_pack::ThinMetadataPackCommand),
+        Box::new(thin_metadata_size::ThinMetadataSizeCommand),
+        Box::new(thin_metadata_unpack::ThinMetadataUnpackCommand),
+        Box::new(thin_repair::ThinRepairCommand),
+        Box::new(thin_restore::ThinRestoreCommand),
+        Box::new(thin_rmap::ThinRmapCommand),
+        Box::new(thin_shrink::ThinShrinkCommand),
+        Box::new(thin_trim::ThinTrimCommand),
+    ]
+}
 
-    let mut os_name = args.next().unwrap();
-    let mut name = Path::new(&os_name);
-    name = Path::new(name.file_name().unwrap());
+fn usage(commands: &[Box<dyn Command>]) {
+    eprintln!("Usage: <command> <args>");
+    eprintln!("commands:");
+    commands.iter().for_each(|c| eprintln!("  {}", c.name()));
+}
 
-    if name == Path::new("pdata_tools") {
-        os_name = args.next().unwrap();
-        name = Path::new(&os_name);
-    }
+fn main_() -> io::Result<()> {
+    let commands = register_commands();
+    let mut args = std::env::args_os().peekable();
 
-    let mut new_args = vec![OsString::from(&name)];
-    for a in args {
-        new_args.push(a);
-    }
+    args.next_if(|path| get_basename(path) == Path::new("pdata_tools"));
+    let cmd = args.peek().ok_or_else(|| {
+        usage(&commands);
+        io::Error::from_raw_os_error(libc::EINVAL)
+    })?;
 
-    if name_eq(name, "cache_check") {
-        cache_check::run(&new_args);
-    } else if name_eq(name, "cache_dump") {
-        cache_dump::run(&new_args);
-    } else if name_eq(name, "cache_metadata_size") {
-        cache_metadata_size::run(&new_args);
-    } else if name_eq(name, "cache_repair") {
-        cache_repair::run(&new_args);
-    } else if name_eq(name, "cache_restore") {
-        cache_restore::run(&new_args);
-    } else if name_eq(name, "cache_writeback") {
-        cache_writeback::run(&new_args);
-    } else if name_eq(name, "era_check") {
-        era_check::run(&new_args);
-    } else if name_eq(name, "era_dump") {
-        era_dump::run(&new_args);
-    } else if name_eq(name, "era_restore") {
-        era_restore::run(&new_args);
-    } else if name_eq(name, "thin_check") {
-        thin_check::run(&new_args);
-    } else if name_eq(name, "thin_delta") {
-        thin_delta::run(&new_args);
-    } else if name_eq(name, "thin_dump") {
-        thin_dump::run(&new_args);
-    } else if name_eq(name, "thin_ls") {
-        thin_ls::run(&new_args);
-    } else if name_eq(name, "thin_metadata_pack") {
-        thin_metadata_pack::run(&new_args);
-    } else if name_eq(name, "thin_metadata_size") {
-        thin_metadata_size::run(&new_args);
-    } else if name_eq(name, "thin_metadata_unpack") {
-        thin_metadata_unpack::run(&new_args);
-    } else if name_eq(name, "thin_repair") {
-        thin_repair::run(&new_args);
-    } else if name_eq(name, "thin_restore") {
-        thin_restore::run(&new_args);
-    } else if name_eq(name, "thin_rmap") {
-        thin_rmap::run(&new_args);
-    } else if name_eq(name, "thin_shrink") {
-        thin_shrink::run(&new_args);
-    } else if name_eq(name, "thin_trim") {
-        thin_trim::run(&new_args);
+    if let Some(i) = commands.iter().position(|c| cmd == c.name()) {
+        commands[i].run(&mut args)
     } else {
-        return Err(anyhow!("unrecognised command"));
+        eprintln!("unrecognised command");
+        usage(&commands);
+        Err(io::Error::from_raw_os_error(libc::EINVAL))
     }
-
-    Ok(())
 }
 
 fn main() {
     let code = match main_() {
         Ok(()) => 0,
-        Err(_) => {
+        Err(e) => {
             // We don't print out the error since -q may be set
             // eprintln!("{}", e);
-            1
+            e.raw_os_error().unwrap_or(1)
         }
     };
 

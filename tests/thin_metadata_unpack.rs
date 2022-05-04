@@ -20,12 +20,12 @@ const USAGE: &str = concat!(
     "Unpack a compressed file of thin metadata.
 
 USAGE:
-    thin_metadata_unpack -i <DEV> -o <FILE>
+    thin_metadata_unpack -i <FILE> -o <DEV>
 
 OPTIONS:
     -h, --help       Print help information
-    -i <DEV>         Specify thinp metadata binary device/file
-    -o <FILE>        Specify packed output file
+    -i <FILE>        Specify packed input file
+    -o <DEV>         Specify thinp metadata binary device/file
     -V, --version    Print version information"
 );
 
@@ -60,8 +60,8 @@ impl<'a> Program<'a> for ThinMetadataUnpack {
 }
 
 impl<'a> InputProgram<'a> for ThinMetadataUnpack {
-    fn mk_valid_input(td: &mut TestDir) -> Result<std::path::PathBuf> {
-        mk_zeroed_md(td) // FIXME: make a real pack file
+    fn mk_valid_input(_td: &mut TestDir) -> Result<std::path::PathBuf> {
+        path_to(TestData::PackedMetadata)
     }
 
     fn file_not_found() -> &'a str {

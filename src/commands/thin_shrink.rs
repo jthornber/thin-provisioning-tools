@@ -4,76 +4,87 @@
 
 extern crate clap;
 
-use clap::{Arg, Command};
+use clap::Arg;
 use std::path::Path;
-use std::process::exit;
 
 use crate::commands::utils::*;
+use crate::commands::Command;
+use crate::shrink::toplevel::shrink;
 
-pub fn run(args: &[std::ffi::OsString]) {
-    let parser = Command::new("thin_shrink")
-        .color(clap::ColorChoice::Never)
-        .version(crate::version::tools_version())
-        .about("Rewrite xml metadata and move data in an inactive pool.")
-        .arg(
-            Arg::new("INPUT")
-                .help("Specify thinp metadata xml file")
-                .required(true)
-                .short('i')
-                .long("input")
-                .value_name("FILE")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("OUTPUT")
-                .help("Specify output xml file")
-                .required(true)
-                .short('o')
-                .long("output")
-                .value_name("FILE")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("DATA")
-                .help("Specify pool data device where data will be moved")
-                .required(true)
-                .long("data")
-                .value_name("DATA")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("NOCOPY")
-                .help("Skip the copying of data, useful for benchmarking")
-                .required(false)
-                .long("no-copy")
-                .value_name("NOCOPY")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::new("SIZE")
-                .help("Specify new size for the pool (in data blocks)")
-                .required(true)
-                .long("nr-blocks")
-                .value_name("SIZE")
-                .takes_value(true),
-        );
+pub struct ThinShrinkCommand;
 
-    let matches = parser.get_matches_from(args);
+impl ThinShrinkCommand {
+    fn cli<'a>(&self) -> clap::Command<'a> {
+        clap::Command::new(self.name())
+            .color(clap::ColorChoice::Never)
+            .version(crate::version::tools_version())
+            .about("Rewrite xml metadata and move data in an inactive pool.")
+            .arg(
+                Arg::new("INPUT")
+                    .help("Specify thinp metadata xml file")
+                    .required(true)
+                    .short('i')
+                    .long("input")
+                    .value_name("FILE")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::new("OUTPUT")
+                    .help("Specify output xml file")
+                    .required(true)
+                    .short('o')
+                    .long("output")
+                    .value_name("FILE")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::new("DATA")
+                    .help("Specify pool data device where data will be moved")
+                    .required(true)
+                    .long("data")
+                    .value_name("DATA")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::new("NOCOPY")
+                    .help("Skip the copying of data, useful for benchmarking")
+                    .required(false)
+                    .long("no-copy")
+                    .value_name("NOCOPY")
+                    .takes_value(false),
+            )
+            .arg(
+                Arg::new("SIZE")
+                    .help("Specify new size for the pool (in data blocks)")
+                    .required(true)
+                    .long("nr-blocks")
+                    .value_name("SIZE")
+                    .takes_value(true),
+            )
+    }
+}
 
-    // FIXME: check these look like xml
-    let input_file = Path::new(matches.value_of("INPUT").unwrap());
-    let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
-    let size = matches.value_of_t_or_exit::<u64>("SIZE");
-    let data_file = Path::new(matches.value_of("DATA").unwrap());
-    let do_copy = !matches.is_present("NOCOPY");
+impl<'a> Command<'a> for ThinShrinkCommand {
+    fn name(&self) -> &'a str {
+        "thin_shrink"
+    }
 
-    let report = mk_report(false);
-    check_input_file(input_file, &report);
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+        let matches = self.cli().get_matches_from(args);
 
-    if let Err(reason) =
-        crate::shrink::toplevel::shrink(input_file, output_file, data_file, size, do_copy)
-    {
-        eprintln!("Application error: {}\n", reason);
-        exit(1);
+        // FIXME: check these look like xml
+        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let size = matches.value_of_t_or_exit::<u64>("SIZE");
+        let data_file = Path::new(matches.value_of("DATA").unwrap());
+        let do_copy = !matches.is_present("NOCOPY");
+
+        let report = mk_report(false);
+        check_input_file(input_file, &report);
+
+        shrink(input_file, output_file, data_file, size, do_copy).map_err(|reason| {
+            eprintln!("Application error: {}\n", reason);
+            std::io::Error::from_raw_os_error(libc::EPERM)
+        })
     }
 }
