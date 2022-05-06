@@ -298,6 +298,7 @@ impl NodeCollector {
         keys: &[u64],
         values: &[u64],
     ) -> Result<NodeInfo> {
+
         let mut info = DevInfo::new(header.block);
         info.nr_devices = header.nr_entries as u64;
 
@@ -375,7 +376,7 @@ impl NodeCollector {
         Ok(NodeInfo::Details(info))
     }
 
-    fn is_top_level(&self, values: &[u64]) -> bool {
+    fn maybe_top_level(&self, values: &[u64]) -> bool {
         if values.is_empty() {
             return false;
         }
@@ -387,6 +388,34 @@ impl NodeCollector {
         }
 
         true
+    }
+
+    fn to_dev_leaf_info(&self, data: &[u8]) -> Result<NodeInfo> {
+        let node = unpack_node::<BlockTime>(&[0], data, true, true)?;
+        if let Node::Leaf {
+            ref header,
+            ref keys,
+            ref values,
+        } = node
+        {
+            self.gather_mapping_leaf_info(header, keys, values)
+        } else {
+            Err(anyhow!("unexpected internal node"))
+        }
+    }
+
+    fn to_details_leaf_info(&self, data: &[u8]) -> Result<NodeInfo> {
+        let node = unpack_node::<DeviceDetail>(&[0], data, true, true)?;
+        if let Node::Leaf {
+            ref header,
+            ref keys,
+            ref values,
+        } = node
+        {
+            self.gather_details_leaf_info(header, keys, values)
+        } else {
+            Err(anyhow!("unexpected value size within an internal node"))
+        }
     }
 
     fn gather_info(&mut self, b: u64) -> Result<NodeInfo> {
@@ -411,36 +440,16 @@ impl NodeCollector {
                     ref keys,
                     ref values,
                 } => {
-                    if self.is_top_level(values) {
+                    if self.maybe_top_level(values) {
                         self.gather_dev_leaf_info(header, keys, values)
                     } else {
                         // FIXME: convert the values only, to avoid unpacking the node twice
-                        let node = unpack_node::<BlockTime>(&[0], blk.get_data(), true, true)?;
-                        if let Node::Leaf {
-                            ref header,
-                            ref keys,
-                            ref values,
-                        } = node
-                        {
-                            self.gather_mapping_leaf_info(header, keys, values)
-                        } else {
-                            Err(anyhow!("unexpected internal node"))
-                        }
+                        self.to_dev_leaf_info(blk.get_data())
                     }
                 }
             }
         } else if hdr.value_size == DeviceDetail::disk_size() {
-            let node = unpack_node::<DeviceDetail>(&[0], blk.get_data(), true, true)?;
-            if let Node::Leaf {
-                ref header,
-                ref keys,
-                ref values,
-            } = node
-            {
-                self.gather_details_leaf_info(header, keys, values)
-            } else {
-                Err(anyhow!("unexpected value size within an internal node"))
-            }
+            self.to_details_leaf_info(blk.get_data())
         } else {
             Err(anyhow!("not the value size of interest"))
         }
