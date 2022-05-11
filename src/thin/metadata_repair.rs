@@ -43,15 +43,10 @@ fn devices_identical(
     let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, dev_root);
 
     path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(
-        &mut path,
-        engine,
-        ignore_non_fatal,
-        details_root,
-    );
+    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine, ignore_non_fatal, details_root);
 
     if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
-        return false
+        return false;
     }
 
     true
@@ -59,9 +54,12 @@ fn devices_identical(
 
 // TODO: generalizing the types
 fn lower_bound(infos: &[&DetailsInfo], key: u64) -> usize {
-    let mut range = std::ops::Range {start: 0, end: infos.len()};
+    let mut range = std::ops::Range {
+        start: 0,
+        end: infos.len(),
+    };
 
-    while range.len() > 0 {
+    while !range.is_empty() {
         let mid = range.start + range.len() / 2;
         if infos[mid].nr_mappings < key {
             range.start = mid + 1; // FIXME: overflow
@@ -75,9 +73,12 @@ fn lower_bound(infos: &[&DetailsInfo], key: u64) -> usize {
 
 // TODO: generalizing the types
 fn upper_bound(infos: &[&DetailsInfo], key: u64) -> usize {
-    let mut range = std::ops::Range {start: 0, end: infos.len()};
+    let mut range = std::ops::Range {
+        start: 0,
+        end: infos.len(),
+    };
 
-    while range.len() > 0 {
+    while !range.is_empty() {
         let mid = range.start + range.len() / 2;
         if infos[mid].nr_mappings <= key {
             range.start = mid + 1; // FIXME: overflow
@@ -246,7 +247,7 @@ struct NodeCollector {
     examined: FixedBitSet,
     referenced: FixedBitSet,
     infos: BTreeMap<u64, NodeInfo>,
-    report: Arc<Report>,
+    _report: Arc<Report>,
 }
 
 impl NodeCollector {
@@ -258,7 +259,7 @@ impl NodeCollector {
             examined: FixedBitSet::with_capacity(nr_blocks as usize),
             referenced: FixedBitSet::with_capacity(nr_blocks as usize),
             infos: BTreeMap::<u64, NodeInfo>::new(),
-            report,
+            _report: report,
         }
     }
 
@@ -549,146 +550,157 @@ impl NodeCollector {
 
         Ok((dev_roots, details_roots))
     }
+}
 
-    // sort the time_counts in descending ordering
-    fn compare_time_counts(lhs: &BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Ordering {
-        let mut lhs_it = lhs.iter().rev();
-        let mut rhs_it = rhs.iter().rev();
-        let mut lhs_end = false;
-        let mut rhs_end = false;
+//------------------------------------------
 
-        while !lhs_end && !rhs_end {
-            if let Some((lhs_time, lhs_count)) = lhs_it.next() {
-                if let Some((rhs_time, rhs_count)) = rhs_it.next() {
-                    if lhs_time > rhs_time {
-                        return Ordering::Less;
-                    } else if rhs_time > lhs_time {
-                        return Ordering::Greater;
-                    } else if lhs_count > rhs_count {
-                        return Ordering::Less;
-                    } else if rhs_count > lhs_count {
-                        return Ordering::Greater;
-                    }
-                } else {
-                    rhs_end = true;
+// sort the time_counts in descending ordering
+fn compare_time_counts(lhs: &BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Ordering {
+    let mut lhs_it = lhs.iter().rev();
+    let mut rhs_it = rhs.iter().rev();
+    let mut lhs_end = false;
+    let mut rhs_end = false;
+
+    while !lhs_end && !rhs_end {
+        if let Some((lhs_time, lhs_count)) = lhs_it.next() {
+            if let Some((rhs_time, rhs_count)) = rhs_it.next() {
+                if lhs_time > rhs_time {
+                    return Ordering::Less;
+                } else if rhs_time > lhs_time {
+                    return Ordering::Greater;
+                } else if lhs_count > rhs_count {
+                    return Ordering::Less;
+                } else if rhs_count > lhs_count {
+                    return Ordering::Greater;
                 }
             } else {
-                lhs_end = true;
+                rhs_end = true;
             }
-        }
-
-        if lhs_end && !rhs_end {
-            Ordering::Less
-        } else if !lhs_end && rhs_end {
-            Ordering::Greater
         } else {
-            Ordering::Equal
+            lhs_end = true;
         }
     }
 
-    fn filter_details_roots<'a>(&self, roots: &[&'a DetailsInfo], nr_devices: &[u64]) -> Result<Vec<&'a DetailsInfo>> {
-        let mut filtered = Vec::new();
+    if lhs_end && !rhs_end {
+        Ordering::Less
+    } else if !lhs_end && rhs_end {
+        Ordering::Greater
+    } else {
+        Ordering::Equal
+    }
+}
 
-        for root in roots {
-            if nr_devices.contains(&root.nr_devices) {
-                filtered.push(*root);
+fn filter_details_roots<'a>(
+    roots: &[&'a DetailsInfo],
+    nr_devices: &[u64],
+) -> Result<Vec<&'a DetailsInfo>> {
+    let mut filtered = Vec::new();
+
+    for root in roots {
+        if nr_devices.contains(&root.nr_devices) {
+            filtered.push(*root);
+        }
+    }
+
+    Ok(filtered)
+}
+
+fn find_root_pairs<'a>(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    dev_roots: &mut [&'a DevInfo],
+    details_roots: &[&'a DetailsInfo],
+) -> Result<Vec<(&'a DevInfo, &'a DetailsInfo)>> {
+    dev_roots.sort_unstable_by(|lhs, rhs| compare_time_counts(&lhs.time_counts, &rhs.time_counts));
+
+    let mut nr_devices = Vec::new();
+    for n in dev_roots.iter().map(|i| i.nr_devices) {
+        if !nr_devices.contains(&n) {
+            nr_devices.push(n);
+        }
+    }
+
+    // TODO: use partial sort to avoid extra allocation
+    let mut details_infos = filter_details_roots(details_roots, &nr_devices)?;
+    details_infos.sort_unstable_by_key(|i| i.nr_mappings);
+
+    let mut pairs = Vec::new();
+    for dev in dev_roots {
+        // use lowerbound search in case there are duplicated numbers of mappings
+        let lower = lower_bound(&details_infos, dev.nr_mappings);
+        let upper = upper_bound(&details_infos, dev.nr_mappings);
+
+        for details in &details_infos[lower..upper] {
+            if devices_identical(engine.clone(), dev.b, details._b, true) {
+                pairs.push((*dev, *details));
             }
         }
 
-        Ok(filtered)
-    }
-
-    fn find_root_pairs<'a>(
-        &self,
-        dev_roots: &mut [&'a DevInfo],
-        details_roots: &[&'a DetailsInfo],
-    ) -> Result<Vec<(&'a DevInfo, &'a DetailsInfo)>> {
-        dev_roots.sort_unstable_by(|lhs, rhs| Self::compare_time_counts(&lhs.time_counts, &rhs.time_counts));
-
-        let mut nr_devices = Vec::new();
-        for n in dev_roots.iter().map(|i| i.nr_devices) {
-            if !nr_devices.contains(&n) {
-                nr_devices.push(n);
-            }
-        }
-
-        // TODO: use partial sort to avoid extra allocation
-        let mut details_infos = self.filter_details_roots(details_roots, &nr_devices)?;
-        details_infos.sort_unstable_by_key(|i| i.nr_mappings);
-
-        let mut pairs = Vec::new();
-        let mut it = dev_roots.iter();
-        while let Some(dev) = it.next() {
-            // use lowerbound search in case there are duplicated numbers of mappings
-            let lower = lower_bound(&details_infos, dev.nr_mappings);
-            let upper = upper_bound(&details_infos, dev.nr_mappings);
-
-            for details in &details_infos[lower..upper] {
-                if devices_identical(self.engine.clone(), dev.b, details._b, true) {
-                    pairs.push((*dev, *details));
-                }
-            }
-
-            // loop until we've found the two most recent transactions
-            if pairs.len() == 2 {
-                break;
-            }
-        }
-
-        Ok(pairs)
-    }
-
-    fn to_found_roots(&self, dev_root: &DevInfo, details_root: &DetailsInfo) -> Result<FoundRoots> {
-        Ok(FoundRoots {
-            mapping_root: dev_root.b,
-            details_root: details_root._b,
-            time: std::cmp::max(dev_root.age, details_root.age),
-            transaction_id: details_root.max_tid + 1, // tid in superblock is ahead by 1
-            nr_data_blocks: dev_root.highest_mapped_data_block + 1,
-        })
-    }
-
-    fn log_results(
-        &self,
-        dev_roots: &[&DevInfo],
-        details_roots: &[&DetailsInfo],
-        pairs: &[(&DevInfo, &DetailsInfo)],
-    ) {
-        self.report
-            .info(&format!("mapping candidates ({}):", dev_roots.len()));
-        for info in dev_roots {
-            self.report.info(&format!("b={}, nr_devices={}, nr_mappings={}, highest_mapped={}, age={}, time_counts={:?}",
-                info.b, info.nr_devices, info.nr_mappings, info.highest_mapped_data_block, info.age, info.time_counts));
-        }
-
-        self.report
-            .info(&format!("\ndevice candidates ({}):", details_roots.len()));
-        for info in details_roots {
-            self.report.info(&format!(
-                "b={}, nr_devices={}, nr_mappings={}, max_tid={}, age={}",
-                info._b, info.nr_devices, info.nr_mappings, info.max_tid, info.age
-            ));
-        }
-
-        self.report
-            .info(&format!("\ncompatible roots ({}):", pairs.len()));
-        for pair in pairs {
-            self.report.info(&format!("({}, {})", pair.0.b, pair.1._b));
+        // loop until we've found the two most recent transactions
+        if pairs.len() == 2 {
+            break;
         }
     }
 
-    pub fn find_roots(mut self) -> Result<FoundRoots> {
-        self.collect_infos()?;
-        let (mut dev_roots, details_roots) = self.gather_roots()?;
-        let pairs = self.find_root_pairs(&mut dev_roots, &details_roots)?;
-        self.log_results(&dev_roots, &details_roots, &pairs);
+    Ok(pairs)
+}
 
-        if pairs.is_empty() {
-            return Err(anyhow!("no compatible roots found"));
-        }
+fn to_found_roots(dev_root: &DevInfo, details_root: &DetailsInfo) -> Result<FoundRoots> {
+    Ok(FoundRoots {
+        mapping_root: dev_root.b,
+        details_root: details_root._b,
+        time: std::cmp::max(dev_root.age, details_root.age),
+        transaction_id: details_root.max_tid + 1, // tid in superblock is ahead by 1
+        nr_data_blocks: dev_root.highest_mapped_data_block + 1,
+    })
+}
 
-        self.to_found_roots(pairs[0].0, pairs[0].1)
+fn log_results(
+    report: Arc<Report>,
+    dev_roots: &[&DevInfo],
+    details_roots: &[&DetailsInfo],
+    pairs: &[(&DevInfo, &DetailsInfo)],
+) {
+    report.info(&format!("mapping candidates ({}):", dev_roots.len()));
+    for info in dev_roots {
+        report.info(&format!(
+            "b={}, nr_devices={}, nr_mappings={}, highest_mapped={}, age={}, time_counts={:?}",
+            info.b,
+            info.nr_devices,
+            info.nr_mappings,
+            info.highest_mapped_data_block,
+            info.age,
+            info.time_counts
+        ));
     }
+
+    report.info(&format!("\ndevice candidates ({}):", details_roots.len()));
+    for info in details_roots {
+        report.info(&format!(
+            "b={}, nr_devices={}, nr_mappings={}, max_tid={}, age={}",
+            info._b, info.nr_devices, info.nr_mappings, info.max_tid, info.age
+        ));
+    }
+
+    report.info(&format!("\ncompatible roots ({}):", pairs.len()));
+    for pair in pairs {
+        report.info(&format!("({}, {})", pair.0.b, pair.1._b));
+    }
+}
+
+fn find_roots(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<FoundRoots> {
+    let mut c = NodeCollector::new(engine.clone(), report.clone());
+    c.collect_infos()?;
+
+    let (mut dev_roots, details_roots) = c.gather_roots()?;
+
+    let pairs = find_root_pairs(engine, &mut dev_roots, &details_roots)?;
+    log_results(report, &dev_roots, &details_roots, &pairs);
+
+    if pairs.is_empty() {
+        return Err(anyhow!("no compatible roots found"));
+    }
+
+    to_found_roots(pairs[0].0, pairs[0].1)
 }
 
 fn check_data_block_size(bs: u32) -> Result<u32> {
@@ -746,8 +758,7 @@ pub fn rebuild_superblock(
         })
         .and_then(check_data_block_size)?;
 
-    let c = NodeCollector::new(engine.clone(), report);
-    let roots = c.find_roots()?;
+    let roots = find_roots(engine, report)?;
 
     let transaction_id = opts
         .transaction_id
