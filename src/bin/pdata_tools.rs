@@ -54,8 +54,8 @@ fn main_() -> io::Result<()> {
         io::Error::from_raw_os_error(libc::EINVAL)
     })?;
 
-    if let Some(i) = commands.iter().position(|c| cmd == c.name()) {
-        commands[i].run(&mut args)
+    if let Some(c) = commands.iter().find(|c| cmd == c.name()) {
+        c.run(&mut args)
     } else {
         eprintln!("unrecognised command");
         usage(&commands);

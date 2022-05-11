@@ -33,6 +33,62 @@ pub struct FoundRoots {
     nr_data_blocks: u64,
 }
 
+fn devices_identical(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    dev_root: u64,
+    details_root: u64,
+    ignore_non_fatal: bool,
+) -> bool {
+    let mut path = vec![0];
+    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, dev_root);
+
+    path = vec![0];
+    let ids2 = btree_to_key_set::<DeviceDetail>(
+        &mut path,
+        engine,
+        ignore_non_fatal,
+        details_root,
+    );
+
+    if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
+        return false
+    }
+
+    true
+}
+
+// TODO: generalizing the types
+fn lower_bound(infos: &[&DetailsInfo], key: u64) -> usize {
+    let mut range = std::ops::Range {start: 0, end: infos.len()};
+
+    while range.len() > 0 {
+        let mid = range.start + range.len() / 2;
+        if infos[mid].nr_mappings < key {
+            range.start = mid + 1; // FIXME: overflow
+        } else {
+            range.end = mid;
+        }
+    }
+
+    range.start
+}
+
+// TODO: generalizing the types
+fn upper_bound(infos: &[&DetailsInfo], key: u64) -> usize {
+    let mut range = std::ops::Range {start: 0, end: infos.len()};
+
+    while range.len() > 0 {
+        let mid = range.start + range.len() / 2;
+        if infos[mid].nr_mappings <= key {
+            range.start = mid + 1; // FIXME: overflow
+        } else {
+            range.end = mid;
+        }
+    }
+
+    range.start
+}
+
 fn merge_time_counts(lhs: &mut BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Result<()> {
     for (t, c) in rhs.iter() {
         *lhs.entry(*t).or_insert(0) += c;
@@ -375,7 +431,7 @@ impl NodeCollector {
         Ok(NodeInfo::Details(info))
     }
 
-    fn is_top_level(&self, values: &[u64]) -> bool {
+    fn maybe_top_level(&self, values: &[u64]) -> bool {
         if values.is_empty() {
             return false;
         }
@@ -387,6 +443,34 @@ impl NodeCollector {
         }
 
         true
+    }
+
+    fn to_dev_leaf_info(&self, data: &[u8]) -> Result<NodeInfo> {
+        let node = unpack_node::<BlockTime>(&[0], data, true, true)?;
+        if let Node::Leaf {
+            ref header,
+            ref keys,
+            ref values,
+        } = node
+        {
+            self.gather_mapping_leaf_info(header, keys, values)
+        } else {
+            Err(anyhow!("unexpected internal node"))
+        }
+    }
+
+    fn to_details_leaf_info(&self, data: &[u8]) -> Result<NodeInfo> {
+        let node = unpack_node::<DeviceDetail>(&[0], data, true, true)?;
+        if let Node::Leaf {
+            ref header,
+            ref keys,
+            ref values,
+        } = node
+        {
+            self.gather_details_leaf_info(header, keys, values)
+        } else {
+            Err(anyhow!("unexpected value size within an internal node"))
+        }
     }
 
     fn gather_info(&mut self, b: u64) -> Result<NodeInfo> {
@@ -411,49 +495,18 @@ impl NodeCollector {
                     ref keys,
                     ref values,
                 } => {
-                    if self.is_top_level(values) {
+                    if self.maybe_top_level(values) {
                         self.gather_dev_leaf_info(header, keys, values)
                     } else {
                         // FIXME: convert the values only, to avoid unpacking the node twice
-                        let node = unpack_node::<BlockTime>(&[0], blk.get_data(), true, true)?;
-                        if let Node::Leaf {
-                            ref header,
-                            ref keys,
-                            ref values,
-                        } = node
-                        {
-                            self.gather_mapping_leaf_info(header, keys, values)
-                        } else {
-                            Err(anyhow!("unexpected internal node"))
-                        }
+                        self.to_dev_leaf_info(blk.get_data())
                     }
                 }
             }
         } else if hdr.value_size == DeviceDetail::disk_size() {
-            let node = unpack_node::<DeviceDetail>(&[0], blk.get_data(), true, true)?;
-            if let Node::Leaf {
-                ref header,
-                ref keys,
-                ref values,
-            } = node
-            {
-                self.gather_details_leaf_info(header, keys, values)
-            } else {
-                Err(anyhow!("unexpected value size within an internal node"))
-            }
+            self.to_details_leaf_info(blk.get_data())
         } else {
             Err(anyhow!("not the value size of interest"))
-        }
-    }
-
-    fn read_info(&self, b: u64) -> Result<&NodeInfo> {
-        if self.examined.contains(b as usize) {
-            // TODO: use an extra 'valid' bitset for faster lookup?
-            self.infos
-                .get(&b)
-                .ok_or_else(|| anyhow!("block {} was examined as invalid", b))
-        } else {
-            Err(anyhow!("not examined"))
         }
     }
 
@@ -477,26 +530,19 @@ impl NodeCollector {
         Ok(())
     }
 
-    fn gather_roots(&self) -> Result<(Vec<u64>, Vec<u64>)> {
-        let mut dev_roots = Vec::<u64>::new();
-        let mut details_roots = Vec::<u64>::new();
+    fn gather_roots(&self) -> Result<(Vec<&DevInfo>, Vec<&DetailsInfo>)> {
+        let mut dev_roots = Vec::<&DevInfo>::new();
+        let mut details_roots = Vec::<&DetailsInfo>::new();
 
-        for b in 0..self.nr_blocks {
+        for (b, info) in self.infos.iter() {
             // skip non-root blocks
-            if self.referenced.contains(b as usize) {
+            if self.referenced.contains(*b as usize) {
                 continue;
             }
-
-            // skip blocks we're not interested in
-            let info = self.read_info(b as u64);
-            if info.is_err() {
-                continue;
-            }
-            let info = info.unwrap();
 
             match info {
-                NodeInfo::Dev(_) => dev_roots.push(b),
-                NodeInfo::Details(_) => details_roots.push(b),
+                NodeInfo::Dev(i) => dev_roots.push(i),
+                NodeInfo::Details(i) => details_roots.push(i),
                 _ => {}
             };
         }
@@ -504,69 +550,7 @@ impl NodeCollector {
         Ok((dev_roots, details_roots))
     }
 
-    fn find_roots_with_compatible_ids(
-        &mut self,
-        dev_roots: &[u64],
-        details_roots: &[u64],
-    ) -> Result<Vec<(u64, u64)>> {
-        let mut root_pairs = Vec::<(u64, u64)>::new();
-
-        for dev_root in dev_roots {
-            let mut path = vec![0];
-            let ids1 = btree_to_key_set::<u64>(&mut path, self.engine.clone(), true, *dev_root)?;
-
-            for details_root in details_roots {
-                let mut path = vec![0];
-                let ids2 = btree_to_key_set::<DeviceDetail>(
-                    &mut path,
-                    self.engine.clone(),
-                    true,
-                    *details_root,
-                )?;
-
-                if ids1 != ids2 {
-                    continue;
-                }
-
-                root_pairs.push((*dev_root, *details_root));
-            }
-        }
-
-        Ok(root_pairs)
-    }
-
-    fn filter_roots_with_incompatible_mapped_blocks(
-        &self,
-        root_pairs: &[(u64, u64)],
-    ) -> Result<Vec<(u64, u64)>> {
-        let mut filtered = Vec::<(u64, u64)>::new();
-
-        for (dev_root, details_root) in root_pairs {
-            let dev_info = if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
-                i
-            } else {
-                continue;
-            };
-
-            let details_info = if let NodeInfo::Details(i) = self.read_info(*details_root)? {
-                i
-            } else {
-                continue;
-            };
-
-            // FIXME: compare the ages
-            if dev_info.nr_devices != details_info.nr_devices
-                || dev_info.nr_mappings != details_info.nr_mappings
-            {
-                continue;
-            }
-
-            filtered.push((*dev_root, *details_root));
-        }
-
-        Ok(filtered)
-    }
-
+    // sort the time_counts in descending ordering
     fn compare_time_counts(lhs: &BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Ordering {
         let mut lhs_it = lhs.iter().rev();
         let mut rhs_it = rhs.iter().rev();
@@ -602,98 +586,101 @@ impl NodeCollector {
         }
     }
 
-    fn compare_roots(lhs: &(&DevInfo, u64), rhs: &(&DevInfo, u64)) -> Ordering {
-        // TODO: sort by other criteria?
-        Self::compare_time_counts(&lhs.0.time_counts, &rhs.0.time_counts)
-    }
+    fn filter_details_roots<'a>(&self, roots: &[&'a DetailsInfo], nr_devices: &[u64]) -> Result<Vec<&'a DetailsInfo>> {
+        let mut filtered = Vec::new();
 
-    fn sort_roots(&self, root_pairs: &[(u64, u64)]) -> Result<Vec<(u64, u64)>> {
-        let mut infos = Vec::<(&DevInfo, u64)>::new();
-
-        for (dev_root, details_root) in root_pairs {
-            let dev_info = if let NodeInfo::Dev(i) = self.read_info(*dev_root)? {
-                i
-            } else {
-                continue;
-            };
-
-            infos.push((dev_info, *details_root));
+        for root in roots {
+            if nr_devices.contains(&root.nr_devices) {
+                filtered.push(*root);
+            }
         }
 
-        infos.sort_by(Self::compare_roots);
+        Ok(filtered)
+    }
 
-        let mut sorted = Vec::<(u64, u64)>::new();
-        for (dev_info, details_root) in infos {
-            sorted.push((dev_info.b, details_root));
+    fn find_root_pairs<'a>(
+        &self,
+        dev_roots: &mut [&'a DevInfo],
+        details_roots: &[&'a DetailsInfo],
+    ) -> Result<Vec<(&'a DevInfo, &'a DetailsInfo)>> {
+        dev_roots.sort_unstable_by(|lhs, rhs| Self::compare_time_counts(&lhs.time_counts, &rhs.time_counts));
+
+        let mut nr_devices = Vec::new();
+        for n in dev_roots.iter().map(|i| i.nr_devices) {
+            if !nr_devices.contains(&n) {
+                nr_devices.push(n);
+            }
         }
 
-        Ok(sorted)
+        // TODO: use partial sort to avoid extra allocation
+        let mut details_infos = self.filter_details_roots(details_roots, &nr_devices)?;
+        details_infos.sort_unstable_by_key(|i| i.nr_mappings);
+
+        let mut pairs = Vec::new();
+        let mut it = dev_roots.iter();
+        while let Some(dev) = it.next() {
+            // use lowerbound search in case there are duplicated numbers of mappings
+            let lower = lower_bound(&details_infos, dev.nr_mappings);
+            let upper = upper_bound(&details_infos, dev.nr_mappings);
+
+            for details in &details_infos[lower..upper] {
+                if devices_identical(self.engine.clone(), dev.b, details._b, true) {
+                    pairs.push((*dev, *details));
+                }
+            }
+
+            // loop until we've found the two most recent transactions
+            if pairs.len() == 2 {
+                break;
+            }
+        }
+
+        Ok(pairs)
     }
 
-    fn find_root_pairs(
-        &mut self,
-        dev_roots: &[u64],
-        details_roots: &[u64],
-    ) -> Result<Vec<(u64, u64)>> {
-        let pairs = self.find_roots_with_compatible_ids(dev_roots, details_roots)?;
-        let pairs = self.filter_roots_with_incompatible_mapped_blocks(&pairs)?;
-        self.sort_roots(&pairs)
-    }
-
-    fn to_found_roots(&self, dev_root: u64, details_root: u64) -> Result<FoundRoots> {
-        let dev_info = if let NodeInfo::Dev(i) = self.read_info(dev_root)? {
-            i
-        } else {
-            return Err(anyhow!("not a top-level root"));
-        };
-
-        let details_info = if let NodeInfo::Details(i) = self.read_info(details_root)? {
-            i
-        } else {
-            return Err(anyhow!("not a details root"));
-        };
-
+    fn to_found_roots(&self, dev_root: &DevInfo, details_root: &DetailsInfo) -> Result<FoundRoots> {
         Ok(FoundRoots {
-            mapping_root: dev_root,
-            details_root,
-            time: std::cmp::max(dev_info.age, details_info.age),
-            transaction_id: details_info.max_tid + 1, // tid in superblock is ahead by 1
-            nr_data_blocks: dev_info.highest_mapped_data_block + 1,
+            mapping_root: dev_root.b,
+            details_root: details_root._b,
+            time: std::cmp::max(dev_root.age, details_root.age),
+            transaction_id: details_root.max_tid + 1, // tid in superblock is ahead by 1
+            nr_data_blocks: dev_root.highest_mapped_data_block + 1,
         })
     }
 
-    fn log_results(&self, dev_roots: &[u64], details_roots: &[u64], pairs: &[(u64, u64)]) {
+    fn log_results(
+        &self,
+        dev_roots: &[&DevInfo],
+        details_roots: &[&DetailsInfo],
+        pairs: &[(&DevInfo, &DetailsInfo)],
+    ) {
         self.report
             .info(&format!("mapping candidates ({}):", dev_roots.len()));
-        for dev_root in dev_roots {
-            if let Ok(NodeInfo::Dev(info)) = self.read_info(*dev_root) {
-                self.report.info(&format!("b={}, nr_devices={}, nr_mappings={}, highest_mapped={}, age={}, time_counts={:?}",
+        for info in dev_roots {
+            self.report.info(&format!("b={}, nr_devices={}, nr_mappings={}, highest_mapped={}, age={}, time_counts={:?}",
                 info.b, info.nr_devices, info.nr_mappings, info.highest_mapped_data_block, info.age, info.time_counts));
-            }
         }
 
         self.report
             .info(&format!("\ndevice candidates ({}):", details_roots.len()));
-        for details_root in details_roots {
-            if let Ok(NodeInfo::Details(info)) = self.read_info(*details_root) {
-                self.report.info(&format!(
-                    "b={}, nr_devices={}, nr_mappings={}, max_tid={}, age={}",
-                    info._b, info.nr_devices, info.nr_mappings, info.max_tid, info.age
-                ));
-            }
+        for info in details_roots {
+            self.report.info(&format!(
+                "b={}, nr_devices={}, nr_mappings={}, max_tid={}, age={}",
+                info._b, info.nr_devices, info.nr_mappings, info.max_tid, info.age
+            ));
         }
 
         self.report
             .info(&format!("\ncompatible roots ({}):", pairs.len()));
         for pair in pairs {
-            self.report.info(&format!("({}, {})", pair.0, pair.1));
+            self.report.info(&format!("({}, {})", pair.0.b, pair.1._b));
         }
     }
 
     pub fn find_roots(mut self) -> Result<FoundRoots> {
         self.collect_infos()?;
-        let (dev_roots, details_roots) = self.gather_roots()?;
-        let pairs = self.find_root_pairs(&dev_roots, &details_roots)?;
+        let (mut dev_roots, details_roots) = self.gather_roots()?;
+        let pairs = self.find_root_pairs(&mut dev_roots, &details_roots)?;
         self.log_results(&dev_roots, &details_roots, &pairs);
 
         if pairs.is_empty() {
@@ -731,19 +718,7 @@ pub fn is_superblock_consistent(
     engine: Arc<dyn IoEngine + Send + Sync>,
     ignore_non_fatal: bool,
 ) -> Result<Superblock> {
-    let mut path = vec![0];
-    let ids1 =
-        btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, sb.mapping_root);
-
-    path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(
-        &mut path,
-        engine.clone(),
-        ignore_non_fatal,
-        sb.details_root,
-    );
-
-    if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
+    if !devices_identical(engine, sb.mapping_root, sb.details_root, ignore_non_fatal) {
         return Err(anyhow::Error::new(SuperblockError {
             failed_sb: Some(sb),
         })
