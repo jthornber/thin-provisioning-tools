@@ -217,6 +217,10 @@ mod tests {
                     (vec![6], false),
                 ],
             ),
+            Test(
+                vec![vec![1, 2], vec![2, 1]],
+                vec![(vec![1], true), (vec![2], true)],
+            ),
         ];
 
         for t in tests {
