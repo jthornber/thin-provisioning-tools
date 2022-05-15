@@ -1,44 +1,338 @@
 use anyhow::{anyhow, Result};
-use fixedbitset::FixedBitSet;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
 
+use rangemap::RangeSet;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, Read, SeekFrom};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use crate::io_engine::{IoEngine, SyncIoEngine};
+use crate::pdata::space_map_metadata::core_metadata_sm;
+use crate::report::Report;
 use crate::shrink::copier::{self, Region};
+use crate::thin::dump::dump_metadata;
 use crate::thin::ir::{self, MetadataVisitor, Visit};
+use crate::thin::metadata::*;
+use crate::thin::restore::Restorer;
+use crate::thin::superblock::{read_superblock, Superblock, SUPERBLOCK_LOCATION};
 use crate::thin::xml;
+use crate::write_batcher::WriteBatcher;
 
 //---------------------------------------
 
-#[derive(Debug)]
-struct Pass1 {
-    // FIXME: Inefficient, use a range_set of some description
-    allocated_blocks: FixedBitSet,
+type BlockRange = std::ops::Range<u64>;
 
-    nr_blocks: u64,
-
-    /// High blocks are beyond the new, reduced end of the pool.  These
-    /// will need to be moved.
-    nr_high_blocks: u64,
-    block_size: Option<u64>,
+fn range_len(r: &BlockRange) -> u64 {
+    r.end - r.start
 }
 
-impl Pass1 {
-    fn new(nr_blocks: u64) -> Pass1 {
-        Pass1 {
-            allocated_blocks: FixedBitSet::with_capacity(0),
-            nr_blocks,
-            nr_high_blocks: 0,
-            block_size: None,
+fn is_empty(r: &BlockRange) -> bool {
+    r.start == r.end
+}
+
+//---------------------------------------
+
+fn build_remaps<T1, T2>(ranges: T1, free: T2) -> Result<Vec<(BlockRange, u64)>>
+where
+    T1: IntoIterator<Item = BlockRange>,
+    T2: IntoIterator<Item = BlockRange>,
+{
+    use std::cmp::Ordering;
+
+    let mut remaps = Vec::new();
+    let mut range_iter = ranges.into_iter();
+    let mut free_iter = free.into_iter();
+
+    let mut r = range_iter.next().unwrap_or(u64::MAX..u64::MAX);
+    let mut f = free_iter.next().unwrap_or(u64::MAX..u64::MAX);
+
+    while !r.is_empty() && !f.is_empty() {
+        let rlen = range_len(&r);
+        let flen = range_len(&f);
+
+        match rlen.cmp(&flen) {
+            Ordering::Less => {
+                // range fits into the free chunk
+                remaps.push((r, f.start));
+                f.start += rlen;
+                r = range_iter.next().unwrap_or(u64::MAX..u64::MAX);
+            }
+            Ordering::Equal => {
+                remaps.push((r, f.start));
+                r = range_iter.next().unwrap_or(u64::MAX..u64::MAX);
+                f = free_iter.next().unwrap_or(u64::MAX..u64::MAX);
+            }
+            Ordering::Greater => {
+                remaps.push((r.start..(r.start + flen), f.start));
+                r.start += flen;
+                f = free_iter.next().unwrap_or(u64::MAX..u64::MAX);
+            }
+        }
+    }
+
+    if r.is_empty() {
+        Ok(remaps)
+    } else {
+        Err(anyhow!("Insufficient free space"))
+    }
+}
+
+#[test]
+fn test_build_remaps() {
+    struct Test {
+        ranges: Vec<BlockRange>,
+        free: Vec<BlockRange>,
+        result: Vec<(BlockRange, u64)>,
+    }
+
+    let tests = vec![
+        // noop
+        Test {
+            ranges: vec![],
+            free: vec![],
+            result: vec![],
+        },
+        // no inputs
+        Test {
+            ranges: vec![],
+            free: vec![0..100],
+            result: vec![],
+        },
+        // fit a single range
+        Test {
+            ranges: vec![1000..1002],
+            free: vec![0..100],
+            result: vec![(1000..1002, 0)],
+        },
+        // fit multiple ranges
+        Test {
+            ranges: vec![1000..1002, 1100..1110],
+            free: vec![0..100],
+            result: vec![(1000..1002, 0), (1100..1110, 2)],
+        },
+        // split an input range
+        Test {
+            ranges: vec![100..120],
+            free: vec![0..5, 20..23, 30..50],
+            result: vec![(100..105, 0), (105..108, 20), (108..120, 30)],
+        },
+    ];
+
+    for t in tests {
+        assert_eq!(build_remaps(t.ranges, t.free).unwrap(), t.result);
+    }
+}
+
+//---------------------------------------
+
+fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
+    if r1.start >= r2.end {
+        return None;
+    }
+
+    if r2.start >= r1.end {
+        return None;
+    }
+
+    Some(index)
+}
+
+// Finds the index of the first entry that overlaps r.
+// TODO: return the found remapping to save further accesses.
+fn find_first(r: &BlockRange, remaps: &[(BlockRange, u64)]) -> Option<usize> {
+    if remaps.is_empty() {
+        return None;
+    }
+
+    match remaps.binary_search_by_key(&r.start, |(from, _)| from.start) {
+        Ok(n) => Some(n),
+        Err(n) => {
+            if n == 0 {
+                let (from, _) = &remaps[n];
+                overlaps(r, from, n)
+            } else if n == remaps.len() {
+                let (from, _) = &remaps[n - 1];
+                overlaps(r, from, n - 1)
+            } else {
+                // Need to check the previous entry
+                let (from, _) = &remaps[n - 1];
+                overlaps(r, from, n - 1).or_else(|| {
+                    let (from, _) = &remaps[n];
+                    overlaps(r, from, n)
+                })
+            }
         }
     }
 }
 
-impl MetadataVisitor for Pass1 {
-    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
-        self.allocated_blocks.grow(sb.nr_data_blocks as usize);
-        self.block_size = Some(sb.data_block_size as u64);
+// remaps must be in sorted order by from.start.
+fn remap(r: &BlockRange, remaps: &[(BlockRange, u64)]) -> Vec<BlockRange> {
+    let mut mapped = Vec::new();
+    let mut r = r.start..r.end;
+
+    if let Some(index) = find_first(&r, remaps) {
+        let mut index = index;
+        loop {
+            let (from, to) = &remaps[index];
+
+            // There may be a prefix that doesn't overlap with 'from'
+            if r.start < from.start {
+                let len = u64::min(range_len(&r), from.start - r.start);
+                mapped.push(r.start..(r.start + len));
+                r = (r.start + len)..r.end;
+
+                if is_empty(&r) {
+                    break;
+                }
+            }
+
+            let remap_start = to + (r.start - from.start);
+            let from = r.start..from.end;
+            let rlen = range_len(&r);
+            let flen = range_len(&from);
+
+            let len = u64::min(rlen, flen);
+            mapped.push(remap_start..(remap_start + len));
+
+            r = (r.start + len)..r.end;
+            if is_empty(&r) {
+                break;
+            }
+
+            if len == flen {
+                index += 1;
+            }
+
+            if index == remaps.len() {
+                mapped.push(r.start..r.end);
+                break;
+            }
+        }
+    } else {
+        mapped.push(r.start..r.end);
+    }
+
+    mapped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remap_test() {
+        struct Test {
+            remaps: Vec<(BlockRange, u64)>,
+            input: BlockRange,
+            output: Vec<BlockRange>,
+        }
+
+        let tests = [
+            // no remaps
+            Test {
+                remaps: vec![],
+                input: 0..1,
+                output: vec![0..1],
+            },
+            // no remaps
+            Test {
+                remaps: vec![],
+                input: 100..1000,
+                output: vec![100..1000],
+            },
+            // preceeding to remaps
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 0..5,
+                output: vec![0..5],
+            },
+            // fully overlapped to a remap
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 10..20,
+                output: vec![110..120],
+            },
+            // tail overlapped with a remap
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 5..15,
+                output: vec![5..10, 110..115],
+            },
+            // stride across a remap
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 5..25,
+                output: vec![5..10, 110..120, 20..25],
+            },
+            // head overlapped with a remap
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 15..25,
+                output: vec![115..120, 20..25],
+            },
+            // succeeding to a remap
+            Test {
+                remaps: vec![(10..20, 110)],
+                input: 25..35,
+                output: vec![25..35],
+            },
+            // stride across multiple remaps
+            Test {
+                remaps: vec![(10..20, 110), (30..40, 230)],
+                input: 0..50,
+                output: vec![0..10, 110..120, 20..30, 230..240, 40..50],
+            },
+        ];
+
+        for t in &tests {
+            let rs = remap(&t.input, &t.remaps);
+            assert_eq!(rs, t.output);
+        }
+    }
+}
+
+fn build_copy_regions(remaps: &[(BlockRange, u64)], block_size: u64) -> Vec<Region> {
+    let mut rs = Vec::new();
+
+    for (from, to) in remaps {
+        rs.push(Region {
+            src: from.start * block_size,
+            dest: to * block_size,
+            len: range_len(from) * block_size,
+        });
+    }
+
+    rs
+}
+
+//---------------------------------------
+
+struct MappingCollector {
+    nr_blocks: u64,
+    below: RangeSet<u64>,
+    above: RangeSet<u64>,
+}
+
+impl MappingCollector {
+    fn new(nr_blocks: u64) -> MappingCollector {
+        MappingCollector {
+            nr_blocks,
+            below: RangeSet::new(),
+            above: RangeSet::new(),
+        }
+    }
+
+    fn get_remaps(self) -> Result<Vec<(BlockRange, u64)>> {
+        let new_range = 0..self.nr_blocks;
+        let free = self.below.gaps(&new_range);
+        build_remaps(self.above, free)
+    }
+}
+
+impl MetadataVisitor for MappingCollector {
+    fn superblock_b(&mut self, _sb: &ir::Superblock) -> Result<Visit> {
         Ok(Visit::Continue)
     }
 
@@ -47,11 +341,11 @@ impl MetadataVisitor for Pass1 {
     }
 
     fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+        Ok(Visit::Continue)
     }
 
     fn def_shared_e(&mut self) -> Result<Visit> {
-        todo!();
+        Ok(Visit::Continue)
     }
 
     fn device_b(&mut self, _d: &ir::Device) -> Result<Visit> {
@@ -63,17 +357,31 @@ impl MetadataVisitor for Pass1 {
     }
 
     fn map(&mut self, m: &ir::Map) -> Result<Visit> {
-        for i in m.data_begin..(m.data_begin + m.len) {
-            if i > self.nr_blocks {
-                self.nr_high_blocks += 1;
-            }
-            self.allocated_blocks.insert(i as usize);
+        if m.data_begin >= self.nr_blocks {
+            self.above.insert(std::ops::Range {
+                start: m.data_begin,
+                end: m.data_begin + m.len,
+            });
+        } else if m.data_begin + m.len <= self.nr_blocks {
+            self.below.insert(std::ops::Range {
+                start: m.data_begin,
+                end: m.data_begin + m.len,
+            });
+        } else {
+            self.below.insert(std::ops::Range {
+                start: m.data_begin,
+                end: self.nr_blocks,
+            });
+            self.above.insert(std::ops::Range {
+                start: self.nr_blocks,
+                end: m.data_begin + m.len,
+            });
         }
         Ok(Visit::Continue)
     }
 
     fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+        Ok(Visit::Continue)
     }
 
     fn eof(&mut self) -> Result<Visit> {
@@ -83,24 +391,27 @@ impl MetadataVisitor for Pass1 {
 
 //---------------------------------------
 
-// Writes remapped xml
-struct Pass2<W: Write> {
-    writer: xml::XmlWriter<W>,
+struct DataRemapper<'a> {
+    writer: &'a mut dyn MetadataVisitor,
     nr_blocks: u64,
-    remaps: Vec<(BlockRange, BlockRange)>,
+    remaps: Vec<(BlockRange, u64)>,
 }
 
-impl<W: Write> Pass2<W> {
-    fn new(w: W, nr_blocks: u64, remaps: Vec<(BlockRange, BlockRange)>) -> Pass2<W> {
-        Pass2 {
-            writer: xml::XmlWriter::new(w),
+impl<'a> DataRemapper<'a> {
+    fn new(
+        writer: &'a mut dyn MetadataVisitor,
+        nr_blocks: u64,
+        remaps: Vec<(BlockRange, u64)>,
+    ) -> DataRemapper<'a> {
+        DataRemapper {
+            writer,
             nr_blocks,
             remaps,
         }
     }
 }
 
-impl<W: Write> MetadataVisitor for Pass2<W> {
+impl<'a> MetadataVisitor for DataRemapper<'a> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.writer.superblock_b(sb)
     }
@@ -109,12 +420,12 @@ impl<W: Write> MetadataVisitor for Pass2<W> {
         self.writer.superblock_e()
     }
 
-    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+    fn def_shared_b(&mut self, name: &str) -> Result<Visit> {
+        self.writer.def_shared_b(name)
     }
 
     fn def_shared_e(&mut self) -> Result<Visit> {
-        todo!();
+        self.writer.def_shared_e()
     }
 
     fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
@@ -148,8 +459,8 @@ impl<W: Write> MetadataVisitor for Pass2<W> {
         Ok(Visit::Continue)
     }
 
-    fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+    fn ref_shared(&mut self, name: &str) -> Result<Visit> {
+        self.writer.ref_shared(name)
     }
 
     fn eof(&mut self) -> Result<Visit> {
@@ -159,396 +470,88 @@ impl<W: Write> MetadataVisitor for Pass2<W> {
 
 //---------------------------------------
 
-type BlockRange = std::ops::Range<u64>;
-
-fn bits_to_ranges(bits: &FixedBitSet) -> Vec<BlockRange> {
-    let mut ranges = Vec::new();
-    let mut start = None;
-
-    for i in 0..bits.len() {
-        match (bits[i], start) {
-            (false, None) => {}
-            (true, None) => {
-                start = Some((i as u64, 1));
-            }
-            (false, Some((b, len))) => {
-                ranges.push(b..(b + len));
-                start = None;
-            }
-            (true, Some((b, len))) => {
-                start = Some((b, len + 1));
-            }
-        }
-    }
-
-    if let Some((b, len)) = start {
-        ranges.push(b..(b + len));
-    }
-
-    ranges
+fn build_remaps_from_metadata(
+    engine: Arc<dyn IoEngine>,
+    sb: &Superblock,
+    md: &Metadata,
+    nr_blocks: u64,
+) -> Result<Vec<(BlockRange, u64)>> {
+    let mut collector = MappingCollector::new(nr_blocks);
+    dump_metadata(engine, &mut collector, sb, md)?;
+    collector.get_remaps()
 }
 
-// Splits the ranges into those below threshold, and those equal or
-// above threshold below threshold, and those equal or above threshold
-fn ranges_split(ranges: &[BlockRange], threshold: u64) -> (Vec<BlockRange>, Vec<BlockRange>) {
-    use std::ops::Range;
-
-    let mut below = Vec::new();
-    let mut above = Vec::new();
-    for r in ranges {
-        match r {
-            Range { start, end } if *end <= threshold => below.push(*start..*end),
-            Range { start, end } if *start < threshold => {
-                below.push(*start..threshold);
-                above.push(threshold..*end);
-            }
-            Range { start, end } => above.push(*start..*end),
-        }
-    }
-    (below, above)
+fn build_remaps_from_xml<R: Read>(input: R, nr_blocks: u64) -> Result<Vec<(BlockRange, u64)>> {
+    let mut collector = MappingCollector::new(nr_blocks);
+    xml::read(input, &mut collector)?;
+    collector.get_remaps()
 }
 
-fn negate_ranges(ranges: &[BlockRange], upper_limit: u64) -> Vec<BlockRange> {
-    use std::ops::Range;
-
-    let mut result = Vec::new();
-    let mut cursor = 0;
-
-    for r in ranges {
-        match r {
-            Range { start, end } if cursor < *start => {
-                result.push(cursor..*start);
-                cursor = *end;
-            }
-            Range { start: _, end } => {
-                cursor = *end;
-            }
-        }
-    }
-
-    if cursor < upper_limit {
-        result.push(cursor..upper_limit);
-    }
-
-    result
+pub struct ThinShrinkOptions {
+    pub input: PathBuf,
+    pub output: PathBuf,
+    pub data_device: PathBuf,
+    pub nr_blocks: u64,
+    pub do_copy: bool,
+    pub binary_mode: bool,
+    pub report: Arc<Report>,
 }
 
-fn range_len(r: &BlockRange) -> u64 {
-    r.end - r.start
-}
+fn rewrite_xml(opts: ThinShrinkOptions) -> Result<()> {
+    use std::io::Seek;
 
-fn ranges_total(rs: &[BlockRange]) -> u64 {
-    rs.iter().fold(0, |sum, r| sum + range_len(r))
-}
-
-// Assumes there is enough space to remap.
-fn build_remaps(ranges: Vec<BlockRange>, free: Vec<BlockRange>) -> Vec<(BlockRange, BlockRange)> {
-    use std::cmp::Ordering;
-
-    let mut remap = Vec::new();
-    let mut range_iter = ranges.into_iter();
-    let mut free_iter = free.into_iter();
-
-    let mut r_ = range_iter.next();
-    let mut f_ = free_iter.next();
-
-    while let (Some(r), Some(f)) = (r_, f_) {
-        let rlen = range_len(&r);
-        let flen = range_len(&f);
-
-        match rlen.cmp(&flen) {
-            Ordering::Less => {
-                // range fits into the free chunk
-                remap.push((r, f.start..(f.start + rlen)));
-                f_ = Some((f.start + rlen)..f.end);
-                r_ = range_iter.next();
-            }
-            Ordering::Equal => {
-                remap.push((r, f));
-                r_ = range_iter.next();
-                f_ = free_iter.next();
-            }
-            Ordering::Greater => {
-                remap.push((r.start..(r.start + flen), f));
-                r_ = Some((r.start + flen)..r.end);
-                f_ = free_iter.next();
-            }
-        }
-    }
-
-    remap
-}
-
-#[test]
-fn test_build_remaps() {
-    struct Test {
-        ranges: Vec<BlockRange>,
-        free: Vec<BlockRange>,
-        result: Vec<(BlockRange, BlockRange)>,
-    }
-
-    let tests = vec![
-        Test {
-            ranges: vec![],
-            free: vec![],
-            result: vec![],
-        },
-        Test {
-            ranges: vec![],
-            free: vec![0..100],
-            result: vec![],
-        },
-        Test {
-            ranges: vec![1000..1002],
-            free: vec![0..100],
-            result: vec![(1000..1002, 0..2)],
-        },
-        Test {
-            ranges: vec![1000..1002, 1100..1110],
-            free: vec![0..100],
-            result: vec![(1000..1002, 0..2), (1100..1110, 2..12)],
-        },
-        Test {
-            ranges: vec![100..120],
-            free: vec![0..5, 20..23, 30..50],
-            result: vec![(100..105, 0..5), (105..108, 20..23), (108..120, 30..42)],
-        },
-    ];
-
-    for t in tests {
-        assert_eq!(build_remaps(t.ranges, t.free), t.result);
-    }
-}
-
-fn overlaps(r1: &BlockRange, r2: &BlockRange, index: usize) -> Option<usize> {
-    if r1.start >= r2.end {
-        return None;
-    }
-
-    if r2.start >= r1.end {
-        return None;
-    }
-
-    Some(index)
-}
-
-// Finds the index of the first entry that overlaps r.
-fn find_first(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Option<usize> {
-    if remaps.is_empty() {
-        return None;
-    }
-
-    match remaps.binary_search_by_key(&r.start, |(from, _)| from.start) {
-        Ok(n) => Some(n),
-        Err(n) => {
-            if n == 0 {
-                let (from, _) = &remaps[n];
-                overlaps(r, from, n)
-            } else if n == remaps.len() {
-                let (from, _) = &remaps[n - 1];
-                overlaps(r, from, n - 1)
-            } else {
-                // Need to check the previous entry
-                let (from, _) = &remaps[n - 1];
-                overlaps(r, from, n - 1).or_else(|| {
-                    let (from, _) = &remaps[n];
-                    overlaps(r, from, n)
-                })
-            }
-        }
-    }
-}
-
-fn is_empty(r: &BlockRange) -> bool {
-    r.start == r.end
-}
-
-// remaps must be in sorted order by from.start.
-fn remap(r: &BlockRange, remaps: &[(BlockRange, BlockRange)]) -> Vec<BlockRange> {
-    let mut remap = Vec::new();
-    let mut r = r.start..r.end;
-
-    if let Some(index) = find_first(&r, remaps) {
-        let mut index = index;
-        loop {
-            let (from, to) = &remaps[index];
-
-            // There may be a prefix that doesn't overlap with 'from'
-            if r.start < from.start {
-                let len = u64::min(range_len(&r), from.start - r.start);
-                remap.push(r.start..(r.start + len));
-                r = (r.start + len)..r.end;
-
-                if is_empty(&r) {
-                    break;
-                }
-            }
-
-            let to = (to.start + (r.start - from.start))..to.end;
-            let from = r.start..from.end;
-            let rlen = range_len(&r);
-            let flen = range_len(&from);
-
-            let len = u64::min(rlen, flen);
-            remap.push(to.start..(to.start + len));
-
-            r = (r.start + len)..r.end;
-            if is_empty(&r) {
-                break;
-            }
-
-            if len == flen {
-                index += 1;
-            }
-
-            if index == remaps.len() {
-                remap.push(r.start..r.end);
-                break;
-            }
-        }
-    } else {
-        remap.push(r.start..r.end);
-    }
-
-    remap
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn remap_test() {
-        struct Test {
-            remaps: Vec<(BlockRange, BlockRange)>,
-            input: BlockRange,
-            output: Vec<BlockRange>,
-        }
-
-        let tests = [
-            Test {
-                remaps: vec![],
-                input: 0..1,
-                output: vec![0..1],
-            },
-            Test {
-                remaps: vec![],
-                input: 100..1000,
-                output: vec![100..1000],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 0..5,
-                output: vec![0..5],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 10..20,
-                output: vec![110..120],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 5..15,
-                output: vec![5..10, 110..115],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 5..25,
-                output: vec![5..10, 110..120, 20..25],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 15..25,
-                output: vec![115..120, 20..25],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120)],
-                input: 25..35,
-                output: vec![25..35],
-            },
-            Test {
-                remaps: vec![(10..20, 110..120), (30..40, 230..240)],
-                input: 0..50,
-                output: vec![0..10, 110..120, 20..30, 230..240, 40..50],
-            },
-        ];
-
-        for t in &tests {
-            let rs = remap(&t.input, &t.remaps);
-            assert_eq!(rs, t.output);
-        }
-    }
-}
-
-fn build_copy_regions(remaps: &[(BlockRange, BlockRange)], block_size: u64) -> Vec<Region> {
-    let mut rs = Vec::new();
-
-    for (from, to) in remaps {
-        rs.push(Region {
-            src: from.start * block_size,
-            dest: to.start * block_size,
-            len: range_len(from) * block_size,
-        });
-    }
-
-    rs
-}
-
-fn process_xml<MV: MetadataVisitor>(input_path: &Path, pass: &mut MV) -> Result<()> {
-    let input = OpenOptions::new()
+    // 1st pass
+    let mut input = OpenOptions::new()
         .read(true)
         .write(false)
         .custom_flags(libc::O_EXCL)
-        .open(input_path)?;
+        .open(&opts.input)?;
+    let sb = xml::read_superblock(input.try_clone()?)?;
+    input.seek(SeekFrom::Start(0))?;
+    let remaps = build_remaps_from_xml(input.try_clone()?, opts.nr_blocks)?;
 
-    xml::read(input, pass)?;
-    Ok(())
+    if opts.do_copy {
+        let regions = build_copy_regions(&remaps, sb.data_block_size as u64);
+        copier::copy(&opts.data_device, &regions)?;
+    }
+
+    // 2nd pass
+    let writer = BufWriter::new(File::create(&opts.output)?);
+    let mut xml_writer = xml::XmlWriter::new(writer);
+    let mut remapper = DataRemapper::new(&mut xml_writer, opts.nr_blocks, remaps);
+    input.seek(SeekFrom::Start(0))?;
+    xml::read(input, &mut remapper)
 }
 
-pub fn shrink(
-    input_path: &Path,
-    output_path: &Path,
-    data_path: &Path,
-    nr_blocks: u64,
-    do_copy: bool,
-) -> Result<()> {
-    let mut pass1 = Pass1::new(nr_blocks);
-    eprint!("Reading xml...");
-    process_xml(input_path, &mut pass1)?;
-    eprintln!("done");
-    eprintln!("{} blocks need moving", pass1.nr_high_blocks);
+fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
+    let input = Arc::new(SyncIoEngine::new(&opts.input, 1, false)?);
+    let sb = read_superblock(input.as_ref(), SUPERBLOCK_LOCATION)?;
+    let md = build_metadata(input.clone(), &sb)?;
+    let md = optimise_metadata(md)?;
 
-    let ranges = bits_to_ranges(&pass1.allocated_blocks);
-    let (below, above) = ranges_split(&ranges, nr_blocks);
+    // 1st pass
+    let remaps = build_remaps_from_metadata(input.clone(), &sb, &md, opts.nr_blocks)?;
 
-    let free = negate_ranges(&below, nr_blocks);
-    let free_blocks = ranges_total(&free);
-    eprintln!("{} free blocks.", free_blocks);
-
-    if free_blocks < pass1.nr_high_blocks {
-        return Err(anyhow!("Insufficient space"));
+    if opts.do_copy {
+        let regions = build_copy_regions(&remaps, sb.data_block_size as u64);
+        copier::copy(&opts.data_device, &regions)?;
     }
 
-    let remaps = build_remaps(above, free);
+    // 2nd pass
+    let output = Arc::new(SyncIoEngine::new(&opts.output, 1, true)?);
+    let sm = core_metadata_sm(output.get_nr_blocks(), u32::MAX);
+    let mut w = WriteBatcher::new(output.clone(), sm, output.get_batch_size());
+    let mut restorer = Restorer::new(&mut w, opts.report);
+    let mut remapper = DataRemapper::new(&mut restorer, opts.nr_blocks, remaps);
+    dump_metadata(input, &mut remapper, &sb, &md)
+}
 
-    if do_copy {
-        let regions = build_copy_regions(&remaps, pass1.block_size.unwrap() as u64);
-        copier::copy(data_path, &regions)?;
+pub fn shrink(opts: ThinShrinkOptions) -> Result<()> {
+    if opts.binary_mode {
+        rebuild_metadata(opts)
     } else {
-        eprintln!("skipping copy");
+        rewrite_xml(opts)
     }
-
-    let output = OpenOptions::new()
-        .read(false)
-        .write(true)
-        .create(true)
-        .open(output_path)?;
-    let mut pass2 = Pass2::new(output, nr_blocks, remaps);
-    eprint!("writing new xml...");
-    process_xml(input_path, &mut pass2)?;
-    eprintln!("done.");
-
-    Ok(())
 }
 
 //---------------------------------------

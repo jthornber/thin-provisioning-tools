@@ -116,6 +116,14 @@ where
     rust_cmd("thin_metadata_unpack", args)
 }
 
+pub fn thin_shrink_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_shrink", args)
+}
+
 pub fn cache_check_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

@@ -10,6 +10,9 @@ use thinp::thin::ir::{self, MetadataVisitor, Visit};
 use thinp::thin::xml;
 
 mod common;
+
+use common::process::*;
+use common::target::*;
 use common::test_dir::*;
 use common::thin_xml_generator::{write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen};
 
@@ -309,7 +312,7 @@ where
     let mut td = TestDir::new()?;
     let xml_before = td.mk_path("before.xml");
     let xml_after = td.mk_path("after.xml");
-    let data_path = td.mk_path("metadata.bin");
+    let data_path = td.mk_path("data.bin");
 
     write_xml(&xml_before, scenario)?;
     create_data_file(&data_path, &xml_before)?;
@@ -320,8 +323,18 @@ where
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;
 
-    let new_nr_blocks = scenario.get_new_nr_blocks();
-    thinp::shrink::toplevel::shrink(&xml_before, &xml_after, &data_path, new_nr_blocks, true)?;
+    let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
+
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &xml_before,
+        "-o",
+        &xml_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks
+    ]))?;
 
     verify(&xml_after, &data_path, seed)?;
     Ok(())
