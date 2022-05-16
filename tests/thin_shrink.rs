@@ -340,6 +340,54 @@ where
     Ok(())
 }
 
+fn test_shrink_binary<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    use common::fixture::mk_zeroed_md;
+
+    let mut td = TestDir::new()?;
+    let xml_before = td.mk_path("before.xml");
+    let xml_after = td.mk_path("after.xml");
+    let meta_before = mk_zeroed_md(&mut td)?;
+    let meta_after = mk_zeroed_md(&mut td)?;
+    let data_path = td.mk_path("data.bin");
+
+    write_xml(&xml_before, scenario)?;
+    run_ok(thin_restore_cmd(args![
+        "-i",
+        &xml_before,
+        "-o",
+        &meta_before
+    ]))?;
+
+    create_data_file(&data_path, &xml_before)?;
+
+    let mut rng = rand::thread_rng();
+    let seed = rng.gen::<u64>();
+
+    stamp(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, seed)?;
+
+    let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
+
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &meta_before,
+        "-o",
+        &meta_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks,
+        "--binary"
+    ]))?;
+
+    run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
+    verify(&xml_after, &data_path, seed)?;
+    Ok(())
+}
+
 //------------------------------------
 
 impl Scenario for EmptyPoolS {
@@ -403,6 +451,47 @@ fn shrink_insufficient_space() -> Result<()> {
 
 //------------------------------------
 
+#[test]
+fn shrink_binary_single_no_move_1() -> Result<()> {
+    let mut s = SingleThinS::new(0, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_no_move_2() -> Result<()> {
+    let mut s = SingleThinS::new(100, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_no_move_3() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_partial_move() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_total_move() -> Result<()> {
+    let mut s = SingleThinS::new(2048, 1024, 1024 + 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_insufficient_space() -> Result<()> {
+    let mut s = SingleThinS::new(0, 2048, 3000, 1280);
+    match test_shrink_binary(&mut s) {
+        Ok(_) => Err(anyhow!("Shrink unexpectedly succeeded")),
+        Err(_) => Ok(()),
+    }
+}
+
+//------------------------------------
+
 impl Scenario for FragmentedS {
     fn get_new_nr_blocks(&self) -> u64 {
         self.new_nr_data_blocks
@@ -423,14 +512,40 @@ fn shrink_fragmented_thin_2() -> Result<()> {
 
 #[test]
 fn shrink_fragmented_thin_8() -> Result<()> {
-    let mut s = FragmentedS::new(2, 2048);
+    let mut s = FragmentedS::new(8, 2048);
     test_shrink(&mut s)
 }
 
 #[test]
 fn shrink_fragmented_thin_64() -> Result<()> {
-    let mut s = FragmentedS::new(2, 2048);
+    let mut s = FragmentedS::new(64, 2048);
     test_shrink(&mut s)
+}
+
+//------------------------------------
+
+#[test]
+fn shrink_binary_fragmented_thin_1() -> Result<()> {
+    let mut s = FragmentedS::new(1, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_2() -> Result<()> {
+    let mut s = FragmentedS::new(2, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_8() -> Result<()> {
+    let mut s = FragmentedS::new(8, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_64() -> Result<()> {
+    let mut s = FragmentedS::new(64, 2048);
+    test_shrink_binary(&mut s)
 }
 
 //------------------------------------
