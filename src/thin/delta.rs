@@ -112,7 +112,7 @@ impl NodeVisitor<BlockTime> for MappingRecorder {
 // The `time` field is not extracted for CoW indication. The mapped data block
 // does the job. i.e., the data block must be different if the mapping had been
 // CoW'ed.
-fn get_mappings(engine: Arc<dyn IoEngine + Send + Sync>, root: u64) -> Result<Vec<DataMapping>> {
+pub fn get_mappings(engine: Arc<dyn IoEngine + Send + Sync>, root: u64) -> Result<Vec<DataMapping>> {
     let mr = MappingRecorder::new();
     let w = Arc::new(BTreeWalker::new(engine.clone(), false));
     let mut path = Vec::new();
