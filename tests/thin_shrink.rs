@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use fixedbitset::FixedBitSet;
 use rand::prelude::*;
 use std::fs::OpenOptions;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -10,17 +11,21 @@ use thinp::thin::ir::{self, MetadataVisitor, Visit};
 use thinp::thin::xml;
 
 mod common;
+
+use common::process::*;
+use common::target::*;
 use common::test_dir::*;
+use common::thin::*;
 use common::thin_xml_generator::{write_xml, EmptyPoolS, FragmentedS, SingleThinS, SnapS, XmlGen};
 
 //------------------------------------
 
 #[derive(Debug)]
 struct ThinBlock {
-    thin_id: u32,
+    thin_id: u64,
     thin_block: u64,
     data_block: u64,
-    block_size: usize,
+    time: u32,
 }
 
 struct ThinReadRef {
@@ -34,39 +39,39 @@ struct ThinWriteRef<'a, W: Write + Seek> {
 }
 
 impl ThinBlock {
-    fn read_ref<R: Read + Seek>(&self, r: &mut R) -> Result<ThinReadRef> {
+    fn read_ref<R: Read + Seek>(r: &mut R, b: u64, block_size: usize) -> Result<ThinReadRef> {
         let mut rr = ThinReadRef {
-            data: vec![0; self.block_size * 512],
+            data: vec![0; block_size * 512],
         };
-        let byte = self.data_block * (self.block_size as u64) * 512;
+        let byte = b * (block_size as u64) * 512;
         r.seek(SeekFrom::Start(byte))?;
         r.read_exact(&mut rr.data)?;
         Ok(rr)
     }
 
-    fn zero_ref<'a, W: Write + Seek>(&self, w: &'a mut W) -> ThinWriteRef<'a, W> {
+    fn zero_ref<W: Write + Seek>(w: &mut W, b: u64, block_size: usize) -> ThinWriteRef<W> {
         ThinWriteRef {
             file: w,
-            block_byte: self.data_block * (self.block_size as u64) * 512,
-            data: vec![0; self.block_size * 512],
+            block_byte: b * (block_size as u64) * 512,
+            data: vec![0; block_size * 512],
         }
     }
 
     //fn write_ref<'a, W>(&self, w: &'a mut W) -> Result<ThinWriteRef<'a, W>>
-    //where
-    //W: Read + Write + Seek,
+    //  where
+    //  W: Read + Write + Seek,
     //{
-    //let mut data = vec![0; self.block_size];
-    //w.seek(SeekFrom::Start(self.data_block * (self.block_size as u64)))?;
-    //w.read_exact(&mut data[0..])?;
+    //  let mut data = vec![0; self.block_size];
+    //  w.seek(SeekFrom::Start(self.data_block * (self.block_size as u64)))?;
+    //  w.read_exact(&mut data[0..])?;
     //
-    //let wr = ThinWriteRef {
-    //file: w,
-    //block_byte: self.data_block * (self.block_size as u64),
-    //data: vec![0; self.block_size],
-    //};
+    //  let wr = ThinWriteRef {
+    //      file: w,
+    //      block_byte: self.data_block * (self.block_size as u64),
+    //      data: vec![0; self.block_size],
+    //  };
     //
-    //Ok(wr)
+    //  Ok(wr)
     //}
 }
 
@@ -83,18 +88,20 @@ impl<'a, W: Write + Seek> Drop for ThinWriteRef<'a, W> {
 //------------------------------------
 
 trait ThinVisitor {
+    fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()>;
     fn thin_block(&mut self, tb: &ThinBlock) -> Result<()>;
+    fn complete(&mut self) -> Result<()>;
 }
 
 struct ThinXmlVisitor<'a, V: ThinVisitor> {
     inner: &'a mut V,
-    block_size: Option<u32>,
-    thin_id: Option<u32>,
+    thin_id: Option<u64>,
 }
 
 impl<'a, V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'a, V> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
-        self.block_size = Some(sb.data_block_size);
+        self.inner
+            .init(sb.data_block_size as usize, sb.nr_data_blocks)?;
         Ok(Visit::Continue)
     }
 
@@ -102,20 +109,28 @@ impl<'a, V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'a, V> {
         Ok(Visit::Continue)
     }
 
-    fn def_shared_b(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+    fn def_shared_b(&mut self, name: &str) -> Result<Visit> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut s = DefaultHasher::new();
+        name.hash(&mut s);
+        self.thin_id = Some(s.finish());
+
+        Ok(Visit::Continue)
     }
 
     fn def_shared_e(&mut self) -> Result<Visit> {
-        todo!();
+        Ok(Visit::Continue)
     }
 
     fn device_b(&mut self, d: &ir::Device) -> Result<Visit> {
-        self.thin_id = Some(d.dev_id);
+        self.thin_id = Some(d.dev_id as u64);
         Ok(Visit::Continue)
     }
 
     fn device_e(&mut self) -> Result<Visit> {
+        self.thin_id = None;
         Ok(Visit::Continue)
     }
 
@@ -125,18 +140,20 @@ impl<'a, V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'a, V> {
                 thin_id: self.thin_id.unwrap(),
                 thin_block: m.thin_begin + i,
                 data_block: m.data_begin + i,
-                block_size: self.block_size.unwrap() as usize,
+                time: m.time,
             };
             self.inner.thin_block(&block)?;
         }
         Ok(Visit::Continue)
     }
 
+    // FIXME: Verify that references to defs are not changed after shrinking
     fn ref_shared(&mut self, _name: &str) -> Result<Visit> {
-        todo!();
+        Ok(Visit::Continue)
     }
 
     fn eof(&mut self) -> Result<Visit> {
+        self.inner.complete()?;
         Ok(Visit::Stop)
     }
 }
@@ -148,7 +165,6 @@ where
 {
     let mut xml_visitor = ThinXmlVisitor {
         inner: visitor,
-        block_size: None,
         thin_id: None,
     };
 
@@ -221,20 +237,44 @@ impl Generator {
 
 struct Stamper<'a, W: Write + Seek> {
     data_file: &'a mut W,
+    data_block_size: usize, // in sectors
     seed: u64,
+    provisioned: FixedBitSet, // provisioned data blocks
+    salts: Vec<u64>,          // salts for each data block
 }
 
 impl<'a, W: Write + Seek> Stamper<'a, W> {
     fn new(w: &'a mut W, seed: u64) -> Stamper<'a, W> {
-        Stamper { data_file: w, seed }
+        Stamper {
+            data_file: w,
+            data_block_size: 0,
+            seed,
+            provisioned: FixedBitSet::new(),
+            salts: Vec::new(),
+        }
     }
 }
 
 impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
+    fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()> {
+        self.data_block_size = data_block_size;
+        self.provisioned.grow(nr_data_blocks as usize);
+        self.salts.resize(nr_data_blocks as usize, self.seed);
+        Ok(())
+    }
+
     fn thin_block(&mut self, b: &ThinBlock) -> Result<()> {
-        let mut wr = b.zero_ref(self.data_file);
-        let mut gen = Generator::new();
-        gen.fill_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &mut wr.data)?;
+        self.provisioned.set(b.data_block as usize, true);
+        self.salts[b.data_block as usize] ^= b.thin_id ^ b.thin_block ^ b.time as u64;
+        Ok(())
+    }
+
+    fn complete(&mut self) -> Result<()> {
+        for b in self.provisioned.ones() {
+            let mut wr = ThinBlock::zero_ref(self.data_file, b as u64, self.data_block_size);
+            let mut gen = Generator::new();
+            gen.fill_buffer(self.seed ^ self.salts[b], &mut wr.data)?;
+        }
         Ok(())
     }
 }
@@ -243,21 +283,45 @@ impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
 
 struct Verifier<'a, R: Read + Seek> {
     data_file: &'a mut R,
+    data_block_size: usize, // in sectors
     seed: u64,
+    provisioned: FixedBitSet, // provisioned data blocks
+    salts: Vec<u64>,          // salts for each data block
 }
 
 impl<'a, R: Read + Seek> Verifier<'a, R> {
     fn new(r: &'a mut R, seed: u64) -> Verifier<'a, R> {
-        Verifier { data_file: r, seed }
+        Verifier {
+            data_file: r,
+            data_block_size: 0,
+            seed,
+            provisioned: FixedBitSet::new(),
+            salts: Vec::new(),
+        }
     }
 }
 
 impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
+    fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()> {
+        self.data_block_size = data_block_size;
+        self.provisioned.grow(nr_data_blocks as usize);
+        self.salts.resize(nr_data_blocks as usize, self.seed);
+        Ok(())
+    }
+
     fn thin_block(&mut self, b: &ThinBlock) -> Result<()> {
-        let rr = b.read_ref(self.data_file)?;
-        let mut gen = Generator::new();
-        if !gen.verify_buffer(self.seed ^ (b.thin_id as u64) ^ b.thin_block, &rr.data)? {
-            return Err(anyhow!("data verify failed for {:?}", b));
+        self.provisioned.set(b.data_block as usize, true);
+        self.salts[b.data_block as usize] ^= b.thin_id ^ b.thin_block ^ b.time as u64;
+        Ok(())
+    }
+
+    fn complete(&mut self) -> Result<()> {
+        for b in self.provisioned.ones() {
+            let rr = ThinBlock::read_ref(self.data_file, b as u64, self.data_block_size)?;
+            let mut gen = Generator::new();
+            if !gen.verify_buffer(self.seed ^ self.salts[b], &rr.data)? {
+                return Err(anyhow!("data verify failed for data block {}", b));
+            }
         }
         Ok(())
     }
@@ -309,7 +373,7 @@ where
     let mut td = TestDir::new()?;
     let xml_before = td.mk_path("before.xml");
     let xml_after = td.mk_path("after.xml");
-    let data_path = td.mk_path("metadata.bin");
+    let data_path = td.mk_path("data.bin");
 
     write_xml(&xml_before, scenario)?;
     create_data_file(&data_path, &xml_before)?;
@@ -320,9 +384,67 @@ where
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;
 
-    let new_nr_blocks = scenario.get_new_nr_blocks();
-    thinp::shrink::toplevel::shrink(&xml_before, &xml_after, &data_path, new_nr_blocks, true)?;
+    let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
 
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &xml_before,
+        "-o",
+        &xml_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks
+    ]))?;
+
+    verify(&xml_after, &data_path, seed)?;
+    Ok(())
+}
+
+fn test_shrink_binary<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    use common::fixture::mk_zeroed_md;
+
+    let mut td = TestDir::new()?;
+    let xml_before = td.mk_path("before.xml");
+    let xml_after = td.mk_path("after.xml");
+    let meta_before = mk_zeroed_md(&mut td)?;
+    let meta_after = mk_zeroed_md(&mut td)?;
+    let data_path = td.mk_path("data.bin");
+
+    write_xml(&xml_before, scenario)?;
+    run_ok(thin_restore_cmd(args![
+        "-i",
+        &xml_before,
+        "-o",
+        &meta_before
+    ]))?;
+
+    create_data_file(&data_path, &xml_before)?;
+
+    let mut rng = rand::thread_rng();
+    let seed = rng.gen::<u64>();
+
+    stamp(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, seed)?;
+
+    let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
+
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &meta_before,
+        "-o",
+        &meta_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks,
+        "--binary"
+    ]))?;
+
+    run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
     verify(&xml_after, &data_path, seed)?;
     Ok(())
 }
@@ -390,6 +512,47 @@ fn shrink_insufficient_space() -> Result<()> {
 
 //------------------------------------
 
+#[test]
+fn shrink_binary_single_no_move_1() -> Result<()> {
+    let mut s = SingleThinS::new(0, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_no_move_2() -> Result<()> {
+    let mut s = SingleThinS::new(100, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_no_move_3() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_partial_move() -> Result<()> {
+    let mut s = SingleThinS::new(1024, 1024, 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_single_total_move() -> Result<()> {
+    let mut s = SingleThinS::new(2048, 1024, 1024 + 2048, 1280);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_insufficient_space() -> Result<()> {
+    let mut s = SingleThinS::new(0, 2048, 3000, 1280);
+    match test_shrink_binary(&mut s) {
+        Ok(_) => Err(anyhow!("Shrink unexpectedly succeeded")),
+        Err(_) => Ok(()),
+    }
+}
+
+//------------------------------------
+
 impl Scenario for FragmentedS {
     fn get_new_nr_blocks(&self) -> u64 {
         self.new_nr_data_blocks
@@ -410,14 +573,40 @@ fn shrink_fragmented_thin_2() -> Result<()> {
 
 #[test]
 fn shrink_fragmented_thin_8() -> Result<()> {
-    let mut s = FragmentedS::new(2, 2048);
+    let mut s = FragmentedS::new(8, 2048);
     test_shrink(&mut s)
 }
 
 #[test]
 fn shrink_fragmented_thin_64() -> Result<()> {
-    let mut s = FragmentedS::new(2, 2048);
+    let mut s = FragmentedS::new(64, 2048);
     test_shrink(&mut s)
+}
+
+//------------------------------------
+
+#[test]
+fn shrink_binary_fragmented_thin_1() -> Result<()> {
+    let mut s = FragmentedS::new(1, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_2() -> Result<()> {
+    let mut s = FragmentedS::new(2, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_8() -> Result<()> {
+    let mut s = FragmentedS::new(8, 2048);
+    test_shrink_binary(&mut s)
+}
+
+#[test]
+fn shrink_binary_fragmented_thin_64() -> Result<()> {
+    let mut s = FragmentedS::new(64, 2048);
+    test_shrink_binary(&mut s)
 }
 
 //------------------------------------
@@ -432,6 +621,83 @@ impl Scenario for SnapS {
 fn shrink_identical_snap() -> Result<()> {
     let mut s = SnapS::new(1024, 1, 0);
     test_shrink(&mut s)
+}
+
+// Using XML from the pre-generated packed metadata
+#[test]
+fn shrink_multiple_snaps() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let meta_before = prep_rebuilt_metadata(&mut td)?;
+    let xml_before = td.mk_path("before.xml");
+    let data_path = td.mk_path("data.bin");
+
+    run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
+    create_data_file(&data_path, &xml_before)?;
+
+    let mut rng = rand::thread_rng();
+    let seed = rng.gen::<u64>();
+
+    stamp(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, seed)?;
+
+    let xml_after = td.mk_path("after.xml");
+    let new_nr_blocks = get_data_usage(&meta_before)?.1.to_string();
+
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &xml_before,
+        "-o",
+        &xml_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks
+    ]))?;
+
+    verify(&xml_after, &data_path, seed)?;
+    Ok(())
+}
+
+//------------------------------------
+
+// Using the pre-generated packed metadata
+#[test]
+fn shrink_binary_multiple_snaps() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let meta_before = prep_rebuilt_metadata(&mut td)?;
+    let xml_before = td.mk_path("before.xml");
+    let data_path = td.mk_path("data.bin");
+
+    run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
+    create_data_file(&data_path, &xml_before)?;
+
+    let mut rng = rand::thread_rng();
+    let seed = rng.gen::<u64>();
+
+    stamp(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, seed)?;
+
+    let meta_after = td.mk_path("after.bin");
+    let xml_after = td.mk_path("after.xml");
+    let new_nr_blocks = get_data_usage(&meta_before)?.1.to_string();
+
+    file_utils::create_sized_file(&meta_after, file_utils::file_size(&meta_before)?)?;
+
+    run_ok(thin_shrink_cmd(args![
+        "-i",
+        &meta_before,
+        "-o",
+        &meta_after,
+        "--data",
+        &data_path,
+        "--nr-blocks",
+        &new_nr_blocks,
+        "--binary"
+    ]))?;
+
+    run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
+    verify(&xml_after, &data_path, seed)?;
+    Ok(())
 }
 
 //------------------------------------

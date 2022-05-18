@@ -64,23 +64,21 @@ fn is_xml(line: &[u8]) -> bool {
     line.starts_with(b"<superblock") || line.starts_with(b"?xml") || line.starts_with(b"<!DOCTYPE")
 }
 
-pub fn check_not_xml_(input_file: &Path, report: &Report) -> Result<()> {
+pub fn check_not_xml_(input_file: &Path) -> Result<bool> {
     let mut file = OpenOptions::new().read(true).open(input_file)?;
     let mut data = vec![0; 16];
     file.read_exact(&mut data)?;
-
-    if is_xml(&data) {
-        report.fatal("This looks like XML.  This tool only checks the binary metadata format.");
-    }
-
-    Ok(())
+    Ok(is_xml(&data))
 }
 
 /// This trys to read the start of input_path to see
 /// if it's xml.  If there are any problems reading the file
 /// then it fails silently.
 pub fn check_not_xml(input_file: &Path, report: &Report) {
-    let _ = check_not_xml_(input_file, report);
+    if let Ok(true) = check_not_xml_(input_file) {
+        report.fatal("This looks like XML.  This tool only supports the binary metadata format.");
+        exit(1);
+    }
 }
 
 pub fn optional_value_or_exit<R>(matches: &ArgMatches, name: &str) -> Option<R>

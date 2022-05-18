@@ -181,7 +181,7 @@ impl XmlGen for FragmentedS {
         // Unshuffle.  This isn't strictly necc. but makes the xml
         // more readable.
         use std::cmp::Ordering;
-        maps.sort_by(|&l, &r| match l.thin_id.cmp(&r.thin_id) {
+        dropped.sort_by(|&l, &r| match l.thin_id.cmp(&r.thin_id) {
             Ordering::Equal => l.thin_begin.cmp(&r.thin_begin),
             o => o,
         });

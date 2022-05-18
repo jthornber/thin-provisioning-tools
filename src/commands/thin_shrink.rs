@@ -5,11 +5,13 @@
 extern crate clap;
 
 use clap::Arg;
+use std::ffi;
+use std::io;
 use std::path::Path;
 
 use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::shrink::toplevel::shrink;
+use crate::shrink::toplevel::{shrink, ThinShrinkOptions};
 
 pub struct ThinShrinkCommand;
 
@@ -42,25 +44,65 @@ impl ThinShrinkCommand {
                     .help("Specify pool data device where data will be moved")
                     .required(true)
                     .long("data")
-                    .value_name("DATA")
+                    .value_name("FILE")
                     .takes_value(true),
             )
             .arg(
                 Arg::new("NOCOPY")
                     .help("Skip the copying of data, useful for benchmarking")
-                    .required(false)
-                    .long("no-copy")
-                    .value_name("NOCOPY")
-                    .takes_value(false),
+                    .long("no-copy"),
             )
             .arg(
-                Arg::new("SIZE")
+                Arg::new("NR_BLOCKS")
                     .help("Specify new size for the pool (in data blocks)")
                     .required(true)
                     .long("nr-blocks")
-                    .value_name("SIZE")
+                    .value_name("NUM")
                     .takes_value(true),
             )
+            .arg(
+                Arg::new("BINARY")
+                    .help("Perform binary metadata rebuild rather than XML rewrite")
+                    .long("binary"),
+            )
+    }
+
+    fn parse_args<I, T>(&self, args: I) -> io::Result<ThinShrinkOptions>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<ffi::OsString> + Clone,
+    {
+        let matches = self.cli().get_matches_from(args);
+
+        let input = Path::new(matches.value_of("INPUT").unwrap());
+        let output = Path::new(matches.value_of("OUTPUT").unwrap());
+        let nr_blocks = matches.value_of_t_or_exit::<u64>("NR_BLOCKS");
+        let data_device = Path::new(matches.value_of("DATA").unwrap());
+        let do_copy = !matches.is_present("NOCOPY");
+        let binary_mode = matches.is_present("BINARY");
+        let report = mk_report(false);
+
+        check_input_file(input, &report);
+        if binary_mode {
+            check_file_not_tiny(input, &report);
+            check_not_xml(input, &report);
+            check_output_file(output, &report);
+        }
+
+        if do_copy {
+            // TODO: check file size
+            check_input_file(data_device, &report);
+        }
+
+        Ok(ThinShrinkOptions {
+            input: input.to_path_buf(),
+            output: output.to_path_buf(),
+            nr_blocks,
+            data_device: data_device.to_path_buf(),
+            do_copy,
+            binary_mode,
+            report,
+        })
     }
 }
 
@@ -69,20 +111,10 @@ impl<'a> Command<'a> for ThinShrinkCommand {
         "thin_shrink"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let matches = self.cli().get_matches_from(args);
+    fn run(&self, args: &mut dyn Iterator<Item = ffi::OsString>) -> io::Result<()> {
+        let opts = self.parse_args(args)?;
 
-        // FIXME: check these look like xml
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
-        let size = matches.value_of_t_or_exit::<u64>("SIZE");
-        let data_file = Path::new(matches.value_of("DATA").unwrap());
-        let do_copy = !matches.is_present("NOCOPY");
-
-        let report = mk_report(false);
-        check_input_file(input_file, &report);
-
-        shrink(input_file, output_file, data_file, size, do_copy).map_err(|reason| {
+        shrink(opts).map_err(|reason| {
             eprintln!("Application error: {}\n", reason);
             std::io::Error::from_raw_os_error(libc::EPERM)
         })
