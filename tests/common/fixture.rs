@@ -16,6 +16,13 @@ pub fn mk_zeroed_md(td: &mut TestDir) -> Result<PathBuf> {
     Ok(md)
 }
 
+pub fn mk_zeroed_md_sized(td: &mut TestDir, nr_bytes: u64) -> Result<PathBuf> {
+    let md = td.mk_path("meta.bin");
+    eprintln!("path = {:?}", md);
+    let _file = file_utils::create_sized_file(&md, nr_bytes);
+    Ok(md)
+}
+
 pub fn damage_superblock(path: &Path) -> Result<()> {
     let mut output = OpenOptions::new().read(false).write(true).open(path)?;
     let buf = [0u8; 512];
