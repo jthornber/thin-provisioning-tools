@@ -26,13 +26,20 @@ fio --filename "/dev/mapper/${VG}-${LV}" --rw=randwrite --percentage_random=20 \
     --name test --direct=1 --output terse
 
 # create snapshots with some exclusive mappings
-for i in {1..10}
+for i in {1..15}
 do
         lvcreate "${VG}/${LV}" --snapshot --name "snap${i}"
         fio --filename "/dev/mapper/${VG}-${LV}" --rw=randwrite --percentage_random=20 \
             --bs ${BLOCKSIZE} --randseed=${i} --randrepeat=0 \
             --name test --direct=1 --io_size 4m --output terse
 done
+
+# remove snapshots to produce holes in data space map, for thin_shrink tests
+lvremove "${VG}/snap4" -f
+lvremove "${VG}/snap5" -f
+lvremove "${VG}/snap6" -f
+lvremove "${VG}/snap10" -f
+lvremove "${VG}/snap13" -f
 
 lvchange -an "${VG}/${LV}"
 lvchange -an "${VG}/${TP}"
