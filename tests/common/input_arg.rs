@@ -249,7 +249,7 @@ where
     wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
         let stderr = run_fail(P::cmd(args))?;
         let msg =
-            "This looks like XML.  This tool only checks the binary metadata format.".to_string();
+            "This looks like XML.  This tool only supports the binary metadata format.".to_string();
         assert!(stderr.contains(&msg));
         Ok(())
     })
