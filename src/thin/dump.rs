@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
+use crate::dump_utils::*;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
@@ -108,6 +109,9 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
         let mut inner = self.inner.lock().unwrap();
         for (k, v) in keys.iter().zip(values.iter()) {
             if let Some(run) = inner.builder.next(*k, v.block, v.time) {
+                // FIXME: BTreeError should carry more information than a string
+                //        so the caller could identify the actual root cause,
+                //        e.g., a broken pipe error or something.
                 inner
                     .md_out
                     .map(&run)
@@ -153,12 +157,12 @@ pub struct ThinDumpOptions<'a> {
     pub overrides: SuperblockOverrides,
 }
 
-struct Context {
+struct ThinDumpContext {
     report: Arc<Report>,
     engine: Arc<dyn IoEngine + Send + Sync>,
 }
 
-fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
+fn mk_context(opts: &ThinDumpOptions) -> Result<ThinDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
@@ -166,7 +170,7 @@ fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
         Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
     };
 
-    Ok(Context {
+    Ok(ThinDumpContext {
         report: opts.report.clone(),
         engine,
     })
@@ -174,37 +178,28 @@ fn mk_context(opts: &ThinDumpOptions) -> Result<Context> {
 
 //------------------------------------------
 
-fn emit_leaf(v: &mut MappingVisitor, b: &Block) -> Result<()> {
+fn emit_leaf(v: &MappingVisitor, b: &Block) -> Result<()> {
     use Node::*;
     let path = Vec::new();
     let kr = KeyRange::new();
 
     let bt = checksum::metadata_block_type(b.get_data());
     if bt != checksum::BT::NODE {
-        return Err(anyhow!(format!(
-            "checksum failed for node {}, {:?}",
-            b.loc, bt
-        )));
+        return Err(anyhow!("checksum failed for node {}, {:?}", b.loc, bt));
     }
 
     let node = unpack_node::<BlockTime>(&path, b.get_data(), true, true)?;
 
     match node {
-        Internal { .. } => {
-            return Err(anyhow!("not a leaf"));
-        }
+        Internal { .. } => Err(anyhow!("block {} is not a leaf", b.loc)),
         Leaf {
             header,
             keys,
             values,
-        } => {
-            if let Err(_e) = v.visit(&path, &kr, &header, &keys, &values) {
-                return Err(anyhow!("couldn't emit leaf node"));
-            }
-        }
+        } => v
+            .visit(&path, &kr, &header, &keys, &values)
+            .context(OutputError),
     }
-
-    Ok(())
 }
 
 fn read_for<T>(engine: Arc<dyn IoEngine>, blocks: &[u64], mut t: T) -> Result<()>
@@ -216,22 +211,27 @@ where
             .read_many(cs)
             .map_err(|_e| anyhow!("read_many failed"))?
         {
-            t(b.map_err(|_e| anyhow!("read of individual block failed"))?)?;
+            let blk = b.map_err(|_e| anyhow!("read of individual block failed"))?;
+            t(blk)?;
         }
     }
 
     Ok(())
 }
 
-fn emit_leaves(engine: Arc<dyn IoEngine>, out: &mut dyn MetadataVisitor, ls: &[u64]) -> Result<()> {
-    let mut v = MappingVisitor::new(out);
+fn emit_leaves(
+    engine: Arc<dyn IoEngine>,
+    out: &mut dyn MetadataVisitor,
+    leaves: &[u64],
+) -> Result<()> {
+    let v = MappingVisitor::new(out);
     let proc = |b| {
-        emit_leaf(&mut v, &b)?;
+        emit_leaf(&v, &b)?;
         Ok(())
     };
 
-    read_for(engine, ls, proc)?;
-    v.end_walk().map_err(|_| anyhow!("failed to emit leaves"))
+    read_for(engine, leaves, proc)?;
+    v.end_walk().context(OutputError)
 }
 
 fn emit_entries(
@@ -252,7 +252,7 @@ fn emit_entries(
                     leaves.clear();
                 }
                 let str = format!("{}", id);
-                out.ref_shared(&str)?;
+                out.ref_shared(&str).context(OutputError)?;
             }
         }
     }
@@ -281,12 +281,13 @@ pub fn dump_metadata(
         nr_data_blocks: data_root.nr_blocks,
         metadata_snap: None,
     };
-    out.superblock_b(&out_sb)?;
+    out.superblock_b(&out_sb).context(OutputError)?;
 
     for d in &md.defs {
-        out.def_shared_b(&format!("{}", d.def_id))?;
+        out.def_shared_b(&format!("{}", d.def_id))
+            .context(OutputError)?;
         emit_entries(engine.clone(), out, &d.map.entries)?;
-        out.def_shared_e()?;
+        out.def_shared_e().context(OutputError)?;
     }
 
     for dev in &md.devs {
@@ -297,12 +298,12 @@ pub fn dump_metadata(
             creation_time: dev.detail.creation_time,
             snap_time: dev.detail.snapshotted_time,
         };
-        out.device_b(&device)?;
+        out.device_b(&device).context(OutputError)?;
         emit_entries(engine.clone(), out, &dev.map.entries)?;
-        out.device_e()?;
+        out.device_e().context(OutputError)?;
     }
-    out.superblock_e()?;
-    out.eof()?;
+    out.superblock_e().context(OutputError)?;
+    out.eof().context(OutputError)?;
 
     Ok(())
 }
@@ -324,11 +325,13 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)
             .and_then(|sb| sb.overrides(&opts.overrides))?
     };
+
     let md = build_metadata(ctx.engine.clone(), &sb)?;
     let md = optimise_metadata(md)?;
 
     let writer: Box<dyn Write> = if opts.output.is_some() {
-        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
+        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+        Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))
     };
