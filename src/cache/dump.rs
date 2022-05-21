@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use fixedbitset::FixedBitSet;
 use std::fs::File;
 use std::io::BufWriter;
@@ -11,6 +11,7 @@ use crate::cache::ir::{self, MetadataVisitor};
 use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
 use crate::cache::xml;
+use crate::dump_utils::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
@@ -193,6 +194,62 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
 
 //------------------------------------------
 
+fn dump_v1_mappings(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
+    mapping_root: u64,
+    cache_blocks: u32,
+    repair: bool,
+) -> anyhow::Result<FixedBitSet> {
+    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, mapping_root)?;
+    let emitter = format1::MappingEmitter::new(cache_blocks as usize, out);
+    walk_array_blocks(engine, ablocks, &emitter)?;
+
+    Ok(emitter.get_valid())
+}
+
+fn dump_v2_mappings(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
+    mapping_root: u64,
+    cache_blocks: u32,
+    dirty_root: Option<u64>,
+    repair: bool,
+) -> anyhow::Result<FixedBitSet> {
+    // We need to walk the dirty bitset first.
+    let dirty_bits = if let Some(root) = dirty_root {
+        let (bits, errs) = read_bitset(engine.clone(), root, cache_blocks as usize, repair);
+        if errs.is_some() && !repair {
+            return Err(anyhow!("errors in bitset {}", errs.unwrap()));
+        }
+        bits
+    } else {
+        // FIXME: is there a way this can legally happen?  eg,
+        // a crash of a freshly created cache?
+        return Err(anyhow!("format 2 selected, but no dirty bitset present"));
+    };
+
+    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, mapping_root)?;
+    let emitter = format2::MappingEmitter::new(cache_blocks as usize, dirty_bits, out);
+    walk_array_blocks(engine, ablocks, &emitter)?;
+
+    Ok(emitter.get_valid())
+}
+
+fn dump_hint_array(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
+    hint_root: u64,
+    valid_mappings: FixedBitSet,
+    repair: bool,
+) -> anyhow::Result<()> {
+    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, hint_root)?;
+    let emitter = HintEmitter::new(out, valid_mappings);
+    walk_array_blocks(engine, ablocks, &emitter)
+}
+
+//------------------------------------------
+
 pub struct CacheDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
@@ -200,11 +257,11 @@ pub struct CacheDumpOptions<'a> {
     pub repair: bool,
 }
 
-struct Context {
+struct CacheDumpContext {
     engine: Arc<dyn IoEngine + Send + Sync>,
 }
 
-fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<Context> {
+fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<CacheDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
@@ -212,7 +269,7 @@ fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<Context> {
         Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
     };
 
-    Ok(Context { engine })
+    Ok(CacheDumpContext { engine })
 }
 
 pub fn dump_metadata(
@@ -228,53 +285,37 @@ pub fn dump_metadata(
         policy: std::str::from_utf8(&sb.policy_name)?.to_string(),
         hint_width: sb.policy_hint_size,
     };
-    out.superblock_b(&xml_sb)?;
+    out.superblock_b(&xml_sb).context(OutputError)?;
 
-    out.mappings_b()?;
+    out.mappings_b().context(OutputError)?;
     let valid_mappings = match sb.version {
-        1 => {
-            let w = ArrayWalker::new(engine.clone(), repair);
-            let mut emitter = format1::MappingEmitter::new(sb.cache_blocks as usize, out);
-            w.walk(&mut emitter, sb.mapping_root)?;
-            emitter.get_valid()
-        }
-        2 => {
-            // We need to walk the dirty bitset first.
-            let dirty_bits = if let Some(root) = sb.dirty_root {
-                let (bits, errs) =
-                    read_bitset(engine.clone(), root, sb.cache_blocks as usize, repair);
-                if errs.is_some() && !repair {
-                    return Err(anyhow!("errors in bitset {}", errs.unwrap()));
-                }
-                bits
-            } else {
-                // FIXME: is there a way this can legally happen?  eg,
-                // a crash of a freshly created cache?
-                return Err(anyhow!("format 2 selected, but no dirty bitset present"));
-            };
-
-            let w = ArrayWalker::new(engine.clone(), repair);
-            let mut emitter =
-                format2::MappingEmitter::new(sb.cache_blocks as usize, dirty_bits, out);
-            w.walk(&mut emitter, sb.mapping_root)?;
-            emitter.get_valid()
-        }
+        1 => dump_v1_mappings(
+            engine.clone(),
+            out,
+            sb.mapping_root,
+            sb.cache_blocks,
+            repair,
+        )?,
+        2 => dump_v2_mappings(
+            engine.clone(),
+            out,
+            sb.mapping_root,
+            sb.cache_blocks,
+            sb.dirty_root,
+            repair,
+        )?,
         v => {
             return Err(anyhow!("unsupported metadata version: {}", v));
         }
     };
-    out.mappings_e()?;
+    out.mappings_e().context(OutputError)?;
 
-    out.hints_b()?;
-    {
-        let w = ArrayWalker::new(engine.clone(), repair);
-        let mut emitter = HintEmitter::new(out, valid_mappings);
-        w.walk(&mut emitter, sb.hint_root)?;
-    }
-    out.hints_e()?;
+    out.hints_b().context(OutputError)?;
+    dump_hint_array(engine, out, sb.hint_root, valid_mappings, repair)?;
+    out.hints_e().context(OutputError)?;
 
-    out.superblock_e()?;
-    out.eof()?;
+    out.superblock_e().context(OutputError)?;
+    out.eof().context(OutputError)?;
 
     Ok(())
 }
@@ -284,7 +325,8 @@ pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
     let writer: Box<dyn Write> = if opts.output.is_some() {
-        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
+        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+        Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))
     };
