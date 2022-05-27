@@ -154,6 +154,7 @@ pub struct ThinDumpOptions<'a> {
     pub report: Arc<Report>,
     pub repair: bool,
     pub use_metadata_snap: bool,
+    pub skip_mappings: bool,
     pub overrides: SuperblockOverrides,
 }
 
@@ -326,8 +327,12 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
             .and_then(|sb| sb.overrides(&opts.overrides))?
     };
 
-    let md = build_metadata(ctx.engine.clone(), &sb)?;
-    let md = optimise_metadata(md)?;
+    let md = if opts.skip_mappings {
+        build_metadata_without_mappings(ctx.engine.clone(), &sb)?
+    } else {
+        let m = build_metadata(ctx.engine.clone(), &sb)?;
+        optimise_metadata(m)?
+    };
 
     let writer: Box<dyn Write> = if opts.output.is_some() {
         let f = File::create(opts.output.unwrap()).context(OutputError)?;

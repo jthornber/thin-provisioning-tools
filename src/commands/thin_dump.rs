@@ -122,6 +122,7 @@ impl<'a> Command<'a> for ThinDumpCommand {
             report: report.clone(),
             repair: matches.is_present("REPAIR"),
             use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
+            skip_mappings: matches.is_present("SKIP_MAPPINGS"),
             overrides: SuperblockOverrides {
                 transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
                 data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
