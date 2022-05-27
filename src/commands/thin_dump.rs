@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::commands::utils::*;
 use crate::commands::Command;
+use crate::dump_utils::OutputError;
 use crate::report::*;
 use crate::thin::dump::{dump, ThinDumpOptions};
 use crate::thin::metadata_repair::SuperblockOverrides;
@@ -121,6 +122,7 @@ impl<'a> Command<'a> for ThinDumpCommand {
             report: report.clone(),
             repair: matches.is_present("REPAIR"),
             use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
+            skip_mappings: matches.is_present("SKIP_MAPPINGS"),
             overrides: SuperblockOverrides {
                 transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
                 data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
@@ -128,9 +130,17 @@ impl<'a> Command<'a> for ThinDumpCommand {
             },
         };
 
-        dump(opts).map_err(|reason| {
-            report.fatal(&format!("{}", reason));
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        if let Err(e) = dump(opts) {
+            if !e.is::<OutputError>() {
+                report.fatal(&format!("{:?}", e));
+                report.fatal(
+                    "metadata contains errors (run thin_check for details).\n\
+                    perhaps you wanted to run with --repair ?",
+                );
+            }
+            return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+        }
+
+        Ok(())
     }
 }

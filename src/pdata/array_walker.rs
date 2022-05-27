@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -173,6 +174,71 @@ impl ArrayWalker {
         let v = BlockValueVisitor::<V>::new(self.engine.clone(), self.sm.clone(), visitor);
         w.walk(&mut path, &v, root)
     }
+}
+
+//------------------------------------------
+
+struct BlockPathCollector {
+    ablocks: Mutex<BTreeMap<u64, (Vec<u64>, u64)>>,
+}
+
+impl BlockPathCollector {
+    fn new() -> BlockPathCollector {
+        BlockPathCollector {
+            ablocks: Mutex::new(BTreeMap::new()),
+        }
+    }
+}
+
+impl NodeVisitor<u64> for BlockPathCollector {
+    fn visit(
+        &self,
+        path: &[u64],
+        kr: &KeyRange,
+        _h: &NodeHeader,
+        keys: &[u64],
+        values: &[u64],
+    ) -> btree::Result<()> {
+        // Verify key's continuity.
+        // The ordering of keys had been verified in unpack_node(),
+        // so comparing the keys against the key range is sufficient.
+        if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
+            return Err(btree::value_err("gaps in array indicies".to_string()));
+        }
+        if let Some(end) = kr.end {
+            if *keys.last().unwrap() + 1 != end {
+                return Err(btree::value_err(
+                    "non-contiguous array indicies".to_string(),
+                ));
+            }
+        }
+
+        let mut ablocks = self.ablocks.lock().unwrap();
+        for (k, v) in keys.iter().zip(values) {
+            ablocks.insert(*k, (path.to_vec(), *v));
+        }
+
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
+        Ok(())
+    }
+}
+
+pub fn collect_array_blocks_with_path(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    ignore_non_fatal: bool,
+    root: u64,
+) -> btree::Result<BTreeMap<u64, (Vec<u64>, u64)>> {
+    let walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let visitor = BlockPathCollector::new();
+    walker.walk(&mut vec![0], &visitor, root)?;
+    Ok(visitor.ablocks.into_inner().unwrap())
 }
 
 //------------------------------------------

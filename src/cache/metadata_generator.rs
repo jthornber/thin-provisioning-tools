@@ -128,9 +128,4 @@ pub fn set_needs_check(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
     write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
 }
 
-pub fn commit_new_transaction() -> Result<()> {
-    // stub
-    Ok(())
-}
-
 //------------------------------------------

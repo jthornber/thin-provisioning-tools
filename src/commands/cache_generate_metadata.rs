@@ -1,8 +1,8 @@
 use anyhow::Result;
-use clap::Arg;
+use clap::{Arg, ArgGroup};
 
 use std::path::Path;
-
+use std::process;
 use std::sync::Arc;
 
 use crate::cache::metadata_generator::*;
@@ -15,15 +15,19 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 
 //------------------------------------------
 
+pub enum MetadataOp {
+    Format,
+    SetNeedsCheck,
+}
+
 struct CacheGenerateOpts<'a> {
+    op: MetadataOp,
     block_size: u32,
     nr_cache_blocks: u32,
     nr_origin_blocks: u64,
     percent_resident: u8,
     percent_dirty: u8,
     async_io: bool,
-    format: bool,
-    set_needs_check: bool,
     output: &'a Path,
 }
 
@@ -35,19 +39,20 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
         Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?)
     };
 
-    if opts.format {
-        let cache_gen = CacheGenerator {
-            block_size: opts.block_size,
-            nr_cache_blocks: opts.nr_cache_blocks,
-            nr_origin_blocks: opts.nr_origin_blocks,
-            percent_resident: opts.percent_resident,
-            percent_dirty: opts.percent_dirty,
-        };
-        format(engine, &cache_gen)?;
-    } else if opts.set_needs_check {
-        set_needs_check(engine)?;
-    } else {
-        commit_new_transaction()?;
+    match opts.op {
+        MetadataOp::Format => {
+            let cache_gen = CacheGenerator {
+                block_size: opts.block_size,
+                nr_cache_blocks: opts.nr_cache_blocks,
+                nr_origin_blocks: opts.nr_origin_blocks,
+                percent_resident: opts.percent_resident,
+                percent_dirty: opts.percent_dirty,
+            };
+            format(engine, &cache_gen)?;
+        }
+        MetadataOp::SetNeedsCheck => {
+            set_needs_check(engine)?;
+        }
     }
 
     Ok(())
@@ -73,12 +78,14 @@ impl CacheGenerateMetadataCommand {
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
-                    .long("format"),
+                    .long("format")
+                    .group("commands"),
             )
             .arg(
                 Arg::new("SET_NEEDS_CHECK")
                     .help("Set the NEEDS_CHECK flag")
-                    .long("set-needs-check"),
+                    .long("set-needs-check")
+                    .group("commands"),
             )
             // options
             .arg(
@@ -124,6 +131,7 @@ impl CacheGenerateMetadataCommand {
                     .value_name("FILE")
                     .required(true),
             )
+            .group(ArgGroup::new("commands").required(true))
     }
 }
 
@@ -138,14 +146,20 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
         let opts = CacheGenerateOpts {
+            op: if matches.is_present("FORMAT") {
+                MetadataOp::Format
+            } else if matches.is_present("SET_NEEDS_CHECK") {
+                MetadataOp::SetNeedsCheck
+            } else {
+                eprintln!("unknown option");
+                process::exit(1);
+            },
             block_size: matches.value_of_t_or_exit::<u32>("CACHE_BLOCK_SIZE"),
             nr_cache_blocks: matches.value_of_t_or_exit::<u32>("NR_CACHE_BLOCKS"),
             nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
             percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
             percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
             async_io: matches.is_present("ASYNC_IO"),
-            format: matches.is_present("FORMAT"),
-            set_needs_check: matches.is_present("SET_NEEDS_CHECK"),
             output: output_file,
         };
 

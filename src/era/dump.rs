@@ -1,13 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use fixedbitset::FixedBitSet;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::dump_utils::*;
 use crate::era::ir::{self, MetadataVisitor};
 use crate::era::superblock::*;
 use crate::era::writeset::Writeset;
@@ -170,11 +170,11 @@ pub struct EraDumpOptions<'a> {
     pub repair: bool,
 }
 
-struct Context {
+struct EraDumpContext {
     engine: Arc<dyn IoEngine + Send + Sync>,
 }
 
-fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<Context> {
+fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<EraDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
@@ -182,7 +182,7 @@ fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<Context> {
         Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
     };
 
-    Ok(Context { engine })
+    Ok(EraDumpContext { engine })
 }
 
 // notify the visitor about the marked blocks only
@@ -364,6 +364,18 @@ fn collate_writesets(
     Ok(archive)
 }
 
+fn dump_eras(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
+    root: u64,
+    era_archive: &dyn Archive,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let ablocks = collect_array_blocks_with_path(engine.clone(), ignore_non_fatal, root)?;
+    let emitter = LogicalEraEmitter::new(out, era_archive);
+    walk_array_blocks(engine, ablocks, &emitter)
+}
+
 pub fn dump_metadata_logical(
     engine: Arc<dyn IoEngine + Send + Sync>,
     out: &mut dyn MetadataVisitor,
@@ -378,16 +390,14 @@ pub fn dump_metadata_logical(
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
     };
-    out.superblock_b(&xml_sb)?;
+    out.superblock_b(&xml_sb).context(OutputError)?;
 
-    out.era_b()?;
-    let w = ArrayWalker::new(engine, repair);
-    let mut emitter = LogicalEraEmitter::new(out, era_archive.deref());
-    w.walk(&mut emitter, sb.era_array_root)?;
-    out.era_e()?;
+    out.era_b().context(OutputError)?;
+    dump_eras(engine, out, sb.era_array_root, era_archive.as_ref(), repair)?;
+    out.era_e().context(OutputError)?;
 
-    out.superblock_e()?;
-    out.eof()?;
+    out.superblock_e().context(OutputError)?;
+    out.eof().context(OutputError)?;
 
     Ok(())
 }
@@ -399,7 +409,8 @@ pub fn dump(opts: EraDumpOptions) -> anyhow::Result<()> {
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
     let writer: Box<dyn Write> = if opts.output.is_some() {
-        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
+        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+        Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))
     };

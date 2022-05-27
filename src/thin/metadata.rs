@@ -138,6 +138,33 @@ pub fn build_metadata(
     Ok(Metadata { defs, devs })
 }
 
+pub fn build_metadata_without_mappings(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+) -> Result<Metadata> {
+    let details =
+        btree_to_map::<DeviceDetail>(&mut vec![0], engine.clone(), true, sb.details_root)?;
+
+    let to_empty_dev = |thin_id: u64, detail: &DeviceDetail| Device {
+        thin_id: thin_id as u32,
+        detail: *detail,
+        map: Mapping {
+            kr: KeyRange::new(),
+            entries: Vec::new(),
+        },
+    };
+
+    let devs = details
+        .iter()
+        .map(|(thin_id, detail)| to_empty_dev(*thin_id, detail))
+        .collect::<Vec<Device>>();
+
+    Ok(Metadata {
+        defs: Vec::new(),
+        devs,
+    })
+}
+
 //------------------------------------------
 
 fn gather_entries(g: &mut Gatherer, es: &[Entry]) {

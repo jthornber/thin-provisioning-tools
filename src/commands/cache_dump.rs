@@ -6,6 +6,7 @@ use std::path::Path;
 use crate::cache::dump::{dump, CacheDumpOptions};
 use crate::commands::utils::*;
 use crate::commands::Command;
+use crate::dump_utils::OutputError;
 
 //------------------------------------------
 
@@ -68,7 +69,6 @@ impl<'a> Command<'a> for CacheDumpCommand {
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
-        drop(report);
 
         let opts = CacheDumpOptions {
             input: input_file,
@@ -77,10 +77,18 @@ impl<'a> Command<'a> for CacheDumpCommand {
             repair: matches.is_present("REPAIR"),
         };
 
-        dump(opts).map_err(|reason| {
-            eprintln!("{}", reason);
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        if let Err(e) = dump(opts) {
+            if !e.is::<OutputError>() {
+                report.fatal(&format!("{:?}", e));
+                report.fatal(
+                    "metadata contains errors (run cache_check for details).\n\
+                    perhaps you wanted to run with --repair ?",
+                );
+            }
+            return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+        }
+
+        Ok(())
     }
 }
 

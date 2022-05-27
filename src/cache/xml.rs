@@ -111,6 +111,8 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn eof(&mut self) -> Result<Visit> {
+        let w = self.w.inner();
+        w.flush()?;
         Ok(Visit::Continue)
     }
 }
