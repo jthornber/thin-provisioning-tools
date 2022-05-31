@@ -115,7 +115,7 @@ impl<'a> Command<'a> for ThinShrinkCommand {
         let opts = self.parse_args(args)?;
 
         shrink(opts).map_err(|reason| {
-            eprintln!("Application error: {}\n", reason);
+            eprintln!("Application error: {:?}\n", reason);
             std::io::Error::from_raw_os_error(libc::EPERM)
         })
     }
