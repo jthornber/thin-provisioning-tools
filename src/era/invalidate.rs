@@ -263,10 +263,11 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
 pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
     let ctx = mk_context(opts)?;
 
-    let mut sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    if opts.use_metadata_snap {
-        sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
-    }
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(ctx.engine.as_ref())?
+    } else {
+        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
 
     let w: Box<dyn Write> = if opts.output.is_some() {
         Box::new(BufWriter::new(File::create(opts.output.unwrap())?))

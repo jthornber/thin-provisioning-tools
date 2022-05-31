@@ -318,10 +318,11 @@ fn mk_context(opts: &ThinDeltaOptions) -> Result<Context> {
 pub fn delta(opts: ThinDeltaOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
-    let mut sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    if opts.use_metadata_snap {
-        sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
-    }
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(ctx.engine.as_ref())?
+    } else {
+        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
 
     // ensure the metadata is consistent
     is_superblock_consistent(sb.clone(), ctx.engine.clone(), false)?;

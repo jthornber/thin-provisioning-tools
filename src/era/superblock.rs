@@ -97,6 +97,14 @@ pub fn read_superblock(engine: &dyn IoEngine, loc: u64) -> Result<Superblock> {
     }
 }
 
+pub fn read_superblock_snap(engine: &dyn IoEngine) -> Result<Superblock> {
+    let actual_sb = read_superblock(engine, SUPERBLOCK_LOCATION)?;
+    if actual_sb.metadata_snap == 0 {
+        return Err(anyhow!("no current metadata snap"));
+    }
+    read_superblock(engine, actual_sb.metadata_snap)
+}
+
 //------------------------------------------
 
 fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
