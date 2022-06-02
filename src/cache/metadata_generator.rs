@@ -22,6 +22,7 @@ pub struct CacheGenerator {
     pub nr_origin_blocks: u64,
     pub percent_resident: u8,
     pub percent_dirty: u8,
+    pub metadata_version: u8,
 }
 
 impl CacheGenerator {
@@ -31,6 +32,7 @@ impl CacheGenerator {
         nr_origin_blocks: u64,
         percent_resident: u8,
         percent_dirty: u8,
+        metadata_version: u8,
     ) -> Self {
         CacheGenerator {
             block_size,
@@ -38,6 +40,7 @@ impl CacheGenerator {
             nr_origin_blocks,
             percent_resident,
             percent_dirty,
+            metadata_version,
         }
     }
 }
@@ -115,7 +118,7 @@ pub fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: &CacheGenerator) -> 
     let sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
     let batch_size = engine.get_batch_size();
     let mut w = WriteBatcher::new(engine, sm, batch_size);
-    let mut restorer = Restorer::new(&mut w);
+    let mut restorer = Restorer::new(&mut w, gen.metadata_version);
 
     gen.generate_metadata(&mut restorer)
 }

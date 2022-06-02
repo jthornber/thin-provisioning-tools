@@ -27,6 +27,7 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 pub struct CacheRestoreOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
+    pub metadata_version: u8,
     pub async_io: bool,
     pub report: Arc<Report>,
 }
@@ -64,6 +65,7 @@ enum Section {
 pub struct Restorer<'a> {
     write_batcher: &'a mut WriteBatcher,
     sb: Option<ir::Superblock>,
+    metadata_version: u8,
     mapping_builder: Option<ArrayBuilder<Mapping>>,
     dirty_builder: Option<ArrayBuilder<u64>>,
     hint_builder: Option<ArrayBuilder<Hint>>,
@@ -76,10 +78,11 @@ pub struct Restorer<'a> {
 }
 
 impl<'a> Restorer<'a> {
-    pub fn new(w: &'a mut WriteBatcher) -> Restorer<'a> {
+    pub fn new(w: &'a mut WriteBatcher, metadata_version: u8) -> Restorer<'a> {
         Restorer {
             write_batcher: w,
             sb: None,
+            metadata_version,
             mapping_builder: None,
             dirty_builder: None,
             hint_builder: None,
@@ -90,6 +93,24 @@ impl<'a> Restorer<'a> {
             dirty_bits: (0, 0),
             in_section: Section::None,
         }
+    }
+
+    fn set_dirty(&mut self, cache_block: u32) -> Result<()> {
+        let index = cache_block >> 6;
+        let mask = 1 << (cache_block & 63);
+        if index == self.dirty_bits.0 {
+            self.dirty_bits.1 |= mask;
+        } else {
+            let dirty_builder = self.dirty_builder.as_mut().unwrap();
+            dirty_builder.push_value(
+                self.write_batcher,
+                self.dirty_bits.0 as u64,
+                self.dirty_bits.1,
+            )?;
+            self.dirty_bits.0 = index;
+            self.dirty_bits.1 = mask;
+        }
+        Ok(())
     }
 
     fn finalize(&mut self) -> Result<()> {
@@ -133,7 +154,7 @@ impl<'a> Restorer<'a> {
                 needs_check: false,
             },
             block: SUPERBLOCK_LOCATION,
-            version: 2,
+            version: self.metadata_version as u32,
             policy_name: src_sb.policy.as_bytes().to_vec(),
             policy_version: vec![2, 0, 0],
             policy_hint_size: src_sb.hint_width,
@@ -174,7 +195,9 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         }
 
         self.mapping_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
-        self.dirty_builder = Some(ArrayBuilder::new(div_up(sb.nr_cache_blocks as u64, 64)));
+        if self.metadata_version > 1 {
+            self.dirty_builder = Some(ArrayBuilder::new(div_up(sb.nr_cache_blocks as u64, 64)));
+        }
         self.hint_builder = Some(ArrayBuilder::new(sb.nr_cache_blocks as u64));
 
         let discard_builder = ArrayBuilder::<u64>::new(0); // discard bitset is optional
@@ -206,29 +229,21 @@ impl<'a> MetadataVisitor for Restorer<'a> {
     }
 
     fn mapping(&mut self, m: &ir::Map) -> Result<Visit> {
-        let map = Mapping {
+        let mut map = Mapping {
             oblock: m.oblock,
             flags: MappingFlags::Valid as u32,
         };
-        let mapping_builder = self.mapping_builder.as_mut().unwrap();
-        mapping_builder.push_value(self.write_batcher, m.cblock as u64, map)?;
 
         if m.dirty {
-            let index = m.cblock >> 6;
-            let mask = 1 << (m.cblock & 63);
-            if index == self.dirty_bits.0 {
-                self.dirty_bits.1 |= mask;
+            if self.metadata_version == 1 {
+                map.flags |= MappingFlags::Dirty as u32;
             } else {
-                let dirty_builder = self.dirty_builder.as_mut().unwrap();
-                dirty_builder.push_value(
-                    self.write_batcher,
-                    self.dirty_bits.0 as u64,
-                    self.dirty_bits.1,
-                )?;
-                self.dirty_bits.0 = index;
-                self.dirty_bits.1 = mask;
+                self.set_dirty(m.cblock)?;
             }
         }
+
+        let mapping_builder = self.mapping_builder.as_mut().unwrap();
+        mapping_builder.push_value(self.write_batcher, m.cblock as u64, map)?;
 
         Ok(Visit::Continue)
     }
@@ -301,7 +316,7 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
     let mut w = WriteBatcher::new(ctx.engine.clone(), sm.clone(), ctx.engine.get_batch_size());
 
     // build cache mappings
-    let mut restorer = Restorer::new(&mut w);
+    let mut restorer = Restorer::new(&mut w, opts.metadata_version);
     xml::read(input, &mut restorer)?;
 
     Ok(())
