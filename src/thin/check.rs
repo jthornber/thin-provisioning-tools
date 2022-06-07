@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
-use crate::io_engine::IoEngine;
+use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
@@ -81,8 +82,9 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 pub const MAX_CONCURRENT_IO: u32 = 1024;
 
-pub struct ThinCheckOptions {
-    pub engine: Arc<dyn IoEngine + Send + Sync>,
+pub struct ThinCheckOptions<'a> {
+    pub input: &'a Path,
+    pub async_io: bool,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
@@ -196,7 +198,7 @@ fn check_mapping_bottom_level(
     }
 }
 
-fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
+fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
     let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
     let pool = ThreadPool::new(nr_threads);
 
@@ -207,8 +209,28 @@ fn mk_context(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> R
     })
 }
 
+fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
+    let writable = opts.auto_repair || opts.clear_needs_check;
+    let exclusive = opts.use_metadata_snap;
+
+    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
+        Arc::new(
+            AsyncIoEngine::new_with(opts.input, MAX_CONCURRENT_IO, writable, exclusive)
+                .expect("unable to open input file"),
+        )
+    } else {
+        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
+        Arc::new(
+            SyncIoEngine::new_with(opts.input, nr_threads, writable, exclusive)
+                .expect("unable to open input file"),
+        )
+    };
+
+    mk_context_(engine, opts.report.clone())
+}
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let ctx = mk_context(opts.engine.clone(), opts.report.clone())?;
+    let ctx = mk_context(&opts)?;
 
     // FIXME: temporarily get these out
     let report = &ctx.report;
@@ -415,7 +437,7 @@ pub fn check_with_maps(
     engine: Arc<dyn IoEngine + Send + Sync>,
     report: Arc<Report>,
 ) -> Result<CheckMaps> {
-    let ctx = mk_context(engine.clone(), report.clone())?;
+    let ctx = mk_context_(engine.clone(), report.clone())?;
     report.set_title("Checking thin metadata");
 
     // superblock
