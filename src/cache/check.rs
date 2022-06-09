@@ -297,8 +297,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         match sb.version {
             1 => {
-                let mut c = format1::MappingChecker::new(nr_origin_blocks);
-                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                let c = format1::MappingChecker::new(nr_origin_blocks);
+                if let Err(e) = w.walk(&c, sb.mapping_root) {
                     ctx.report.fatal(&format!("{}", e));
                 }
             }
@@ -313,8 +313,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                 if err.is_some() {
                     ctx.report.fatal(&format!("{}", err.unwrap()));
                 }
-                let mut c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
-                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                let c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
+                if let Err(e) = w.walk(&c, sb.mapping_root) {
                     ctx.report.fatal(&format!("{}", e));
                 }
             }
@@ -330,8 +330,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         }
         let w =
             ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
-        let mut c = HintChecker::new();
-        if let Err(e) = w.walk(&mut c, sb.hint_root) {
+        let c = HintChecker::new();
+        if let Err(e) = w.walk(&c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));
         }
     }

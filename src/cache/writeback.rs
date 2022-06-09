@@ -374,7 +374,7 @@ fn copy_dirty_blocks(
 
     let nr_metadata_blocks = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?.nr_blocks;
     let indicator = DirtyIndicator::new(ctx.engine.clone(), sb);
-    let mut cv = CopyVisitor::new(
+    let cv = CopyVisitor::new(
         copier,
         indicator,
         sb.flags.clean_shutdown,
@@ -382,7 +382,7 @@ fn copy_dirty_blocks(
         sb.cache_blocks,
     );
     let w = ArrayWalker::new(ctx.engine.clone(), true);
-    let err = w.walk(&mut cv, sb.mapping_root).is_err();
+    let err = w.walk(&cv, sb.mapping_root).is_err();
     let (stats, dirty_ablocks, cleaned_blocks) = cv.complete()?;
 
     Ok((err, stats, dirty_ablocks, cleaned_blocks))

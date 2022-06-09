@@ -101,8 +101,8 @@ fn collate_writeset(
     marked_bits: &mut [u64],
 ) -> Result<()> {
     let w = ArrayWalker::new(engine, false);
-    let mut c = BitsetCollator::new(marked_bits);
-    w.walk(&mut c, writeset_root)?;
+    let c = BitsetCollator::new(marked_bits);
+    w.walk(&c, writeset_root)?;
     Ok(())
 }
 
@@ -113,8 +113,8 @@ fn collate_era_array(
     threshold: u32,
 ) -> Result<()> {
     let w = ArrayWalker::new(engine, false);
-    let mut c = EraArrayCollator::new(marked_bits, threshold);
-    w.walk(&mut c, era_array_root)?;
+    let c = EraArrayCollator::new(marked_bits, threshold);
+    w.walk(&c, era_array_root)?;
     Ok(())
 }
 

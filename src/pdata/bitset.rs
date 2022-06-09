@@ -135,8 +135,8 @@ pub fn read_bitset(
     ignore_none_fatal: bool,
 ) -> (CheckedBitSet, Option<btree::BTreeError>) {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
-    let mut v = BitsetVisitor::new(nr_bits);
-    let err = match w.walk(&mut v, root) {
+    let v = BitsetVisitor::new(nr_bits);
+    let err = match w.walk(&v, root) {
         Ok(()) => None,
         Err(e) => Some(e),
     };
@@ -152,8 +152,8 @@ pub fn read_bitset_with_sm(
     ignore_none_fatal: bool,
 ) -> array::Result<(CheckedBitSet, Option<btree::BTreeError>)> {
     let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
-    let mut v = BitsetVisitor::new(nr_bits);
-    let err = match w.walk(&mut v, root) {
+    let v = BitsetVisitor::new(nr_bits);
+    let err = match w.walk(&v, root) {
         Ok(()) => None,
         Err(e) => Some(e),
     };
@@ -167,7 +167,7 @@ pub fn read_bitset_no_err(
     ignore_none_fatal: bool,
 ) -> btree::Result<FixedBitSet> {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
-    let mut v = BitsetCollector::new(nr_bits);
-    w.walk(&mut v, root)?;
+    let v = BitsetCollector::new(nr_bits);
+    w.walk(&v, root)?;
     Ok(v.get_bitset())
 }
