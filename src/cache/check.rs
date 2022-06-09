@@ -280,9 +280,11 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // The discard bitset is optional and could be updated during device suspension.
-    // A restored metadata therefore comes with a zero-sized discard bitset,
-    // and also zeroed discard_block_size and discard_nr_blocks.
+    // Use the discard bitset as the hint of the origin block counts.
+    // Note that the discard bitset might not be available or could be resized
+    // during device suspension, e.g., a metadata built by cache_restore comes
+    // with a zero-length discard bitset. In these cases, the number of origin
+    // blocks is uncertain; thus, the cache mappings are not checked.
     let nr_origin_blocks =
         if sb.flags.clean_shutdown && sb.discard_block_size > 0 && sb.discard_nr_blocks > 0 {
             let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
