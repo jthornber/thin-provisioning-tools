@@ -155,7 +155,7 @@ impl ArrayVisitor<Mapping> for CopyVisitor {
 
         let prev_issued = inner.stats.blocks_issued;
         let cbegin = index as u32 * b.header.max_entries;
-        let cend = cbegin + b.header.max_entries;
+        let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.iter().zip(cbegin..cend) {
             inner.stats.blocks_scanned = cblock;
 
@@ -224,7 +224,7 @@ fn update_v1_metadata(
 
         let mut needs_update = false;
         let cbegin = *index as u32 * ablock.header.max_entries;
-        let cend = cbegin + ablock.header.max_entries;
+        let cend = cbegin + ablock.header.nr_entries;
         for (m, cblock) in ablock.values.iter_mut().zip(cbegin..cend) {
             if !cleaned_blocks.contains(cblock as usize) {
                 continue;
