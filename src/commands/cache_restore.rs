@@ -39,7 +39,7 @@ impl CacheRestoreCommand {
             )
             .arg(
                 Arg::new("METADATA_VERSION")
-                    .help("Specify the outiput metadata version")
+                    .help("Specify the output metadata version")
                     .long("metadata-version")
                     .value_name("NUM")
                     .possible_values(["1", "2"])
@@ -47,7 +47,7 @@ impl CacheRestoreCommand {
             )
             .arg(
                 Arg::new("OUTPUT")
-                    .help("Specify the output device to check")
+                    .help("Specify the output device")
                     .short('o')
                     .long("output")
                     .value_name("FILE")

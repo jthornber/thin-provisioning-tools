@@ -39,7 +39,7 @@ impl EraRestoreCommand {
             )
             .arg(
                 Arg::new("OUTPUT")
-                    .help("Specify the output device to check")
+                    .help("Specify the output device")
                     .short('o')
                     .long("output")
                     .value_name("FILE")

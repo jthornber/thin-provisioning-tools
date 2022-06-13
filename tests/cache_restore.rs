@@ -25,9 +25,9 @@ USAGE:
 OPTIONS:
     -h, --help                      Print help information
     -i, --input <FILE>              Specify the input xml
-        --metadata-version <NUM>    Specify the outiput metadata version [default: 2] [possible
+        --metadata-version <NUM>    Specify the output metadata version [default: 2] [possible
                                     values: 1, 2]
-    -o, --output <FILE>             Specify the output device to check
+    -o, --output <FILE>             Specify the output device
     -q, --quiet                     Suppress output messages, return only exit code.
     -V, --version                   Print version information"
 );
