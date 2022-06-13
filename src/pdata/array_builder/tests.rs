@@ -3,7 +3,7 @@ use super::*;
 use core::ops::Range;
 use std::sync::{Arc, Mutex};
 
-use crate::core_io_engine::CoreIoEngine;
+use crate::io_engine::core::CoreIoEngine;
 use crate::io_engine::IoEngine;
 use crate::pdata::space_map::CoreSpaceMap;
 
