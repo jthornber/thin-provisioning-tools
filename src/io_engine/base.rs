@@ -18,9 +18,7 @@ const ALIGN: usize = 4096;
 #[derive(Debug)]
 pub struct Block {
     pub loc: u64,
-
-    // FIXME: don't make this pub
-    pub data: *mut u8,
+    data: *mut u8,
 }
 
 impl Block {
@@ -47,6 +45,10 @@ impl Block {
         unsafe {
             std::ptr::write_bytes(self.data, 0, BLOCK_SIZE);
         }
+    }
+
+    pub unsafe fn get_raw_ptr(&self) -> *mut u8 {
+        self.data
     }
 }
 
