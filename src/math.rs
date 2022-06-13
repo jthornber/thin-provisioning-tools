@@ -18,6 +18,13 @@ pub fn div_up<T: Integer>(v: T, divisor: T) -> T {
     }
 }
 
+#[test]
+fn test_div_up() {
+    assert_eq!(div_up(4usize, 4usize), 1);
+    assert_eq!(div_up(5usize, 4usize), 2);
+    assert_eq!(div_up(34usize, 8usize), 5);
+}
+
 pub fn div_down<T: Integer>(v: T, divisor: T) -> T {
     v / divisor
 }
