@@ -1,7 +1,7 @@
 use super::test_utils::*;
 use super::*;
 
-use crate::core_io_engine::CoreIoEngine;
+use crate::io_engine::core::CoreIoEngine;
 use crate::io_engine::IoEngine;
 
 //------------------------------------------

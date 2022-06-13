@@ -4,7 +4,7 @@ use mockall::*;
 use rangemap::RangeSet;
 use std::ops::Range;
 
-use crate::core_io_engine::*;
+use crate::io_engine::core::*;
 use crate::pdata::btree_builder::test_utils::*;
 use crate::write_batcher::WriteBatcher;
 
