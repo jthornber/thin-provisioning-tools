@@ -1,4 +1,0 @@
-#!/bin/sh
-
-scheme --libdirs . --program run-tests.scm $*
-
