@@ -25,7 +25,7 @@ USAGE:
 OPTIONS:
     -h, --help             Print help information
     -i, --input <FILE>     Specify the input xml
-    -o, --output <FILE>    Specify the output device to check
+    -o, --output <FILE>    Specify the output device
     -q, --quiet            Suppress output messages, return only exit code.
     -V, --version          Print version information"
 );
