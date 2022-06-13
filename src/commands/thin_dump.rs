@@ -57,8 +57,11 @@ impl ThinDumpCommand {
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Access the metadata snapshot on a live pool")
                     .short('m')
-                    .long("metadata-snapshot")
-                    .value_name("METADATA_SNAPSHOT"),
+                    .long("metadata-snap")
+                    .value_name("BLOCKNR")
+                    .min_values(0)
+                    .max_values(1)
+                    .require_equals(true),
             )
             .arg(
                 Arg::new("NR_DATA_BLOCKS")

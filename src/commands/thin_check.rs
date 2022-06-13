@@ -51,7 +51,7 @@ impl ThinCheckCommand {
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Check the metadata snapshot on a live pool")
                     .short('m')
-                    .long("metadata-snapshot"),
+                    .long("metadata-snap"),
             )
             .arg(
                 Arg::new("QUIET")
