@@ -77,4 +77,3 @@ pub fn get_nr_blocks(path: &Path) -> io::Result<u64> {
 }
 
 //------------------------------------------
-
