@@ -26,10 +26,9 @@ pub trait ArrayVisitor<V: Unpack> {
 
 //------------------------------------------
 
-// FIXME: Eliminate this structure by impl NodeVisitor for ArrayWalker?
 struct BlockValueVisitor<'a, V> {
     engine: Arc<dyn IoEngine + Send + Sync>,
-    array_visitor: &'a mut dyn ArrayVisitor<V>,
+    array_visitor: &'a dyn ArrayVisitor<V>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
 }
 
@@ -37,7 +36,7 @@ impl<'a, V: Unpack> BlockValueVisitor<'a, V> {
     pub fn new(
         e: Arc<dyn IoEngine + Send + Sync>,
         sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-        v: &'a mut dyn ArrayVisitor<V>,
+        v: &'a dyn ArrayVisitor<V>,
     ) -> BlockValueVisitor<'a, V> {
         BlockValueVisitor {
             engine: e,
@@ -164,7 +163,7 @@ impl ArrayWalker {
         })
     }
 
-    pub fn walk<V>(&self, visitor: &mut dyn ArrayVisitor<V>, root: u64) -> btree::Result<()>
+    pub fn walk<V>(&self, visitor: &dyn ArrayVisitor<V>, root: u64) -> btree::Result<()>
     where
         V: Unpack,
     {

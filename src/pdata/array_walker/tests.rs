@@ -182,7 +182,7 @@ where
         );
 
         // TODO: verify errors
-        let _ = walker.walk(&mut visitor, layout.root().block);
+        let _ = walker.walk(&visitor, layout.root().block);
     }
 }
 

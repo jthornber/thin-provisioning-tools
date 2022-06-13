@@ -38,6 +38,14 @@ impl CacheRestoreCommand {
                     .required(true),
             )
             .arg(
+                Arg::new("METADATA_VERSION")
+                    .help("Specify the outiput metadata version")
+                    .long("metadata-version")
+                    .value_name("NUM")
+                    .possible_values(["1", "2"])
+                    .default_value("2"),
+            )
+            .arg(
                 Arg::new("OUTPUT")
                     .help("Specify the output device to check")
                     .short('o')
@@ -66,6 +74,7 @@ impl<'a> Command<'a> for CacheRestoreCommand {
         let opts = CacheRestoreOptions {
             input: input_file,
             output: output_file,
+            metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
             async_io: matches.is_present("ASYNC_IO"),
             report: report.clone(),
         };

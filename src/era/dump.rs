@@ -199,7 +199,8 @@ fn dump_writeset(
     out.writeset_b(&ir::Writeset {
         era,
         nr_bits: ws.nr_bits,
-    })?;
+    })
+    .context(OutputError)?;
 
     // [begin, end) denotes the range of set bits.
     let mut begin: u32 = 0;
@@ -220,7 +221,7 @@ fn dump_writeset(
                         begin,
                         len: end - begin,
                     };
-                    out.writeset_blocks(&m)?;
+                    out.writeset_blocks(&m).context(OutputError)?;
                 }
                 n >>= zeros;
                 end += zeros;
@@ -240,7 +241,7 @@ fn dump_writeset(
                     begin,
                     len: end - begin,
                 };
-                out.writeset_blocks(&m)?;
+                out.writeset_blocks(&m).context(OutputError)?;
             }
             begin = endpos;
             end = begin;
@@ -252,12 +253,23 @@ fn dump_writeset(
             begin,
             len: end - begin,
         };
-        out.writeset_blocks(&m)?;
+        out.writeset_blocks(&m).context(OutputError)?;
     }
 
-    out.writeset_e()?;
+    out.writeset_e().context(OutputError)?;
 
     Ok(())
+}
+
+fn dump_eras(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    out: &mut dyn MetadataVisitor,
+    root: u64,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let ablocks = collect_array_blocks_with_path(engine.clone(), ignore_non_fatal, root)?;
+    let emitter = EraEmitter::new(out);
+    walk_array_blocks(engine, ablocks, &emitter)
 }
 
 pub fn dump_metadata(
@@ -272,21 +284,19 @@ pub fn dump_metadata(
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
     };
-    out.superblock_b(&xml_sb)?;
+    out.superblock_b(&xml_sb).context(OutputError)?;
 
     let writesets = get_writesets_ordered(engine.clone(), sb, repair)?;
     for (era, ws) in writesets.iter() {
         dump_writeset(engine.clone(), out, *era as u32, ws, repair)?;
     }
 
-    out.era_b()?;
-    let w = ArrayWalker::new(engine.clone(), repair);
-    let mut emitter = EraEmitter::new(out);
-    w.walk(&mut emitter, sb.era_array_root)?;
-    out.era_e()?;
+    out.era_b().context(OutputError)?;
+    dump_eras(engine, out, sb.era_array_root, repair)?;
+    out.era_e().context(OutputError)?;
 
-    out.superblock_e()?;
-    out.eof()?;
+    out.superblock_e().context(OutputError)?;
+    out.eof().context(OutputError)?;
 
     Ok(())
 }
@@ -364,7 +374,7 @@ fn collate_writesets(
     Ok(archive)
 }
 
-fn dump_eras(
+fn dump_eras_logical(
     engine: Arc<dyn IoEngine + Send + Sync>,
     out: &mut dyn MetadataVisitor,
     root: u64,
@@ -393,7 +403,7 @@ pub fn dump_metadata_logical(
     out.superblock_b(&xml_sb).context(OutputError)?;
 
     out.era_b().context(OutputError)?;
-    dump_eras(engine, out, sb.era_array_root, era_archive.as_ref(), repair)?;
+    dump_eras_logical(engine, out, sb.era_array_root, era_archive.as_ref(), repair)?;
     out.era_e().context(OutputError)?;
 
     out.superblock_e().context(OutputError)?;

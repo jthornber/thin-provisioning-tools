@@ -24,6 +24,11 @@ impl EraInvalidateCommand {
                     .long("async-io")
                     .hide(true),
             )
+            .arg(
+                Arg::new("METADATA_SNAP")
+                    .help("Use the metadata snapshot rather than the current superblock")
+                    .long("metadata-snapshot"),
+            )
             // options
             .arg(
                 Arg::new("OUTPUT")
@@ -32,19 +37,19 @@ impl EraInvalidateCommand {
                     .long("output")
                     .value_name("FILE"),
             )
-            // arguments
-            .arg(
-                Arg::new("INPUT")
-                    .help("Specify the input device to dump")
-                    .required(true)
-                    .index(1),
-            )
             .arg(
                 Arg::new("WRITTEN_SINCE")
                     .help("Blocks written since the given era will be listed")
                     .long("written-since")
                     .required(true)
                     .value_name("ERA"),
+            )
+            // arguments
+            .arg(
+                Arg::new("INPUT")
+                    .help("Specify the input device to dump")
+                    .required(true)
+                    .index(1),
             )
     }
 }

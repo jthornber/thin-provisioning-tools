@@ -18,7 +18,7 @@ use crate::report::Report;
 use crate::thin::block_time::BlockTime;
 use crate::thin::device_detail::DeviceDetail;
 use crate::thin::metadata_repair::is_superblock_consistent;
-use crate::thin::superblock::{read_superblock, Superblock, SUPERBLOCK_LOCATION};
+use crate::thin::superblock::*;
 use crate::units::*;
 
 //------------------------------------------
@@ -433,10 +433,11 @@ fn some_counting_fields(fields: &[OutputField]) -> bool {
 pub fn ls(opts: ThinLsOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
-    let mut sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    if opts.use_metadata_snap {
-        sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
-    }
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(ctx.engine.as_ref())?
+    } else {
+        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
 
     // ensure the metadata is consistent
     is_superblock_consistent(sb.clone(), ctx.engine.clone(), false)?;

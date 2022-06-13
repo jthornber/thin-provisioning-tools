@@ -101,8 +101,8 @@ fn collate_writeset(
     marked_bits: &mut [u64],
 ) -> Result<()> {
     let w = ArrayWalker::new(engine, false);
-    let mut c = BitsetCollator::new(marked_bits);
-    w.walk(&mut c, writeset_root)?;
+    let c = BitsetCollator::new(marked_bits);
+    w.walk(&c, writeset_root)?;
     Ok(())
 }
 
@@ -113,8 +113,8 @@ fn collate_era_array(
     threshold: u32,
 ) -> Result<()> {
     let w = ArrayWalker::new(engine, false);
-    let mut c = EraArrayCollator::new(marked_bits, threshold);
-    w.walk(&mut c, era_array_root)?;
+    let c = EraArrayCollator::new(marked_bits, threshold);
+    w.walk(&c, era_array_root)?;
     Ok(())
 }
 
@@ -263,10 +263,11 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
 pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
     let ctx = mk_context(opts)?;
 
-    let mut sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    if opts.use_metadata_snap {
-        sb = read_superblock(ctx.engine.as_ref(), sb.metadata_snap)?;
-    }
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(ctx.engine.as_ref())?
+    } else {
+        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
 
     let w: Box<dyn Write> = if opts.output.is_some() {
         Box::new(BufWriter::new(File::create(opts.output.unwrap())?))

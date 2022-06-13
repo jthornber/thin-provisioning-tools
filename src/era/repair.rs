@@ -55,11 +55,8 @@ pub fn repair(opts: EraRepairOptions) -> Result<()> {
     let sb = read_superblock(ctx.engine_in.as_ref(), SUPERBLOCK_LOCATION)?;
 
     let sm = core_metadata_sm(ctx.engine_out.get_nr_blocks(), u32::MAX);
-    let mut w = WriteBatcher::new(
-        ctx.engine_out.clone(),
-        sm.clone(),
-        ctx.engine_out.get_batch_size(),
-    );
+    let batch_size = ctx.engine_out.get_batch_size();
+    let mut w = WriteBatcher::new(ctx.engine_out, sm.clone(), batch_size);
     let mut restorer = Restorer::new(&mut w);
 
     dump_metadata(ctx.engine_in, &mut restorer, &sb, true)

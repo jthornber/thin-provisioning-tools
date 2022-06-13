@@ -3,12 +3,9 @@ extern crate clap;
 use clap::Arg;
 use std::path::Path;
 
-use std::sync::Arc;
-
 use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::io_engine::*;
-use crate::thin::check::{check, ThinCheckOptions, MAX_CONCURRENT_IO};
+use crate::thin::check::{check, ThinCheckOptions};
 
 pub struct ThinCheckCommand;
 
@@ -54,7 +51,7 @@ impl ThinCheckCommand {
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Check the metadata snapshot on a live pool")
                     .short('m')
-                    .long("metadata-snapshot"),
+                    .long("metadata-snap"),
             )
             .arg(
                 Arg::new("QUIET")
@@ -105,24 +102,9 @@ impl<'a> Command<'a> for ThinCheckCommand {
         check_file_not_tiny(input_file, &report);
         check_not_xml(input_file, &report);
 
-        let writable = matches.is_present("AUTO_REPAIR") || matches.is_present("CLEAR_NEEDS_CHECK");
-        let exclusive = !matches.is_present("METADATA_SNAPSHOT");
-
-        let engine: Arc<dyn IoEngine + Send + Sync> = if matches.is_present("ASYNC_IO") {
-            Arc::new(
-                AsyncIoEngine::new_with(input_file, MAX_CONCURRENT_IO, writable, exclusive)
-                    .expect("unable to open input file"),
-            )
-        } else {
-            let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-            Arc::new(
-                SyncIoEngine::new_with(input_file, nr_threads, writable, exclusive)
-                    .expect("unable to open input file"),
-            )
-        };
-
         let opts = ThinCheckOptions {
-            engine,
+            input: input_file,
+            async_io: matches.is_present("ASYNC_IO"),
             sb_only: matches.is_present("SB_ONLY"),
             skip_mappings: matches.is_present("SKIP_MAPPINGS"),
             ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),

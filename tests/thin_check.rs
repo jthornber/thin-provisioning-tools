@@ -37,7 +37,7 @@ OPTIONS:
         --ignore-non-fatal-errors
             Only return a non-zero exit code if a fatal error is found.
 
-    -m, --metadata-snapshot
+    -m, --metadata-snap
             Check the metadata snapshot on a live pool
 
         --override-mapping-root <BLOCKNR>

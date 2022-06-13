@@ -280,9 +280,11 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // The discard bitset is optional and could be updated during device suspension.
-    // A restored metadata therefore comes with a zero-sized discard bitset,
-    // and also zeroed discard_block_size and discard_nr_blocks.
+    // Use the discard bitset as the hint of the origin block counts.
+    // Note that the discard bitset might not be available or could be resized
+    // during device suspension, e.g., a metadata built by cache_restore comes
+    // with a zero-length discard bitset. In these cases, the number of origin
+    // blocks is uncertain; thus, the cache mappings are not checked.
     let nr_origin_blocks =
         if sb.flags.clean_shutdown && sb.discard_block_size > 0 && sb.discard_nr_blocks > 0 {
             let origin_sectors = sb.discard_block_size * sb.discard_nr_blocks;
@@ -297,8 +299,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         match sb.version {
             1 => {
-                let mut c = format1::MappingChecker::new(nr_origin_blocks);
-                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                let c = format1::MappingChecker::new(nr_origin_blocks);
+                if let Err(e) = w.walk(&c, sb.mapping_root) {
                     ctx.report.fatal(&format!("{}", e));
                 }
             }
@@ -313,8 +315,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                 if err.is_some() {
                     ctx.report.fatal(&format!("{}", err.unwrap()));
                 }
-                let mut c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
-                if let Err(e) = w.walk(&mut c, sb.mapping_root) {
+                let c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
+                if let Err(e) = w.walk(&c, sb.mapping_root) {
                     ctx.report.fatal(&format!("{}", e));
                 }
             }
@@ -330,8 +332,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         }
         let w =
             ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
-        let mut c = HintChecker::new();
-        if let Err(e) = w.walk(&mut c, sb.hint_root) {
+        let c = HintChecker::new();
+        if let Err(e) = w.walk(&c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));
         }
     }

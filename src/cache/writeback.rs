@@ -155,7 +155,7 @@ impl ArrayVisitor<Mapping> for CopyVisitor {
 
         let prev_issued = inner.stats.blocks_issued;
         let cbegin = index as u32 * b.header.max_entries;
-        let cend = cbegin + b.header.max_entries;
+        let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.iter().zip(cbegin..cend) {
             inner.stats.blocks_scanned = cblock;
 
@@ -224,7 +224,7 @@ fn update_v1_metadata(
 
         let mut needs_update = false;
         let cbegin = *index as u32 * ablock.header.max_entries;
-        let cend = cbegin + ablock.header.max_entries;
+        let cend = cbegin + ablock.header.nr_entries;
         for (m, cblock) in ablock.values.iter_mut().zip(cbegin..cend) {
             if !cleaned_blocks.contains(cblock as usize) {
                 continue;
@@ -374,7 +374,7 @@ fn copy_dirty_blocks(
 
     let nr_metadata_blocks = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?.nr_blocks;
     let indicator = DirtyIndicator::new(ctx.engine.clone(), sb);
-    let mut cv = CopyVisitor::new(
+    let cv = CopyVisitor::new(
         copier,
         indicator,
         sb.flags.clean_shutdown,
@@ -382,7 +382,7 @@ fn copy_dirty_blocks(
         sb.cache_blocks,
     );
     let w = ArrayWalker::new(ctx.engine.clone(), true);
-    let err = w.walk(&mut cv, sb.mapping_root).is_err();
+    let err = w.walk(&cv, sb.mapping_root).is_err();
     let (stats, dirty_ablocks, cleaned_blocks) = cv.complete()?;
 
     Ok((err, stats, dirty_ablocks, cleaned_blocks))

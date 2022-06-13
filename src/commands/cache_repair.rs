@@ -81,7 +81,7 @@ impl<'a> Command<'a> for CacheRepairCommand {
         };
 
         repair(opts).map_err(|reason| {
-            report.fatal(&format!("{}", reason));
+            report.fatal(&format!("{:?}", reason));
             std::io::Error::from_raw_os_error(libc::EPERM)
         })
     }
