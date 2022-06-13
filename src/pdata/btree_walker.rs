@@ -162,12 +162,13 @@ impl BTreeWalker {
                             errs.push(e.clone());
                             self.set_fail(blocks[i], e);
                         }
-                        Ok(b) => match self.walk_node(path, visitor, &filtered_krs[i], &b, false) {
-                            Err(e) => {
+                        Ok(b) => {
+                            if let Err(e) =
+                                self.walk_node(path, visitor, &filtered_krs[i], &b, false)
+                            {
                                 errs.push(e);
                             }
-                            Ok(()) => {}
-                        },
+                        }
                     }
                 }
             }
@@ -404,12 +405,10 @@ where
                         let mut path = path.clone();
 
                         pool.execute(move || {
-                            match w.walk_node(&mut path, visitor.as_ref(), &kr, &b, false) {
-                                Err(e) => {
-                                    let mut errs = errs.lock().unwrap();
-                                    errs.push(e);
-                                }
-                                Ok(()) => {}
+                            if let Err(e) = w.walk_node(&mut path, visitor.as_ref(), &kr, &b, false)
+                            {
+                                let mut errs = errs.lock().unwrap();
+                                errs.push(e);
                             }
                         });
                     }
