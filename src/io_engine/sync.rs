@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::{Result};
+use std::io::Result;
 use std::ops::{Deref, DerefMut};
 use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::path::Path;
@@ -22,7 +22,7 @@ struct FileGuard<'a> {
 }
 
 impl<'a> FileGuard<'a> {
-    fn new(engine: &'a SyncIoEngine, file: File) -> FileGuard<'a> {
+    fn new(engine: &'a SyncIoEngine, file: File) -> Self {
         FileGuard {
             engine,
             file: Some(file),
@@ -42,7 +42,7 @@ impl<'a> DerefMut for FileGuard<'a> {
     fn deref_mut(&mut self) -> &mut File {
         match &mut self.file {
             None => {
-                todo!();
+                panic!("empty file guard")
             }
             Some(f) => f,
         }
@@ -70,16 +70,11 @@ impl SyncIoEngine {
         Ok(file)
     }
 
-    pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<SyncIoEngine> {
+    pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<Self> {
         SyncIoEngine::new_with(path, nr_files, writable, true)
     }
 
-    pub fn new_with(
-        path: &Path,
-        nr_files: usize,
-        writable: bool,
-        excl: bool,
-    ) -> Result<SyncIoEngine> {
+    pub fn new_with(path: &Path, nr_files: usize, writable: bool, excl: bool) -> Result<Self> {
         let nr_blocks = get_nr_blocks(path)?; // check file mode before opening it
         let mut files = Vec::with_capacity(nr_files);
         let file = SyncIoEngine::open_file(path, writable, excl)?;
@@ -160,5 +155,3 @@ impl IoEngine for SyncIoEngine {
 }
 
 //------------------------------------------
-
-
