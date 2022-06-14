@@ -20,14 +20,14 @@ pub struct Block {
 impl Block {
     // Creates a new block that corresponds to the given location.  The
     // memory is not initialised.
-    pub fn new(loc: u64) -> Block {
+    pub fn new(loc: u64) -> Self {
         let layout = Layout::from_size_align(BLOCK_SIZE, ALIGN).unwrap();
         let ptr = unsafe { alloc(layout) };
         assert!(!ptr.is_null(), "out of memory");
         Block { loc, data: ptr }
     }
 
-    pub fn zeroed(loc: u64) -> Block {
+    pub fn zeroed(loc: u64) -> Self {
         let r = Self::new(loc);
         write_bytes(r.get_data(), 0);
         r
