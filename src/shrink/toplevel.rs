@@ -5,13 +5,13 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Read, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::io_engine::{IoEngine, SyncIoEngine};
+use crate::io_engine::{IoEngine, SyncIoEngine, SECTOR_SHIFT};
 use crate::pdata::space_map_metadata::core_metadata_sm;
 use crate::report::Report;
-use crate::shrink::copier::{self, Region};
+use crate::sync_copier::SyncCopier;
 use crate::thin::dump::dump_metadata;
 use crate::thin::ir::{self, MetadataVisitor, Visit};
 use crate::thin::metadata::*;
@@ -293,18 +293,21 @@ mod tests {
     }
 }
 
-fn build_copy_regions(remaps: &[(BlockRange, u64)], block_size: u64) -> Vec<Region> {
-    let mut rs = Vec::new();
+fn copy_regions(
+    data_dev: &Path,
+    remaps: &[(BlockRange, u64)],
+    block_size: u64,
+) -> std::io::Result<()> {
+    let copier = SyncCopier::in_file(data_dev)?;
 
     for (from, to) in remaps {
-        rs.push(Region {
-            src: from.start * block_size,
-            dest: to * block_size,
-            len: range_len(from) * block_size,
-        });
+        let src = from.start * block_size;
+        let dest = to * block_size;
+        let len = range_len(from) * block_size;
+        copier.copy(src, dest, len)?;
     }
 
-    rs
+    Ok(())
 }
 
 //---------------------------------------
@@ -511,8 +514,8 @@ fn rewrite_xml(opts: ThinShrinkOptions) -> Result<()> {
     let remaps = build_remaps_from_xml(input.try_clone()?, opts.nr_blocks)?;
 
     if opts.do_copy {
-        let regions = build_copy_regions(&remaps, sb.data_block_size as u64);
-        copier::copy(&opts.data_device, &regions)?;
+        let bs = (sb.data_block_size as u64) << SECTOR_SHIFT as u64;
+        copy_regions(&opts.data_device, &remaps, bs)?;
     }
 
     // 2nd pass
@@ -533,8 +536,8 @@ fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
     let remaps = build_remaps_from_metadata(input.clone(), &sb, &md, opts.nr_blocks)?;
 
     if opts.do_copy {
-        let regions = build_copy_regions(&remaps, sb.data_block_size as u64);
-        copier::copy(&opts.data_device, &regions)?;
+        let bs = (sb.data_block_size as u64) << SECTOR_SHIFT as u64;
+        copy_regions(&opts.data_device, &remaps, bs)?;
     }
 
     // 2nd pass
