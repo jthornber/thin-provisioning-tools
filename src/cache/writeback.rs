@@ -8,7 +8,7 @@ use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::checksum;
 use crate::copier::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine, SECTOR_SHIFT};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset, CheckedBitSet};
@@ -42,6 +42,8 @@ impl CopyStats {
         }
     }
 }
+
+//-----------------------------------------
 
 struct DirtyIndicator {
     version: u32,
@@ -79,6 +81,8 @@ impl DirtyIndicator {
     }
 }
 
+//-----------------------------------------
+
 struct CVInner {
     copier: Copier,
     indicator: DirtyIndicator,
@@ -87,12 +91,12 @@ struct CVInner {
     cleaned_blocks: FixedBitSet, // cache blocks that had been writeback successfully
 }
 
-struct CopyVisitor {
+struct AsyncCopyVisitor {
     inner: Mutex<CVInner>,
     only_dirty: bool,
 }
 
-impl CopyVisitor {
+impl AsyncCopyVisitor {
     fn new(
         c: Copier,
         indicator: DirtyIndicator,
@@ -100,7 +104,7 @@ impl CopyVisitor {
         nr_metadata_blocks: u64,
         nr_cache_blocks: u32,
     ) -> Self {
-        CopyVisitor {
+        AsyncCopyVisitor {
             inner: Mutex::new(CVInner {
                 copier: c,
                 indicator,
@@ -147,9 +151,9 @@ impl CopyVisitor {
 }
 
 // TODO: Avoid visiting clean mappings in v2 metadata.
-//       The CopyVisitor should not read an mapping array block,
+//       The AsyncCopyVisitor should not read an mapping array block,
 //       if all the mappings in this block are clean.
-impl ArrayVisitor<Mapping> for CopyVisitor {
+impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
         let mut inner = self.inner.lock().unwrap();
 
@@ -333,25 +337,14 @@ fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
     })
 }
 
-fn calc_queue_depth(buffer_size: Option<usize>, data_block_size: u32) -> anyhow::Result<u32> {
-    let queue_depth = if let Some(buf_size) = buffer_size {
-        if buf_size > data_block_size as usize {
-            let qd = buf_size / data_block_size as usize;
-            if qd > u32::MAX as usize {
-                return Err(anyhow!("buffer size exceeds limit"));
-            }
-            qd as u32
-        } else {
-            1
-        }
-    } else {
-        // default up to 1GiB buffer, or up to 256 queue depth
-        std::cmp::max(2097152 / data_block_size, 256)
-    };
-    Ok(queue_depth)
+// The output queue depth is limited to a range [1, 256]
+fn calc_queue_depth(buffer_size: usize, data_block_size: u32) -> anyhow::Result<u32> {
+    let qd = std::cmp::max(buffer_size / data_block_size as usize, 1);
+    let qd = std::cmp::min(qd, 256);
+    Ok(qd as u32)
 }
 
-fn copy_dirty_blocks(
+fn copy_dirty_blocks_async(
     ctx: &Context,
     sb: &Superblock,
     opts: &CacheWritebackOptions,
@@ -360,21 +353,21 @@ fn copy_dirty_blocks(
         return Err(anyhow!("unsupported metadata version: {}", sb.version));
     }
 
-    // TODO: handle large data block size
-    let queue_depth = calc_queue_depth(opts.buffer_size, sb.data_block_size)?;
+    // default to 4MB buffer size
+    let queue_depth = calc_queue_depth(opts.buffer_size.unwrap_or(8192), sb.data_block_size)?;
 
     let copier = Copier::new(
         opts.fast_dev,
         opts.origin_dev,
-        sb.data_block_size,
-        queue_depth as u32,
-        opts.fast_dev_offset.unwrap_or(0),
-        opts.origin_dev_offset.unwrap_or(0),
+        sb.data_block_size << SECTOR_SHIFT,
+        queue_depth,
+        opts.fast_dev_offset.unwrap_or(0) << SECTOR_SHIFT,
+        opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT,
     )?;
 
     let nr_metadata_blocks = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?.nr_blocks;
     let indicator = DirtyIndicator::new(ctx.engine.clone(), sb);
-    let cv = CopyVisitor::new(
+    let cv = AsyncCopyVisitor::new(
         copier,
         indicator,
         sb.flags.clean_shutdown,
@@ -403,7 +396,8 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let (corrupted, stats, dirty_ablocks, cleaned_blocks) = copy_dirty_blocks(&ctx, &sb, &opts)?;
+    let (corrupted, stats, dirty_ablocks, cleaned_blocks) =
+        copy_dirty_blocks_async(&ctx, &sb, &opts)?;
     report_stats(ctx.report.clone(), &stats);
 
     if corrupted {

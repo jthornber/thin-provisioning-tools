@@ -115,8 +115,6 @@ impl AioEngine {
 
 //------------------------------------------
 
-const SECTOR_SHIFT: u64 = 9;
-
 pub struct CopyOp {
     pub src_b: u64, // block_address
     pub dest_b: u64,
@@ -158,14 +156,14 @@ impl fmt::Display for IoError {
 
 pub struct Copier {
     engine: AioEngine,
-    block_size: u32, // sectors
+    block_size: u32, // bytes
     queue_depth: u32,
     pool: MemPool,
     jobs: BTreeMap<u64, CopyJob>,
     src: Handle,
     dest: Handle,
-    src_offset: u64,  // sectors
-    dest_offset: u64, // sectors
+    src_offset: u64,  // bytes
+    dest_offset: u64, // bytes
     key_counter: u64,
 }
 
@@ -178,14 +176,7 @@ impl Copier {
         src_offset: u64,
         dest_offset: u64,
     ) -> io::Result<Copier> {
-        if block_size > (u32::MAX >> SECTOR_SHIFT) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "block size out of bounds",
-            ));
-        }
-
-        let pool = MemPool::new((block_size << SECTOR_SHIFT) as usize, queue_depth as usize)?;
+        let pool = MemPool::new(block_size as usize, queue_depth as usize)?;
 
         let mut engine = AioEngine::new(queue_depth)?;
         let src = engine.open_file(src, false, true)?;
@@ -225,7 +216,7 @@ impl Copier {
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no free slots"))?;
 
         let context = self.gen_key();
-        let offset = (self.src_offset + op.src_b * self.block_size as u64) << SECTOR_SHIFT;
+        let offset = self.src_offset + op.src_b * self.block_size as u64;
         if offset > i64::MAX as u64 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -237,7 +228,7 @@ impl Copier {
             self.src,
             AioOp::Read,
             offset as libc::off_t,
-            self.block_size << SECTOR_SHIFT,
+            self.block_size,
             block.data,
             context,
         ) {
@@ -285,8 +276,7 @@ impl Copier {
             if job.status == JobStatus::Reading {
                 job.status = JobStatus::Writing;
 
-                let offset =
-                    (self.dest_offset + job.op.dest_b * self.block_size as u64) << SECTOR_SHIFT;
+                let offset = self.dest_offset + job.op.dest_b * self.block_size as u64;
                 if offset > i64::MAX as u64 {
                     let j = self.jobs.remove(&context).unwrap();
                     self.pool.free(j.data)?;
@@ -301,7 +291,7 @@ impl Copier {
                     self.dest,
                     AioOp::Write,
                     offset as i64,
-                    self.block_size << SECTOR_SHIFT,
+                    self.block_size,
                     job.data.data,
                     context,
                 ) {
