@@ -2,7 +2,9 @@ use anyhow::anyhow;
 use fixedbitset::FixedBitSet;
 use std::io::{self, Cursor};
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use threadpool::ThreadPool;
 
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
@@ -16,6 +18,7 @@ use crate::pdata::btree_walker::btree_to_map;
 use crate::pdata::space_map_common::SMRoot;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
+use crate::sync_copier::SyncCopier;
 
 //-----------------------------------------
 
@@ -184,6 +187,122 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
         if inner.stats.blocks_issued > prev_issued {
             inner.dirty_ablocks.set(b.header.blocknr as usize, true);
         }
+
+        // TODO: update progress bar
+
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
+struct SVInner {
+    stats: CopyStats,
+    dirty_ablocks: FixedBitSet, // array blocks containing dirty mappings
+}
+
+struct SyncCopyVisitor {
+    inner: Mutex<SVInner>,
+    cleaned_blocks: Arc<Mutex<FixedBitSet>>, // cache blocks that had been writeback successfully
+    copier: Arc<SyncCopier>,
+    indicator: DirtyIndicator,
+    only_dirty: bool,
+    data_block_size: u32, // bytes
+    cache_offset: u64,    // bytes
+    origin_offset: u64,   // bytes
+    pool: ThreadPool,
+}
+
+impl SyncCopyVisitor {
+    fn new(
+        c: SyncCopier,
+        indicator: DirtyIndicator,
+        only_dirty: bool,
+        nr_metadata_blocks: u64,
+        nr_cache_blocks: u32,
+        data_block_size: u32,
+        pool: ThreadPool,
+    ) -> Self {
+        SyncCopyVisitor {
+            inner: Mutex::new(SVInner {
+                stats: CopyStats::new(),
+                dirty_ablocks: FixedBitSet::with_capacity(nr_metadata_blocks as usize),
+            }),
+            cleaned_blocks: Arc::new(Mutex::new(FixedBitSet::with_capacity(
+                nr_cache_blocks as usize,
+            ))),
+            copier: Arc::new(c),
+            indicator,
+            only_dirty,
+            data_block_size,
+            cache_offset: 0,
+            origin_offset: 0,
+            pool,
+        }
+    }
+
+    fn set_cache_offset(&mut self, cache_offset: u64) {
+        self.cache_offset = cache_offset;
+    }
+
+    fn set_origin_offset(&mut self, origin_offset: u64) {
+        self.origin_offset = origin_offset;
+    }
+
+    fn complete(self) -> anyhow::Result<(CopyStats, FixedBitSet, FixedBitSet)> {
+        let inner = self.inner.into_inner()?;
+        let cleaned_blocks = if let Ok(cb) = Arc::try_unwrap(self.cleaned_blocks) {
+            cb.into_inner()?
+        } else {
+            return Err(anyhow!("Cannot acquire writeback statistics"));
+        };
+        Ok((inner.stats, inner.dirty_ablocks, cleaned_blocks))
+    }
+}
+
+impl ArrayVisitor<Mapping> for SyncCopyVisitor {
+    fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+        let mut blocks_dirty = 0;
+        let blocks_failed = Arc::new(AtomicU32::new(0));
+
+        let cbegin = index as u32 * b.header.max_entries;
+        let cend = cbegin + b.header.nr_entries;
+        for (m, cblock) in b.values.into_iter().zip(cbegin..cend) {
+            // skip unused or clean blocks
+            if !m.is_valid() || (self.only_dirty && !self.indicator.is_dirty(cblock, &m)) {
+                continue;
+            }
+
+            blocks_dirty += 1;
+
+            let copier = self.copier.clone();
+            let bs = self.data_block_size as u64;
+            let src = cblock as u64 * bs + self.cache_offset;
+            let dest = m.oblock * bs + self.origin_offset;
+            let nr_failed = blocks_failed.clone();
+            let cleaned = self.cleaned_blocks.clone();
+
+            self.pool.execute(move || {
+                if copier.copy(src, dest, bs).is_ok() {
+                    cleaned.lock().unwrap().set(cblock as usize, true); // TODO: avoid locks
+                } else {
+                    nr_failed.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+        }
+
+        self.pool.join();
+
+        // update statistics
+        let mut inner = self.inner.lock().unwrap();
+        if blocks_dirty > 0 {
+            inner.dirty_ablocks.set(b.header.blocknr as usize, true);
+        }
+        inner.stats.blocks_scanned += b.header.nr_entries;
+        inner.stats.blocks_needed += blocks_dirty;
+        inner.stats.blocks_issued += blocks_dirty;
+        inner.stats.blocks_completed += blocks_dirty;
+        inner.stats.blocks_failed += blocks_failed.load(Ordering::SeqCst);
 
         // TODO: update progress bar
 
@@ -381,6 +500,41 @@ fn copy_dirty_blocks_async(
     Ok((err, stats, dirty_ablocks, cleaned_blocks))
 }
 
+fn copy_dirty_blocks_sync(
+    ctx: &Context,
+    sb: &Superblock,
+    opts: &CacheWritebackOptions,
+) -> anyhow::Result<(bool, CopyStats, FixedBitSet, FixedBitSet)> {
+    if sb.version > 2 {
+        return Err(anyhow!("unsupported metadata version: {}", sb.version));
+    }
+
+    let copier = SyncCopier::new(opts.fast_dev, opts.origin_dev)?;
+
+    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
+    let pool = ThreadPool::new(nr_threads);
+
+    let nr_metadata_blocks = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?.nr_blocks;
+    let indicator = DirtyIndicator::new(ctx.engine.clone(), sb);
+    let mut cv = SyncCopyVisitor::new(
+        copier,
+        indicator,
+        sb.flags.clean_shutdown,
+        nr_metadata_blocks,
+        sb.cache_blocks,
+        sb.data_block_size << SECTOR_SHIFT,
+        pool,
+    );
+    cv.set_cache_offset(opts.fast_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
+    cv.set_origin_offset(opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
+
+    let w = ArrayWalker::new(ctx.engine.clone(), true);
+    let err = w.walk(&cv, sb.mapping_root).is_err();
+
+    let (stats, dirty_ablocks, cleaned_blocks) = cv.complete()?;
+    Ok((err, stats, dirty_ablocks, cleaned_blocks))
+}
+
 fn report_stats(report: Arc<Report>, stats: &CopyStats) {
     let blocks_copied = stats.blocks_completed - stats.blocks_failed;
     report.info(&format!(
@@ -396,8 +550,11 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let (corrupted, stats, dirty_ablocks, cleaned_blocks) =
-        copy_dirty_blocks_async(&ctx, &sb, &opts)?;
+    let (corrupted, stats, dirty_ablocks, cleaned_blocks) = if opts.async_io {
+        copy_dirty_blocks_async(&ctx, &sb, &opts)?
+    } else {
+        copy_dirty_blocks_sync(&ctx, &sb, &opts)?
+    };
     report_stats(ctx.report.clone(), &stats);
 
     if corrupted {
