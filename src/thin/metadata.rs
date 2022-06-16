@@ -81,10 +81,9 @@ fn collect_leaves(
     roots: &BTreeSet<u64>,
 ) -> Result<BTreeMap<u64, Vec<Entry>>> {
     let mut map: BTreeMap<u64, Vec<Entry>> = BTreeMap::new();
-    let mut sm = RestrictedSpaceMap::new(engine.get_nr_blocks());
 
     for r in roots {
-        let mut w = LeafWalker::new(engine.clone(), &mut sm, false);
+        let mut w = LeafWalker::new(engine.clone(), false);
         let mut v = CollectLeaves::new();
         let mut path = vec![0];
         w.walk::<CollectLeaves, BlockTime>(&mut path, &mut v, *r)?;

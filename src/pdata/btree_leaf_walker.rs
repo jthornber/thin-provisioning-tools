@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::btree::*;
-use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 
 //------------------------------------------
@@ -37,34 +36,23 @@ impl<V: Unpack> LeafVisitor<V> for NoopLeafVisitor {
     }
 }
 
-pub struct LeafWalker<'a> {
+pub struct LeafWalker {
     engine: Arc<dyn IoEngine + Send + Sync>,
-    sm: &'a mut dyn SpaceMap,
     leaves: FixedBitSet,
     ignore_non_fatal: bool,
 }
 
-impl<'a> LeafWalker<'a> {
+impl LeafWalker {
     pub fn new(
         engine: Arc<dyn IoEngine + Send + Sync>,
-        sm: &'a mut dyn SpaceMap,
         ignore_non_fatal: bool,
-    ) -> LeafWalker<'a> {
+    ) -> LeafWalker {
         let nr_blocks = engine.get_nr_blocks() as usize;
         LeafWalker {
             engine,
-            sm,
             leaves: FixedBitSet::with_capacity(nr_blocks),
             ignore_non_fatal,
         }
-    }
-
-    // Atomically increments the ref count, and returns the _old_ count.
-    fn sm_inc(&mut self, b: u64) -> u32 {
-        let sm = &mut self.sm;
-        let count = sm.get(b).unwrap();
-        sm.inc(b, 1).unwrap();
-        count
     }
 
     fn walk_nodes<LV, V>(
@@ -84,7 +72,6 @@ impl<'a> LeafWalker<'a> {
         let mut blocks = Vec::with_capacity(bs.len());
         let mut filtered_krs = Vec::with_capacity(krs.len());
         for i in 0..bs.len() {
-            self.sm_inc(bs[i]);
             blocks.push(bs[i]);
             filtered_krs.push(krs[i].clone());
         }
@@ -139,7 +126,6 @@ impl<'a> LeafWalker<'a> {
             if depth == 0 {
                 // it is the lowest internal
                 for i in 0..krs.len() {
-                    self.sm.inc(values[i], 1).expect("sm.inc() failed");
                     for v in &values {
                         self.leaves.insert(*v as usize);
                     }
@@ -210,7 +196,6 @@ impl<'a> LeafWalker<'a> {
 
         let depth = self.get_depth::<V>(path, root, true)?;
 
-        self.sm_inc(root);
         if depth == 0 {
             // root is a leaf
             self.leaves.insert(root as usize);
