@@ -29,7 +29,6 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 struct CopyStats {
     blocks_scanned: u32, // scanned indices
     blocks_needed: u32,  // blocks to copy
-    blocks_issued: u32,
     blocks_completed: u32,
     blocks_failed: u32,
 }
@@ -39,7 +38,6 @@ impl CopyStats {
         CopyStats {
             blocks_scanned: 0,
             blocks_needed: 0,
-            blocks_issued: 0,
             blocks_completed: 0,
             blocks_failed: 0,
         }
@@ -159,8 +157,8 @@ impl AsyncCopyVisitor {
 impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
         let mut inner = self.inner.lock().unwrap();
+        let mut blocks_dirty = 0;
 
-        let prev_issued = inner.stats.blocks_issued;
         let cbegin = index as u32 * b.header.max_entries;
         let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.iter().zip(cbegin..cend) {
@@ -171,7 +169,7 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
                 continue;
             }
 
-            inner.stats.blocks_needed += 1;
+            blocks_dirty += 1;
 
             while inner.copier.nr_pending() >= inner.copier.queue_depth() as usize {
                 // TODO: better error handling, rather than panic
@@ -180,11 +178,10 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
 
             let cop = CopyOp::new(cblock as u64, m.oblock);
             inner.copier.issue(cop).expect("internal error");
-
-            inner.stats.blocks_issued += 1;
         }
 
-        if inner.stats.blocks_issued > prev_issued {
+        if blocks_dirty > 0 {
+            inner.stats.blocks_needed += blocks_dirty;
             inner.dirty_ablocks.set(b.header.blocknr as usize, true);
         }
 
@@ -300,7 +297,6 @@ impl ArrayVisitor<Mapping> for SyncCopyVisitor {
         }
         inner.stats.blocks_scanned += b.header.nr_entries;
         inner.stats.blocks_needed += blocks_dirty;
-        inner.stats.blocks_issued += blocks_dirty;
         inner.stats.blocks_completed += blocks_dirty;
         inner.stats.blocks_failed += blocks_failed.load(Ordering::SeqCst);
 
@@ -539,7 +535,7 @@ fn report_stats(report: Arc<Report>, stats: &CopyStats) {
     let blocks_copied = stats.blocks_completed - stats.blocks_failed;
     report.info(&format!(
         "{}/{} blocks successfully copied",
-        blocks_copied, stats.blocks_issued
+        blocks_copied, stats.blocks_needed
     ));
     if stats.blocks_failed > 0 {
         report.info(&format!("{} blocks were not copied", stats.blocks_failed));
@@ -570,7 +566,7 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
         update_metadata(&ctx, &sb, &dirty_ablocks, &cleaned_blocks)?;
     }
 
-    if stats.blocks_completed != stats.blocks_issued || stats.blocks_failed > 0 {
+    if stats.blocks_completed != stats.blocks_needed || stats.blocks_failed > 0 {
         return Err(anyhow!("Incompleted writeback"));
     }
 
