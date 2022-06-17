@@ -115,9 +115,6 @@ impl AioEngine {
 
 //------------------------------------------
 
-const SECTOR_SHIFT: u64 = 9;
-const ALIGN: usize = 4096;
-
 pub struct CopyOp {
     pub src_b: u64, // block_address
     pub dest_b: u64,
@@ -159,14 +156,14 @@ impl fmt::Display for IoError {
 
 pub struct Copier {
     engine: AioEngine,
-    block_size: u32, // sectors
+    block_size: u32, // bytes
     queue_depth: u32,
     pool: MemPool,
     jobs: BTreeMap<u64, CopyJob>,
     src: Handle,
     dest: Handle,
-    src_offset: u64,  // sectors
-    dest_offset: u64, // sectors
+    src_offset: u64,  // bytes
+    dest_offset: u64, // bytes
     key_counter: u64,
 }
 
@@ -179,18 +176,7 @@ impl Copier {
         src_offset: u64,
         dest_offset: u64,
     ) -> io::Result<Copier> {
-        if block_size > (u32::MAX >> SECTOR_SHIFT) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "block size out of bounds",
-            ));
-        }
-
-        let pool = MemPool::new(
-            (block_size << SECTOR_SHIFT) as usize,
-            queue_depth as usize,
-            ALIGN,
-        )?;
+        let pool = MemPool::new(block_size as usize, queue_depth as usize)?;
 
         let mut engine = AioEngine::new(queue_depth)?;
         let src = engine.open_file(src, false, true)?;
@@ -230,7 +216,7 @@ impl Copier {
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no free slots"))?;
 
         let context = self.gen_key();
-        let offset = (self.src_offset + op.src_b * self.block_size as u64) << SECTOR_SHIFT;
+        let offset = self.src_offset + op.src_b * self.block_size as u64;
         if offset > i64::MAX as u64 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -242,11 +228,11 @@ impl Copier {
             self.src,
             AioOp::Read,
             offset as libc::off_t,
-            self.block_size << SECTOR_SHIFT,
+            self.block_size,
             block.data,
             context,
         ) {
-            self.pool.free(block);
+            self.pool.free(block)?;
             return Err(e);
         }
 
@@ -278,7 +264,7 @@ impl Copier {
 
             if let Some(err) = cq_err {
                 let j = self.jobs.remove(&context).unwrap();
-                self.pool.free(j.data);
+                self.pool.free(j.data)?;
                 let e = match j.status {
                     JobStatus::Reading => IoError::ReadError(j.op, err),
                     JobStatus::Writing => IoError::WriteError(j.op, err),
@@ -290,11 +276,10 @@ impl Copier {
             if job.status == JobStatus::Reading {
                 job.status = JobStatus::Writing;
 
-                let offset =
-                    (self.dest_offset + job.op.dest_b * self.block_size as u64) << SECTOR_SHIFT;
+                let offset = self.dest_offset + job.op.dest_b * self.block_size as u64;
                 if offset > i64::MAX as u64 {
                     let j = self.jobs.remove(&context).unwrap();
-                    self.pool.free(j.data);
+                    self.pool.free(j.data)?;
                     completion.push(Err(IoError::WriteError(
                         j.op,
                         io::Error::new(io::ErrorKind::InvalidInput, "write offset out of bounds"),
@@ -306,17 +291,17 @@ impl Copier {
                     self.dest,
                     AioOp::Write,
                     offset as i64,
-                    self.block_size << SECTOR_SHIFT,
+                    self.block_size,
                     job.data.data,
                     context,
                 ) {
                     let j = self.jobs.remove(&context).unwrap();
-                    self.pool.free(j.data);
+                    self.pool.free(j.data)?;
                     completion.push(Err(IoError::WriteError(j.op, e)));
                 }
             } else {
                 let j = self.jobs.remove(&context).unwrap();
-                self.pool.free(j.data);
+                self.pool.free(j.data)?;
                 completion.push(Ok(j.op));
             }
         }
@@ -355,7 +340,7 @@ mod engine_tests {
             }
 
             Ok(AioEngineTests {
-                pool: MemPool::new(block_size as usize, queue_depth as usize * 2, ALIGN)?,
+                pool: MemPool::new(block_size as usize, queue_depth as usize * 2)?,
                 paths: [file0.into_temp_path(), file1.into_temp_path()],
                 engine: AioEngine::new(queue_depth)?,
             })
@@ -391,14 +376,7 @@ mod engine_tests {
         let context = 123;
         assert!(fixture
             .engine
-            .issue(
-                src_handle,
-                AioOp::Read,
-                0,
-                buf.len as u32,
-                buf.data,
-                context
-            )
+            .issue(src_handle, AioOp::Read, 0, BLOCK_SIZE, buf.data, context)
             .is_ok());
 
         let res = fixture.engine.wait();
@@ -408,7 +386,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Ok(c)) if c == &context));
 
         assert!(fixture.engine.close_file(src_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 
     #[test]
@@ -424,14 +402,7 @@ mod engine_tests {
         let context = 123;
         assert!(fixture
             .engine
-            .issue(
-                dest_handle,
-                AioOp::Write,
-                0,
-                buf.len as u32,
-                buf.data,
-                context
-            )
+            .issue(dest_handle, AioOp::Write, 0, BLOCK_SIZE, buf.data, context)
             .is_ok());
 
         let res = fixture.engine.wait();
@@ -441,7 +412,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Err((c, _))) if c == &context));
 
         assert!(fixture.engine.close_file(dest_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 
     #[test]
@@ -457,14 +428,7 @@ mod engine_tests {
         let context = 123;
         assert!(fixture
             .engine
-            .issue(
-                dest_handle,
-                AioOp::Write,
-                0,
-                buf.len as u32,
-                buf.data,
-                context
-            )
+            .issue(dest_handle, AioOp::Write, 0, BLOCK_SIZE, buf.data, context)
             .is_ok());
 
         let res = fixture.engine.wait();
@@ -474,7 +438,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Ok(c)) if c == &context));
 
         assert!(fixture.engine.close_file(dest_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 
     #[test]
@@ -494,7 +458,7 @@ mod engine_tests {
                 src_handle,
                 AioOp::Read,
                 (FILE_SIZE - BLOCK_SIZE) as libc::off_t,
-                buf.len as u32,
+                BLOCK_SIZE,
                 buf.data,
                 context
             )
@@ -507,7 +471,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Ok(c)) if c == &context));
 
         assert!(fixture.engine.close_file(src_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 
     #[test]
@@ -527,7 +491,7 @@ mod engine_tests {
                 src_handle,
                 AioOp::Read,
                 FILE_SIZE as libc::off_t,
-                buf.len as u32,
+                BLOCK_SIZE,
                 buf.data,
                 context
             )
@@ -540,7 +504,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Err((c, _))) if c == &context));
 
         assert!(fixture.engine.close_file(src_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 
     #[test]
@@ -560,7 +524,7 @@ mod engine_tests {
                 dest_handle,
                 AioOp::Write,
                 FILE_SIZE as libc::off_t,
-                buf.len as u32,
+                BLOCK_SIZE,
                 buf.data,
                 context
             )
@@ -573,7 +537,7 @@ mod engine_tests {
         assert!(matches!(res.first(), Some(Ok(c)) if c == &context));
 
         assert!(fixture.engine.close_file(dest_handle).is_ok());
-        fixture.pool.free(buf);
+        fixture.pool.free(buf).expect("pool free");
     }
 }
 

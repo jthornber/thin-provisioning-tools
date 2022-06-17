@@ -31,6 +31,7 @@ rangemap = "1.0"
 safemem = "0.3"
 tempfile = "3.3"
 threadpool = "1.8"
+thread_local = "1.1"
 thiserror = "1.0"
 tui = { version = "0.14", optional = true }
 termion = { version = "1.5", optional = true }

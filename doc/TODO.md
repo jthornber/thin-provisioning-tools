@@ -14,9 +14,9 @@ Items in the High or Medium sections should be done before the formal release. T
 ## Medium
 
 - [x] thin_shrink: Support shared mappings
-- [ ] cache_writeback: Replace io_uring by sync & threaded IO
-- [ ] cache_writeback: Support large chunk size
-- [ ] thin_shrink: Migrate to the sync copier
+- [x] cache_writeback: Replace io_uring by sync & threaded IO
+- [x] cache_writeback: Support large chunk size
+- [x] thin_shrink: Migrate to the sync copier
 - [ ] btree_builder: Check pushed key ordering
 - [ ] thin/cache_metadata_size: Improve output precision (for Stratis)
 - [x] cache_restore: Support v1 metadata
@@ -42,7 +42,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] thin_explore: Handle broken nodes
 - [ ] thin_explore: Dump space maps
 - [ ] thin_explore: Improve usability (e.g., support pgup/pgdown browsing)
-- [ ] thin/cache/era_dump: Show output errors except the broken pipe error
+- [x] thin/cache/era_dump: Show output errors except the broken pipe error
 - [ ] thin/cache/era_repair: Clear superblock if the output is incompleted (commit 1dd7b454, bz1499781)
       (Is it really necessary? In addition, issuing IO in error handling routine seems not a good idea)
 
@@ -78,4 +78,3 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] Preserve the error payload in array/btree Errors (maybe a Boxed Error like std::io::Error::other() or anyhow::Error::from())
 - [x] thin_dump: Optional argument for --metadata-snap
 - [ ] Remove blank lines in help (clap.git issue #2983)
-
