@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
+use crate::async_copier::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::checksum;
-use crate::copier::*;
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine, SECTOR_SHIFT};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
@@ -85,7 +85,7 @@ impl DirtyIndicator {
 //-----------------------------------------
 
 struct CVInner {
-    copier: Copier,
+    copier: AsyncCopier,
     indicator: DirtyIndicator,
     stats: CopyStats,
     dirty_ablocks: FixedBitSet,  // array blocks containing dirty mappings
@@ -99,7 +99,7 @@ struct AsyncCopyVisitor {
 
 impl AsyncCopyVisitor {
     fn new(
-        c: Copier,
+        c: AsyncCopier,
         indicator: DirtyIndicator,
         only_dirty: bool,
         nr_metadata_blocks: u64,
@@ -471,7 +471,7 @@ fn copy_dirty_blocks_async(
     // default to 4MB buffer size
     let queue_depth = calc_queue_depth(opts.buffer_size.unwrap_or(8192), sb.data_block_size)?;
 
-    let copier = Copier::new(
+    let copier = AsyncCopier::new(
         opts.fast_dev,
         opts.origin_dev,
         sb.data_block_size << SECTOR_SHIFT,
