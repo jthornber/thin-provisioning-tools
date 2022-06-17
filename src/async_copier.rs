@@ -47,7 +47,7 @@ impl fmt::Display for IoError {
     }
 }
 
-pub struct Copier {
+pub struct AsyncCopier {
     engine: AioEngine,
     block_size: u32, // bytes
     queue_depth: u32,
@@ -60,7 +60,7 @@ pub struct Copier {
     key_counter: u64,
 }
 
-impl Copier {
+impl AsyncCopier {
     pub fn new(
         src: &Path,
         dest: &Path,
@@ -68,14 +68,14 @@ impl Copier {
         queue_depth: u32,
         src_offset: u64,
         dest_offset: u64,
-    ) -> io::Result<Copier> {
+    ) -> io::Result<AsyncCopier> {
         let pool = MemPool::new(block_size as usize, queue_depth as usize)?;
 
         let mut engine = AioEngine::new(queue_depth)?;
         let src = engine.open_file(src, false, true)?;
         let dest = engine.open_file(dest, true, true)?;
 
-        Ok(Copier {
+        Ok(AsyncCopier {
             engine,
             block_size,
             queue_depth,

@@ -16,10 +16,10 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 pub mod aio_engine;
+pub mod async_copier;
 pub mod cache;
 pub mod checksum;
 pub mod commands;
-pub mod copier;
 pub mod dump_utils;
 pub mod era;
 pub mod file_utils;
