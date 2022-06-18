@@ -36,8 +36,7 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?)
+        Arc::new(SyncIoEngine::new(opts.output, true)?)
     };
 
     match opts.op {

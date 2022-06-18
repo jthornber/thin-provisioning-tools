@@ -767,7 +767,7 @@ fn perform_action(
 }
 
 fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
-    let engine = SyncIoEngine::new(path, 1, false)?;
+    let engine = SyncIoEngine::new(path, false)?;
 
     let mut panels: Vec<Box<dyn Panel>> = Vec::new();
 

@@ -35,9 +35,8 @@ fn new_context(opts: &CacheRepairOptions) -> Result<Context> {
         engine_in = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
         engine_out = Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?);
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        engine_in = Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?);
-        engine_out = Arc::new(SyncIoEngine::new(opts.output, nr_threads, true)?);
+        engine_in = Arc::new(SyncIoEngine::new(opts.input, false)?);
+        engine_out = Arc::new(SyncIoEngine::new(opts.output, true)?);
     }
 
     Ok(Context {

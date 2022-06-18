@@ -438,12 +438,7 @@ fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
             opts.update_metadata,
         )?)
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        Arc::new(SyncIoEngine::new(
-            opts.metadata_dev,
-            nr_threads,
-            opts.update_metadata,
-        )?)
+        Arc::new(SyncIoEngine::new(opts.metadata_dev, opts.update_metadata)?)
     };
 
     Ok(Context {

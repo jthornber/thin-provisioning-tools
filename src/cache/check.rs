@@ -242,8 +242,7 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?)
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        Arc::new(SyncIoEngine::new(opts.dev, nr_threads, false)?)
+        Arc::new(SyncIoEngine::new(opts.dev, false)?)
     };
 
     Ok(Context {

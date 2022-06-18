@@ -219,9 +219,8 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
                 .expect("unable to open input file"),
         )
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         Arc::new(
-            SyncIoEngine::new_with(opts.input, nr_threads, writable, exclusive)
+            SyncIoEngine::new_with(opts.input, writable, exclusive)
                 .expect("unable to open input file"),
         )
     };
