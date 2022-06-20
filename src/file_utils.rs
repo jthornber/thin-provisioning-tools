@@ -5,7 +5,6 @@ use std::io;
 use std::io::{Seek, Write};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use tempfile::tempfile;
 
 //---------------------------------------
 
@@ -84,12 +83,6 @@ fn set_size<W: Write + Seek>(w: &mut W, nr_bytes: u64) -> io::Result<()> {
     }
 
     Ok(())
-}
-
-pub fn temp_file_sized(nr_bytes: u64) -> io::Result<std::fs::File> {
-    let mut file = tempfile()?;
-    set_size(&mut file, nr_bytes)?;
-    Ok(file)
 }
 
 pub fn create_sized_file(path: &Path, nr_bytes: u64) -> io::Result<std::fs::File> {

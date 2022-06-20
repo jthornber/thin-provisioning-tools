@@ -527,7 +527,7 @@ fn rewrite_xml(opts: ThinShrinkOptions) -> Result<()> {
 }
 
 fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
-    let input = Arc::new(SyncIoEngine::new(&opts.input, 1, false)?);
+    let input = Arc::new(SyncIoEngine::new(&opts.input, false)?);
     let sb = read_superblock(input.as_ref(), SUPERBLOCK_LOCATION)?;
     let md = build_metadata(input.clone(), &sb)?;
     let md = optimise_metadata(md)?;
@@ -541,7 +541,7 @@ fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
     }
 
     // 2nd pass
-    let output = Arc::new(SyncIoEngine::new(&opts.output, 1, true)?);
+    let output = Arc::new(SyncIoEngine::new(&opts.output, true)?);
     let sm = core_metadata_sm(output.get_nr_blocks(), u32::MAX);
     let mut w = WriteBatcher::new(output.clone(), sm, output.get_batch_size());
     let mut restorer = Restorer::new(&mut w, opts.report);

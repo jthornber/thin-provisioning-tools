@@ -162,12 +162,13 @@ impl BTreeWalker {
                             errs.push(e.clone());
                             self.set_fail(blocks[i], e);
                         }
-                        Ok(b) => match self.walk_node(path, visitor, &filtered_krs[i], &b, false) {
-                            Err(e) => {
+                        Ok(b) => {
+                            if let Err(e) =
+                                self.walk_node(path, visitor, &filtered_krs[i], &b, false)
+                            {
                                 errs.push(e);
                             }
-                            Ok(()) => {}
-                        },
+                        }
                     }
                 }
             }
@@ -273,7 +274,7 @@ impl BTreeWalker {
 
 fn walk_node_threaded_<NV, V>(
     w: Arc<BTreeWalker>,
-    path: &mut Vec<u64>,
+    path: &[u64],
     pool: &ThreadPool,
     visitor: Arc<NV>,
     kr: &KeyRange,
@@ -337,7 +338,7 @@ where
 
 fn walk_nodes_threaded<NV, V>(
     w: Arc<BTreeWalker>,
-    path: &mut Vec<u64>,
+    path: &[u64],
     pool: &ThreadPool,
     visitor: Arc<NV>,
     krs: &[KeyRange],
@@ -401,15 +402,13 @@ where
                         let visitor = visitor.clone();
                         let kr = filtered_krs[i].clone();
                         let errs = child_errs.clone();
-                        let mut path = path.clone();
+                        let mut path = path.to_vec();
 
                         pool.execute(move || {
-                            match w.walk_node(&mut path, visitor.as_ref(), &kr, &b, false) {
-                                Err(e) => {
-                                    let mut errs = errs.lock().unwrap();
-                                    errs.push(e);
-                                }
-                                Ok(()) => {}
+                            if let Err(e) = w.walk_node(&mut path, visitor.as_ref(), &kr, &b, false)
+                            {
+                                let mut errs = errs.lock().unwrap();
+                                errs.push(e);
                             }
                         });
                     }
