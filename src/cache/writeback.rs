@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use fixedbitset::FixedBitSet;
 use std::io::{self, Cursor};
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
@@ -17,7 +17,7 @@ use crate::pdata::bitset::{read_bitset, CheckedBitSet};
 use crate::pdata::btree_walker::btree_to_map;
 use crate::pdata::space_map_common::SMRoot;
 use crate::pdata::unpack::unpack;
-use crate::report::Report;
+use crate::report::{ProgressMonitor, Report};
 use crate::sync_copier::SyncCopier;
 
 //-----------------------------------------
@@ -27,8 +27,7 @@ const MAX_CONCURRENT_IO: u32 = 1024;
 //-----------------------------------------
 
 struct CopyStats {
-    blocks_scanned: u32, // scanned indices
-    blocks_needed: u32,  // blocks to copy
+    blocks_needed: u32, // blocks to copy
     blocks_completed: u32,
     blocks_failed: u32,
 }
@@ -36,7 +35,6 @@ struct CopyStats {
 impl CopyStats {
     fn new() -> Self {
         CopyStats {
-            blocks_scanned: 0,
             blocks_needed: 0,
             blocks_completed: 0,
             blocks_failed: 0,
@@ -95,6 +93,7 @@ struct CVInner {
 struct AsyncCopyVisitor {
     inner: Mutex<CVInner>,
     only_dirty: bool,
+    progress: Arc<AtomicU64>,
 }
 
 impl AsyncCopyVisitor {
@@ -114,7 +113,12 @@ impl AsyncCopyVisitor {
                 cleaned_blocks: FixedBitSet::with_capacity(nr_cache_blocks as usize),
             }),
             only_dirty,
+            progress: Arc::new(AtomicU64::new(0)),
         }
+    }
+
+    fn get_progress(&self) -> Arc<AtomicU64> {
+        self.progress.clone()
     }
 
     fn wait_completion(inner: &mut CVInner) -> io::Result<()> {
@@ -143,6 +147,8 @@ impl AsyncCopyVisitor {
             let mut inner = self.inner.lock().unwrap();
             while inner.copier.nr_pending() > 0 {
                 Self::wait_completion(&mut inner).expect("internal error");
+                self.progress
+                    .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
             }
         }
 
@@ -162,8 +168,6 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
         let cbegin = index as u32 * b.header.max_entries;
         let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.iter().zip(cbegin..cend) {
-            inner.stats.blocks_scanned = cblock;
-
             // skip unused or clean blocks
             if !m.is_valid() || (self.only_dirty && !inner.indicator.is_dirty(cblock, m)) {
                 continue;
@@ -174,6 +178,8 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
             while inner.copier.nr_pending() >= inner.copier.queue_depth() as usize {
                 // TODO: better error handling, rather than panic
                 Self::wait_completion(&mut inner).expect("internal error");
+                self.progress
+                    .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
             }
 
             let cop = CopyOp::new(cblock as u64, m.oblock);
@@ -184,8 +190,6 @@ impl ArrayVisitor<Mapping> for AsyncCopyVisitor {
             inner.stats.blocks_needed += blocks_dirty;
             inner.dirty_ablocks.set(b.header.blocknr as usize, true);
         }
-
-        // TODO: update progress bar
 
         Ok(())
     }
@@ -208,6 +212,7 @@ struct SyncCopyVisitor {
     cache_offset: u64,    // bytes
     origin_offset: u64,   // bytes
     pool: ThreadPool,
+    progress: Arc<AtomicU64>,
 }
 
 impl SyncCopyVisitor {
@@ -235,6 +240,7 @@ impl SyncCopyVisitor {
             cache_offset: 0,
             origin_offset: 0,
             pool,
+            progress: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -244,6 +250,10 @@ impl SyncCopyVisitor {
 
     fn set_origin_offset(&mut self, origin_offset: u64) {
         self.origin_offset = origin_offset;
+    }
+
+    fn get_progress(&self) -> Arc<AtomicU64> {
+        self.progress.clone()
     }
 
     fn complete(self) -> anyhow::Result<(CopyStats, FixedBitSet, FixedBitSet)> {
@@ -278,13 +288,15 @@ impl ArrayVisitor<Mapping> for SyncCopyVisitor {
             let dest = m.oblock * bs + self.origin_offset;
             let nr_failed = blocks_failed.clone();
             let cleaned = self.cleaned_blocks.clone();
+            let progress = self.progress.clone();
 
             self.pool.execute(move || {
                 if copier.copy(src, dest, bs).is_ok() {
                     cleaned.lock().unwrap().set(cblock as usize, true); // TODO: avoid locks
                 } else {
-                    nr_failed.fetch_add(1, Ordering::SeqCst);
+                    nr_failed.fetch_add(1, Ordering::Relaxed);
                 }
+                progress.fetch_add(1, Ordering::Relaxed);
             });
         }
 
@@ -295,12 +307,9 @@ impl ArrayVisitor<Mapping> for SyncCopyVisitor {
         if blocks_dirty > 0 {
             inner.dirty_ablocks.set(b.header.blocknr as usize, true);
         }
-        inner.stats.blocks_scanned += b.header.nr_entries;
         inner.stats.blocks_needed += blocks_dirty;
         inner.stats.blocks_completed += blocks_dirty;
-        inner.stats.blocks_failed += blocks_failed.load(Ordering::SeqCst);
-
-        // TODO: update progress bar
+        inner.stats.blocks_failed += blocks_failed.load(Ordering::Relaxed);
 
         Ok(())
     }
@@ -484,9 +493,18 @@ fn copy_dirty_blocks_async(
         nr_metadata_blocks,
         sb.cache_blocks,
     );
+
+    ctx.report.set_title("Copying cache blocks");
+    let monitor = ProgressMonitor::new(
+        ctx.report.clone(),
+        sb.cache_blocks as u64,
+        cv.get_progress(),
+    );
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
+
     let (stats, dirty_ablocks, cleaned_blocks) = cv.complete()?;
+    monitor.stop();
 
     Ok((err, stats, dirty_ablocks, cleaned_blocks))
 }
@@ -519,10 +537,18 @@ fn copy_dirty_blocks_sync(
     cv.set_cache_offset(opts.fast_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
     cv.set_origin_offset(opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
 
+    ctx.report.set_title("Copying cache blocks");
+    let monitor = ProgressMonitor::new(
+        ctx.report.clone(),
+        sb.cache_blocks as u64,
+        cv.get_progress(),
+    );
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
 
     let (stats, dirty_ablocks, cleaned_blocks) = cv.complete()?;
+    monitor.stop();
+
     Ok((err, stats, dirty_ablocks, cleaned_blocks))
 }
 

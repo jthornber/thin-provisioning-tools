@@ -1,5 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
 
 //------------------------------------------
 
@@ -225,6 +227,42 @@ impl ReportInner for QuietInner {
 
 pub fn mk_quiet_report() -> Report {
     Report::new(Box::new(QuietInner {}))
+}
+
+//------------------------------------------
+
+pub struct ProgressMonitor {
+    tid: JoinHandle<()>,
+    stop_flag: Arc<AtomicBool>,
+}
+
+impl ProgressMonitor {
+    pub fn new(report: Arc<Report>, total: u64, processed: Arc<AtomicU64>) -> ProgressMonitor {
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        let stopped = stop_flag.clone();
+        let tid = thread::spawn(move || {
+            let interval = std::time::Duration::from_millis(250);
+            loop {
+                if stopped.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let n = processed.load(Ordering::Relaxed) * 100 / total;
+
+                let _r = report.progress(n as u8);
+                thread::sleep(interval);
+            }
+        });
+
+        ProgressMonitor { tid, stop_flag }
+    }
+
+    // Only the owner could stop the Monitor
+    pub fn stop(self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+        let _ = self.tid.join();
+    }
 }
 
 //------------------------------------------
