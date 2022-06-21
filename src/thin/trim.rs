@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::file_utils::file_size;
 use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine, SECTOR_SHIFT};
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map_common::*;
+use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
 use crate::thin::superblock::{read_superblock, Superblock, SUPERBLOCK_LOCATION};

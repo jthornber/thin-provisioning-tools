@@ -9,7 +9,7 @@ use crate::checksum;
 use crate::io_engine::IoEngine;
 use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map_common::*;
+use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::{unpack, Unpack};
 use crate::report::Report;
 use crate::thin::block_time::*;

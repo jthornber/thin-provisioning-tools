@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::io_engine::{IoEngine, SyncIoEngine};
-use crate::pdata::space_map_metadata::core_metadata_sm;
+use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::report::Report;
 use crate::shrink::copier::{self, Region};
 use crate::thin::dump::dump_metadata;

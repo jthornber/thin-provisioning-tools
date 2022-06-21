@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_common::*;
+use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 

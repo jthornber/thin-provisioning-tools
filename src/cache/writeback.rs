@@ -13,7 +13,7 @@ use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset, CheckedBitSet};
 use crate::pdata::btree_walker::btree_to_map;
-use crate::pdata::space_map_common::SMRoot;
+use crate::pdata::space_map::common::SMRoot;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
 

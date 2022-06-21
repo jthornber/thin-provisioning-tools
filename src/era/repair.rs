@@ -6,7 +6,7 @@ use crate::era::dump::*;
 use crate::era::restore::*;
 use crate::era::superblock::*;
 use crate::io_engine::*;
-use crate::pdata::space_map_metadata::*;
+use crate::pdata::space_map::metadata::*;
 use crate::report::*;
 use crate::write_batcher::*;
 
