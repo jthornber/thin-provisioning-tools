@@ -3,7 +3,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
 
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::{
     error::Error,
     fs::OpenOptions,
@@ -104,7 +104,7 @@ pub fn pack(input_file: &Path, output_file: &Path) -> Result<(), Box<dyn Error>>
 
 fn crunch<R, W>(input: Arc<Mutex<R>>, output: Arc<Mutex<W>>, ranges: Vec<(u64, u64)>) -> Result<()>
 where
-    R: Read + Seek,
+    R: Read + Seek + FileExt,
     W: Write,
 {
     let mut written = 0u64;
@@ -197,13 +197,10 @@ fn get_nr_blocks(path: &Path) -> io::Result<u64> {
 
 fn read_blocks<R>(rdr: &mut R, b: u64, count: u64) -> io::Result<Vec<u8>>
 where
-    R: io::Read + io::Seek,
+    R: io::Read + io::Seek + FileExt,
 {
     let mut buf: Vec<u8> = vec![0; (BLOCK_SIZE * count) as usize];
-
-    rdr.seek(io::SeekFrom::Start(b * BLOCK_SIZE))?;
-    rdr.read_exact(&mut buf)?;
-
+    rdr.read_exact_at(&mut buf, b * BLOCK_SIZE)?;
     Ok(buf)
 }
 
@@ -224,29 +221,27 @@ fn pack_block<W: Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
 
 fn write_zero_block<W>(w: &mut W, b: u64) -> io::Result<()>
 where
-    W: Write + Seek,
+    W: Write + Seek + FileExt,
 {
     let zeroes: Vec<u8> = vec![0; BLOCK_SIZE as usize];
-    w.seek(io::SeekFrom::Start(b * BLOCK_SIZE))?;
-    w.write_all(&zeroes)?;
+    w.write_all_at(&zeroes, b * BLOCK_SIZE)?;
     Ok(())
 }
 
 fn write_blocks<W>(w: &Arc<Mutex<W>>, blocks: &mut Vec<(u64, Vec<u8>)>) -> io::Result<()>
 where
-    W: Write + Seek,
+    W: Write + Seek + FileExt,
 {
-    let mut w = w.lock().unwrap();
+    let w = w.lock().unwrap();
     while let Some((b, block)) = blocks.pop() {
-        w.seek(io::SeekFrom::Start(b * BLOCK_SIZE))?;
-        w.write_all(&block[0..])?;
+        w.write_all_at(&block, b * BLOCK_SIZE)?;
     }
     Ok(())
 }
 
 fn decode_worker<W>(rx: Receiver<Vec<u8>>, w: Arc<Mutex<W>>) -> io::Result<()>
 where
-    W: Write + Seek,
+    W: Write + Seek + FileExt,
 {
     let mut blocks = Vec::new();
 
