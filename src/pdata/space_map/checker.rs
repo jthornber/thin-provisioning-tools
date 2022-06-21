@@ -7,8 +7,8 @@ use crate::io_engine::IoEngine;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_common::*;
-use crate::pdata::space_map_metadata::*;
+use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::metadata::*;
 use crate::pdata::unpack::*;
 use crate::report::Report;
 

@@ -8,8 +8,8 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::io_engine::{IoEngine, SyncIoEngine, SECTOR_SHIFT};
-use crate::pdata::space_map_metadata::core_metadata_sm;
+use crate::io_engine::{IoEngine, SyncIoEngine};
+use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::report::Report;
 use crate::sync_copier::SyncCopier;
 use crate::thin::dump::dump_metadata;

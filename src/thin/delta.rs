@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, KeyRange, NodeHeader};
 use crate::pdata::btree_walker::{btree_to_map, BTreeWalker, NodeVisitor};
-use crate::pdata::space_map_common::SMRoot;
+use crate::pdata::space_map::common::SMRoot;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
 use crate::thin::block_time::BlockTime;

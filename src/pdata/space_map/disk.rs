@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::pdata::btree_builder::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_common::*;
+use crate::pdata::space_map::common::*;
 use crate::write_batcher::*;
 
 //------------------------------------------

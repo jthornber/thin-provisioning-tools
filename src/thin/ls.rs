@@ -12,7 +12,7 @@ use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_common::SMRoot;
+use crate::pdata::space_map::common::SMRoot;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
 use crate::thin::block_time::BlockTime;

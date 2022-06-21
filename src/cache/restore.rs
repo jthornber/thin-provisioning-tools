@@ -13,8 +13,8 @@ use crate::cache::xml;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
-use crate::pdata::space_map_common::pack_root;
-use crate::pdata::space_map_metadata::*;
+use crate::pdata::space_map::common::pack_root;
+use crate::pdata::space_map::metadata::*;
 use crate::report::*;
 use crate::write_batcher::*;
 

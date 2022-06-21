@@ -12,8 +12,8 @@ use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::*;
 use crate::pdata::space_map::*;
-use crate::pdata::space_map_checker::*;
-use crate::pdata::space_map_common::*;
+use crate::pdata::space_map::checker::*;
+use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::unpack;
 use crate::report::*;
 

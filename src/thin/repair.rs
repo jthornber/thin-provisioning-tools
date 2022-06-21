@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::io_engine::*;
-use crate::pdata::space_map_metadata::*;
+use crate::pdata::space_map::metadata::*;
 use crate::report::*;
 use crate::thin::dump::*;
 use crate::thin::metadata::*;
