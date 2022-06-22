@@ -2,10 +2,13 @@ use anyhow::{anyhow, Context, Result};
 use roaring::RoaringBitmap;
 use std::alloc::{alloc, dealloc, Layout};
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::prelude::FileExt;
 use std::path::Path;
+use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread;
 
@@ -21,12 +24,9 @@ use crate::run_iter::*;
 /// metadata blocks of interest (we know these from the metadata
 /// space map), compresses them and caches them in memory.  This
 /// greatly speeds up performance but obviously uses a lot of memory.
-/// Writes are not supported.
+/// Writes or reads to blocks not in the space map fall back to sync io.
 
-pub struct SpindleIoEngine {
-    nr_blocks: u64,
-    compressed: BTreeMap<u32, Vec<u8>>,
-}
+//------------------------------------------
 
 // Because we use O_DIRECT we need to use page aligned blocks.  Buffer
 // manages allocation of this aligned memory.
@@ -65,6 +65,8 @@ impl Drop for Buffer {
 
 unsafe impl Send for Buffer {}
 unsafe impl Sync for Buffer {}
+
+//------------------------------------------
 
 fn pack_block<W: io::Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
     match kind {
@@ -125,7 +127,6 @@ fn packer_thread(
     loop {
         if let Ok((first_block, buffer)) = rx.recv() {
             let chunk = buffer.get_data();
-            // eprintln!("processing chunk starting at block {}", first_block);
             pack_chunk(first_block, chunk, &mut compressed).expect("pack chunk failed");
         } else {
             break;
@@ -137,7 +138,15 @@ fn packer_thread(
         .expect("packer thread couldn't send result");
 }
 
-impl SpindleIoEngine {
+//------------------------------------------
+
+struct SpindleIoEngine_ {
+    nr_blocks: u64,
+    compressed: BTreeMap<u32, Vec<u8>>,
+    input: File,
+}
+
+impl SpindleIoEngine_ {
     pub fn new(path: &Path, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
         let nr_blocks = get_nr_blocks(path)?;
         let mut input = OpenOptions::new()
@@ -156,20 +165,19 @@ impl SpindleIoEngine {
 
         for (present, mut range) in RunIter::new(blocks, nr_blocks as u32) {
             if !present {
-                input.seek(std::io::SeekFrom::Current((range.len() * BLOCK_SIZE) as i64))?;
+                input.seek(std::io::SeekFrom::Current(
+                    (range.len() * BLOCK_SIZE) as i64,
+                ))?;
             } else {
                 while !range.is_empty() {
-                    let len = std::cmp::min(range.len(), 16 * 1024);  // Max 64M buffer
+                    let len = std::cmp::min(range.len(), 16 * 1024); // Max 64M buffer
                     let buffer = Buffer::new(len * BLOCK_SIZE, 4096);
-                    let chunk = buffer.get_data();
-                    input.read_exact(chunk)?;
+                    input.read_exact(buffer.get_data())?;
                     tx.send((range.start as u64, buffer))?;
                     range.start += len as u32;
                 }
             }
         }
-
-        // FIXME: handle partial chunk at end
 
         drop(tx);
         let compressed = result_rx.recv()?;
@@ -178,6 +186,7 @@ impl SpindleIoEngine {
         Ok(Self {
             nr_blocks,
             compressed,
+            input,
         })
     }
 
@@ -185,14 +194,36 @@ impl SpindleIoEngine {
         if let Some(z) = self.compressed.get(&(loc as u32)) {
             unpack_block(z, loc).map_err(|_| io::Error::new(io::ErrorKind::Other, "unpack failed"))
         } else {
-            todo!();
+            let b = Block::new(loc);
+            self.input.read_exact_at(b.get_data(), loc * BLOCK_SIZE as u64)?;
+            Ok(b)
         }
+    }
+
+    fn write_(&mut self, b: &Block) -> io::Result<()> {
+        self.compressed.remove(&(b.loc as u32));
+        self.input.write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)
+    }
+}
+
+//------------------------------------------
+
+pub struct SpindleIoEngine {
+    inner: RwLock<SpindleIoEngine_>,
+}
+
+impl SpindleIoEngine {
+    pub fn new(path: &Path, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
+        Ok(Self {
+            inner: RwLock::new(SpindleIoEngine_::new(path, blocks, excl)?)
+        })
     }
 }
 
 impl IoEngine for SpindleIoEngine {
     fn get_nr_blocks(&self) -> u64 {
-        self.nr_blocks
+        let inner = self.inner.read().unwrap();
+        inner.nr_blocks
     }
 
     fn get_batch_size(&self) -> usize {
@@ -200,23 +231,32 @@ impl IoEngine for SpindleIoEngine {
     }
 
     fn read(&self, loc: u64) -> io::Result<Block> {
-        self.read_(loc)
+        let inner = self.inner.read().unwrap();
+        inner.read_(loc)
     }
 
     fn read_many(&self, blocks: &[u64]) -> io::Result<Vec<io::Result<Block>>> {
+        let inner = self.inner.read().unwrap();
         let mut bs = Vec::new();
         for b in blocks {
-            bs.push(self.read_(*b));
+            bs.push(inner.read_(*b));
         }
         Ok(bs)
     }
 
-    fn write(&self, _b: &Block) -> io::Result<()> {
-        todo!();
+    fn write(&self, b: &Block) -> io::Result<()> {
+        let mut inner = self.inner.write().unwrap();
+        inner.write_(b)?;
+        Ok(())
     }
 
-    fn write_many(&self, _blocks: &[Block]) -> io::Result<Vec<io::Result<()>>> {
-        todo!();
+    fn write_many(&self, blocks: &[Block]) -> io::Result<Vec<io::Result<()>>> {
+        let mut inner = self.inner.write().unwrap();
+        let mut bs = Vec::new();
+        for b in blocks {
+            bs.push(inner.write_(&*b));
+        }
+        Ok(bs)
     }
 }
 

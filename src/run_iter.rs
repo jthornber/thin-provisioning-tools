@@ -62,7 +62,7 @@ mod run_iter_tests {
             Test {
                 bits: vec![false, true, true, false, false, false, true],
                 expected: vec![(false, 0..1), (true, 1..3), (false, 3..6), (true, 6..7)],
-            },
+            }
             Test {
                 bits: vec![false, true, true, false, false, false, true, false, false],
                 expected: vec![
