@@ -12,6 +12,7 @@ use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::space_map::checker::*;
 use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::allocated_blocks::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
@@ -82,9 +83,15 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 pub const MAX_CONCURRENT_IO: u32 = 1024;
 
+pub enum EngineType {
+    Sync,
+    ASync,
+    Spindle,
+}
+
 pub struct ThinCheckOptions<'a> {
     pub input: &'a Path,
-    pub async_io: bool,
+    pub engine_type: EngineType,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
@@ -198,6 +205,16 @@ fn check_mapping_bottom_level(
     }
 }
 
+fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> Result<Superblock> {
+    // superblock
+    let sb = if opts.use_metadata_snap {
+        read_superblock_snap(engine.as_ref())?
+    } else {
+        read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?
+    };
+    Ok(sb)
+}
+
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
     let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
     let pool = ThreadPool::new(nr_threads);
@@ -213,16 +230,33 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     let writable = opts.auto_repair || opts.clear_needs_check;
     let exclusive = opts.use_metadata_snap;
 
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(
-            AsyncIoEngine::new_with(opts.input, MAX_CONCURRENT_IO, writable, exclusive)
-                .expect("unable to open input file"),
-        )
-    } else {
-        Arc::new(
-            SyncIoEngine::new_with(opts.input, writable, exclusive)
-                .expect("unable to open input file"),
-        )
+    let engine: Arc<dyn IoEngine + Send + Sync> = match opts.engine_type {
+        EngineType::ASync => {
+            Arc::new(
+                AsyncIoEngine::new_with(opts.input, MAX_CONCURRENT_IO, writable, exclusive)
+                    .expect("unable to open input file"),
+            )
+        },
+        EngineType::Sync => {
+            Arc::new(
+                SyncIoEngine::new(opts.input, 1, exclusive).expect("unable to open input file"),
+            )
+        },
+        EngineType::Spindle => {
+            // use a Sync engine to read the metadata space map
+            let sync_engine = Arc::new(
+                SyncIoEngine::new(opts.input, 1, exclusive).expect("unable to open input file")
+            );
+            let sb = read_sb(opts, sync_engine.clone())?;
+            let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+            let valid_blocks = allocated_blocks(sync_engine, metadata_root.bitmap_root)?;
+
+            eprintln!("input = {}, valid blocks = {}", opts.input.display(), valid_blocks.len());
+            Arc::new(
+                SpindleIoEngine::new(opts.input, &valid_blocks, exclusive)
+                    .expect("unable to open input file"),
+            )
+        }
     };
 
     mk_context_(engine, opts.report.clone())
@@ -237,13 +271,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_title("Checking thin metadata");
 
-    // superblock
-    let sb = if opts.use_metadata_snap {
-        read_superblock_snap(engine.as_ref())?
-    } else {
-        read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?
-    };
-
+    let sb = read_sb(&opts, engine.clone())?;
     report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {

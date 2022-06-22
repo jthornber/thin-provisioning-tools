@@ -34,6 +34,7 @@ thread_local = "1.1"
 thiserror = "1.0"
 tui = { version = "0.14", optional = true }
 termion = { version = "1.5", optional = true }
+zstd = "0.11"
 
 [dev-dependencies]
 duct = "0.13"
