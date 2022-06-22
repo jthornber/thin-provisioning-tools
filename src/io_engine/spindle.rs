@@ -7,7 +7,6 @@ use std::io::{self, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::checksum::*;
@@ -99,7 +98,7 @@ fn pack_chunk(
     blocks: &RoaringBitmap,
     chunk_index: u64,
     chunk: &[u8],
-    compressed: Arc<Mutex<BTreeMap<u32, Vec<u8>>>>,
+    compressed: &mut BTreeMap<u32, Vec<u8>>,
 ) -> Result<u64> {
     let mut total_packed = 0u64;
 
@@ -118,12 +117,32 @@ fn pack_chunk(
             pack_block(&mut packed, kind, data)?;
             total_packed += packed.len() as u64;
 
-            let mut compressed = compressed.lock().unwrap();
             compressed.insert(block as u32, packed);
         }
     }
 
     Ok(total_packed)
+}
+
+fn packer_thread(
+    blocks: RoaringBitmap,
+    rx: mpsc::Receiver<(u64, Buffer)>,
+    result_tx: mpsc::Sender<BTreeMap<u32, Vec<u8>>>,
+) {
+    let mut compressed = BTreeMap::new();
+    loop {
+        if let Ok((chunk_index, buffer)) = rx.recv() {
+            let chunk = buffer.get_data();
+            eprintln!("processing chunk {}", chunk_index);
+            pack_chunk(&blocks, chunk_index, chunk, &mut compressed).expect("pack chunk failed");
+        } else {
+            break;
+        }
+    }
+
+    result_tx
+        .send(compressed)
+        .expect("packer thread couldn't send result");
 }
 
 impl SpindleIoEngine {
@@ -139,27 +158,11 @@ impl SpindleIoEngine {
             .open(path)?;
 
         let complete_blocks = nr_blocks as usize / BLOCKS_PER_CHUNK;
-        // let mut total_packed = 0;
-        let compressed = Arc::new(Mutex::new(BTreeMap::new()));
 
         let (tx, rx) = mpsc::channel::<(u64, Buffer)>();
-        let blocks = Arc::new(blocks);
+        let (result_tx, result_rx) = mpsc::channel::<BTreeMap<u32, Vec<u8>>>();
 
-        let thread = {
-            let compressed = compressed.clone();
-            let blocks = blocks.clone();
-
-            thread::spawn(move || loop {
-                if let Ok((chunk_index, buffer)) = rx.recv() {
-                    let chunk = buffer.get_data();
-                    eprintln!("processing chunk {}", chunk_index);
-                    pack_chunk(&*blocks, chunk_index, chunk, compressed.clone())
-                        .expect("pack chunk failed");
-                } else {
-                    break;
-                }
-            })
-        };
+        let thread = thread::spawn(move || packer_thread(blocks, rx, result_tx));
 
         // FIXME: don't bother reading the chunk if there are no entries
         for chunk_index in 0..complete_blocks {
@@ -172,10 +175,8 @@ impl SpindleIoEngine {
         // FIXME: handle partial chunk at end
 
         drop(tx);
+        let compressed = result_rx.recv()?;
         thread.join().expect("chunk reader thread panicked");
-
-        //        eprintln!("total packed = {}", total_packed);
-        let compressed = Arc::try_unwrap(compressed).unwrap().into_inner().unwrap();
 
         Ok(Self {
             nr_blocks,
