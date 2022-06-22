@@ -30,6 +30,7 @@ pub mod mempool;
 pub mod pack;
 pub mod pdata;
 pub mod report;
+pub mod run_iter;
 pub mod shrink;
 pub mod sync_copier;
 pub mod thin;
@@ -37,5 +38,3 @@ pub mod units;
 pub mod version;
 pub mod write_batcher;
 pub mod xml;
-
-

@@ -3,7 +3,7 @@ use roaring::RoaringBitmap;
 use std::alloc::{alloc, dealloc, Layout};
 use std::collections::BTreeMap;
 use std::fs::OpenOptions;
-use std::io::{self, Read};
+use std::io::{self, Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::mpsc;
@@ -12,6 +12,7 @@ use std::thread;
 use crate::checksum::*;
 use crate::io_engine::*;
 use crate::pack::node_encode::*;
+use crate::run_iter::*;
 
 //------------------------------------------
 
@@ -91,23 +92,15 @@ fn unpack_block(z: &[u8], loc: u64) -> Result<Block> {
     Ok(b)
 }
 
-const CHUNK_SIZE: usize = 64 * 1024 * 1024;
-const BLOCKS_PER_CHUNK: usize = CHUNK_SIZE / BLOCK_SIZE;
-
 fn pack_chunk(
-    blocks: &RoaringBitmap,
-    chunk_index: u64,
+    first_block: u64,
     chunk: &[u8],
     compressed: &mut BTreeMap<u32, Vec<u8>>,
 ) -> Result<u64> {
     let mut total_packed = 0u64;
 
-    for b in 0..(CHUNK_SIZE / BLOCK_SIZE) {
-        let block = (chunk_index * BLOCKS_PER_CHUNK as u64) + b as u64;
-
-        if !blocks.contains(block as u32) {
-            continue;
-        }
+    for b in 0..(chunk.len() / BLOCK_SIZE) {
+        let block = first_block + b as u64;
 
         let offset = b * BLOCK_SIZE;
         let data = &chunk[offset..(offset + BLOCK_SIZE)];
@@ -125,16 +118,15 @@ fn pack_chunk(
 }
 
 fn packer_thread(
-    blocks: RoaringBitmap,
     rx: mpsc::Receiver<(u64, Buffer)>,
     result_tx: mpsc::Sender<BTreeMap<u32, Vec<u8>>>,
 ) {
     let mut compressed = BTreeMap::new();
     loop {
-        if let Ok((chunk_index, buffer)) = rx.recv() {
+        if let Ok((first_block, buffer)) = rx.recv() {
             let chunk = buffer.get_data();
-            eprintln!("processing chunk {}", chunk_index);
-            pack_chunk(&blocks, chunk_index, chunk, &mut compressed).expect("pack chunk failed");
+            // eprintln!("processing chunk starting at block {}", first_block);
+            pack_chunk(first_block, chunk, &mut compressed).expect("pack chunk failed");
         } else {
             break;
         }
@@ -157,19 +149,24 @@ impl SpindleIoEngine {
             })
             .open(path)?;
 
-        let complete_blocks = nr_blocks as usize / BLOCKS_PER_CHUNK;
-
         let (tx, rx) = mpsc::channel::<(u64, Buffer)>();
         let (result_tx, result_rx) = mpsc::channel::<BTreeMap<u32, Vec<u8>>>();
 
-        let thread = thread::spawn(move || packer_thread(blocks, rx, result_tx));
+        let thread = thread::spawn(move || packer_thread(rx, result_tx));
 
-        // FIXME: don't bother reading the chunk if there are no entries
-        for chunk_index in 0..complete_blocks {
-            let buffer = Buffer::new(CHUNK_SIZE, 4096);
-            let chunk = buffer.get_data();
-            input.read_exact(chunk)?;
-            tx.send((chunk_index as u64, buffer))?;
+        for (present, mut range) in RunIter::new(blocks, nr_blocks as u32) {
+            if !present {
+                input.seek(std::io::SeekFrom::Current((range.len() * BLOCK_SIZE) as i64))?;
+            } else {
+                while !range.is_empty() {
+                    let len = std::cmp::min(range.len(), 16 * 1024);  // Max 64M buffer
+                    let buffer = Buffer::new(len * BLOCK_SIZE, 4096);
+                    let chunk = buffer.get_data();
+                    input.read_exact(chunk)?;
+                    tx.send((range.start as u64, buffer))?;
+                    range.start += len as u32;
+                }
+            }
         }
 
         // FIXME: handle partial chunk at end
