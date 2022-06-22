@@ -216,6 +216,7 @@ fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> 
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
+    // FIXME: shouldn't this be min?
     let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
     let pool = ThreadPool::new(nr_threads);
 
@@ -253,7 +254,7 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
 
             eprintln!("input = {}, valid blocks = {}", opts.input.display(), valid_blocks.len());
             Arc::new(
-                SpindleIoEngine::new(opts.input, &valid_blocks, exclusive)
+                SpindleIoEngine::new(opts.input, valid_blocks, exclusive)
                     .expect("unable to open input file"),
             )
         }

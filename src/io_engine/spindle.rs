@@ -6,6 +6,9 @@ use std::fs::OpenOptions;
 use std::io::{self, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use crate::checksum::*;
 use crate::io_engine::*;
@@ -61,6 +64,7 @@ impl Drop for Buffer {
 }
 
 unsafe impl Send for Buffer {}
+unsafe impl Sync for Buffer {}
 
 fn pack_block<W: io::Write>(w: &mut W, kind: BT, buf: &[u8]) -> Result<()> {
     match kind {
@@ -88,8 +92,42 @@ fn unpack_block(z: &[u8], loc: u64) -> Result<Block> {
     Ok(b)
 }
 
+const CHUNK_SIZE: usize = 64 * 1024 * 1024;
+const BLOCKS_PER_CHUNK: usize = CHUNK_SIZE / BLOCK_SIZE;
+
+fn pack_chunk(
+    blocks: &RoaringBitmap,
+    chunk_index: u64,
+    chunk: &[u8],
+    compressed: Arc<Mutex<BTreeMap<u32, Vec<u8>>>>,
+) -> Result<u64> {
+    let mut total_packed = 0u64;
+
+    for b in 0..(CHUNK_SIZE / BLOCK_SIZE) {
+        let block = (chunk_index * BLOCKS_PER_CHUNK as u64) + b as u64;
+
+        if !blocks.contains(block as u32) {
+            continue;
+        }
+
+        let offset = b * BLOCK_SIZE;
+        let data = &chunk[offset..(offset + BLOCK_SIZE)];
+        let kind = metadata_block_type(data);
+        if kind != BT::UNKNOWN {
+            let mut packed = Vec::with_capacity(64);
+            pack_block(&mut packed, kind, data)?;
+            total_packed += packed.len() as u64;
+
+            let mut compressed = compressed.lock().unwrap();
+            compressed.insert(block as u32, packed);
+        }
+    }
+
+    Ok(total_packed)
+}
+
 impl SpindleIoEngine {
-    pub fn new(path: &Path, blocks: &RoaringBitmap, excl: bool) -> Result<Self> {
+    pub fn new(path: &Path, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
         let nr_blocks = get_nr_blocks(path)?;
         let mut input = OpenOptions::new()
             .read(true)
@@ -100,38 +138,44 @@ impl SpindleIoEngine {
             })
             .open(path)?;
 
-        const CHUNK_SIZE: usize = 64 * 1024 * 1024;
-        let buffer = Buffer::new(CHUNK_SIZE, 4096);
+        let complete_blocks = nr_blocks as usize / BLOCKS_PER_CHUNK;
+        // let mut total_packed = 0;
+        let compressed = Arc::new(Mutex::new(BTreeMap::new()));
 
-        let blocks_per_chunk = CHUNK_SIZE / BLOCK_SIZE;
-        let complete_blocks = nr_blocks as usize / blocks_per_chunk;
-        let mut total_packed = 0;
-        let mut compressed = BTreeMap::new();
+        let (tx, rx) = mpsc::channel::<(u64, Buffer)>();
+        let blocks = Arc::new(blocks);
 
-        for big_block in 0..complete_blocks {
-            let data = buffer.get_data();
-            input.read_exact(data)?;
+        let thread = {
+            let compressed = compressed.clone();
+            let blocks = blocks.clone();
 
-            for b in 0..(CHUNK_SIZE / BLOCK_SIZE) {
-                let block = (big_block * blocks_per_chunk) + b;
-
-                if !blocks.contains(block as u32) {
-                    continue;
+            thread::spawn(move || loop {
+                if let Ok((chunk_index, buffer)) = rx.recv() {
+                    let chunk = buffer.get_data();
+                    eprintln!("processing chunk {}", chunk_index);
+                    pack_chunk(&*blocks, chunk_index, chunk, compressed.clone())
+                        .expect("pack chunk failed");
+                } else {
+                    break;
                 }
+            })
+        };
 
-                let offset = b * BLOCK_SIZE;
-                let data = &data[offset..(offset + BLOCK_SIZE)];
-                let kind = metadata_block_type(data);
-                if kind != BT::UNKNOWN {
-                    let mut packed = Vec::with_capacity(64);
-                    pack_block(&mut packed, kind, data)?;
-                    total_packed += packed.len();
-
-                    compressed.insert(block as u32, packed);
-                }
-            }
+        // FIXME: don't bother reading the chunk if there are no entries
+        for chunk_index in 0..complete_blocks {
+            let buffer = Buffer::new(CHUNK_SIZE, 4096);
+            let chunk = buffer.get_data();
+            input.read_exact(chunk)?;
+            tx.send((chunk_index as u64, buffer))?;
         }
-        eprintln!("total packed = {}", total_packed);
+
+        // FIXME: handle partial chunk at end
+
+        drop(tx);
+        thread.join().expect("chunk reader thread panicked");
+
+        //        eprintln!("total packed = {}", total_packed);
+        let compressed = Arc::try_unwrap(compressed).unwrap().into_inner().unwrap();
 
         Ok(Self {
             nr_blocks,
