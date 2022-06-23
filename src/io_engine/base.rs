@@ -59,6 +59,18 @@ impl Drop for Block {
 
 unsafe impl Send for Block {}
 
+impl AsRef<[u8]> for Block {
+    fn as_ref(&self) -> &[u8] {
+        self.get_data()
+    }
+}
+
+impl AsMut<[u8]> for Block {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.get_data()
+    }
+}
+
 //------------------------------------------
 
 pub trait IoEngine {
