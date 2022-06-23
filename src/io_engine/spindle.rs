@@ -230,6 +230,10 @@ impl IoEngine for SpindleIoEngine {
         1
     }
 
+    fn suggest_nr_threads(&self) -> usize {
+        std::cmp::min(4, num_cpus::get())
+    }
+
     fn read(&self, loc: u64) -> io::Result<Block> {
         let inner = self.inner.read().unwrap();
         inner.read_(loc)

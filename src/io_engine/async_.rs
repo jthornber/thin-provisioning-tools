@@ -181,6 +181,10 @@ impl IoEngine for AsyncIoEngine {
         self.inner.lock().unwrap().queue_len as usize
     }
 
+    fn suggest_nr_threads(&self) -> usize {
+        std::cmp::min(8, num_cpus::get())
+    }
+
     fn read(&self, b: u64) -> Result<Block> {
         let mut inner = self.inner.lock().unwrap();
         let fd = types::Fd(inner.input.as_raw_fd());

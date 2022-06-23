@@ -198,12 +198,10 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinRmapOptions) -> Result<Context> {
-    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
-        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+        Arc::new(SyncIoEngine::new(opts.input, false)?)
     };
 
     Ok(Context {

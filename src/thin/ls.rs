@@ -267,7 +267,7 @@ fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
     } else {
-        Arc::new(SyncIoEngine::new(opts.input, nr_threads, false)?)
+        Arc::new(SyncIoEngine::new(opts.input, false)?)
     };
 
     let pool = ThreadPool::new(nr_threads);

@@ -232,8 +232,7 @@ fn mk_context(opts: &ThinTrimOptions) -> Result<Context> {
             false,
         )?)
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-        Arc::new(SyncIoEngine::new(opts.metadata_dev, nr_threads, false)?)
+        Arc::new(SyncIoEngine::new(opts.metadata_dev, false)?)
     };
 
     Ok(Context {

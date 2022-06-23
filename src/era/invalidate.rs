@@ -248,10 +248,8 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
             !opts.use_metadata_snap,
         )?)
     } else {
-        let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
         Arc::new(SyncIoEngine::new_with(
             opts.input,
-            nr_threads,
             false,
             !opts.use_metadata_snap,
         )?)
