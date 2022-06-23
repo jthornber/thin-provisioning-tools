@@ -70,11 +70,12 @@ impl SyncIoEngine {
         Ok(file)
     }
 
-    pub fn new(path: &Path, nr_files: usize, writable: bool) -> Result<Self> {
-        SyncIoEngine::new_with(path, nr_files, writable, true)
+    pub fn new(path: &Path, writable: bool) -> Result<Self> {
+        SyncIoEngine::new_with(path, writable, true)
     }
 
-    pub fn new_with(path: &Path, nr_files: usize, writable: bool, excl: bool) -> Result<Self> {
+    pub fn new_with(path: &Path, writable: bool, excl: bool) -> Result<Self> {
+        let nr_files = 8;
         let nr_blocks = get_nr_blocks(path)?; // check file mode before opening it
         let mut files = Vec::with_capacity(nr_files);
         let file = SyncIoEngine::open_file(path, writable, excl)?;
@@ -125,6 +126,10 @@ impl IoEngine for SyncIoEngine {
 
     fn get_batch_size(&self) -> usize {
         1
+    }
+
+    fn suggest_nr_threads(&self) -> usize {
+        std::cmp::min(8, num_cpus::get())
     }
 
     fn read(&self, loc: u64) -> Result<Block> {

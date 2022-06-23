@@ -216,8 +216,7 @@ fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> 
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
-    // FIXME: shouldn't this be min?
-    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
+    let nr_threads = engine.suggest_nr_threads();
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {
@@ -240,13 +239,13 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
         },
         EngineType::Sync => {
             Arc::new(
-                SyncIoEngine::new(opts.input, 1, exclusive).expect("unable to open input file"),
+                SyncIoEngine::new(opts.input, exclusive).expect("unable to open input file"),
             )
         },
         EngineType::Spindle => {
             // use a Sync engine to read the metadata space map
             let sync_engine = Arc::new(
-                SyncIoEngine::new(opts.input, 1, exclusive).expect("unable to open input file")
+                SyncIoEngine::new(opts.input, exclusive).expect("unable to open input file")
             );
             let sb = read_sb(opts, sync_engine.clone())?;
             let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;

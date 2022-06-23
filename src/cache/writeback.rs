@@ -447,7 +447,10 @@ fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
             opts.update_metadata,
         )?)
     } else {
-        Arc::new(SyncIoEngine::new(opts.metadata_dev, opts.update_metadata)?)
+        Arc::new(SyncIoEngine::new(
+            opts.metadata_dev,
+            opts.update_metadata,
+        )?)
     };
 
     Ok(Context {

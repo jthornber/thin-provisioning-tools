@@ -32,7 +32,10 @@ impl AsyncIoEngine {
             .custom_flags(flags)
             .open(path)?;
 
-        let ring = rio::new()?;
+        // let ring = rio::new()?;
+        let mut cfg = rio::Config::default();
+        cfg.depth = 1024;
+        let ring = cfg.start()?;
 
         Ok(Self {
             input,
@@ -56,6 +59,10 @@ impl IoEngine for AsyncIoEngine {
     fn get_batch_size(&self) -> usize {
         // FIXME: what's a good value for this?
         256
+    }
+
+    fn suggest_nr_threads(&self) -> usize {
+        std::cmp::min(2, num_cpus::get())
     }
 
     fn read(&self, b: u64) -> Result<Block> {

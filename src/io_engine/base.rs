@@ -81,6 +81,11 @@ pub trait IoEngine {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
 
+    // The number of threads a tool should use depends on the underlying
+    // io engine.  eg, async engine runs best with 2, sync engine
+    // with more.
+    fn suggest_nr_threads(&self) -> usize;
+
     fn read(&self, b: u64) -> Result<Block>;
     // The whole io could fail, or individual blocks
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>>;
