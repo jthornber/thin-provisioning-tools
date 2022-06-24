@@ -10,11 +10,13 @@ use crate::io_engine::*;
 
 //------------------------------------------
 
+// We hang waiting for completions on spindle devices if the QUEUE_DEPTH
+// is larger than this.  This doesn't give me confidence in io_uring.
+const QUEUE_DEPTH: usize = 32;
+
 pub struct AsyncIoEngine {
     input: File,
-    nr_blocks: u64, // FIXME: lift
-
-    // FIXME: do we have to use the same ring?
+    nr_blocks: u64,
     ring: Rio,
 }
 
@@ -32,9 +34,8 @@ impl AsyncIoEngine {
             .custom_flags(flags)
             .open(path)?;
 
-        // let ring = rio::new()?;
         let mut cfg = rio::Config::default();
-        cfg.depth = 1024;
+        cfg.depth = QUEUE_DEPTH;
         let ring = cfg.start()?;
 
         Ok(Self {
@@ -57,8 +58,7 @@ impl IoEngine for AsyncIoEngine {
     }
 
     fn get_batch_size(&self) -> usize {
-        // FIXME: what's a good value for this?
-        256
+        QUEUE_DEPTH
     }
 
     fn suggest_nr_threads(&self) -> usize {
