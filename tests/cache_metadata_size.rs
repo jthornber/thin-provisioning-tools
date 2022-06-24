@@ -9,20 +9,22 @@ use common::target::*;
 
 //------------------------------------------
 
-const USAGE: &str = concat!("cache_metadata_size ",
-include_str!("../VERSION"),
-"Estimate the size of the metadata device needed for a given configuration.
+const USAGE: &str = concat!(
+    "cache_metadata_size ",
+    include_str!("../VERSION"),
+    "Estimate the size of the metadata device needed for a given configuration.
 
 USAGE:
-    cache_metadata_size [OPTIONS] <--device-size <SECTORS> --block-size <SECTORS> | --nr-blocks <NUM>>
+    cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>
 
 OPTIONS:
-        --block-size <SECTORS>      Specify the size of each cache block
-        --device-size <SECTORS>     Specify total size of the fast device used in the cache
-    -h, --help                      Print help information
-        --max-hint-width <BYTES>    Specity the per-block hint width [default: 4]
-        --nr-blocks <NUM>           Specify the number of cache blocks
-    -V, --version                   Print version information");
+        --block-size <SIZE[bskmg]>       Specify the size of each cache block
+        --device-size <SIZE[bskmgtp]>    Specify total size of the fast device used in the cache
+    -h, --help                           Print help information
+        --max-hint-width <BYTES>         Specity the per-block hint width [default: 4]
+        --nr-blocks <NUM>                Specify the number of cache blocks
+    -V, --version                        Print version information"
+);
 
 //------------------------------------------
 

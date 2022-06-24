@@ -6,6 +6,7 @@ use std::ffi::OsString;
 use crate::cache::metadata_size::{metadata_size, CacheMetadataSizeOptions};
 use crate::commands::Command;
 use crate::math::div_up;
+use crate::units::*;
 
 //------------------------------------------
 
@@ -17,21 +18,21 @@ impl CacheMetadataSizeCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Estimate the size of the metadata device needed for a given configuration.")
-            .override_usage("cache_metadata_size [OPTIONS] <--device-size <SECTORS> --block-size <SECTORS> | --nr-blocks <NUM>>")
+            .override_usage("cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>")
             // options
             .arg(
                 Arg::new("BLOCK_SIZE")
                     .help("Specify the size of each cache block")
                     .long("block-size")
                     .requires("DEVICE_SIZE")
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmg]"),
             )
             .arg(
                 Arg::new("DEVICE_SIZE")
                     .help("Specify total size of the fast device used in the cache")
                     .long("device-size")
                     .requires("BLOCK_SIZE")
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmgtp]"),
             )
             .arg(
                 Arg::new("NR_BLOCKS")
@@ -62,8 +63,12 @@ impl CacheMetadataSizeCommand {
 
         let nr_blocks = matches.value_of("NR_BLOCKS").map_or_else(
             || {
-                let device_size = matches.value_of_t_or_exit::<u64>("DEVICE_SIZE");
-                let block_size = matches.value_of_t_or_exit::<u32>("BLOCK_SIZE");
+                let device_size = matches
+                    .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
+                    .size_bytes();
+                let block_size = matches
+                    .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+                    .size_bytes();
                 div_up(device_size, block_size as u64)
             },
             |_| matches.value_of_t_or_exit::<u64>("NR_BLOCKS"),

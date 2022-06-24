@@ -223,7 +223,7 @@ impl<'a> LsTable<'a> {
 
             let cell = match field {
                 Mapped | Exclusive | Shared => {
-                    let (val, unit) = to_pretty_print_units(val);
+                    let (val, unit) = to_pretty_print_size(val);
                     let mut s = val.to_string();
                     s.push_str(&unit.to_string_short());
                     s

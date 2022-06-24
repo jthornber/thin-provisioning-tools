@@ -24,7 +24,7 @@ impl ThinMetadataSizeCommand {
                     .short('b')
                     .long("block-size")
                     .required(true)
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmg]"),
             )
             .arg(
                 Arg::new("POOL_SIZE")
@@ -32,7 +32,7 @@ impl ThinMetadataSizeCommand {
                     .short('s')
                     .long("pool-size")
                     .required(true)
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmgtp]"),
             )
             .arg(
                 Arg::new("MAX_THINS")
@@ -65,16 +65,19 @@ impl ThinMetadataSizeCommand {
     {
         let matches = self.cli().get_matches_from(args);
 
-        // TODO: handle unit suffix
-        let pool_size = matches.value_of_t_or_exit::<u64>("POOL_SIZE");
-        let block_size = matches.value_of_t_or_exit::<u32>("BLOCK_SIZE");
+        let pool_size = matches
+            .value_of_t_or_exit::<StorageSize>("POOL_SIZE")
+            .size_bytes();
+        let block_size = matches
+            .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+            .size_bytes();
         let max_thins = matches.value_of_t_or_exit::<u64>("MAX_THINS");
         let unit = matches.value_of_t_or_exit::<Units>("UNIT");
         let numeric_only = matches.is_present("NUMERIC_ONLY");
 
         (
             ThinMetadataSizeOptions {
-                nr_blocks: pool_size / block_size as u64,
+                nr_blocks: pool_size / block_size,
                 max_thins,
             },
             unit,
