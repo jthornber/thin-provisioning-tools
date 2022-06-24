@@ -233,7 +233,7 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = match opts.engine_type {
         EngineType::ASync => {
             Arc::new(
-                AsyncIoEngine::new_with(opts.input, MAX_CONCURRENT_IO, writable, exclusive)
+                AsyncIoEngine::new_with(opts.input, writable, exclusive)
                     .expect("unable to open input file"),
             )
         },

@@ -283,8 +283,6 @@ fn dump_diff(
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
 pub struct ThinDeltaOptions<'a> {
     pub input: &'a Path,
     pub async_io: bool,
@@ -302,7 +300,7 @@ struct Context {
 
 fn mk_context(opts: &ThinDeltaOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
+        Arc::new(AsyncIoEngine::new(opts.input, false)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.input, false)?)
     };

@@ -19,10 +19,6 @@ use crate::pdata::bitset::{read_bitset, CheckedBitSet};
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//------------------------------------------
-
 mod format1 {
     use super::*;
 
@@ -263,7 +259,7 @@ struct CacheDumpContext {
 
 fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<CacheDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
+        Arc::new(AsyncIoEngine::new(opts.input, false)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.input, false)?)
     };

@@ -19,10 +19,6 @@ use crate::report::Report;
 
 //-----------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//-----------------------------------------
-
 struct CopyStats {
     blocks_scanned: u32, // scanned indices
     blocks_needed: u32,  // blocks to copy
@@ -315,7 +311,6 @@ fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(
             opts.metadata_dev,
-            MAX_CONCURRENT_IO,
             opts.update_metadata,
         )?)
     } else {

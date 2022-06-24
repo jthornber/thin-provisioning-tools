@@ -25,15 +25,13 @@ struct Context {
     engine_out: Arc<dyn IoEngine + Send + Sync>,
 }
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
 fn new_context(opts: &EraRepairOptions) -> Result<Context> {
     let engine_in: Arc<dyn IoEngine + Send + Sync>;
     let engine_out: Arc<dyn IoEngine + Send + Sync>;
 
     if opts.async_io {
-        engine_in = Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?);
-        engine_out = Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?);
+        engine_in = Arc::new(AsyncIoEngine::new(opts.input, false)?);
+        engine_out = Arc::new(AsyncIoEngine::new(opts.output, true)?);
     } else {
         engine_in = Arc::new(SyncIoEngine::new(opts.input, false)?);
         engine_out = Arc::new(SyncIoEngine::new(opts.output, true)?);

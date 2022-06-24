@@ -210,8 +210,6 @@ fn trim_data_device(
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
 pub struct ThinTrimOptions<'a> {
     pub metadata_dev: &'a Path,
     pub data_dev: &'a Path,
@@ -228,7 +226,6 @@ fn mk_context(opts: &ThinTrimOptions) -> Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new(
             opts.metadata_dev,
-            MAX_CONCURRENT_IO,
             false,
         )?)
     } else {

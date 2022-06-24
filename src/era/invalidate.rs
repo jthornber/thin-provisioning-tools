@@ -17,10 +17,6 @@ use crate::xml::mk_attr;
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//------------------------------------------
-
 struct BitsetCollator<'a> {
     composed_bits: Box<Mutex<&'a mut [u64]>>,
 }
@@ -243,7 +239,6 @@ fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
         Arc::new(AsyncIoEngine::new_with(
             opts.input,
-            MAX_CONCURRENT_IO,
             false,
             !opts.use_metadata_snap,
         )?)

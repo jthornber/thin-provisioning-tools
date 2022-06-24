@@ -20,10 +20,6 @@ use crate::write_batcher::*;
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//------------------------------------------
-
 pub struct CacheRestoreOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
@@ -39,7 +35,7 @@ struct Context {
 
 fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
+        Arc::new(AsyncIoEngine::new(opts.output, true)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.output, true)?)
     };
