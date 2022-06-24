@@ -145,8 +145,6 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
 pub struct ThinDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
@@ -165,7 +163,7 @@ struct ThinDumpContext {
 
 fn mk_context(opts: &ThinDumpOptions) -> Result<ThinDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
+        Arc::new(AsyncIoEngine::new(opts.input, false)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.input, false)?)
     };

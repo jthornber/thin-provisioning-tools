@@ -20,10 +20,6 @@ use crate::pdata::btree_walker::btree_to_map;
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//-----------------------------------------
-
 struct EraEmitter<'a> {
     emitter: Mutex<&'a mut dyn MetadataVisitor>,
 }
@@ -176,7 +172,7 @@ struct EraDumpContext {
 
 fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<EraDumpContext> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, MAX_CONCURRENT_IO, false)?)
+        Arc::new(AsyncIoEngine::new(opts.input, false)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.input, false)?)
     };

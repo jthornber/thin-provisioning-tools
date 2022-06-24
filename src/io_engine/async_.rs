@@ -21,7 +21,7 @@ pub struct AsyncIoEngine {
 }
 
 impl AsyncIoEngine {
-    pub fn new_with(path: &Path, _queue_len: u32, writable: bool, excl: bool) -> Result<Self> {
+    pub fn new_with(path: &Path, writable: bool, excl: bool) -> Result<Self> {
         let nr_blocks = get_nr_blocks(path)?;
 
         let mut flags = libc::O_DIRECT;
@@ -45,8 +45,8 @@ impl AsyncIoEngine {
         })
     }
 
-    pub fn new(path: &Path, queue_len: u32, writable: bool) -> Result<Self> {
-        Self::new_with(path, queue_len, writable, true)
+    pub fn new(path: &Path, writable: bool) -> Result<Self> {
+        Self::new_with(path, writable, true)
     }
 }
 

@@ -14,10 +14,6 @@ use crate::report::*;
 
 //------------------------------------------
 
-const MAX_CONCURRENT_IO: u32 = 1024;
-
-//------------------------------------------
-
 fn inc_superblock(sm: &ASpaceMap) -> anyhow::Result<()> {
     let mut sm = sm.lock().unwrap();
     sm.inc(SUPERBLOCK_LOCATION, 1)?;
@@ -76,7 +72,7 @@ struct Context {
 
 fn mk_context(opts: &EraCheckOptions) -> anyhow::Result<Context> {
     let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.dev, MAX_CONCURRENT_IO, false)?)
+        Arc::new(AsyncIoEngine::new(opts.dev, false)?)
     } else {
         Arc::new(SyncIoEngine::new(opts.dev, false)?)
     };
