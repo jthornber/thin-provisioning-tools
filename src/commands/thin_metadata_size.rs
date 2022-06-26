@@ -17,6 +17,13 @@ impl ThinMetadataSizeCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Estimate the size of the metadata device needed for a given configuration.")
+            // flags
+            .arg(
+                Arg::new("NUMERIC_ONLY")
+                    .help("Output numeric value only")
+                    .short('n')
+                    .long("numeric-only"),
+            )
             // options
             .arg(
                 Arg::new("BLOCK_SIZE")
@@ -44,17 +51,11 @@ impl ThinMetadataSizeCommand {
             )
             .arg(
                 Arg::new("UNIT")
-                    .help("Specify the output unit")
+                    .help("Specify the output unit in {bskKmMgG}")
                     .short('u')
                     .long("unit")
                     .value_name("UNIT")
                     .default_value("sector"),
-            )
-            .arg(
-                Arg::new("NUMERIC_ONLY")
-                    .help("Output numeric value only")
-                    .short('n')
-                    .long("numeric-only"),
             )
     }
 
@@ -96,12 +97,12 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
 
         match metadata_size(&opts) {
             Ok(size) => {
-                let size = to_units(size * 512, unit);
+                let size = to_units(size, unit);
                 if numeric_only {
                     println!("{}", size);
                 } else {
                     let mut name = unit.to_string();
-                    name.push('s');
+                    name.push('s'); // plural form
                     println!("{} {}", size, name);
                 }
                 Ok(())
