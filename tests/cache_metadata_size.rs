@@ -22,7 +22,9 @@ OPTIONS:
         --device-size <SIZE[bskmgtp]>    Specify total size of the fast device used in the cache
     -h, --help                           Print help information
         --max-hint-width <BYTES>         Specity the per-block hint width [default: 4]
+    -n, --numeric-only                   Output numeric value only
         --nr-blocks <NUM>                Specify the number of cache blocks
+    -u, --unit <UNIT>                    Specify the output unit in {bskKmMgG} [default: sector]
     -V, --version                        Print version information"
 );
 

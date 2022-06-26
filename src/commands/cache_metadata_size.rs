@@ -19,6 +19,13 @@ impl CacheMetadataSizeCommand {
             .version(crate::version::tools_version())
             .about("Estimate the size of the metadata device needed for a given configuration.")
             .override_usage("cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>")
+            // flags
+            .arg(
+                Arg::new("NUMERIC_ONLY")
+                    .help("Output numeric value only")
+                    .short('n')
+                    .long("numeric-only"),
+            )
             // options
             .arg(
                 Arg::new("BLOCK_SIZE")
@@ -47,6 +54,14 @@ impl CacheMetadataSizeCommand {
                     .value_name("BYTES")
                     .default_value("4"),
             )
+            .arg(
+                Arg::new("UNIT")
+                    .help("Specify the output unit in {bskKmMgG}")
+                    .short('u')
+                    .long("unit")
+                    .value_name("UNIT")
+                    .default_value("sector"),
+            )
             .group(
                 ArgGroup::new("selection")
                 .args(&["DEVICE_SIZE", "NR_BLOCKS"])
@@ -54,7 +69,7 @@ impl CacheMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> CacheMetadataSizeOptions
+    fn parse_args<I, T>(&self, args: I) -> (CacheMetadataSizeOptions, Units, bool)
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
@@ -75,11 +90,17 @@ impl CacheMetadataSizeCommand {
         );
 
         let max_hint_width = matches.value_of_t_or_exit::<u32>("MAX_HINT_WIDTH");
+        let unit = matches.value_of_t_or_exit::<Units>("UNIT");
+        let numeric_only = matches.is_present("NUMERIC_ONLY");
 
-        CacheMetadataSizeOptions {
-            nr_blocks,
-            max_hint_width,
-        }
+        (
+            CacheMetadataSizeOptions {
+                nr_blocks,
+                max_hint_width,
+            },
+            unit,
+            numeric_only,
+        )
     }
 }
 
@@ -89,11 +110,18 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
     }
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let opts = self.parse_args(args);
+        let (opts, unit, numeric_only) = self.parse_args(args);
 
         match metadata_size(&opts) {
             Ok(size) => {
-                println!("{} sectors", size);
+                let size = to_units(size, unit);
+                if numeric_only {
+                    println!("{}", size);
+                } else {
+                    let mut name = unit.to_string();
+                    name.push('s'); // plural form
+                    println!("{} {}", size, name);
+                }
                 Ok(())
             }
             Err(reason) => {
