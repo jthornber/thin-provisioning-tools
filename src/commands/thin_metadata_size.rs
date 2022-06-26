@@ -2,8 +2,9 @@ extern crate clap;
 
 use clap::Arg;
 use std::ffi::OsString;
+use std::io;
 
-use crate::thin::metadata_size::{metadata_size, ThinMetadataSizeOptions};
+use crate::thin::metadata_size::*;
 use crate::units::*;
 
 //------------------------------------------
@@ -59,7 +60,7 @@ impl ThinMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> (ThinMetadataSizeOptions, Units, bool)
+    fn parse_args<I, T>(&self, args: I) -> std::io::Result<(ThinMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
@@ -76,14 +77,24 @@ impl ThinMetadataSizeCommand {
         let unit = matches.value_of_t_or_exit::<Units>("UNIT");
         let numeric_only = matches.is_present("NUMERIC_ONLY");
 
-        (
+        check_data_block_size(block_size)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+        if pool_size < block_size {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "pool size must be larger than block size",
+            ));
+        }
+
+        Ok((
             ThinMetadataSizeOptions {
                 nr_blocks: pool_size / block_size,
                 max_thins,
             },
             unit,
             numeric_only,
-        )
+        ))
     }
 }
 
@@ -93,7 +104,10 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
     }
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let (opts, unit, numeric_only) = self.parse_args(args);
+        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
+            eprintln!("{}", e);
+            e
+        })?;
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -109,7 +123,7 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(std::io::Error::from_raw_os_error(libc::EPERM))
+                Err(io::Error::from_raw_os_error(libc::EPERM))
             }
         }
     }
