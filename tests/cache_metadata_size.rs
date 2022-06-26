@@ -138,7 +138,7 @@ fn dev_size_and_nr_blocks_conflicts() -> Result<()> {
 fn block_size_and_nr_blocks_conflicts() -> Result<()> {
     run_fail(cache_metadata_size_cmd(args![
         "--block-size",
-        "100",
+        "64",
         "--nr-blocks",
         "1024"
     ]))?;
@@ -161,9 +161,9 @@ fn nr_blocks_alone() -> Result<()> {
 fn dev_size_and_block_size_succeeds() -> Result<()> {
     let out = run_ok_raw(cache_metadata_size_cmd(args![
         "--device-size",
-        "102400",
+        "65536",
         "--block-size",
-        "100"
+        "64"
     ]))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
@@ -183,6 +183,36 @@ fn large_nr_blocks() -> Result<()> {
         .to_string();
     assert_eq!(stdout, "3678208 sectors");
     assert_eq!(out.stderr.len(), 0);
+    Ok(())
+}
+
+#[test]
+fn test_valid_block_sizes() -> Result<()> {
+    let block_sizes = [64, 128, 192, 2097152];
+    for bs in block_sizes {
+        let bs = bs.to_string();
+        run_ok(cache_metadata_size_cmd(args![
+            "--device-size",
+            "16777216",
+            "--block-size",
+            &bs
+        ]))?;
+    }
+    Ok(())
+}
+
+#[test]
+fn invalid_block_size_should_fail() -> Result<()> {
+    let block_sizes = [0, 32, 63, 2097153, 2097218, 4194304];
+    for bs in block_sizes {
+        let bs = bs.to_string();
+        run_fail(cache_metadata_size_cmd(args![
+            "--device-size",
+            "16777216",
+            "--block-size",
+            &bs
+        ]))?;
+    }
     Ok(())
 }
 

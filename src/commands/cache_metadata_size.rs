@@ -2,8 +2,9 @@ extern crate clap;
 
 use clap::{Arg, ArgGroup};
 use std::ffi::OsString;
+use std::io;
 
-use crate::cache::metadata_size::{metadata_size, CacheMetadataSizeOptions};
+use crate::cache::metadata_size::*;
 use crate::commands::Command;
 use crate::math::div_up;
 use crate::units::*;
@@ -69,38 +70,48 @@ impl CacheMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> (CacheMetadataSizeOptions, Units, bool)
+    fn parse_args<I, T>(&self, args: I) -> io::Result<(CacheMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
         let matches = self.cli().get_matches_from(args);
 
-        let nr_blocks = matches.value_of("NR_BLOCKS").map_or_else(
-            || {
-                let device_size = matches
-                    .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
-                    .size_bytes();
-                let block_size = matches
-                    .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
-                    .size_bytes();
-                div_up(device_size, block_size as u64)
-            },
-            |_| matches.value_of_t_or_exit::<u64>("NR_BLOCKS"),
-        );
+        let nr_blocks = if matches.is_present("NR_BLOCKS") {
+            matches.value_of_t_or_exit::<u64>("NR_BLOCKS")
+        } else {
+            let device_size = matches
+                .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
+                .size_bytes();
+            let block_size = matches
+                .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+                .size_bytes();
+
+            check_cache_block_size(block_size)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+            if device_size < block_size {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "pool size must be larger than block size",
+                ));
+            }
+
+            div_up(device_size, block_size as u64)
+        };
 
         let max_hint_width = matches.value_of_t_or_exit::<u32>("MAX_HINT_WIDTH");
         let unit = matches.value_of_t_or_exit::<Units>("UNIT");
         let numeric_only = matches.is_present("NUMERIC_ONLY");
 
-        (
+        Ok((
             CacheMetadataSizeOptions {
                 nr_blocks,
                 max_hint_width,
             },
             unit,
             numeric_only,
-        )
+        ))
     }
 }
 
@@ -109,8 +120,11 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
         "cache_metadata_size"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let (opts, unit, numeric_only) = self.parse_args(args);
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> io::Result<()> {
+        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
+            eprintln!("{}", e);
+            e
+        })?;
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -126,7 +140,7 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(std::io::Error::from_raw_os_error(libc::EPERM))
+                Err(io::Error::from_raw_os_error(libc::EPERM))
             }
         }
     }

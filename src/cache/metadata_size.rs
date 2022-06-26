@@ -1,8 +1,23 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+
+const MIN_CACHE_BLOCK_SIZE: u64 = 32768;
+const MAX_CACHE_BLOCK_SIZE: u64 = 1073741824;
 
 pub struct CacheMetadataSizeOptions {
     pub nr_blocks: u64,
     pub max_hint_width: u32, // bytes
+}
+
+pub fn check_cache_block_size(block_size: u64) -> Result<()> {
+    if block_size == 0 || (block_size & (MIN_CACHE_BLOCK_SIZE - 1)) != 0 {
+        return Err(anyhow!("block size must be a multiple of 32 KiB"));
+    }
+
+    if block_size > MAX_CACHE_BLOCK_SIZE {
+        return Err(anyhow!("maximum block size is 1 GiB"));
+    }
+
+    Ok(())
 }
 
 pub fn metadata_size(opts: &CacheMetadataSizeOptions) -> Result<u64> {
