@@ -8,7 +8,7 @@ Items in the High or Medium sections should be done before the formal release. T
       (e.g., the quiet flag, LVM compatibility, etc.)
 - [x] thin_dump --skip-mappings
 - [x] thin_dump: Display hints on input error
-- [ ] Handle unexpected input values (zero or negative) in some program,
+- [x] Handle unexpected input values (zero or negative) in some program,
       e.g., `cache_metadata_size --block-size 0` causes floating point exception.
 
 ## Medium
@@ -28,7 +28,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] thin_dump: The iops seems lower than the C++ version
 - [ ] thin_delta: Multi-threaded get_mappings()
 - [ ] cache_check: Multi-threaded checking
-- [ ] io_engine: Remove locks from SyncIoEngine
+- [x] io_engine: Remove locks from SyncIoEngine
 
 ## Low or Enhancements
 
@@ -45,6 +45,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [x] thin/cache/era_dump: Show output errors except the broken pipe error
 - [ ] thin/cache/era_repair: Clear superblock if the output is incompleted (commit 1dd7b454, bz1499781)
       (Is it really necessary? In addition, issuing IO in error handling routine seems not a good idea)
+- [ ] cache_writeback: Implement --list-failed-blocks
 
 ## RFEs
 
