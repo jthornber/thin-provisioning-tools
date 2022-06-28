@@ -12,6 +12,7 @@ use std::path::Path;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::shrink::toplevel::{shrink, ThinShrinkOptions};
+use crate::report::*;
 
 pub struct ThinShrinkCommand;
 
@@ -111,12 +112,14 @@ impl<'a> Command<'a> for ThinShrinkCommand {
         "thin_shrink"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = ffi::OsString>) -> io::Result<()> {
-        let opts = self.parse_args(args)?;
+    fn run(&self, args: &mut dyn Iterator<Item = ffi::OsString>) -> exitcode::ExitCode {
+        let opts = self.parse_args(args);
+        if opts.is_err() {
+            return exitcode::USAGE;
+        }
+        let opts = opts.unwrap();
 
-        shrink(opts).map_err(|reason| {
-            eprintln!("Application error: {:?}\n", reason);
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        let report = std::sync::Arc::new(mk_simple_report());
+        to_exit_code(&report, shrink(opts))
     }
 }

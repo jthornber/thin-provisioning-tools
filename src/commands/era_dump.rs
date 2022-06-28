@@ -5,7 +5,6 @@ use std::path::Path;
 
 use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::dump_utils::OutputError;
 use crate::era::dump::{dump, EraDumpOptions};
 
 //------------------------------------------
@@ -59,7 +58,7 @@ impl<'a> Command<'a> for EraDumpCommand {
         "era_dump"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -83,18 +82,7 @@ impl<'a> Command<'a> for EraDumpCommand {
             repair: matches.is_present("REPAIR"),
         };
 
-        if let Err(e) = dump(opts) {
-            if !e.is::<OutputError>() {
-                report.fatal(&format!("{:?}", e));
-                report.fatal(
-                    "metadata contains errors (run era_check for details).\n\
-                    perhaps you wanted to run with --repair ?",
-                );
-            }
-            return Err(std::io::Error::from_raw_os_error(libc::EPERM));
-        }
-
-        Ok(())
+        to_exit_code(&report, dump(opts))
     }
 }
 

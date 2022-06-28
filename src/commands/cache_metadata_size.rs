@@ -83,17 +83,18 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
         "cache_metadata_size"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let opts = self.parse_args(args);
 
         match metadata_size(&opts) {
             Ok(size) => {
                 println!("{} sectors", size);
-                Ok(())
+                exitcode::OK
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(std::io::Error::from_raw_os_error(libc::EPERM))
+                // FIXME: use a report and call to_exit_code
+                exitcode::USAGE
             }
         }
     }

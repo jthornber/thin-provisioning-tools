@@ -59,7 +59,7 @@ impl<'a> Command<'a> for EraInvalidateCommand {
         "era_invalidate"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -74,7 +74,6 @@ impl<'a> Command<'a> for EraInvalidateCommand {
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
-        drop(report);
 
         let opts = EraInvalidateOptions {
             input: input_file,
@@ -84,10 +83,7 @@ impl<'a> Command<'a> for EraInvalidateCommand {
             use_metadata_snap: matches.is_present("METADATA_SNAP"),
         };
 
-        invalidate(&opts).map_err(|reason| {
-            eprintln!("{}", reason);
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, invalidate(&opts))
     }
 }
 

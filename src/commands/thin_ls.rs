@@ -57,7 +57,7 @@ impl<'a> Command<'a> for ThinLsCommand {
         "thin_ls"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         use OutputField::*;
 
         let matches = self.cli().get_matches_from(args);
@@ -83,9 +83,6 @@ impl<'a> Command<'a> for ThinLsCommand {
             report: report.clone(),
         };
 
-        ls(opts).map_err(|reason| {
-            report.fatal(&format!("{}", reason));
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, ls(opts))
     }
 }

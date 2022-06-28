@@ -184,6 +184,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "exitcode"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de853764b47027c2e862a995c34978ffa63c1501f2e15f987ba11bd4f9bba193"
+
+[[package]]
 name = "fastrand"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -819,8 +825,7 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 [[package]]
 name = "rio"
 version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e98c25665909853c07874301124482754434520ab572ac6a22e90366de6685b"
+source = "git+https://github.com/jthornber/rio?branch=master#2979a720f671e836302c01546f9cc9f7988610c8"
 dependencies = [
  "libc",
 ]
@@ -959,6 +964,7 @@ dependencies = [
  "crc32c",
  "data-encoding",
  "duct",
+ "exitcode",
  "fixedbitset",
  "flate2",
  "futures",
