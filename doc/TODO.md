@@ -20,6 +20,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] btree_builder: Check pushed key ordering
 - [ ] thin/cache_metadata_size: Improve output precision (for Stratis)
 - [x] cache_restore: Support v1 metadata
+- [ ] Update man pages, e.g., limit the pool_size for thin_metadata_size to petabytes.
 
 ## Performance Issues
 
@@ -56,7 +57,7 @@ Items in the High or Medium sections should be done before the formal release. T
 
 - [ ] tests: Use packed metadata for all the programs incl. cache/era tools, to reduce coupling between tests
 - [ ] tests: Do not remove the test directory if an external program failed
-- [ ] thin_generate_fmetadata: Finish the metadata generator
+- [ ] thin_generate_metadata: Finish the metadata generator
 - [ ] btree_walker: Ensure visited nodes are counted (btree_walker with sm)
 - [ ] btree_builder: Verify ref counts of written nodes
 - [ ] cache_generate_damage to write an invalid superblock version (replaces `cache_restore --debug-override-metadata-version`)
