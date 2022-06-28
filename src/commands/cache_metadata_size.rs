@@ -129,13 +129,21 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
         match metadata_size(&opts) {
             Ok(size) => {
                 let size = to_units(size, unit);
-                if numeric_only {
-                    println!("{}", size);
+
+                let mut output = if size < 1.0 || size.trunc() == size {
+                    format!("{}", size)
                 } else {
-                    let mut name = unit.to_string();
-                    name.push('s'); // plural form
-                    println!("{} {}", size, name);
+                    format!("{:.2}", size)
+                };
+
+                if !numeric_only {
+                    output.push(' ');
+                    output.push_str(&unit.to_string());
+                    output.push('s'); // plural form
                 }
+
+                println!("{}", output);
+
                 exitcode::OK
             }
             Err(reason) => {

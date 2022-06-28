@@ -1,6 +1,12 @@
 use anyhow::{anyhow, Result};
 
+use crate::io_engine::BLOCK_SIZE;
 use crate::math::div_up;
+use crate::pdata::btree::calc_max_entries;
+use crate::pdata::space_map::metadata::MAX_METADATA_BLOCKS;
+use crate::thin::block_time::BlockTime;
+
+//------------------------------------------
 
 const MIN_DATA_BLOCK_SIZE: u64 = 65536;
 const MAX_DATA_BLOCK_SIZE: u64 = 1073741824;
@@ -22,15 +28,18 @@ pub fn check_data_block_size(block_size: u64) -> Result<()> {
     Ok(())
 }
 
+// Returns estimated size in bytes
 pub fn metadata_size(opts: &ThinMetadataSizeOptions) -> Result<u64> {
-    const ENTRIES_PER_NODE: u64 = 126; // assumed the mapping leaves are half populated
-    const BLOCK_SIZE: u64 = 4096; // bytes
+    // assuming 50% residency on mapping tree leaves
+    let entries_per_node: u64 = calc_max_entries::<BlockTime>() as u64 / 2;
+    // number of leaves for data mappings
+    let nr_leaves = div_up(opts.nr_blocks, entries_per_node);
 
-    // size of all the leaf nodes for data mappings
-    let mapping_size = div_up(opts.nr_blocks, ENTRIES_PER_NODE) * BLOCK_SIZE;
+    // one for the superblock, plus additional roots for each device
+    let mut nr_blocks = 1 + nr_leaves + opts.max_thins;
+    nr_blocks = std::cmp::min(nr_blocks, MAX_METADATA_BLOCKS as u64);
 
-    // space required by root nodes
-    let roots_overhead = opts.max_thins * BLOCK_SIZE;
-
-    Ok(mapping_size + roots_overhead)
+    Ok(nr_blocks * BLOCK_SIZE as u64)
 }
+
+//------------------------------------------

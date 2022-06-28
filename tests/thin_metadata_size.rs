@@ -118,7 +118,7 @@ fn dev_size_and_block_size_succeeds() -> Result<()> {
         .unwrap()
         .trim_end_matches(|c| c == '\n' || c == '\r')
         .to_string();
-    assert_eq!(stdout, "1056 sectors");
+    assert_eq!(stdout, "1064 sectors");
     assert_eq!(out.stderr.len(), 0);
     Ok(())
 }
