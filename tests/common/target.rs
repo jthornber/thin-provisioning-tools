@@ -108,6 +108,14 @@ where
     rust_cmd("thin_metadata_pack", args)
 }
 
+pub fn thin_metadata_size_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_metadata_size", args)
+}
+
 pub fn thin_metadata_unpack_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

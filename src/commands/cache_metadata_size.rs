@@ -2,10 +2,12 @@ extern crate clap;
 
 use clap::{Arg, ArgGroup};
 use std::ffi::OsString;
+use std::io;
 
-use crate::cache::metadata_size::{metadata_size, CacheMetadataSizeOptions};
+use crate::cache::metadata_size::*;
 use crate::commands::Command;
 use crate::math::div_up;
+use crate::units::*;
 
 //------------------------------------------
 
@@ -17,21 +19,28 @@ impl CacheMetadataSizeCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Estimate the size of the metadata device needed for a given configuration.")
-            .override_usage("cache_metadata_size [OPTIONS] <--device-size <SECTORS> --block-size <SECTORS> | --nr-blocks <NUM>>")
+            .override_usage("cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>")
+            // flags
+            .arg(
+                Arg::new("NUMERIC_ONLY")
+                    .help("Output numeric value only")
+                    .short('n')
+                    .long("numeric-only"),
+            )
             // options
             .arg(
                 Arg::new("BLOCK_SIZE")
                     .help("Specify the size of each cache block")
                     .long("block-size")
                     .requires("DEVICE_SIZE")
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmg]"),
             )
             .arg(
                 Arg::new("DEVICE_SIZE")
                     .help("Specify total size of the fast device used in the cache")
                     .long("device-size")
                     .requires("BLOCK_SIZE")
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmgtp]"),
             )
             .arg(
                 Arg::new("NR_BLOCKS")
@@ -46,6 +55,14 @@ impl CacheMetadataSizeCommand {
                     .value_name("BYTES")
                     .default_value("4"),
             )
+            .arg(
+                Arg::new("UNIT")
+                    .help("Specify the output unit in {bskKmMgG}")
+                    .short('u')
+                    .long("unit")
+                    .value_name("UNIT")
+                    .default_value("sector"),
+            )
             .group(
                 ArgGroup::new("selection")
                 .args(&["DEVICE_SIZE", "NR_BLOCKS"])
@@ -53,28 +70,48 @@ impl CacheMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> CacheMetadataSizeOptions
+    fn parse_args<I, T>(&self, args: I) -> io::Result<(CacheMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
         let matches = self.cli().get_matches_from(args);
 
-        let nr_blocks = matches.value_of("NR_BLOCKS").map_or_else(
-            || {
-                let device_size = matches.value_of_t_or_exit::<u64>("DEVICE_SIZE");
-                let block_size = matches.value_of_t_or_exit::<u32>("BLOCK_SIZE");
-                div_up(device_size, block_size as u64)
-            },
-            |_| matches.value_of_t_or_exit::<u64>("NR_BLOCKS"),
-        );
+        let nr_blocks = if matches.is_present("NR_BLOCKS") {
+            matches.value_of_t_or_exit::<u64>("NR_BLOCKS")
+        } else {
+            let device_size = matches
+                .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
+                .size_bytes();
+            let block_size = matches
+                .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+                .size_bytes();
+
+            check_cache_block_size(block_size)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+            if device_size < block_size {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "pool size must be larger than block size",
+                ));
+            }
+
+            div_up(device_size, block_size as u64)
+        };
 
         let max_hint_width = matches.value_of_t_or_exit::<u32>("MAX_HINT_WIDTH");
+        let unit = matches.value_of_t_or_exit::<Units>("UNIT");
+        let numeric_only = matches.is_present("NUMERIC_ONLY");
 
-        CacheMetadataSizeOptions {
-            nr_blocks,
-            max_hint_width,
-        }
+        Ok((
+            CacheMetadataSizeOptions {
+                nr_blocks,
+                max_hint_width,
+            },
+            unit,
+            numeric_only,
+        ))
     }
 }
 
@@ -83,17 +120,27 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
         "cache_metadata_size"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let opts = self.parse_args(args);
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> io::Result<()> {
+        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
+            eprintln!("{}", e);
+            e
+        })?;
 
         match metadata_size(&opts) {
             Ok(size) => {
-                println!("{} sectors", size);
+                let size = to_units(size, unit);
+                if numeric_only {
+                    println!("{}", size);
+                } else {
+                    let mut name = unit.to_string();
+                    name.push('s'); // plural form
+                    println!("{} {}", size, name);
+                }
                 Ok(())
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(std::io::Error::from_raw_os_error(libc::EPERM))
+                Err(io::Error::from_raw_os_error(libc::EPERM))
             }
         }
     }

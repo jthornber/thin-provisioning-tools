@@ -2,8 +2,9 @@ extern crate clap;
 
 use clap::Arg;
 use std::ffi::OsString;
+use std::io;
 
-use crate::thin::metadata_size::{metadata_size, ThinMetadataSizeOptions};
+use crate::thin::metadata_size::*;
 use crate::units::*;
 
 //------------------------------------------
@@ -17,6 +18,13 @@ impl ThinMetadataSizeCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Estimate the size of the metadata device needed for a given configuration.")
+            // flags
+            .arg(
+                Arg::new("NUMERIC_ONLY")
+                    .help("Output numeric value only")
+                    .short('n')
+                    .long("numeric-only"),
+            )
             // options
             .arg(
                 Arg::new("BLOCK_SIZE")
@@ -24,7 +32,7 @@ impl ThinMetadataSizeCommand {
                     .short('b')
                     .long("block-size")
                     .required(true)
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmg]"),
             )
             .arg(
                 Arg::new("POOL_SIZE")
@@ -32,7 +40,7 @@ impl ThinMetadataSizeCommand {
                     .short('s')
                     .long("pool-size")
                     .required(true)
-                    .value_name("SECTORS"),
+                    .value_name("SIZE[bskmgtp]"),
             )
             .arg(
                 Arg::new("MAX_THINS")
@@ -44,42 +52,49 @@ impl ThinMetadataSizeCommand {
             )
             .arg(
                 Arg::new("UNIT")
-                    .help("Specify the output unit")
+                    .help("Specify the output unit in {bskKmMgG}")
                     .short('u')
                     .long("unit")
                     .value_name("UNIT")
                     .default_value("sector"),
             )
-            .arg(
-                Arg::new("NUMERIC_ONLY")
-                    .help("Output numeric value only")
-                    .short('n')
-                    .long("numeric-only"),
-            )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> (ThinMetadataSizeOptions, Units, bool)
+    fn parse_args<I, T>(&self, args: I) -> std::io::Result<(ThinMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
         let matches = self.cli().get_matches_from(args);
 
-        // TODO: handle unit suffix
-        let pool_size = matches.value_of_t_or_exit::<u64>("POOL_SIZE");
-        let block_size = matches.value_of_t_or_exit::<u32>("BLOCK_SIZE");
+        let pool_size = matches
+            .value_of_t_or_exit::<StorageSize>("POOL_SIZE")
+            .size_bytes();
+        let block_size = matches
+            .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+            .size_bytes();
         let max_thins = matches.value_of_t_or_exit::<u64>("MAX_THINS");
         let unit = matches.value_of_t_or_exit::<Units>("UNIT");
         let numeric_only = matches.is_present("NUMERIC_ONLY");
 
-        (
+        check_data_block_size(block_size)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+        if pool_size < block_size {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "pool size must be larger than block size",
+            ));
+        }
+
+        Ok((
             ThinMetadataSizeOptions {
-                nr_blocks: pool_size / block_size as u64,
+                nr_blocks: pool_size / block_size,
                 max_thins,
             },
             unit,
             numeric_only,
-        )
+        ))
     }
 }
 
@@ -89,23 +104,26 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
     }
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let (opts, unit, numeric_only) = self.parse_args(args);
+        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
+            eprintln!("{}", e);
+            e
+        })?;
 
         match metadata_size(&opts) {
             Ok(size) => {
-                let size = to_units(size * 512, unit);
+                let size = to_units(size, unit);
                 if numeric_only {
                     println!("{}", size);
                 } else {
                     let mut name = unit.to_string();
-                    name.push('s');
+                    name.push('s'); // plural form
                     println!("{} {}", size, name);
                 }
                 Ok(())
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(std::io::Error::from_raw_os_error(libc::EPERM))
+                Err(io::Error::from_raw_os_error(libc::EPERM))
             }
         }
     }
