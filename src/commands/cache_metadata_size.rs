@@ -120,11 +120,8 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
         "cache_metadata_size"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> io::Result<()> {
-        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
-            eprintln!("{}", e);
-            e
-        })?;
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
+        let opts = self.parse_args(args);
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -140,7 +137,8 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(io::Error::from_raw_os_error(libc::EPERM))
+                // FIXME: use a report and call to_exit_code
+                exitcode::USAGE
             }
         }
     }

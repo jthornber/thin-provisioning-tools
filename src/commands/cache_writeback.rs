@@ -90,7 +90,7 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         "cache_writeback"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let metadata_dev = Path::new(matches.value_of("METADATA_DEV").unwrap());
@@ -123,9 +123,6 @@ impl<'a> Command<'a> for CacheWritebackCommand {
             report: report.clone(),
         };
 
-        writeback(opts).map_err(|reason| {
-            report.fatal(&format!("{}", reason));
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, writeback(opts))
     }
 }

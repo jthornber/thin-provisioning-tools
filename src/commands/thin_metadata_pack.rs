@@ -35,7 +35,7 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
         "thin_metadata_pack"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -44,9 +44,10 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
         let report = mk_simple_report();
         check_input_file(input_file, &report);
 
-        crate::pack::toplevel::pack(input_file, output_file).map_err(|reason| {
-            report.fatal(&format!("Application error: {}\n", reason));
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        let report = std::sync::Arc::new(report);
+        to_exit_code(
+            &report,
+            crate::pack::toplevel::pack(input_file, output_file),
+        )
     }
 }

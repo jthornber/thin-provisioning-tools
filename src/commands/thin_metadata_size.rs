@@ -103,11 +103,8 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
         "thin_metadata_size"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
-        let (opts, unit, numeric_only) = self.parse_args(args).map_err(|e| {
-            eprintln!("{}", e);
-            e
-        })?;
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
+        let (opts, unit, numeric_only) = self.parse_args(args);
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -119,11 +116,13 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
                     name.push('s'); // plural form
                     println!("{} {}", size, name);
                 }
-                Ok(())
+                exitcode::OK
             }
             Err(reason) => {
                 eprintln!("{}", reason);
-                Err(io::Error::from_raw_os_error(libc::EPERM))
+
+                // FIXME: use to_exit_code
+                exitcode::USAGE
             }
         }
     }

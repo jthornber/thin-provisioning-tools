@@ -72,7 +72,7 @@ impl<'a> Command<'a> for ThinRepairCommand {
         "thin_repair"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
@@ -94,9 +94,6 @@ impl<'a> Command<'a> for ThinRepairCommand {
             },
         };
 
-        repair(opts).map_err(|reason| {
-            report.fatal(&format!("{:?}", reason));
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, repair(opts))
     }
 }

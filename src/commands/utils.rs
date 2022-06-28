@@ -6,6 +6,7 @@ use std::io::Read;
 use std::path::Path;
 use std::process::exit;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::file_utils;
 use crate::report::*;
@@ -49,8 +50,6 @@ pub fn check_output_file(path: &Path, report: &Report) {
 }
 
 pub fn mk_report(quiet: bool) -> std::sync::Arc<Report> {
-    use std::sync::Arc;
-
     if quiet {
         Arc::new(mk_quiet_report())
     } else if atty::is(Stream::Stdout) {
@@ -90,6 +89,26 @@ where
         Some(matches.value_of_t_or_exit::<R>(name))
     } else {
         None
+    }
+}
+
+pub fn to_exit_code(report: &Arc<Report>, result: anyhow::Result<()>) -> exitcode::ExitCode {
+    if let Err(e) = result {
+        report.fatal(&format!("{}", e));
+
+/*
+                report.fatal(&format!("{:?}", e));
+                report.fatal(
+                    "metadata contains errors (run cache_check for details).\n\
+                    perhaps you wanted to run with --repair ?",
+                );
+                */
+
+
+        // FIXME: we need a way of getting more meaningful error codes
+        exitcode::USAGE
+    } else {
+        exitcode::OK
     }
 }
 
