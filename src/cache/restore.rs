@@ -10,6 +10,7 @@ use crate::cache::ir::{self, MetadataVisitor, Visit};
 use crate::cache::mapping::{Mapping, MappingFlags};
 use crate::cache::superblock::*;
 use crate::cache::xml;
+use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::math::*;
 use crate::pdata::array_builder::*;
@@ -24,7 +25,7 @@ pub struct CacheRestoreOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
     pub metadata_version: u8,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
 }
 
@@ -34,11 +35,7 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
 
     Ok(Context {
         _report: opts.report.clone(),

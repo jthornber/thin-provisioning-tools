@@ -12,7 +12,7 @@ use crate::io_engine::*;
 
 // We hang waiting for completions on spindle devices if the QUEUE_DEPTH
 // is larger than this.  This doesn't give me confidence in io_uring.
-const QUEUE_DEPTH: usize = 32;
+const QUEUE_DEPTH: usize = 256;
 
 pub struct AsyncIoEngine {
     input: File,
@@ -21,8 +21,8 @@ pub struct AsyncIoEngine {
 }
 
 impl AsyncIoEngine {
-    pub fn new_with(path: &Path, writable: bool, excl: bool) -> Result<Self> {
-        let nr_blocks = get_nr_blocks(path)?;
+    pub fn new_with<P: AsRef<Path>>(path: P, writable: bool, excl: bool) -> Result<Self> {
+        let nr_blocks = get_nr_blocks(path.as_ref())?;
 
         let mut flags = libc::O_DIRECT;
         if excl {
@@ -36,6 +36,7 @@ impl AsyncIoEngine {
 
         let mut cfg = rio::Config::default();
         cfg.depth = QUEUE_DEPTH;
+        cfg.io_poll = false;
         let ring = cfg.start()?;
 
         Ok(Self {
@@ -45,7 +46,7 @@ impl AsyncIoEngine {
         })
     }
 
-    pub fn new(path: &Path, writable: bool) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(path: P, writable: bool) -> Result<Self> {
         Self::new_with(path, writable, true)
     }
 }
@@ -80,6 +81,7 @@ impl IoEngine for AsyncIoEngine {
     }
 
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
+        // eprintln!("read_many {:?}", blocks);
         let blocks: Vec<Block> = blocks.iter().map(|b| Block::new(*b)).collect();
         let mut completions = Vec::with_capacity(blocks.len());
 
@@ -91,6 +93,7 @@ impl IoEngine for AsyncIoEngine {
 
         let mut errs = BTreeMap::new();
         for (i, completion) in completions {
+            // eprintln!("waiting for completion {}", i);
             match completion.wait() {
                 Err(e) => {
                     errs.insert(i, e);

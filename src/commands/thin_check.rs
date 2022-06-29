@@ -1,33 +1,20 @@
-extern crate clap;
-
 use clap::Arg;
 use std::path::Path;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::thin::check::{check, ThinCheckOptions, EngineType};
+use crate::thin::check::{check, ThinCheckOptions};
 
 pub struct ThinCheckCommand;
 
 impl ThinCheckCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Validates thin provisioning metadata on a device or file.")
             // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
-            .arg(
-                Arg::new("SPINDLE_IO")
-                    .help("Optimise IO for a spindle device")
-                    .long("spindle-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("AUTO_REPAIR")
                     .help("Auto repair trivial issues.")
@@ -89,7 +76,8 @@ impl ThinCheckCommand {
                     .help("Specify the input device to check")
                     .required(true)
                     .index(1),
-            )
+            );
+        engine_args(cmd)
     }
 }
 
@@ -108,23 +96,20 @@ impl<'a> Command<'a> for ThinCheckCommand {
         check_file_not_tiny(input_file, &report);
         check_not_xml(input_file, &report);
 
-        let engine_type = if matches.is_present("ASYNC_IO") {
-            EngineType::ASync
-        } else if matches.is_present("SPINDLE_IO") {
-            EngineType::Spindle
-        } else {
-            EngineType::Sync
-        };
+        let engine_opts = parse_engine_opts(ToolType::Thin, false, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts.map(|_| ()));
+        }
+        let engine_opts = engine_opts.unwrap();
 
         let opts = ThinCheckOptions {
             input: input_file,
-            engine_type,
+            engine_opts,
             sb_only: matches.is_present("SB_ONLY"),
             skip_mappings: matches.is_present("SKIP_MAPPINGS"),
             ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
             auto_repair: matches.is_present("AUTO_REPAIR"),
             clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
-            use_metadata_snap: matches.is_present("METADATA_SNAPSHOT"),
             report: report.clone(),
         };
 

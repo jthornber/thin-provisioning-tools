@@ -73,7 +73,7 @@ impl AsMut<[u8]> for Block {
 
 //------------------------------------------
 
-pub trait IoEngine {
+pub trait IoEngine : Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
 
@@ -91,7 +91,7 @@ pub trait IoEngine {
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>>;
 }
 
-pub fn get_nr_blocks(path: &Path) -> io::Result<u64> {
+pub fn get_nr_blocks<P: AsRef<Path>>(path: P) -> io::Result<u64> {
     Ok(file_utils::file_size(path)? / (BLOCK_SIZE as u64))
 }
 

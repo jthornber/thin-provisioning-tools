@@ -6,13 +6,14 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
+use crate::commands::engine::*;
 use crate::grid_layout::GridLayout;
 use crate::io_engine::SECTOR_SHIFT;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map::common::SMRoot;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::unpack;
 use crate::report::Report;
 use crate::thin::block_time::BlockTime;
@@ -246,7 +247,7 @@ impl<'a> LsTable<'a> {
 
 pub struct ThinLsOptions<'a> {
     pub input: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub use_metadata_snap: bool,
     pub fields: Vec<OutputField>,
     pub no_headers: bool,
@@ -260,14 +261,8 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
-    let nr_threads = std::cmp::max(8, num_cpus::get() * 2);
-
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.input, false)?)
-    };
-
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let nr_threads = engine.suggest_nr_threads();
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {

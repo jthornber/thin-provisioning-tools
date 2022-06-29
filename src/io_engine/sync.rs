@@ -56,7 +56,7 @@ impl<'a> Drop for FileGuard<'a> {
 }
 
 impl SyncIoEngine {
-    fn open_file(path: &Path, writable: bool, excl: bool) -> Result<File> {
+    fn open_file<P: AsRef<Path>>(path: P, writable: bool, excl: bool) -> Result<File> {
         let file = OpenOptions::new()
             .read(true)
             .write(writable)
@@ -70,15 +70,15 @@ impl SyncIoEngine {
         Ok(file)
     }
 
-    pub fn new(path: &Path, writable: bool) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(path: P, writable: bool) -> Result<Self> {
         SyncIoEngine::new_with(path, writable, true)
     }
 
-    pub fn new_with(path: &Path, writable: bool, excl: bool) -> Result<Self> {
+    pub fn new_with<P: AsRef<Path>>(path: P, writable: bool, excl: bool) -> Result<Self> {
         let nr_files = 8;
-        let nr_blocks = get_nr_blocks(path)?; // check file mode before opening it
+        let nr_blocks = get_nr_blocks(path.as_ref())?; // check file mode before opening it
         let mut files = Vec::with_capacity(nr_files);
-        let file = SyncIoEngine::open_file(path, writable, excl)?;
+        let file = SyncIoEngine::open_file(path.as_ref(), writable, excl)?;
         for _n in 0..nr_files - 1 {
             files.push(file.try_clone()?);
         }

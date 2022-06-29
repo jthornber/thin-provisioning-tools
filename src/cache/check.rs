@@ -6,14 +6,15 @@ use std::sync::{Arc, Mutex};
 use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
+use crate::commands::engine::*;
 use crate::commands::utils::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map::checker::*;
 use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::unpack;
 use crate::report::*;
 
@@ -218,7 +219,7 @@ impl ArrayVisitor<Hint> for HintChecker {
 // TODO: clear_needs_check, auto_repair
 pub struct CacheCheckOptions<'a> {
     pub dev: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub skip_hints: bool,
@@ -235,11 +236,7 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.dev, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.dev, false)?)
-    };
+    let engine = build_io_engine(opts.dev, &opts.engine_opts)?;
 
     Ok(Context {
         report: opts.report.clone(),

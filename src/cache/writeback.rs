@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::checksum;
+use crate::commands::engine::*;
 use crate::copier::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset, CheckedBitSet};
@@ -291,7 +292,7 @@ fn update_v2_metadata(
 
 pub struct CacheWritebackOptions<'a> {
     pub metadata_dev: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub origin_dev: &'a Path,
     pub fast_dev: &'a Path,
     pub origin_dev_offset: Option<u64>, // sectors
@@ -308,17 +309,7 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(
-            opts.metadata_dev,
-            opts.update_metadata,
-        )?)
-    } else {
-        Arc::new(SyncIoEngine::new(
-            opts.metadata_dev,
-            opts.update_metadata,
-        )?)
-    };
+    let engine = build_io_engine(opts.metadata_dev, &opts.engine_opts)?;
 
     Ok(Context {
         report: opts.report.clone(),

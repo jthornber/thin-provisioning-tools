@@ -11,8 +11,9 @@ use crate::cache::ir::{self, MetadataVisitor};
 use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
 use crate::cache::xml;
+use crate::commands::engine::*;
 use crate::dump_utils::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset, CheckedBitSet};
@@ -249,7 +250,7 @@ fn dump_hint_array(
 pub struct CacheDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub repair: bool,
 }
 
@@ -258,12 +259,7 @@ struct CacheDumpContext {
 }
 
 fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<CacheDumpContext> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.input, false)?)
-    };
-
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
     Ok(CacheDumpContext { engine })
 }
 

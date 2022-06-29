@@ -147,8 +147,8 @@ struct SpindleIoEngine_ {
 }
 
 impl SpindleIoEngine_ {
-    pub fn new(path: &Path, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
-        let nr_blocks = get_nr_blocks(path)?;
+    pub fn new<P: AsRef<Path>>(path: P, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
+        let nr_blocks = get_nr_blocks(path.as_ref())?;
         let mut input = OpenOptions::new()
             .read(true)
             .custom_flags(if excl {
@@ -156,7 +156,7 @@ impl SpindleIoEngine_ {
             } else {
                 libc::O_DIRECT
             })
-            .open(path)?;
+            .open(path.as_ref())?;
 
         let (tx, rx) = mpsc::channel::<(u64, Buffer)>();
         let (result_tx, result_rx) = mpsc::channel::<BTreeMap<u32, Vec<u8>>>();
@@ -213,7 +213,7 @@ pub struct SpindleIoEngine {
 }
 
 impl SpindleIoEngine {
-    pub fn new(path: &Path, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(path: P, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
         Ok(Self {
             inner: RwLock::new(SpindleIoEngine_::new(path, blocks, excl)?)
         })

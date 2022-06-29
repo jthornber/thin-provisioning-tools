@@ -2,9 +2,10 @@ use anyhow::{anyhow, Result};
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::commands::engine::*;
 use crate::era::superblock::*;
 use crate::era::writeset::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::*;
@@ -59,7 +60,7 @@ impl ArrayVisitor<u32> for EraChecker {
 
 pub struct EraCheckOptions<'a> {
     pub dev: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub sb_only: bool,
     pub ignore_non_fatal: bool,
     pub report: Arc<Report>,
@@ -71,11 +72,7 @@ struct Context {
 }
 
 fn mk_context(opts: &EraCheckOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.dev, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.dev, false)?)
-    };
+    let engine = build_io_engine(opts.dev, &opts.engine_opts)?;
 
     Ok(Context {
         report: opts.report.clone(),

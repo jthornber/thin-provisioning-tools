@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::cache::check::{check, CacheCheckOptions};
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
@@ -17,17 +18,11 @@ pub struct CacheCheckCommand;
 
 impl CacheCheckCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Validates cache metadata on a device or file.")
             // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("AUTO_REPAIR")
                     .help("Auto repair trivial issues.")
@@ -70,7 +65,8 @@ impl CacheCheckCommand {
                     .help("Specify the input device to check")
                     .required(true)
                     .index(1),
-            )
+            );
+            engine_args(cmd)
     }
 }
 
@@ -95,9 +91,15 @@ impl<'a> Command<'a> for CacheCheckCommand {
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 
+        let engine_opts = parse_engine_opts(ToolType::Cache, false, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+        let engine_opts = engine_opts.unwrap();
+
         let opts = CacheCheckOptions {
             dev: input_file,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts,
             sb_only: matches.is_present("SB_ONLY"),
             skip_mappings: matches.is_present("SKIP_MAPPINGS"),
             skip_hints: matches.is_present("SKIP_HINTS"),

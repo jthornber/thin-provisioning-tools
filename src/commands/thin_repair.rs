@@ -3,6 +3,7 @@ extern crate clap;
 use clap::Arg;
 use std::path::Path;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::thin::metadata_repair::SuperblockOverrides;
@@ -12,17 +13,10 @@ pub struct ThinRepairCommand;
 
 impl ThinRepairCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Repair thin-provisioning metadata, and write it to different device or file")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
@@ -63,7 +57,8 @@ impl ThinRepairCommand {
                     .help("Override the transaction id if needed")
                     .long("transaction-id")
                     .value_name("NUM"),
-            )
+            );
+            engine_args(cmd)
     }
 }
 
@@ -82,10 +77,15 @@ impl<'a> Command<'a> for ThinRepairCommand {
         check_input_file(input_file, &report);
         check_output_file(output_file, &report);
 
+        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = ThinRepairOptions {
             input: input_file,
             output: output_file,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             report: report.clone(),
             overrides: SuperblockOverrides {
                 transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::cache::dump::*;
 use crate::cache::restore::*;
 use crate::cache::superblock::*;
+use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::pdata::space_map::metadata::*;
 use crate::report::*;
@@ -15,7 +16,7 @@ use crate::write_batcher::*;
 pub struct CacheRepairOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
 }
 
@@ -26,16 +27,8 @@ struct Context {
 }
 
 fn new_context(opts: &CacheRepairOptions) -> Result<Context> {
-    let engine_in: Arc<dyn IoEngine + Send + Sync>;
-    let engine_out: Arc<dyn IoEngine + Send + Sync>;
-
-    if opts.async_io {
-        engine_in = Arc::new(AsyncIoEngine::new(opts.input, false)?);
-        engine_out = Arc::new(AsyncIoEngine::new(opts.output, true)?);
-    } else {
-        engine_in = Arc::new(SyncIoEngine::new(opts.input, false)?);
-        engine_out = Arc::new(SyncIoEngine::new(opts.output, true)?);
-    }
+    let engine_in = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine_out = build_io_engine(opts.output, &opts.engine_opts)?;
 
     Ok(Context {
         _report: opts.report.clone(),

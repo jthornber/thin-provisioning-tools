@@ -7,12 +7,13 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::commands::engine::*;
 use crate::dump_utils::*;
 use crate::era::ir::{self, MetadataVisitor};
 use crate::era::superblock::*;
 use crate::era::writeset::Writeset;
 use crate::era::xml;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::read_bitset_no_err;
@@ -161,7 +162,7 @@ impl<'a> ArrayVisitor<u32> for LogicalEraEmitter<'a> {
 pub struct EraDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub logical: bool,
     pub repair: bool,
 }
@@ -171,12 +172,7 @@ struct EraDumpContext {
 }
 
 fn mk_context(opts: &EraDumpOptions) -> anyhow::Result<EraDumpContext> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.input, false)?)
-    };
-
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
     Ok(EraDumpContext { engine })
 }
 

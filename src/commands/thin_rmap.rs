@@ -7,6 +7,7 @@ use std::path::Path;
 
 use std::str::FromStr;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::thin::rmap::*;
@@ -41,17 +42,10 @@ pub struct ThinRmapCommand;
 
 impl ThinRmapCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Output reverse map of a thin provisioned region of blocks")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             // options
             .arg(
                 // FIXME: clap doesn't support placing the index argument
@@ -70,7 +64,8 @@ impl ThinRmapCommand {
                     .help("Specify the input device")
                     .required(true)
                     .index(1),
-            )
+            );
+            engine_args(cmd)
     }
 }
 
@@ -97,9 +92,14 @@ impl<'a> Command<'a> for ThinRmapCommand {
             })
             .collect();
 
+        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = ThinRmapOptions {
             input: input_file,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             regions,
             report: report.clone(),
         };

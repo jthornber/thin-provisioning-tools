@@ -5,8 +5,9 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::commands::engine::*;
 use crate::file_utils::file_size;
-use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine, SECTOR_SHIFT};
+use crate::io_engine::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::unpack;
@@ -213,7 +214,7 @@ fn trim_data_device(
 pub struct ThinTrimOptions<'a> {
     pub metadata_dev: &'a Path,
     pub data_dev: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
 }
 
@@ -223,15 +224,7 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinTrimOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(
-            opts.metadata_dev,
-            false,
-        )?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.metadata_dev, false)?)
-    };
-
+    let engine = build_io_engine(opts.metadata_dev, &opts.engine_opts)?;
     Ok(Context {
         _report: opts.report.clone(),
         engine,
