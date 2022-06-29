@@ -101,7 +101,7 @@ impl<'a> Command<'a> for ThinDeltaCommand {
             Snap::RootBlock(matches.value_of_t_or_exit::<u64>("ROOT2"))
         };
 
-        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }
@@ -113,7 +113,6 @@ impl<'a> Command<'a> for ThinDeltaCommand {
             snap1,
             snap2,
             verbose: matches.is_present("VERBOSE"),
-            use_metadata_snap: matches.is_present("METADATA_SNAP"),
         };
 
         to_exit_code(&report, delta(opts))

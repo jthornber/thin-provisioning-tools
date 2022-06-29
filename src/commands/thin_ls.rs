@@ -69,7 +69,7 @@ impl<'a> Command<'a> for ThinLsCommand {
             vec![DeviceId, Mapped, CreationTime, SnapshottedTime]
         };
 
-        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }
@@ -77,7 +77,6 @@ impl<'a> Command<'a> for ThinLsCommand {
         let opts = ThinLsOptions {
             input: input_file,
             engine_opts: engine_opts.unwrap(),
-            use_metadata_snap: matches.is_present("METADATA_SNAP"),
             fields,
             no_headers: matches.is_present("NO_HEADERS"),
             report: report.clone(),

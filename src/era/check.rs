@@ -72,7 +72,9 @@ struct Context {
 }
 
 fn mk_context(opts: &EraCheckOptions) -> anyhow::Result<Context> {
-    let engine = build_io_engine(opts.dev, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.dev, &opts.engine_opts)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
+        .build()?;
 
     Ok(Context {
         report: opts.report.clone(),

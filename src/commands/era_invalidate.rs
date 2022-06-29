@@ -70,7 +70,7 @@ impl<'a> Command<'a> for EraInvalidateCommand {
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }
@@ -80,7 +80,6 @@ impl<'a> Command<'a> for EraInvalidateCommand {
             output: output_file,
             engine_opts: engine_opts.unwrap(),
             threshold: optional_value_or_exit::<u32>(&matches, "WRITTEN_SINCE").unwrap_or(0),
-            use_metadata_snap: matches.is_present("METADATA_SNAP"),
         };
 
         to_exit_code(&report, invalidate(&opts))

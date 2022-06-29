@@ -30,8 +30,6 @@ pub enum ToolType {
 pub struct EngineOptions {
     pub tool: ToolType,
     pub engine_type: EngineType,
-    pub exclusive: bool,
-    pub write: bool,
     pub use_metadata_snap: bool,
 }
 
@@ -88,22 +86,14 @@ fn metadata_snap_flag(matches: &ArgMatches) -> bool {
 
 pub fn parse_engine_opts(
     tool: ToolType,
-    write: bool,
     matches: &ArgMatches,
 ) -> Result<EngineOptions> {
     let engine_type = parse_type(matches)?;
     let use_metadata_snap = (tool == ToolType::Thin) && metadata_snap_flag(matches);
-    let exclusive = match (write, use_metadata_snap) {
-        (false, true) => false,
-        (false, false) => true,
-        (true, _) => true,
-    };
 
     Ok(EngineOptions {
         tool,
         engine_type,
-        exclusive,
-        write,
         use_metadata_snap,
     })
 }
@@ -132,7 +122,7 @@ fn thin_read_sb(
 // use a Sync engine to read the metadata space map, if this fails we
 // assume all blocks are valid.
 fn thin_valid_blocks<P: AsRef<Path>>(path: P, opts: &EngineOptions) -> RoaringBitmap {
-    let e = Arc::new(SyncIoEngine::new(path, opts.exclusive).expect("unable to open input file"));
+    let e = Arc::new(SyncIoEngine::new(path, false).expect("unable to open input file"));
     let sb = thin_read_sb(e.clone(), opts.use_metadata_snap);
     if sb.is_err() {
         return all_blocks(e.get_nr_blocks() as u32);
@@ -160,29 +150,62 @@ fn era_valid_blocks<P: AsRef<Path>>(_path: P, _opts: &EngineOptions) -> Result<R
     todo!();
 }
 
-pub fn build_io_engine<P: AsRef<Path>>(
+pub struct EngineBuilder<'a, P: AsRef<Path>> {
     path: P,
-    opts: &EngineOptions,
-) -> Result<Arc<dyn IoEngine + Send + Sync>> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = match opts.engine_type {
-        #[cfg(feature = "io_uring")]
-        EngineType::Async => Arc::new(AsyncIoEngine::new_with(path, opts.write, opts.exclusive)?),
-        EngineType::Sync => Arc::new(SyncIoEngine::new(path, opts.exclusive)?),
-        EngineType::Spindle => {
-            let valid_blocks = match opts.tool {
-                ToolType::Thin => thin_valid_blocks(path.as_ref(), opts),
-                ToolType::Cache => cache_valid_blocks(path.as_ref(), opts)?,
-                ToolType::Era => era_valid_blocks(path.as_ref(), opts)?,
-                ToolType::Other => {
-                    let nr_blocks = get_nr_blocks(path.as_ref())?;
-                    all_blocks(nr_blocks as u32)
-                }
-            };
+    opts: &'a EngineOptions,
+    write: bool,
+    exclusive: bool,
+}
 
-            Arc::new(SpindleIoEngine::new(path, valid_blocks, opts.exclusive)?)
+impl<'a, P: AsRef<Path>> EngineBuilder<'a, P> {
+    pub fn new(path: P, opts: &'a EngineOptions) -> Self {
+        Self {
+            path,
+            opts,
+            write: false,
+            exclusive: true,
         }
-    };
-    Ok(engine)
+    }
+
+    pub fn write(self, flag: bool) -> Self {
+        Self {
+            path: self.path,
+            opts: self.opts,
+            write: flag,
+            exclusive: self.exclusive,
+        }
+    }
+
+    pub fn exclusive(self, flag: bool) -> Self {
+        Self {
+            path: self.path,
+            opts: self.opts,
+            write: self.write,
+            exclusive: flag,
+        }
+    }
+
+    pub fn build(self) -> Result<Arc<dyn IoEngine + Send + Sync>> {
+        let engine: Arc<dyn IoEngine + Send + Sync> = match self.opts.engine_type {
+            #[cfg(feature = "io_uring")]
+            EngineType::Async => Arc::new(AsyncIoEngine::new_with(self.path, self.write, self.exclusive)?),
+            EngineType::Sync => Arc::new(SyncIoEngine::new(self.path, self.exclusive)?),
+            EngineType::Spindle => {
+                let valid_blocks = match self.opts.tool {
+                    ToolType::Thin => thin_valid_blocks(self.path.as_ref(), self.opts),
+                    ToolType::Cache => cache_valid_blocks(self.path.as_ref(), self.opts)?,
+                    ToolType::Era => era_valid_blocks(self.path.as_ref(), self.opts)?,
+                    ToolType::Other => {
+                        let nr_blocks = get_nr_blocks(self.path.as_ref())?;
+                        all_blocks(nr_blocks as u32)
+                    }
+                };
+
+                Arc::new(SpindleIoEngine::new(self.path, valid_blocks, self.write)?)
+            }
+        };
+        Ok(engine)
+    }
 }
 
 //------------------------------------------

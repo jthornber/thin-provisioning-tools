@@ -27,8 +27,10 @@ struct Context {
 }
 
 fn new_context(opts: &CacheRepairOptions) -> Result<Context> {
-    let engine_in = build_io_engine(opts.input, &opts.engine_opts)?;
-    let engine_out = build_io_engine(opts.output, &opts.engine_opts)?;
+    let engine_in = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
+    let engine_out = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
 
     Ok(Context {
         _report: opts.report.clone(),

@@ -197,7 +197,9 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinRmapOptions) -> Result<Context> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
+        .build()?;
 
     Ok(Context {
         engine,

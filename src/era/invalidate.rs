@@ -229,7 +229,6 @@ pub struct EraInvalidateOptions<'a> {
     pub output: Option<&'a Path>,
     pub engine_opts: EngineOptions,
     pub threshold: u32,
-    pub use_metadata_snap: bool,
 }
 
 struct Context {
@@ -237,14 +236,16 @@ struct Context {
 }
 
 fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
+        .write(true)
+        .build()?;
     Ok(Context { engine })
 }
 
 pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
     let ctx = mk_context(opts)?;
 
-    let sb = if opts.use_metadata_snap {
+    let sb = if opts.engine_opts.use_metadata_snap {
         read_superblock_snap(ctx.engine.as_ref())?
     } else {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?

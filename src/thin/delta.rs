@@ -291,7 +291,6 @@ pub struct ThinDeltaOptions<'a> {
     pub snap1: Snap,
     pub snap2: Snap,
     pub verbose: bool,
-    pub use_metadata_snap: bool,
 }
 
 struct Context {
@@ -300,7 +299,7 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinDeltaOptions) -> Result<Context> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts).exclusive(!opts.engine_opts.use_metadata_snap).build()?;
 
     Ok(Context {
         engine,
@@ -311,7 +310,7 @@ fn mk_context(opts: &ThinDeltaOptions) -> Result<Context> {
 pub fn delta(opts: ThinDeltaOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
-    let sb = if opts.use_metadata_snap {
+    let sb = if opts.engine_opts.use_metadata_snap {
         read_superblock_snap(ctx.engine.as_ref())?
     } else {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
