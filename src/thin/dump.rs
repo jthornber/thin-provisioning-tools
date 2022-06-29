@@ -6,8 +6,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
+use crate::commands::engine::*;
 use crate::dump_utils::*;
-use crate::io_engine::{AsyncIoEngine, Block, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::*;
@@ -148,7 +149,7 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
 pub struct ThinDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
     pub repair: bool,
     pub use_metadata_snap: bool,
@@ -162,11 +163,7 @@ struct ThinDumpContext {
 }
 
 fn mk_context(opts: &ThinDumpOptions) -> Result<ThinDumpContext> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.input, false)?)
-    };
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
 
     Ok(ThinDumpContext {
         report: opts.report.clone(),

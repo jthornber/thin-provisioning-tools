@@ -45,8 +45,8 @@ pub fn fail<T>(msg: &str) -> io::Result<T> {
     Err(e)
 }
 
-fn get_device_size(path: &Path) -> io::Result<u64> {
-    let file = File::open(path)?;
+fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
+    let file = File::open(path.as_ref())?;
     let fd = file.as_raw_fd();
     let mut cap = 0u64;
     unsafe {
@@ -57,8 +57,8 @@ fn get_device_size(path: &Path) -> io::Result<u64> {
     }
 }
 
-pub fn file_size(path: &Path) -> io::Result<u64> {
-    match stat::stat(path) {
+pub fn file_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
+    match stat::stat(path.as_ref()) {
         Ok(info) => {
             if test_bit(info.st_mode, SFlag::S_IFREG) {
                 Ok(info.st_size as u64)

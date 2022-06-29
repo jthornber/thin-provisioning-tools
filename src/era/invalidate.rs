@@ -6,9 +6,10 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::commands::engine::*;
 use crate::era::superblock::*;
 use crate::era::writeset::*;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::io_engine::*;
 use crate::math::div_up;
 use crate::pdata::array::{self, value_err, ArrayBlock};
 use crate::pdata::array_walker::*;
@@ -226,7 +227,7 @@ fn emit_blocks<W: Write>(marked_bits: &[u64], nr_blocks: u32, w: &mut Writer<W>)
 pub struct EraInvalidateOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub threshold: u32,
     pub use_metadata_snap: bool,
 }
@@ -236,20 +237,7 @@ struct Context {
 }
 
 fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new_with(
-            opts.input,
-            false,
-            !opts.use_metadata_snap,
-        )?)
-    } else {
-        Arc::new(SyncIoEngine::new_with(
-            opts.input,
-            false,
-            !opts.use_metadata_snap,
-        )?)
-    };
-
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
     Ok(Context { engine })
 }
 

@@ -5,6 +5,7 @@ use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::commands::engine::*;
 use crate::era::ir::{self, MetadataVisitor, Visit};
 use crate::era::superblock::*;
 use crate::era::writeset::Writeset;
@@ -23,7 +24,7 @@ use crate::write_batcher::*;
 pub struct EraRestoreOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
 }
 
@@ -33,11 +34,7 @@ struct Context {
 }
 
 fn mk_context(opts: &EraRestoreOptions) -> anyhow::Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
 
     Ok(Context {
         _report: opts.report.clone(),

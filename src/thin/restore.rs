@@ -6,12 +6,13 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::pdata::btree_builder::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map::common::pack_root;
 use crate::pdata::space_map::disk::*;
 use crate::pdata::space_map::metadata::*;
+use crate::pdata::space_map::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -363,7 +364,7 @@ fn build_data_sm(w: &mut WriteBatcher, sm: &dyn SpaceMap) -> Result<Vec<u8>> {
 pub struct ThinRestoreOptions<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
     pub overrides: SuperblockOverrides,
 }
@@ -374,11 +375,7 @@ struct Context {
 }
 
 fn new_context(opts: &ThinRestoreOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
 
     Ok(Context {
         report: opts.report.clone(),

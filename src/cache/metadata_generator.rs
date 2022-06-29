@@ -7,7 +7,7 @@ use crate::cache::ir;
 use crate::cache::ir::MetadataVisitor;
 use crate::cache::restore::Restorer;
 use crate::io_engine::IoEngine;
-use crate::pdata::space_map_metadata::core_metadata_sm;
+use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::write_batcher::WriteBatcher;
 
 //------------------------------------------

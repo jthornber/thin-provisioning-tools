@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::cache::writeback::{writeback, CacheWritebackOptions};
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
@@ -13,17 +14,10 @@ pub struct CacheWritebackCommand;
 
 impl CacheWritebackCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Repair binary cache metadata, and write it to a different device or file")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
@@ -81,7 +75,8 @@ impl CacheWritebackCommand {
                     .help("Specify the size for the data cache, in megabytes")
                     .long("buffer-size-meg")
                     .value_name("MB"),
-            )
+            );
+            engine_args(cmd)
     }
 }
 
@@ -109,9 +104,14 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         check_input_file(origin_dev, &report);
         check_input_file(fast_dev, &report);
 
+        let engine_opts = parse_engine_opts(ToolType::Cache, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = CacheWritebackOptions {
             metadata_dev,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             origin_dev,
             fast_dev,
             origin_dev_offset: optional_value_or_exit::<u64>(&matches, "ORIGIN_DEV_OFFSET"),

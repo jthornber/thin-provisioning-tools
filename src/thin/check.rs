@@ -12,12 +12,12 @@ use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::space_map::checker::*;
 use crate::pdata::space_map::common::*;
-use crate::pdata::space_map::allocated_blocks::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
+use crate::commands::engine::*;
 
 //------------------------------------------
 
@@ -83,21 +83,14 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 pub const MAX_CONCURRENT_IO: u32 = 1024;
 
-pub enum EngineType {
-    Sync,
-    ASync,
-    Spindle,
-}
-
 pub struct ThinCheckOptions<'a> {
     pub input: &'a Path,
-    pub engine_type: EngineType,
+    pub engine_opts: EngineOptions,
     pub sb_only: bool,
     pub skip_mappings: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
     pub clear_needs_check: bool,
-    pub use_metadata_snap: bool,
     pub report: Arc<Report>,
 }
 
@@ -207,7 +200,7 @@ fn check_mapping_bottom_level(
 
 fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> Result<Superblock> {
     // superblock
-    let sb = if opts.use_metadata_snap {
+    let sb = if opts.engine_opts.use_metadata_snap {
         read_superblock_snap(engine.as_ref())?
     } else {
         read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?
@@ -227,6 +220,7 @@ fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> 
 }
 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
+    /*
     let writable = opts.auto_repair || opts.clear_needs_check;
     let exclusive = opts.use_metadata_snap;
 
@@ -258,7 +252,9 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
             )
         }
     };
+    */
 
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
     mk_context_(engine, opts.report.clone())
 }
 
@@ -418,7 +414,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     // TODO: check override-mapping-root
-    if !opts.use_metadata_snap {
+    if !opts.engine_opts.use_metadata_snap {
         if !data_leaks.is_empty() && opts.auto_repair {
             ctx.report.info("Repairing data leaks.");
             repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;

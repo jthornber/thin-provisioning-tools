@@ -3,7 +3,8 @@ use std::io::BufWriter;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::commands::engine::*;
+use crate::io_engine::*;
 use crate::pdata::btree::{self, KeyRange, NodeHeader};
 use crate::pdata::btree_walker::{btree_to_map, BTreeWalker, NodeVisitor};
 use crate::pdata::space_map::common::SMRoot;
@@ -285,7 +286,7 @@ fn dump_diff(
 
 pub struct ThinDeltaOptions<'a> {
     pub input: &'a Path,
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
     pub snap1: Snap,
     pub snap2: Snap,
@@ -299,11 +300,7 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinDeltaOptions) -> Result<Context> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.input, false)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.input, false)?)
-    };
+    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
 
     Ok(Context {
         engine,

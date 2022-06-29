@@ -3,6 +3,7 @@ extern crate clap;
 use clap::Arg;
 use std::path::Path;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::thin::trim::{trim, ThinTrimOptions};
 
@@ -13,17 +14,10 @@ pub struct ThinTrimCommand;
 
 impl ThinTrimCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Issue discard requests for free pool space (offline tool).")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
@@ -44,7 +38,8 @@ impl ThinTrimCommand {
                     .long("data-dev")
                     .value_name("FILE")
                     .required(true),
-            )
+            );
+            engine_args(cmd)
     }
 }
 
@@ -63,10 +58,15 @@ impl<'a> Command<'a> for ThinTrimCommand {
         check_input_file(metadata_dev, &report);
         check_input_file(data_dev, &report);
 
+        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = ThinTrimOptions {
             metadata_dev,
             data_dev,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             report: report.clone(),
         };
 

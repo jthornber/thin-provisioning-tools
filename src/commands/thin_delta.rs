@@ -3,6 +3,7 @@ extern crate clap;
 use clap::{Arg, ArgGroup};
 use std::path::Path;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::thin::delta::*;
@@ -14,17 +15,10 @@ pub struct ThinDeltaCommand;
 
 impl ThinDeltaCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Print the differences in the mappings between two thin devices")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("METADATA_SNAP")
                     .help("Use metadata snapshot")
@@ -76,7 +70,8 @@ impl ThinDeltaCommand {
             )
             // groups
             .group(ArgGroup::new("SNAP1").required(true))
-            .group(ArgGroup::new("SNAP2").required(true))
+            .group(ArgGroup::new("SNAP2").required(true));
+        engine_args(cmd)
     }
 }
 
@@ -106,9 +101,14 @@ impl<'a> Command<'a> for ThinDeltaCommand {
             Snap::RootBlock(matches.value_of_t_or_exit::<u64>("ROOT2"))
         };
 
+        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = ThinDeltaOptions {
             input: input_file,
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             report: report.clone(),
             snap1,
             snap2,

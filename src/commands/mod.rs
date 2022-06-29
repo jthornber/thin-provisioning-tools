@@ -4,6 +4,7 @@ pub mod cache_metadata_size;
 pub mod cache_repair;
 pub mod cache_restore;
 pub mod cache_writeback;
+pub mod engine;
 pub mod era_check;
 pub mod era_dump;
 pub mod era_invalidate;
