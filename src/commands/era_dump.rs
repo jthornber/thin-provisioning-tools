@@ -44,7 +44,7 @@ impl EraDumpCommand {
                     .required(true)
                     .index(1),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 
@@ -69,10 +69,7 @@ impl<'a> Command<'a> for EraDumpCommand {
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 
-        let engine_opts = parse_engine_opts(
-            ToolType::Era,
-            false,
-            &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, false, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

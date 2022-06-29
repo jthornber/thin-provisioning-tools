@@ -3,6 +3,7 @@ extern crate clap;
 use clap::Arg;
 use std::path::Path;
 
+use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::pack::toplevel::unpack;
@@ -12,7 +13,7 @@ pub struct ThinMetadataUnpackCommand;
 
 impl ThinMetadataUnpackCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("Unpack a compressed file of thin metadata.")
@@ -31,7 +32,8 @@ impl ThinMetadataUnpackCommand {
                     .short('o')
                     .value_name("DEV")
                     .takes_value(true),
-            )
+            );
+            engine_args(cmd)
     }
 }
 

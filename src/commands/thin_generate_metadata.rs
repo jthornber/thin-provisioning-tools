@@ -13,17 +13,10 @@ pub struct ThinGenerateMetadataCommand;
 
 impl ThinGenerateMetadataCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("A tool for creating synthetic thin metadata.")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
@@ -59,7 +52,8 @@ impl ThinGenerateMetadataCommand {
                     .value_name("FILE")
                     .required(true),
             )
-            .group(ArgGroup::new("commands").required(true))
+            .group(ArgGroup::new("commands").required(true));
+        engine_args(cmd)
     }
 }
 

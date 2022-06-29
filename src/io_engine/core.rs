@@ -49,6 +49,11 @@ impl IoEngine for CoreIoEngine {
         1
     }
 
+
+    fn suggest_nr_threads(&self) -> usize {
+        1
+    }
+
     fn read(&self, b: u64) -> io::Result<Block> {
         if b >= self.nr_blocks {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));

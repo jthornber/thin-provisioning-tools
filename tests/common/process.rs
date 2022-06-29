@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::ffi::OsString;
 use std::fmt;
 use std::process;
@@ -70,10 +70,12 @@ pub fn run_ok(command: Command) -> Result<String> {
     eprintln!("run_ok: {}", command);
 
     let command = command.to_expr().stdout_capture().stderr_capture();
-    let output = command.run()?;
+    let output = command.unchecked().run()?;
 
     log_output(&output);
-    assert!(output.status.success());
+    if !output.status.success() {
+        return Err(anyhow!("command failed"));
+    }
 
     let stdout = std::str::from_utf8(&output.stdout[..])
         .unwrap()

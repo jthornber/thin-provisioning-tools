@@ -15,6 +15,7 @@ mock! {
     impl IoEngine for Engine {
         fn get_nr_blocks(&self) -> u64;
         fn get_batch_size(&self) -> usize;
+        fn suggest_nr_threads(&self) -> usize;
         fn read(&self, b: u64) -> io::Result<Block>;
         fn read_many(&self, blocks: &[u64]) -> io::Result<Vec<io::Result<Block>>>;
         fn write(&self, block: &Block) -> io::Result<()>;

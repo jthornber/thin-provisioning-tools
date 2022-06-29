@@ -1,6 +1,6 @@
 use anyhow::Result;
-use core::cmp::Ordering;
-use core::fmt::{Display, Formatter};
+use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::io::BufWriter;
 use std::io::Write;
 use std::ops::DerefMut;

@@ -125,7 +125,7 @@ pub fn get_needs_check(md: &Path) -> Result<bool> {
 }
 
 pub fn get_metadata_usage(md: &Path) -> Result<(u64, u64)> {
-    use thinp::pdata::space_map_common::SMRoot;
+    use thinp::pdata::space_map::common::SMRoot;
     use thinp::pdata::unpack::unpack;
     use thinp::thin::superblock::*;
 
@@ -136,7 +136,7 @@ pub fn get_metadata_usage(md: &Path) -> Result<(u64, u64)> {
 }
 
 pub fn get_data_usage(md: &Path) -> Result<(u64, u64)> {
-    use thinp::pdata::space_map_common::SMRoot;
+    use thinp::pdata::space_map::common::SMRoot;
     use thinp::pdata::unpack::unpack;
     use thinp::thin::superblock::*;
 
