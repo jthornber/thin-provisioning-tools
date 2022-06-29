@@ -5,9 +5,6 @@ use std::boxed::Box;
 use std::convert::{TryFrom, TryInto};
 use std::sync::{Arc, Mutex};
 
-#[cfg(test)]
-mod tests;
-
 //------------------------------------------
 
 pub trait SpaceMap {

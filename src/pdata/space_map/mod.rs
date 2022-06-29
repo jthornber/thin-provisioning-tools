@@ -7,3 +7,5 @@ pub mod metadata;
 
 pub use crate::pdata::space_map::base::*;
 
+#[cfg(test)]
+pub mod tests;

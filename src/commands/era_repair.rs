@@ -43,7 +43,7 @@ impl EraRepairCommand {
                     .value_name("FILE")
                     .required(true),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 
@@ -68,10 +68,7 @@ impl<'a> Command<'a> for EraRepairCommand {
 
         check_input_file(input_file, &report);
 
-        let engine_opts = parse_engine_opts(
-            ToolType::Era,
-            true,
-            &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

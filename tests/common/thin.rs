@@ -119,28 +119,28 @@ pub fn generate_metadata_leaks(
 pub fn get_needs_check(md: &Path) -> Result<bool> {
     use thinp::thin::superblock::*;
 
-    let engine = SyncIoEngine::new(md, 1, false)?;
+    let engine = SyncIoEngine::new(md, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     Ok(sb.flags.needs_check)
 }
 
 pub fn get_metadata_usage(md: &Path) -> Result<(u64, u64)> {
-    use thinp::pdata::space_map_common::SMRoot;
+    use thinp::pdata::space_map::common::SMRoot;
     use thinp::pdata::unpack::unpack;
     use thinp::thin::superblock::*;
 
-    let engine = SyncIoEngine::new(md, 1, false)?;
+    let engine = SyncIoEngine::new(md, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     let root = unpack::<SMRoot>(&sb.metadata_sm_root)?;
     Ok((root.nr_blocks, root.nr_allocated))
 }
 
 pub fn get_data_usage(md: &Path) -> Result<(u64, u64)> {
-    use thinp::pdata::space_map_common::SMRoot;
+    use thinp::pdata::space_map::common::SMRoot;
     use thinp::pdata::unpack::unpack;
     use thinp::thin::superblock::*;
 
-    let engine = SyncIoEngine::new(md, 1, false)?;
+    let engine = SyncIoEngine::new(md, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     let root = unpack::<SMRoot>(&sb.data_sm_root)?;
     Ok((root.nr_blocks, root.nr_allocated))

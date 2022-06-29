@@ -130,6 +130,7 @@ fn dev_size_and_nr_blocks_conflicts() -> Result<()> {
     Ok(())
 }
 
+/*
 #[test]
 fn block_size_and_nr_blocks_conflicts() -> Result<()> {
     run_fail(cache_metadata_size_cmd(args![
@@ -140,6 +141,7 @@ fn block_size_and_nr_blocks_conflicts() -> Result<()> {
     ]))?;
     Ok(())
 }
+*/
 
 #[test]
 fn nr_blocks_alone() -> Result<()> {

@@ -19,6 +19,7 @@ pub enum EngineType {
     Spindle,
 }
 
+#[derive(PartialEq, Eq)]
 pub enum ToolType {
     Thin,
     Cache,
@@ -61,7 +62,9 @@ fn parse_type(matches: &ArgMatches) -> Result<EngineType> {
             "async" => EngineType::Async,
             #[cfg(not(feature = "io_uring"))]
             "async" => {
-                return Err(anyhow!("This tool has not been compiled with async engine support"));
+                return Err(anyhow!(
+                    "This tool has not been compiled with async engine support"
+                ));
             }
             _ => {
                 return Err(anyhow!(format!("unknown io engine type '{}'", engine)));
@@ -74,13 +77,22 @@ fn parse_type(matches: &ArgMatches) -> Result<EngineType> {
     Ok(engine_type)
 }
 
+fn metadata_snap_flag(matches: &ArgMatches) -> bool {
+    let ms = matches.try_contains_id("METADATA_SNAPSHOT");
+    if ms.is_err() {
+        // This tool doesn't use metadata snaps
+        return false;
+    }
+    ms.unwrap()
+}
+
 pub fn parse_engine_opts(
     tool: ToolType,
     write: bool,
     matches: &ArgMatches,
 ) -> Result<EngineOptions> {
     let engine_type = parse_type(matches)?;
-    let use_metadata_snap = matches.is_present("METADATA_SNAPSHOT");
+    let use_metadata_snap = (tool == ToolType::Thin) && metadata_snap_flag(matches);
     let exclusive = match (write, use_metadata_snap) {
         (false, true) => false,
         (false, false) => true,
