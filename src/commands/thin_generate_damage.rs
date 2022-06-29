@@ -66,7 +66,7 @@ impl<'a> Command<'a> for ThinGenerateDamageCommand {
 
         let report = mk_report(false);
 
-        let engine_opts = parse_engine_opts(ToolType::Thin, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

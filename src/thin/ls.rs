@@ -248,7 +248,6 @@ impl<'a> LsTable<'a> {
 pub struct ThinLsOptions<'a> {
     pub input: &'a Path,
     pub engine_opts: EngineOptions,
-    pub use_metadata_snap: bool,
     pub fields: Vec<OutputField>,
     pub no_headers: bool,
     pub report: Arc<Report>,
@@ -261,7 +260,9 @@ struct Context {
 }
 
 fn mk_context(opts: &ThinLsOptions) -> Result<Context> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
+        .build()?;
     let nr_threads = engine.suggest_nr_threads();
     let pool = ThreadPool::new(nr_threads);
 
@@ -426,7 +427,7 @@ fn some_counting_fields(fields: &[OutputField]) -> bool {
 pub fn ls(opts: ThinLsOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
-    let sb = if opts.use_metadata_snap {
+    let sb = if opts.engine_opts.use_metadata_snap {
         read_superblock_snap(ctx.engine.as_ref())?
     } else {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?

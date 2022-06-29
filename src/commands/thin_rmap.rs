@@ -92,7 +92,7 @@ impl<'a> Command<'a> for ThinRmapCommand {
             })
             .collect();
 
-        let engine_opts = parse_engine_opts(ToolType::Era, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

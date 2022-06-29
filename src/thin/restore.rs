@@ -375,7 +375,9 @@ struct Context {
 }
 
 fn new_context(opts: &ThinRestoreOptions) -> Result<Context> {
-    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
 
     Ok(Context {
         report: opts.report.clone(),

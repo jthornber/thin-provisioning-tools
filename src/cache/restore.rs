@@ -35,7 +35,9 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheRestoreOptions) -> anyhow::Result<Context> {
-    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
 
     Ok(Context {
         _report: opts.report.clone(),

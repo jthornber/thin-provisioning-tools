@@ -309,7 +309,9 @@ struct Context {
 }
 
 fn mk_context(opts: &CacheWritebackOptions) -> anyhow::Result<Context> {
-    let engine = build_io_engine(opts.metadata_dev, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.metadata_dev, &opts.engine_opts)
+        .write(true)
+        .build()?;
 
     Ok(Context {
         report: opts.report.clone(),

@@ -104,7 +104,7 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         check_input_file(origin_dev, &report);
         check_input_file(fast_dev, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Cache, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

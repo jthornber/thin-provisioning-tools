@@ -72,7 +72,7 @@ impl<'a> Command<'a> for EraCheckCommand {
         check_file_not_tiny(input_file, &report);
         check_not_xml(input_file, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Era, false, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

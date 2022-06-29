@@ -29,7 +29,9 @@ struct CacheGenerateOpts<'a> {
 }
 
 fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
-    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
 
     match opts.op {
         MetadataOp::Format => {
@@ -141,7 +143,7 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
         let report = mk_report(matches.is_present("QUIET"));
-        let engine_opts = parse_engine_opts(ToolType::Cache, true, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

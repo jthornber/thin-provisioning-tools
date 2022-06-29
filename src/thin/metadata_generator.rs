@@ -59,7 +59,9 @@ pub struct ThinGenerateOpts<'a> {
 }
 
 pub fn generate_metadata(opts: ThinGenerateOpts) -> Result<()> {
-    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
     match opts.op {
         MetadataOp::Format => format(engine, ThinGenerator),
         MetadataOp::SetNeedsCheck => set_needs_check(engine),

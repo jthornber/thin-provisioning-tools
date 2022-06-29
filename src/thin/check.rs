@@ -6,18 +6,18 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
+use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map::checker::*;
 use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
-use crate::commands::engine::*;
 
 //------------------------------------------
 
@@ -220,41 +220,9 @@ fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> 
 }
 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
-    /*
-    let writable = opts.auto_repair || opts.clear_needs_check;
-    let exclusive = opts.use_metadata_snap;
-
-    let engine: Arc<dyn IoEngine + Send + Sync> = match opts.engine_type {
-        EngineType::ASync => {
-            Arc::new(
-                AsyncIoEngine::new_with(opts.input, writable, exclusive)
-                    .expect("unable to open input file"),
-            )
-        },
-        EngineType::Sync => {
-            Arc::new(
-                SyncIoEngine::new(opts.input, exclusive).expect("unable to open input file"),
-            )
-        },
-        EngineType::Spindle => {
-            // use a Sync engine to read the metadata space map
-            let sync_engine = Arc::new(
-                SyncIoEngine::new(opts.input, exclusive).expect("unable to open input file")
-            );
-            let sb = read_sb(opts, sync_engine.clone())?;
-            let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-            let valid_blocks = allocated_blocks(sync_engine, metadata_root.bitmap_root)?;
-
-            eprintln!("input = {}, valid blocks = {}", opts.input.display(), valid_blocks.len());
-            Arc::new(
-                SpindleIoEngine::new(opts.input, valid_blocks, exclusive)
-                    .expect("unable to open input file"),
-            )
-        }
-    };
-    */
-
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
+        .write(opts.auto_repair || opts.clear_needs_check)
+        .build()?;
     mk_context_(engine, opts.report.clone())
 }
 

@@ -91,7 +91,7 @@ impl<'a> Command<'a> for CacheCheckCommand {
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Cache, false, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

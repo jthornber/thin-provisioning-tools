@@ -152,7 +152,6 @@ pub struct ThinDumpOptions<'a> {
     pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
     pub repair: bool,
-    pub use_metadata_snap: bool,
     pub skip_mappings: bool,
     pub overrides: SuperblockOverrides,
 }
@@ -163,7 +162,7 @@ struct ThinDumpContext {
 }
 
 fn mk_context(opts: &ThinDumpOptions) -> Result<ThinDumpContext> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
 
     Ok(ThinDumpContext {
         report: opts.report.clone(),
@@ -314,7 +313,7 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
             SUPERBLOCK_LOCATION,
             &opts.overrides,
         )?
-    } else if opts.use_metadata_snap {
+    } else if opts.engine_opts.use_metadata_snap {
         read_superblock_snap(ctx.engine.as_ref())?
     } else {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)

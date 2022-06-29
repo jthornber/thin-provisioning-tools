@@ -259,7 +259,7 @@ struct CacheDumpContext {
 }
 
 fn mk_context(opts: &CacheDumpOptions) -> anyhow::Result<CacheDumpContext> {
-    let engine = build_io_engine(opts.input, &opts.engine_opts)?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
     Ok(CacheDumpContext { engine })
 }
 
