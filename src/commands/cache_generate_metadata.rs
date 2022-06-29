@@ -3,15 +3,11 @@ use clap::{Arg, ArgGroup};
 
 use std::path::Path;
 use std::process;
-use std::sync::Arc;
 
 use crate::cache::metadata_generator::*;
+use crate::commands::engine::*;
+use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-
-//------------------------------------------
-
-const MAX_CONCURRENT_IO: u32 = 1024;
 
 //------------------------------------------
 
@@ -27,17 +23,13 @@ struct CacheGenerateOpts<'a> {
     nr_origin_blocks: u64,
     percent_resident: u8,
     percent_dirty: u8,
-    async_io: bool,
+    engine_opts: EngineOptions,
     output: &'a Path,
     metadata_version: u8,
 }
 
 fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
 
     match opts.op {
         MetadataOp::Format => {
@@ -65,17 +57,10 @@ pub struct CacheGenerateMetadataCommand;
 
 impl CacheGenerateMetadataCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("A tool for creating synthetic cache metadata.")
-            // flags
-            .arg(
-                Arg::new("ASYNC_IO")
-                    .help("Force use of io_uring for synchronous io")
-                    .long("async-io")
-                    .hide(true),
-            )
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
@@ -140,7 +125,8 @@ impl CacheGenerateMetadataCommand {
                     .value_name("FILE")
                     .required(true),
             )
-            .group(ArgGroup::new("commands").required(true))
+            .group(ArgGroup::new("commands").required(true));
+        engine_args(cmd)
     }
 }
 
@@ -149,10 +135,16 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
         "cache_generate_metadata"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+
+        let report = mk_report(matches.is_present("QUIET"));
+        let engine_opts = parse_engine_opts(ToolType::Cache, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
 
         let opts = CacheGenerateOpts {
             op: if matches.is_present("FORMAT") {
@@ -168,15 +160,12 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
             nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
             percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
             percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             output: output_file,
             metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
         };
 
-        generate_metadata(&opts).map_err(|reason| {
-            eprintln!("{}", reason);
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, generate_metadata(&opts))
     }
 }
 

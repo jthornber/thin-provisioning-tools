@@ -2,6 +2,8 @@ use clap::{Arg, ArgGroup};
 use std::path::Path;
 use std::process;
 
+use crate::commands::engine::*;
+use crate::commands::utils::*;
 use crate::thin::metadata_generator::*;
 
 //------------------------------------------
@@ -66,11 +68,18 @@ impl<'a> Command<'a> for ThinGenerateMetadataCommand {
         "thin_generate_metadata"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
+        let report = mk_report(false);
+
+        let engine_opts = parse_engine_opts(ToolType::Thin, true, &matches);
+        if engine_opts.is_err() {
+            return to_exit_code(&report, engine_opts);
+        }
+
         let opts = ThinGenerateOpts {
-            async_io: matches.is_present("ASYNC_IO"),
+            engine_opts: engine_opts.unwrap(),
             op: if matches.is_present("FORMAT") {
                 MetadataOp::Format
             } else if matches.is_present("SET_NEEDS_CHECK") {
@@ -84,10 +93,7 @@ impl<'a> Command<'a> for ThinGenerateMetadataCommand {
             output: Path::new(matches.value_of("OUTPUT").unwrap()),
         };
 
-        generate_metadata(opts).map_err(|reason| {
-            eprintln!("{}", reason);
-            std::io::Error::from_raw_os_error(libc::EPERM)
-        })
+        to_exit_code(&report, generate_metadata(opts))
     }
 }
 

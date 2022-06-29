@@ -29,6 +29,7 @@ use tui::{
     Terminal,
 };
 
+use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::io_engine::*;
 use crate::pdata::btree;
@@ -868,15 +869,16 @@ impl<'a> Command<'a> for ThinExploreCommand {
         "thin_explore"
     }
 
-    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> std::io::Result<()> {
+    fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
         let node_path = matches
             .value_of("NODE_PATH")
             .map(|text| btree::decode_node_path(text).unwrap());
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let report = mk_report(false);
 
-        explore(input_file, node_path).map_err(|_| std::io::Error::from_raw_os_error(libc::EPERM))
+        to_exit_code(&report, explore(input_file, node_path))
     }
 }
 

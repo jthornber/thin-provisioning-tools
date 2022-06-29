@@ -5,16 +5,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::checksum;
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
+use crate::commands::engine::*;
+use crate::io_engine::IoEngine;
 use crate::pdata::btree_walker::btree_to_map;
-use crate::pdata::space_map_common::*;
-use crate::pdata::space_map_metadata::{blocks_to_bitmaps, MetadataIndex};
+use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::metadata::{blocks_to_bitmaps, MetadataIndex};
 use crate::pdata::unpack::{unpack, Pack};
 use crate::thin::superblock::*;
-
-//------------------------------------------
-
-const MAX_CONCURRENT_IO: u32 = 1024;
 
 //------------------------------------------
 
@@ -169,18 +166,13 @@ pub enum DamageOp {
 }
 
 pub struct ThinDamageOpts<'a> {
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub op: DamageOp,
     pub output: &'a Path,
 }
 
 pub fn damage_metadata(opts: ThinDamageOpts) -> Result<()> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
-
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     let sm_root = unpack::<SMRoot>(&sb.metadata_sm_root)?;
 

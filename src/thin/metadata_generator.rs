@@ -2,16 +2,13 @@ use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::io_engine::{AsyncIoEngine, IoEngine, SyncIoEngine};
-use crate::pdata::space_map_metadata::core_metadata_sm;
+use crate::commands::engine::*;
+use crate::io_engine::*;
+use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::report::mk_quiet_report;
 use crate::thin::ir::MetadataVisitor;
 use crate::thin::restore::Restorer;
 use crate::write_batcher::WriteBatcher;
-
-//------------------------------------------
-
-const MAX_CONCURRENT_IO: u32 = 1024;
 
 //------------------------------------------
 
@@ -54,7 +51,7 @@ pub enum MetadataOp {
 }
 
 pub struct ThinGenerateOpts<'a> {
-    pub async_io: bool,
+    pub engine_opts: EngineOptions,
     pub op: MetadataOp,
     pub data_block_size: u32,
     pub nr_data_blocks: u64,
@@ -62,12 +59,7 @@ pub struct ThinGenerateOpts<'a> {
 }
 
 pub fn generate_metadata(opts: ThinGenerateOpts) -> Result<()> {
-    let engine: Arc<dyn IoEngine + Send + Sync> = if opts.async_io {
-        Arc::new(AsyncIoEngine::new(opts.output, MAX_CONCURRENT_IO, true)?)
-    } else {
-        Arc::new(SyncIoEngine::new(opts.output, true)?)
-    };
-
+    let engine = build_io_engine(opts.output, &opts.engine_opts)?;
     match opts.op {
         MetadataOp::Format => format(engine, ThinGenerator),
         MetadataOp::SetNeedsCheck => set_needs_check(engine),
