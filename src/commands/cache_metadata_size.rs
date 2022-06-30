@@ -1,10 +1,10 @@
-extern crate clap;
-
+use anyhow::{anyhow, Result};
 use clap::{Arg, ArgGroup};
 use std::ffi::OsString;
 use std::io;
 
 use crate::cache::metadata_size::*;
+use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::math::div_up;
 use crate::units::*;
@@ -70,7 +70,7 @@ impl CacheMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> io::Result<(CacheMetadataSizeOptions, Units, bool)>
+    fn parse_args<I, T>(&self, args: I) -> Result<(CacheMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
@@ -91,10 +91,7 @@ impl CacheMetadataSizeCommand {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
             if device_size < block_size {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "pool size must be larger than block size",
-                ));
+                return Err(anyhow!("pool size must be larger than block size"));
             }
 
             div_up(device_size, block_size as u64)
@@ -122,6 +119,12 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let opts = self.parse_args(args);
+        if opts.is_err() {
+            let report = mk_report(false);
+            return to_exit_code(&report, opts);
+        }
+
+        let (opts, unit, numeric_only) = opts.unwrap();
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -133,7 +136,7 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
                     name.push('s'); // plural form
                     println!("{} {}", size, name);
                 }
-                Ok(())
+                exitcode::OK
             }
             Err(reason) => {
                 eprintln!("{}", reason);

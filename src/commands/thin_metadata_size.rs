@@ -1,9 +1,9 @@
-extern crate clap;
-
+use anyhow::{anyhow, Result};
 use clap::Arg;
 use std::ffi::OsString;
 use std::io;
 
+use crate::commands::utils::*;
 use crate::thin::metadata_size::*;
 use crate::units::*;
 
@@ -60,7 +60,7 @@ impl ThinMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> std::io::Result<(ThinMetadataSizeOptions, Units, bool)>
+    fn parse_args<I, T>(&self, args: I) -> Result<(ThinMetadataSizeOptions, Units, bool)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
@@ -81,10 +81,7 @@ impl ThinMetadataSizeCommand {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
         if pool_size < block_size {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "pool size must be larger than block size",
-            ));
+            return Err(anyhow!("pool size must be larger than block size"));
         }
 
         Ok((
@@ -104,7 +101,12 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
     }
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
-        let (opts, unit, numeric_only) = self.parse_args(args);
+        let opts = self.parse_args(args);
+        if opts.is_err() {
+            let report = mk_report(false);
+            return to_exit_code(&report, opts);
+        }
+        let (opts, unit, numeric_only) = opts.unwrap();
 
         match metadata_size(&opts) {
             Ok(size) => {

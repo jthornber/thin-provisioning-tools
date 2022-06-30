@@ -11,7 +11,6 @@ use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::checksum;
 use crate::commands::engine::*;
-use crate::copier::*;
 use crate::io_engine::*;
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
@@ -559,11 +558,17 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let (corrupted, stats, dirty_ablocks, cleaned_blocks) = if opts.async_io {
-        copy_dirty_blocks_async(&ctx, &sb, &opts)?
-    } else {
-        copy_dirty_blocks_sync(&ctx, &sb, &opts)?
-    };
+    #[cfg(feature = "io_uring")]
+    let use_async = opts.engine_opts.engine_type == EngineType::Async;
+    #[cfg(not(feature = "io_uring"))]
+    let use_async = false;
+
+    let (corrupted, stats, dirty_ablocks, cleaned_blocks) = {
+        if use_async {
+            copy_dirty_blocks_async(&ctx, &sb, &opts)?
+        } else {
+            copy_dirty_blocks_sync(&ctx, &sb, &opts)?
+        }};
     report_stats(ctx.report.clone(), &stats);
 
     if corrupted {

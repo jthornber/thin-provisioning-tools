@@ -1,10 +1,6 @@
 use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::io::{self, Result};
-use std::os::unix::fs::{FileExt, OpenOptionsExt};
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::sync::{Condvar, Mutex};
 use std::path::Path;
 
 use crate::file_utils;
@@ -77,7 +73,7 @@ impl AsMut<[u8]> for Block {
 
 //------------------------------------------
 
-pub trait IoEngine : Send + Sync {
+pub trait IoEngine: Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
 
