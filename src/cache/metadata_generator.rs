@@ -1,12 +1,14 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use rand::prelude::*;
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::cache::ir;
 use crate::cache::ir::MetadataVisitor;
 use crate::cache::restore::Restorer;
-use crate::io_engine::IoEngine;
+use crate::commands::engine::*;
+use crate::io_engine::*;
 use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::write_batcher::WriteBatcher;
 
@@ -114,7 +116,7 @@ impl MetadataGenerator for CacheGenerator {
 
 //------------------------------------------
 
-pub fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: &CacheGenerator) -> Result<()> {
+fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: &CacheGenerator) -> Result<()> {
     let sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
     let batch_size = engine.get_batch_size();
     let mut w = WriteBatcher::new(engine, sm, batch_size);
@@ -123,12 +125,88 @@ pub fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: &CacheGenerator) -> 
     gen.generate_metadata(&mut restorer)
 }
 
-pub fn set_needs_check(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
+fn set_needs_check(engine: Arc<dyn IoEngine + Send + Sync>, flag: bool) -> Result<()> {
     use crate::cache::superblock::*;
 
     let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    sb.flags.needs_check = true;
+    sb.flags.needs_check = flag;
     write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+}
+
+fn set_clean_shutdown(engine: Arc<dyn IoEngine + Send + Sync>, flag: bool) -> Result<()> {
+    use crate::cache::superblock::*;
+
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    sb.flags.clean_shutdown = flag;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+}
+
+// This function does not convert formats.
+// Setting the version from 2 to 1 drops the dirty bitset field in superblock,
+// results in metadata leaks.
+// Setting the version from 1 to 2 does not generate the dirty bitset, hence the
+// superblock becomes invalid.
+fn set_superblock_version(engine: Arc<dyn IoEngine + Send + Sync>, version: u32) -> Result<()> {
+    use crate::cache::superblock::*;
+
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    sb.version = version;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
+}
+
+//------------------------------------------
+
+pub struct CacheFormatOpts {
+    pub block_size: u32,
+    pub nr_cache_blocks: u32,
+    pub nr_origin_blocks: u64,
+    pub percent_resident: u8,
+    pub percent_dirty: u8,
+    pub metadata_version: u8,
+}
+
+pub enum MetadataOp {
+    Format(CacheFormatOpts),
+    SetNeedsCheck(bool),
+    SetCleanShutdown(bool),
+    SetSuperblockVersion(u32),
+}
+
+pub struct CacheGenerateOpts<'a> {
+    pub op: MetadataOp,
+    pub engine_opts: EngineOptions,
+    pub output: &'a Path,
+}
+
+pub fn generate_metadata(opts: CacheGenerateOpts) -> Result<()> {
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
+
+    match opts.op {
+        MetadataOp::Format(op) => {
+            let cache_gen = CacheGenerator {
+                block_size: op.block_size,
+                nr_cache_blocks: op.nr_cache_blocks,
+                nr_origin_blocks: op.nr_origin_blocks,
+                percent_resident: op.percent_resident,
+                percent_dirty: op.percent_dirty,
+                metadata_version: op.metadata_version,
+            };
+            format(engine, &cache_gen)?;
+        }
+        MetadataOp::SetNeedsCheck(flag) => {
+            set_needs_check(engine, flag)?;
+        }
+        MetadataOp::SetCleanShutdown(flag) => {
+            set_clean_shutdown(engine, flag)?;
+        }
+        MetadataOp::SetSuperblockVersion(version) => {
+            set_superblock_version(engine, version)?;
+        }
+    }
+
+    Ok(())
 }
 
 //------------------------------------------

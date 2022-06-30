@@ -135,28 +135,57 @@ fn valid_metadata_passes() -> Result<()> {
     Ok(())
 }
 
-// FIXME: put back in, I don't want to add the --debug- arg to the
-// tool again, so we should have a little library function for tweaking
-// metadata version.
-
-/*
 #[test]
 fn bad_metadata_version() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
-    run_ok(
-        cache_restore_cmd(
-        args![
-            "-i",
-            &xml,
-            "-o",
-            &md,
-            "--debug-override-metadata-version",
-            "12345"
-        ],
-    ))?;
+    run_ok(cache_restore_cmd(args!["-i", &xml, "-o", &md]))?;
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--set-superblock-version",
+        "3"
+    ]))?;
     run_fail(cache_check_cmd(args![&md]))?;
     Ok(())
 }
-*/
+
+#[test]
+fn incompat_metadata_version_v1() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(cache_restore_cmd(args!["-i", &xml, "-o", &md]))?;
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--set-superblock-version",
+        "1"
+    ]))?;
+    run_fail(cache_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+#[test]
+fn incompat_metadata_version_v2() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let xml = mk_valid_xml(&mut td)?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(cache_restore_cmd(args![
+        "-i",
+        &xml,
+        "-o",
+        &md,
+        "--metadata-version",
+        "1"
+    ]))?;
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--set-superblock-version",
+        "2"
+    ]))?;
+    run_fail(cache_check_cmd(args![&md]))?;
+    Ok(())
+}

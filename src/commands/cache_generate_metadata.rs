@@ -1,5 +1,4 @@
-use anyhow::Result;
-use clap::{Arg, ArgGroup};
+use clap::{value_parser, Arg, ArgGroup};
 
 use std::path::Path;
 use std::process;
@@ -11,50 +10,6 @@ use crate::commands::Command;
 
 //------------------------------------------
 
-pub enum MetadataOp {
-    Format,
-    SetNeedsCheck,
-}
-
-struct CacheGenerateOpts<'a> {
-    op: MetadataOp,
-    block_size: u32,
-    nr_cache_blocks: u32,
-    nr_origin_blocks: u64,
-    percent_resident: u8,
-    percent_dirty: u8,
-    engine_opts: EngineOptions,
-    output: &'a Path,
-    metadata_version: u8,
-}
-
-fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
-    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
-        .write(true)
-        .build()?;
-
-    match opts.op {
-        MetadataOp::Format => {
-            let cache_gen = CacheGenerator {
-                block_size: opts.block_size,
-                nr_cache_blocks: opts.nr_cache_blocks,
-                nr_origin_blocks: opts.nr_origin_blocks,
-                percent_resident: opts.percent_resident,
-                percent_dirty: opts.percent_dirty,
-                metadata_version: opts.metadata_version,
-            };
-            format(engine, &cache_gen)?;
-        }
-        MetadataOp::SetNeedsCheck => {
-            set_needs_check(engine)?;
-        }
-    }
-
-    Ok(())
-}
-
-//------------------------------------------
-
 pub struct CacheGenerateMetadataCommand;
 
 impl CacheGenerateMetadataCommand {
@@ -63,16 +18,11 @@ impl CacheGenerateMetadataCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::version::tools_version())
             .about("A tool for creating synthetic cache metadata.")
+            // flags
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
                     .long("format")
-                    .group("commands"),
-            )
-            .arg(
-                Arg::new("SET_NEEDS_CHECK")
-                    .help("Set the NEEDS_CHECK flag")
-                    .long("set-needs-check")
                     .group("commands"),
             )
             // options
@@ -127,6 +77,38 @@ impl CacheGenerateMetadataCommand {
                     .value_name("FILE")
                     .required(true),
             )
+            .arg(
+                Arg::new("SET_SUPERBLOCK_VERSION")
+                    .help("Set the superblock version for debugging purpose")
+                    .long("set-superblock-version")
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u32))
+                    .group("commands"),
+            )
+            .arg(
+                Arg::new("SET_NEEDS_CHECK")
+                    .help("Set the 'needs_check' flag")
+                    .long("set-needs-check")
+                    .value_name("BOOL")
+                    .value_parser(value_parser!(bool))
+                    .hide_possible_values(true)
+                    .min_values(0)
+                    .max_values(1)
+                    .require_equals(true)
+                    .group("commands"),
+            )
+            .arg(
+                Arg::new("SET_CLEAN_SHUTDOWN")
+                    .help("Set the 'clean_shutdown' flag")
+                    .long("set-clean-shutdown")
+                    .value_name("BOOL")
+                    .value_parser(value_parser!(bool))
+                    .hide_possible_values(true)
+                    .min_values(0)
+                    .max_values(1)
+                    .require_equals(true)
+                    .group("commands"),
+            )
             .group(ArgGroup::new("commands").required(true));
         engine_args(cmd)
     }
@@ -142,7 +124,7 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
 
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(false);
         let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
@@ -150,24 +132,37 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
 
         let opts = CacheGenerateOpts {
             op: if matches.is_present("FORMAT") {
-                MetadataOp::Format
+                MetadataOp::Format(CacheFormatOpts {
+                    block_size: matches.value_of_t_or_exit::<u32>("CACHE_BLOCK_SIZE"),
+                    nr_cache_blocks: matches.value_of_t_or_exit::<u32>("NR_CACHE_BLOCKS"),
+                    nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
+                    percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
+                    percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
+                    metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
+                })
             } else if matches.is_present("SET_NEEDS_CHECK") {
-                MetadataOp::SetNeedsCheck
+                MetadataOp::SetNeedsCheck(
+                    *matches.get_one::<bool>("SET_NEEDS_CHECK").unwrap_or(&true),
+                )
+            } else if matches.is_present("SET_CLEAN_SHUTDOWN") {
+                MetadataOp::SetCleanShutdown(
+                    *matches
+                        .get_one::<bool>("SET_CLEAN_SHUTDOWN")
+                        .unwrap_or(&true),
+                )
+            } else if matches.is_present("SET_SUPERBLOCK_VERSION") {
+                MetadataOp::SetSuperblockVersion(
+                    *matches.get_one::<u32>("SET_SUPERBLOCK_VERSION").unwrap(),
+                )
             } else {
                 eprintln!("unknown option");
                 process::exit(1);
             },
-            block_size: matches.value_of_t_or_exit::<u32>("CACHE_BLOCK_SIZE"),
-            nr_cache_blocks: matches.value_of_t_or_exit::<u32>("NR_CACHE_BLOCKS"),
-            nr_origin_blocks: matches.value_of_t_or_exit::<u64>("NR_ORIGIN_BLOCKS"),
-            percent_resident: matches.value_of_t_or_exit::<u8>("PERCENT_RESIDENT"),
-            percent_dirty: matches.value_of_t_or_exit::<u8>("PERCENT_DIRTY"),
             engine_opts: engine_opts.unwrap(),
             output: output_file,
-            metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
         };
 
-        to_exit_code(&report, generate_metadata(&opts))
+        to_exit_code(&report, generate_metadata(opts))
     }
 }
 

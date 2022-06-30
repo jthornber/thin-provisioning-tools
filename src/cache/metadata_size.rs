@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::io_engine::BLOCK_SIZE;
-use crate::pdata::space_map_metadata::MAX_METADATA_BLOCKS;
+use crate::pdata::space_map::metadata::MAX_METADATA_BLOCKS;
 
 //------------------------------------------
 
