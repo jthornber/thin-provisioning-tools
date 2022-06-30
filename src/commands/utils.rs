@@ -96,14 +96,13 @@ pub fn to_exit_code<T>(report: &Arc<Report>, result: anyhow::Result<T>) -> exitc
     if let Err(e) = result {
         report.fatal(&format!("{}", e));
 
-/*
-                report.fatal(&format!("{:?}", e));
-                report.fatal(
-                    "metadata contains errors (run cache_check for details).\n\
-                    perhaps you wanted to run with --repair ?",
-                );
-                */
-
+        /*
+        report.fatal(&format!("{:?}", e));
+        report.fatal(
+            "metadata contains errors (run cache_check for details).\n\
+            perhaps you wanted to run with --repair ?",
+        );
+        */
 
         // FIXME: we need a way of getting more meaningful error codes
         exitcode::USAGE

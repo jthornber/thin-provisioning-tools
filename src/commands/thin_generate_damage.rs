@@ -2,8 +2,8 @@ use clap::{Arg, ArgGroup};
 use std::path::Path;
 use std::process;
 
-use crate::commands::utils::*;
 use crate::commands::engine::*;
+use crate::commands::utils::*;
 use crate::thin::damage_generator::*;
 
 //------------------------------------------

@@ -568,7 +568,8 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
             copy_dirty_blocks_async(&ctx, &sb, &opts)?
         } else {
             copy_dirty_blocks_sync(&ctx, &sb, &opts)?
-        }};
+        }
+    };
     report_stats(ctx.report.clone(), &stats);
 
     if corrupted {

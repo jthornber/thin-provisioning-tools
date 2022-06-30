@@ -58,7 +58,7 @@ impl ThinRepairCommand {
                     .long("transaction-id")
                     .value_name("NUM"),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 

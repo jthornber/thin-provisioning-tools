@@ -65,7 +65,7 @@ impl ThinRmapCommand {
                     .required(true)
                     .index(1),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 

@@ -49,7 +49,6 @@ impl IoEngine for CoreIoEngine {
         1
     }
 
-
     fn suggest_nr_threads(&self) -> usize {
         1
     }
