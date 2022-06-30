@@ -12,6 +12,7 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
+#[derive(PartialEq, Eq)]
 pub enum EngineType {
     #[cfg(feature = "io_uring")]
     Async,
