@@ -81,8 +81,6 @@ fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
 
 //------------------------------------------
 
-pub const MAX_CONCURRENT_IO: u32 = 1024;
-
 pub struct ThinCheckOptions<'a> {
     pub input: &'a Path,
     pub engine_opts: EngineOptions,
