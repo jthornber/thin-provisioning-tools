@@ -357,9 +357,13 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         opts.ignore_non_fatal,
     )?;
 
-    if opts.auto_repair && !metadata_leaks.is_empty() {
-        ctx.report.info("Repairing metadata leaks.");
-        repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+    if !metadata_leaks.is_empty() {
+        if opts.auto_repair {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+        } else if !opts.ignore_non_fatal {
+            return Err(anyhow!("metadata space map contains leaks"));
+        }
     }
 
     Ok(())
