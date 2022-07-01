@@ -89,6 +89,7 @@ pub struct ThinCheckOptions<'a> {
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
     pub clear_needs_check: bool,
+    pub override_mapping_root: Option<u64>,
     pub report: Arc<Report>,
 }
 
@@ -233,7 +234,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_title("Checking thin metadata");
 
-    let sb = read_sb(&opts, engine.clone())?;
+    let mut sb = read_sb(&opts, engine.clone())?;
+    sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
     report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {
@@ -369,33 +371,34 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     //-----------------------------------------
 
-    if !opts.auto_repair && !opts.ignore_non_fatal {
-        if !data_leaks.is_empty() {
+    if (opts.auto_repair || opts.clear_needs_check)
+        && (opts.engine_opts.use_metadata_snap || opts.override_mapping_root.is_some())
+    {
+        return Err(anyhow!("cannot perform repair outside the actual metadata"));
+    }
+
+    if !data_leaks.is_empty() {
+        if opts.auto_repair {
+            ctx.report.info("Repairing data leaks.");
+            repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
+        } else if !opts.ignore_non_fatal {
             return Err(anyhow!("data space map contains leaks"));
         }
+    }
 
-        if !metadata_leaks.is_empty() {
+    if !metadata_leaks.is_empty() {
+        if opts.auto_repair {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+        } else if !opts.ignore_non_fatal {
             return Err(anyhow!("metadata space map contains leaks"));
         }
     }
 
-    // TODO: check override-mapping-root
-    if !opts.engine_opts.use_metadata_snap {
-        if !data_leaks.is_empty() && opts.auto_repair {
-            ctx.report.info("Repairing data leaks.");
-            repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
-        }
-
-        if !metadata_leaks.is_empty() && opts.auto_repair {
-            ctx.report.info("Repairing metadata leaks.");
-            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
-        }
-
-        if opts.auto_repair || opts.clear_needs_check {
-            let cleared = clear_needs_check_flag(ctx.engine.clone())?;
-            if cleared {
-                ctx.report.info("Cleared needs_check flag");
-            }
+    if opts.auto_repair || opts.clear_needs_check {
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
         }
     }
 

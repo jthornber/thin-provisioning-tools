@@ -110,6 +110,7 @@ impl<'a> Command<'a> for ThinCheckCommand {
             ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
             auto_repair: matches.is_present("AUTO_REPAIR"),
             clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
+            override_mapping_root: optional_value_or_exit::<u64>(&matches, "OVERRIDE_MAPPING_ROOT"),
             report: report.clone(),
         };
 
