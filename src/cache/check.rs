@@ -249,7 +249,7 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
 }
 
 fn check_superblock(sb: &Superblock) -> anyhow::Result<()> {
-    if sb.version >= 2 && sb.dirty_root == None {
+    if sb.version >= 2 && sb.dirty_root.unwrap_or(0) == 0 {
         return Err(anyhow!("dirty bitset not found"));
     }
     Ok(())

@@ -191,6 +191,29 @@ fn incompat_metadata_version_v2() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn dirty_bitset_not_found_should_fail() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_zeroed_md(&mut td)?;
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--format",
+        "--metadata-version",
+        "1",
+        "--percent-dirty",
+        "0"
+    ]))?;
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--set-superblock-version",
+        "2"
+    ]))?;
+    run_fail(cache_check_cmd(args![&md]))?;
+    Ok(())
+}
+
 //------------------------------------------
 // test clear-needs-check
 
