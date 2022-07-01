@@ -25,14 +25,15 @@ ARGS:
     <INPUT>    Specify the input device to check
 
 OPTIONS:
-        --auto-repair                Auto repair trivial issues.
+        --auto-repair                Auto repair trivial issues
+        --clear-needs-check-flag     Clears the 'needs_check' flag in the superblock
     -h, --help                       Print help information
         --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
     -q, --quiet                      Suppress output messages, return only exit code.
         --skip-discards              Don't check the discard bitset
         --skip-hints                 Don't check the hint array
         --skip-mappings              Don't check the mapping tree
-        --super-block-only           Only check the superblock.
+        --super-block-only           Only check the superblock
     -V, --version                    Print version information"
 );
 
@@ -189,3 +190,42 @@ fn incompat_metadata_version_v2() -> Result<()> {
     run_fail(cache_check_cmd(args![&md]))?;
     Ok(())
 }
+
+//------------------------------------------
+// test clear-needs-check
+
+#[test]
+fn clear_needs_check() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    set_needs_check(&md)?;
+
+    assert!(get_needs_check(&md)?);
+    run_ok(cache_check_cmd(args!["--clear-needs-check-flag", &md]))?;
+    assert!(!get_needs_check(&md)?);
+    Ok(())
+}
+
+#[test]
+fn no_clear_needs_check_if_error() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    set_needs_check(&md)?;
+
+    // overriding superblock version produces errors
+    run_ok(cache_generate_metadata_cmd(args![
+        "-o",
+        &md,
+        "--set-superblock-version",
+        "1"
+    ]))?;
+
+    assert!(get_needs_check(&md)?);
+    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
+    assert!(get_needs_check(&md)?);
+    Ok(())
+}
+
+//------------------------------------------

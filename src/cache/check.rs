@@ -226,6 +226,7 @@ pub struct CacheCheckOptions<'a> {
     pub skip_discards: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
+    pub clear_needs_check: bool,
     pub report: Arc<Report>,
 }
 
@@ -366,7 +367,23 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         }
     }
 
+    if opts.auto_repair || opts.clear_needs_check {
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
+    }
+
     Ok(())
+}
+
+fn clear_needs_check_flag(engine: Arc<dyn IoEngine + Send + Sync>) -> anyhow::Result<bool> {
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    if !sb.flags.needs_check {
+        return Ok(false);
+    }
+    sb.flags.needs_check = false;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb).map(|_| true)
 }
 
 //------------------------------------------

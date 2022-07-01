@@ -43,4 +43,18 @@ pub fn get_clean_shutdown(md: &Path) -> Result<bool> {
     Ok(sb.flags.clean_shutdown)
 }
 
+pub fn get_needs_check(md: &Path) -> Result<bool> {
+    use thinp::cache::superblock::*;
+
+    let engine = SyncIoEngine::new(md, false)?;
+    let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
+    Ok(sb.flags.needs_check)
+}
+
+pub fn set_needs_check(md: &Path) -> Result<()> {
+    let args = args!["-o", &md, "--set-needs-check"];
+    run_ok(cache_generate_metadata_cmd(args))?;
+    Ok(())
+}
+
 //-----------------------------------------------
