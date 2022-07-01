@@ -76,7 +76,7 @@ impl CacheWritebackCommand {
                     .long("buffer-size-meg")
                     .value_name("MB"),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 

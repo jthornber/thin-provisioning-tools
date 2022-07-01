@@ -28,7 +28,8 @@ OPTIONS:
         --metadata-version <NUM>    Specify the output metadata version [default: 2] [possible
                                     values: 1, 2]
     -o, --output <FILE>             Specify the output device
-    -q, --quiet                     Suppress output messages, return only exit code.
+        --omit-clean-shutdown       Don't set the clean shutdown flag
+    -q, --quiet                     Suppress output messages, return only exit code
     -V, --version                   Print version information"
 );
 
@@ -165,19 +166,20 @@ fn override_metadata_version() -> Result<()> {
 }
 */
 
-// FIXME: finish
-/*
 #[test]
-fn accepts_omit_clean_shutdown() -> Result<()> {
+fn omit_clean_shutdown() -> Result<()> {
     let mut td = TestDir::new()?;
     let xml = mk_valid_xml(&mut td)?;
     let md = mk_zeroed_md(&mut td)?;
-    run_ok(
-        cache_restore_cmd(
-        args!["-i", &xml, "-o", &md, "--omit-clean-shutdown"],
-    ))?;
+    run_ok(cache_restore_cmd(args![
+        "-i",
+        &xml,
+        "-o",
+        &md,
+        "--omit-clean-shutdown"
+    ]))?;
+    assert!(!get_clean_shutdown(&md)?);
     Ok(())
 }
-*/
 
 //-----------------------------------------

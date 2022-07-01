@@ -8,8 +8,8 @@ use std::io::{self, Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::prelude::FileExt;
 use std::path::Path;
-use std::sync::RwLock;
 use std::sync::mpsc;
+use std::sync::RwLock;
 use std::thread;
 
 use crate::checksum::*;
@@ -124,13 +124,9 @@ fn packer_thread(
     result_tx: mpsc::Sender<BTreeMap<u32, Vec<u8>>>,
 ) {
     let mut compressed = BTreeMap::new();
-    loop {
-        if let Ok((first_block, buffer)) = rx.recv() {
-            let chunk = buffer.get_data();
-            pack_chunk(first_block, chunk, &mut compressed).expect("pack chunk failed");
-        } else {
-            break;
-        }
+    while let Ok((first_block, buffer)) = rx.recv() {
+        let chunk = buffer.get_data();
+        pack_chunk(first_block, chunk, &mut compressed).expect("pack chunk failed");
     }
 
     result_tx
@@ -195,14 +191,16 @@ impl SpindleIoEngine_ {
             unpack_block(z, loc).map_err(|_| io::Error::new(io::ErrorKind::Other, "unpack failed"))
         } else {
             let b = Block::new(loc);
-            self.input.read_exact_at(b.get_data(), loc * BLOCK_SIZE as u64)?;
+            self.input
+                .read_exact_at(b.get_data(), loc * BLOCK_SIZE as u64)?;
             Ok(b)
         }
     }
 
     fn write_(&mut self, b: &Block) -> io::Result<()> {
         self.compressed.remove(&(b.loc as u32));
-        self.input.write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)
+        self.input
+            .write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)
     }
 }
 
@@ -215,7 +213,7 @@ pub struct SpindleIoEngine {
 impl SpindleIoEngine {
     pub fn new<P: AsRef<Path>>(path: P, blocks: RoaringBitmap, excl: bool) -> Result<Self> {
         Ok(Self {
-            inner: RwLock::new(SpindleIoEngine_::new(path, blocks, excl)?)
+            inner: RwLock::new(SpindleIoEngine_::new(path, blocks, excl)?),
         })
     }
 }

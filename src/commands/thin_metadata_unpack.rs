@@ -33,7 +33,7 @@ impl ThinMetadataUnpackCommand {
                     .value_name("DEV")
                     .takes_value(true),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 
@@ -51,7 +51,7 @@ impl<'a> Command<'a> for ThinMetadataUnpackCommand {
         let report = mk_simple_report();
         check_input_file(input_file, &report);
 
-	let report = std::sync::Arc::new(report);
+        let report = std::sync::Arc::new(report);
         to_exit_code(&report, unpack(input_file, output_file))
     }
 }

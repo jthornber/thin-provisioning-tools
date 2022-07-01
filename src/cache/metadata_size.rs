@@ -1,5 +1,10 @@
 use anyhow::{anyhow, Result};
 
+use crate::io_engine::BLOCK_SIZE;
+use crate::pdata::space_map::metadata::MAX_METADATA_BLOCKS;
+
+//------------------------------------------
+
 const MIN_CACHE_BLOCK_SIZE: u64 = 32768;
 const MAX_CACHE_BLOCK_SIZE: u64 = 1073741824;
 
@@ -20,6 +25,7 @@ pub fn check_cache_block_size(block_size: u64) -> Result<()> {
     Ok(())
 }
 
+// Returns estimated size in bytes
 pub fn metadata_size(opts: &CacheMetadataSizeOptions) -> Result<u64> {
     const BYTES_PER_BLOCK_SHIFT: u64 = 4; // 16 bytes for key and value
     const TRANSACTION_OVERHEAD: u64 = 4 * 1024 * 1024; // 4 MB
@@ -28,5 +34,10 @@ pub fn metadata_size(opts: &CacheMetadataSizeOptions) -> Result<u64> {
     let mapping_size = opts.nr_blocks << BYTES_PER_BLOCK_SHIFT;
     let hint_size = opts.nr_blocks * (opts.max_hint_width as u64 + HINT_OVERHEAD_PER_BLOCK);
 
-    Ok(TRANSACTION_OVERHEAD + mapping_size + hint_size)
+    let mut size = TRANSACTION_OVERHEAD + mapping_size + hint_size;
+    size = std::cmp::min(size, (MAX_METADATA_BLOCKS * BLOCK_SIZE) as u64);
+
+    Ok(size)
 }
+
+//------------------------------------------

@@ -91,13 +91,12 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
     let (i, vsn_minor) = le_u32(i)?;
     let (i, vsn_patch) = le_u32(i)?;
 
-    let mut i = i;
-    let mut dirty_root = None;
-    if version >= 2 {
+    let (i, dirty_root) = if version >= 2 {
         let (m, root) = le_u64(i)?;
-        dirty_root = Some(root);
-        i = m;
-    }
+        (m, Some(root))
+    } else {
+        (i, None)
+    };
 
     Ok((
         i,

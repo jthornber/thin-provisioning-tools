@@ -148,6 +148,14 @@ where
     rust_cmd("cache_dump", args)
 }
 
+pub fn cache_generate_metadata_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_devel_cmd("cache_generate_metadata", args)
+}
+
 pub fn cache_metadata_size_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

@@ -40,7 +40,7 @@ impl EraRestoreCommand {
                     .value_name("FILE")
                     .required(true),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 

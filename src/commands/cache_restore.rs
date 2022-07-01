@@ -18,9 +18,14 @@ impl CacheRestoreCommand {
             .about("Convert XML format metadata to binary.")
             .arg(
                 Arg::new("QUIET")
-                    .help("Suppress output messages, return only exit code.")
+                    .help("Suppress output messages, return only exit code")
                     .short('q')
                     .long("quiet"),
+            )
+            .arg(
+                Arg::new("OMIT_CLEAN_SHUTDOWN")
+                    .help("Don't set the clean shutdown flag")
+                    .long("omit-clean-shutdown"),
             )
             // options
             .arg(
@@ -47,7 +52,7 @@ impl CacheRestoreCommand {
                     .value_name("FILE")
                     .required(true),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 
@@ -77,6 +82,7 @@ impl<'a> Command<'a> for CacheRestoreCommand {
             metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
             engine_opts: engine_opts.unwrap(),
             report: report.clone(),
+            omit_clean_shutdown: matches.is_present("OMIT_CLEAN_SHUTDOWN"),
         };
 
         to_exit_code(&report, restore(opts))

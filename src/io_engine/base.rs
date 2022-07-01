@@ -43,6 +43,7 @@ impl Block {
         }
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn get_raw_ptr(&self) -> *mut u8 {
         self.data
     }

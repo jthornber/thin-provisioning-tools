@@ -1,7 +1,9 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thinp::cache::metadata_generator::CacheGenerator;
 use thinp::file_utils;
+
+use thinp::io_engine::SyncIoEngine;
 
 use crate::args;
 use crate::common::cache_xml_generator::write_xml;
@@ -29,6 +31,30 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     run_ok(cache_restore_cmd(args!["-i", &xml, "-o", &md]))?;
 
     Ok(md)
+}
+
+//-----------------------------------------------
+
+pub fn get_clean_shutdown(md: &Path) -> Result<bool> {
+    use thinp::cache::superblock::*;
+
+    let engine = SyncIoEngine::new(md, false)?;
+    let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
+    Ok(sb.flags.clean_shutdown)
+}
+
+pub fn get_needs_check(md: &Path) -> Result<bool> {
+    use thinp::cache::superblock::*;
+
+    let engine = SyncIoEngine::new(md, false)?;
+    let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
+    Ok(sb.flags.needs_check)
+}
+
+pub fn set_needs_check(md: &Path) -> Result<()> {
+    let args = args!["-o", &md, "--set-needs-check"];
+    run_ok(cache_generate_metadata_cmd(args))?;
+    Ok(())
 }
 
 //-----------------------------------------------

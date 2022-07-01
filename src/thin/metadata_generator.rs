@@ -35,26 +35,29 @@ fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: ThinGenerator) -> Result
     gen.generate_metadata(&mut restorer)
 }
 
-fn set_needs_check(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
+fn set_needs_check(engine: Arc<dyn IoEngine + Send + Sync>, flag: bool) -> Result<()> {
     use crate::thin::superblock::*;
 
     let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    sb.flags.needs_check = true;
+    sb.flags.needs_check = flag;
     write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb)
 }
 
 //------------------------------------------
 
+pub struct ThinFormatOpts {
+    pub data_block_size: u32,
+    pub nr_data_blocks: u64,
+}
+
 pub enum MetadataOp {
-    Format,
-    SetNeedsCheck,
+    Format(ThinFormatOpts),
+    SetNeedsCheck(bool),
 }
 
 pub struct ThinGenerateOpts<'a> {
     pub engine_opts: EngineOptions,
     pub op: MetadataOp,
-    pub data_block_size: u32,
-    pub nr_data_blocks: u64,
     pub output: &'a Path,
 }
 
@@ -63,8 +66,9 @@ pub fn generate_metadata(opts: ThinGenerateOpts) -> Result<()> {
         .write(true)
         .build()?;
     match opts.op {
-        MetadataOp::Format => format(engine, ThinGenerator),
-        MetadataOp::SetNeedsCheck => set_needs_check(engine),
+        // FIXME: parameterize ThinGenerator
+        MetadataOp::Format(_op) => format(engine, ThinGenerator),
+        MetadataOp::SetNeedsCheck(flag) => set_needs_check(engine, flag),
     }
 }
 

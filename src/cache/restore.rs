@@ -27,6 +27,7 @@ pub struct CacheRestoreOptions<'a> {
     pub metadata_version: u8,
     pub engine_opts: EngineOptions,
     pub report: Arc<Report>,
+    pub omit_clean_shutdown: bool,
 }
 
 struct Context {
@@ -69,6 +70,7 @@ pub struct Restorer<'a> {
     discard_root: Option<u64>,
     dirty_bits: (u32, u64), // (index in u64 array, value)
     in_section: Section,
+    clean_shutdown: bool,
 }
 
 impl<'a> Restorer<'a> {
@@ -86,7 +88,16 @@ impl<'a> Restorer<'a> {
             discard_root: None,
             dirty_bits: (0, 0),
             in_section: Section::None,
+            clean_shutdown: true,
         }
+    }
+
+    pub fn omit_clean_shutdown(&mut self) -> Result<()> {
+        if self.in_section != Section::None {
+            return Err(anyhow!("already in superblock"));
+        }
+        self.clean_shutdown = false;
+        Ok(())
     }
 
     fn set_dirty(&mut self, cache_block: u32) -> Result<()> {
@@ -144,7 +155,7 @@ impl<'a> Restorer<'a> {
         let discard_root = self.discard_root.as_ref().unwrap();
         let sb = Superblock {
             flags: SuperblockFlags {
-                clean_shutdown: true,
+                clean_shutdown: self.clean_shutdown,
                 needs_check: false,
             },
             block: SUPERBLOCK_LOCATION,
@@ -311,6 +322,9 @@ pub fn restore(opts: CacheRestoreOptions) -> Result<()> {
 
     // build cache mappings
     let mut restorer = Restorer::new(&mut w, opts.metadata_version);
+    if opts.omit_clean_shutdown {
+        restorer.omit_clean_shutdown()?;
+    }
     xml::read(input, &mut restorer)?;
 
     Ok(())

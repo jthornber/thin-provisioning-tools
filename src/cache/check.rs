@@ -226,6 +226,7 @@ pub struct CacheCheckOptions<'a> {
     pub skip_discards: bool,
     pub ignore_non_fatal: bool,
     pub auto_repair: bool,
+    pub clear_needs_check: bool,
     pub report: Arc<Report>,
 }
 
@@ -248,7 +249,7 @@ fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
 }
 
 fn check_superblock(sb: &Superblock) -> anyhow::Result<()> {
-    if sb.version >= 2 && sb.dirty_root == None {
+    if sb.version >= 2 && sb.dirty_root.unwrap_or(0) == 0 {
         return Err(anyhow!("dirty bitset not found"));
     }
     Ok(())
@@ -357,12 +358,32 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         opts.ignore_non_fatal,
     )?;
 
-    if opts.auto_repair && !metadata_leaks.is_empty() {
-        ctx.report.info("Repairing metadata leaks.");
-        repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+    if !metadata_leaks.is_empty() {
+        if opts.auto_repair {
+            ctx.report.info("Repairing metadata leaks.");
+            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+        } else if !opts.ignore_non_fatal {
+            return Err(anyhow!("metadata space map contains leaks"));
+        }
+    }
+
+    if opts.auto_repair || opts.clear_needs_check {
+        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        if cleared {
+            ctx.report.info("Cleared needs_check flag");
+        }
     }
 
     Ok(())
+}
+
+fn clear_needs_check_flag(engine: Arc<dyn IoEngine + Send + Sync>) -> anyhow::Result<bool> {
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    if !sb.flags.needs_check {
+        return Ok(false);
+    }
+    sb.flags.needs_check = false;
+    write_superblock(engine.as_ref(), SUPERBLOCK_LOCATION, &sb).map(|_| true)
 }
 
 //------------------------------------------

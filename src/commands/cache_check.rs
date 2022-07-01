@@ -25,8 +25,13 @@ impl CacheCheckCommand {
             // flags
             .arg(
                 Arg::new("AUTO_REPAIR")
-                    .help("Auto repair trivial issues.")
+                    .help("Auto repair trivial issues")
                     .long("auto-repair"),
+            )
+            .arg(
+                Arg::new("CLEAR_NEEDS_CHECK")
+                    .help("Clears the 'needs_check' flag in the superblock")
+                    .long("clear-needs-check-flag"),
             )
             .arg(
                 Arg::new("IGNORE_NON_FATAL")
@@ -41,7 +46,7 @@ impl CacheCheckCommand {
             )
             .arg(
                 Arg::new("SB_ONLY")
-                    .help("Only check the superblock.")
+                    .help("Only check the superblock")
                     .long("super-block-only"),
             )
             .arg(
@@ -66,7 +71,7 @@ impl CacheCheckCommand {
                     .required(true)
                     .index(1),
             );
-            engine_args(cmd)
+        engine_args(cmd)
     }
 }
 
@@ -106,6 +111,7 @@ impl<'a> Command<'a> for CacheCheckCommand {
             skip_discards: matches.is_present("SKIP_DISCARDS"),
             ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
             auto_repair: matches.is_present("AUTO_REPAIR"),
+            clear_needs_check: matches.is_present("CLEAR_NEEDS_CHECK"),
             report: report.clone(),
         };
 

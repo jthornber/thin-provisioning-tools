@@ -219,13 +219,10 @@ pub fn to_pretty_print_size(bytes: u64) -> (u64, Units) {
     // possible.
     let mut i = if bytes > 0 {
         // (63 - leading_zeros) is the index of the highest non-zero bit
-        (63 - bytes.leading_zeros()) / 10
+        ((63 - bytes.leading_zeros()) / 10).saturating_sub(1)
     } else {
         0
     };
-    if i > 0 {
-        i -= 1;
-    }
 
     let mut multiple = bytes >> (10 * i);
     if multiple > 8192 {

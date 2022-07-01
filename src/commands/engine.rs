@@ -85,10 +85,7 @@ fn metadata_snap_flag(matches: &ArgMatches) -> bool {
     ms.unwrap()
 }
 
-pub fn parse_engine_opts(
-    tool: ToolType,
-    matches: &ArgMatches,
-) -> Result<EngineOptions> {
+pub fn parse_engine_opts(tool: ToolType, matches: &ArgMatches) -> Result<EngineOptions> {
     let engine_type = parse_type(matches)?;
     let use_metadata_snap = (tool == ToolType::Thin) && metadata_snap_flag(matches);
 
@@ -136,11 +133,7 @@ fn thin_valid_blocks<P: AsRef<Path>>(path: P, opts: &EngineOptions) -> RoaringBi
     }
     let metadata_root = metadata_root.unwrap();
     let valid_blocks = allocated_blocks(e.clone(), metadata_root.bitmap_root);
-    if valid_blocks.is_err() {
-        all_blocks(e.get_nr_blocks() as u32)
-    } else {
-        valid_blocks.unwrap()
-    }
+    valid_blocks.unwrap_or_else(|_| all_blocks(e.get_nr_blocks() as u32))
 }
 
 fn cache_valid_blocks<P: AsRef<Path>>(_path: P, _opts: &EngineOptions) -> Result<RoaringBitmap> {
@@ -189,7 +182,11 @@ impl<'a, P: AsRef<Path>> EngineBuilder<'a, P> {
     pub fn build(self) -> Result<Arc<dyn IoEngine + Send + Sync>> {
         let engine: Arc<dyn IoEngine + Send + Sync> = match self.opts.engine_type {
             #[cfg(feature = "io_uring")]
-            EngineType::Async => Arc::new(AsyncIoEngine::new_with(self.path, self.write, self.exclusive)?),
+            EngineType::Async => Arc::new(AsyncIoEngine::new_with(
+                self.path,
+                self.write,
+                self.exclusive,
+            )?),
             EngineType::Sync => Arc::new(SyncIoEngine::new(self.path, self.exclusive)?),
             EngineType::Spindle => {
                 let valid_blocks = match self.opts.tool {

@@ -1,4 +1,4 @@
-use clap::{Arg, ArgGroup};
+use clap::{value_parser, Arg, ArgGroup};
 use std::path::Path;
 use std::process;
 
@@ -25,8 +25,14 @@ impl ThinGenerateMetadataCommand {
             )
             .arg(
                 Arg::new("SET_NEEDS_CHECK")
-                    .help("Set the NEEDS_CHECK flag")
+                    .help("Set the 'needs_check' flag")
                     .long("set-needs-check")
+                    .value_name("BOOL")
+                    .value_parser(value_parser!(bool))
+                    .hide_possible_values(true)
+                    .min_values(0)
+                    .max_values(1)
+                    .require_equals(true)
                     .group("commands"),
             )
             // options
@@ -75,15 +81,18 @@ impl<'a> Command<'a> for ThinGenerateMetadataCommand {
         let opts = ThinGenerateOpts {
             engine_opts: engine_opts.unwrap(),
             op: if matches.is_present("FORMAT") {
-                MetadataOp::Format
+                MetadataOp::Format(ThinFormatOpts {
+                    data_block_size: matches.value_of_t_or_exit::<u32>("DATA_BLOCK_SIZE"),
+                    nr_data_blocks: matches.value_of_t_or_exit::<u64>("NR_DATA_BLOCKS"),
+                })
             } else if matches.is_present("SET_NEEDS_CHECK") {
-                MetadataOp::SetNeedsCheck
+                MetadataOp::SetNeedsCheck(
+                    *matches.get_one::<bool>("SET_NEEDS_CHECK").unwrap_or(&true),
+                )
             } else {
                 eprintln!("unknown option");
                 process::exit(1);
             },
-            data_block_size: matches.value_of_t_or_exit::<u32>("DATA_BLOCK_SIZE"),
-            nr_data_blocks: matches.value_of_t_or_exit::<u64>("NR_DATA_BLOCKS"),
             output: Path::new(matches.value_of("OUTPUT").unwrap()),
         };
 

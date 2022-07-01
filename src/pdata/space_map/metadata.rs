@@ -6,15 +6,15 @@ use std::sync::{Arc, Mutex};
 
 use crate::checksum;
 use crate::io_engine::*;
-use crate::pdata::space_map::*;
 use crate::pdata::space_map::common::*;
+use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
 use crate::write_batcher::*;
 
 //------------------------------------------
 
 const MAX_METADATA_BITMAPS: usize = 255;
-const MAX_METADATA_BLOCKS: usize = MAX_METADATA_BITMAPS * ENTRIES_PER_BITMAP;
+pub const MAX_METADATA_BLOCKS: usize = MAX_METADATA_BITMAPS * ENTRIES_PER_BITMAP;
 
 //------------------------------------------
 
