@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clap::{Arg, ArgGroup};
+use clap::Arg;
 use std::ffi::OsString;
 use std::io;
 
@@ -46,6 +46,7 @@ impl CacheMetadataSizeCommand {
                 Arg::new("NR_BLOCKS")
                     .help("Specify the number of cache blocks")
                     .long("nr-blocks")
+                    .conflicts_with_all(&["BLOCK_SIZE", "DEVICE_SIZE"])
                     .value_name("NUM"),
             )
             .arg(
@@ -63,11 +64,6 @@ impl CacheMetadataSizeCommand {
                     .value_name("UNIT")
                     .default_value("sector"),
             )
-            .group(
-                ArgGroup::new("selection")
-                .args(&["DEVICE_SIZE", "NR_BLOCKS"])
-                .required(true)
-            )
     }
 
     fn parse_args<I, T>(&self, args: I) -> Result<(CacheMetadataSizeOptions, Units, bool)>
@@ -79,7 +75,7 @@ impl CacheMetadataSizeCommand {
 
         let nr_blocks = if matches.is_present("NR_BLOCKS") {
             matches.value_of_t_or_exit::<u64>("NR_BLOCKS")
-        } else {
+        } else if matches.is_present("BLOCK_SIZE") && matches.is_present("DEVICE_SIZE") {
             let device_size = matches
                 .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
                 .size_bytes();
@@ -95,6 +91,10 @@ impl CacheMetadataSizeCommand {
             }
 
             div_up(device_size, block_size as u64)
+        } else {
+            return Err(anyhow!(
+                "Please specify either --device-size and --block-size, or --nr-blocks."
+            ));
         };
 
         let max_hint_width = matches.value_of_t_or_exit::<u32>("MAX_HINT_WIDTH");
