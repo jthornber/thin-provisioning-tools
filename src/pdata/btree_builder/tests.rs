@@ -511,4 +511,18 @@ fn push_an_underfull_node_while_unflushed_entries_just_above_max_entries() {
     t.verify_mappings(&mappings);
 }
 
+// Pushing unrodered keys should panic
+#[test]
+#[should_panic]
+fn push_unordered_keys() {
+    let engine = Arc::new(CoreIoEngine::new(64));
+
+    type ValueType = u32;
+    let mut t = LeafBuilderTests::<ValueType>::new(engine);
+
+    let mappings: Vec<(u64, u32)> = vec![(1, 100), (0, 0)];
+
+    t.push_values(&mappings);
+}
+
 //------------------------------------------
