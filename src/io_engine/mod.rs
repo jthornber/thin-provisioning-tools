@@ -1,6 +1,10 @@
 pub mod base;
 pub mod spindle;
 pub mod sync;
+pub mod buffer;
+pub mod copier;
+pub mod sync_copier;
+pub mod utils;
 
 pub use crate::io_engine::base::*;
 pub use crate::io_engine::spindle::SpindleIoEngine;
