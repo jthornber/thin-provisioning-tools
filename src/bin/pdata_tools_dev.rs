@@ -15,6 +15,7 @@ fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
         Box::new(thin_explore::ThinExploreCommand),
         Box::new(thin_generate_metadata::ThinGenerateMetadataCommand),
         Box::new(thin_generate_damage::ThinGenerateDamageCommand),
+        Box::new(thin_stat::ThinStatCommand),
     ]
 }
 
