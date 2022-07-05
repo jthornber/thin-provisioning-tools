@@ -21,6 +21,10 @@ impl CheckedBitSet {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.bits.len() / 2
+    }
+
     pub fn set(&mut self, bit: usize, enabled: bool) {
         self.bits.set(bit << 1, true);
         self.bits.set((bit << 1) + 1, enabled);

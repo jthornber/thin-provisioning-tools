@@ -130,8 +130,7 @@ impl ReportInner for PBInner {
     }
 
     fn set_sub_title(&mut self, txt: &str) {
-        //let mut fmt = "".to_string(); //Checking thin metadata".to_string(); //self.title.clone();
-        let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
+        let mut fmt = "[{bar:40}] Remaining {eta}, ".to_string();
         fmt.push_str(txt);
         self.bar.set_style(
             ProgressStyle::default_bar()
