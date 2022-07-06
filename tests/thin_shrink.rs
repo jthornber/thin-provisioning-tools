@@ -357,7 +357,6 @@ fn verify(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
         .write(false)
         .open(&data_path)?;
     let xml = OpenOptions::new().read(true).write(false).open(&xml_path)?;
-
     let mut verifier = Verifier::new(&mut data, seed);
     thin_visit(xml, &mut verifier)
 }
@@ -366,7 +365,7 @@ trait Scenario {
     fn get_new_nr_blocks(&self) -> u64;
 }
 
-fn test_shrink<S>(scenario: &mut S) -> Result<()>
+fn test_shrink_<S>(scenario: &mut S, expect_ok: bool) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
@@ -386,7 +385,7 @@ where
 
     let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
 
-    run_ok(thin_shrink_cmd(args![
+    let cmd = thin_shrink_cmd(args![
         "-i",
         &xml_before,
         "-o",
@@ -395,13 +394,33 @@ where
         &data_path,
         "--nr-blocks",
         &new_nr_blocks
-    ]))?;
+    ]);
 
-    verify(&xml_after, &data_path, seed)?;
+    if expect_ok {
+        run_ok(cmd)?;
+        verify(&xml_after, &data_path, seed)?;
+    } else {
+        run_fail(cmd)?;
+    }
+
     Ok(())
 }
 
-fn test_shrink_binary<S>(scenario: &mut S) -> Result<()>
+fn test_shrink<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    test_shrink_(scenario, true)
+}
+
+fn test_shrink_fail<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    test_shrink_(scenario, false)
+}
+
+fn test_shrink_binary_<S>(scenario: &mut S, expect_ok: bool) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
@@ -432,7 +451,7 @@ where
 
     let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
 
-    run_ok(thin_shrink_cmd(args![
+    let cmd = thin_shrink_cmd(args![
         "-i",
         &meta_before,
         "-o",
@@ -442,11 +461,31 @@ where
         "--nr-blocks",
         &new_nr_blocks,
         "--binary"
-    ]))?;
+    ]);
 
-    run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
-    verify(&xml_after, &data_path, seed)?;
+    if expect_ok {
+        run_ok(cmd)?;
+        run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
+        verify(&xml_after, &data_path, seed)?;
+    } else {
+        run_fail(cmd)?;
+    }
+
     Ok(())
+}
+
+fn test_shrink_binary<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    test_shrink_binary_(scenario, true)
+}
+
+fn test_shrink_binary_fail<S>(scenario: &mut S) -> Result<()>
+where
+    S: Scenario + XmlGen,
+{
+    test_shrink_binary_(scenario, false)
 }
 
 //------------------------------------
@@ -504,10 +543,7 @@ fn shrink_single_total_move() -> Result<()> {
 #[test]
 fn shrink_insufficient_space() -> Result<()> {
     let mut s = SingleThinS::new(0, 2048, 3000, 1280);
-    match test_shrink(&mut s) {
-        Ok(_) => Err(anyhow!("Shrink unexpectedly succeeded")),
-        Err(_) => Ok(()),
-    }
+    test_shrink_fail(&mut s)
 }
 
 //------------------------------------
@@ -545,10 +581,7 @@ fn shrink_binary_single_total_move() -> Result<()> {
 #[test]
 fn shrink_binary_insufficient_space() -> Result<()> {
     let mut s = SingleThinS::new(0, 2048, 3000, 1280);
-    match test_shrink_binary(&mut s) {
-        Ok(_) => Err(anyhow!("Shrink unexpectedly succeeded")),
-        Err(_) => Ok(()),
-    }
+    test_shrink_binary_fail(&mut s)
 }
 
 //------------------------------------
