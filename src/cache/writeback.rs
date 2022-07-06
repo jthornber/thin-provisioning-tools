@@ -140,16 +140,17 @@ impl AsyncCopyVisitor {
     }
 
     fn complete(self) -> io::Result<(CopyStats, FixedBitSet, FixedBitSet)> {
-        {
-            let mut inner = self.inner.lock().unwrap();
-            while inner.copier.nr_pending() > 0 {
-                Self::wait_completion(&mut inner).expect("internal error");
-                self.progress
-                    .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
-            }
+        let mut inner = self
+            .inner
+            .into_inner()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        while inner.copier.nr_pending() > 0 {
+            Self::wait_completion(&mut inner).expect("internal error");
+            self.progress
+                .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
         }
 
-        let inner = self.inner.into_inner().unwrap();
         Ok((inner.stats, inner.dirty_ablocks, inner.cleaned_blocks))
     }
 }

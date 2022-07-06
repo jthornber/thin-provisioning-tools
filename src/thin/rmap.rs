@@ -133,9 +133,8 @@ impl RmapVisitor {
         false
     }
 
-    fn complete(self) -> Vec<RmapRegion> {
-        let mut inner = self.inner.lock().unwrap();
-        let inner = inner.deref_mut();
+    fn complete(self) -> Result<Vec<RmapRegion>> {
+        let mut inner = self.inner.into_inner()?;
 
         if inner.current.end > inner.current.begin {
             inner.rmap.push(inner.current);
@@ -144,7 +143,8 @@ impl RmapVisitor {
         let mut rmap = Vec::new();
         std::mem::swap(&mut inner.rmap, &mut rmap);
         rmap.sort_by(RmapRegion::compare);
-        rmap
+
+        Ok(rmap)
     }
 }
 
@@ -231,7 +231,7 @@ pub fn rmap(opts: ThinRmapOptions) -> Result<()> {
         w.walk(&mut path, &rv, *root)?;
     }
 
-    let rmap = rv.complete();
+    let rmap = rv.complete()?;
     let mut writer = BufWriter::new(std::io::stdout());
     for m in rmap.iter() {
         writer.write_all(m.to_string().as_bytes())?;
