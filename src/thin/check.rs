@@ -1,9 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::commands::engine::*;
@@ -91,39 +89,6 @@ pub struct ThinCheckOptions<'a> {
     pub clear_needs_check: bool,
     pub override_mapping_root: Option<u64>,
     pub report: Arc<Report>,
-}
-
-fn spawn_progress_thread(
-    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    nr_allocated_metadata: u64,
-    report: Arc<Report>,
-) -> Result<(JoinHandle<()>, Arc<AtomicBool>)> {
-    let tid;
-    let stop_progress = Arc::new(AtomicBool::new(false));
-
-    {
-        let stop_progress = stop_progress.clone();
-        tid = thread::spawn(move || {
-            let interval = std::time::Duration::from_millis(250);
-            loop {
-                if stop_progress.load(Ordering::Relaxed) {
-                    break;
-                }
-
-                let sm = sm.lock().unwrap();
-                let mut n = sm.get_nr_allocated().unwrap();
-                drop(sm);
-
-                n *= 100;
-                n /= nr_allocated_metadata;
-
-                let _r = report.progress(n as u8);
-                thread::sleep(interval);
-            }
-        });
-    }
-
-    Ok((tid, stop_progress))
 }
 
 struct Context {
@@ -273,11 +238,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.details_root,
     )?;
 
-    let (tid, stop_progress) = spawn_progress_thread(
-        metadata_sm.clone(),
-        metadata_root.nr_allocated,
-        report.clone(),
-    )?;
+    let mon_sm = metadata_sm.clone();
+    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
+        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
+    });
 
     // mapping top level
     report.set_sub_title("mapping tree");
@@ -402,8 +366,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
     }
 
-    stop_progress.store(true, Ordering::Relaxed);
-    tid.join().unwrap();
+    monitor.stop();
 
     Ok(())
 }
@@ -457,11 +420,10 @@ pub fn check_with_maps(
         sb.details_root,
     )?;
 
-    let (tid, stop_progress) = spawn_progress_thread(
-        metadata_sm.clone(),
-        metadata_root.nr_allocated,
-        report.clone(),
-    )?;
+    let mon_sm = metadata_sm.clone();
+    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
+        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
+    });
 
     // mapping top level
     report.set_sub_title("mapping tree");
@@ -506,8 +468,7 @@ pub fn check_with_maps(
 
     //-----------------------------------------
 
-    stop_progress.store(true, Ordering::Relaxed);
-    tid.join().unwrap();
+    monitor.stop();
 
     Ok(CheckMaps {
         metadata_sm: metadata_sm.clone(),

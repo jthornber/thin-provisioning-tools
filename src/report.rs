@@ -1,5 +1,5 @@
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
@@ -237,7 +237,10 @@ pub struct ProgressMonitor {
 }
 
 impl ProgressMonitor {
-    pub fn new(report: Arc<Report>, total: u64, processed: Arc<AtomicU64>) -> ProgressMonitor {
+    pub fn new<F>(report: Arc<Report>, total: u64, processed: F) -> Self
+    where
+        F: Fn() -> u64 + Send + 'static,
+    {
         let stop_flag = Arc::new(AtomicBool::new(false));
 
         let stopped = stop_flag.clone();
@@ -248,7 +251,7 @@ impl ProgressMonitor {
                     break;
                 }
 
-                let n = processed.load(Ordering::Relaxed) * 100 / total;
+                let n = processed() * 100 / total;
 
                 let _r = report.progress(n as u8);
                 thread::sleep(interval);

@@ -487,11 +487,10 @@ fn copy_dirty_blocks_async(
     );
 
     ctx.report.set_title("Copying cache blocks");
-    let monitor = ProgressMonitor::new(
-        ctx.report.clone(),
-        sb.cache_blocks as u64,
-        cv.get_progress(),
-    );
+    let progress = cv.get_progress();
+    let monitor = ProgressMonitor::new(ctx.report.clone(), sb.cache_blocks as u64, move || {
+        progress.load(Ordering::Relaxed)
+    });
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
 
@@ -530,11 +529,10 @@ fn copy_dirty_blocks_sync(
     cv.set_origin_offset(opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
 
     ctx.report.set_title("Copying cache blocks");
-    let monitor = ProgressMonitor::new(
-        ctx.report.clone(),
-        sb.cache_blocks as u64,
-        cv.get_progress(),
-    );
+    let progress = cv.get_progress();
+    let monitor = ProgressMonitor::new(ctx.report.clone(), sb.cache_blocks as u64, move || {
+        progress.load(Ordering::Relaxed)
+    });
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
 
