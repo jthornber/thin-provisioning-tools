@@ -190,6 +190,16 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     mk_context_(engine, opts.report.clone())
 }
 
+fn print_info(sb: &Superblock, report: Arc<Report>) -> Result<()> {
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
+    report.to_stdout(&format!(
+        "METADATA_FREE_BLOCKS={}",
+        root.nr_blocks - root.nr_allocated
+    ));
+    Ok(())
+}
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
@@ -197,11 +207,12 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let report = &ctx.report;
     let engine = &ctx.engine;
 
+    let mut sb = read_sb(&opts, engine.clone())?;
+    let _ = print_info(&sb, report.clone());
+
     report.set_title("Checking thin metadata");
 
-    let mut sb = read_sb(&opts, engine.clone())?;
     sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
-    report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {
         if opts.clear_needs_check {
@@ -319,10 +330,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    report.to_stdout(&format!(
-        "METADATA_FREE_BLOCKS={}",
-        root.nr_blocks - root.nr_allocated
-    ));
 
     // Now the counts should be correct and we can check it.
     let metadata_leaks = check_metadata_space_map(
@@ -398,8 +405,6 @@ pub fn check_with_maps(
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
-
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut path = vec![0];
 
@@ -457,10 +462,6 @@ pub fn check_with_maps(
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    report.info(&format!(
-        "METADATA_FREE_BLOCKS={}",
-        root.nr_blocks - root.nr_allocated
-    ));
 
     // Now the counts should be correct and we can check it.
     let _metadata_leaks =
