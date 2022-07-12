@@ -26,6 +26,7 @@ struct CacheGenerateOpts<'a> {
     engine_opts: EngineOptions,
     output: &'a Path,
     metadata_version: u8,
+    hotspot_size: usize,
 }
 
 fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
@@ -42,6 +43,7 @@ fn generate_metadata(opts: &CacheGenerateOpts) -> Result<()> {
                 percent_resident: opts.percent_resident,
                 percent_dirty: opts.percent_dirty,
                 metadata_version: opts.metadata_version,
+                hotspot_size: opts.hotspot_size,
             };
             format(engine, &cache_gen)?;
         }
@@ -113,7 +115,7 @@ impl CacheGenerateMetadataCommand {
             )
             .arg(
                 Arg::new("METADATA_VERSION")
-                    .help("Specify the outiput metadata version")
+                    .help("Specify the output metadata version")
                     .long("metadata-version")
                     .value_name("NUM")
                     .possible_values(["1", "2"])
@@ -126,6 +128,12 @@ impl CacheGenerateMetadataCommand {
                     .long("output")
                     .value_name("FILE")
                     .required(true),
+            )
+            .arg(
+                Arg::new("HOTSPOT_SIZE")
+                    .help("Specify the average size of hotspots on the origin")
+                    .long("hotspot-size")
+                    .value_name("SIZE"),
             )
             .group(ArgGroup::new("commands").required(true));
         engine_args(cmd)
@@ -148,6 +156,14 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
             return to_exit_code(&report, engine_opts);
         }
 
+        let hotspot_size = matches.value_of("HOTSPOT_SIZE").or(Some("1"));
+        let hotspot_size = if let Ok(n) = hotspot_size.unwrap().parse::<usize>() {
+            n
+        } else {
+            report.fatal("unable to parse hotspot size");
+            return exitcode::USAGE;
+        };
+
         let opts = CacheGenerateOpts {
             op: if matches.is_present("FORMAT") {
                 MetadataOp::Format
@@ -165,6 +181,7 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
             engine_opts: engine_opts.unwrap(),
             output: output_file,
             metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
+            hotspot_size,
         };
 
         to_exit_code(&report, generate_metadata(&opts))
