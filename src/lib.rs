@@ -1,10 +1,3 @@
-extern crate anyhow;
-extern crate byteorder;
-extern crate crc32c;
-extern crate flate2;
-extern crate nom;
-extern crate num_cpus;
-
 #[macro_use]
 extern crate nix;
 
@@ -15,8 +8,6 @@ extern crate quickcheck;
 #[cfg(test)]
 extern crate quickcheck_macros;
 
-pub mod aio_engine;
-pub mod async_copier;
 pub mod cache;
 pub mod checksum;
 pub mod commands;
