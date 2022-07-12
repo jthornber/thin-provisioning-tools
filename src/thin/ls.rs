@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
+use std::collections::BTreeMap;
 use std::io::Write;
-use std::ops::Deref;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -295,19 +295,19 @@ impl Default for NodeInfo {
     }
 }
 
-struct MappingsCollator<'a> {
+struct MappingsCollator {
     engine: Arc<dyn IoEngine>,
     info: Vec<NodeInfo>,
-    metadata_sm: &'a dyn SpaceMap,
-    data_sm: &'a dyn SpaceMap,
+    metadata_sm: Arc<dyn SpaceMap>,
+    data_sm: Arc<dyn SpaceMap>,
 }
 
-impl<'a> MappingsCollator<'a> {
+impl MappingsCollator {
     fn new(
         engine: Arc<dyn IoEngine>,
-        metadata_sm: &'a dyn SpaceMap,
-        data_sm: &'a dyn SpaceMap,
-    ) -> MappingsCollator<'a> {
+        metadata_sm: Arc<dyn SpaceMap>,
+        data_sm: Arc<dyn SpaceMap>,
+    ) -> MappingsCollator {
         let info = vec![NodeInfo::default(); engine.get_nr_blocks() as usize];
         MappingsCollator {
             engine,
@@ -372,15 +372,22 @@ impl<'a> MappingsCollator<'a> {
     }
 }
 
-fn count_mapped_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<(u64, u64)>> {
+fn count_space_maps(
+    ctx: &Context,
+    sb: &Superblock,
+) -> Result<(
+    BTreeMap<u64, u64>,
+    RestrictedTwoSpaceMap,
+    RestrictedTwoSpaceMap,
+)> {
     let mut path = vec![0];
+
     let sm_root = unpack::<SMRoot>(&sb.data_sm_root[..])?;
     let data_sm = Arc::new(Mutex::new(RestrictedTwoSpaceMap::new(sm_root.nr_blocks)));
     let metadata_sm = Arc::new(Mutex::new(RestrictedTwoSpaceMap::new(
         ctx.engine.get_nr_blocks(),
     )));
 
-    // 1st pass
     let w = Arc::new(BTreeWalker::new_with_sm(
         ctx.engine.clone(),
         metadata_sm.clone(),
@@ -394,11 +401,28 @@ fn count_mapped_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<(u64, u64)>
         walk_threaded(&mut path, w.clone(), &ctx.pool, v, *root)?;
     }
 
+    drop(w);
+
+    let data_sm = match Arc::try_unwrap(data_sm) {
+        Ok(m) => m.into_inner().unwrap(),
+        Err(_) => return Err(anyhow!("cannot unwrap data space map")),
+    };
+
+    let metadata_sm = match Arc::try_unwrap(metadata_sm) {
+        Ok(m) => m.into_inner().unwrap(),
+        Err(_) => return Err(anyhow!("cannot unwrap metadata space map")),
+    };
+
+    Ok((roots, metadata_sm, data_sm))
+}
+
+fn count_mapped_blocks(ctx: &Context, sb: &Superblock) -> Result<Vec<(u64, u64)>> {
+    // 1st pass
+    let (roots, data_sm, metadata_sm) = count_space_maps(ctx, sb)?;
+
     // 2nd pass
     // TODO: multi-threaded?
-    let metadata_sm = metadata_sm.lock().unwrap();
-    let data_sm = data_sm.lock().unwrap();
-    let mut c = MappingsCollator::new(ctx.engine.clone(), metadata_sm.deref(), data_sm.deref());
+    let mut c = MappingsCollator::new(ctx.engine.clone(), Arc::new(metadata_sm), Arc::new(data_sm));
     let mut mapped = Vec::with_capacity(roots.len());
     for root in roots.values() {
         mapped.push(c.get_info(*root)?);
