@@ -32,6 +32,8 @@ pub mod thin_explore;
 pub mod thin_generate_damage;
 #[cfg(feature = "devtools")]
 pub mod thin_generate_metadata;
+#[cfg(feature = "devtools")]
+pub mod thin_stat;
 
 pub trait Command<'a> {
     fn name(&self) -> &'a str;

@@ -1,9 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
 use threadpool::ThreadPool;
 
 use crate::commands::engine::*;
@@ -91,39 +89,6 @@ pub struct ThinCheckOptions<'a> {
     pub clear_needs_check: bool,
     pub override_mapping_root: Option<u64>,
     pub report: Arc<Report>,
-}
-
-fn spawn_progress_thread(
-    sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    nr_allocated_metadata: u64,
-    report: Arc<Report>,
-) -> Result<(JoinHandle<()>, Arc<AtomicBool>)> {
-    let tid;
-    let stop_progress = Arc::new(AtomicBool::new(false));
-
-    {
-        let stop_progress = stop_progress.clone();
-        tid = thread::spawn(move || {
-            let interval = std::time::Duration::from_millis(250);
-            loop {
-                if stop_progress.load(Ordering::Relaxed) {
-                    break;
-                }
-
-                let sm = sm.lock().unwrap();
-                let mut n = sm.get_nr_allocated().unwrap();
-                drop(sm);
-
-                n *= 100;
-                n /= nr_allocated_metadata;
-
-                let _r = report.progress(n as u8);
-                thread::sleep(interval);
-            }
-        });
-    }
-
-    Ok((tid, stop_progress))
 }
 
 struct Context {
@@ -225,6 +190,16 @@ fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     mk_context_(engine, opts.report.clone())
 }
 
+fn print_info(sb: &Superblock, report: Arc<Report>) -> Result<()> {
+    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
+    report.to_stdout(&format!(
+        "METADATA_FREE_BLOCKS={}",
+        root.nr_blocks - root.nr_allocated
+    ));
+    Ok(())
+}
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
@@ -232,11 +207,12 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let report = &ctx.report;
     let engine = &ctx.engine;
 
+    let mut sb = read_sb(&opts, engine.clone())?;
+    let _ = print_info(&sb, report.clone());
+
     report.set_title("Checking thin metadata");
 
-    let mut sb = read_sb(&opts, engine.clone())?;
     sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
-    report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
 
     if opts.sb_only {
         if opts.clear_needs_check {
@@ -273,11 +249,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.details_root,
     )?;
 
-    let (tid, stop_progress) = spawn_progress_thread(
-        metadata_sm.clone(),
-        metadata_root.nr_allocated,
-        report.clone(),
-    )?;
+    let mon_sm = metadata_sm.clone();
+    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
+        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
+    });
 
     // mapping top level
     report.set_sub_title("mapping tree");
@@ -355,10 +330,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    report.to_stdout(&format!(
-        "METADATA_FREE_BLOCKS={}",
-        root.nr_blocks - root.nr_allocated
-    ));
 
     // Now the counts should be correct and we can check it.
     let metadata_leaks = check_metadata_space_map(
@@ -402,8 +373,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
     }
 
-    stop_progress.store(true, Ordering::Relaxed);
-    tid.join().unwrap();
+    monitor.stop();
 
     Ok(())
 }
@@ -435,8 +405,6 @@ pub fn check_with_maps(
     // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    report.info(&format!("TRANSACTION_ID={}", sb.transaction_id));
-
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let mut path = vec![0];
 
@@ -457,11 +425,10 @@ pub fn check_with_maps(
         sb.details_root,
     )?;
 
-    let (tid, stop_progress) = spawn_progress_thread(
-        metadata_sm.clone(),
-        metadata_root.nr_allocated,
-        report.clone(),
-    )?;
+    let mon_sm = metadata_sm.clone();
+    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
+        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
+    });
 
     // mapping top level
     report.set_sub_title("mapping tree");
@@ -495,10 +462,6 @@ pub fn check_with_maps(
 
     report.set_sub_title("metadata space map");
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    report.info(&format!(
-        "METADATA_FREE_BLOCKS={}",
-        root.nr_blocks - root.nr_allocated
-    ));
 
     // Now the counts should be correct and we can check it.
     let _metadata_leaks =
@@ -506,8 +469,7 @@ pub fn check_with_maps(
 
     //-----------------------------------------
 
-    stop_progress.store(true, Ordering::Relaxed);
-    tid.join().unwrap();
+    monitor.stop();
 
     Ok(CheckMaps {
         metadata_sm: metadata_sm.clone(),

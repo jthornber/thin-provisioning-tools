@@ -74,7 +74,7 @@ pub fn run_ok(command: Command) -> Result<String> {
 
     log_output(&output);
     if !output.status.success() {
-        return Err(anyhow!("command failed"));
+        return Err(anyhow!("command failed with {}", output.status));
     }
 
     let stdout = std::str::from_utf8(&output.stdout[..])
@@ -89,9 +89,13 @@ pub fn run_ok(command: Command) -> Result<String> {
 pub fn run_ok_raw(command: Command) -> Result<std::process::Output> {
     eprintln!("run_ok_raw: {}", command);
     let command = command.to_expr().stdout_capture().stderr_capture();
-    let output = command.run()?;
+    let output = command.unchecked().run()?;
+
     log_output(&output);
-    assert!(output.status.success());
+    if !output.status.success() {
+        return Err(anyhow!("command failed with {}", output.status));
+    }
+
     Ok(output)
 }
 
@@ -100,8 +104,12 @@ pub fn run_fail(command: Command) -> Result<String> {
     eprintln!("run_fail: {}", command);
     let command = command.to_expr().stdout_capture().stderr_capture();
     let output = command.unchecked().run()?;
+
     log_output(&output);
-    assert!(!output.status.success());
+    if output.status.success() {
+        return Err(anyhow!("command succeeded without error"));
+    }
+
     let stderr = std::str::from_utf8(&output.stderr[..])
         .unwrap()
         .trim_end_matches(|c| c == '\n' || c == '\r')
@@ -115,8 +123,12 @@ pub fn run_fail_raw(command: Command) -> Result<std::process::Output> {
     eprintln!("run_fail_raw: {}", command);
     let command = command.to_expr().stdout_capture().stderr_capture();
     let output = command.unchecked().run()?;
+
     log_output(&output);
-    assert!(!output.status.success());
+    if output.status.success() {
+        return Err(anyhow!("command succeeded without error"));
+    }
+
     Ok(output)
 }
 

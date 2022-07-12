@@ -1,5 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+use std::ops::Add;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
@@ -107,37 +109,41 @@ impl Report {
 
 #[allow(dead_code)]
 struct PBInner {
-    title: String,
     bar: ProgressBar,
 }
 
 impl PBInner {
-    fn new(title: String) -> Self {
-        let fmt = "[{bar:40}] {eta} remaining".to_string();
+    fn new() -> Self {
+        let fmt = "{prefix}[{bar:40}] Remaining {eta}{msg}".to_string();
         let bar = ProgressBar::new(100);
         bar.set_style(
             ProgressStyle::default_bar()
                 .template(&fmt)
                 .progress_chars("=> "),
         );
-        Self { title, bar }
+        Self { bar }
     }
 }
 
 impl ReportInner for PBInner {
+    // Setting title clears subtitle
     fn set_title(&mut self, txt: &str) {
-        self.title = txt.to_string();
+        let prefix = if !txt.is_empty() {
+            String::from(txt).add(" ")
+        } else {
+            String::new()
+        };
+        self.bar.set_prefix(prefix);
+        self.bar.set_message("");
     }
 
     fn set_sub_title(&mut self, txt: &str) {
-        //let mut fmt = "".to_string(); //Checking thin metadata".to_string(); //self.title.clone();
-        let mut fmt = "Checking thin metadata [{bar:40}] Remaining {eta}, ".to_string();
-        fmt.push_str(txt);
-        self.bar.set_style(
-            ProgressStyle::default_bar()
-                .template(&fmt)
-                .progress_chars("=> "),
-        );
+        let msg = if !txt.is_empty() {
+            String::from(", ").add(txt)
+        } else {
+            String::new()
+        };
+        self.bar.set_message(msg);
     }
 
     fn progress(&mut self, percent: u8) {
@@ -159,7 +165,7 @@ impl ReportInner for PBInner {
 }
 
 pub fn mk_progress_bar_report() -> Report {
-    Report::new(Box::new(PBInner::new("".to_string())))
+    Report::new(Box::new(PBInner::new()))
 }
 
 //------------------------------------------
@@ -237,7 +243,10 @@ pub struct ProgressMonitor {
 }
 
 impl ProgressMonitor {
-    pub fn new(report: Arc<Report>, total: u64, processed: Arc<AtomicU64>) -> ProgressMonitor {
+    pub fn new<F>(report: Arc<Report>, total: u64, processed: F) -> Self
+    where
+        F: Fn() -> u64 + Send + 'static,
+    {
         let stop_flag = Arc::new(AtomicBool::new(false));
 
         let stopped = stop_flag.clone();
@@ -248,7 +257,7 @@ impl ProgressMonitor {
                     break;
                 }
 
-                let n = processed.load(Ordering::Relaxed) * 100 / total;
+                let n = processed() * 100 / total;
 
                 let _r = report.progress(n as u8);
                 thread::sleep(interval);

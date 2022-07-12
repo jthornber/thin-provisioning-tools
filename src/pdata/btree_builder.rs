@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::collections::VecDeque;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
@@ -193,6 +193,7 @@ pub struct NodeBuilder<V: Pack + Unpack> {
     values: VecDeque<(u64, V)>,
     nodes: Vec<NodeSummary>,
     shared: bool,
+    last_key: Option<u64>,
 }
 
 /// When the builder is including pre-built nodes it has to decide whether
@@ -220,7 +221,19 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
             values: VecDeque::new(),
             nodes: Vec::new(),
             shared,
+            last_key: None,
         }
+    }
+
+    pub fn check_ordered_key(&mut self, key: u64) -> Result<()> {
+        if let Some(last) = self.last_key {
+            if key <= last {
+                return Err(anyhow!("keys out of order"));
+            }
+        }
+        self.last_key = Some(key);
+
+        Ok(())
     }
 
     /// Push a single value.  This may emit a new node, hence the Result
@@ -237,6 +250,8 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
         else if self.values.len() == self.max_entries_per_node * 2 {
             self.emit_node(w)?;
         }
+
+        self.check_ordered_key(key)?;
 
         self.value_rc.inc(&val)?;
         self.values.push_back((key, val));
@@ -289,6 +304,13 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
             }
         }
 
+        // Ensure the ordering of keys
+        if let Some(last) = self.last_key {
+            if nodes[0].key <= last {
+                return Err(anyhow!("keys out of order"));
+            }
+        }
+
         // Unshift the previously pushed node since it is not the root
         if self.nodes.len() == 1 && (self.nodes[0].nr_entries < half_full) {
             self.unshift_node(w)?;
@@ -324,6 +346,9 @@ impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
                 }
             }
         }
+
+        // It's the first key of the last pushed node. Just for roughly checking.
+        self.last_key = Some(nodes.last().unwrap().key);
 
         Ok(())
     }

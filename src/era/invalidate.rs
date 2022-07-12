@@ -18,19 +18,23 @@ use crate::xml::mk_attr;
 
 //------------------------------------------
 
-struct BitsetCollator<'a> {
-    composed_bits: Box<Mutex<&'a mut [u64]>>,
+struct BitsetCollator {
+    composed_bits: Mutex<Vec<u64>>,
 }
 
-impl<'a> BitsetCollator<'a> {
-    fn new(bitset: &mut [u64]) -> BitsetCollator {
+impl<'a> BitsetCollator {
+    fn new(bitset: Vec<u64>) -> BitsetCollator {
         BitsetCollator {
-            composed_bits: Box::new(Mutex::new(bitset)),
+            composed_bits: Mutex::new(bitset),
         }
+    }
+
+    fn complete(self) -> Vec<u64> {
+        self.composed_bits.into_inner().unwrap()
     }
 }
 
-impl<'a> ArrayVisitor<u64> for BitsetCollator<'a> {
+impl ArrayVisitor<u64> for BitsetCollator {
     fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
         let mut bitset = self.composed_bits.lock().unwrap();
         let idx = index as usize * b.header.max_entries as usize; // index of u64 in bitset array
@@ -43,21 +47,25 @@ impl<'a> ArrayVisitor<u64> for BitsetCollator<'a> {
 
 //------------------------------------------
 
-struct EraArrayCollator<'a> {
-    composed_bits: Box<Mutex<&'a mut [u64]>>,
+struct EraArrayCollator {
+    composed_bits: Mutex<Vec<u64>>,
     threshold: u32,
 }
 
-impl<'a> EraArrayCollator<'a> {
-    fn new(bitset: &mut [u64], threshold: u32) -> EraArrayCollator {
+impl EraArrayCollator {
+    fn new(bitset: Vec<u64>, threshold: u32) -> EraArrayCollator {
         EraArrayCollator {
-            composed_bits: Box::new(Mutex::new(bitset)),
+            composed_bits: Mutex::new(bitset),
             threshold,
         }
     }
+
+    fn complete(self) -> Vec<u64> {
+        self.composed_bits.into_inner().unwrap()
+    }
 }
 
-impl<'a> ArrayVisitor<u32> for EraArrayCollator<'a> {
+impl ArrayVisitor<u32> for EraArrayCollator {
     fn visit(&self, index: u64, b: ArrayBlock<u32>) -> array::Result<()> {
         let blk_begin = index as usize * b.header.max_entries as usize; // range of data blocks
         let blk_end = blk_begin + b.header.max_entries as usize;
@@ -95,24 +103,24 @@ impl<'a> ArrayVisitor<u32> for EraArrayCollator<'a> {
 fn collate_writeset(
     engine: Arc<dyn IoEngine + Send + Sync>,
     writeset_root: u64,
-    marked_bits: &mut [u64],
-) -> Result<()> {
+    marked_bits: Vec<u64>,
+) -> Result<Vec<u64>> {
     let w = ArrayWalker::new(engine, false);
     let c = BitsetCollator::new(marked_bits);
     w.walk(&c, writeset_root)?;
-    Ok(())
+    Ok(c.complete())
 }
 
 fn collate_era_array(
     engine: Arc<dyn IoEngine + Send + Sync>,
     era_array_root: u64,
-    marked_bits: &mut [u64],
+    marked_bits: Vec<u64>,
     threshold: u32,
-) -> Result<()> {
+) -> Result<Vec<u64>> {
     let w = ArrayWalker::new(engine, false);
     let c = EraArrayCollator::new(marked_bits, threshold);
     w.walk(&c, era_array_root)?;
-    Ok(())
+    Ok(c.complete())
 }
 
 fn mark_blocks_since(
@@ -129,17 +137,13 @@ fn mark_blocks_since(
         if (*era as u32) < threshold {
             continue;
         }
-        collate_writeset(engine.clone(), ws.root, &mut marked_bits)?;
+        marked_bits = collate_writeset(engine.clone(), ws.root, marked_bits)?;
     }
 
     if let Some(archived_begin) = wsets.keys().next() {
         if *archived_begin as u32 > threshold {
-            collate_era_array(
-                engine.clone(),
-                sb.era_array_root,
-                &mut marked_bits,
-                threshold,
-            )?;
+            marked_bits =
+                collate_era_array(engine.clone(), sb.era_array_root, marked_bits, threshold)?;
         }
     }
 

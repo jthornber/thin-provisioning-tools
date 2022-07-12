@@ -140,16 +140,17 @@ impl AsyncCopyVisitor {
     }
 
     fn complete(self) -> io::Result<(CopyStats, FixedBitSet, FixedBitSet)> {
-        {
-            let mut inner = self.inner.lock().unwrap();
-            while inner.copier.nr_pending() > 0 {
-                Self::wait_completion(&mut inner).expect("internal error");
-                self.progress
-                    .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
-            }
+        let mut inner = self
+            .inner
+            .into_inner()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        while inner.copier.nr_pending() > 0 {
+            Self::wait_completion(&mut inner).expect("internal error");
+            self.progress
+                .store(inner.stats.blocks_completed as u64, Ordering::Relaxed);
         }
 
-        let inner = self.inner.into_inner().unwrap();
         Ok((inner.stats, inner.dirty_ablocks, inner.cleaned_blocks))
     }
 }
@@ -486,11 +487,10 @@ fn copy_dirty_blocks_async(
     );
 
     ctx.report.set_title("Copying cache blocks");
-    let monitor = ProgressMonitor::new(
-        ctx.report.clone(),
-        sb.cache_blocks as u64,
-        cv.get_progress(),
-    );
+    let progress = cv.get_progress();
+    let monitor = ProgressMonitor::new(ctx.report.clone(), sb.cache_blocks as u64, move || {
+        progress.load(Ordering::Relaxed)
+    });
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
 
@@ -529,11 +529,10 @@ fn copy_dirty_blocks_sync(
     cv.set_origin_offset(opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT);
 
     ctx.report.set_title("Copying cache blocks");
-    let monitor = ProgressMonitor::new(
-        ctx.report.clone(),
-        sb.cache_blocks as u64,
-        cv.get_progress(),
-    );
+    let progress = cv.get_progress();
+    let monitor = ProgressMonitor::new(ctx.report.clone(), sb.cache_blocks as u64, move || {
+        progress.load(Ordering::Relaxed)
+    });
     let w = ArrayWalker::new(ctx.engine.clone(), true);
     let err = w.walk(&cv, sb.mapping_root).is_err();
 
