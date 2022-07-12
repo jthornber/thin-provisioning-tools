@@ -7,32 +7,39 @@ dm-era device-mapper targets.
 Requirements
 ============
 
-A C++ compiler that supports the c++11 standard (eg, g++).
-The [Boost C++ library](http://www.boost.org/).
-The [expat](http://expat.sourceforge.net/) xml parser library (version 1).
-The libaio library (note this is not the same as the aio library that you get by linking -lrt)
-make, autoconf etc.
-
-A couple of non-essential tools are written in rust, and will
-require cargo and rustcc to be installed:
-
-    thin_metadata_pack
-    thin_metadata_unpack
-
-There are more requirements for testing, detailed below.
+We are in the process of switching these tools over from C++ to Rust.
+The best way to install Rust is via the [rustup](https://rustup.rs/)
+command.
 
 Building
 ========
 
-    autoconf
-    ./configure
-    make
-    sudo make install
+To build the tools
 
-Building Rust tools
-===================
+> cargo build --release
 
-    sudo make install-rust-tools
+Don't forget the --release flag, it makes a big difference to performance.
+
+
+If you want the optional development tools:
+
+> cargo build --release --features=devtools
+
+
+There is experimental support for io uring taht can be enabled:
+
+> cargo build --release --features=io_uring
+
+
+Installing
+==========
+
+There isn't an install script yet.
+
+> cargo install --path .
+
+The above will install for you, but you wont get the man pages.
+
 
 Quick examples
 ==============
@@ -81,63 +88,6 @@ inspect the repaired metadata before restoring).
     thin_dump --repair /dev/mapper/my_metadata > repaired.xml
     thin_restore -i repaired.xml -o /dev/mapper/my_metadata
 
-Development
-===========
-
-Autoconf
---------
-
-If you've got the source from github you'll need to create the
-configure script with autoconf.  I do this by running:
-
-    autoreconf
-
-Enable tests
-------------
-
-You will need to enable tests when you configure.
-
-    ./configure --enable-testing
-
-Unit tests
-----------
-
-Unit tests are implemented using the google mock framework.  This is a
-source library that you will have to download.  A script is provided
-to do this for you.
-
-    ./get-gmock.sh
-
-All tests can be run via:
-
-    make unit-test
-
-Alternatively you may want to run a subset of the tests:
-
-    make unit-tests/unit_tests
-    unit-tests/unit_tests --gtest_filter=BtreeTests.*
-
-Functional tests
-----------------
-
-A bunch of high level tests are implemented in the functional-tests directory.
-These tests are written in Scheme.  To run them you'll need to install
-chezscheme (http://www.scheme.com/).  There is no longer a dependency on
-the ThunderChez library.
-
-Make sure the tools that you wish to test are in your PATH. 
-
-Then,
-
-	cd funtional-tests
-	./run-tests run
-
-Other command are help and list.
-
-The test framework places temporary files under ./test-output/.  By default
-the tests tidy up after themselves, just leaving a log file for each test.  You
-can turn this off by using the --disable-unlink flag if you want all the
-artifacts left.
 
 Dump Metadata
 =============
