@@ -70,10 +70,12 @@ impl ArrayVisitor<u64> for BitsetVisitor {
 
         for bits in b.values.iter() {
             let end: usize = std::cmp::min(begin + 64, self.nr_bits as usize);
+
             let mut mask = 1;
+            let mut extracted_bits = self.bits.lock().unwrap();
 
             for bi in begin..end {
-                self.bits.lock().unwrap().set(bi, bits & mask != 0);
+                extracted_bits.set(bi, bits & mask != 0);
                 mask <<= 1;
             }
             begin += 64;
