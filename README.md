@@ -8,6 +8,7 @@ Requirements
 ============
 
 We are in the process of switching these tools over from C++ to Rust.
+The performance of many of the tools has increased (particularly thin_check).
 The best way to install Rust is via the [rustup](https://rustup.rs/)
 command.
 
@@ -20,15 +21,25 @@ To build the tools
 
 Don't forget the --release flag, it makes a big difference to performance.
 
+This will build a binary called ./target/release/pdata_tools.  This binary takes
+sub commands, eg,
+
+> ./target/release/pdata_tools thin_check ...
+
+will run thin_check.
+
 
 If you want the optional development tools:
 
 > cargo build --release --features=devtools
 
 
-There is experimental support for io uring taht can be enabled:
+There is experimental support for io uring that can be enabled:
 
 > cargo build --release --features=io_uring
+
+With current kernels there are issues using the io_uring feature
+with spindle devices that have small queue_depth (eg, 32).
 
 
 Installing
@@ -38,7 +49,9 @@ There isn't an install script yet.
 
 > cargo install --path .
 
-The above will install for you, but you wont get the man pages.
+The above will install for you, but you wont get the man pages, and
+you wont get symlinks from the usual command names to pdata_tools (eg,
+thin_check -> pdata_tools).
 
 
 Quick examples
