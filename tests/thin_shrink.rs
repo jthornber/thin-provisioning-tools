@@ -273,7 +273,7 @@ impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
         for b in self.provisioned.ones() {
             let mut wr = ThinBlock::zero_ref(self.data_file, b as u64, self.data_block_size);
             let mut gen = Generator::new();
-            gen.fill_buffer(self.seed ^ self.salts[b], &mut wr.data)?;
+            gen.fill_buffer(self.salts[b], &mut wr.data)?;
         }
         Ok(())
     }
@@ -319,7 +319,7 @@ impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
         for b in self.provisioned.ones() {
             let rr = ThinBlock::read_ref(self.data_file, b as u64, self.data_block_size)?;
             let mut gen = Generator::new();
-            if !gen.verify_buffer(self.seed ^ self.salts[b], &rr.data)? {
+            if !gen.verify_buffer(self.salts[b], &rr.data)? {
                 return Err(anyhow!("data verify failed for data block {}", b));
             }
         }
