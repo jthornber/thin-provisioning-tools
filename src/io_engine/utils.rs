@@ -5,7 +5,7 @@ use std::os::unix::io::AsRawFd;
 
 ///-------------------------------------
 
-// All the individual buffers are assumed to be the same size.  If io fails, the block
+// All the individual buffers are assumed to be the same size.  If io fails, the first block
 // will be marked as errored, and the io will be retried from the subsequent block.
 pub fn read_blocks<'a>(
     src: &File,
