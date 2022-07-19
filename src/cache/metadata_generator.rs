@@ -81,7 +81,7 @@ impl MetadataGenerator for CacheGenerator {
         let mut rng = rand::thread_rng();
         let mut dirty_rng = rand::thread_rng();
         'top: loop {
-            let mut oblock = rng.gen_range(0..nr_origin_blocks);
+            let oblock = rng.gen_range(0..nr_origin_blocks);
 
             'run: for i in 0..self.hotspot_size {
                 if total_allocated >= nr_resident {
@@ -105,12 +105,14 @@ impl MetadataGenerator for CacheGenerator {
         for (oblock, cblock) in oblocks.iter().zip(cblocks.iter()) {
             maps.push((oblock, *cblock));
         }
-        maps.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1) );
+        maps.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
 
         v.mappings_b()?;
         for (oblock, cblock) in maps {
             v.mapping(&ir::Map {
-                cblock, oblock: oblock as u64, dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
+                cblock,
+                oblock: oblock as u64,
+                dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
             })?;
         }
         v.mappings_e()?;
