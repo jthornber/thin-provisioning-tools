@@ -38,9 +38,9 @@ pub trait CopyProgress {
 // The constructor for the instance should be passed the src and dst
 // paths and the block size.
 pub trait Copier {
-    // This copies the blocks in roughly the order given, so sort ops before
-    // submitting. eg, cache writeback would sort by dst since that's
-    // likely a spindle device where ordering really matters.
+    /// This copies the blocks in roughly the order given, so sort ops before
+    /// submitting. eg, cache writeback would sort by dst since that's
+    /// likely a spindle device where ordering really matters.
     fn copy(
         &mut self,
         ops: &[CopyOp],

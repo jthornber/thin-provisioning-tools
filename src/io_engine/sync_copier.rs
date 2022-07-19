@@ -3,9 +3,9 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::atomic::Ordering;
 use std::thread;
 
 use crate::io_engine::buffer::*;
@@ -263,7 +263,9 @@ impl Copier for SyncCopier {
                 }
 
                 let stats = stats.read().unwrap();
-                stats.nr_copied.fetch_add(ops.len() as u64, Ordering::SeqCst);
+                stats
+                    .nr_copied
+                    .fetch_add(ops.len() as u64, Ordering::SeqCst);
                 progress.update(&*stats);
             })
         };
