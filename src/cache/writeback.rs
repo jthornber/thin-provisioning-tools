@@ -24,18 +24,28 @@ use crate::report::Report;
 
 #[derive(Clone)]
 struct WritebackStats {
+    /// Number of blocks that need writing back
     nr_blocks: u64,
+
+    /// Number of blocks that were successfully copied
     nr_copied: u64,
+
+    /// Number of read errors
     nr_read_errors: u64,
+
+    // Number of write errors
     nr_write_errors: u64,
 }
 
+/// Updates the progress bar in the reporter as the stats are
+/// updated by the copier threads.
 struct ProgressReporter {
     report: Arc<Report>,
     inner: Mutex<WritebackStats>,
 }
 
 impl ProgressReporter {
+    /// nr_blocks - nr to be copied
     fn new(report: Arc<Report>, nr_blocks: u64) -> Self {
         Self {
             report,
@@ -48,7 +58,8 @@ impl ProgressReporter {
         }
     }
 
-    fn update_stats(&self, stats: &CopyStats) {
+    /// Adds stats into the internal base.  Then updates the progress.
+    fn inc_stats(&self, stats: &CopyStats) {
         let mut inner = self.inner.lock().unwrap();
         inner.nr_copied += stats.nr_copied.load(Ordering::Relaxed);
         inner.nr_read_errors += stats.read_errors.len() as u64;
@@ -63,6 +74,7 @@ impl ProgressReporter {
         self.report.progress(percent as u8);
     }
 
+    /// Accessor for the current stats
     fn stats(&self) -> WritebackStats {
         let inner = self.inner.lock().unwrap();
         (*inner).clone()
@@ -94,11 +106,14 @@ impl CopyProgress for ProgressReporter {
 // all blocks being copied.
 trait WritebackSelector {
     fn get_nr_to_writeback(&self) -> u32;
+
+    /// The caller should ensure the mapping is valid.
     fn needs_writeback(&self, cblock: u32, m: &Mapping) -> bool;
 }
 
 //---------------
 
+/// Selector for version 1 metadata.
 struct V1Selector {
     nr_blocks: u32,
 }
@@ -115,6 +130,7 @@ impl WritebackSelector for V1Selector {
 
 //---------------
 
+/// Version 2 metadata has a separate dirty bitset
 struct V2Selector {
     nr_blocks: u32,
     dirty: roaring::RoaringBitmap,
@@ -132,6 +148,7 @@ impl WritebackSelector for V2Selector {
 
 //---------------
 
+/// Selects every block
 struct AllSelector {
     nr_blocks: u32,
 }
@@ -165,6 +182,9 @@ impl ArrayVisitor<Mapping> for V1DirtyCounter {
     }
 }
 
+/// Count how many dirty blocks are present in v1 metadata.
+// FIXME: This means we walk the metadata twice, but I guess that's
+// not too expensive compared to the copying.
 fn v1_count_dirty(
     engine: &Arc<dyn IoEngine + Sync + Send>,
     sb: &Superblock,
@@ -175,7 +195,9 @@ fn v1_count_dirty(
     Ok(v.count.load(Ordering::SeqCst) as u32)
 }
 
-fn v2_read_bitset(
+//---------------
+
+fn v2_read_dirty_bitset(
     engine: Arc<dyn IoEngine + Sync + Send>,
     sb: &Superblock,
 ) -> anyhow::Result<(u32, RoaringBitmap)> {
@@ -192,7 +214,7 @@ fn v2_read_bitset(
     let mut dirty = RoaringBitmap::new();
     let mut nr_blocks = 0;
     for i in 0..cbits.len() {
-        if cbits.contains(i).unwrap_or(true) {
+        if cbits.contains(i).unwrap_or(false) {
             nr_blocks += 1;
             dirty.insert(i as u32);
         }
@@ -201,6 +223,7 @@ fn v2_read_bitset(
     Ok((nr_blocks, dirty))
 }
 
+/// Build a selector object for this metadata.
 fn mk_selector(
     engine: Arc<dyn IoEngine + Sync + Send>,
     sb: &Superblock,
@@ -211,7 +234,7 @@ fn mk_selector(
                 nr_blocks: v1_count_dirty(&engine, sb)?,
             })),
             2 => {
-                let (nr_blocks, dirty) = v2_read_bitset(engine, sb)?;
+                let (nr_blocks, dirty) = v2_read_dirty_bitset(engine, sb)?;
                 Ok(Box::new(V2Selector { nr_blocks, dirty }))
             }
             _ => {
@@ -231,7 +254,8 @@ fn mk_selector(
 
 // This builds vectors of copy operations and posts them into a channel.
 // The larger the batch size the more chance we have of finding and
-// aggregating adjacent copies.
+// aggregating adjacent copies.  It also keeps track of the array block
+// _indices_ (not blocknr) that contained dirty mappings.
 struct CopyOpBatcher_ {
     batch_size: usize,
     ops: Vec<CopyOp>,
@@ -249,6 +273,7 @@ impl CopyOpBatcher_ {
         }
     }
 
+    /// Append a CopyOp to the current batch.
     fn push(&mut self, op: CopyOp) -> anyhow::Result<()> {
         self.ops.push(op);
         if self.ops.len() >= self.batch_size {
@@ -258,9 +283,9 @@ impl CopyOpBatcher_ {
         Ok(())
     }
 
+    /// Send the current batch.
     fn send_ops(&mut self) -> anyhow::Result<()> {
-        let mut ops = Vec::new();
-        std::mem::swap(&mut ops, &mut self.ops);
+        let mut ops = std::mem::take(&mut self.ops);
 
         // We sort by the destination since this is likely to be a spindle
         // and keeping the io in sequential order will help performance.
@@ -270,6 +295,7 @@ impl CopyOpBatcher_ {
             .map_err(|_| anyhow!("unable to send copy op array"))
     }
 
+    /// Send the current batch and return the dirty ablocks bitmap.
     fn complete(&mut self) -> anyhow::Result<RoaringBitmap> {
         self.send_ops()?;
         Ok(std::mem::take(&mut self.dirty_ablocks))
@@ -323,7 +349,6 @@ impl ArrayVisitor<Mapping> for CopyOpBatcher {
 
 //------------------------------------------
 
-const WORDS_PER_BITMAP: usize = (4096 - 24) / 8;
 const BITS_PER_WORD: usize = 64;
 
 struct BitBlock {
@@ -332,6 +357,7 @@ struct BitBlock {
     block: ArrayBlock<u64>,
 }
 
+/// Cursor for updating the on disk dirty bitmap.
 struct BitsetUpdater {
     engine: Arc<dyn IoEngine + Sync + Send>,
     bitmaps: Vec<u64>,
@@ -413,12 +439,14 @@ impl BitsetUpdater {
     fn set_bit(&mut self, b: usize, v: bool) -> anyhow::Result<()> {
         // enforce monoticity
         if let Some(last) = self.last_b {
-            assert!(b < last);
+            assert!(b >= last);
         }
 
         self.get_bitmap(b)?;
+        self.last_b = Some(b);
         if let Some(block) = &mut self.current_block {
-            let word = (b - block.bit_begin) % WORDS_PER_BITMAP;
+            assert_eq!(block.bit_begin % BITS_PER_WORD, 0);
+            let word = (b - block.bit_begin) / BITS_PER_WORD;
             let bit = b % BITS_PER_WORD;
 
             if v {
@@ -433,6 +461,9 @@ impl BitsetUpdater {
         Ok(())
     }
 
+    /// Updates to the most recent metadata block are cached in memory.
+    /// You need to call this when you finish setting bits to ensure /
+    //this cache is flushed.
     fn flush(&mut self) -> anyhow::Result<()> {
         if let Some(block) = self.current_block.take() {
             self.write_bits(block)?;
@@ -449,6 +480,7 @@ impl Drop for BitsetUpdater {
 
 //------------------------------------------
 
+/// Clears dirty flags in the metadata.
 fn update_metadata(
     ctx: &Context,
     sb: &Superblock,
@@ -610,7 +642,7 @@ fn copy_dirty_blocks(
                 }
 
                 let stats = copier.copy(&ops, progress.clone()).expect("copy failed");
-                progress.update_stats(&stats);
+                progress.inc_stats(&stats);
 
                 {
                     let mut cleaned = cleaned.lock().unwrap();
