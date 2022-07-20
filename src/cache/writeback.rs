@@ -165,15 +165,24 @@ impl WritebackSelector for AllSelector {
 
 //---------------
 
-#[derive(Default)]
-struct V1DirtyCounter {
+struct MappingCounter<F: Fn(&Mapping) -> bool> {
     count: AtomicU64,
+    predicate: F,
 }
 
-impl ArrayVisitor<Mapping> for V1DirtyCounter {
+impl<F: Fn(&Mapping) -> bool> MappingCounter<F> {
+    fn new(predicate: F) -> Self {
+        Self {
+            count: AtomicU64::default(),
+            predicate,
+        }
+    }
+}
+
+impl<F: Fn(&Mapping) -> bool> ArrayVisitor<Mapping> for MappingCounter<F> {
     fn visit(&self, _index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
         for m in b.values {
-            if m.is_valid() && m.is_dirty() {
+            if m.is_valid() && (self.predicate)(&m) {
                 self.count.fetch_add(1, Ordering::SeqCst);
             }
         }
@@ -182,15 +191,15 @@ impl ArrayVisitor<Mapping> for V1DirtyCounter {
     }
 }
 
-/// Count how many dirty blocks are present in v1 metadata.
-// FIXME: This means we walk the metadata twice, but I guess that's
-// not too expensive compared to the copying.
-fn v1_count_dirty(
+/// Counts the valid mappings in the metadata that match the given
+/// predicate.
+fn count_mappings<F: Fn(&Mapping) -> bool>(
     engine: &Arc<dyn IoEngine + Sync + Send>,
     sb: &Superblock,
+    predicate: F,
 ) -> anyhow::Result<u32> {
     let w = ArrayWalker::new(engine.clone(), true);
-    let v = V1DirtyCounter::default();
+    let v = MappingCounter::new(predicate);
     w.walk(&v, sb.mapping_root)?;
     Ok(v.count.load(Ordering::SeqCst) as u32)
 }
@@ -223,6 +232,8 @@ fn v2_read_dirty_bitset(
     Ok((nr_blocks, dirty))
 }
 
+//---------------
+
 /// Build a selector object for this metadata.
 fn mk_selector(
     engine: Arc<dyn IoEngine + Sync + Send>,
@@ -231,7 +242,7 @@ fn mk_selector(
     if sb.flags.clean_shutdown {
         match sb.version {
             1 => Ok(Box::new(V1Selector {
-                nr_blocks: v1_count_dirty(&engine, sb)?,
+                nr_blocks: count_mappings(&engine, sb, |m| m.is_dirty())?,
             })),
             2 => {
                 let (nr_blocks, dirty) = v2_read_dirty_bitset(engine, sb)?;
@@ -245,7 +256,7 @@ fn mk_selector(
     } else {
         // assume everything is dirty
         Ok(Box::new(AllSelector {
-            nr_blocks: sb.cache_blocks,
+            nr_blocks: count_mappings(&engine, sb, |_| true)?,
         }))
     }
 }
