@@ -105,7 +105,6 @@ where
             let c = &mut self.counts[b as usize];
             assert!(*c < V::max_value());
             if *c == V::from(0u8) {
-                // FIXME: can we get a ref to save dereferencing counts twice?
                 self.nr_allocated += 1;
                 *c = V::from(1u8);
             } else {

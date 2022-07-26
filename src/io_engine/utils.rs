@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
 use iovec::{unix, IoVec};
 use std::fs::File;
+use std::io::{self, Result};
 use std::os::unix::io::AsRawFd;
 
 ///-------------------------------------
@@ -40,7 +40,7 @@ pub fn read_blocks<'a>(
             remaining -= block_size;
             pos += block_size as u64;
             os_bufs = &mut os_bufs[1..];
-            results.push(Err(anyhow!("read failed")));
+            results.push(Err(io::Error::new(io::ErrorKind::Other, "read failed")));
         }
     }
 
@@ -80,7 +80,7 @@ pub fn write_blocks<'a>(
             remaining -= block_size;
             pos += block_size as u64;
             os_bufs = &os_bufs[1..];
-            results.push(Err(anyhow!("read failed")));
+            results.push(Err(io::Error::new(io::ErrorKind::Other, "write failed")));
         }
     }
 
