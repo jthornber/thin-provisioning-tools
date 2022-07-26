@@ -180,6 +180,14 @@ where
     rust_cmd("cache_repair", args)
 }
 
+pub fn cache_writeback_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("cache_writeback", args)
+}
+
 pub fn era_check_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

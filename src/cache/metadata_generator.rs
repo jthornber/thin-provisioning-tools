@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use fixedbitset::FixedBitSet;
 use rand::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
@@ -25,6 +24,7 @@ pub struct CacheGenerator {
     pub percent_resident: u8,
     pub percent_dirty: u8,
     pub metadata_version: u8,
+    pub hotspot_size: usize,
 }
 
 impl CacheGenerator {
@@ -35,6 +35,7 @@ impl CacheGenerator {
         percent_resident: u8,
         percent_dirty: u8,
         metadata_version: u8,
+        hotspot_size: usize,
     ) -> Self {
         CacheGenerator {
             block_size,
@@ -43,6 +44,7 @@ impl CacheGenerator {
             percent_resident,
             percent_dirty,
             metadata_version,
+            hotspot_size,
         }
     }
 }
@@ -68,31 +70,52 @@ impl MetadataGenerator for CacheGenerator {
             (self.nr_cache_blocks as u64 * self.percent_resident as u64) / 100,
             self.nr_origin_blocks,
         ) as u32;
+
+        // cblocks are chosen at random, with no locality
         // FIXME: slow & memory demanding
         let mut cblocks = (0..self.nr_cache_blocks).collect::<Vec<u32>>();
         cblocks.shuffle(&mut rand::thread_rng());
         cblocks.truncate(nr_resident as usize);
-        cblocks.sort_unstable();
 
-        v.mappings_b()?;
-        {
-            let mut used = FixedBitSet::with_capacity(nr_origin_blocks);
-            let mut rng = rand::thread_rng();
-            let mut dirty_rng = rand::thread_rng();
-            for cblock in cblocks.iter() {
-                // FIXME: getting slower as the collision rate raised
-                let mut oblock = rng.gen_range(0..nr_origin_blocks);
-                while used.contains(oblock) {
-                    oblock = rng.gen_range(0..nr_origin_blocks);
+        // The origin blocks are allocated in randomly positioned runs.
+        let mut oblocks = roaring::RoaringBitmap::new();
+        let mut total_allocated = 0;
+        let mut rng = rand::thread_rng();
+        let mut dirty_rng = rand::thread_rng();
+        'top: loop {
+            let oblock = rng.gen_range(0..nr_origin_blocks);
+
+            'run: for i in 0..self.hotspot_size {
+                if total_allocated >= nr_resident {
+                    break 'top;
                 }
 
-                used.set(oblock, true);
-                v.mapping(&ir::Map {
-                    cblock: *cblock,
-                    oblock: oblock as u64,
-                    dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
-                })?;
+                if oblock + i >= nr_origin_blocks {
+                    break 'run;
+                }
+
+                if !oblocks.contains((oblock + i) as u32) {
+                    oblocks.insert((oblock + i) as u32);
+                    total_allocated += 1;
+                }
             }
+        }
+
+        eprintln!("generated oblocks");
+
+        let mut maps: Vec<(u32, u32)> = Vec::new();
+        for (oblock, cblock) in oblocks.iter().zip(cblocks.iter()) {
+            maps.push((oblock, *cblock));
+        }
+        maps.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
+
+        v.mappings_b()?;
+        for (oblock, cblock) in maps {
+            v.mapping(&ir::Map {
+                cblock,
+                oblock: oblock as u64,
+                dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
+            })?;
         }
         v.mappings_e()?;
 
@@ -100,6 +123,8 @@ impl MetadataGenerator for CacheGenerator {
             cblock: 0,
             data: crate::cache::hint::Hint::default().hint.to_vec(),
         };
+
+        cblocks.sort();
         v.hints_b()?;
         for cblock in cblocks {
             hint.cblock = cblock;
@@ -163,6 +188,7 @@ pub struct CacheFormatOpts {
     pub percent_resident: u8,
     pub percent_dirty: u8,
     pub metadata_version: u8,
+    pub hotspot_size: usize,
 }
 
 pub enum MetadataOp {
@@ -192,6 +218,7 @@ pub fn generate_metadata(opts: CacheGenerateOpts) -> Result<()> {
                 percent_resident: op.percent_resident,
                 percent_dirty: op.percent_dirty,
                 metadata_version: op.metadata_version,
+                hotspot_size: op.hotspot_size,
             };
             format(engine, &cache_gen)?;
         }

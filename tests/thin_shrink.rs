@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fixedbitset::FixedBitSet;
 use rand::prelude::*;
 use std::fs::OpenOptions;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use thinp::file_utils;
@@ -13,6 +12,7 @@ use thinp::thin::xml;
 mod common;
 
 use common::process::*;
+use common::random::Generator;
 use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
@@ -176,65 +176,6 @@ where
 // To test thin_shrink we'd like to stamp a known pattern across the
 // provisioned areas of the thins in the pool, do the shrink, verify
 // the patterns.
-
-// A simple linear congruence generator used to create the data to
-// go into the thin blocks.
-struct Generator {
-    x: u64,
-    a: u64,
-    c: u64,
-}
-
-impl Generator {
-    fn new() -> Generator {
-        Generator {
-            x: 0,
-            a: 6364136223846793005,
-            c: 1442695040888963407,
-        }
-    }
-
-    fn step(&mut self) {
-        self.x = self.a.wrapping_mul(self.x).wrapping_add(self.c)
-    }
-
-    fn fill_buffer(&mut self, seed: u64, bytes: &mut [u8]) -> Result<()> {
-        self.x = seed;
-
-        assert!(bytes.len() % 8 == 0);
-        let nr_words = bytes.len() / 8;
-        let mut out = Cursor::new(bytes);
-
-        for _ in 0..nr_words {
-            out.write_u64::<LittleEndian>(self.x)?;
-            self.step();
-        }
-
-        Ok(())
-    }
-
-    fn verify_buffer(&mut self, seed: u64, bytes: &[u8]) -> Result<bool> {
-        self.x = seed;
-
-        assert!(bytes.len() % 8 == 0);
-        let nr_words = bytes.len() / 8;
-        let mut input = Cursor::new(bytes);
-
-        for _ in 0..nr_words {
-            let w = input.read_u64::<LittleEndian>()?;
-            if w != self.x {
-                eprintln!("{} != {}", w, self.x);
-                return Ok(false);
-            }
-            self.step();
-        }
-
-        Ok(true)
-    }
-}
-
-//------------------------------------
-
 struct Stamper<'a, W: Write + Seek> {
     data_file: &'a mut W,
     data_block_size: usize, // in sectors
@@ -273,7 +214,7 @@ impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
         for b in self.provisioned.ones() {
             let mut wr = ThinBlock::zero_ref(self.data_file, b as u64, self.data_block_size);
             let mut gen = Generator::new();
-            gen.fill_buffer(self.seed ^ self.salts[b], &mut wr.data)?;
+            gen.fill_buffer(self.salts[b], &mut wr.data)?;
         }
         Ok(())
     }
@@ -319,7 +260,7 @@ impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
         for b in self.provisioned.ones() {
             let rr = ThinBlock::read_ref(self.data_file, b as u64, self.data_block_size)?;
             let mut gen = Generator::new();
-            if !gen.verify_buffer(self.seed ^ self.salts[b], &rr.data)? {
+            if !gen.verify_buffer(self.salts[b], &rr.data)? {
                 return Err(anyhow!("data verify failed for data block {}", b));
             }
         }
