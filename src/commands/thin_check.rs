@@ -1,9 +1,11 @@
 use clap::Arg;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
+use crate::report::*;
 use crate::thin::check::{check, ThinCheckOptions};
 
 pub struct ThinCheckCommand;
@@ -91,7 +93,8 @@ impl<'a> Command<'a> for ThinCheckCommand {
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        // let report = mk_report(matches.is_present("QUIET"));
+        let report = Arc::new(mk_simple_report());
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
         check_not_xml(input_file, &report);
