@@ -70,7 +70,9 @@ impl ProgressReporter {
             inner.nr_read_errors, inner.nr_write_errors
         ));
 
-        let percent = (inner.nr_copied * 100) / inner.nr_blocks;
+        let percent = (inner.nr_copied * 100)
+            .checked_div(inner.nr_blocks)
+            .unwrap_or(100);
         self.report.progress(percent as u8);
     }
 

@@ -231,6 +231,25 @@ impl WritebackTest {
         nr_origin_blocks: u64,
         metadata_version: u32,
     ) -> Result<()> {
+        self.format_metadata_with(
+            cache_block_size,
+            nr_cache_blocks,
+            nr_origin_blocks,
+            metadata_version,
+            80,
+            50,
+        )
+    }
+
+    fn format_metadata_with(
+        &mut self,
+        cache_block_size: usize,
+        nr_cache_blocks: u32,
+        nr_origin_blocks: u64,
+        metadata_version: u32,
+        percent_resident: u32,
+        percent_dirty: u32,
+    ) -> Result<()> {
         self.cache_block_size = cache_block_size;
         self.nr_cache_blocks = nr_cache_blocks;
         self.nr_origin_blocks = nr_origin_blocks;
@@ -242,6 +261,8 @@ impl WritebackTest {
         let nr_cblocks = nr_cache_blocks.to_string();
         let nr_oblocks = nr_origin_blocks.to_string();
         let version = metadata_version.to_string();
+        let percent_resident = percent_resident.to_string();
+        let percent_dirty = percent_dirty.to_string();
 
         run_ok(cache_generate_metadata_cmd(args![
             "--format",
@@ -254,7 +275,11 @@ impl WritebackTest {
             "--nr-origin-blocks",
             &nr_oblocks,
             "--metadata-version",
-            &version
+            &version,
+            "--percent-resident",
+            &percent_resident,
+            "--percent-dirty",
+            &percent_dirty
         ]))?;
 
         Ok(())
@@ -534,6 +559,37 @@ mod format1 {
 
         Ok(())
     }
+
+    #[test]
+    fn no_dirty_blocks() -> Result<()> {
+        let cache_block_size: usize = 32768; // 32 KiB
+        let nr_cache_blocks: u32 = 1024;
+        let nr_origin_blocks: u64 = 4096;
+
+        let mut t = WritebackTest::new()?;
+        t.format_metadata_with(
+            cache_block_size,
+            nr_cache_blocks,
+            nr_origin_blocks,
+            1,
+            80,
+            0,
+        )?;
+        t.stamp_cache_blocks()?;
+        t.stamp_origin_blocks()?;
+        t.writeback(false)?;
+
+        let (rmap, dirty_bits) =
+            format1::read_rmap_and_dirty_bits(&t.metadata_dev, t.nr_cache_blocks)?;
+        let indicator = Box::new(DirtySourceIndicator::new(
+            rmap,
+            dirty_bits,
+            t.nr_origin_blocks,
+        ));
+        t.verify(indicator)?;
+
+        Ok(())
+    }
 }
 
 //------------------------------------------
@@ -710,6 +766,37 @@ mod format2 {
                 return Err(anyhow!("dirty bitset is not cleared"));
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn no_dirty_blocks() -> Result<()> {
+        let cache_block_size: usize = 32768; // 32 KiB
+        let nr_cache_blocks: u32 = 1024;
+        let nr_origin_blocks: u64 = 4096;
+
+        let mut t = WritebackTest::new()?;
+        t.format_metadata_with(
+            cache_block_size,
+            nr_cache_blocks,
+            nr_origin_blocks,
+            2,
+            80,
+            0,
+        )?;
+        t.stamp_cache_blocks()?;
+        t.stamp_origin_blocks()?;
+        t.writeback(false)?;
+
+        let rmap = format2::read_rmap(&t.metadata_dev)?;
+        let dirty_bits = format2::read_dirty_bits(&t.metadata_dev, t.nr_cache_blocks)?;
+        let indicator = Box::new(DirtySourceIndicator::new(
+            rmap,
+            dirty_bits,
+            t.nr_origin_blocks,
+        ));
+        t.verify(indicator)?;
 
         Ok(())
     }
