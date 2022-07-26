@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Context, Result};
 use roaring::RoaringBitmap;
-use std::alloc::{alloc, dealloc, Layout};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -13,6 +12,7 @@ use std::sync::RwLock;
 use std::thread;
 
 use crate::checksum::*;
+use crate::io_engine::buffer::*;
 use crate::io_engine::*;
 use crate::pack::node_encode::*;
 use crate::run_iter::*;
@@ -25,46 +25,6 @@ use crate::run_iter::*;
 /// space map), compresses them and caches them in memory.  This
 /// greatly speeds up performance but obviously uses a lot of memory.
 /// Writes or reads to blocks not in the space map fall back to sync io.
-
-//------------------------------------------
-
-// Because we use O_DIRECT we need to use page aligned blocks.  Buffer
-// manages allocation of this aligned memory.
-struct Buffer {
-    size: usize,
-    align: usize,
-    data: *mut u8,
-}
-
-impl Buffer {
-    fn new(size: usize, align: usize) -> Self {
-        let layout = Layout::from_size_align(size, align).unwrap();
-        let ptr = unsafe { alloc(layout) };
-        assert!(!ptr.is_null(), "out of memory");
-
-        Self {
-            size,
-            align,
-            data: ptr,
-        }
-    }
-
-    pub fn get_data<'a>(&self) -> &'a mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut::<'a>(self.data, self.size) }
-    }
-}
-
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        let layout = Layout::from_size_align(self.size, self.align).unwrap();
-        unsafe {
-            dealloc(self.data, layout);
-        }
-    }
-}
-
-unsafe impl Send for Buffer {}
-unsafe impl Sync for Buffer {}
 
 //------------------------------------------
 
