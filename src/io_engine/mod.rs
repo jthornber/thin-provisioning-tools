@@ -1,8 +1,8 @@
 pub mod base;
-pub mod spindle;
-pub mod sync;
 pub mod buffer;
 pub mod copier;
+pub mod spindle;
+pub mod sync;
 pub mod sync_copier;
 pub mod utils;
 

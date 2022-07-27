@@ -16,7 +16,7 @@ use crate::common::test_dir::TestDir;
 pub fn mk_valid_xml(td: &mut TestDir) -> Result<PathBuf> {
     let xml = td.mk_path("meta.xml");
     // bs, cblocks, oblocks, res, dirty, version, hotspot_size
-    let mut gen = CacheGenerator::new(512, 128, 1024, 80, 50, 2, 16); 
+    let mut gen = CacheGenerator::new(512, 128, 1024, 80, 50, 2, 16);
     write_xml(&xml, &mut gen)?;
     Ok(xml)
 }

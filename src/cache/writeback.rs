@@ -641,8 +641,8 @@ fn copy_dirty_blocks(
     let copy_thread = {
         let progress = progress.clone();
         let cleaned = cleaned.clone();
-        thread::spawn(move || loop {
-            if let Ok(ops) = rx.recv() {
+        thread::spawn(move || {
+            while let Ok(ops) = rx.recv() {
                 {
                     // We assume the copies will succeed, and then remove
                     // entries that failed afterwards.
@@ -665,8 +665,6 @@ fn copy_dirty_blocks(
                         cleaned.remove((op.src / block_size as u64) as u32);
                     }
                 }
-            } else {
-                break;
             }
         })
     };
