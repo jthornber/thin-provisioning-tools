@@ -31,7 +31,7 @@ struct Op {
     indexes: Vec<usize>,
 }
 
-fn aggregate_ops<'a>(ops: &[Op]) -> Vec<Op> {
+fn aggregate_ops(ops: &[Op]) -> Vec<Op> {
     let mut r = Vec::with_capacity(ops.len());
 
     let mut last: Option<Op> = None;
@@ -106,8 +106,7 @@ impl SyncCopier {
         let mut success_bits = RoaringBitmap::new();
 
         // Split the buffer up into block size chunks
-        let mut bufs: Vec<Option<&mut [u8]>> =
-            buffer.chunks_mut(block_size).map(|buf| Some(buf)).collect();
+        let mut bufs: Vec<Option<&mut [u8]>> = buffer.chunks_mut(block_size).map(Some).collect();
 
         let mut reads = Vec::with_capacity(ops.len());
         for (buffer_index, op) in ops.iter().enumerate() {
@@ -140,6 +139,7 @@ impl SyncCopier {
             let results = read_blocks(&*src, &mut iovec[..], pos);
 
             // check results
+            #[allow(clippy::single_match)]
             match results {
                 Ok(results) => {
                     for (i, v) in results.iter().enumerate() {
@@ -168,7 +168,7 @@ impl SyncCopier {
         let mut success_bits = RoaringBitmap::new();
 
         // Split the buffer up into block size chunks
-        let mut bufs: Vec<Option<&[u8]>> = buffer.chunks(block_size).map(|buf| Some(buf)).collect();
+        let mut bufs: Vec<Option<&[u8]>> = buffer.chunks(block_size).map(Some).collect();
 
         let mut writes = Vec::with_capacity(ops.len());
         for (buffer_index, op) in ops.iter().enumerate() {
@@ -204,6 +204,7 @@ impl SyncCopier {
             let results = write_blocks(&*dst, &iovec[..], pos);
 
             // check results
+            #[allow(clippy::single_match)]
             match results {
                 Ok(results) => {
                     for (i, v) in results.iter().enumerate() {
@@ -255,9 +256,9 @@ impl Copier for SyncCopier {
 
                 if write_success.len() != read_success.len() {
                     let mut stats = stats.write().unwrap();
-                    for i in 0..ops.len() {
+                    for (i, op) in ops.iter().enumerate() {
                         if read_success.contains(i as u32) && !write_success.contains(i as u32) {
-                            stats.write_errors.push(ops[i].clone());
+                            stats.write_errors.push(*op);
                         }
                     }
                 }
@@ -274,7 +275,7 @@ impl Copier for SyncCopier {
         let chunk_size = self.buffer_size / self.block_size;
         for chunk in ops.chunks(chunk_size as usize) {
             let buffer_size = chunk.len() * self.block_size as usize;
-            let ops: Vec<CopyOp> = chunk.iter().cloned().collect();
+            let ops: Vec<CopyOp> = chunk.to_vec();
             let buffer = Buffer::new(buffer_size, 4096);
             let read_success = SyncCopier::do_reads(
                 &self.src,
@@ -287,9 +288,9 @@ impl Copier for SyncCopier {
             if read_success.len() as u32 != ops.len() as u32 {
                 // We had some errors, iterate through to find which ones.
                 let mut stats = stats.write().unwrap();
-                for i in 0..ops.len() {
+                for (i, op) in ops.iter().enumerate() {
                     if !read_success.contains(i as u32) {
-                        stats.read_errors.push(ops[i].clone());
+                        stats.read_errors.push(*op);
                     }
                 }
             }

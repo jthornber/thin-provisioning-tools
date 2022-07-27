@@ -39,4 +39,3 @@ unsafe impl Send for Buffer {}
 unsafe impl Sync for Buffer {}
 
 //------------------------------------------
-

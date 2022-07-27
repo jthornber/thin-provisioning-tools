@@ -124,7 +124,7 @@ impl MetadataGenerator for CacheGenerator {
             data: crate::cache::hint::Hint::default().hint.to_vec(),
         };
 
-        cblocks.sort();
+        cblocks.sort_unstable();
         v.hints_b()?;
         for cblock in cblocks {
             hint.cblock = cblock;

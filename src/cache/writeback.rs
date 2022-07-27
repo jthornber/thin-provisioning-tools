@@ -70,7 +70,9 @@ impl ProgressReporter {
             inner.nr_read_errors, inner.nr_write_errors
         ));
 
-        let percent = (inner.nr_copied * 100) / inner.nr_blocks;
+        let percent = (inner.nr_copied * 100)
+            .checked_div(inner.nr_blocks)
+            .unwrap_or(100);
         self.report.progress(percent as u8);
     }
 
@@ -422,8 +424,10 @@ impl BitsetUpdater {
 
     fn next_bitmap(&mut self) -> anyhow::Result<()> {
         if let Some(bb) = self.current_block.take() {
-            let bit_begin = bb.bit_begin + bb.block.values.len();
-            self.current_block = Some(self.read_bits(bb.bitmap_index + 1, bit_begin)?);
+            let next_index = bb.bitmap_index + 1;
+            let bit_begin = bb.bit_begin + bb.block.values.len() * BITS_PER_WORD;
+            self.write_bits(bb)?;
+            self.current_block = Some(self.read_bits(next_index, bit_begin)?);
         } else {
             self.current_block = Some(self.read_bits(0, 0)?);
         }
@@ -434,7 +438,9 @@ impl BitsetUpdater {
     fn get_bitmap(&mut self, bit: usize) -> anyhow::Result<()> {
         loop {
             if let Some(bb) = &self.current_block {
-                if bb.bit_begin <= bit && (bb.bit_begin + bb.block.values.len() > bit) {
+                if bb.bit_begin <= bit
+                    && (bb.bit_begin + bb.block.values.len() * BITS_PER_WORD > bit)
+                {
                     break;
                 }
             }
@@ -641,14 +647,14 @@ fn copy_dirty_blocks(
     let copy_thread = {
         let progress = progress.clone();
         let cleaned = cleaned.clone();
-        thread::spawn(move || loop {
-            if let Ok(ops) = rx.recv() {
+        thread::spawn(move || {
+            while let Ok(ops) = rx.recv() {
                 {
                     // We assume the copies will succeed, and then remove
                     // entries that failed afterwards.
                     let mut cleaned = cleaned.lock().unwrap();
                     for op in &ops {
-                        cleaned.insert((op.src / block_size as u64) as u32);
+                        cleaned.insert(op.src as u32);
                     }
                 }
 
@@ -658,15 +664,13 @@ fn copy_dirty_blocks(
                 {
                     let mut cleaned = cleaned.lock().unwrap();
                     for op in stats.read_errors {
-                        cleaned.remove((op.src / block_size as u64) as u32);
+                        cleaned.remove(op.src as u32);
                     }
 
                     for op in stats.write_errors {
-                        cleaned.remove((op.src / block_size as u64) as u32);
+                        cleaned.remove(op.src as u32);
                     }
                 }
-            } else {
-                break;
             }
         })
     };
