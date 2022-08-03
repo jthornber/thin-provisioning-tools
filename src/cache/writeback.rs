@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use roaring::RoaringBitmap;
+use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,6 +14,7 @@ use crate::checksum;
 use crate::commands::engine::*;
 use crate::io_engine::copier::*;
 use crate::io_engine::sync_copier::*;
+use crate::io_engine::utils::VectoredBlockIo;
 use crate::io_engine::{self, *};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
@@ -624,14 +626,14 @@ fn copy_dirty_blocks(
     let block_size = sb.data_block_size * 512;
 
     // Prepare the copier
-    let mut copier = SyncCopier::new(
+    let mut copier = SyncCopier::<VectoredBlockIo<File>>::from_path(
         opts.buffer_size.unwrap_or(128 * 1024) * 512,
         block_size as usize,
         opts.fast_dev,
-        opts.fast_dev_offset.unwrap_or(0) * 512,
         opts.origin_dev,
-        opts.origin_dev_offset.unwrap_or(0) * 512,
-    )?;
+    )?
+    .src_offset(opts.fast_dev_offset.unwrap_or(0) * 512)?
+    .dest_offset(opts.origin_dev_offset.unwrap_or(0) * 512)?;
 
     // We pass work to the copy thread via a sync channel with a limit
     // of a single entry, this allows us to prepare one vector of copy ops
@@ -711,6 +713,13 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
 
     if sb.version > 2 {
         return Err(anyhow!("unsupported metadata version: {}", sb.version));
+    }
+
+    // must be a multiple of page size because we use O_DIRECT
+    if !is_page_aligned(opts.fast_dev_offset.unwrap_or(0) * 512)
+        || !is_page_aligned(opts.origin_dev_offset.unwrap_or(0) * 512)
+    {
+        return Err(anyhow!("offsets must be page aligned"));
     }
 
     match copy_dirty_blocks(&ctx, &sb, &opts) {

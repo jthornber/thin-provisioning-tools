@@ -11,16 +11,17 @@ use std::thread;
 
 use crate::io_engine::buffer::*;
 use crate::io_engine::copier::*;
+use crate::io_engine::is_page_aligned;
 use crate::io_engine::utils::*;
 
 //-------------------------------------
 
-pub struct SyncCopier {
+pub struct SyncCopier<T: ReadBlocks + WriteBlocks + Send> {
     buffer_size: usize,
     block_size: usize,
-    src: Arc<Mutex<File>>,
+    src: Arc<Mutex<T>>,
     src_offset: u64,
-    dst: Arc<Mutex<File>>,
+    dst: Arc<Mutex<T>>,
     dst_offset: u64,
 }
 
@@ -57,47 +58,42 @@ fn aggregate_ops(ops: &[Op]) -> Vec<Op> {
     r
 }
 
-impl SyncCopier {
-    pub fn new<P: AsRef<Path>>(
-        buffer_size: usize,
-        block_size: usize,
-        src: P,
-        src_offset: u64,
-        dst: P,
-        dst_offset: u64,
-    ) -> Result<Self> {
-        // must be a multiple of page size because we use O_DIRECT
-        assert_eq!(buffer_size % 4096, 0);
-        assert_eq!(block_size % 4096, 0);
-        assert_eq!(src_offset % 4096, 0);
-        assert_eq!(dst_offset % 4096, 0);
-        assert!(block_size < buffer_size);
-
-        let src = OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_EXCL | libc::O_DIRECT)
-            .open(src.as_ref())?;
-
-        let dst = OpenOptions::new()
-            .read(false)
-            .write(true)
-            .custom_flags(libc::O_EXCL | libc::O_DIRECT)
-            .open(dst.as_ref())?;
+impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
+    pub fn new(buffer_size: usize, block_size: usize, src: T, dst: T) -> Result<SyncCopier<T>> {
+        if block_size > buffer_size {
+            return Err(anyhow!("buffer size too small"));
+        }
 
         Ok(Self {
-            buffer_size: buffer_size / 2,
+            buffer_size,
             block_size,
             src: Arc::new(Mutex::new(src)),
-            src_offset,
+            src_offset: 0,
             dst: Arc::new(Mutex::new(dst)),
-            dst_offset,
+            dst_offset: 0,
         })
+    }
+
+    pub fn src_offset(mut self, offset: u64) -> Result<SyncCopier<T>> {
+        if !is_page_aligned(offset) {
+            return Err(anyhow!("offset must be page aligned"));
+        }
+        self.src_offset = offset;
+        Ok(self)
+    }
+
+    pub fn dest_offset(mut self, offset: u64) -> Result<SyncCopier<T>> {
+        if !is_page_aligned(offset) {
+            return Err(anyhow!("offset must be page aligned"));
+        }
+        self.dst_offset = offset;
+        Ok(self)
     }
 
     // Returns a bitset that indicates whether the read succeeded for
     // that op (true == succeeded).
     fn do_reads(
-        src: &Arc<Mutex<File>>,
+        src: &Arc<Mutex<T>>,
         offset: u64,
         block_size: usize,
         ops: &[CopyOp],
@@ -136,7 +132,7 @@ impl SyncCopier {
 
             // issue io
             let pos = (op.block_begin * block_size as u64) + offset;
-            let results = read_blocks(&*src, &mut iovec[..], pos);
+            let results = src.read_blocks(&mut iovec[..], pos);
 
             // check results
             #[allow(clippy::single_match)]
@@ -158,7 +154,7 @@ impl SyncCopier {
     }
 
     fn do_writes(
-        dst: &Arc<Mutex<File>>,
+        dst: &Arc<Mutex<T>>,
         offset: u64,
         block_size: usize,
         ops: &[CopyOp],
@@ -201,7 +197,7 @@ impl SyncCopier {
 
             // issue io
             let pos = (op.block_begin * block_size as u64) + offset;
-            let results = write_blocks(&*dst, &iovec[..], pos);
+            let results = dst.write_blocks(&iovec[..], pos);
 
             // check results
             #[allow(clippy::single_match)]
@@ -223,7 +219,34 @@ impl SyncCopier {
     }
 }
 
-impl Copier for SyncCopier {
+impl<T: ReadBlocks + WriteBlocks + From<File> + Send> SyncCopier<T> {
+    pub fn from_path<P: AsRef<Path>>(
+        buffer_size: usize,
+        block_size: usize,
+        src: P,
+        dst: P,
+    ) -> Result<SyncCopier<T>> {
+        // must be a multiple of page size because we use O_DIRECT
+        if !is_page_aligned(block_size as u64) || !is_page_aligned(buffer_size as u64) {
+            return Err(anyhow!("block size must be page aligned"));
+        }
+
+        let src_file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+            .open(src)?;
+
+        let dst_file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+            .open(dst)?;
+
+        SyncCopier::<T>::new(buffer_size, block_size, src_file.into(), dst_file.into())
+    }
+}
+
+impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
     fn copy(
         &mut self,
         ops: &[CopyOp],
@@ -277,7 +300,7 @@ impl Copier for SyncCopier {
             let buffer_size = chunk.len() * self.block_size as usize;
             let ops: Vec<CopyOp> = chunk.to_vec();
             let buffer = Buffer::new(buffer_size, 4096);
-            let read_success = SyncCopier::do_reads(
+            let read_success = Self::do_reads(
                 &self.src,
                 self.src_offset,
                 self.block_size,

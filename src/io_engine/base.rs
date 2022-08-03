@@ -1,15 +1,19 @@
 use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
+use std::fs::File;
 use std::io::{self, Result};
+use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use crate::file_utils;
 
 //------------------------------------------
 
+pub const PAGE_SIZE: usize = 4096;
+pub const PAGE_SHIFT: usize = 12;
 pub const BLOCK_SIZE: usize = 4096;
 pub const SECTOR_SHIFT: usize = 9;
-const ALIGN: usize = 4096;
+const ALIGN: usize = PAGE_SIZE;
 
 #[derive(Debug)]
 pub struct Block {
@@ -74,6 +78,12 @@ impl AsMut<[u8]> for Block {
 
 //------------------------------------------
 
+pub fn is_page_aligned(v: u64) -> bool {
+    v & (PAGE_SIZE as u64 - 1) == 0
+}
+
+//------------------------------------------
+
 pub trait IoEngine: Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
@@ -97,3 +107,33 @@ pub fn get_nr_blocks<P: AsRef<Path>>(path: P) -> io::Result<u64> {
 }
 
 //------------------------------------------
+
+pub trait VectoredIo {
+    fn read_vectored_at(&self, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize>;
+    fn write_vectored_at(&self, bufs: &[libc::iovec], pos: u64) -> io::Result<usize>;
+}
+
+impl VectoredIo for File {
+    fn read_vectored_at(&self, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize> {
+        let ptr = bufs.as_ptr();
+        let ret =
+            match unsafe { libc::preadv64(self.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) } {
+                -1 => return Err(io::Error::last_os_error()),
+                n => n,
+            };
+        Ok(ret as usize)
+    }
+
+    fn write_vectored_at(&self, bufs: &[libc::iovec], pos: u64) -> io::Result<usize> {
+        let ptr = bufs.as_ptr();
+        let ret = match unsafe {
+            libc::pwritev64(self.as_raw_fd(), ptr, bufs.len() as i32, pos as i64)
+        } {
+            -1 => return Err(io::Error::last_os_error()),
+            n => n,
+        };
+        Ok(ret as usize)
+    }
+}
+
+//-------------------------------------
