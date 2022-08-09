@@ -3,6 +3,9 @@ use iovec::{unix, IoVec};
 
 use crate::io_engine::VectoredIo;
 
+#[cfg(test)]
+mod tests;
+
 //-------------------------------------
 
 pub trait ReadBlocks {
