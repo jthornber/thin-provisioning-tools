@@ -640,21 +640,19 @@ fn copy_dirty_blocks(
     // in advance, but no more.
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
 
-    let cleaned = Arc::new(Mutex::new(RoaringBitmap::new()));
-
     // launch the copy thread
     let selector = mk_selector(ctx.engine.clone(), sb)?;
     let nr_blocks = selector.get_nr_to_writeback();
     let progress = Arc::new(ProgressReporter::new(ctx.report.clone(), nr_blocks as u64));
     let copy_thread = {
         let progress = progress.clone();
-        let cleaned = cleaned.clone();
         thread::spawn(move || {
+            let mut cleaned = RoaringBitmap::new();
+
             while let Ok(ops) = rx.recv() {
                 {
                     // We assume the copies will succeed, and then remove
                     // entries that failed afterwards.
-                    let mut cleaned = cleaned.lock().unwrap();
                     for op in &ops {
                         cleaned.insert(op.src as u32);
                     }
@@ -664,7 +662,6 @@ fn copy_dirty_blocks(
                 progress.inc_stats(&stats);
 
                 {
-                    let mut cleaned = cleaned.lock().unwrap();
                     for op in stats.read_errors {
                         cleaned.remove(op.src as u32);
                     }
@@ -674,6 +671,8 @@ fn copy_dirty_blocks(
                     }
                 }
             }
+
+            cleaned
         })
     };
 
@@ -686,13 +685,9 @@ fn copy_dirty_blocks(
     let _walk_err = w.walk(&batcher, sb.mapping_root);
 
     let dirty_ablocks = batcher.complete()?;
-    copy_thread.join().unwrap();
+    let cleaned = copy_thread.join().unwrap();
 
-    Ok((
-        progress.stats(),
-        Arc::try_unwrap(cleaned).unwrap().into_inner().unwrap(),
-        dirty_ablocks,
-    ))
+    Ok((progress.stats(), cleaned, dirty_ablocks))
 }
 
 fn report_stats(report: Arc<Report>, stats: &WritebackStats) {
