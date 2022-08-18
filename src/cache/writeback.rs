@@ -19,7 +19,7 @@ use crate::io_engine::{self, *};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::read_bitset;
-use crate::pdata::btree_walker::btree_to_map;
+use crate::pdata::btree_walker::*;
 use crate::report::Report;
 
 //-----------------------------------------
@@ -275,7 +275,6 @@ struct CopyOpBatcher_ {
     batch_size: usize,
     ops: Vec<CopyOp>,
     tx: SyncSender<Vec<CopyOp>>,
-    dirty_ablocks: RoaringBitmap,
 }
 
 impl CopyOpBatcher_ {
@@ -284,7 +283,6 @@ impl CopyOpBatcher_ {
             batch_size,
             ops: Vec::with_capacity(batch_size),
             tx,
-            dirty_ablocks: RoaringBitmap::new(),
         }
     }
 
@@ -311,9 +309,9 @@ impl CopyOpBatcher_ {
     }
 
     /// Send the current batch and return the dirty ablocks bitmap.
-    fn complete(&mut self) -> anyhow::Result<RoaringBitmap> {
+    fn complete(&mut self) -> anyhow::Result<()> {
         self.send_ops()?;
-        Ok(std::mem::take(&mut self.dirty_ablocks))
+        Ok(())
     }
 }
 
@@ -334,8 +332,7 @@ impl CopyOpBatcher {
         }
     }
 
-    /// Returns the dirty_ablocks bitmap
-    fn complete(self) -> anyhow::Result<RoaringBitmap> {
+    fn complete(self) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().unwrap();
         inner.complete()
     }
@@ -349,7 +346,6 @@ impl ArrayVisitor<Mapping> for CopyOpBatcher {
         let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.into_iter().zip(cbegin..cend) {
             if m.is_valid() && self.selector.needs_writeback(cblock, &m) {
-                inner.dirty_ablocks.insert(index as u32);
                 let src = cblock as u64;
                 let dst = m.oblock;
                 inner
@@ -504,11 +500,10 @@ fn update_metadata(
     ctx: &Context,
     sb: &Superblock,
     cleaned_blocks: &RoaringBitmap,
-    dirty_ablocks: &RoaringBitmap,
 ) -> anyhow::Result<()> {
     ctx.report.set_title("Updating metadata");
     match sb.version {
-        1 => update_v1_metadata(ctx, sb, cleaned_blocks, dirty_ablocks),
+        1 => update_v1_metadata(ctx, sb, cleaned_blocks),
         2 => update_v2_metadata(ctx, sb, cleaned_blocks),
         v => Err(anyhow!("unsupported metadata version: {}", v)),
     }
@@ -518,55 +513,46 @@ fn update_v1_metadata(
     ctx: &Context,
     sb: &Superblock,
     cleaned_blocks: &RoaringBitmap,
-    dirty_ablocks: &RoaringBitmap,
 ) -> anyhow::Result<()> {
     let mut path = Vec::new();
-    let ablocks = btree_to_map::<u64>(&mut path, ctx.engine.clone(), true, sb.mapping_root)?;
-
-    // paranoia
-    let mut visited_ablocks = RoaringBitmap::new();
-
+    let ablocks = btree_to_value_vec::<u64>(&mut path, ctx.engine.clone(), true, sb.mapping_root)?;
+    let max_entries = array::calc_max_entries::<Mapping>();
     path.clear();
-    for (index, blocknr) in ablocks.iter() {
-        if !dirty_ablocks.contains(*index as u32) {
-            continue;
-        } else {
-            visited_ablocks.insert(*index as u32);
-        }
 
-        let b = ctx.engine.read(*blocknr)?;
-        let mut ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
+    let mut index = 0;
+    let mut b = ctx.engine.read(ablocks[index])?;
+    let mut ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
+    let mut needs_update = false;
 
-        let mut needs_update = false;
-        let cbegin = *index as u32 * ablock.header.max_entries;
-        let cend = cbegin + ablock.header.nr_entries;
-        for (m, cblock) in ablock.values.iter_mut().zip(cbegin..cend) {
-            if !cleaned_blocks.contains(cblock as u32) {
-                continue;
+    for cblock in cleaned_blocks.iter() {
+        if cblock as usize / max_entries as usize != index {
+            if needs_update {
+                // update array block
+                let mut cursor = Cursor::new(b.get_data());
+                pack_array_block(&ablock, &mut cursor)?;
+                checksum::write_checksum(b.get_data(), checksum::BT::ARRAY)?;
+                ctx.engine.write(&b)?;
             }
-            m.set_dirty(false);
-            needs_update = true;
+
+            // move on to the new array block
+            index = cblock as usize / max_entries as usize;
+            b = ctx.engine.read(ablocks[index])?;
+            ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
         }
 
-        // no update if no successful writebacks
-        if !needs_update {
-            continue;
-        }
+        ablock.values[cblock as usize % max_entries].set_dirty(false);
+        needs_update = true;
+    }
 
+    if needs_update {
+        // update array block
         let mut cursor = Cursor::new(b.get_data());
         pack_array_block(&ablock, &mut cursor)?;
         checksum::write_checksum(b.get_data(), checksum::BT::ARRAY)?;
-
         ctx.engine.write(&b)?;
     }
 
-    if visited_ablocks != *dirty_ablocks {
-        Err(anyhow!(
-            "internal error: mismatch between visited and dirty ablocks"
-        ))
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 fn update_v2_metadata(
@@ -622,7 +608,7 @@ fn copy_dirty_blocks(
     ctx: &Context,
     sb: &Superblock,
     opts: &CacheWritebackOptions,
-) -> anyhow::Result<(WritebackStats, RoaringBitmap, RoaringBitmap)> {
+) -> anyhow::Result<(WritebackStats, RoaringBitmap)> {
     let block_size = sb.data_block_size * 512;
 
     // Prepare the copier
@@ -684,10 +670,10 @@ fn copy_dirty_blocks(
     // FIXME: do something with this
     let _walk_err = w.walk(&batcher, sb.mapping_root);
 
-    let dirty_ablocks = batcher.complete()?;
+    batcher.complete()?;
     let cleaned = copy_thread.join().unwrap();
 
-    Ok((progress.stats(), cleaned, dirty_ablocks))
+    Ok((progress.stats(), cleaned))
 }
 
 fn report_stats(report: Arc<Report>, stats: &WritebackStats) {
@@ -726,10 +712,10 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
             }
             return Err(anyhow!("Metadata contains errors"));
         }
-        Ok((stats, cleaned, dirty_ablocks)) => {
+        Ok((stats, cleaned)) => {
             report_stats(ctx.report.clone(), &stats);
             if opts.update_metadata {
-                update_metadata(&ctx, &sb, &cleaned, &dirty_ablocks)?;
+                update_metadata(&ctx, &sb, &cleaned)?;
             }
 
             if stats.nr_copied != stats.nr_blocks {
