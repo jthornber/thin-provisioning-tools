@@ -309,7 +309,7 @@ impl CopyOpBatcher_ {
     }
 
     /// Send the current batch and return the dirty ablocks bitmap.
-    fn complete(&mut self) -> anyhow::Result<()> {
+    fn complete(mut self) -> anyhow::Result<()> {
         self.send_ops()?;
         Ok(())
     }
@@ -333,7 +333,7 @@ impl CopyOpBatcher {
     }
 
     fn complete(self) -> anyhow::Result<()> {
-        let mut inner = self.inner.lock().unwrap();
+        let inner = self.inner.into_inner().unwrap();
         inner.complete()
     }
 }
