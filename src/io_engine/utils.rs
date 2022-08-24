@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use iovec::{unix, IoVec};
+use std::os::unix::fs::FileExt;
 
 use crate::io_engine::VectoredIo;
 
@@ -96,6 +97,52 @@ impl<T: VectoredIo> WriteBlocks for VectoredBlockIo<T> {
                 os_bufs = &os_bufs[1..];
                 results.push(Err(anyhow!("read failed")));
             }
+        }
+
+        Ok(results)
+    }
+}
+
+//-------------------------------------
+
+pub struct SimpleBlockIo<T> {
+    dev: T,
+}
+
+impl<T: FileExt> From<T> for SimpleBlockIo<T> {
+    fn from(dev: T) -> SimpleBlockIo<T> {
+        SimpleBlockIo { dev }
+    }
+}
+
+impl<T: FileExt> ReadBlocks for SimpleBlockIo<T> {
+    fn read_blocks(&self, buffers: &mut [&mut [u8]], mut pos: u64) -> Result<Vec<Result<()>>> {
+        let mut results = Vec::with_capacity(buffers.len());
+
+        for buf in buffers.iter_mut() {
+            let r = self
+                .dev
+                .read_exact_at(buf, pos)
+                .map_err(|_| anyhow!("read failed"));
+            results.push(r);
+            pos += buf.len() as u64;
+        }
+
+        Ok(results)
+    }
+}
+
+impl<T: FileExt> WriteBlocks for SimpleBlockIo<T> {
+    fn write_blocks(&self, buffers: &[&[u8]], mut pos: u64) -> Result<Vec<Result<()>>> {
+        let mut results = Vec::with_capacity(buffers.len());
+
+        for buf in buffers {
+            let r = self
+                .dev
+                .write_all_at(buf, pos)
+                .map_err(|_| anyhow!("write failed"));
+            results.push(r);
+            pos += buf.len() as u64;
         }
 
         Ok(results)

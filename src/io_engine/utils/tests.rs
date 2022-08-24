@@ -240,3 +240,124 @@ mod vectored_io {
 }
 
 //-------------------------------------
+
+mod simple_io {
+    use super::*;
+
+    struct SimpleIoValidator {
+        faulty_blocks: RoaringBitmap,
+    }
+
+    impl SimpleIoValidator {
+        fn new(faulty_blocks: RoaringBitmap) -> Self {
+            Self { faulty_blocks }
+        }
+    }
+
+    impl Validator for SimpleIoValidator {
+        fn validate(&self, blocks: Range<u64>, results: &[anyhow::Result<()>]) {
+            let nr_blocks = length(&blocks) as usize;
+            assert_eq!(results.len(), nr_blocks);
+
+            for (b, r) in blocks.zip(results) {
+                if self.faulty_blocks.contains(b as u32) {
+                    assert!(r.is_err());
+                } else {
+                    assert!(r.is_ok());
+                }
+            }
+        }
+    }
+
+    impl From<RoaringBitmap> for SimpleIoValidator {
+        fn from(faulty_blocks: RoaringBitmap) -> SimpleIoValidator {
+            SimpleIoValidator::new(faulty_blocks)
+        }
+    }
+
+    fn to_simple_test(
+        ctx: TestContext,
+    ) -> ReadWriteTest<SimpleBlockIo<Ramdisk>, SimpleIoValidator> {
+        let block_size = ctx.get_block_size() as usize;
+        let validator = SimpleIoValidator::from(ctx.faulty_blocks);
+        ReadWriteTest::new(SimpleBlockIo::from(ctx.disk), block_size, validator)
+    }
+
+    //-------------------------------------
+
+    #[test]
+    fn read_from_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty(0..512);
+
+        let t = to_simple_test(ctx);
+        t.test_read(0..4);
+    }
+
+    #[test]
+    fn read_overlap_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty(BLOCK_SIZE..BLOCK_SIZE + 512);
+
+        let t = to_simple_test(ctx);
+        t.test_read(0..4);
+    }
+
+    #[test]
+    fn read_until_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty((RAMDISK_SIZE - 512)..RAMDISK_SIZE);
+
+        let t = to_simple_test(ctx);
+        let nr_blocks = RAMDISK_SIZE / BLOCK_SIZE;
+        t.test_read(0..nr_blocks as u64);
+    }
+
+    #[test]
+    fn read_before_the_faulty_block_should_success() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty((RAMDISK_SIZE - 4096)..RAMDISK_SIZE);
+
+        let t = to_simple_test(ctx);
+        t.test_read(0..4);
+    }
+
+    #[test]
+    fn write_to_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty(0..512);
+
+        let t = to_simple_test(ctx);
+        t.test_write(0..4);
+    }
+
+    #[test]
+    fn write_overlap_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty(BLOCK_SIZE..BLOCK_SIZE + 512);
+
+        let t = to_simple_test(ctx);
+        t.test_write(0..4);
+    }
+
+    #[test]
+    fn write_until_the_faulty_block() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty((RAMDISK_SIZE - 512)..RAMDISK_SIZE);
+
+        let t = to_simple_test(ctx);
+        let nr_blocks = RAMDISK_SIZE / BLOCK_SIZE;
+        t.test_write(0..nr_blocks as u64);
+    }
+
+    #[test]
+    fn write_before_the_faulty_block_should_success() {
+        let mut ctx = TestContext::new(RAMDISK_SIZE, BLOCK_SIZE);
+        ctx.set_faulty((RAMDISK_SIZE - 4096)..RAMDISK_SIZE);
+
+        let t = to_simple_test(ctx);
+        t.test_write(0..4);
+    }
+}
+
+//-------------------------------------
