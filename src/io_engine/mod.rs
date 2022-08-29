@@ -1,6 +1,7 @@
 pub mod base;
 pub mod buffer;
 pub mod copier;
+pub mod rescue_copier;
 pub mod spindle;
 pub mod sync;
 pub mod sync_copier;

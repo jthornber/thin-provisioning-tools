@@ -13,6 +13,7 @@ use crate::cache::superblock::*;
 use crate::checksum;
 use crate::commands::engine::*;
 use crate::io_engine::copier::*;
+use crate::io_engine::rescue_copier::*;
 use crate::io_engine::sync_copier::*;
 use crate::io_engine::utils::{SimpleBlockIo, VectoredBlockIo};
 use crate::io_engine::{self, *};
@@ -585,6 +586,7 @@ pub struct CacheWritebackOptions<'a> {
     pub buffer_size: Option<usize>,     // sectors
     pub list_failed_blocks: bool,
     pub update_metadata: bool,
+    pub retry_count: u32,
     pub report: Arc<Report>,
 }
 
@@ -648,6 +650,24 @@ fn copy_dirty_blocks(
         (c, read_failed, write_failed) =
             copy_selected_blocks(ctx.engine.clone(), sb, copier, &failed, ctx.report.clone())?;
         cleaned |= c;
+    }
+
+    // Retry failed block
+    let mut retries = 0;
+    while (!read_failed.is_empty() || !write_failed.is_empty()) && retries < opts.retry_count {
+        let copier = Box::new(
+            RescueCopier::<File>::from_path(block_size as usize, opts.fast_dev, opts.origin_dev)?
+                .src_offset(fast_dev_offset)?
+                .dest_offset(origin_dev_offset)?,
+        );
+
+        let failed = &read_failed | &write_failed;
+        let c;
+        (c, read_failed, write_failed) =
+            copy_selected_blocks(ctx.engine.clone(), sb, copier, &failed, ctx.report.clone())?;
+        cleaned |= c;
+
+        retries += 1;
     }
 
     let stats = WritebackStats {

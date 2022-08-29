@@ -75,6 +75,13 @@ impl CacheWritebackCommand {
                     .help("Specify the size for the data cache, in megabytes")
                     .long("buffer-size-meg")
                     .value_name("MB"),
+            )
+            .arg(
+                Arg::new("RETRY_COUNT")
+                    .help("Specify how many times to retry data copying on failed data block")
+                    .long("retry-count")
+                    .value_name("CNT")
+                    .default_value("0"),
             );
         engine_args(cmd)
     }
@@ -120,6 +127,7 @@ impl<'a> Command<'a> for CacheWritebackCommand {
                 .map(|v| v * 2048),
             list_failed_blocks: matches.is_present("LIST_FAILED_BLOCKS"),
             update_metadata: !matches.is_present("NO_METADATA_UPDATE"),
+            retry_count: matches.value_of_t_or_exit::<u32>("RETRY_COUNT"),
             report: report.clone(),
         };
 
