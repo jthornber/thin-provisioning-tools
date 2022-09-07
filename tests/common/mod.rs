@@ -12,7 +12,6 @@ pub mod input_arg;
 pub mod output_option;
 pub mod process;
 pub mod program;
-pub mod random;
 pub mod target;
 pub mod test_dir;
 pub mod thin;

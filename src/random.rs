@@ -60,4 +60,10 @@ impl Generator {
     }
 }
 
+impl Default for Generator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 //------------------------------------
