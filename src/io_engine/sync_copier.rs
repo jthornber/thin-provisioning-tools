@@ -14,6 +14,9 @@ use crate::io_engine::copier::*;
 use crate::io_engine::is_page_aligned;
 use crate::io_engine::utils::*;
 
+#[cfg(test)]
+mod tests;
+
 //-------------------------------------
 
 pub struct SyncCopier<T: ReadBlocks + WriteBlocks + Send> {

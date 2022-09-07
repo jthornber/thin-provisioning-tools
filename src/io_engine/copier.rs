@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 pub type Block = u64;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CopyOp {
     pub src: Block,
     pub dst: Block,
