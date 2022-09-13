@@ -29,3 +29,6 @@ pub mod units;
 pub mod version;
 pub mod write_batcher;
 pub mod xml;
+
+#[cfg(any(test, feature = "devtools"))]
+pub mod random;

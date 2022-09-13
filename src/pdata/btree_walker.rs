@@ -626,6 +626,56 @@ pub fn btree_to_key_set<V: Unpack + Copy>(
 
 //------------------------------------------
 
+struct ValueVecCollector<V> {
+    values: Mutex<Vec<V>>,
+}
+
+impl<V> ValueVecCollector<V> {
+    fn new() -> ValueVecCollector<V> {
+        ValueVecCollector {
+            values: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+// FIXME: should we be using Copy rather than clone? (Yes)
+impl<V: Unpack + Copy> NodeVisitor<V> for ValueVecCollector<V> {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        _keys: &[u64],
+        values: &[V],
+    ) -> Result<()> {
+        let mut vals = self.values.lock().unwrap();
+        vals.extend_from_slice(values);
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn btree_to_value_vec<V: Unpack + Copy>(
+    path: &mut Vec<u64>,
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    ignore_non_fatal: bool,
+    root: u64,
+) -> Result<Vec<V>> {
+    let walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let visitor = ValueVecCollector::<V>::new();
+    walker.walk(path, &visitor, root)?;
+    Ok(visitor.values.into_inner().unwrap())
+}
+
+//------------------------------------------
+
 struct NoopVisitor<V> {
     dummy: std::marker::PhantomData<V>,
 }

@@ -11,72 +11,23 @@ use std::sync::{Arc, Mutex};
 use thinp::cache::mapping::*;
 use thinp::cache::superblock::*;
 use thinp::file_utils::create_sized_file;
+use thinp::io_engine::test_utils::*;
 use thinp::io_engine::{SyncIoEngine, SECTOR_SHIFT};
 use thinp::mempool::Buffer;
 use thinp::pdata::array::{self, *};
 use thinp::pdata::array_walker::*;
 use thinp::pdata::bitset::read_bitset_no_err;
+use thinp::random::Generator;
 
 mod common;
 
 use common::process::*;
-use common::random::Generator;
 use common::target::*;
 use common::test_dir::*;
 
 //------------------------------------------
 
 const CACHE_SALT: u64 = 0xA825C613B704D0E1;
-
-trait BlockVisitor {
-    fn visit(&mut self, blocknr: u64) -> Result<()>;
-}
-
-fn visit_blocks(nr_blocks: u64, v: &mut dyn BlockVisitor) -> Result<()> {
-    for b in 0..nr_blocks {
-        v.visit(b)?;
-    }
-    Ok(())
-}
-
-//------------------------------------------
-
-struct Stamper {
-    dev: File,
-    block_size: usize, // bytes
-    seed: u64,
-    buf: Buffer,
-    offset: u64, // bytes
-}
-
-impl Stamper {
-    fn new(dev: File, seed: u64, block_size: usize) -> Result<Self> {
-        let buf = Buffer::new(block_size)?;
-        Ok(Self {
-            dev,
-            block_size,
-            seed,
-            buf,
-            offset: 0,
-        })
-    }
-
-    fn set_offset(&mut self, offset: u64) -> Result<()> {
-        self.offset = offset;
-        Ok(())
-    }
-}
-
-impl BlockVisitor for Stamper {
-    fn visit(&mut self, blocknr: u64) -> Result<()> {
-        let mut gen = Generator::new();
-        gen.fill_buffer(self.seed ^ blocknr, self.buf.get_data())?;
-
-        let offset = blocknr * self.block_size as u64 + self.offset;
-        self.dev.write_all_at(self.buf.get_data(), offset)?;
-        Ok(())
-    }
-}
 
 //------------------------------------------
 
@@ -162,9 +113,9 @@ impl WritebackVerifier {
         })
     }
 
-    fn set_offset(&mut self, offset: u64) -> Result<()> {
+    fn offset(mut self, offset: u64) -> Self {
         self.offset = offset;
-        Ok(())
+        self
     }
 }
 
@@ -315,8 +266,8 @@ impl WritebackTest {
             self.nr_cache_blocks as u64 * self.cache_block_size as u64 + self.fast_dev_offset;
         let file = create_sized_file(&self.fast_dev, cache_size)?;
 
-        let mut stamper = Stamper::new(file, self.seed ^ CACHE_SALT, self.cache_block_size)?;
-        stamper.set_offset(self.fast_dev_offset)?;
+        let mut stamper = Stamper::new(file, self.seed ^ CACHE_SALT, self.cache_block_size)
+            .offset(self.fast_dev_offset);
         visit_blocks(self.nr_cache_blocks as u64, &mut stamper)?;
 
         Ok(())
@@ -327,8 +278,8 @@ impl WritebackTest {
             self.nr_origin_blocks * self.cache_block_size as u64 + self.origin_dev_offset;
         let file = create_sized_file(&self.origin_dev, origin_dev_size)?;
 
-        let mut stamper = Stamper::new(file, self.seed, self.cache_block_size)?;
-        stamper.set_offset(self.origin_dev_offset)?;
+        let mut stamper =
+            Stamper::new(file, self.seed, self.cache_block_size).offset(self.origin_dev_offset);
         visit_blocks(self.nr_origin_blocks, &mut stamper)?;
 
         Ok(())
@@ -377,8 +328,8 @@ impl WritebackTest {
             .open(&self.origin_dev)?;
 
         let mut verifier =
-            WritebackVerifier::new(file, self.cache_block_size, self.seed, indicator)?;
-        verifier.set_offset(self.origin_dev_offset)?;
+            WritebackVerifier::new(file, self.cache_block_size, self.seed, indicator)?
+                .offset(self.origin_dev_offset);
         visit_blocks(self.nr_origin_blocks, &mut verifier)?;
 
         Ok(())

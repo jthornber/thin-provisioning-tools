@@ -6,13 +6,13 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use thinp::file_utils;
+use thinp::random::Generator;
 use thinp::thin::ir::{self, MetadataVisitor, Visit};
 use thinp::thin::xml;
 
 mod common;
 
 use common::process::*;
-use common::random::Generator;
 use common::target::*;
 use common::test_dir::*;
 use common::thin::*;

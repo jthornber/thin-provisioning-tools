@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use roaring::RoaringBitmap;
+use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,12 +13,14 @@ use crate::cache::superblock::*;
 use crate::checksum;
 use crate::commands::engine::*;
 use crate::io_engine::copier::*;
+use crate::io_engine::rescue_copier::*;
 use crate::io_engine::sync_copier::*;
+use crate::io_engine::utils::{SimpleBlockIo, VectoredBlockIo};
 use crate::io_engine::{self, *};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::read_bitset;
-use crate::pdata::btree_walker::btree_to_map;
+use crate::pdata::btree_walker::*;
 use crate::report::Report;
 
 //-----------------------------------------
@@ -33,7 +36,7 @@ struct WritebackStats {
     /// Number of read errors
     nr_read_errors: u64,
 
-    // Number of write errors
+    /// Number of write errors
     nr_write_errors: u64,
 }
 
@@ -77,7 +80,7 @@ impl ProgressReporter {
     }
 
     /// Accessor for the current stats
-    fn stats(&self) -> WritebackStats {
+    fn _stats(&self) -> WritebackStats {
         let inner = self.inner.lock().unwrap();
         (*inner).clone()
     }
@@ -273,7 +276,6 @@ struct CopyOpBatcher_ {
     batch_size: usize,
     ops: Vec<CopyOp>,
     tx: SyncSender<Vec<CopyOp>>,
-    dirty_ablocks: RoaringBitmap,
 }
 
 impl CopyOpBatcher_ {
@@ -282,7 +284,6 @@ impl CopyOpBatcher_ {
             batch_size,
             ops: Vec::with_capacity(batch_size),
             tx,
-            dirty_ablocks: RoaringBitmap::new(),
         }
     }
 
@@ -309,9 +310,9 @@ impl CopyOpBatcher_ {
     }
 
     /// Send the current batch and return the dirty ablocks bitmap.
-    fn complete(&mut self) -> anyhow::Result<RoaringBitmap> {
+    fn complete(mut self) -> anyhow::Result<()> {
         self.send_ops()?;
-        Ok(std::mem::take(&mut self.dirty_ablocks))
+        Ok(())
     }
 }
 
@@ -332,9 +333,8 @@ impl CopyOpBatcher {
         }
     }
 
-    /// Returns the dirty_ablocks bitmap
-    fn complete(self) -> anyhow::Result<RoaringBitmap> {
-        let mut inner = self.inner.lock().unwrap();
+    fn complete(self) -> anyhow::Result<()> {
+        let inner = self.inner.into_inner().unwrap();
         inner.complete()
     }
 }
@@ -347,7 +347,6 @@ impl ArrayVisitor<Mapping> for CopyOpBatcher {
         let cend = cbegin + b.header.nr_entries;
         for (m, cblock) in b.values.into_iter().zip(cbegin..cend) {
             if m.is_valid() && self.selector.needs_writeback(cblock, &m) {
-                inner.dirty_ablocks.insert(index as u32);
                 let src = cblock as u64;
                 let dst = m.oblock;
                 inner
@@ -502,11 +501,10 @@ fn update_metadata(
     ctx: &Context,
     sb: &Superblock,
     cleaned_blocks: &RoaringBitmap,
-    dirty_ablocks: &RoaringBitmap,
 ) -> anyhow::Result<()> {
     ctx.report.set_title("Updating metadata");
     match sb.version {
-        1 => update_v1_metadata(ctx, sb, cleaned_blocks, dirty_ablocks),
+        1 => update_v1_metadata(ctx, sb, cleaned_blocks),
         2 => update_v2_metadata(ctx, sb, cleaned_blocks),
         v => Err(anyhow!("unsupported metadata version: {}", v)),
     }
@@ -516,55 +514,46 @@ fn update_v1_metadata(
     ctx: &Context,
     sb: &Superblock,
     cleaned_blocks: &RoaringBitmap,
-    dirty_ablocks: &RoaringBitmap,
 ) -> anyhow::Result<()> {
     let mut path = Vec::new();
-    let ablocks = btree_to_map::<u64>(&mut path, ctx.engine.clone(), true, sb.mapping_root)?;
-
-    // paranoia
-    let mut visited_ablocks = RoaringBitmap::new();
-
+    let ablocks = btree_to_value_vec::<u64>(&mut path, ctx.engine.clone(), true, sb.mapping_root)?;
+    let max_entries = array::calc_max_entries::<Mapping>();
     path.clear();
-    for (index, blocknr) in ablocks.iter() {
-        if !dirty_ablocks.contains(*index as u32) {
-            continue;
-        } else {
-            visited_ablocks.insert(*index as u32);
-        }
 
-        let b = ctx.engine.read(*blocknr)?;
-        let mut ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
+    let mut index = 0;
+    let mut b = ctx.engine.read(ablocks[index])?;
+    let mut ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
+    let mut needs_update = false;
 
-        let mut needs_update = false;
-        let cbegin = *index as u32 * ablock.header.max_entries;
-        let cend = cbegin + ablock.header.nr_entries;
-        for (m, cblock) in ablock.values.iter_mut().zip(cbegin..cend) {
-            if !cleaned_blocks.contains(cblock as u32) {
-                continue;
+    for cblock in cleaned_blocks.iter() {
+        if cblock as usize / max_entries as usize != index {
+            if needs_update {
+                // update array block
+                let mut cursor = Cursor::new(b.get_data());
+                pack_array_block(&ablock, &mut cursor)?;
+                checksum::write_checksum(b.get_data(), checksum::BT::ARRAY)?;
+                ctx.engine.write(&b)?;
             }
-            m.set_dirty(false);
-            needs_update = true;
+
+            // move on to the new array block
+            index = cblock as usize / max_entries as usize;
+            b = ctx.engine.read(ablocks[index])?;
+            ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
         }
 
-        // no update if no successful writebacks
-        if !needs_update {
-            continue;
-        }
+        ablock.values[cblock as usize % max_entries].set_dirty(false);
+        needs_update = true;
+    }
 
+    if needs_update {
+        // update array block
         let mut cursor = Cursor::new(b.get_data());
         pack_array_block(&ablock, &mut cursor)?;
         checksum::write_checksum(b.get_data(), checksum::BT::ARRAY)?;
-
         ctx.engine.write(&b)?;
     }
 
-    if visited_ablocks != *dirty_ablocks {
-        Err(anyhow!(
-            "internal error: mismatch between visited and dirty ablocks"
-        ))
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 fn update_v2_metadata(
@@ -597,6 +586,7 @@ pub struct CacheWritebackOptions<'a> {
     pub buffer_size: Option<usize>,     // sectors
     pub list_failed_blocks: bool,
     pub update_metadata: bool,
+    pub retry_count: u32,
     pub report: Arc<Report>,
 }
 
@@ -620,39 +610,102 @@ fn copy_dirty_blocks(
     ctx: &Context,
     sb: &Superblock,
     opts: &CacheWritebackOptions,
-) -> anyhow::Result<(WritebackStats, RoaringBitmap, RoaringBitmap)> {
+) -> anyhow::Result<(WritebackStats, RoaringBitmap)> {
+    ctx.report.set_title("Copying cache blocks");
     let block_size = sb.data_block_size * 512;
+    let fast_dev_offset = opts.fast_dev_offset.unwrap_or(0) * 512;
+    let origin_dev_offset = opts.origin_dev_offset.unwrap_or(0) * 512;
 
-    // Prepare the copier
-    let mut copier = SyncCopier::new(
-        opts.buffer_size.unwrap_or(128 * 1024) * 512,
-        block_size as usize,
-        opts.fast_dev,
-        opts.fast_dev_offset.unwrap_or(0) * 512,
-        opts.origin_dev,
-        opts.origin_dev_offset.unwrap_or(0) * 512,
-    )?;
+    // Copy all the dirty blocks
+    let (nr_blocks, mut cleaned, mut read_failed, mut write_failed) = {
+        let copier = Box::new(
+            SyncCopier::<VectoredBlockIo<File>>::from_path(
+                opts.buffer_size.unwrap_or(128 * 1024) * 512,
+                block_size as usize,
+                opts.fast_dev,
+                opts.origin_dev,
+            )?
+            .src_offset(fast_dev_offset)?
+            .dest_offset(origin_dev_offset)?,
+        );
+
+        copy_all_dirty_blocks(ctx.engine.clone(), sb, copier, ctx.report.clone())?
+    };
+
+    // Retry blocks ignoed by vectored io
+    if !read_failed.is_empty() || !write_failed.is_empty() {
+        let copier = Box::new(
+            SyncCopier::<SimpleBlockIo<File>>::from_path(
+                opts.buffer_size.unwrap_or(128 * 1024) * 512,
+                block_size as usize,
+                opts.fast_dev,
+                opts.origin_dev,
+            )?
+            .src_offset(fast_dev_offset)?
+            .dest_offset(origin_dev_offset)?,
+        );
+
+        let failed = &read_failed | &write_failed;
+        let c;
+        (c, read_failed, write_failed) =
+            copy_selected_blocks(ctx.engine.clone(), sb, copier, &failed, ctx.report.clone())?;
+        cleaned |= c;
+    }
+
+    // Retry failed block
+    let mut retries = 0;
+    while (!read_failed.is_empty() || !write_failed.is_empty()) && retries < opts.retry_count {
+        let copier = Box::new(
+            RescueCopier::<File>::from_path(block_size as usize, opts.fast_dev, opts.origin_dev)?
+                .src_offset(fast_dev_offset)?
+                .dest_offset(origin_dev_offset)?,
+        );
+
+        let failed = &read_failed | &write_failed;
+        let c;
+        (c, read_failed, write_failed) =
+            copy_selected_blocks(ctx.engine.clone(), sb, copier, &failed, ctx.report.clone())?;
+        cleaned |= c;
+
+        retries += 1;
+    }
+
+    let stats = WritebackStats {
+        nr_blocks: nr_blocks as u64,
+        nr_copied: cleaned.len(),
+        nr_read_errors: read_failed.len(),
+        nr_write_errors: write_failed.len(),
+    };
+
+    Ok((stats, cleaned))
+}
+
+fn copy_all_dirty_blocks(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    mut copier: Box<dyn Copier + Send>,
+    report: Arc<Report>,
+) -> anyhow::Result<(u32, RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
+    let selector = mk_selector(engine.clone(), sb)?;
+    let nr_blocks = selector.get_nr_to_writeback();
+    let progress = Arc::new(ProgressReporter::new(report, nr_blocks as u64));
 
     // We pass work to the copy thread via a sync channel with a limit
     // of a single entry, this allows us to prepare one vector of copy ops
     // in advance, but no more.
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
 
-    let cleaned = Arc::new(Mutex::new(RoaringBitmap::new()));
-
     // launch the copy thread
-    let selector = mk_selector(ctx.engine.clone(), sb)?;
-    let nr_blocks = selector.get_nr_to_writeback();
-    let progress = Arc::new(ProgressReporter::new(ctx.report.clone(), nr_blocks as u64));
     let copy_thread = {
-        let progress = progress.clone();
-        let cleaned = cleaned.clone();
         thread::spawn(move || {
+            let mut cleaned = RoaringBitmap::new();
+            let mut read_failed = RoaringBitmap::new();
+            let mut write_failed = RoaringBitmap::new();
+
             while let Ok(ops) = rx.recv() {
                 {
                     // We assume the copies will succeed, and then remove
                     // entries that failed afterwards.
-                    let mut cleaned = cleaned.lock().unwrap();
                     for op in &ops {
                         cleaned.insert(op.src as u32);
                     }
@@ -662,35 +715,107 @@ fn copy_dirty_blocks(
                 progress.inc_stats(&stats);
 
                 {
-                    let mut cleaned = cleaned.lock().unwrap();
                     for op in stats.read_errors {
                         cleaned.remove(op.src as u32);
+                        read_failed.insert(op.src as u32);
                     }
 
                     for op in stats.write_errors {
                         cleaned.remove(op.src as u32);
+                        write_failed.insert(op.src as u32);
                     }
                 }
             }
+
+            (cleaned, read_failed, write_failed)
         })
     };
 
     // Build batches of copy operations and pass them to the copy thread
-    ctx.report.set_title("Copying cache blocks");
     let batcher = CopyOpBatcher::new(1_000_000, tx, selector);
-    let w = ArrayWalker::new(ctx.engine.clone(), true);
+    let w = ArrayWalker::new(engine, true);
 
     // FIXME: do something with this
     let _walk_err = w.walk(&batcher, sb.mapping_root);
 
-    let dirty_ablocks = batcher.complete()?;
-    copy_thread.join().unwrap();
+    batcher.complete()?;
+    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap();
 
-    Ok((
-        progress.stats(),
-        Arc::try_unwrap(cleaned).unwrap().into_inner().unwrap(),
-        dirty_ablocks,
-    ))
+    Ok((nr_blocks, cleaned, read_failed, write_failed))
+}
+
+fn copy_selected_blocks(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    mut copier: Box<dyn Copier + Send>,
+    blocks: &RoaringBitmap,
+    report: Arc<Report>,
+) -> anyhow::Result<(RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
+    let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
+    let progress = Arc::new(ProgressReporter::new(report, blocks.len() as u64));
+
+    let copy_thread = {
+        thread::spawn(move || {
+            let mut cleaned = RoaringBitmap::new();
+            let mut read_failed = RoaringBitmap::new();
+            let mut write_failed = RoaringBitmap::new();
+
+            while let Ok(ops) = rx.recv() {
+                {
+                    // We assume the copies will succeed, and then remove
+                    // entries that failed afterwards.
+                    for op in &ops {
+                        cleaned.insert(op.src as u32);
+                    }
+                }
+
+                let stats = copier.copy(&ops, progress.clone()).expect("copy failed");
+                progress.inc_stats(&stats);
+
+                {
+                    for op in stats.read_errors {
+                        cleaned.remove(op.src as u32);
+                        read_failed.insert(op.src as u32);
+                    }
+
+                    for op in stats.write_errors {
+                        cleaned.remove(op.src as u32);
+                        write_failed.insert(op.src as u32);
+                    }
+                }
+            }
+
+            (cleaned, read_failed, write_failed)
+        })
+    };
+
+    let mut batcher = CopyOpBatcher_::new(1_000_000, tx);
+
+    let ablocks = btree_to_value_vec::<u64>(&mut vec![0], engine.clone(), true, sb.mapping_root)?;
+    let entries_per_block = array::calc_max_entries::<Mapping>();
+    let mut index = 0;
+    let b = engine.read(ablocks[index])?;
+    let mut ablock = unpack_array_block::<Mapping>(&[ablocks[index]], b.get_data())?;
+    for cblock in blocks.iter() {
+        if cblock as usize / entries_per_block != index {
+            index = cblock as usize / entries_per_block;
+            let b = engine.read(ablocks[index])?;
+            ablock = unpack_array_block::<Mapping>(&[ablocks[index]], b.get_data())?;
+        }
+
+        let m = ablock.values[cblock as usize % entries_per_block];
+        let op = CopyOp {
+            src: cblock as u64,
+            dst: m.oblock,
+        };
+
+        batcher.push(op)?;
+    }
+
+    batcher.complete()?;
+    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap();
+
+    Ok((cleaned, read_failed, write_failed))
 }
 
 fn report_stats(report: Arc<Report>, stats: &WritebackStats) {
@@ -713,6 +838,13 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
         return Err(anyhow!("unsupported metadata version: {}", sb.version));
     }
 
+    // must be a multiple of page size because we use O_DIRECT
+    if !is_page_aligned(opts.fast_dev_offset.unwrap_or(0) * 512)
+        || !is_page_aligned(opts.origin_dev_offset.unwrap_or(0) * 512)
+    {
+        return Err(anyhow!("offsets must be page aligned"));
+    }
+
     match copy_dirty_blocks(&ctx, &sb, &opts) {
         Err(_) => {
             ctx.report
@@ -722,10 +854,10 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
             }
             return Err(anyhow!("Metadata contains errors"));
         }
-        Ok((stats, cleaned, dirty_ablocks)) => {
+        Ok((stats, cleaned)) => {
             report_stats(ctx.report.clone(), &stats);
             if opts.update_metadata {
-                update_metadata(&ctx, &sb, &cleaned, &dirty_ablocks)?;
+                update_metadata(&ctx, &sb, &cleaned)?;
             }
 
             if stats.nr_copied != stats.nr_blocks {
