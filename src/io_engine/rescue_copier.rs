@@ -11,6 +11,9 @@ use crate::io_engine::buffer::*;
 use crate::io_engine::copier::*;
 use crate::io_engine::{is_page_aligned, PAGE_SHIFT, PAGE_SIZE};
 
+#[cfg(test)]
+mod tests;
+
 //-------------------------------------
 
 pub struct RescueCopier<T: FileExt> {
