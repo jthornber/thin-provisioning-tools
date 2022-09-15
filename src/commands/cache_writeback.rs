@@ -4,6 +4,7 @@ use std::path::Path;
 
 use std::sync::Arc;
 
+use crate::cache::check::{check, CacheCheckOptions};
 use crate::cache::writeback::{writeback, CacheWritebackOptions};
 use crate::commands::engine::*;
 use crate::commands::utils::*;
@@ -111,14 +112,35 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         check_input_file(origin_dev, &report);
         check_input_file(fast_dev, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
-        if engine_opts.is_err() {
-            return to_exit_code(&report, engine_opts);
+        let engine_opts = match parse_engine_opts(ToolType::Cache, &matches) {
+            Ok(opt) => opt,
+            Err(_) => return exitcode::USAGE,
+        };
+
+        let check_opts = CacheCheckOptions {
+            dev: metadata_dev,
+            engine_opts: engine_opts.clone(),
+            sb_only: false,
+            skip_mappings: false,
+            skip_hints: false,
+            skip_discards: false,
+            ignore_non_fatal: false,
+            auto_repair: false,
+            clear_needs_check: false,
+            report: report.clone(),
+        };
+
+        if check(check_opts).is_err() {
+            report.fatal(
+                "metadata contains errors (run cache_check for details).\n\
+                perhaps you need to run cache_repair.",
+            );
+            return exitcode::DATAERR;
         }
 
         let opts = CacheWritebackOptions {
             metadata_dev,
-            engine_opts: engine_opts.unwrap(),
+            engine_opts,
             origin_dev,
             fast_dev,
             origin_dev_offset: optional_value_or_exit::<u64>(&matches, "ORIGIN_DEV_OFFSET"),
