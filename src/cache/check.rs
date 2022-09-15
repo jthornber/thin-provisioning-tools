@@ -349,6 +349,13 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         }
     }
 
+    let outcome = ctx.report.get_outcome();
+    if outcome == ReportOutcome::Fatal
+        || (outcome == ReportOutcome::NonFatal && opts.ignore_non_fatal)
+    {
+        return Err(anyhow!("metadata contains errors"));
+    }
+
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let metadata_leaks = check_metadata_space_map(
         engine.clone(),
