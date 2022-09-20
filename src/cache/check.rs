@@ -259,7 +259,7 @@ struct Context {
 
 fn mk_context(opts: &CacheCheckOptions) -> anyhow::Result<Context> {
     let engine = EngineBuilder::new(opts.dev, &opts.engine_opts)
-        .write(opts.auto_repair)
+        .write(opts.auto_repair | opts.clear_needs_check)
         .exclusive(!opts.engine_opts.use_metadata_snap)
         .build()?;
 

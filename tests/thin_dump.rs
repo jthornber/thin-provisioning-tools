@@ -98,6 +98,8 @@ test_input_file_not_found!(ThinDump);
 test_input_cannot_be_a_directory!(ThinDump);
 test_unreadable_input_file!(ThinDump);
 
+test_readonly_input_file!(ThinDump);
+
 //------------------------------------------
 // test dump & restore cycle
 

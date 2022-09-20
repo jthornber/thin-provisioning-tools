@@ -92,6 +92,8 @@ test_input_file_not_found!(CacheDump);
 test_input_cannot_be_a_directory!(CacheDump);
 test_unreadable_input_file!(CacheDump);
 
+test_readonly_input_file!(CacheDump);
+
 //------------------------------------------
 
 // TODO: share with thin_dump

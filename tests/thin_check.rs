@@ -121,6 +121,8 @@ test_help_message_for_tiny_input_file!(ThinCheck);
 test_spot_xml_data!(ThinCheck);
 test_corrupted_input_data!(ThinCheck);
 
+test_readonly_input_file!(ThinCheck);
+
 //------------------------------------------
 // test exclusive flags
 

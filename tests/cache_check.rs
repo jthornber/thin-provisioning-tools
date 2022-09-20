@@ -102,6 +102,8 @@ test_help_message_for_tiny_input_file!(CacheCheck);
 test_spot_xml_data!(CacheCheck);
 test_corrupted_input_data!(CacheCheck);
 
+test_readonly_input_file!(CacheCheck);
+
 //------------------------------------------
 
 #[test]

@@ -100,4 +100,6 @@ test_corrupted_input_data!(CacheRepair);
 
 test_missing_output_option!(CacheRepair);
 
+test_readonly_input_file!(CacheRepair);
+
 //-----------------------------------------
