@@ -20,7 +20,9 @@ pub struct WriteBatcher {
     batch_size: usize,
     queue: Vec<Block>,
 
-    // The allocations could be a hint of potentially modified blocks
+    // The allocations could be a hint of potentially modified blocks.
+    // The blocks in allocations doesn't necessarily have non-zero ref counts,
+    // if the caller returns the allocated blocks via SpaceMap::dec().
     allocations: RangeSet<u64>,
 }
 

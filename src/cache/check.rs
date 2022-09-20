@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::collections::BTreeSet;
+use fixedbitset::FixedBitSet;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -20,6 +20,9 @@ use crate::report::*;
 
 //------------------------------------------
 
+// 16m entries is capable for a 1TB cache with 64KB block size
+const DEFAULT_OBLOCKS: usize = 16777216;
+
 fn inc_superblock(sm: &ASpaceMap) -> anyhow::Result<()> {
     let mut sm = sm.lock().unwrap();
     sm.inc(SUPERBLOCK_LOCATION, 1)?;
@@ -33,18 +36,21 @@ mod format1 {
 
     pub struct MappingChecker {
         nr_origin_blocks: u64,
-        seen_oblocks: Mutex<BTreeSet<u64>>,
+        seen_oblocks: Mutex<FixedBitSet>,
     }
 
     impl MappingChecker {
         pub fn new(nr_origin_blocks: Option<u64>) -> MappingChecker {
-            MappingChecker {
-                nr_origin_blocks: if let Some(n) = nr_origin_blocks {
-                    n
-                } else {
-                    MAX_ORIGIN_BLOCKS
-                },
-                seen_oblocks: Mutex::new(BTreeSet::new()),
+            if let Some(n) = nr_origin_blocks {
+                MappingChecker {
+                    nr_origin_blocks: n,
+                    seen_oblocks: Mutex::new(FixedBitSet::with_capacity(n as usize)),
+                }
+            } else {
+                MappingChecker {
+                    nr_origin_blocks: MAX_ORIGIN_BLOCKS,
+                    seen_oblocks: Mutex::new(FixedBitSet::with_capacity(DEFAULT_OBLOCKS)),
+                }
             }
         }
 
@@ -76,10 +82,15 @@ mod format1 {
                 ));
             }
             let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
-            if seen_oblocks.contains(&m.oblock) {
+
+            if m.oblock as usize > seen_oblocks.len() {
+                seen_oblocks.grow(m.oblock as usize + 1);
+            } else if seen_oblocks.contains(m.oblock as usize) {
                 return Err(array::value_err("origin block already mapped".to_string()));
             }
-            seen_oblocks.insert(m.oblock);
+
+            seen_oblocks.insert(m.oblock as usize);
+
             Ok(())
         }
     }
@@ -116,22 +127,28 @@ mod format2 {
     }
 
     struct Inner {
-        seen_oblocks: BTreeSet<u64>,
+        seen_oblocks: FixedBitSet,
         dirty_bits: CheckedBitSet,
     }
 
     impl MappingChecker {
         pub fn new(nr_origin_blocks: Option<u64>, dirty_bits: CheckedBitSet) -> MappingChecker {
-            MappingChecker {
-                nr_origin_blocks: if let Some(n) = nr_origin_blocks {
-                    n
-                } else {
-                    MAX_ORIGIN_BLOCKS
-                },
-                inner: Mutex::new(Inner {
-                    seen_oblocks: BTreeSet::new(),
-                    dirty_bits,
-                }),
+            if let Some(n) = nr_origin_blocks {
+                MappingChecker {
+                    nr_origin_blocks: n,
+                    inner: Mutex::new(Inner {
+                        seen_oblocks: FixedBitSet::with_capacity(n as usize),
+                        dirty_bits,
+                    }),
+                }
+            } else {
+                MappingChecker {
+                    nr_origin_blocks: MAX_ORIGIN_BLOCKS,
+                    inner: Mutex::new(Inner {
+                        seen_oblocks: FixedBitSet::with_capacity(DEFAULT_OBLOCKS),
+                        dirty_bits,
+                    }),
+                }
             }
         }
 
@@ -150,7 +167,7 @@ mod format2 {
             Ok(())
         }
 
-        fn check_oblock(&self, m: &Mapping, seen_oblocks: &mut BTreeSet<u64>) -> array::Result<()> {
+        fn check_oblock(&self, m: &Mapping, seen_oblocks: &mut FixedBitSet) -> array::Result<()> {
             if !m.is_valid() {
                 if m.oblock > 0 {
                     return Err(array::value_err("invalid mapped block".to_string()));
@@ -162,10 +179,14 @@ mod format2 {
                     "mapping beyond end of the origin device".to_string(),
                 ));
             }
-            if seen_oblocks.contains(&m.oblock) {
+
+            if m.oblock as usize > seen_oblocks.len() {
+                seen_oblocks.grow(m.oblock as usize + 1);
+            } else if seen_oblocks.contains(m.oblock as usize) {
                 return Err(array::value_err("origin block already mapped".to_string()));
             }
-            seen_oblocks.insert(m.oblock);
+
+            seen_oblocks.insert(m.oblock as usize);
 
             Ok(())
         }
@@ -347,6 +368,13 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         if err.is_some() {
             ctx.report.fatal(&format!("{}", err.unwrap()));
         }
+    }
+
+    let outcome = ctx.report.get_outcome();
+    if outcome == ReportOutcome::Fatal
+        || (outcome == ReportOutcome::NonFatal && opts.ignore_non_fatal)
+    {
+        return Err(anyhow!("metadata contains errors"));
     }
 
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;

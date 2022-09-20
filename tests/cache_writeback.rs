@@ -12,7 +12,7 @@ use thinp::cache::mapping::*;
 use thinp::cache::superblock::*;
 use thinp::file_utils::create_sized_file;
 use thinp::io_engine::test_utils::*;
-use thinp::io_engine::{SyncIoEngine, SECTOR_SHIFT};
+use thinp::io_engine::{self, SyncIoEngine, SECTOR_SHIFT};
 use thinp::mempool::Buffer;
 use thinp::pdata::array::{self, *};
 use thinp::pdata::array_walker::*;
@@ -80,6 +80,14 @@ impl WritebackAllIndicator {
 impl SourceBlockIndicator for WritebackAllIndicator {
     fn source(&self, oblock: u64) -> Option<u32> {
         self.rmap.get(&oblock).copied()
+    }
+}
+
+struct NoopIndicator;
+
+impl SourceBlockIndicator for NoopIndicator {
+    fn source(&self, _oblock: u64) -> Option<u32> {
+        None
     }
 }
 
@@ -245,6 +253,20 @@ impl WritebackTest {
         Ok(())
     }
 
+    fn damage_metadata(&mut self) -> Result<()> {
+        // TODO: build a program like cache_generate_damage to create damage
+        let file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+            .open(&self.metadata_dev)?;
+
+        let b = io_engine::Block::zeroed(1);
+        file.write_all_at(b.get_data(), 4096)?; // break the second block
+
+        Ok(())
+    }
+
     fn set_fast_dev_offset(&mut self, offset: u64) -> Result<()> {
         if offset & (1 << SECTOR_SHIFT) != 0 {
             return Err(anyhow!("offset must be align to sectors"));
@@ -286,6 +308,14 @@ impl WritebackTest {
     }
 
     fn writeback(&self, update_metadata: bool) -> Result<()> {
+        self.writeback_(update_metadata, true)
+    }
+
+    fn writeback_fail(&self, update_metadata: bool) -> Result<()> {
+        self.writeback_(update_metadata, false)
+    }
+
+    fn writeback_(&self, update_metadata: bool, expect_ok: bool) -> Result<()> {
         use std::ffi::OsStr;
 
         let mut args = args![
@@ -314,7 +344,11 @@ impl WritebackTest {
             args.push(OsStr::new(&origin_dev_offset));
         }
 
-        run_ok(cache_writeback_cmd(args))?;
+        if expect_ok {
+            run_ok(cache_writeback_cmd(args))?;
+        } else {
+            run_fail(cache_writeback_cmd(args))?;
+        }
 
         Ok(())
     }
@@ -541,6 +575,23 @@ mod format1 {
 
         Ok(())
     }
+
+    #[test]
+    fn disallow_corrupted_metadata() -> Result<()> {
+        let cache_block_size: usize = 32768; // 32 KiB
+        let nr_cache_blocks: u32 = 1024;
+        let nr_origin_blocks: u64 = 4096;
+
+        let mut t = WritebackTest::new()?;
+        t.format_metadata(cache_block_size, nr_cache_blocks, nr_origin_blocks, 1)?;
+        t.stamp_cache_blocks()?;
+        t.stamp_origin_blocks()?;
+        t.damage_metadata()?;
+        t.writeback_fail(true)?;
+        t.verify(Box::new(NoopIndicator))?;
+
+        Ok(())
+    }
 }
 
 //------------------------------------------
@@ -701,7 +752,8 @@ mod format2 {
         t.stamp_origin_blocks()?;
         t.writeback(true)?;
 
-        // ensure the mappings are not affected by metadata update
+        // Do verification using the updated metadata, to ensure that
+        // the mappings are not affected by metadata update.
         let rmap = format2::read_rmap(&t.metadata_dev)?;
         let indicator = Box::new(DirtySourceIndicator::new(
             rmap,
@@ -710,7 +762,8 @@ mod format2 {
         ));
         t.verify(indicator)?;
 
-        // ensure dirty bits are cleared
+        // Do verification using the updated metadata, to ensure that
+        // the mappings are not affected by metadata update.
         let dirty_bits_upd = format2::read_dirty_bits(&t.metadata_dev, t.nr_cache_blocks)?;
         for v in dirty_bits_upd.as_slice() {
             if *v != 0 {
@@ -748,6 +801,23 @@ mod format2 {
             t.nr_origin_blocks,
         ));
         t.verify(indicator)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn disallow_corrupted_metadata() -> Result<()> {
+        let cache_block_size: usize = 32768; // 32 KiB
+        let nr_cache_blocks: u32 = 1024;
+        let nr_origin_blocks: u64 = 4096;
+
+        let mut t = WritebackTest::new()?;
+        t.format_metadata(cache_block_size, nr_cache_blocks, nr_origin_blocks, 2)?;
+        t.stamp_cache_blocks()?;
+        t.stamp_origin_blocks()?;
+        t.damage_metadata()?;
+        t.writeback_fail(true)?;
+        t.verify(Box::new(NoopIndicator))?;
 
         Ok(())
     }

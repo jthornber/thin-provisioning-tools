@@ -12,7 +12,7 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum EngineType {
     #[cfg(feature = "io_uring")]
     Async,
@@ -20,7 +20,7 @@ pub enum EngineType {
     Spindle,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ToolType {
     Thin,
     Cache,
@@ -28,6 +28,7 @@ pub enum ToolType {
     Other,
 }
 
+#[derive(Clone)]
 pub struct EngineOptions {
     pub tool: ToolType,
     pub engine_type: EngineType,

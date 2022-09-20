@@ -736,7 +736,7 @@ fn copy_all_dirty_blocks(
     let w = ArrayWalker::new(engine, true);
 
     // FIXME: do something with this
-    let _walk_err = w.walk(&batcher, sb.mapping_root);
+    w.walk(&batcher, sb.mapping_root)?;
 
     batcher.complete()?;
     let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap();
