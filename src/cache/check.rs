@@ -322,7 +322,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                 }
             }
             2 => {
-                let (dirty_bits, err) = read_bitset_with_sm(
+                let (dirty_bits, err) = read_bitset_checked_with_sm(
                     engine.clone(),
                     sb.dirty_root.unwrap(),
                     sb.cache_blocks as usize,
@@ -358,7 +358,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // The discard bitset might not be available if the cache has never been suspended,
     // e.g., a crash of freshly created cache.
     if !opts.skip_discards && sb.discard_root != 0 {
-        let (_discard_bits, err) = read_bitset_with_sm(
+        let (_discard_bits, err) = read_bitset_checked_with_sm(
             engine.clone(),
             sb.discard_root,
             sb.discard_nr_blocks as usize,

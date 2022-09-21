@@ -19,7 +19,7 @@ use crate::io_engine::utils::{SimpleBlockIo, VectoredBlockIo};
 use crate::io_engine::{self, *};
 use crate::pdata::array::{self, *};
 use crate::pdata::array_walker::*;
-use crate::pdata::bitset::read_bitset;
+use crate::pdata::bitset::read_bitset_checked;
 use crate::pdata::btree_walker::*;
 use crate::report::Report;
 
@@ -215,7 +215,7 @@ fn v2_read_dirty_bitset(
     engine: Arc<dyn IoEngine + Sync + Send>,
     sb: &Superblock,
 ) -> anyhow::Result<(u32, RoaringBitmap)> {
-    let (cbits, err) = read_bitset(
+    let (cbits, err) = read_bitset_checked(
         engine,
         sb.dirty_root.unwrap(),
         sb.cache_blocks as usize,

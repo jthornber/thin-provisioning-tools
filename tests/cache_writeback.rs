@@ -16,7 +16,7 @@ use thinp::io_engine::{self, SyncIoEngine, SECTOR_SHIFT};
 use thinp::mempool::Buffer;
 use thinp::pdata::array::{self, *};
 use thinp::pdata::array_walker::*;
-use thinp::pdata::bitset::read_bitset_no_err;
+use thinp::pdata::bitset::read_bitset;
 use thinp::random::Generator;
 
 mod common;
@@ -659,7 +659,7 @@ mod format2 {
         let engine = Arc::new(SyncIoEngine::new(metadata_dev, true)?);
         let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-        let dirty_bits = read_bitset_no_err(
+        let dirty_bits = read_bitset(
             engine,
             sb.dirty_root.unwrap(),
             nr_cache_blocks as usize,
