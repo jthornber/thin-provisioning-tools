@@ -4,7 +4,8 @@ use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::path::Path;
 use thread_local::ThreadLocal;
 
-use crate::mempool::Buffer;
+use crate::io_engine::buffer::Buffer;
+use crate::io_engine::PAGE_SIZE;
 
 //-----------------------------------------
 
@@ -55,7 +56,7 @@ impl SyncCopier {
     }
 
     pub fn copy(&self, src: u64, dest: u64, len: u64) -> io::Result<()> {
-        let buf = self.buffer.get_or_try(|| Buffer::new(BATCH_SIZE))?;
+        let buf = self.buffer.get_or(|| Buffer::new(BATCH_SIZE, PAGE_SIZE));
 
         let mut written = 0;
         while len - written >= BATCH_SIZE as u64 {

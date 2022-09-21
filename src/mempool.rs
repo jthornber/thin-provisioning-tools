@@ -4,7 +4,7 @@ use std::io;
 
 //-----------------------------------------
 
-pub struct SendPtr(pub *mut u8);
+struct SendPtr(pub *mut u8);
 
 unsafe impl Send for SendPtr {}
 unsafe impl Sync for SendPtr {}
@@ -13,13 +13,13 @@ unsafe impl Sync for SendPtr {}
 
 const ALIGN: usize = 4096;
 
-pub struct Buffer {
-    pub data: SendPtr,
-    pub len: usize,
+struct Buffer {
+    data: SendPtr,
+    len: usize,
 }
 
 impl Buffer {
-    pub fn new(len: usize) -> io::Result<Buffer> {
+    fn new(len: usize) -> io::Result<Buffer> {
         let layout = Layout::from_size_align(len, ALIGN).unwrap();
         let ptr = unsafe { alloc(layout) };
         if ptr.is_null() {
@@ -29,10 +29,6 @@ impl Buffer {
             data: SendPtr(ptr),
             len,
         })
-    }
-
-    pub fn get_data<'a>(&self) -> &'a mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut::<'a>(self.data.0, self.len) }
     }
 }
 

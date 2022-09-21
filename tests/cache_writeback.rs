@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex};
 use thinp::cache::mapping::*;
 use thinp::cache::superblock::*;
 use thinp::file_utils::create_sized_file;
+use thinp::io_engine::buffer::Buffer;
 use thinp::io_engine::test_utils::*;
-use thinp::io_engine::{self, SyncIoEngine, SECTOR_SHIFT};
-use thinp::mempool::Buffer;
+use thinp::io_engine::{self, SyncIoEngine, PAGE_SIZE, SECTOR_SHIFT};
 use thinp::pdata::array::{self, *};
 use thinp::pdata::array_walker::*;
 use thinp::pdata::bitset::read_bitset;
@@ -109,7 +109,7 @@ impl WritebackVerifier {
         seed: u64,
         indicator: Box<dyn SourceBlockIndicator>,
     ) -> Result<Self> {
-        let buf = Buffer::new(block_size)?;
+        let buf = Buffer::new(block_size, PAGE_SIZE);
 
         Ok(Self {
             origin_dev,
