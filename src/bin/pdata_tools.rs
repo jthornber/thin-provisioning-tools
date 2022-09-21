@@ -55,7 +55,10 @@ fn main_() -> exitcode::ExitCode {
         return exitcode::USAGE;
     };
 
-    if let Some(c) = commands.iter().find(|c| cmd.unwrap() == c.name()) {
+    if let Some(c) = commands
+        .iter()
+        .find(|c| get_basename(cmd.unwrap()) == Path::new(c.name()))
+    {
         c.run(&mut args)
     } else {
         eprintln!("unrecognised command");
