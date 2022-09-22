@@ -11,14 +11,14 @@ use crate::xml::mk_attr;
 //------------------------------------------
 
 // The `time` field is ignored since people are more interest in block address.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct DataMapping {
     pub thin_begin: u64,
     pub data_begin: u64,
     pub len: u64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Delta {
     LeftOnly(DataMapping),
     RightOnly(DataMapping),
@@ -58,10 +58,10 @@ impl DeltaRunBuilder {
                         cur.len += r.len;
                         None
                     } else {
-                        self.run.replace(*d)
+                        self.run.replace(d.clone())
                     }
                 } else {
-                    self.run.replace(*d)
+                    self.run.replace(d.clone())
                 }
             }
             Delta::RightOnly(r) => {
@@ -70,10 +70,10 @@ impl DeltaRunBuilder {
                         cur.len += r.len;
                         None
                     } else {
-                        self.run.replace(*d)
+                        self.run.replace(d.clone())
                     }
                 } else {
-                    self.run.replace(*d)
+                    self.run.replace(d.clone())
                 }
             }
             Delta::Differ(r) => {
@@ -82,10 +82,10 @@ impl DeltaRunBuilder {
                         cur.len += r.len;
                         None
                     } else {
-                        self.run.replace(*d)
+                        self.run.replace(d.clone())
                     }
                 } else {
-                    self.run.replace(*d)
+                    self.run.replace(d.clone())
                 }
             }
             Delta::Same(r) => {
@@ -94,10 +94,10 @@ impl DeltaRunBuilder {
                         cur.len += r.len;
                         None
                     } else {
-                        self.run.replace(*d)
+                        self.run.replace(d.clone())
                     }
                 } else {
-                    self.run.replace(*d)
+                    self.run.replace(d.clone())
                 }
             }
         }
