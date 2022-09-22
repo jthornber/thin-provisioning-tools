@@ -206,6 +206,7 @@ enum DeltaType {
 
 pub struct VerboseXmlWriter<W: Write> {
     w: Writer<W>,
+    builder: DeltaRunBuilder,
     current_type: Option<DeltaType>,
 }
 
@@ -213,6 +214,7 @@ impl<W: Write> VerboseXmlWriter<W> {
     pub fn new(w: W) -> VerboseXmlWriter<W> {
         VerboseXmlWriter {
             w: Writer::new_with_indent(w, 0x20, 2),
+            builder: DeltaRunBuilder::new(),
             current_type: None,
         }
     }
@@ -312,6 +314,9 @@ impl<W: Write> DeltaVisitor for VerboseXmlWriter<W> {
     }
 
     fn diff_e(&mut self) -> Result<Visit> {
+        if let Some(r) = self.builder.complete() {
+            self.write_delta(&r)?;
+        }
         if let Some(current_type) = self.current_type.take() {
             self.close_type_tag(current_type)?;
         }
@@ -320,7 +325,9 @@ impl<W: Write> DeltaVisitor for VerboseXmlWriter<W> {
     }
 
     fn delta(&mut self, d: &Delta) -> Result<Visit> {
-        self.write_delta(d)?;
+        if let Some(run) = self.builder.next(d) {
+            self.write_delta(&run)?;
+        }
         Ok(Visit::Continue)
     }
 }
