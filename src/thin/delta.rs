@@ -209,9 +209,10 @@ fn dump_delta_mappings(
             rs.consume(len)?;
         } else {
             let len = std::cmp::min(lm.len, rm.len);
-            let delta = Delta::Differ(DataMapping {
+            let delta = Delta::Differ(DiffMapping {
                 thin_begin: lm.thin_begin,
-                data_begin: lm.data_begin,
+                left_data_begin: lm.data_begin,
+                right_data_begin: rm.data_begin,
                 len,
             });
             visitor.delta(&delta)?;

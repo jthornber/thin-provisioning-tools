@@ -19,10 +19,18 @@ pub struct DataMapping {
 }
 
 #[derive(Clone)]
+pub struct DiffMapping {
+    pub thin_begin: u64,
+    pub left_data_begin: u64,
+    pub right_data_begin: u64,
+    pub len: u64,
+}
+
+#[derive(Clone)]
 pub enum Delta {
     LeftOnly(DataMapping),
     RightOnly(DataMapping),
-    Differ(DataMapping),
+    Differ(DiffMapping),
     Same(DataMapping),
 }
 
@@ -138,7 +146,7 @@ impl<W: Write> SimpleXmlWriter<W> {
                 self.w.write_event(Event::Empty(elem))?;
             }
             Delta::Differ(r) => {
-                let mut elem = BytesStart::owned_name(b"differ".to_vec());
+                let mut elem = BytesStart::owned_name(b"different".to_vec());
                 elem.push_attribute(mk_attr(b"begin", r.thin_begin));
                 elem.push_attribute(mk_attr(b"length", r.len));
                 self.w.write_event(Event::Empty(elem))?;
@@ -232,6 +240,20 @@ impl<W: Write> VerboseXmlWriter<W> {
         Ok(())
     }
 
+    fn update_type_tag(&mut self, new_type: DeltaType) -> Result<()> {
+        if let Some(current_type) = self.current_type {
+            if new_type != current_type {
+                self.close_type_tag(current_type)?;
+                self.current_type = Some(new_type);
+                self.open_type_tag(new_type)?;
+            }
+        } else {
+            self.current_type = Some(new_type);
+            self.open_type_tag(new_type)?;
+        }
+        Ok(())
+    }
+
     fn write_delta_range(&mut self, m: &DataMapping) -> Result<()> {
         let mut elem = BytesStart::owned_name(b"range".to_vec());
         elem.push_attribute(mk_attr(b"begin", m.thin_begin));
@@ -239,6 +261,37 @@ impl<W: Write> VerboseXmlWriter<W> {
         elem.push_attribute(mk_attr(b"length", m.len));
         self.w.write_event(Event::Empty(elem))?;
         Ok(())
+    }
+
+    fn write_diff_range(&mut self, m: &DiffMapping) -> Result<()> {
+        let mut elem = BytesStart::owned_name(b"range".to_vec());
+        elem.push_attribute(mk_attr(b"begin", m.thin_begin));
+        elem.push_attribute(mk_attr(b"left_data_begin", m.left_data_begin));
+        elem.push_attribute(mk_attr(b"right_data_begin", m.right_data_begin));
+        elem.push_attribute(mk_attr(b"length", m.len));
+        self.w.write_event(Event::Empty(elem))?;
+        Ok(())
+    }
+
+    fn write_delta(&mut self, d: &Delta) -> Result<()> {
+        match d {
+            Delta::LeftOnly(m) => {
+                self.update_type_tag(DeltaType::LeftOnly)?;
+                self.write_delta_range(m)
+            }
+            Delta::RightOnly(m) => {
+                self.update_type_tag(DeltaType::RightOnly)?;
+                self.write_delta_range(m)
+            }
+            Delta::Differ(m) => {
+                self.update_type_tag(DeltaType::Differ)?;
+                self.write_diff_range(m)
+            }
+            Delta::Same(m) => {
+                self.update_type_tag(DeltaType::Same)?;
+                self.write_delta_range(m)
+            }
+        }
     }
 }
 
@@ -267,26 +320,7 @@ impl<W: Write> DeltaVisitor for VerboseXmlWriter<W> {
     }
 
     fn delta(&mut self, d: &Delta) -> Result<Visit> {
-        let (new_type, m) = match d {
-            Delta::LeftOnly(m) => (DeltaType::LeftOnly, m),
-            Delta::RightOnly(m) => (DeltaType::RightOnly, m),
-            Delta::Differ(m) => (DeltaType::Differ, m),
-            Delta::Same(m) => (DeltaType::Same, m),
-        };
-
-        if let Some(current_type) = self.current_type {
-            if new_type != current_type {
-                self.close_type_tag(current_type)?;
-                self.current_type = Some(new_type);
-                self.open_type_tag(new_type)?;
-            }
-        } else {
-            self.current_type = Some(new_type);
-            self.open_type_tag(new_type)?;
-        }
-
-        self.write_delta_range(m)?;
-
+        self.write_delta(d)?;
         Ok(Visit::Continue)
     }
 }
