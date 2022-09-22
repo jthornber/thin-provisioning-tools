@@ -21,7 +21,7 @@ impl<W: Write> XmlWriter<W> {
     }
 }
 
-pub const XML_VERSION: u32 = 2;
+const METADATA_VERSION: u32 = 2;
 
 impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {
@@ -35,7 +35,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
             elem.push_attribute(mk_attr(b"flags", flags));
         }
 
-        elem.push_attribute(mk_attr(b"version", XML_VERSION));
+        elem.push_attribute(mk_attr(b"version", sb.version.unwrap_or(METADATA_VERSION)));
         elem.push_attribute(mk_attr(b"data_block_size", sb.data_block_size));
         elem.push_attribute(mk_attr(b"nr_data_blocks", sb.nr_data_blocks));
 

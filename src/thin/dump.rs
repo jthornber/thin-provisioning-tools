@@ -270,7 +270,7 @@ pub fn dump_metadata(
         time: sb.time,
         transaction: sb.transaction_id,
         flags: if sb.flags.needs_check { Some(1) } else { None },
-        version: Some(2),
+        version: Some(sb.version),
         data_block_size: sb.data_block_size,
         nr_data_blocks: data_root.nr_blocks,
         metadata_snap: None,

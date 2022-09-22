@@ -5,7 +5,6 @@ use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::Writer;
 
 use crate::thin::ir::{self, Visit};
-use crate::thin::xml::XML_VERSION;
 use crate::xml::mk_attr;
 
 //------------------------------------------
@@ -346,7 +345,6 @@ fn write_superblock_b<W: Write>(w: &mut Writer<W>, sb: &ir::Superblock) -> Resul
         elem.push_attribute(mk_attr(b"flags", flags));
     }
 
-    elem.push_attribute(mk_attr(b"version", XML_VERSION));
     elem.push_attribute(mk_attr(b"data_block_size", sb.data_block_size));
     elem.push_attribute(mk_attr(b"nr_data_blocks", sb.nr_data_blocks));
 
