@@ -2,8 +2,8 @@ use anyhow::Result;
 
 mod common;
 
-use common::cache::*;
 use common::common_args::*;
+use common::era::*;
 use common::fixture::*;
 use common::input_arg::*;
 use common::process::*;
@@ -96,6 +96,8 @@ test_unreadable_input_file!(EraCheck);
 test_help_message_for_tiny_input_file!(EraCheck);
 test_spot_xml_data!(EraCheck);
 test_corrupted_input_data!(EraCheck);
+
+test_readonly_input_file!(EraCheck);
 
 //------------------------------------------
 

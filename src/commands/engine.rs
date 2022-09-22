@@ -188,7 +188,11 @@ impl<'a, P: AsRef<Path>> EngineBuilder<'a, P> {
                 self.write,
                 self.exclusive,
             )?),
-            EngineType::Sync => Arc::new(SyncIoEngine::new(self.path, self.exclusive)?),
+            EngineType::Sync => Arc::new(SyncIoEngine::new_with(
+                self.path,
+                self.write,
+                self.exclusive,
+            )?),
             EngineType::Spindle => {
                 let valid_blocks = match self.opts.tool {
                     ToolType::Thin => thin_valid_blocks(self.path.as_ref(), self.opts),

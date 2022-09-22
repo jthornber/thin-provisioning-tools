@@ -103,6 +103,8 @@ test_input_file_not_found!(ThinRepair);
 test_input_cannot_be_a_directory!(ThinRepair);
 test_corrupted_input_data!(ThinRepair);
 
+test_readonly_input_file!(ThinRepair);
+
 test_missing_output_option!(ThinRepair);
 
 //-----------------------------------------

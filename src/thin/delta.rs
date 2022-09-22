@@ -133,7 +133,7 @@ struct MappingStream<'a> {
 
 impl<'a> MappingStream<'a> {
     fn new(iter: &'a mut dyn Iterator<Item = &'a DataMapping>) -> MappingStream<'a> {
-        let current = iter.next().copied();
+        let current = iter.next().cloned();
         MappingStream { iter, current }
     }
 
@@ -142,7 +142,7 @@ impl<'a> MappingStream<'a> {
     }
 
     fn get_mapping(&self) -> Option<DataMapping> {
-        self.current
+        self.current.clone()
     }
 
     fn consume(&mut self, len: u64) -> Result<()> {
@@ -152,7 +152,7 @@ impl<'a> MappingStream<'a> {
             }
 
             if len == current.len {
-                self.current = self.iter.next().copied();
+                self.current = self.iter.next().cloned();
             } else {
                 current.thin_begin += len;
                 current.data_begin += len;
@@ -209,9 +209,10 @@ fn dump_delta_mappings(
             rs.consume(len)?;
         } else {
             let len = std::cmp::min(lm.len, rm.len);
-            let delta = Delta::Differ(DataMapping {
+            let delta = Delta::Differ(DiffMapping {
                 thin_begin: lm.thin_begin,
-                data_begin: lm.data_begin,
+                left_data_begin: lm.data_begin,
+                right_data_begin: rm.data_begin,
                 len,
             });
             visitor.delta(&delta)?;
@@ -222,14 +223,16 @@ fn dump_delta_mappings(
 
     while ls.more_mappings() {
         let lm = ls.get_mapping().unwrap();
+        let len = lm.len;
         visitor.delta(&Delta::LeftOnly(lm))?;
-        ls.consume(lm.len)?;
+        ls.consume(len)?;
     }
 
     while rs.more_mappings() {
         let rm = rs.get_mapping().unwrap();
+        let len = rm.len;
         visitor.delta(&Delta::RightOnly(rm))?;
-        rs.consume(rm.len)?;
+        rs.consume(len)?;
     }
 
     Ok(())

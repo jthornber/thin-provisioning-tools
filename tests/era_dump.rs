@@ -96,6 +96,8 @@ test_input_cannot_be_a_directory!(EraDump);
 test_unreadable_input_file!(EraDump);
 test_tiny_input_file!(EraDump);
 
+test_readonly_input_file!(EraDump);
+
 //------------------------------------------
 
 // TODO: share with thin_dump

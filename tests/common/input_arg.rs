@@ -39,6 +39,16 @@ fn with_output_superblock_zeroed(
     })
 }
 
+fn with_output_simple(
+    td: &mut TestDir,
+    input: &OsStr,
+    thunk: &dyn Fn(&[&OsStr]) -> Result<()>,
+) -> Result<()> {
+    let output = mk_zeroed_md(td)?;
+    let args = args!["-i", input, "-o", &output];
+    thunk(&args)
+}
+
 fn input_arg_only(
     _td: &mut TestDir,
     input: &OsStr,
@@ -289,6 +299,40 @@ macro_rules! test_corrupted_input_data {
         #[test]
         fn corrupted_input_data() -> Result<()> {
             test_corrupted_input_data::<$program>()
+        }
+    };
+}
+
+//------------------------------------------
+// test special inputs
+
+pub fn test_readonly_input_file<'a, P>() -> Result<()>
+where
+    P: InputProgram<'a>,
+{
+    let mut td = TestDir::new()?;
+
+    // input an unreadable file
+    let input = P::mk_valid_input(&mut td)?;
+    duct::cmd!("chmod", "-w", &input).run()?;
+
+    let wrapper = match P::arg_type() {
+        ArgType::InputArg => input_arg_only,
+        ArgType::IoOptions => with_output_simple,
+    };
+
+    wrapper(&mut td, input.as_ref(), &|args: &[&OsStr]| {
+        run_ok(P::cmd(args))?;
+        Ok(())
+    })
+}
+
+#[macro_export]
+macro_rules! test_readonly_input_file {
+    ($program: ident) => {
+        #[test]
+        fn readonly_input_file() -> Result<()> {
+            test_readonly_input_file::<$program>()
         }
     };
 }

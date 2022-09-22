@@ -135,7 +135,7 @@ impl ArrayVisitor<u64> for BitsetCollector {
 //------------------------------------------
 
 // TODO: multi-threaded is possible
-pub fn read_bitset(
+pub fn read_bitset_checked(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
     nr_bits: usize,
@@ -151,7 +151,7 @@ pub fn read_bitset(
 }
 
 // TODO: multi-threaded is possible
-pub fn read_bitset_with_sm(
+pub fn read_bitset_checked_with_sm(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
     nr_bits: usize,
@@ -167,7 +167,7 @@ pub fn read_bitset_with_sm(
     Ok((v.get_bitset(), err))
 }
 
-pub fn read_bitset_no_err(
+pub fn read_bitset(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,
     nr_bits: usize,
