@@ -78,7 +78,7 @@ impl FromStr for Units {
             "sector" | "s" => Ok(Units::Sector),
             // base 2
             "kibibyte" | "KiB" | "k" => Ok(Units::Kibibyte),
-            "mibibyte" | "MiB" | "m" => Ok(Units::Mebibyte),
+            "mebibyte" | "MiB" | "m" => Ok(Units::Mebibyte),
             "gibibyte" | "GiB" | "g" => Ok(Units::Gibibyte),
             "tebibyte" | "TiB" | "t" => Ok(Units::Tebibyte),
             "pebibyte" | "PiB" | "p" => Ok(Units::Pebibyte),
@@ -104,7 +104,7 @@ impl ToString for Units {
             Sector => "sector",
             // base 2
             Kibibyte => "kibibyte",
-            Mebibyte => "mibibyte",
+            Mebibyte => "mebibyte",
             Gibibyte => "gibibyte",
             Tebibyte => "terabyte",
             Pebibyte => "pebibyte",
