@@ -4,6 +4,7 @@ pub mod delta;
 pub mod delta_visitor;
 pub mod device_detail;
 pub mod dump;
+pub mod human_readable_format;
 pub mod ir;
 pub mod ls;
 pub mod metadata;

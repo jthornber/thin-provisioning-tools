@@ -10,7 +10,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
-use crate::thin::dump::{dump, ThinDumpOptions};
+use crate::thin::dump::{dump, OutputFormat, ThinDumpOptions};
 use crate::thin::metadata_repair::SuperblockOverrides;
 
 pub struct ThinDumpCommand;
@@ -52,6 +52,17 @@ impl ThinDumpCommand {
                     .long("dev-id")
                     .multiple_occurrences(true)
                     .value_name("THIN_ID"),
+            )
+            .arg(
+                Arg::new("FORMAT")
+                    .help("Choose the output format")
+                    .short('f')
+                    .long("format")
+                    .value_name("TYPE")
+                    .possible_values(["xml", "human_readable"])
+                    .hide_possible_values(true)
+                    .default_value("xml")
+                    .hide_default_value(true),
             )
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
@@ -147,6 +158,7 @@ impl<'a> Command<'a> for ThinDumpCommand {
                 nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
             },
             selected_devs,
+            format: matches.value_of_t_or_exit::<OutputFormat>("FORMAT"),
         };
 
         to_exit_code(&report, dump(opts))
