@@ -47,6 +47,13 @@ impl ThinDumpCommand {
                     .value_name("SECTORS"),
             )
             .arg(
+                Arg::new("DEV_ID")
+                    .help("Dump the specified device")
+                    .long("dev-id")
+                    .multiple_occurrences(true)
+                    .value_name("THIN_ID"),
+            )
+            .arg(
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Access the metadata snapshot on a live pool")
                     .short('m')
@@ -117,6 +124,16 @@ impl<'a> Command<'a> for ThinDumpCommand {
             return to_exit_code(&report, engine_opts);
         }
 
+        let selected_devs = if matches.is_present("DEV_ID") {
+            let devs: Vec<u64> = matches
+                .values_of_t_or_exit::<u64>("DEV_ID")
+                .into_iter()
+                .collect();
+            Some(devs)
+        } else {
+            None
+        };
+
         let opts = ThinDumpOptions {
             input: input_file,
             output: output_file,
@@ -129,6 +146,7 @@ impl<'a> Command<'a> for ThinDumpCommand {
                 data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
                 nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
             },
+            selected_devs,
         };
 
         to_exit_code(&report, dump(opts))

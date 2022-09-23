@@ -28,6 +28,7 @@ ARGS:
 
 OPTIONS:
         --data-block-size <SECTORS>       Provide the data block size for repairing
+        --dev-id <THIN_ID>                Dump the specified device
     -h, --help                            Print help information
     -m, --metadata-snap[=<BLOCKNR>...]    Access the metadata snapshot on a live pool
         --nr-data-blocks <NUM>            Override the number of data blocks if needed

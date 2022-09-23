@@ -154,6 +154,7 @@ pub struct ThinDumpOptions<'a> {
     pub repair: bool,
     pub skip_mappings: bool,
     pub overrides: SuperblockOverrides,
+    pub selected_devs: Option<Vec<u64>>,
 }
 
 struct ThinDumpContext {
@@ -323,7 +324,7 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let md = if opts.skip_mappings {
         build_metadata_without_mappings(ctx.engine.clone(), &sb)?
     } else {
-        let m = build_metadata(ctx.engine.clone(), &sb)?;
+        let m = build_metadata_with_dev(ctx.engine.clone(), &sb, opts.selected_devs)?;
         optimise_metadata(m)?
     };
 

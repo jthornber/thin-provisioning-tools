@@ -101,18 +101,34 @@ pub fn build_metadata(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sb: &Superblock,
 ) -> Result<Metadata> {
+    build_metadata_with_dev(engine, sb, None)
+}
+
+pub fn build_metadata_with_dev(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    selected_dev: Option<Vec<u64>>,
+) -> Result<Metadata> {
     let mut path = vec![0];
 
     // report.set_title("Reading device details");
     let details = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
 
     // report.set_title("Reading mappings roots");
-    let roots;
-    {
-        let sm = Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())));
-        roots =
+    let roots = {
+        let sm = Arc::new(Mutex::new(NoopSpaceMap::new(engine.get_nr_blocks())));
+        let r =
             btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
-    }
+
+        if let Some(mut devs) = selected_dev {
+            devs.sort_unstable();
+            r.into_iter()
+                .filter(|(k, _v)| devs.binary_search(k).is_ok())
+                .collect()
+        } else {
+            r
+        }
+    };
 
     // report.set_title(&format!("Collecting leaves for {} roots", roots.len()));
     let mapping_roots = roots.values().map(|(_, root)| *root).collect();
