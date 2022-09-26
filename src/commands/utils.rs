@@ -92,7 +92,7 @@ where
     }
 }
 
-pub fn to_exit_code<T>(report: &Arc<Report>, result: anyhow::Result<T>) -> exitcode::ExitCode {
+pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::ExitCode {
     if let Err(e) = result {
         report.fatal(&format!("{}", e));
 

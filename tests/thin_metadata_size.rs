@@ -21,7 +21,7 @@ OPTIONS:
     -b, --block-size <SIZE[bskmg]>     Specify the data block size
     -h, --help                         Print help information
     -m, --max-thins <NUM>              Maximum number of thin devices and snapshots
-    -n, --numeric-only                 Output numeric value only
+    -n, --numeric-only[=<OPT>...]      Output numeric value only
     -s, --pool-size <SIZE[bskmgtp]>    Specify the size of pool device
     -u, --unit <UNIT>                  Specify the output unit in {bskKmMgG} [default: sector]
     -V, --version                      Print version information"

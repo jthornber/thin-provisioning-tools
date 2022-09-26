@@ -1,14 +1,38 @@
 use anyhow::{anyhow, Result};
-use clap::Arg;
+use clap::{value_parser, Arg};
 use std::ffi::OsString;
 use std::io;
+use std::str::FromStr;
 
 use crate::commands::utils::*;
+use crate::commands::Command;
+use crate::report::mk_simple_report;
 use crate::thin::metadata_size::*;
 use crate::units::*;
 
 //------------------------------------------
-use crate::commands::Command;
+
+#[derive(Clone)]
+enum OutputFormat {
+    Full,
+    ShortUnits,
+    LongUnits,
+    NumericOnly,
+}
+
+impl FromStr for OutputFormat {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "short" => Ok(OutputFormat::ShortUnits),
+            "long" => Ok(OutputFormat::LongUnits),
+            _ => Err(anyhow!("invalid option")),
+        }
+    }
+}
+
+//------------------------------------------
 
 pub struct ThinMetadataSizeCommand;
 
@@ -23,7 +47,14 @@ impl ThinMetadataSizeCommand {
                 Arg::new("NUMERIC_ONLY")
                     .help("Output numeric value only")
                     .short('n')
-                    .long("numeric-only"),
+                    .long("numeric-only")
+                    .value_name("OPT")
+                    .value_parser(value_parser!(OutputFormat))
+                    .min_values(0)
+                    .max_values(1)
+                    .require_equals(true)
+                    .possible_values(["short", "long"])
+                    .hide_possible_values(true),
             )
             // options
             .arg(
@@ -60,7 +91,7 @@ impl ThinMetadataSizeCommand {
             )
     }
 
-    fn parse_args<I, T>(&self, args: I) -> Result<(ThinMetadataSizeOptions, Units, bool)>
+    fn parse_args<I, T>(&self, args: I) -> Result<(ThinMetadataSizeOptions, Units, OutputFormat)>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
@@ -75,7 +106,15 @@ impl ThinMetadataSizeCommand {
             .size_bytes();
         let max_thins = matches.value_of_t_or_exit::<u64>("MAX_THINS");
         let unit = matches.value_of_t_or_exit::<Units>("UNIT");
-        let numeric_only = matches.is_present("NUMERIC_ONLY");
+
+        let format = if matches.is_present("NUMERIC_ONLY") {
+            matches
+                .get_one::<OutputFormat>("NUMERIC_ONLY")
+                .cloned()
+                .unwrap_or(OutputFormat::NumericOnly)
+        } else {
+            OutputFormat::Full
+        };
 
         check_data_block_size(block_size)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
@@ -90,7 +129,7 @@ impl ThinMetadataSizeCommand {
                 max_thins,
             },
             unit,
-            numeric_only,
+            format,
         ))
     }
 }
@@ -101,12 +140,14 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
     }
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
+        let report = mk_simple_report();
+
         let opts = self.parse_args(args);
         if opts.is_err() {
-            let report = mk_report(false);
             return to_exit_code(&report, opts);
         }
-        let (opts, unit, numeric_only) = opts.unwrap();
+
+        let (opts, unit, format) = opts.unwrap();
 
         match metadata_size(&opts) {
             Ok(size) => {
@@ -118,18 +159,27 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
                     format!("{:.2}", size)
                 };
 
-                if !numeric_only {
-                    output.push(' ');
-                    output.push_str(&unit.to_string());
-                    output.push('s'); // plural form
+                match format {
+                    OutputFormat::Full => {
+                        output.push(' ');
+                        output.push_str(&unit.to_string());
+                        output.push('s'); // plural form
+                    }
+                    OutputFormat::ShortUnits => output.push_str(&unit.to_letter()),
+                    OutputFormat::LongUnits => {
+                        // no space between the numeric value and the unit
+                        output.push_str(&unit.to_string());
+                        output.push('s'); // plural form
+                    }
+                    _ => {} // do nothing
                 }
 
-                println!("{}", output);
+                report.to_stdout(&output);
 
                 exitcode::OK
             }
             Err(reason) => {
-                eprintln!("{}", reason);
+                report.fatal(&reason.to_string());
 
                 // FIXME: use to_exit_code
                 exitcode::USAGE
