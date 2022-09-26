@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 //-------------------------------------
@@ -15,7 +14,7 @@ pub struct CopyOp {
 #[derive(Debug)]
 pub struct CopyStats {
     pub nr_blocks: Block,
-    pub nr_copied: AtomicU64,
+    pub nr_copied: Block,
     pub read_errors: Vec<CopyOp>,
     pub write_errors: Vec<CopyOp>,
 }
@@ -24,7 +23,7 @@ impl CopyStats {
     pub fn new(nr_blocks: u64) -> Self {
         Self {
             nr_blocks,
-            nr_copied: AtomicU64::new(0),
+            nr_copied: 0,
             read_errors: Vec::new(),
             write_errors: Vec::new(),
         }

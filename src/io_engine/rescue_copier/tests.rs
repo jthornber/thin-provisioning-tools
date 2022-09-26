@@ -226,7 +226,7 @@ fn copy_completed_blocks() -> Result<()> {
     let ops = mk_random_ops(0..NR_BLOCKS, 0..NR_BLOCKS, NR_BLOCKS as usize);
     let stats = t.copy(&ops).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -244,10 +244,7 @@ fn partial_copy_with_unreadable_pages() -> Result<()> {
     let ops = mk_random_ops(0..NR_BLOCKS, 0..NR_BLOCKS, NR_BLOCKS as usize);
     let stats = t.copy(&ops).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(
-        stats.nr_copied.load(Ordering::Relaxed),
-        ops.len() as u64 - 1
-    );
+    assert_eq!(stats.nr_copied, ops.len() as u64 - 1);
     assert_eq!(stats.read_errors.len(), 1);
     assert!(stats.write_errors.is_empty());
 
@@ -267,10 +264,7 @@ fn partial_copy_with_unwritable_pages() -> Result<()> {
     let ops = mk_random_ops(0..NR_BLOCKS, 0..NR_BLOCKS, NR_BLOCKS as usize);
     let stats = t.copy(&ops).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(
-        stats.nr_copied.load(Ordering::Relaxed),
-        ops.len() as u64 - 1
-    );
+    assert_eq!(stats.nr_copied, ops.len() as u64 - 1);
     assert!(stats.read_errors.is_empty());
     assert_eq!(stats.write_errors.len(), 1);
 
@@ -291,10 +285,7 @@ fn partial_copy_with_unreadable_and_unwritable_pages() -> Result<()> {
     let ops = mk_random_ops(0..NR_BLOCKS, 0..NR_BLOCKS, NR_BLOCKS as usize);
     let stats = t.copy(&ops).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(
-        stats.nr_copied.load(Ordering::Relaxed),
-        ops.len() as u64 - 2
-    );
+    assert_eq!(stats.nr_copied, ops.len() as u64 - 2);
     assert_eq!(stats.read_errors.len(), 1);
     assert_eq!(stats.write_errors.len(), 1);
 

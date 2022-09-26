@@ -235,7 +235,7 @@ fn mirroring() -> Result<()> {
     let ops = mk_ops(0..NR_BLOCKS, 0..NR_BLOCKS);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -255,7 +255,7 @@ fn copy_with_ops_sorted_by_src() -> Result<()> {
     let ops = mk_ops(0..NR_BLOCKS, (0..NR_BLOCKS).rev());
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, NR_BLOCKS);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), NR_BLOCKS);
+    assert_eq!(stats.nr_copied, NR_BLOCKS);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -275,7 +275,7 @@ fn copy_with_ops_sorted_by_dst() -> Result<()> {
     let ops = mk_ops((0..NR_BLOCKS).rev(), 0..NR_BLOCKS);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -294,7 +294,7 @@ fn copy_randomly() -> Result<()> {
     let ops = mk_random_ops(0..NR_BLOCKS, 0..NR_BLOCKS, nr_ops);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -313,10 +313,7 @@ fn skip_read_failed_blocks() -> Result<()> {
     let ops = mk_ops(0..NR_BLOCKS, 0..NR_BLOCKS);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(
-        stats.nr_copied.load(Ordering::Relaxed),
-        ops.len() as u64 - 1
-    );
+    assert_eq!(stats.nr_copied, ops.len() as u64 - 1);
     assert_eq!(stats.read_errors.len(), 1);
     assert!(stats.write_errors.is_empty());
 
@@ -337,10 +334,7 @@ fn skip_write_failed_blocks() -> Result<()> {
     let ops = mk_ops(0..NR_BLOCKS, 0..NR_BLOCKS);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(
-        stats.nr_copied.load(Ordering::Relaxed),
-        ops.len() as u64 - 1
-    );
+    assert_eq!(stats.nr_copied, ops.len() as u64 - 1);
     assert!(stats.read_errors.is_empty());
     assert_eq!(stats.write_errors.len(), 1);
 
@@ -361,7 +355,7 @@ fn skip_copy_if_all_read_failed() -> Result<()> {
     let mut ops = mk_ops(0..NR_BLOCKS, 0..NR_BLOCKS);
     let mut stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), 0);
+    assert_eq!(stats.nr_copied, 0);
     assert_eq!(stats.read_errors.len(), ops.len());
     assert!(stats.write_errors.is_empty());
 
@@ -386,7 +380,7 @@ fn skip_copy_if_all_write_failed() -> Result<()> {
     let mut ops = mk_ops(0..NR_BLOCKS, 0..NR_BLOCKS);
     let mut stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), 0);
+    assert_eq!(stats.nr_copied, 0);
     assert!(stats.read_errors.is_empty());
     assert_eq!(stats.write_errors.len(), ops.len());
 
@@ -410,7 +404,7 @@ fn copy_length_is_less_than_buffer_size_should_success() -> Result<()> {
     let ops = mk_random_ops(0..1024, 0..NR_BLOCKS, 16); // a small numbers of ops
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 
@@ -429,7 +423,7 @@ fn copy_length_is_not_a_multiple_of_buffer_size_should_success() -> Result<()> {
     let ops = mk_random_ops(0..1024, 0..NR_BLOCKS, nr_ops);
     let stats = t.copy(&ops, BUFFER_SIZE).unwrap();
     assert_eq!(stats.nr_blocks, ops.len() as u64);
-    assert_eq!(stats.nr_copied.load(Ordering::Relaxed), ops.len() as u64);
+    assert_eq!(stats.nr_copied, ops.len() as u64);
     assert!(stats.read_errors.is_empty());
     assert!(stats.write_errors.is_empty());
 

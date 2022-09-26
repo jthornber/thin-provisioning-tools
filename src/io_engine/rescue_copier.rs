@@ -4,7 +4,6 @@ use std::fs::{File, OpenOptions};
 use std::os::unix::fs::FileExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::io_engine::buffer::*;
@@ -141,7 +140,7 @@ impl<T: FileExt + 'static> Copier for RescueCopier<T> {
             }
         }
 
-        stats.nr_copied.fetch_add(nr_copied, Ordering::SeqCst);
+        stats.nr_copied += nr_copied as u64;
         progress.update(&stats);
 
         Ok(stats)
