@@ -101,7 +101,7 @@ impl<'a> Command<'a> for ThinDeltaCommand {
             Snap::RootBlock(matches.value_of_t_or_exit::<u64>("ROOT2"))
         };
 
-        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }
