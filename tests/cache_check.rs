@@ -32,7 +32,7 @@ OPTIONS:
     -q, --quiet                      Suppress output messages, return only exit code.
         --skip-discards              Don't check the discard bitset
         --skip-hints                 Don't check the hint array
-        --skip-mappings              Don't check the mapping tree
+        --skip-mappings              Don't check the mapping array
         --super-block-only           Only check the superblock
     -V, --version                    Print version information"
 );
@@ -103,6 +103,51 @@ test_spot_xml_data!(CacheCheck);
 test_corrupted_input_data!(CacheCheck);
 
 test_readonly_input_file!(CacheCheck);
+
+//------------------------------------------
+// test exclusive flags
+
+fn accepts_flag(flag: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(cache_check_cmd(args![flag, &md]))?;
+    Ok(())
+}
+
+#[test]
+fn accepts_superblock_only() -> Result<()> {
+    accepts_flag("--super-block-only")
+}
+
+#[test]
+fn accepts_skip_mappings() -> Result<()> {
+    accepts_flag("--skip-mappings")
+}
+
+#[test]
+fn accepts_skip_hints() -> Result<()> {
+    accepts_flag("--skip-hints")
+}
+
+#[test]
+fn accepts_skip_discards() -> Result<()> {
+    accepts_flag("--skip-discards")
+}
+
+#[test]
+fn accepts_ignore_non_fatal_errors() -> Result<()> {
+    accepts_flag("--ignore-non-fatal-errors")
+}
+
+#[test]
+fn accepts_clear_needs_check_flag() -> Result<()> {
+    accepts_flag("--clear-needs-check-flag")
+}
+
+#[test]
+fn accepts_auto_repair() -> Result<()> {
+    accepts_flag("--auto-repair")
+}
 
 //------------------------------------------
 
