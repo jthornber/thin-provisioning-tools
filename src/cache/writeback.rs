@@ -64,7 +64,7 @@ impl ProgressReporter {
     /// Adds stats into the internal base.  Then updates the progress.
     fn inc_stats(&self, stats: &CopyStats) {
         let mut inner = self.inner.lock().unwrap();
-        inner.nr_copied += stats.nr_copied.load(Ordering::Relaxed);
+        inner.nr_copied += stats.nr_copied;
         inner.nr_read_errors += stats.read_errors.len() as u64;
         inner.nr_write_errors += stats.write_errors.len() as u64;
 
@@ -98,8 +98,7 @@ impl CopyProgress for ProgressReporter {
             inner.nr_write_errors + stats.write_errors.len() as u64
         ));
 
-        let percent =
-            ((inner.nr_copied + stats.nr_copied.load(Ordering::Relaxed)) * 100) / inner.nr_blocks;
+        let percent = (inner.nr_copied + stats.nr_copied * 100) / inner.nr_blocks;
         self.report.progress(percent as u8);
     }
 }

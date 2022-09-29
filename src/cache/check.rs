@@ -377,6 +377,10 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
         return Err(anyhow!("metadata contains errors"));
     }
 
+    if opts.skip_mappings || opts.skip_hints || opts.skip_discards {
+        return Ok(());
+    }
+
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let metadata_leaks = check_metadata_space_map(
         engine.clone(),

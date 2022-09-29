@@ -77,7 +77,7 @@ impl<'a> Command<'a> for ThinRestoreCommand {
         check_input_file(input_file, &report);
         check_output_file(output_file, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }

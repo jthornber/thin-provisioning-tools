@@ -144,28 +144,6 @@ fn successfully_restores() -> Result<()> {
     Ok(())
 }
 
-// FIXME: finish
-/*
-#[test]
-fn override_metadata_version() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let xml = mk_valid_xml(&mut td)?;
-    let md = mk_zeroed_md(&mut td)?;
-    run_ok(
-        cache_restore_cmd(
-        args![
-            "-i",
-            &xml,
-            "-o",
-            &md,
-            "--debug-override-metadata-version",
-            "10298"
-        ],
-    ))?;
-    Ok(())
-}
-*/
-
 #[test]
 fn omit_clean_shutdown() -> Result<()> {
     let mut td = TestDir::new()?;

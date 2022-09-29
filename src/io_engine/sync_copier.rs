@@ -4,7 +4,6 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -289,10 +288,8 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
                     }
                 }
 
-                let stats = stats.read().unwrap();
-                stats
-                    .nr_copied
-                    .fetch_add(write_success.len(), Ordering::SeqCst);
+                let mut stats = stats.write().unwrap();
+                stats.nr_copied += write_success.len() as u64;
                 progress.update(&*stats);
             })
         };

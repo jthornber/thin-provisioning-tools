@@ -361,7 +361,7 @@ where
     test_shrink_(scenario, false)
 }
 
-fn test_shrink_binary_<S>(scenario: &mut S, expect_ok: bool) -> Result<()>
+fn test_shrink_in_binary_<S>(scenario: &mut S, expect_ok: bool) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
@@ -415,18 +415,18 @@ where
     Ok(())
 }
 
-fn test_shrink_binary<S>(scenario: &mut S) -> Result<()>
+fn test_shrink_in_binary<S>(scenario: &mut S) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
-    test_shrink_binary_(scenario, true)
+    test_shrink_in_binary_(scenario, true)
 }
 
-fn test_shrink_binary_fail<S>(scenario: &mut S) -> Result<()>
+fn test_shrink_in_binary_fail<S>(scenario: &mut S) -> Result<()>
 where
     S: Scenario + XmlGen,
 {
-    test_shrink_binary_(scenario, false)
+    test_shrink_in_binary_(scenario, false)
 }
 
 //------------------------------------
@@ -490,39 +490,39 @@ fn shrink_insufficient_space() -> Result<()> {
 //------------------------------------
 
 #[test]
-fn shrink_binary_single_no_move_1() -> Result<()> {
+fn shrink_single_no_move_in_binary_1() -> Result<()> {
     let mut s = SingleThinS::new(0, 1024, 2048, 1280);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_single_no_move_2() -> Result<()> {
+fn shrink_single_no_move_in_binary_2() -> Result<()> {
     let mut s = SingleThinS::new(100, 1024, 2048, 1280);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_single_no_move_3() -> Result<()> {
+fn shrink_single_no_move_in_binary_3() -> Result<()> {
     let mut s = SingleThinS::new(1024, 1024, 2048, 2048);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_single_partial_move() -> Result<()> {
+fn shrink_single_partial_move_in_binary() -> Result<()> {
     let mut s = SingleThinS::new(1024, 1024, 2048, 1280);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_single_total_move() -> Result<()> {
+fn shrink_single_total_move_in_binary() -> Result<()> {
     let mut s = SingleThinS::new(2048, 1024, 1024 + 2048, 1280);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_insufficient_space() -> Result<()> {
+fn shrink_insufficient_space_in_binary() -> Result<()> {
     let mut s = SingleThinS::new(0, 2048, 3000, 1280);
-    test_shrink_binary_fail(&mut s)
+    test_shrink_in_binary_fail(&mut s)
 }
 
 //------------------------------------
@@ -560,27 +560,27 @@ fn shrink_fragmented_thin_64() -> Result<()> {
 //------------------------------------
 
 #[test]
-fn shrink_binary_fragmented_thin_1() -> Result<()> {
+fn shrink_fragmented_thin_1_in_binary() -> Result<()> {
     let mut s = FragmentedS::new(1, 2048);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_fragmented_thin_2() -> Result<()> {
+fn shrink_fragmented_thin_2_in_binary() -> Result<()> {
     let mut s = FragmentedS::new(2, 2048);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_fragmented_thin_8() -> Result<()> {
+fn shrink_fragmented_thin_8_in_binary() -> Result<()> {
     let mut s = FragmentedS::new(8, 2048);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 #[test]
-fn shrink_binary_fragmented_thin_64() -> Result<()> {
+fn shrink_fragmented_thin_64_in_binary() -> Result<()> {
     let mut s = FragmentedS::new(64, 2048);
-    test_shrink_binary(&mut s)
+    test_shrink_in_binary(&mut s)
 }
 
 //------------------------------------
@@ -636,7 +636,7 @@ fn shrink_multiple_snaps() -> Result<()> {
 
 // Using the pre-generated packed metadata
 #[test]
-fn shrink_binary_multiple_snaps() -> Result<()> {
+fn shrink_multiple_snaps_in_binary() -> Result<()> {
     let mut td = TestDir::new()?;
     let meta_before = prep_rebuilt_metadata(&mut td)?;
     let xml_before = td.mk_path("before.xml");

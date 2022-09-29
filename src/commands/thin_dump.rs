@@ -10,7 +10,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
-use crate::thin::dump::{dump, ThinDumpOptions};
+use crate::thin::dump::{dump, OutputFormat, ThinDumpOptions};
 use crate::thin::metadata_repair::SuperblockOverrides;
 
 pub struct ThinDumpCommand;
@@ -45,6 +45,24 @@ impl ThinDumpCommand {
                     .help("Provide the data block size for repairing")
                     .long("data-block-size")
                     .value_name("SECTORS"),
+            )
+            .arg(
+                Arg::new("DEV_ID")
+                    .help("Dump the specified device")
+                    .long("dev-id")
+                    .multiple_occurrences(true)
+                    .value_name("THIN_ID"),
+            )
+            .arg(
+                Arg::new("FORMAT")
+                    .help("Choose the output format")
+                    .short('f')
+                    .long("format")
+                    .value_name("TYPE")
+                    .possible_values(["xml", "human_readable"])
+                    .hide_possible_values(true)
+                    .default_value("xml")
+                    .hide_default_value(true),
             )
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
@@ -112,10 +130,20 @@ impl<'a> Command<'a> for ThinDumpCommand {
             Arc::new(mk_simple_report())
         };
 
-        let engine_opts = parse_engine_opts(ToolType::Era, &matches);
+        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);
         }
+
+        let selected_devs = if matches.is_present("DEV_ID") {
+            let devs: Vec<u64> = matches
+                .values_of_t_or_exit::<u64>("DEV_ID")
+                .into_iter()
+                .collect();
+            Some(devs)
+        } else {
+            None
+        };
 
         let opts = ThinDumpOptions {
             input: input_file,
@@ -129,6 +157,8 @@ impl<'a> Command<'a> for ThinDumpCommand {
                 data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
                 nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
             },
+            selected_devs,
+            format: matches.value_of_t_or_exit::<OutputFormat>("FORMAT"),
         };
 
         to_exit_code(&report, dump(opts))

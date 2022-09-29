@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use crate::checksum;
@@ -15,6 +16,7 @@ use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
+use crate::thin::human_readable_format::HumanReadableWriter;
 use crate::thin::ir::{self, MetadataVisitor};
 use crate::thin::metadata::*;
 use crate::thin::metadata_repair::*;
@@ -146,6 +148,23 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
 
 //------------------------------------------
 
+pub enum OutputFormat {
+    XML,
+    HumanReadable,
+}
+
+impl FromStr for OutputFormat {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "xml" => Ok(OutputFormat::XML),
+            "human_readable" => Ok(OutputFormat::HumanReadable),
+            _ => Err(anyhow!("unknown format")),
+        }
+    }
+}
+
 pub struct ThinDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
@@ -154,6 +173,8 @@ pub struct ThinDumpOptions<'a> {
     pub repair: bool,
     pub skip_mappings: bool,
     pub overrides: SuperblockOverrides,
+    pub selected_devs: Option<Vec<u64>>,
+    pub format: OutputFormat,
 }
 
 struct ThinDumpContext {
@@ -270,7 +291,7 @@ pub fn dump_metadata(
         time: sb.time,
         transaction: sb.transaction_id,
         flags: if sb.flags.needs_check { Some(1) } else { None },
-        version: Some(2),
+        version: Some(sb.version),
         data_block_size: sb.data_block_size,
         nr_data_blocks: data_root.nr_blocks,
         metadata_snap: None,
@@ -323,7 +344,7 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let md = if opts.skip_mappings {
         build_metadata_without_mappings(ctx.engine.clone(), &sb)?
     } else {
-        let m = build_metadata(ctx.engine.clone(), &sb)?;
+        let m = build_metadata_with_dev(ctx.engine.clone(), &sb, opts.selected_devs)?;
         optimise_metadata(m)?
     };
 
@@ -333,9 +354,13 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     } else {
         Box::new(BufWriter::new(std::io::stdout()))
     };
-    let mut out = xml::XmlWriter::new(writer);
 
-    dump_metadata(ctx.engine, &mut out, &sb, &md)
+    let mut out: Box<dyn MetadataVisitor> = match opts.format {
+        OutputFormat::XML => Box::new(xml::XmlWriter::new(writer)),
+        OutputFormat::HumanReadable => Box::new(HumanReadableWriter::new(writer)),
+    };
+
+    dump_metadata(ctx.engine, out.as_mut(), &sb, &md)
 }
 
 //------------------------------------------

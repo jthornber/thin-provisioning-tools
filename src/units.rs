@@ -67,6 +67,31 @@ impl Units {
             Exabyte => "EB",
         })
     }
+
+    pub fn to_letter(&self) -> String {
+        use Units::*;
+
+        // In order to maintain backward compatibilities, we use uppercase letters
+        // to denote decimal prefixes.
+        String::from(match self {
+            Byte => "b",
+            Sector => "s",
+            // letters for binary prefixes
+            Kibibyte => "k",
+            Mebibyte => "m",
+            Gibibyte => "g",
+            Tebibyte => "t",
+            Pebibyte => "p",
+            Exbibyte => "e",
+            // letters for decimal prefixes
+            Kilobyte => "K",
+            Megabyte => "M",
+            Gigabyte => "G",
+            Terabyte => "T",
+            Petabyte => "P",
+            Exabyte => "E",
+        })
+    }
 }
 
 impl FromStr for Units {
@@ -78,7 +103,7 @@ impl FromStr for Units {
             "sector" | "s" => Ok(Units::Sector),
             // base 2
             "kibibyte" | "KiB" | "k" => Ok(Units::Kibibyte),
-            "mibibyte" | "MiB" | "m" => Ok(Units::Mebibyte),
+            "mebibyte" | "MiB" | "m" => Ok(Units::Mebibyte),
             "gibibyte" | "GiB" | "g" => Ok(Units::Gibibyte),
             "tebibyte" | "TiB" | "t" => Ok(Units::Tebibyte),
             "pebibyte" | "PiB" | "p" => Ok(Units::Pebibyte),
@@ -104,7 +129,7 @@ impl ToString for Units {
             Sector => "sector",
             // base 2
             Kibibyte => "kibibyte",
-            Mebibyte => "mibibyte",
+            Mebibyte => "mebibyte",
             Gibibyte => "gibibyte",
             Tebibyte => "terabyte",
             Pebibyte => "pebibyte",

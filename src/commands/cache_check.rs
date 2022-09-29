@@ -61,7 +61,7 @@ impl CacheCheckCommand {
             )
             .arg(
                 Arg::new("SKIP_MAPPINGS")
-                    .help("Don't check the mapping tree")
+                    .help("Don't check the mapping array")
                     .long("skip-mappings"),
             )
             // arguments

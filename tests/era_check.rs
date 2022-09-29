@@ -100,6 +100,26 @@ test_corrupted_input_data!(EraCheck);
 test_readonly_input_file!(EraCheck);
 
 //------------------------------------------
+// test exclusive flags
+
+fn accepts_flag(flag: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    run_ok(era_check_cmd(args![flag, &md]))?;
+    Ok(())
+}
+
+#[test]
+fn accepts_superblock_only() -> Result<()> {
+    accepts_flag("--super-block-only")
+}
+
+#[test]
+fn accepts_ignore_non_fatal_errors() -> Result<()> {
+    accepts_flag("--ignore-non-fatal-errors")
+}
+
+//------------------------------------------
 
 #[test]
 fn failing_q() -> Result<()> {
