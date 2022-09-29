@@ -8,8 +8,8 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
+use crate::copier::*;
 use crate::io_engine::buffer::*;
-use crate::io_engine::copier::*;
 use crate::io_engine::is_page_aligned;
 use crate::io_engine::utils::*;
 

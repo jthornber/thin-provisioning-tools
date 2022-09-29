@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 use std::os::unix::fs::FileExt;
 
+use crate::copier::test_utils::*;
 use crate::io_engine::base::PAGE_SIZE;
 use crate::io_engine::ramdisk::Ramdisk;
-use crate::io_engine::test_utils::*;
 use crate::math::div_up;
 use crate::random::Generator;
 

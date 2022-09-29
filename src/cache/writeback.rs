@@ -12,9 +12,8 @@ use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::checksum;
 use crate::commands::engine::*;
-use crate::io_engine::copier::*;
-use crate::io_engine::rescue_copier::*;
-use crate::io_engine::sync_copier::*;
+use crate::copier::batcher::CopyOpBatcher;
+use crate::copier::*;
 use crate::io_engine::utils::{SimpleBlockIo, VectoredBlockIo};
 use crate::io_engine::{self, *};
 use crate::pdata::array::{self, *};
@@ -267,67 +266,19 @@ fn mk_selector(
 
 //------------------------------------------
 
-// This builds vectors of copy operations and posts them into a channel.
-// The larger the batch size the more chance we have of finding and
-// aggregating adjacent copies.  It also keeps track of the array block
-// _indices_ (not blocknr) that contained dirty mappings.
-struct CopyOpBatcher_ {
-    batch_size: usize,
-    ops: Vec<CopyOp>,
-    tx: SyncSender<Vec<CopyOp>>,
-}
-
-impl CopyOpBatcher_ {
-    fn new(batch_size: usize, tx: SyncSender<Vec<CopyOp>>) -> Self {
-        Self {
-            batch_size,
-            ops: Vec::with_capacity(batch_size),
-            tx,
-        }
-    }
-
-    /// Append a CopyOp to the current batch.
-    fn push(&mut self, op: CopyOp) -> anyhow::Result<()> {
-        self.ops.push(op);
-        if self.ops.len() >= self.batch_size {
-            self.send_ops()?;
-        }
-
-        Ok(())
-    }
-
-    /// Send the current batch.
-    fn send_ops(&mut self) -> anyhow::Result<()> {
-        let mut ops = std::mem::take(&mut self.ops);
-
-        // We sort by the destination since this is likely to be a spindle
-        // and keeping the io in sequential order will help performance.
-        ops.sort_by(|lhs, rhs| lhs.dst.cmp(&rhs.dst));
-        self.tx
-            .send(ops)
-            .map_err(|_| anyhow!("unable to send copy op array"))
-    }
-
-    /// Send the current batch and return the dirty ablocks bitmap.
-    fn complete(mut self) -> anyhow::Result<()> {
-        self.send_ops()?;
-        Ok(())
-    }
-}
-
-struct CopyOpBatcher {
-    inner: Mutex<CopyOpBatcher_>,
+struct WritebackBatcher {
+    inner: Mutex<CopyOpBatcher>,
     selector: Box<dyn WritebackSelector>,
 }
 
-impl CopyOpBatcher {
+impl WritebackBatcher {
     fn new(
         batch_size: usize,
         tx: SyncSender<Vec<CopyOp>>,
         selector: Box<dyn WritebackSelector>,
     ) -> Self {
         Self {
-            inner: Mutex::new(CopyOpBatcher_::new(batch_size, tx)),
+            inner: Mutex::new(CopyOpBatcher::new(batch_size, tx)),
             selector,
         }
     }
@@ -338,7 +289,7 @@ impl CopyOpBatcher {
     }
 }
 
-impl ArrayVisitor<Mapping> for CopyOpBatcher {
+impl ArrayVisitor<Mapping> for WritebackBatcher {
     fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
         let mut inner = self.inner.lock().unwrap();
 
@@ -731,7 +682,7 @@ fn copy_all_dirty_blocks(
     };
 
     // Build batches of copy operations and pass them to the copy thread
-    let batcher = CopyOpBatcher::new(1_000_000, tx, selector);
+    let batcher = WritebackBatcher::new(1_000_000, tx, selector);
     let w = ArrayWalker::new(engine, true);
 
     // FIXME: do something with this
@@ -788,7 +739,7 @@ fn copy_selected_blocks(
         })
     };
 
-    let mut batcher = CopyOpBatcher_::new(1_000_000, tx);
+    let mut batcher = CopyOpBatcher::new(1_000_000, tx);
 
     let ablocks = btree_to_value_vec::<u64>(&mut vec![0], engine.clone(), true, sb.mapping_root)?;
     let entries_per_block = array::calc_max_entries::<Mapping>();

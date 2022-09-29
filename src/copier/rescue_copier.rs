@@ -6,8 +6,8 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::copier::*;
 use crate::io_engine::buffer::*;
-use crate::io_engine::copier::*;
 use crate::io_engine::{is_page_aligned, PAGE_SHIFT, PAGE_SIZE};
 
 #[cfg(test)]
