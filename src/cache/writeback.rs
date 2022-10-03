@@ -562,15 +562,20 @@ fn copy_dirty_blocks(
     opts: &CacheWritebackOptions,
 ) -> anyhow::Result<(WritebackStats, RoaringBitmap)> {
     ctx.report.set_title("Copying cache blocks");
-    let block_size = sb.data_block_size * 512;
-    let fast_dev_offset = opts.fast_dev_offset.unwrap_or(0) * 512;
-    let origin_dev_offset = opts.origin_dev_offset.unwrap_or(0) * 512;
+    let block_size = sb.data_block_size << SECTOR_SHIFT;
+    let fast_dev_offset = opts.fast_dev_offset.unwrap_or(0) << SECTOR_SHIFT;
+    let origin_dev_offset = opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT;
+
+    let buffer_size = opts
+        .buffer_size
+        .unwrap_or_else(|| std::cmp::max(sb.data_block_size as usize, 128 * 1024))
+        << SECTOR_SHIFT;
 
     // Copy all the dirty blocks
     let (nr_blocks, mut cleaned, mut read_failed, mut write_failed) = {
         let copier = Box::new(
             SyncCopier::<VectoredBlockIo<File>>::from_path(
-                opts.buffer_size.unwrap_or(128 * 1024) * 512,
+                buffer_size,
                 block_size as usize,
                 opts.fast_dev,
                 opts.origin_dev,
@@ -586,7 +591,7 @@ fn copy_dirty_blocks(
     if !read_failed.is_empty() || !write_failed.is_empty() {
         let copier = Box::new(
             SyncCopier::<SimpleBlockIo<File>>::from_path(
-                opts.buffer_size.unwrap_or(128 * 1024) * 512,
+                buffer_size,
                 block_size as usize,
                 opts.fast_dev,
                 opts.origin_dev,
@@ -789,20 +794,20 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
     }
 
     // must be a multiple of page size because we use O_DIRECT
-    if !is_page_aligned(opts.fast_dev_offset.unwrap_or(0) * 512)
-        || !is_page_aligned(opts.origin_dev_offset.unwrap_or(0) * 512)
+    if !is_page_aligned(opts.fast_dev_offset.unwrap_or(0) << SECTOR_SHIFT)
+        || !is_page_aligned(opts.origin_dev_offset.unwrap_or(0) << SECTOR_SHIFT)
     {
         return Err(anyhow!("offsets must be page aligned"));
     }
 
     match copy_dirty_blocks(&ctx, &sb, &opts) {
-        Err(_) => {
+        Err(e) => {
             ctx.report
                 .info("Metadata corruption was found, some data may not have been copied.");
             if opts.update_metadata {
                 ctx.report.info("Unable to update metadata");
             }
-            return Err(anyhow!("Metadata contains errors"));
+            return Err(anyhow!("Metadata contains errors, reason: {}", e));
         }
         Ok((stats, cleaned)) => {
             report_stats(ctx.report.clone(), &stats);
