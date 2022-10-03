@@ -1,18 +1,24 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use rangemap::RangeSet;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Read, SeekFrom};
+use std::ops::Range;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use std::vec::Vec;
 
+use crate::copier::batcher::CopyOpBatcher;
+use crate::copier::*;
+use crate::io_engine::utils::VectoredBlockIo;
 use crate::io_engine::{IoEngine, SyncIoEngine, SECTOR_SHIFT};
 use crate::pdata::space_map::metadata::core_metadata_sm;
 use crate::report::Report;
 use crate::shrink::toplevel::*;
-use crate::sync_copier::SyncCopier;
 use crate::thin::dump::dump_metadata;
 use crate::thin::ir::{self, MetadataVisitor, Visit};
 use crate::thin::metadata::*;
@@ -23,19 +29,77 @@ use crate::write_batcher::WriteBatcher;
 
 //---------------------------------------
 
+struct ThreadedCopier<T> {
+    copier: T,
+}
+
+// unlike cache_writeback, thin_shrink doesn't allow failures
+impl<T: Copier + Send + 'static> ThreadedCopier<T> {
+    fn new(copier: T) -> ThreadedCopier<T> {
+        ThreadedCopier { copier }
+    }
+
+    fn run(
+        self,
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        progress: Arc<dyn CopyProgress + Send + Sync>,
+    ) -> JoinHandle<Result<()>> {
+        thread::spawn(move || Self::run_(rx, self.copier, progress))
+    }
+
+    fn run_(
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        mut copier: T,
+        progress: Arc<dyn CopyProgress + Send + Sync>,
+    ) -> Result<()> {
+        while let Ok(ops) = rx.recv() {
+            let r = copier.copy(&ops, progress.clone());
+            if r.is_err() {
+                return Err(anyhow!(""));
+            }
+
+            let stats = r.unwrap();
+            if !stats.read_errors.is_empty() || !stats.write_errors.is_empty() {
+                return Err(anyhow!(""));
+            }
+
+            progress.update(&stats);
+        }
+
+        Ok(())
+    }
+}
+
 fn copy_regions(
     data_dev: &Path,
     remaps: &[(BlockRange, u64)],
-    block_size: u64,
-) -> std::io::Result<()> {
-    let copier = SyncCopier::in_file(data_dev)?;
+    block_size: usize,
+    progress: Arc<dyn CopyProgress + Send + Sync>,
+) -> Result<()> {
+    let file = OpenOptions::new().read(true).write(true).open(data_dev)?;
+    let vio: VectoredBlockIo<File> = file.into();
+    let buffer_size = std::cmp::max(block_size, 64 * 1024 * 1024);
+    let copier = SyncCopier::in_file(buffer_size, block_size, vio)?;
+
+    let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
+    let mut batcher = CopyOpBatcher::new(1_000_000, tx);
+
+    let copier = ThreadedCopier::new(copier);
+    let handle = copier.run(rx, progress);
 
     for (from, to) in remaps {
-        let src = from.start * block_size;
-        let dest = to * block_size;
-        let len = range_len(from) * block_size;
-        copier.copy(src, dest, len)?;
+        let len = range_len(from);
+        let dst_range = Range {
+            start: *to,
+            end: *to + len,
+        };
+        for (src, dst) in from.clone().zip(dst_range) {
+            batcher.push(CopyOp { src, dst })?;
+        }
     }
+
+    batcher.complete()?;
+    handle.join().unwrap()?;
 
     Ok(())
 }
@@ -243,9 +307,10 @@ fn rewrite_xml(opts: ThinShrinkOptions) -> Result<()> {
     input.seek(SeekFrom::Start(0))?;
     let remaps = build_remaps_from_xml(input.try_clone()?, opts.nr_blocks)?;
 
+    let progress = Arc::new(IgnoreProgress {});
     if opts.do_copy {
-        let bs = (sb.data_block_size as u64) << SECTOR_SHIFT as u64;
-        copy_regions(&opts.data_device, &remaps, bs)?;
+        let bs = (sb.data_block_size as usize) << SECTOR_SHIFT;
+        copy_regions(&opts.data_device, &remaps, bs, progress)?;
     }
 
     // 2nd pass
@@ -265,9 +330,10 @@ fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
     // 1st pass
     let remaps = build_remaps_from_metadata(input.clone(), &sb, &md, opts.nr_blocks)?;
 
+    let progress = Arc::new(IgnoreProgress {});
     if opts.do_copy {
-        let bs = (sb.data_block_size as u64) << SECTOR_SHIFT as u64;
-        copy_regions(&opts.data_device, &remaps, bs)?;
+        let bs = (sb.data_block_size as usize) << SECTOR_SHIFT;
+        copy_regions(&opts.data_device, &remaps, bs, progress)?;
     }
 
     // 2nd pass

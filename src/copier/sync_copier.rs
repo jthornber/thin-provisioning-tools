@@ -76,6 +76,27 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
         })
     }
 
+    // Copying regions within a file
+    pub fn in_file(buffer_size: usize, block_size: usize, inout: T) -> Result<SyncCopier<T>> {
+        if block_size > buffer_size {
+            return Err(anyhow!("buffer size too small"));
+        }
+
+        let dst = Arc::new(Mutex::new(inout));
+
+        // src and dst are behind the same mutex, thus the worker threads
+        // cannot read and write simultaneously. It could be useful while
+        // dealing with spindle devices.
+        Ok(Self {
+            buffer_size,
+            block_size,
+            src: dst.clone(),
+            src_offset: 0,
+            dst,
+            dst_offset: 0,
+        })
+    }
+
     pub fn src_offset(mut self, offset: u64) -> Result<SyncCopier<T>> {
         if !is_page_aligned(offset) {
             return Err(anyhow!("offset must be page aligned"));
