@@ -446,6 +446,65 @@ impl Drop for BitsetUpdater {
 
 //------------------------------------------
 
+struct ThreadedCopier {
+    copier: Box<dyn Copier + Send>,
+}
+
+impl ThreadedCopier {
+    fn new(copier: Box<dyn Copier + Send>) -> ThreadedCopier {
+        ThreadedCopier { copier }
+    }
+
+    fn run(
+        self,
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        progress: Arc<ProgressReporter>,
+    ) -> thread::JoinHandle<anyhow::Result<(RoaringBitmap, RoaringBitmap, RoaringBitmap)>> {
+        thread::spawn(move || Self::run_(rx, self.copier, progress))
+    }
+
+    fn run_(
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        mut copier: Box<dyn Copier + Send>,
+        progress: Arc<ProgressReporter>,
+    ) -> anyhow::Result<(RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
+        let mut cleaned = RoaringBitmap::new();
+        let mut read_failed = RoaringBitmap::new();
+        let mut write_failed = RoaringBitmap::new();
+
+        while let Ok(ops) = rx.recv() {
+            {
+                // We assume the copies will succeed, and then remove
+                // entries that failed afterwards.
+                for op in &ops {
+                    cleaned.insert(op.src as u32);
+                }
+            }
+
+            let stats = copier
+                .copy(&ops, progress.clone())
+                .map_err(|e| anyhow!("copy failed: {}", e))?;
+            progress.inc_stats(&stats);
+
+            {
+                for op in stats.read_errors {
+                    cleaned.remove(op.src as u32);
+                    read_failed.insert(op.src as u32);
+                }
+
+                for op in stats.write_errors {
+                    cleaned.remove(op.src as u32);
+                    write_failed.insert(op.src as u32);
+                }
+            }
+        }
+
+        Ok((cleaned, read_failed, write_failed))
+    }
+}
+
+//------------------------------------------
+
 /// Clears dirty flags in the metadata.
 fn update_metadata(
     ctx: &Context,
@@ -638,7 +697,7 @@ fn copy_dirty_blocks(
 fn copy_all_dirty_blocks(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sb: &Superblock,
-    mut copier: Box<dyn Copier + Send>,
+    copier: Box<dyn Copier + Send>,
     report: Arc<Report>,
 ) -> anyhow::Result<(u32, RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
     let selector = mk_selector(engine.clone(), sb)?;
@@ -651,40 +710,8 @@ fn copy_all_dirty_blocks(
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
 
     // launch the copy thread
-    let copy_thread = {
-        thread::spawn(move || {
-            let mut cleaned = RoaringBitmap::new();
-            let mut read_failed = RoaringBitmap::new();
-            let mut write_failed = RoaringBitmap::new();
-
-            while let Ok(ops) = rx.recv() {
-                {
-                    // We assume the copies will succeed, and then remove
-                    // entries that failed afterwards.
-                    for op in &ops {
-                        cleaned.insert(op.src as u32);
-                    }
-                }
-
-                let stats = copier.copy(&ops, progress.clone()).expect("copy failed");
-                progress.inc_stats(&stats);
-
-                {
-                    for op in stats.read_errors {
-                        cleaned.remove(op.src as u32);
-                        read_failed.insert(op.src as u32);
-                    }
-
-                    for op in stats.write_errors {
-                        cleaned.remove(op.src as u32);
-                        write_failed.insert(op.src as u32);
-                    }
-                }
-            }
-
-            (cleaned, read_failed, write_failed)
-        })
-    };
+    let copier = ThreadedCopier::new(copier);
+    let copy_thread = copier.run(rx, progress);
 
     // Build batches of copy operations and pass them to the copy thread
     let batcher = WritebackBatcher::new(1_000_000, tx, selector);
@@ -694,7 +721,7 @@ fn copy_all_dirty_blocks(
     w.walk(&batcher, sb.mapping_root)?;
 
     batcher.complete()?;
-    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap();
+    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap()?;
 
     Ok((nr_blocks, cleaned, read_failed, write_failed))
 }
@@ -702,47 +729,15 @@ fn copy_all_dirty_blocks(
 fn copy_selected_blocks(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sb: &Superblock,
-    mut copier: Box<dyn Copier + Send>,
+    copier: Box<dyn Copier + Send>,
     blocks: &RoaringBitmap,
     report: Arc<Report>,
 ) -> anyhow::Result<(RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
     let progress = Arc::new(ProgressReporter::new(report, blocks.len() as u64));
 
-    let copy_thread = {
-        thread::spawn(move || {
-            let mut cleaned = RoaringBitmap::new();
-            let mut read_failed = RoaringBitmap::new();
-            let mut write_failed = RoaringBitmap::new();
-
-            while let Ok(ops) = rx.recv() {
-                {
-                    // We assume the copies will succeed, and then remove
-                    // entries that failed afterwards.
-                    for op in &ops {
-                        cleaned.insert(op.src as u32);
-                    }
-                }
-
-                let stats = copier.copy(&ops, progress.clone()).expect("copy failed");
-                progress.inc_stats(&stats);
-
-                {
-                    for op in stats.read_errors {
-                        cleaned.remove(op.src as u32);
-                        read_failed.insert(op.src as u32);
-                    }
-
-                    for op in stats.write_errors {
-                        cleaned.remove(op.src as u32);
-                        write_failed.insert(op.src as u32);
-                    }
-                }
-            }
-
-            (cleaned, read_failed, write_failed)
-        })
-    };
+    let copier = ThreadedCopier::new(copier);
+    let copy_thread = copier.run(rx, progress);
 
     let mut batcher = CopyOpBatcher::new(1_000_000, tx);
 
@@ -768,7 +763,7 @@ fn copy_selected_blocks(
     }
 
     batcher.complete()?;
-    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap();
+    let (cleaned, read_failed, write_failed) = copy_thread.join().unwrap()?;
 
     Ok((cleaned, read_failed, write_failed))
 }
