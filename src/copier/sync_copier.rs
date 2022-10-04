@@ -8,8 +8,8 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
+use crate::copier::*;
 use crate::io_engine::buffer::*;
-use crate::io_engine::copier::*;
 use crate::io_engine::is_page_aligned;
 use crate::io_engine::utils::*;
 
@@ -72,6 +72,27 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
             src: Arc::new(Mutex::new(src)),
             src_offset: 0,
             dst: Arc::new(Mutex::new(dst)),
+            dst_offset: 0,
+        })
+    }
+
+    // Copying regions within a file
+    pub fn in_file(buffer_size: usize, block_size: usize, inout: T) -> Result<SyncCopier<T>> {
+        if block_size > buffer_size {
+            return Err(anyhow!("buffer size too small"));
+        }
+
+        let dst = Arc::new(Mutex::new(inout));
+
+        // src and dst are behind the same mutex, thus the worker threads
+        // cannot read and write simultaneously. It could be useful while
+        // dealing with spindle devices.
+        Ok(Self {
+            buffer_size,
+            block_size,
+            src: dst.clone(),
+            src_offset: 0,
+            dst,
             dst_offset: 0,
         })
     }

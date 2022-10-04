@@ -14,6 +14,7 @@ pub mod repair;
 pub mod restore;
 pub mod rmap;
 pub mod runs;
+pub mod shrink;
 pub mod superblock;
 pub mod trim;
 pub mod xml;

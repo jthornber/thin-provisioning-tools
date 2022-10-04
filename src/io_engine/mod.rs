@@ -1,10 +1,7 @@
 pub mod base;
 pub mod buffer;
-pub mod copier;
-pub mod rescue_copier;
 pub mod spindle;
 pub mod sync;
-pub mod sync_copier;
 pub mod utils;
 
 pub use crate::io_engine::base::*;
@@ -22,6 +19,3 @@ pub mod core;
 
 #[cfg(test)]
 pub mod ramdisk;
-
-#[cfg(any(test, feature = "devtools"))]
-pub mod test_utils;

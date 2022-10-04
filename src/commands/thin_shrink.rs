@@ -12,7 +12,7 @@ use std::path::Path;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
-use crate::shrink::toplevel::{shrink, ThinShrinkOptions};
+use crate::thin::shrink::{shrink, ThinShrinkOptions};
 
 pub struct ThinShrinkCommand;
 
