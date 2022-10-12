@@ -193,20 +193,26 @@ impl BTreeWalker {
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
-            return Err(node_err_s(
+            let e = node_err_s(
                 path,
                 format!("checksum failed for node {}, {:?}", b.loc, bt),
             )
-            .keys_context(kr));
+            .keys_context(kr);
+            self.set_fail(b.loc, e.clone());
+            return Err(e);
         }
 
-        let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node =
+            unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root).map_err(|e| {
+                self.set_fail(b.loc, e.clone());
+                e
+            })?;
 
         match node {
             Internal { keys, values, .. } => {
                 let krs = split_key_ranges(path, kr, &keys)?;
                 let errs = self.walk_nodes(path, visitor, &krs, &values);
-                return self.build_aggregate(b.loc, errs);
+                return self.build_aggregate(b.loc, errs); // implicitly calls set_fail()
             }
             Leaf {
                 header,
@@ -289,20 +295,25 @@ where
 
     let bt = checksum::metadata_block_type(b.get_data());
     if bt != checksum::BT::NODE {
-        return Err(node_err_s(
+        let e = node_err_s(
             path,
             format!("checksum failed for node {}, {:?}", b.loc, bt),
         )
-        .keys_context(kr));
+        .keys_context(kr);
+        w.set_fail(b.loc, e.clone());
+        return Err(e);
     }
 
-    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root)?;
+    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root).map_err(|e| {
+        w.set_fail(b.loc, e.clone());
+        e
+    })?;
 
     match node {
         Internal { keys, values, .. } => {
             let krs = split_key_ranges(path, kr, &keys)?;
             let errs = walk_nodes_threaded(w.clone(), path, pool, visitor, &krs, &values);
-            return w.build_aggregate(b.loc, errs);
+            return w.build_aggregate(b.loc, errs); // implicitly calls set_fail()
         }
         Leaf {
             header,
@@ -700,7 +711,6 @@ impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
         Ok(())
     }
 
-    //fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
     fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
         Ok(())
     }
