@@ -250,7 +250,6 @@ impl BTreeWalker {
         path.push(b.loc);
         let r = self.walk_node_(path, visitor, kr, b, is_root);
         path.pop();
-        visitor.end_walk()?;
         r
     }
 
@@ -259,7 +258,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        if self.sm_inc(root) > 0 {
+        let result = if self.sm_inc(root) > 0 {
             if let Some(e) = self.failed(root) {
                 Err(e)
             } else {
@@ -272,7 +271,15 @@ impl BTreeWalker {
                 end: None,
             };
             self.walk_node(path, visitor, &kr, &root, true)
+        };
+
+        if let Err(e) = visitor.end_walk() {
+            if let Err(tree_err) = result {
+                return Err(BTreeError::Aggregate(vec![tree_err, e]));
+            }
         }
+
+        result
     }
 }
 
@@ -343,7 +350,6 @@ where
     path.push(b.loc);
     let r = walk_node_threaded_(w, path, pool, visitor.clone(), kr, b, is_root);
     path.pop();
-    visitor.end_walk()?;
     r
 }
 
@@ -446,7 +452,7 @@ where
     NV: NodeVisitor<V> + Send + Sync + 'static,
     V: Unpack,
 {
-    if w.sm_inc(root) > 0 {
+    let result = if w.sm_inc(root) > 0 {
         if let Some(e) = w.failed(root) {
             Err(e)
         } else {
@@ -458,8 +464,16 @@ where
             start: None,
             end: None,
         };
-        walk_node_threaded(w, path, pool, visitor, &kr, &root, true)
+        walk_node_threaded(w, path, pool, visitor.clone(), &kr, &root, true)
+    };
+
+    if let Err(e) = visitor.end_walk() {
+        if let Err(tree_err) = result {
+            return Err(BTreeError::Aggregate(vec![tree_err, e]));
+        }
     }
+
+    result
 }
 
 //------------------------------------------
