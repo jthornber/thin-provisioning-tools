@@ -348,7 +348,7 @@ where
     V: Unpack,
 {
     path.push(b.loc);
-    let r = walk_node_threaded_(w, path, pool, visitor.clone(), kr, b, is_root);
+    let r = walk_node_threaded_(w, path, pool, visitor, kr, b, is_root);
     path.pop();
     r
 }
