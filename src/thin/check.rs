@@ -85,14 +85,10 @@ fn verify_checksum(b: &Block) -> Result<()> {
     Ok(())
 }
 
-fn is_seen(
-    loc: u32,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    nodes: &mut NodeMap,
-) -> bool {
+fn is_seen(loc: u32, metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>) -> bool {
     let mut sm = metadata_sm.lock().unwrap();
     sm.inc(loc as u64, 1).expect("space map inc failed");
-    nodes.contains_key(&loc)
+    sm.get(loc as u64).unwrap_or(0) > 1
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -121,7 +117,7 @@ fn read_node_(
         let mut new_values = Vec::with_capacity(values.len());
         let mut new_keys = Vec::with_capacity(child_keys.len());
         for i in 0..values.len() {
-            if !is_seen(values[i] as u32, metadata_sm, nodes) {
+            if !is_seen(values[i] as u32, metadata_sm) {
                 new_values.push(values[i]);
                 new_keys.push(child_keys[i].clone());
             }
@@ -245,7 +241,7 @@ fn read_internal_nodes(
     nodes: &mut NodeMap,
 ) {
     let keys = KeyRange::new();
-    if is_seen(root, metadata_sm, nodes) {
+    if is_seen(root, metadata_sm) {
         return;
     }
 
