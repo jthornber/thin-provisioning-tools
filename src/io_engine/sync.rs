@@ -59,11 +59,11 @@ impl SyncIoEngine {
         for b in &bs {
             let b = b.as_ref().unwrap();
             if let Some((begin, end)) = last {
-                if end == b.loc {
-                    last = Some((begin, b.loc + 1));
-                } else {
+                if end != b.loc || end - begin >= libc::UIO_MAXIOV as u64 {
                     runs.push((end - begin) as usize);
                     last = Some((b.loc, b.loc + 1));
+                } else {
+                    last = Some((begin, b.loc + 1));
                 }
             } else {
                 last = Some((b.loc, b.loc + 1));
