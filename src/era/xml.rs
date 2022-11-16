@@ -260,13 +260,13 @@ where
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"writeset" => visitor.writeset_b(&parse_writeset(e)?),
             b"era_array" => visitor.era_b(),
-            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::End(ref e)) => match e.name() {
             b"superblock" => visitor.superblock_e(),
             b"writeset" => visitor.writeset_e(),
             b"era_array" => visitor.era_e(),
-            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::Empty(ref e)) => match e.name() {
             b"bit" => {
@@ -278,7 +278,7 @@ where
             }
             b"marked" => visitor.writeset_blocks(&parse_writeset_blocks(e)?),
             b"era" => visitor.era(&parse_era(e)?),
-            _ => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -286,14 +286,12 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => return Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
-        Err(e) => {
-            return Err(anyhow!(
-                "Parse error at byte {}: {:?}",
-                reader.buffer_position(),
-                e
-            ))
-        }
+        Ok(_) => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Err(e) => Err(anyhow!(
+            "Parse error at byte {}: {:?}",
+            reader.buffer_position(),
+            e
+        )),
     }
 }
 

@@ -8,7 +8,7 @@ use crate::pack::vm;
 
 //------------------------------------------
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyRange {
     pub start: Option<u64>,
     pub end: Option<u64>, // This is the one-past-the-end value

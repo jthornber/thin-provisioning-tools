@@ -15,7 +15,7 @@ mod tests;
 
 const ARRAY_BLOCK_HEADER_SIZE: u32 = 24;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ArrayBlockHeader {
     pub max_entries: u32,
     pub nr_entries: u32,

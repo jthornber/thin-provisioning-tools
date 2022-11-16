@@ -7,7 +7,7 @@ use std::thread::{self, JoinHandle};
 
 //------------------------------------------
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ReportOutcome {
     Success,
     NonFatal,
@@ -259,7 +259,7 @@ impl ProgressMonitor {
 
                 let n = processed() * 100 / total;
 
-                let _r = report.progress(n as u8);
+                report.progress(n as u8);
                 thread::sleep(interval);
             }
         });

@@ -311,7 +311,7 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
 
                 let mut stats = stats.write().unwrap();
                 stats.nr_copied += write_success.len() as u64;
-                progress.update(&*stats);
+                progress.update(&stats);
             })
         };
 

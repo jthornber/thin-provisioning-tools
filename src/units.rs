@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 //------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Units {
     Byte,
     Sector,
@@ -151,7 +151,7 @@ pub fn to_units(bytes: u64, unit: Units) -> f64 {
 
 //------------------------------------------
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct StorageSize {
     multiple: u64,
     unit: Units,
@@ -210,7 +210,7 @@ impl FromStr for StorageSize {
 
     // default to sectors
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (multiple, unit) = if let Some(pos) = s.find(|c: char| !c.is_digit(10)) {
+        let (multiple, unit) = if let Some(pos) = s.find(|c: char| !c.is_ascii_digit()) {
             (s[..pos].parse::<u64>()?, s[pos..].parse::<Units>()?)
         } else {
             (s.parse::<u64>()?, Units::Sector)

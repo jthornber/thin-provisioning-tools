@@ -282,22 +282,16 @@ fn create_data_file(data_path: &Path, xml_path: &Path) -> Result<()> {
 }
 
 fn stamp(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
-    let mut data = OpenOptions::new()
-        .read(false)
-        .write(true)
-        .open(&data_path)?;
-    let xml = OpenOptions::new().read(true).write(false).open(&xml_path)?;
+    let mut data = OpenOptions::new().read(false).write(true).open(data_path)?;
+    let xml = OpenOptions::new().read(true).write(false).open(xml_path)?;
 
     let mut stamper = Stamper::new(&mut data, seed);
     thin_visit(xml, &mut stamper)
 }
 
 fn verify(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
-    let mut data = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .open(&data_path)?;
-    let xml = OpenOptions::new().read(true).write(false).open(&xml_path)?;
+    let mut data = OpenOptions::new().read(true).write(false).open(data_path)?;
+    let xml = OpenOptions::new().read(true).write(false).open(xml_path)?;
     let mut verifier = Verifier::new(&mut data, seed);
     thin_visit(xml, &mut verifier)
 }

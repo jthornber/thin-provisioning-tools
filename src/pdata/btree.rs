@@ -19,7 +19,7 @@ pub use btree_error::*;
 
 const NODE_HEADER_SIZE: usize = 32;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeHeader {
     pub block: u64,
     pub is_leaf: bool,
