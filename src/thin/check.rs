@@ -20,58 +20,6 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
-struct BottomLevelVisitor {
-    data_sm: ASpaceMap,
-}
-
-//------------------------------------------
-
-impl NodeVisitor<BlockTime> for BottomLevelVisitor {
-    fn visit(
-        &self,
-        _path: &[u64],
-        _kr: &KeyRange,
-        _h: &NodeHeader,
-        _k: &[u64],
-        values: &[BlockTime],
-    ) -> btree::Result<()> {
-        // FIXME: do other checks
-
-        if values.is_empty() {
-            return Ok(());
-        }
-
-        let mut data_sm = self.data_sm.lock().unwrap();
-
-        let mut start = values[0].block;
-        let mut len = 1;
-
-        for b in values.iter().skip(1) {
-            let block = b.block;
-            if block == start + len {
-                len += 1;
-            } else {
-                data_sm.inc(start, len).unwrap();
-                start = block;
-                len = 1;
-            }
-        }
-
-        data_sm.inc(start, len).unwrap();
-        Ok(())
-    }
-
-    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
-        Ok(())
-    }
-
-    fn end_walk(&self) -> btree::Result<()> {
-        Ok(())
-    }
-}
-
-//------------------------------------------
-
 fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     sm.inc(SUPERBLOCK_LOCATION, 1)?;
@@ -408,61 +356,6 @@ fn check_mapping_bottom_level(
     }
     ctx.pool.join();
 
-    /*
-    let w = Arc::new(BTreeWalker::new_with_sm(
-        ctx.engine.clone(),
-        metadata_sm.clone(),
-        ignore_non_fatal,
-    )?);
-
-    // We want to print out errors as we progress, so we aggregate for each thin and print
-    // at that point.
-    let mut failed = false;
-
-    if roots.len() > 64 {
-        let errs = Arc::new(Mutex::new(Vec::new()));
-        for (path, root) in roots.values() {
-            let data_sm = data_sm.clone();
-            let root = *root;
-            let v = BottomLevelVisitor { data_sm };
-            let w = w.clone();
-            let mut path = path.clone();
-            let errs = errs.clone();
-
-            ctx.pool.execute(move || {
-                if let Err(e) = w.walk(&mut path, &v, root) {
-                    let mut errs = errs.lock().unwrap();
-                    errs.push(e);
-                }
-            });
-        }
-        ctx.pool.join();
-        let errs = Arc::try_unwrap(errs).unwrap().into_inner().unwrap();
-        if !errs.is_empty() {
-            ctx.report.fatal(&format!("{}", aggregate_error(errs)));
-            failed = true;
-        }
-    } else {
-        for (path, root) in roots.values() {
-            let w = w.clone();
-            let data_sm = data_sm.clone();
-            let root = *root;
-            let v = Arc::new(BottomLevelVisitor { data_sm });
-            let mut path = path.clone();
-
-            if let Err(e) = walk_threaded(&mut path, w, &ctx.pool, v, root) {
-                failed = true;
-                ctx.report.fatal(&format!("{}", e));
-            }
-        }
-    }
-
-    if failed {
-        Err(anyhow!("Check of mappings failed"))
-    } else {
-        Ok(())
-    }
-    */
     Ok(())
 }
 
@@ -477,8 +370,7 @@ fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> 
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
-    // let nr_threads = engine.suggest_nr_threads();
-    let nr_threads = 16;
+    let nr_threads = engine.suggest_nr_threads();
     let pool = ThreadPool::new(nr_threads);
 
     Ok(Context {
