@@ -16,6 +16,7 @@ use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
+use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -292,8 +293,6 @@ fn check_mapping_bottom_level(
     roots: &BTreeMap<u64, (Vec<u64>, u64)>,
     ignore_non_fatal: bool,
 ) -> Result<()> {
-    ctx.report.set_sub_title("mapping tree");
-
     let mut nodes = BTreeMap::new();
     let mut tree_roots = BTreeSet::new();
 
@@ -457,6 +456,16 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.mapping_root,
     )?;
 
+    // It's highly possible that the pool is damaged by multiple activation
+    // if the two trees are inconsistent. In this situation, there's no need to
+    // do further checking, and users should perform the repair process.
+    // Here we don't use is_superblock_consistent() to avoid extra reads.
+    if !roots.keys().eq(devs.keys()) {
+        return Err(anyhow!(
+            "Inconsistency between the details tree and the mapping tree"
+        ));
+    }
+
     if opts.skip_mappings {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
@@ -477,6 +486,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             metadata_sm.inc(sb.metadata_snap, 1)?;
         }
         let sb_snap = read_superblock(engine.as_ref(), sb.metadata_snap)?;
+
+        // Check device id consistency regareless of reading shared nodes
+        is_superblock_consistent(sb_snap.clone(), engine.clone(), opts.ignore_non_fatal)
+            .map_err(|_| anyhow!("Inconsistent device ids found in superblock snapshot"))?;
 
         // device details
         btree_to_map_with_sm::<DeviceDetail>(
@@ -632,6 +645,12 @@ pub fn check_with_maps(
         false,
         sb.mapping_root,
     )?;
+
+    if !roots.keys().eq(devs.keys()) {
+        return Err(anyhow!(
+            "Inconsistency between the details tree and the mapping tree"
+        ));
+    }
 
     // mapping bottom level
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
