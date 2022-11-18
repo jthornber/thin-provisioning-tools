@@ -22,7 +22,7 @@ struct BitsetCollator {
     composed_bits: Mutex<Vec<u64>>,
 }
 
-impl<'a> BitsetCollator {
+impl BitsetCollator {
     fn new(bitset: Vec<u64>) -> BitsetCollator {
         BitsetCollator {
             composed_bits: Mutex::new(bitset),

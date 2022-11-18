@@ -216,7 +216,7 @@ impl IoEngine for SpindleIoEngine {
         let mut inner = self.inner.write().unwrap();
         let mut bs = Vec::new();
         for b in blocks {
-            bs.push(inner.write_(&*b));
+            bs.push(inner.write_(b));
         }
         Ok(bs)
     }

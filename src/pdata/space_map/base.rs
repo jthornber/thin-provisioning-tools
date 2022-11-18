@@ -218,7 +218,7 @@ impl SpaceMap for RestrictedSpaceMap {
             self.counts.set(b as usize, false);
         }
 
-        Ok(if old { 1 } else { 0 })
+        Ok(u32::from(old))
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {

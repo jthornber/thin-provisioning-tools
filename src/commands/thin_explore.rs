@@ -33,6 +33,7 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::io_engine::*;
 use crate::pdata::btree;
+use crate::pdata::btree_error;
 use crate::pdata::unpack::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -874,7 +875,7 @@ impl<'a> Command<'a> for ThinExploreCommand {
 
         let node_path = matches
             .value_of("NODE_PATH")
-            .map(|text| btree::decode_node_path(text).unwrap());
+            .map(|text| btree_error::decode_node_path(text).unwrap());
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
         let report = mk_report(false);
 

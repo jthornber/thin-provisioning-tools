@@ -1,6 +1,6 @@
 //-------------------------------------------------
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Delta {
     Base { n: u64 },
     Const { count: u64 },

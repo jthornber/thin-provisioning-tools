@@ -104,7 +104,7 @@ impl<'a> InputProgram<'a> for ThinCheck {
     }
 }
 
-impl<'a> MetadataReader<'_> for ThinCheck {}
+impl MetadataReader<'_> for ThinCheck {}
 
 //------------------------------------------
 

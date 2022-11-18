@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::btree::*;
+use crate::pdata::btree_error::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;

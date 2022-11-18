@@ -193,20 +193,26 @@ impl BTreeWalker {
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
-            return Err(node_err_s(
+            let e = node_err_s(
                 path,
                 format!("checksum failed for node {}, {:?}", b.loc, bt),
             )
-            .keys_context(kr));
+            .keys_context(kr);
+            self.set_fail(b.loc, e.clone());
+            return Err(e);
         }
 
-        let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
+        let node =
+            unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root).map_err(|e| {
+                self.set_fail(b.loc, e.clone());
+                e
+            })?;
 
         match node {
             Internal { keys, values, .. } => {
                 let krs = split_key_ranges(path, kr, &keys)?;
                 let errs = self.walk_nodes(path, visitor, &krs, &values);
-                return self.build_aggregate(b.loc, errs);
+                return self.build_aggregate(b.loc, errs); // implicitly calls set_fail()
             }
             Leaf {
                 header,
@@ -244,7 +250,6 @@ impl BTreeWalker {
         path.push(b.loc);
         let r = self.walk_node_(path, visitor, kr, b, is_root);
         path.pop();
-        visitor.end_walk()?;
         r
     }
 
@@ -253,7 +258,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        if self.sm_inc(root) > 0 {
+        let result = if self.sm_inc(root) > 0 {
             if let Some(e) = self.failed(root) {
                 Err(e)
             } else {
@@ -266,7 +271,15 @@ impl BTreeWalker {
                 end: None,
             };
             self.walk_node(path, visitor, &kr, &root, true)
+        };
+
+        if let Err(e) = visitor.end_walk() {
+            if let Err(tree_err) = result {
+                return Err(BTreeError::Aggregate(vec![tree_err, e]));
+            }
         }
+
+        result
     }
 }
 
@@ -289,20 +302,25 @@ where
 
     let bt = checksum::metadata_block_type(b.get_data());
     if bt != checksum::BT::NODE {
-        return Err(node_err_s(
+        let e = node_err_s(
             path,
             format!("checksum failed for node {}, {:?}", b.loc, bt),
         )
-        .keys_context(kr));
+        .keys_context(kr);
+        w.set_fail(b.loc, e.clone());
+        return Err(e);
     }
 
-    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root)?;
+    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root).map_err(|e| {
+        w.set_fail(b.loc, e.clone());
+        e
+    })?;
 
     match node {
         Internal { keys, values, .. } => {
             let krs = split_key_ranges(path, kr, &keys)?;
             let errs = walk_nodes_threaded(w.clone(), path, pool, visitor, &krs, &values);
-            return w.build_aggregate(b.loc, errs);
+            return w.build_aggregate(b.loc, errs); // implicitly calls set_fail()
         }
         Leaf {
             header,
@@ -330,9 +348,8 @@ where
     V: Unpack,
 {
     path.push(b.loc);
-    let r = walk_node_threaded_(w, path, pool, visitor.clone(), kr, b, is_root);
+    let r = walk_node_threaded_(w, path, pool, visitor, kr, b, is_root);
     path.pop();
-    visitor.end_walk()?;
     r
 }
 
@@ -435,7 +452,7 @@ where
     NV: NodeVisitor<V> + Send + Sync + 'static,
     V: Unpack,
 {
-    if w.sm_inc(root) > 0 {
+    let result = if w.sm_inc(root) > 0 {
         if let Some(e) = w.failed(root) {
             Err(e)
         } else {
@@ -447,8 +464,16 @@ where
             start: None,
             end: None,
         };
-        walk_node_threaded(w, path, pool, visitor, &kr, &root, true)
+        walk_node_threaded(w, path, pool, visitor.clone(), &kr, &root, true)
+    };
+
+    if let Err(e) = visitor.end_walk() {
+        if let Err(tree_err) = result {
+            return Err(BTreeError::Aggregate(vec![tree_err, e]));
+        }
     }
+
+    result
 }
 
 //------------------------------------------
@@ -700,7 +725,6 @@ impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
         Ok(())
     }
 
-    //fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
     fn visit_again(&self, _path: &[u64], _b: u64) -> Result<()> {
         Ok(())
     }

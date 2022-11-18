@@ -5,7 +5,7 @@ use std::io;
 use thiserror::Error;
 
 use crate::io_engine::BLOCK_SIZE;
-use crate::pdata::btree;
+use crate::pdata::btree_error;
 use crate::pdata::unpack::{Pack, Unpack};
 
 #[cfg(test)]
@@ -15,7 +15,7 @@ mod tests;
 
 const ARRAY_BLOCK_HEADER_SIZE: u32 = 24;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ArrayBlockHeader {
     pub max_entries: u32,
     pub nr_entries: u32,
@@ -94,7 +94,7 @@ pub enum ArrayError {
     Path(Vec<u64>, Box<ArrayError>),
 }
 
-impl btree::AnyError for ArrayError {}
+impl btree_error::AnyError for ArrayError {}
 
 impl fmt::Display for ArrayError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -112,7 +112,7 @@ impl fmt::Display for ArrayError {
                 }
                 Ok(())
             }
-            ArrayError::Path(path, e) => write!(f, "{} {}", e, btree::encode_node_path(path)),
+            ArrayError::Path(path, e) => write!(f, "{} {}", e, btree_error::encode_node_path(path)),
         }
     }
 }

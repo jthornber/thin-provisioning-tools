@@ -211,7 +211,7 @@ pub struct NodeSummary {
     shared: bool,
 }
 
-impl<'a, V: Pack + Unpack + Clone> NodeBuilder<V> {
+impl<V: Pack + Unpack + Clone> NodeBuilder<V> {
     /// Create a new NodeBuilder
     pub fn new(nio: Box<dyn NodeIO<V>>, value_rc: Box<dyn RefCounter<V>>, shared: bool) -> Self {
         NodeBuilder {

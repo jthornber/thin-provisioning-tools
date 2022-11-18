@@ -17,7 +17,7 @@ fn checksum(buf: &[u8]) -> u32 {
     crc32c(&buf[4..]) ^ 0xffffffff
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
 #[allow(non_camel_case_types)]
 pub enum BT {
