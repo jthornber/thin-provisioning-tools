@@ -47,6 +47,13 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] thin/cache/era_repair: Clear superblock if the output is incompleted (commit 1dd7b454, bz1499781)
       (Is it really necessary? In addition, issuing IO in error handling routine seems not a good idea)
 - [ ] cache_writeback: Implement --list-failed-blocks
+- [ ] thin_check/repair: Reduce memory consumption of in-core data space map.
+      There are just a few blocks (1%) reach a high reference count (e.g., > 255), so storing them in a separated HashMap might be reasonable without significant performance impact.
+- [ ] Improve error checking of BTreeWalker on shared nodes, rather than simply ignores them without verifying them against the path context.
+- [ ] Simplify the representation of node errors in BTreeWalker: Store node errors (io, csum, or unpack errors) without path context, and attach path information while traversal, which helps improving accuracy and memory consumption.
+- [ ] Check the key ranges in BTreeWalker.
+- [ ] thin_check: improve error reporting on ref count tree checking (the "overflow" trees).
+      Currently it dumps the BTreeError directly.
 
 ## RFEs
 
@@ -80,3 +87,4 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] Preserve the error payload in array/btree Errors (maybe a Boxed Error like std::io::Error::other() or anyhow::Error::from())
 - [x] thin_dump: Optional argument for --metadata-snap
 - [ ] Remove blank lines in help (clap.git issue #2983)
+- [ ] Review the use of Copy trait, especially BTreeWalker.
