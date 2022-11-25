@@ -25,9 +25,12 @@ pub mod run_iter;
 pub mod shrink;
 pub mod thin;
 pub mod units;
+pub mod utils;
 pub mod version;
 pub mod write_batcher;
 pub mod xml;
 
 #[cfg(any(test, feature = "devtools"))]
 pub mod random;
+
+pub use utils::hashvec;

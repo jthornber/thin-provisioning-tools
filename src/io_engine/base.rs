@@ -113,26 +113,43 @@ pub trait VectoredIo {
     fn write_vectored_at(&self, bufs: &[libc::iovec], pos: u64) -> io::Result<usize>;
 }
 
+fn read_vectored_at(file: &File, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize> {
+    let ptr = bufs.as_ptr();
+    let ret = match unsafe { libc::preadv64(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
+    {
+        -1 => return Err(io::Error::last_os_error()),
+        n => n,
+    };
+    Ok(ret as usize)
+}
+
+fn write_vectored_at(file: &File, bufs: &[libc::iovec], pos: u64) -> io::Result<usize> {
+    let ptr = bufs.as_ptr();
+    let ret = match unsafe { libc::pwritev64(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
+    {
+        -1 => return Err(io::Error::last_os_error()),
+        n => n,
+    };
+    Ok(ret as usize)
+}
+
 impl VectoredIo for File {
     fn read_vectored_at(&self, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize> {
-        let ptr = bufs.as_ptr();
-        let ret =
-            match unsafe { libc::preadv64(self.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) } {
-                -1 => return Err(io::Error::last_os_error()),
-                n => n,
-            };
-        Ok(ret as usize)
+        read_vectored_at(self, bufs, pos)
     }
 
     fn write_vectored_at(&self, bufs: &[libc::iovec], pos: u64) -> io::Result<usize> {
-        let ptr = bufs.as_ptr();
-        let ret = match unsafe {
-            libc::pwritev64(self.as_raw_fd(), ptr, bufs.len() as i32, pos as i64)
-        } {
-            -1 => return Err(io::Error::last_os_error()),
-            n => n,
-        };
-        Ok(ret as usize)
+        write_vectored_at(self, bufs, pos)
+    }
+}
+
+impl VectoredIo for &File {
+    fn read_vectored_at(&self, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize> {
+        read_vectored_at(self, bufs, pos)
+    }
+
+    fn write_vectored_at(&self, bufs: &[libc::iovec], pos: u64) -> io::Result<usize> {
+        write_vectored_at(self, bufs, pos)
     }
 }
 

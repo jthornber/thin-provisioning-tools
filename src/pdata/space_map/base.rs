@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use num_traits::Bounded;
 use std::boxed::Box;
@@ -59,6 +59,14 @@ where
             counts: vec![V::default(); nr_entries as usize],
         }
     }
+
+    #[inline]
+    fn check_index_out_of_bounds(&self, b: u64) -> Result<()> {
+        if b >= self.counts.len() as u64 {
+            return Err(anyhow!("block out of bounds"));
+        }
+        Ok(())
+    }
 }
 
 impl<V> SpaceMap for CoreSpaceMap<V>
@@ -83,25 +91,27 @@ where
     }
 
     fn get(&self, b: u64) -> Result<u32> {
+        self.check_index_out_of_bounds(b)?;
         Ok(self.counts[b as usize].into())
     }
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
-        let old = self.counts[b as usize];
+        let old = self.get(b)?;
         assert!(v <= V::max_value().into());
         self.counts[b as usize] = v.try_into().unwrap(); // FIXME: do not panic
 
-        if old == V::from(0u8) && v != 0 {
+        if old == 0 && v != 0 {
             self.nr_allocated += 1;
-        } else if old != V::from(0u8) && v == 0 {
+        } else if old != 0 && v == 0 {
             self.nr_allocated -= 1;
         }
 
-        Ok(old.into())
+        Ok(old)
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
         for b in begin..(begin + len) {
+            self.check_index_out_of_bounds(b)?;
             let c = &mut self.counts[b as usize];
             assert!(*c < V::max_value());
             if *c == V::from(0u8) {
