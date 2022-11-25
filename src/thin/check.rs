@@ -433,10 +433,14 @@ fn summarize_tree(
                     return NodeSummary::default();
                 }
 
-                // Gather information from the children
-                // FIXME: handle key range mismatch on internal nodes
-                let child_keys = split_key_ranges(path, kr, &info.keys).unwrap();
+                // Split up the key range for the children.
+                // Return immediately if the keys don't match.
+                let child_keys = match split_key_ranges(path, kr, &info.keys) {
+                    Ok(keys) => keys,
+                    Err(_) => return NodeSummary::default(),
+                };
 
+                // Gather information from the children
                 let mut sum = NodeSummary::default();
                 for (i, b) in info.children.iter().enumerate() {
                     path.push(*b as u64);
