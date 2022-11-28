@@ -830,13 +830,14 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             all_roots.push(*root);
         });
 
-        // The exclusive thins are selected by the root block address with the
-        // concerns thin id reuse.
-        // Note that the two sets might not have identical thins before filtering
+        // Leave the thins that are exclusive to metadata snapshot.
+        // Considering thin id reuse, the exclusive thins are those whose subtrees
+        // are not used by the current superblock.
+        // Note that the two maps might not have identical thins before filtering
         // due to their different value sizes.
         let roots_snap: BTreeMap<u64, u64> = roots_snap
             .into_iter()
-            .filter(|(_thin_id, root)| roots.iter().any(|(_id, (_p, r))| root == r))
+            .filter(|(_thin_id, root)| !roots.iter().any(|(_id, (_p, r))| root == r))
             .collect();
         let devs_snap: BTreeMap<u64, DeviceDetail> = devs_snap
             .into_iter()
