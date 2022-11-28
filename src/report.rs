@@ -251,7 +251,7 @@ impl ProgressMonitor {
 
         let stopped = stop_flag.clone();
         let tid = thread::spawn(move || {
-            let interval = std::time::Duration::from_millis(250);
+            let interval = std::time::Duration::from_millis(500);
             loop {
                 if stopped.load(Ordering::Relaxed) {
                     break;

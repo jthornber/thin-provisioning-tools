@@ -746,11 +746,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         sb.details_root,
     )?;
 
-    let mon_sm = metadata_sm.clone();
-    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
-        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
-    });
-
     // mapping top level
     report.set_sub_title("mapping tree");
     let roots = btree_to_map_with_path::<u64>(
@@ -862,8 +857,20 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         .info(&format!("total number of roots: {}", all_roots.len()));
 
     // mapping bottom level
-    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm = core_sm(data_root.nr_blocks, nr_devs as u32);
+
+    let mon_meta_sm = metadata_sm.clone();
+    let mon_data_sm = data_sm.clone();
+    let monitor = ProgressMonitor::new(
+        report.clone(),
+        metadata_root.nr_allocated + data_root.nr_allocated,
+        move || {
+            mon_meta_sm.lock().unwrap().get_nr_allocated().unwrap()
+                + mon_data_sm.lock().unwrap().get_nr_allocated().unwrap()
+        },
+    );
+
     let summaries = check_mapping_bottom_level(
         &ctx,
         &metadata_sm,
@@ -893,6 +900,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
         None => {}
     }
+
+    monitor.stop();
 
     //-----------------------------------------
 
@@ -961,8 +970,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             ctx.report.info("Cleared needs_check flag");
         }
     }
-
-    monitor.stop();
 
     Ok(())
 }
