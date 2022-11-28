@@ -309,25 +309,6 @@ fn test_encode_path() {
 
 //------------------------------------------
 
-pub trait AnyError: BoxedClone + fmt::Debug {}
-
-// A helper trait that clones Boxed trait object
-pub trait BoxedClone {
-    fn boxed_clone(&self) -> Box<dyn AnyError + Send + Sync>;
-}
-
-impl<T: 'static + AnyError + Clone + Send + Sync> BoxedClone for T {
-    fn boxed_clone(&self) -> Box<dyn AnyError + Send + Sync> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn AnyError + Send + Sync> {
-    fn clone(&self) -> Box<dyn AnyError + Send + Sync> {
-        self.boxed_clone()
-    }
-}
-
 #[derive(Error, Clone, Debug)]
 pub enum BTreeError {
     // #[error("io error")]
@@ -347,14 +328,6 @@ pub enum BTreeError {
 
     // #[error("{0:?}, {1}")]
     Path(Vec<u64>, Box<BTreeError>),
-
-    Other(Box<dyn AnyError + Send + Sync>),
-}
-
-impl<T: 'static + AnyError + Send + Sync> From<T> for BTreeError {
-    fn from(t: T) -> Self {
-        BTreeError::Other(Box::new(t))
-    }
 }
 
 impl fmt::Display for BTreeError {
@@ -371,7 +344,6 @@ impl fmt::Display for BTreeError {
                 Ok(())
             }
             BTreeError::Path(path, e) => write!(f, "{} {}", e, encode_node_path(path)),
-            BTreeError::Other(e) => write!(f, "{:?}", e),
         }
     }
 }
