@@ -487,19 +487,19 @@ fn check_mapping_bottom_level(
     let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal);
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("reading internal nodes: {:?}", duration));
+        .debug(&format!("reading internal nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
     let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal);
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("reading leaf nodes: {:?}", duration));
+        .debug(&format!("reading leaf nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("counting mapped blocks: {:?}", duration));
+        .debug(&format!("counting mapped blocks: {:?}", duration));
 
     ctx.report
         .info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
@@ -651,7 +651,7 @@ fn check_mapped_blocks(
     }
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("checking mapped blocks: {:?}", duration));
+        .debug(&format!("checking mapped blocks: {:?}", duration));
 
     if failed {
         Err(anyhow!("Check of mappings failed"))
@@ -919,7 +919,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("checking data space map: {:?}", duration));
+        .debug(&format!("checking data space map: {:?}", duration));
 
     //-----------------------------------------
 
@@ -937,7 +937,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
     let duration = start.elapsed();
     ctx.report
-        .info(&format!("checking metadata space map: {:?}", duration));
+        .debug(&format!("checking metadata space map: {:?}", duration));
 
     //-----------------------------------------
 
