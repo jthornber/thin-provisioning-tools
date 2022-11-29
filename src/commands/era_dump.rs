@@ -63,9 +63,8 @@ impl<'a> Command<'a> for EraDumpCommand {
             None
         };
 
-        // Create a temporary report just in case these checks
-        // need to report anything.
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
+
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 

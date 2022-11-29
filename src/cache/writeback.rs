@@ -769,14 +769,14 @@ fn copy_selected_blocks(
 }
 
 fn report_stats(report: Arc<Report>, stats: &WritebackStats) {
-    report.info(&format!(
+    report.to_stdout(&format!(
         "{}/{} blocks successfully copied",
         stats.nr_copied, stats.nr_blocks
     ));
 
     let nr_errors = stats.nr_read_errors + stats.nr_write_errors;
     if nr_errors > 0 {
-        report.info(&format!("{} blocks were not copied", nr_errors));
+        report.fatal(&format!("{} blocks were not copied", nr_errors));
     }
 }
 
@@ -798,9 +798,9 @@ pub fn writeback(opts: CacheWritebackOptions) -> anyhow::Result<()> {
     match copy_dirty_blocks(&ctx, &sb, &opts) {
         Err(e) => {
             ctx.report
-                .info("Metadata corruption was found, some data may not have been copied.");
+                .fatal("Metadata corruption was found, some data may not have been copied.");
             if opts.update_metadata {
-                ctx.report.info("Unable to update metadata");
+                ctx.report.fatal("Unable to update metadata");
             }
             return Err(anyhow!("Metadata contains errors, reason: {}", e));
         }

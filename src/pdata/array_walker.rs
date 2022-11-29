@@ -31,6 +31,7 @@ struct BlockValueVisitor<'a, V> {
     engine: Arc<dyn IoEngine + Send + Sync>,
     array_visitor: &'a dyn ArrayVisitor<V>,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    array_errs: Mutex<Vec<ArrayError>>,
 }
 
 impl<'a, V: Unpack> BlockValueVisitor<'a, V> {
@@ -43,6 +44,7 @@ impl<'a, V: Unpack> BlockValueVisitor<'a, V> {
             engine: e,
             array_visitor: v,
             sm,
+            array_errs: Mutex::new(Vec::new()),
         }
     }
 
@@ -90,24 +92,28 @@ impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
             }
         }
 
-        let mut errs = Vec::<btree_error::BTreeError>::new();
         match self.engine.read_many(values) {
             Err(_) => {
                 // IO completely failed on all the child blocks
                 for (i, b) in values.iter().enumerate() {
                     // TODO: report the affected range of entries in the array?
-                    errs.push(array::io_err(path, *b).index_context(keys[i]).into());
+                    let e = array::io_err(path, *b).index_context(keys[i]);
+                    self.array_errs.lock().unwrap().push(e);
                 }
             }
             Ok(rblocks) => {
                 for (i, rb) in rblocks.into_iter().enumerate() {
                     match rb {
                         Err(_) => {
-                            errs.push(array::io_err(path, values[i]).index_context(keys[i]).into());
+                            let e = array::io_err(path, values[i]).index_context(keys[i]);
+                            self.array_errs.lock().unwrap().push(e);
                         }
                         Ok(b) => {
                             if let Err(e) = self.visit_array_block(path, keys[i], &b) {
-                                errs.push(e.index_context(keys[i]).into());
+                                self.array_errs
+                                    .lock()
+                                    .unwrap()
+                                    .push(e.index_context(keys[i]));
                             } else {
                                 let mut sm = self.sm.lock().unwrap();
                                 sm.inc(b.loc, 1).unwrap();
@@ -118,11 +124,7 @@ impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
             }
         }
 
-        match errs.len() {
-            0 => Ok(()),
-            1 => Err(errs[0].clone()),
-            _ => Err(BTreeError::Aggregate(errs)),
-        }
+        Ok(())
     }
 
     fn visit_again(&self, _path: &[u64], _b: u64) -> btree_error::Result<()> {
@@ -164,7 +166,7 @@ impl ArrayWalker {
         })
     }
 
-    pub fn walk<V>(&self, visitor: &dyn ArrayVisitor<V>, root: u64) -> btree_error::Result<()>
+    pub fn walk<V>(&self, visitor: &dyn ArrayVisitor<V>, root: u64) -> array::Result<()>
     where
         V: Unpack,
     {
@@ -172,7 +174,18 @@ impl ArrayWalker {
             BTreeWalker::new_with_sm(self.engine.clone(), self.sm.clone(), self.ignore_non_fatal)?;
         let mut path = vec![0];
         let v = BlockValueVisitor::<V>::new(self.engine.clone(), self.sm.clone(), visitor);
-        w.walk(&mut path, &v, root)
+        let btree_err = w.walk(&mut path, &v, root).map_err(ArrayError::BTreeError);
+
+        let mut array_errs = v.array_errs.into_inner().unwrap();
+        if let Err(e) = btree_err {
+            array_errs.push(e);
+        }
+
+        match array_errs.len() {
+            0 => Ok(()),
+            1 => Err(array_errs[0].clone()),
+            _ => Err(ArrayError::Aggregate(array_errs)),
+        }
     }
 }
 

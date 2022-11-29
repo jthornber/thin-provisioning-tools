@@ -7,6 +7,66 @@ use std::thread::{self, JoinHandle};
 
 //------------------------------------------
 
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd)]
+pub enum LogLevel {
+    Fatal = 1,
+    Error,
+    Warning,
+    Info,
+    Debug,
+}
+
+impl TryFrom<u8> for LogLevel {
+    type Error = String;
+
+    fn try_from(level: u8) -> Result<LogLevel, <Self as TryFrom<u8>>::Error> {
+        match level {
+            0 => Err(String::from("invalid index")),
+            1 => Ok(LogLevel::Fatal),
+            2 => Ok(LogLevel::Error),
+            3 => Ok(LogLevel::Warning),
+            4 => Ok(LogLevel::Info),
+            5..=u8::MAX => Ok(LogLevel::Debug),
+        }
+    }
+}
+
+impl From<LogLevel> for u8 {
+    fn from(level: LogLevel) -> u8 {
+        match level {
+            LogLevel::Fatal => 1,
+            LogLevel::Error => 2,
+            LogLevel::Warning => 3,
+            LogLevel::Info => 4,
+            LogLevel::Debug => 5,
+        }
+    }
+}
+
+pub fn verbose_args(cmd: clap::Command) -> clap::Command {
+    use clap::Arg;
+
+    cmd.arg(
+        Arg::new("VERBOSE")
+            .help("Increase log verbosity")
+            .short('v')
+            .multiple_occurrences(true)
+            .hide(true),
+    )
+}
+
+pub fn parse_log_level(matches: &clap::ArgMatches) -> Result<LogLevel, String> {
+    let cnt = matches.occurrences_of("VERBOSE");
+    if cnt > 0 {
+        let v: u8 = LogLevel::Warning.into();
+        (v + cnt as u8).try_into()
+    } else {
+        Ok(LogLevel::Warning)
+    }
+}
+
+//------------------------------------------
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum ReportOutcome {
     Success,
@@ -36,8 +96,9 @@ pub struct Report {
 pub trait ReportInner {
     fn set_title(&mut self, txt: &str);
     fn set_sub_title(&mut self, txt: &str);
+    fn set_level(&mut self, level: LogLevel);
     fn progress(&mut self, percent: u8);
-    fn log(&mut self, txt: &str);
+    fn log(&mut self, txt: &str, level: LogLevel);
     fn to_stdout(&mut self, txt: &str);
     fn complete(&mut self);
 }
@@ -65,6 +126,11 @@ impl Report {
         inner.set_sub_title(txt)
     }
 
+    pub fn set_level(&self, level: LogLevel) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.set_level(level)
+    }
+
     pub fn progress(&self, percent: u8) {
         let mut inner = self.inner.lock().unwrap();
         inner.progress(percent)
@@ -72,19 +138,29 @@ impl Report {
 
     pub fn info(&self, txt: &str) {
         let mut inner = self.inner.lock().unwrap();
-        inner.log(txt)
+        inner.log(txt, LogLevel::Info)
+    }
+
+    pub fn debug(&self, txt: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.log(txt, LogLevel::Debug)
+    }
+
+    pub fn warning(&self, txt: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.log(txt, LogLevel::Warning)
     }
 
     pub fn non_fatal(&self, txt: &str) {
         self.update_outcome(NonFatal);
         let mut inner = self.inner.lock().unwrap();
-        inner.log(txt)
+        inner.log(txt, LogLevel::Error)
     }
 
     pub fn fatal(&self, txt: &str) {
         self.update_outcome(Fatal);
         let mut inner = self.inner.lock().unwrap();
-        inner.log(txt)
+        inner.log(txt, LogLevel::Fatal)
     }
 
     pub fn complete(&mut self) {
@@ -110,6 +186,7 @@ impl Report {
 #[allow(dead_code)]
 struct PBInner {
     bar: ProgressBar,
+    level: LogLevel,
 }
 
 impl PBInner {
@@ -121,7 +198,10 @@ impl PBInner {
                 .template(&fmt)
                 .progress_chars("=> "),
         );
-        Self { bar }
+        Self {
+            bar,
+            level: LogLevel::Warning,
+        }
     }
 }
 
@@ -146,13 +226,19 @@ impl ReportInner for PBInner {
         self.bar.set_message(msg);
     }
 
+    fn set_level(&mut self, level: LogLevel) {
+        self.level = level;
+    }
+
     fn progress(&mut self, percent: u8) {
         self.bar.set_position(percent as u64);
         self.bar.tick();
     }
 
-    fn log(&mut self, txt: &str) {
-        self.bar.println(txt);
+    fn log(&mut self, txt: &str, level: LogLevel) {
+        if level <= self.level {
+            self.bar.println(txt);
+        }
     }
 
     fn to_stdout(&mut self, txt: &str) {
@@ -172,12 +258,14 @@ pub fn mk_progress_bar_report() -> Report {
 
 struct SimpleInner {
     last_progress: std::time::SystemTime,
+    level: LogLevel,
 }
 
 impl SimpleInner {
     fn new() -> SimpleInner {
         SimpleInner {
             last_progress: std::time::SystemTime::now(),
+            level: LogLevel::Warning,
         }
     }
 }
@@ -191,6 +279,10 @@ impl ReportInner for SimpleInner {
         eprintln!("{}", txt);
     }
 
+    fn set_level(&mut self, level: LogLevel) {
+        self.level = level;
+    }
+
     fn progress(&mut self, percent: u8) {
         let elapsed = self.last_progress.elapsed().unwrap();
         if elapsed > std::time::Duration::from_secs(5) {
@@ -199,8 +291,10 @@ impl ReportInner for SimpleInner {
         }
     }
 
-    fn log(&mut self, txt: &str) {
-        eprintln!("{}", txt);
+    fn log(&mut self, txt: &str, level: LogLevel) {
+        if level <= self.level {
+            eprintln!("{}", txt);
+        }
     }
 
     fn to_stdout(&mut self, txt: &str) {
@@ -223,9 +317,12 @@ impl ReportInner for QuietInner {
 
     fn set_sub_title(&mut self, _txt: &str) {}
 
+    fn set_level(&mut self, _level: LogLevel) {}
+
     fn progress(&mut self, _percent: u8) {}
 
-    fn log(&mut self, _txt: &str) {}
+    fn log(&mut self, _txt: &str, _level: LogLevel) {}
+
     fn to_stdout(&mut self, _txt: &str) {}
 
     fn complete(&mut self) {}
@@ -251,7 +348,7 @@ impl ProgressMonitor {
 
         let stopped = stop_flag.clone();
         let tid = thread::spawn(move || {
-            let interval = std::time::Duration::from_millis(250);
+            let interval = std::time::Duration::from_millis(500);
             loop {
                 if stopped.load(Ordering::Relaxed) {
                     break;

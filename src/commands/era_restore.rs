@@ -7,6 +7,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::restore::{restore, EraRestoreOptions};
+use crate::report::{parse_log_level, verbose_args};
 
 pub struct EraRestoreCommand;
 
@@ -40,7 +41,7 @@ impl EraRestoreCommand {
                     .value_name("FILE")
                     .required(true),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -56,6 +57,12 @@ impl<'a> Command<'a> for EraRestoreCommand {
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
         let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
+        };
+        report.set_level(log_level);
+
         check_input_file(input_file, &report);
         check_output_file(output_file, &report);
 

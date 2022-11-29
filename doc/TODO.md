@@ -54,6 +54,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] Check the key ranges in BTreeWalker.
 - [ ] thin_check: improve error reporting on ref count tree checking (the "overflow" trees).
       Currently it dumps the BTreeError directly.
+- [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concret File
 
 ## RFEs
 

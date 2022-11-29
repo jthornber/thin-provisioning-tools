@@ -1,10 +1,7 @@
 extern crate clap;
 
-use atty::Stream;
 use clap::Arg;
 use std::path::Path;
-
-use std::sync::Arc;
 
 use crate::commands::engine::*;
 use crate::commands::utils::*;
@@ -100,7 +97,7 @@ impl ThinDumpCommand {
                     .required(true)
                     .index(1),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -119,16 +116,14 @@ impl<'a> Command<'a> for ThinDumpCommand {
             None
         };
 
-        let report = std::sync::Arc::new(mk_simple_report());
-        check_input_file(input_file, &report);
-
-        let report = if matches.is_present("QUIET") {
-            std::sync::Arc::new(mk_quiet_report())
-        } else if atty::is(Stream::Stdout) {
-            std::sync::Arc::new(mk_progress_bar_report())
-        } else {
-            Arc::new(mk_simple_report())
+        let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
+        report.set_level(log_level);
+
+        check_input_file(input_file, &report);
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {

@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::commands::engine::*;
 use crate::commands::utils::*;
+use crate::report::{parse_log_level, verbose_args};
 use crate::thin::trim::{trim, ThinTrimOptions};
 
 //------------------------------------------
@@ -39,7 +40,7 @@ impl ThinTrimCommand {
                     .value_name("FILE")
                     .required(true),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -55,6 +56,12 @@ impl<'a> Command<'a> for ThinTrimCommand {
         let data_dev = Path::new(matches.value_of("DATA_DEV").unwrap());
 
         let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
+        };
+        report.set_level(log_level);
+
         check_input_file(metadata_dev, &report);
         check_input_file(data_dev, &report);
 

@@ -1,9 +1,7 @@
 extern crate clap;
 
-use atty::Stream;
 use clap::Arg;
 use std::path::Path;
-use std::sync::Arc;
 
 use crate::cache::repair::{repair, CacheRepairOptions};
 use crate::commands::engine::*;
@@ -42,7 +40,7 @@ impl CacheRepairCommand {
                     .value_name("FILE")
                     .required(true),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -54,14 +52,12 @@ impl<'a> Command<'a> for CacheRepairCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        // FIXME: factor out
-        let report = if matches.is_present("QUIET") {
-            Arc::new(mk_quiet_report())
-        } else if atty::is(Stream::Stdout) {
-            Arc::new(mk_progress_bar_report())
-        } else {
-            Arc::new(mk_simple_report())
+        let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
+        report.set_level(log_level);
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());

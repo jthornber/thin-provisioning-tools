@@ -92,9 +92,10 @@ pub enum ArrayError {
 
     //#[error("{0:?}, {1}")]
     Path(Vec<u64>, Box<ArrayError>),
-}
 
-impl btree_error::AnyError for ArrayError {}
+    #[error(transparent)]
+    BTreeError(#[from] btree_error::BTreeError),
+}
 
 impl fmt::Display for ArrayError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -113,6 +114,7 @@ impl fmt::Display for ArrayError {
                 Ok(())
             }
             ArrayError::Path(path, e) => write!(f, "{} {}", e, btree_error::encode_node_path(path)),
+            ArrayError::BTreeError(e) => write!(f, "{}", e),
         }
     }
 }

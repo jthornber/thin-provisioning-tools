@@ -5,7 +5,6 @@ use crate::io_engine::IoEngine;
 use crate::math::div_up;
 use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
-use crate::pdata::btree_error;
 use crate::pdata::space_map::*;
 
 //------------------------------------------
@@ -140,7 +139,7 @@ pub fn read_bitset_checked(
     root: u64,
     nr_bits: usize,
     ignore_none_fatal: bool,
-) -> (CheckedBitSet, Option<btree_error::BTreeError>) {
+) -> (CheckedBitSet, Option<array::ArrayError>) {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
     let v = BitsetVisitor::new(nr_bits);
     let err = match w.walk(&v, root) {
@@ -157,7 +156,7 @@ pub fn read_bitset_checked_with_sm(
     nr_bits: usize,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_none_fatal: bool,
-) -> array::Result<(CheckedBitSet, Option<btree_error::BTreeError>)> {
+) -> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
     let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
     let v = BitsetVisitor::new(nr_bits);
     let err = match w.walk(&v, root) {
@@ -172,7 +171,7 @@ pub fn read_bitset(
     root: u64,
     nr_bits: usize,
     ignore_none_fatal: bool,
-) -> btree_error::Result<FixedBitSet> {
+) -> array::Result<FixedBitSet> {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
     let v = BitsetCollector::new(nr_bits);
     w.walk(&v, root)?;

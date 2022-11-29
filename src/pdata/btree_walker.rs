@@ -219,15 +219,10 @@ impl BTreeWalker {
                 keys,
                 values,
             } => {
-                let ret = visitor.visit(path, kr, &header, &keys, &values);
-                match ret {
-                    Err(BTreeError::Aggregate(_)) => return ret,
-                    Err(e) => {
-                        let e = BTreeError::Path(path.clone(), Box::new(e)).keys_context(kr);
-                        self.set_fail(b.loc, e.clone());
-                        return Err(e);
-                    }
-                    _ => {}
+                if let Err(e) = visitor.visit(path, kr, &header, &keys, &values) {
+                    let e = BTreeError::Path(path.clone(), Box::new(e)).keys_context(kr);
+                    self.set_fail(b.loc, e.clone());
+                    return Err(e);
                 }
             }
         }

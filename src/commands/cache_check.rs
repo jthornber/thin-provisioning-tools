@@ -1,10 +1,7 @@
 extern crate clap;
 
-use atty::Stream;
 use clap::Arg;
 use std::path::Path;
-
-use std::sync::Arc;
 
 use crate::cache::check::{check, CacheCheckOptions};
 use crate::commands::engine::*;
@@ -71,7 +68,7 @@ impl CacheCheckCommand {
                     .required(true)
                     .index(1),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -85,13 +82,12 @@ impl<'a> Command<'a> for CacheCheckCommand {
 
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
-        let report = if matches.is_present("QUIET") {
-            std::sync::Arc::new(mk_quiet_report())
-        } else if atty::is(Stream::Stdout) {
-            std::sync::Arc::new(mk_progress_bar_report())
-        } else {
-            Arc::new(mk_simple_report())
+        let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
+        report.set_level(log_level);
 
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);

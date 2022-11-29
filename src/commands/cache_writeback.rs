@@ -1,15 +1,12 @@
-use atty::Stream;
 use clap::Arg;
 use std::path::Path;
-
-use std::sync::Arc;
 
 use crate::cache::check::{check, CacheCheckOptions};
 use crate::cache::writeback::{writeback, CacheWritebackOptions};
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
-use crate::report::*;
+use crate::report::{parse_log_level, verbose_args};
 
 pub struct CacheWritebackCommand;
 
@@ -84,7 +81,7 @@ impl CacheWritebackCommand {
                     .value_name("CNT")
                     .default_value("0"),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -100,13 +97,12 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         let origin_dev = Path::new(matches.value_of("ORIGIN_DEV").unwrap());
         let fast_dev = Path::new(matches.value_of("FAST_DEV").unwrap());
 
-        let report = if matches.is_present("QUIET") {
-            std::sync::Arc::new(mk_quiet_report())
-        } else if atty::is(Stream::Stdout) {
-            std::sync::Arc::new(mk_progress_bar_report())
-        } else {
-            Arc::new(mk_simple_report())
+        let report = mk_report(matches.is_present("QUIET"));
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
+        report.set_level(log_level);
 
         check_input_file(metadata_dev, &report);
         check_input_file(origin_dev, &report);
