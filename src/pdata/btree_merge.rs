@@ -67,8 +67,9 @@ impl<V: Unpack> NodeVisitor<V> for LeafVisitor {
         if !inner.leaves.is_empty() {
             let last_key = inner.leaves.last().unwrap().key_high;
             if keys[0] <= last_key {
-                return Err(BTreeError::NodeError(
-                    "unable to merge btrees: sub trees out of order".to_string(),
+                return Err(context_err(
+                    path,
+                    "unable to merge btrees: sub trees out of order",
                 ));
             }
         }

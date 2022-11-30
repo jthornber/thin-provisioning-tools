@@ -123,7 +123,7 @@ impl<V: Unpack> Node<V> {
 }
 
 pub fn convert_result<'a, V>(path: &[u64], r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
-    r.map_err(|_e| node_err(path, "parse error"))
+    r.map_err(|_e| node_err(path, NodeError::IncompleteData))
 }
 
 pub fn convert_io_err<V>(path: &[u64], r: std::io::Result<V>) -> Result<V> {
@@ -139,46 +139,30 @@ pub fn unpack_node<V: Unpack>(
     use nom::multi::count;
 
     let (i, header) =
-        NodeHeader::unpack(data).map_err(|_e| node_err(path, "couldn't parse node header"))?;
+        NodeHeader::unpack(data).map_err(|_e| node_err(path, NodeError::IncompleteData))?;
 
     if header.is_leaf && header.value_size != V::disk_size() {
-        return Err(node_err_s(
-            path,
-            format!(
-                "value_size mismatch: expected {}, was {}",
-                V::disk_size(),
-                header.value_size
-            ),
-        ));
+        return Err(node_err(path, NodeError::ValueSizeMismatch));
     }
 
     let elt_size = header.value_size + 8;
     if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
-        return Err(node_err_s(
-            path,
-            format!("max_entries is too large ({})", header.max_entries),
-        ));
+        return Err(node_err(path, NodeError::MaxEntriesTooLarge));
     }
 
     if header.nr_entries > header.max_entries {
-        return Err(node_err(path, "nr_entries > max_entries"));
+        return Err(node_err(path, NodeError::NumEntriesTooLarge));
     }
 
     if !ignore_non_fatal {
         if header.max_entries % 3 != 0 {
-            return Err(node_err(path, "max_entries is not divisible by 3"));
+            return Err(node_err(path, NodeError::MaxEntriesNotDivisible));
         }
 
         if !is_root {
             let min = header.max_entries / 3;
             if header.nr_entries < min {
-                return Err(node_err_s(
-                    path,
-                    format!(
-                        "too few entries {}, expected at least {}",
-                        header.nr_entries, min
-                    ),
-                ));
+                return Err(node_err(path, NodeError::NumEntriesTooSmall));
             }
         }
     }
@@ -189,10 +173,7 @@ pub fn unpack_node<V: Unpack>(
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return Err(node_err(
-                    path,
-                    &format!("keys out of order: {} <= {}", k, l),
-                ));
+                return Err(node_err(path, NodeError::KeysOutOfOrder));
             }
         }
 

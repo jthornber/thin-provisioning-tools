@@ -193,11 +193,7 @@ impl BTreeWalker {
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
-            let e = node_err_s(
-                path,
-                format!("checksum failed for node {}, {:?}", b.loc, bt),
-            )
-            .keys_context(kr);
+            let e = node_err(path, NodeError::ChecksumError).keys_context(kr);
             self.set_fail(b.loc, e.clone());
             return Err(e);
         }
@@ -297,11 +293,7 @@ where
 
     let bt = checksum::metadata_block_type(b.get_data());
     if bt != checksum::BT::NODE {
-        let e = node_err_s(
-            path,
-            format!("checksum failed for node {}, {:?}", b.loc, bt),
-        )
-        .keys_context(kr);
+        let e = node_err(path, NodeError::ChecksumError).keys_context(kr);
         w.set_fail(b.loc, e.clone());
         return Err(e);
     }

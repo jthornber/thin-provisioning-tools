@@ -227,9 +227,7 @@ impl NodeMap {
 fn verify_checksum(b: &Block) -> btree::Result<()> {
     match checksum::metadata_block_type(b.get_data()) {
         checksum::BT::NODE => Ok(()),
-        _ => Err(BTreeError::NodeError(String::from(
-            "corrupt block: checksum failed",
-        ))),
+        _ => Err(BTreeError::NodeError(NodeError::ChecksumError)),
     }
 }
 
@@ -242,7 +240,7 @@ fn check_and_unpack_node<V: Unpack>(
     verify_checksum(b)?;
     let node = unpack_node::<V>(path, b.get_data(), ignore_non_fatal, is_root)?;
     if node.get_header().block != b.loc {
-        return Err(BTreeError::NodeError(String::from("blocknr mismatch")));
+        return Err(BTreeError::NodeError(NodeError::BlockNrMismatch));
     }
     Ok(node)
 }
@@ -311,7 +309,10 @@ fn read_node_(
                             read_node(ctx, metadata_sm, b, depth - 1, ignore_non_fatal, nodes);
                         } else {
                             // theoretically never fail
-                            let _ = nodes.insert_error(values[i] as u32, BTreeError::IoError);
+                            let _ = nodes.insert_error(
+                                values[i] as u32,
+                                BTreeError::NodeError(NodeError::IoError),
+                            );
                         }
                     }
                 }
@@ -319,7 +320,8 @@ fn read_node_(
                     // error every child node
                     for loc in values {
                         // theoretically never fail
-                        let _ = nodes.insert_error(loc as u32, BTreeError::IoError);
+                        let _ = nodes
+                            .insert_error(loc as u32, BTreeError::NodeError(NodeError::IoError));
                     }
                 }
             };
@@ -389,7 +391,7 @@ fn read_internal_nodes(
         read_node(ctx, metadata_sm, &b, depth - 1, ignore_non_fatal, nodes);
     } else {
         // FIXME: factor out common code
-        let _ = nodes.insert_error(root, BTreeError::IoError);
+        let _ = nodes.insert_error(root, BTreeError::NodeError(NodeError::IoError));
     }
 }
 
