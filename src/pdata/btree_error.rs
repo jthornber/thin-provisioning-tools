@@ -187,7 +187,7 @@ fn test_split_range() {
 
 fn split_one(path: &[u64], kr: &KeyRange, k: u64) -> Result<(KeyRange, KeyRange)> {
     match kr.split(k) {
-        None => Err(node_err(
+        None => Err(context_err(
             path,
             &format!("couldn't split key range {} at {}", kr, k),
         )),
@@ -199,7 +199,7 @@ pub fn split_key_ranges(path: &[u64], kr: &KeyRange, keys: &[u64]) -> Result<Vec
     let mut krs = Vec::with_capacity(keys.len());
 
     if keys.is_empty() {
-        return Err(node_err(path, "split_key_ranges: no keys present"));
+        return Err(context_err(path, "split_key_ranges: no keys present"));
     }
 
     // The first key gives the lower bound
@@ -309,16 +309,48 @@ fn test_encode_path() {
 
 //------------------------------------------
 
+#[derive(Clone, Debug)]
+pub enum NodeError {
+    IoError,
+    ChecksumError,
+    BlockNrMismatch,
+    ValueSizeMismatch,
+    MaxEntriesTooLarge,
+    MaxEntriesNotDivisible,
+    NumEntriesTooLarge,
+    NumEntriesTooSmall, // i.e., underfull
+    KeysOutOfOrder,
+    IncompleteData,
+}
+
+impl fmt::Display for NodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use NodeError::*;
+
+        match self {
+            IoError => write!(f, "io error"),
+            ChecksumError => write!(f, "checksum error"),
+            BlockNrMismatch => write!(f, "blocknr mismatch"),
+            ValueSizeMismatch => write!(f, "value_size mismatch"),
+            MaxEntriesTooLarge => write!(f, "max_entries is too large"),
+            MaxEntriesNotDivisible => write!(f, "max_entries is not divisible by 3"),
+            NumEntriesTooLarge => write!(f, "nr_entries > max_entries"),
+            NumEntriesTooSmall => write!(f, "nr_entries < max_entries / 3"),
+            KeysOutOfOrder => write!(f, "keys out of order"),
+            IncompleteData => write!(f, "incomplete data"),
+        }
+    }
+}
+
 #[derive(Error, Clone, Debug)]
 pub enum BTreeError {
-    // #[error("io error")]
-    IoError, //   (std::io::Error), // FIXME: we can't clone an io_error
-
     // #[error("node error: {0}")]
-    NodeError(String),
+    NodeError(NodeError),
 
     // #[error("value error: {0}")]
     ValueError(String),
+
+    ContextError(String),
 
     // #[error("keys: {0:?}")]
     KeyContext(KeyRange, Box<BTreeError>),
@@ -333,9 +365,9 @@ pub enum BTreeError {
 impl fmt::Display for BTreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BTreeError::IoError => write!(f, "io error"),
-            BTreeError::NodeError(msg) => write!(f, "node error: {}", msg),
+            BTreeError::NodeError(e) => write!(f, "node error: {}", e),
             BTreeError::ValueError(msg) => write!(f, "value error: {}", msg),
+            BTreeError::ContextError(msg) => write!(f, "context error: {}", msg),
             BTreeError::KeyContext(kr, be) => write!(f, "{}, effecting keys {}", be, kr),
             BTreeError::Aggregate(errs) => {
                 for e in errs {
@@ -348,19 +380,22 @@ impl fmt::Display for BTreeError {
     }
 }
 
-pub fn node_err(path: &[u64], msg: &str) -> BTreeError {
-    BTreeError::Path(
-        path.to_vec(),
-        Box::new(BTreeError::NodeError(msg.to_string())),
-    )
-}
-
-pub fn node_err_s(path: &[u64], msg: String) -> BTreeError {
-    BTreeError::Path(path.to_vec(), Box::new(BTreeError::NodeError(msg)))
+pub fn node_err(path: &[u64], e: NodeError) -> BTreeError {
+    BTreeError::Path(path.to_vec(), Box::new(BTreeError::NodeError(e)))
 }
 
 pub fn io_err(path: &[u64]) -> BTreeError {
-    BTreeError::Path(path.to_vec(), Box::new(BTreeError::IoError))
+    BTreeError::Path(
+        path.to_vec(),
+        Box::new(BTreeError::NodeError(NodeError::IoError)),
+    )
+}
+
+pub fn context_err(path: &[u64], msg: &str) -> BTreeError {
+    BTreeError::Path(
+        path.to_vec(),
+        Box::new(BTreeError::ContextError(msg.to_string())),
+    )
 }
 
 pub fn value_err(msg: String) -> BTreeError {

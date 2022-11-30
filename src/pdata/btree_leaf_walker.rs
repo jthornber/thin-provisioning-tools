@@ -125,11 +125,7 @@ impl<'a> LeafWalker<'a> {
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
-            return Err(node_err_s(
-                path,
-                format!("checksum failed for node {}, {:?}", b.loc, bt),
-            )
-            .keys_context(kr));
+            return Err(node_err(path, NodeError::ChecksumError).keys_context(kr));
         }
 
         let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;
@@ -150,7 +146,10 @@ impl<'a> LeafWalker<'a> {
                 self.walk_nodes(depth, path, visitor, &krs, &values)
             }
         } else {
-            Err(node_err(path, "btree nodes are not all at the same depth."))
+            Err(context_err(
+                path,
+                "btree nodes are not all at the same depth.",
+            ))
         }
     }
 
@@ -181,10 +180,7 @@ impl<'a> LeafWalker<'a> {
 
         let bt = checksum::metadata_block_type(b.get_data());
         if bt != checksum::BT::NODE {
-            return Err(node_err_s(
-                path,
-                format!("checksum failed for node {}, {:?}", root, bt),
-            ));
+            return Err(node_err(path, NodeError::ChecksumError));
         }
 
         let node = unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root)?;

@@ -122,8 +122,8 @@ impl<V: Unpack> Node<V> {
     }
 }
 
-pub fn convert_result<'a, V>(path: &[u64], r: IResult<&'a [u8], V>) -> Result<(&'a [u8], V)> {
-    r.map_err(|_e| node_err(path, "parse error"))
+fn convert_result<V>(r: IResult<&[u8], V>) -> std::result::Result<(&[u8], V), NodeError> {
+    r.map_err(|_e| NodeError::IncompleteData)
 }
 
 pub fn convert_io_err<V>(path: &[u64], r: std::io::Result<V>) -> Result<V> {
@@ -136,63 +136,51 @@ pub fn unpack_node<V: Unpack>(
     ignore_non_fatal: bool,
     is_root: bool,
 ) -> Result<Node<V>> {
+    unpack_node_raw(data, ignore_non_fatal, is_root).map_err(|e| node_err(path, e))
+}
+
+pub fn unpack_node_raw<V: Unpack>(
+    data: &[u8],
+    ignore_non_fatal: bool,
+    is_root: bool,
+) -> std::result::Result<Node<V>, NodeError> {
     use nom::multi::count;
 
-    let (i, header) =
-        NodeHeader::unpack(data).map_err(|_e| node_err(path, "couldn't parse node header"))?;
+    let (i, header) = NodeHeader::unpack(data).map_err(|_e| NodeError::IncompleteData)?;
 
     if header.is_leaf && header.value_size != V::disk_size() {
-        return Err(node_err_s(
-            path,
-            format!(
-                "value_size mismatch: expected {}, was {}",
-                V::disk_size(),
-                header.value_size
-            ),
-        ));
+        return Err(NodeError::ValueSizeMismatch);
     }
 
     let elt_size = header.value_size + 8;
     if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
-        return Err(node_err_s(
-            path,
-            format!("max_entries is too large ({})", header.max_entries),
-        ));
+        return Err(NodeError::MaxEntriesTooLarge);
     }
 
     if header.nr_entries > header.max_entries {
-        return Err(node_err(path, "nr_entries > max_entries"));
+        return Err(NodeError::NumEntriesTooLarge);
     }
 
     if !ignore_non_fatal {
         if header.max_entries % 3 != 0 {
-            return Err(node_err(path, "max_entries is not divisible by 3"));
+            return Err(NodeError::MaxEntriesNotDivisible);
         }
 
         if !is_root {
             let min = header.max_entries / 3;
             if header.nr_entries < min {
-                return Err(node_err_s(
-                    path,
-                    format!(
-                        "too few entries {}, expected at least {}",
-                        header.nr_entries, min
-                    ),
-                ));
+                return Err(NodeError::NumEntriesTooSmall);
             }
         }
     }
 
-    let (i, keys) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
+    let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
 
     let mut last = None;
     for k in &keys {
         if let Some(l) = last {
             if k <= l {
-                return Err(node_err(
-                    path,
-                    &format!("keys out of order: {} <= {}", k, l),
-                ));
+                return Err(NodeError::KeysOutOfOrder);
             }
         }
 
@@ -200,10 +188,10 @@ pub fn unpack_node<V: Unpack>(
     }
 
     let nr_free = header.max_entries - header.nr_entries;
-    let (i, _padding) = convert_result(path, count(le_u64, nr_free as usize)(i))?;
+    let (i, _padding) = convert_result(count(le_u64, nr_free as usize)(i))?;
 
     if header.is_leaf {
-        let (_i, values) = convert_result(path, count(V::unpack, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
 
         Ok(Node::Leaf {
             header,
@@ -211,7 +199,7 @@ pub fn unpack_node<V: Unpack>(
             values,
         })
     } else {
-        let (_i, values) = convert_result(path, count(le_u64, header.nr_entries as usize)(i))?;
+        let (_i, values) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
         Ok(Node::Internal {
             header,
             keys,

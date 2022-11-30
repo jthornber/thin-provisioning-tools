@@ -31,18 +31,6 @@ impl TryFrom<u8> for LogLevel {
     }
 }
 
-impl From<LogLevel> for u8 {
-    fn from(level: LogLevel) -> u8 {
-        match level {
-            LogLevel::Fatal => 1,
-            LogLevel::Error => 2,
-            LogLevel::Warning => 3,
-            LogLevel::Info => 4,
-            LogLevel::Debug => 5,
-        }
-    }
-}
-
 pub fn verbose_args(cmd: clap::Command) -> clap::Command {
     use clap::Arg;
 
@@ -58,7 +46,7 @@ pub fn verbose_args(cmd: clap::Command) -> clap::Command {
 pub fn parse_log_level(matches: &clap::ArgMatches) -> Result<LogLevel, String> {
     let cnt = matches.occurrences_of("VERBOSE");
     if cnt > 0 {
-        let v: u8 = LogLevel::Warning.into();
+        let v: u8 = LogLevel::Warning as u8;
         (v + cnt as u8).try_into()
     } else {
         Ok(LogLevel::Warning)

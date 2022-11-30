@@ -128,7 +128,7 @@ struct NodeMap {
     internal_info: HashVec<InternalNodeInfo>,
 
     // Stores errors of the node itself; errors in children are not included
-    node_errors: HashVec<BTreeError>, // TODO: use NodeError instead
+    node_errors: HashVec<NodeError>,
 }
 
 impl NodeMap {
@@ -187,7 +187,7 @@ impl NodeMap {
     }
 
     fn insert_internal_node(&mut self, blocknr: u32, info: InternalNodeInfo) -> Result<()> {
-        // A potential leaf could be labeled as an actual internal node
+        // Only accepts converting a potential unread leaf
         let node_type = self.get_type(blocknr);
         if node_type != NodeType::None && node_type != NodeType::Leaf {
             return Err(anyhow!("type changed"));
@@ -198,7 +198,7 @@ impl NodeMap {
     }
 
     fn insert_leaf(&mut self, blocknr: u32) -> Result<()> {
-        // Only an unread block could be labeled as a potential leaf
+        // Only accepts an unread block
         if self.get_type(blocknr) != NodeType::None {
             return Err(anyhow!("type changed"));
         }
@@ -206,8 +206,8 @@ impl NodeMap {
         Ok(())
     }
 
-    fn insert_error(&mut self, blocknr: u32, e: BTreeError) -> Result<()> {
-        // A potential leaf could be labeled as an broken internal
+    fn insert_error(&mut self, blocknr: u32, e: NodeError) -> Result<()> {
+        // Only accepts converting a potential unread leaf
         let node_type = self.get_type(blocknr);
         if node_type != NodeType::None && node_type != NodeType::Leaf {
             return Err(anyhow!("type changed"));
@@ -224,25 +224,22 @@ impl NodeMap {
 }
 
 // The returned error is content based. Context information is up to the caller.
-fn verify_checksum(b: &Block) -> btree::Result<()> {
+fn verify_checksum(b: &Block) -> Result<(), NodeError> {
     match checksum::metadata_block_type(b.get_data()) {
         checksum::BT::NODE => Ok(()),
-        _ => Err(BTreeError::NodeError(String::from(
-            "corrupt block: checksum failed",
-        ))),
+        _ => Err(NodeError::ChecksumError),
     }
 }
 
 fn check_and_unpack_node<V: Unpack>(
-    path: &mut [u64],
     b: &Block,
     ignore_non_fatal: bool,
     is_root: bool,
-) -> btree::Result<Node<V>> {
+) -> std::result::Result<Node<V>, NodeError> {
     verify_checksum(b)?;
-    let node = unpack_node::<V>(path, b.get_data(), ignore_non_fatal, is_root)?;
+    let node = unpack_node_raw::<V>(b.get_data(), ignore_non_fatal, is_root)?;
     if node.get_header().block != b.loc {
-        return Err(BTreeError::NodeError(String::from("blocknr mismatch")));
+        return Err(NodeError::BlockNrMismatch);
     }
     Ok(node)
 }
@@ -263,8 +260,7 @@ fn read_node_(
     nodes: &mut NodeMap,
 ) {
     // allow underfull nodes in the first pass
-    let mut path = Vec::new();
-    let node = match check_and_unpack_node::<u64>(&mut path, b, ignore_non_fatal, true) {
+    let node = match check_and_unpack_node::<u64>(b, ignore_non_fatal, true) {
         Ok(n) => n,
         Err(e) => {
             // theoretically never fail
@@ -311,7 +307,7 @@ fn read_node_(
                             read_node(ctx, metadata_sm, b, depth - 1, ignore_non_fatal, nodes);
                         } else {
                             // theoretically never fail
-                            let _ = nodes.insert_error(values[i] as u32, BTreeError::IoError);
+                            let _ = nodes.insert_error(values[i] as u32, NodeError::IoError);
                         }
                     }
                 }
@@ -319,7 +315,7 @@ fn read_node_(
                     // error every child node
                     for loc in values {
                         // theoretically never fail
-                        let _ = nodes.insert_error(loc as u32, BTreeError::IoError);
+                        let _ = nodes.insert_error(loc as u32, NodeError::IoError);
                     }
                 }
             };
@@ -347,7 +343,8 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
     use Node::*;
 
     let b = ctx.engine.read(root).map_err(|_| io_err(path))?;
-    let node = check_and_unpack_node::<BlockTime>(path, &b, true, is_root)?;
+    let node =
+        check_and_unpack_node::<BlockTime>(&b, true, is_root).map_err(|e| node_err(path, e))?;
 
     match node {
         Internal { values, .. } => {
@@ -389,7 +386,7 @@ fn read_internal_nodes(
         read_node(ctx, metadata_sm, &b, depth - 1, ignore_non_fatal, nodes);
     } else {
         // FIXME: factor out common code
-        let _ = nodes.insert_error(root, BTreeError::IoError);
+        let _ = nodes.insert_error(root, NodeError::IoError);
     }
 }
 
@@ -564,9 +561,7 @@ fn read_leaf_nodes(
 
                     // Allow underfull nodes in this phase.
                     // The underfull property will be check later based on the path context.
-                    let mut path = Vec::new();
-                    let node =
-                        check_and_unpack_node::<BlockTime>(&mut path, &b, ignore_non_fatal, true);
+                    let node = check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true);
                     if let Ok(Node::Leaf { keys, values, .. }) = node {
                         {
                             let mut data_sm = data_sm.lock().unwrap();
