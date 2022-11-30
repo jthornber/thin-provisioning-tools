@@ -187,7 +187,7 @@ impl NodeMap {
     }
 
     fn insert_internal_node(&mut self, blocknr: u32, info: InternalNodeInfo) -> Result<()> {
-        // A potential leaf could be labeled as an actual internal node
+        // Only accepts converting a potential unread leaf
         let node_type = self.get_type(blocknr);
         if node_type != NodeType::None && node_type != NodeType::Leaf {
             return Err(anyhow!("type changed"));
@@ -198,7 +198,7 @@ impl NodeMap {
     }
 
     fn insert_leaf(&mut self, blocknr: u32) -> Result<()> {
-        // Only an unread block could be labeled as a potential leaf
+        // Only accepts an unread block
         if self.get_type(blocknr) != NodeType::None {
             return Err(anyhow!("type changed"));
         }
@@ -207,7 +207,7 @@ impl NodeMap {
     }
 
     fn insert_error(&mut self, blocknr: u32, e: BTreeError) -> Result<()> {
-        // A potential leaf could be labeled as an broken internal
+        // Only accepts converting a potential unread leaf
         let node_type = self.get_type(blocknr);
         if node_type != NodeType::None && node_type != NodeType::Leaf {
             return Err(anyhow!("type changed"));
