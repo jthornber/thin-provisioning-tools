@@ -689,7 +689,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         if opts.clear_needs_check {
             let cleared = clear_needs_check_flag(ctx.engine.clone())?;
             if cleared {
-                ctx.report.info("Cleared needs_check flag");
+                ctx.report.warning("Cleared needs_check flag");
             }
         }
         return Ok(());
@@ -743,7 +743,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if opts.skip_mappings {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
-            ctx.report.info("Cleared needs_check flag");
+            ctx.report.warning("Cleared needs_check flag");
         }
         return Ok(());
     }
@@ -922,7 +922,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     if !data_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.info("Repairing data leaks.");
+            ctx.report.warning("Repairing data leaks.");
             repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("data space map contains leaks"));
@@ -931,7 +931,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     if !metadata_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.info("Repairing metadata leaks.");
+            ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("metadata space map contains leaks"));
@@ -941,7 +941,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if opts.auto_repair || opts.clear_needs_check {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
-            ctx.report.info("Cleared needs_check flag");
+            ctx.report.warning("Cleared needs_check flag");
         }
     }
 

@@ -392,7 +392,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
 
     if !metadata_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.info("Repairing metadata leaks.");
+            ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("metadata space map contains leaks"));
@@ -402,7 +402,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     if opts.auto_repair || opts.clear_needs_check {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
-            ctx.report.info("Cleared needs_check flag");
+            ctx.report.warning("Cleared needs_check flag");
         }
     }
 
