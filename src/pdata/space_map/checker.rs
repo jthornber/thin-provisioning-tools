@@ -229,7 +229,7 @@ pub fn check_disk_space_map(
     {
         let sm = disk_sm.lock().unwrap();
         let v = OverflowChecker::new("data", &*sm);
-        let w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
+        let w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), ignore_non_fatal)?;
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 
