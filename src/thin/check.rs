@@ -5,7 +5,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
-use crate::checksum;
 use crate::commands::engine::*;
 use crate::hashvec::HashVec;
 use crate::io_engine::*;
@@ -221,27 +220,6 @@ impl NodeMap {
     fn len(&self) -> u32 {
         self.internal_info.len() as u32 + self.nr_leaves
     }
-}
-
-// The returned error is content based. Context information is up to the caller.
-fn verify_checksum(b: &Block) -> Result<(), NodeError> {
-    match checksum::metadata_block_type(b.get_data()) {
-        checksum::BT::NODE => Ok(()),
-        _ => Err(NodeError::ChecksumError),
-    }
-}
-
-fn check_and_unpack_node<V: Unpack>(
-    b: &Block,
-    ignore_non_fatal: bool,
-    is_root: bool,
-) -> std::result::Result<Node<V>, NodeError> {
-    verify_checksum(b)?;
-    let node = unpack_node_raw::<V>(b.get_data(), ignore_non_fatal, is_root)?;
-    if node.get_header().block != b.loc {
-        return Err(NodeError::BlockNrMismatch);
-    }
-    Ok(node)
 }
 
 fn is_seen(loc: u32, metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>) -> Result<bool> {
