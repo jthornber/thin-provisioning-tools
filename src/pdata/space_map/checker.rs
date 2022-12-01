@@ -197,7 +197,7 @@ fn gather_metadata_index_entries(
     metadata_sm: ASpaceMap,
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
-    let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
+    let entries = check_and_unpack_metadata_index(&b)?.indexes;
     metadata_sm.lock().unwrap().inc(bitmap_root, 1)?;
     inc_entries(&metadata_sm, &entries[0..])?;
 

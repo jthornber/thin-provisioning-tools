@@ -10,7 +10,7 @@ use crate::io_engine::IoEngine;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::*;
-use crate::pdata::space_map::metadata::MetadataIndex;
+use crate::pdata::space_map::metadata::*;
 use crate::pdata::unpack::*;
 use crate::thin::superblock::*;
 
@@ -71,7 +71,7 @@ fn gather_metadata_index_entries(
     bitmap_root: u64,
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
-    let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
+    let entries = check_and_unpack_metadata_index(&b)?.indexes;
     Ok(entries)
 }
 
