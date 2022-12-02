@@ -54,12 +54,6 @@ impl SyncIoEngine {
 
         // Split into runs of adjacent blocks
         let batches = generate_runs(&blocks, GAP_THRESHOLD, libc::UIO_MAXIOV as u64);
-        let nr_gaps = count_gaps(&batches);
-        let gap_buffers = (0..nr_gaps)
-            .into_iter()
-            .map(|_| Block::new(0))
-            .collect::<Vec<Block>>();
-        let mut gap_index = 0;
 
         // Issue ios
         let mut bs = blocks
@@ -75,7 +69,6 @@ impl SyncIoEngine {
 
         for batch in batches {
             let mut first = None;
-            let batch_tmp = batch.clone();
 
             // build io
             let mut buffers = Vec::with_capacity(16);
@@ -96,8 +89,7 @@ impl SyncIoEngine {
                             first = Some(*b);
                         }
                         for _ in *b..*e {
-                            buffers.push(gap_buffers[gap_index].get_data());
-                            gap_index += 1;
+                            buffers.push(gap_buffer.get_data());
                         }
                     }
                 }
@@ -116,11 +108,6 @@ impl SyncIoEngine {
                         RunOp::Run(b, e) => {
                             for i in b..e {
                                 if run_results[rindex].is_err() {
-                                    eprintln!("first = {:?}", first);
-                                    eprintln!("blocks = {:?}", blocks);
-                                    eprintln!("rindex = {}", rindex);
-                                    eprintln!("batch = {:?}", batch_tmp);
-                                    todo!();
                                     results.push(Self::bad_read());
                                 } else {
                                     let b = bs[bs_index].take().unwrap();

@@ -673,7 +673,7 @@ fn read_leaf_nodes(
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
 ) -> Result<(NodeMap, HashVec<NodeSummary>)> {
-    const QUEUE_DEPTH: usize = 2;
+    const QUEUE_DEPTH: usize = 4;
     const NR_UNPACKERS: usize = 4;
 
     // Single IO thread reads vecs of blocks
