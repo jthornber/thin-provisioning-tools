@@ -276,58 +276,66 @@ mod batch_adjacent_tests {
 //-----------------------------------------
 
 // Returns the remainder
-fn split_op(op: &RunOp, mut remaining: u64, max: u64, result: &mut Vec<RunOp>) -> u64 {
+fn split_op(op: &RunOp, remaining: u64) -> (RunOp, Option<RunOp>, u64) {
     use RunOp::*;
 
-    let mut op = op.clone();
-
-    loop {
-        match op {
-            Run(b, e) => {
-                let len = std::cmp::min(e - b, remaining);
-                result.push(Run(b, b + len));
-                op = Run(b + len, e);
-                remaining -= len;
-                if e == b + len {
-                    break;
-                }
-            }
-            Gap(b, e) => {
-                let len = std::cmp::min(e - b, remaining);
-                result.push(Gap(b, b + len));
-                op = Gap(b + len, e);
-                remaining -= len;
-                if e == b + len {
-                    break;
-                }
+    match op {
+        Run(b, e) => {
+            let len = e - b;
+            if len <= remaining {
+                (Run(*b, *e), None, remaining - len)
+            } else {
+                (Run(*b, *b + remaining), Some(Run(*b + remaining, *e)), 0)
             }
         }
-        if remaining == 0 {
-            remaining = max
+        Gap(b, e) => {
+            let len = e - b;
+            if len < remaining {
+                (Gap(*b, *e), None, remaining - len)
+            } else {
+                (Gap(*b, *b + remaining), Some(Gap(*b + remaining, *e)), 0)
+            }
         }
     }
-
-    remaining
 }
 
-fn split_contiguous(runs: &[RunOp], max: u64) -> Vec<RunOp> {
+fn split_contiguous(runs: Vec<RunOp>, max: u64, result: &mut Batches) {
     let mut remaining = max;
-    let mut result: Vec<RunOp> = Vec::with_capacity(runs.len());
 
-    for op in runs {
-        remaining = split_op(op, remaining, max, &mut result);
+    let mut batch = Vec::new();
+    let mut ops = runs.into_iter();
+    let mut op = ops.next();
+
+    while op.is_some() {
+        let (first, rest, rem) = split_op(op.as_ref().unwrap(), remaining);
+        batch.push(first);
+        op = rest;
+        remaining = rem;
+
+        if remaining == 0 {
+            let mut tmp = Vec::new();
+            std::mem::swap(&mut tmp, &mut batch);
+            result.push(tmp);
+            remaining = max;
+        }
+
+        if op.is_none() {
+            op = ops.next();
+        }
     }
 
-    result
+    if !batch.is_empty() {
+        result.push(batch);
+    }
 }
 
 type Batches = Vec<Vec<RunOp>>;
 
-fn split_batches(batches: &Batches, max: u64) -> Batches {
+fn split_batches(batches: Batches, max: u64) -> Batches {
     let mut result = Vec::new();
 
     for b in batches {
-        result.push(split_contiguous(b, max));
+        split_contiguous(b, max, &mut result);
     }
 
     result
@@ -341,16 +349,16 @@ mod split_tests {
     #[test]
     fn single() {
         let runs = vec![vec![Run(1, 100)]];
-        let batches = split_batches(&runs, 21);
+        let batches = split_batches(runs, 21);
         assert_eq!(
             batches,
-            [[
-                Run(1, 22),
-                Run(22, 43),
-                Run(43, 64),
-                Run(64, 85),
-                Run(85, 100)
-            ]]
+            [
+                [Run(1, 22)],
+                [Run(22, 43)],
+                [Run(43, 64)],
+                [Run(64, 85)],
+                [Run(85, 100)]
+            ]
         );
     }
 
@@ -366,15 +374,34 @@ mod split_tests {
             vec![Run(210, 211)],
             vec![Run(230, 231)],
         ];
-        let batches = split_batches(&runs, 100);
-        assert_eq!(batches, runs);
+        let runs_copy = runs.clone();
+        let batches = split_batches(runs, 100);
+        assert_eq!(batches, runs_copy);
     }
 }
 
 //-----------------------------------------
 
 pub fn generate_runs(blocks: &[u64], gap_threshold: u64, max: u64) -> Batches {
-    split_batches(&batch_adjacent(&find_runs(blocks, gap_threshold)), max)
+    split_batches(batch_adjacent(&find_runs(blocks, gap_threshold)), max)
+}
+
+pub fn count_gaps(batches: &Batches) -> u64 {
+    let mut count = 0;
+    for batch in batches {
+        for op in batch {
+            match op {
+                RunOp::Gap(b, e) => {
+                    count += e - b;
+                }
+                RunOp::Run(..) => {
+                    // do nothing
+                }
+            }
+        }
+    }
+
+    count
 }
 
 //-----------------------------------------

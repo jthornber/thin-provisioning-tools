@@ -54,6 +54,12 @@ impl SyncIoEngine {
 
         // Split into runs of adjacent blocks
         let batches = generate_runs(&blocks, GAP_THRESHOLD, libc::UIO_MAXIOV as u64);
+        let nr_gaps = count_gaps(&batches);
+        let gap_buffers = (0..nr_gaps)
+            .into_iter()
+            .map(|_| Block::new(0))
+            .collect::<Vec<Block>>();
+        let mut gap_index = 0;
 
         // Issue ios
         let mut bs = blocks
@@ -69,6 +75,7 @@ impl SyncIoEngine {
 
         for batch in batches {
             let mut first = None;
+            let batch_tmp = batch.clone();
 
             // build io
             let mut buffers = Vec::with_capacity(16);
@@ -89,7 +96,8 @@ impl SyncIoEngine {
                             first = Some(*b);
                         }
                         for _ in *b..*e {
-                            buffers.push(gap_buffer.get_data());
+                            buffers.push(gap_buffers[gap_index].get_data());
+                            gap_index += 1;
                         }
                     }
                 }
@@ -111,6 +119,7 @@ impl SyncIoEngine {
                                     eprintln!("first = {:?}", first);
                                     eprintln!("blocks = {:?}", blocks);
                                     eprintln!("rindex = {}", rindex);
+                                    eprintln!("batch = {:?}", batch_tmp);
                                     todo!();
                                     results.push(Self::bad_read());
                                 } else {
@@ -119,13 +128,13 @@ impl SyncIoEngine {
                                     results.push(Ok(b));
                                 }
                                 bs_index += 1;
+                                rindex += 1;
                             }
                         }
-                        RunOp::Gap(..) => {
-                            // do nothing
+                        RunOp::Gap(b, e) => {
+                            rindex += (e - b) as usize;
                         }
                     }
-                    rindex += 1;
                 }
             } else {
                 // Error everything
