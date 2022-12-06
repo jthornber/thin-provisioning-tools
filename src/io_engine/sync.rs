@@ -53,7 +53,7 @@ impl SyncIoEngine {
         }
 
         // Split into runs of adjacent blocks
-        let batches = generate_runs(&blocks, GAP_THRESHOLD, libc::UIO_MAXIOV as u64);
+        let batches = generate_runs(blocks, GAP_THRESHOLD, libc::UIO_MAXIOV as u64);
 
         // Issue ios
         let mut bs = blocks

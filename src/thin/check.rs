@@ -5,7 +5,6 @@ use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use threadpool::ThreadPool;
 
 use crate::commands::engine::*;
 use crate::hashvec::HashVec;
@@ -50,7 +49,6 @@ pub struct ThinCheckOptions<'a> {
 struct Context {
     report: Arc<Report>,
     engine: Arc<dyn IoEngine + Send + Sync>,
-    pool: ThreadPool,
 }
 
 //----------------------------------------
@@ -597,7 +595,6 @@ fn read_leaf_nodes(
 
     // Process chunks of leaves at once so the io engine can aggregate reads.
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
-    let leaves = Arc::new(leaves);
     let nodes = Arc::new(nodes);
 
     // Kick off the unpackers
@@ -737,14 +734,7 @@ fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> 
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
-    let nr_threads = engine.suggest_nr_threads();
-    let pool = ThreadPool::new(nr_threads);
-
-    Ok(Context {
-        report,
-        engine,
-        pool,
-    })
+    Ok(Context { report, engine })
 }
 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {

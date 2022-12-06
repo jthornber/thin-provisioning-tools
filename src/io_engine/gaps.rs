@@ -12,6 +12,7 @@ fn find_runs(blocks: &[u64], gap_threshold: u64) -> Vec<RunOp> {
 
     for b in blocks {
         if let Some((begin, end)) = last {
+            #[allow(clippy::comparison_chain)]
             if *b > end {
                 let len = b - end;
                 if len > gap_threshold {
