@@ -312,6 +312,7 @@ fn test_encode_path() {
 #[derive(Clone, Debug)]
 pub enum NodeError {
     IoError,
+    NotANode,
     ChecksumError,
     BlockNrMismatch,
     ValueSizeMismatch,
@@ -329,6 +330,7 @@ impl fmt::Display for NodeError {
 
         match self {
             IoError => write!(f, "io error"),
+            NotANode => write!(f, "not a btree node"),
             ChecksumError => write!(f, "checksum error"),
             BlockNrMismatch => write!(f, "blocknr mismatch"),
             ValueSizeMismatch => write!(f, "value_size mismatch"),

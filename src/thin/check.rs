@@ -5,7 +5,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
-use crate::checksum;
 use crate::commands::engine::*;
 use crate::hashvec::HashVec;
 use crate::io_engine::*;
@@ -221,27 +220,6 @@ impl NodeMap {
     fn len(&self) -> u32 {
         self.internal_info.len() as u32 + self.nr_leaves
     }
-}
-
-// The returned error is content based. Context information is up to the caller.
-fn verify_checksum(b: &Block) -> Result<(), NodeError> {
-    match checksum::metadata_block_type(b.get_data()) {
-        checksum::BT::NODE => Ok(()),
-        _ => Err(NodeError::ChecksumError),
-    }
-}
-
-fn check_and_unpack_node<V: Unpack>(
-    b: &Block,
-    ignore_non_fatal: bool,
-    is_root: bool,
-) -> std::result::Result<Node<V>, NodeError> {
-    verify_checksum(b)?;
-    let node = unpack_node_raw::<V>(b.get_data(), ignore_non_fatal, is_root)?;
-    if node.get_header().block != b.loc {
-        return Err(NodeError::BlockNrMismatch);
-    }
-    Ok(node)
 }
 
 fn is_seen(loc: u32, metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>) -> Result<bool> {
@@ -711,7 +689,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         if opts.clear_needs_check {
             let cleared = clear_needs_check_flag(ctx.engine.clone())?;
             if cleared {
-                ctx.report.info("Cleared needs_check flag");
+                ctx.report.warning("Cleared needs_check flag");
             }
         }
         return Ok(());
@@ -765,7 +743,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if opts.skip_mappings {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
-            ctx.report.info("Cleared needs_check flag");
+            ctx.report.warning("Cleared needs_check flag");
         }
         return Ok(());
     }
@@ -944,7 +922,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     if !data_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.info("Repairing data leaks.");
+            ctx.report.warning("Repairing data leaks.");
             repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("data space map contains leaks"));
@@ -953,7 +931,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     if !metadata_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.info("Repairing metadata leaks.");
+            ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("metadata space map contains leaks"));
@@ -963,7 +941,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if opts.auto_repair || opts.clear_needs_check {
         let cleared = clear_needs_check_flag(ctx.engine.clone())?;
         if cleared {
-            ctx.report.info("Cleared needs_check flag");
+            ctx.report.warning("Cleared needs_check flag");
         }
     }
 

@@ -197,7 +197,7 @@ fn gather_metadata_index_entries(
     metadata_sm: ASpaceMap,
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
-    let entries = unpack::<MetadataIndex>(b.get_data())?.indexes;
+    let entries = check_and_unpack_metadata_index(&b)?.indexes;
     metadata_sm.lock().unwrap().inc(bitmap_root, 1)?;
     inc_entries(&metadata_sm, &entries[0..])?;
 
@@ -229,7 +229,7 @@ pub fn check_disk_space_map(
     {
         let sm = disk_sm.lock().unwrap();
         let v = OverflowChecker::new("data", &*sm);
-        let w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), false)?;
+        let w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), ignore_non_fatal)?;
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 

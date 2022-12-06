@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 
-use crate::checksum;
 use crate::io_engine::*;
 use crate::pdata::btree::*;
 use crate::pdata::space_map::*;
@@ -191,18 +190,14 @@ impl BTreeWalker {
     {
         use Node::*;
 
-        let bt = checksum::metadata_block_type(b.get_data());
-        if bt != checksum::BT::NODE {
-            let e = node_err(path, NodeError::ChecksumError).keys_context(kr);
-            self.set_fail(b.loc, e.clone());
-            return Err(e);
-        }
-
-        let node =
-            unpack_node::<V>(path, b.get_data(), self.ignore_non_fatal, is_root).map_err(|e| {
+        let node = match check_and_unpack_node::<V>(b, self.ignore_non_fatal, is_root) {
+            Ok(n) => n,
+            Err(err) => {
+                let e = node_err(path, err).keys_context(kr);
                 self.set_fail(b.loc, e.clone());
-                e
-            })?;
+                return Err(e);
+            }
+        };
 
         match node {
             Internal { keys, values, .. } => {
@@ -291,17 +286,14 @@ where
 {
     use Node::*;
 
-    let bt = checksum::metadata_block_type(b.get_data());
-    if bt != checksum::BT::NODE {
-        let e = node_err(path, NodeError::ChecksumError).keys_context(kr);
-        w.set_fail(b.loc, e.clone());
-        return Err(e);
-    }
-
-    let node = unpack_node::<V>(path, b.get_data(), w.ignore_non_fatal, is_root).map_err(|e| {
-        w.set_fail(b.loc, e.clone());
-        e
-    })?;
+    let node = match check_and_unpack_node::<V>(b, w.ignore_non_fatal, is_root) {
+        Ok(n) => n,
+        Err(err) => {
+            let e = node_err(path, err).keys_context(kr);
+            w.set_fail(b.loc, e.clone());
+            return Err(e);
+        }
+    };
 
     match node {
         Internal { keys, values, .. } => {

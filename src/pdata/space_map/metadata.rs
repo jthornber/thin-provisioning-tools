@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
 use nom::{number::complete::*, IResult};
 use std::io::{self, Cursor};
@@ -29,7 +29,6 @@ impl Unpack for MetadataIndex {
     }
 
     fn unpack(i: &[u8]) -> IResult<&[u8], MetadataIndex> {
-        // FIXME: check the checksum
         let (i, _csum) = le_u32(i)?;
         let (i, _padding) = le_u32(i)?;
         let (i, blocknr) = le_u64(i)?;
@@ -60,6 +59,19 @@ impl Pack for MetadataIndex {
 
         Ok(())
     }
+}
+
+fn verify_checksum(b: &Block) -> Result<()> {
+    match checksum::metadata_block_type(b.get_data()) {
+        checksum::BT::INDEX => Ok(()),
+        checksum::BT::UNKNOWN => Err(anyhow!("checksum error in index block")),
+        _ => Err(anyhow!("not an index block")),
+    }
+}
+
+pub fn check_and_unpack_metadata_index(b: &Block) -> Result<MetadataIndex> {
+    verify_checksum(b)?;
+    unpack::<MetadataIndex>(b.get_data()).map_err(|e| e.into())
 }
 
 //------------------------------------------
