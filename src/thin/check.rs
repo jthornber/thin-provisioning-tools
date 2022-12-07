@@ -74,6 +74,7 @@ struct NodeSummary {
     key_high: u64,    // max mapped block, inclusive
     nr_mappings: u64, // number of valid mappings in this subtree
     nr_entries: u8,   // number of entires in this node
+    nr_errors: u8,    // number of errors found in this subtree, up to 255
 }
 
 impl NodeSummary {
@@ -91,6 +92,17 @@ impl NodeSummary {
             key_high,
             nr_mappings: nr_entries as u64,
             nr_entries: nr_entries as u8,
+            nr_errors: 0,
+        }
+    }
+
+    fn error() -> Self {
+        Self {
+            key_low: 0,
+            key_high: 0,
+            nr_mappings: 0,
+            nr_entries: 0,
+            nr_errors: 1,
         }
     }
 
@@ -106,6 +118,7 @@ impl NodeSummary {
                 self.nr_mappings += other.nr_mappings;
             }
         }
+        self.nr_errors = self.nr_errors.saturating_add(other.nr_errors);
 
         Ok(())
     }
@@ -383,7 +396,7 @@ fn summarize_tree(
     if let Some(sum) = summaries.get(root) {
         // Check underfull
         if !ignore_non_fatal && !is_root && sum.nr_entries < MIN_ENTRIES {
-            return NodeSummary::default();
+            return NodeSummary::error();
         }
 
         // Check the key range against the parent keys.
@@ -392,13 +405,13 @@ fn summarize_tree(
                 // The parent key could be less than or equal to,
                 // but not greater than the child's first key
                 if n > sum.key_low {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
             }
             if let Some(n) = kr.end {
                 // note that KeyRange is a right-opened interval
                 if n < sum.key_high {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
             }
         }
@@ -411,14 +424,14 @@ fn summarize_tree(
             if let Some(info) = nodes.internal_info.get(root) {
                 // Check underfull
                 if !ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
 
                 // Split up the key range for the children.
                 // Return immediately if the keys don't match.
                 let child_keys = match split_key_ranges(path, kr, &info.keys) {
                     Ok(keys) => keys,
-                    Err(_) => return NodeSummary::default(),
+                    Err(_) => return NodeSummary::error(),
                 };
 
                 // Gather information from the children
@@ -443,10 +456,12 @@ fn summarize_tree(
                 sum
             } else {
                 // This is unexpected. However, we would like to skip that kind of error.
-                NodeSummary::default()
+                NodeSummary::error()
             }
         }
-        _ => NodeSummary::default(),
+
+        // This is unexpected since a leaf should have been summarized
+        _ => NodeSummary::error(),
     }
 }
 
@@ -736,7 +751,18 @@ fn check_mapped_blocks(
     let mut failed = false;
     for (thin_id, root, details) in devs {
         if let Some(sum) = summaries.get(*root as u32) {
-            if sum.nr_mappings != details.mapped_blocks {
+            if sum.nr_errors > 0 {
+                failed = true;
+                let missed = details.mapped_blocks.saturating_sub(sum.nr_mappings);
+                let mut errors = sum.nr_errors.to_string();
+                if sum.nr_errors == 255 {
+                    errors.push('+');
+                }
+                ctx.report.fatal(&format!(
+                    "Thin devide {} has {} error nodes and is missing {} mappings, while expected {}",
+                    thin_id, errors, missed, details.mapped_blocks
+                ));
+            } else if sum.nr_mappings != details.mapped_blocks {
                 failed = true;
                 ctx.report.fatal(&format!(
                     "Thin device {} has unexpected number of mappings, expected {}, actual {}",
