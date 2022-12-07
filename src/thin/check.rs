@@ -2,7 +2,9 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use threadpool::ThreadPool;
 
 use crate::commands::engine::*;
@@ -457,7 +459,7 @@ fn check_mapping_bottom_level(
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     roots: &[u64],
     ignore_non_fatal: bool,
-) -> HashVec<NodeSummary> {
+) -> Result<HashVec<NodeSummary>> {
     let start = std::time::Instant::now();
     let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal);
     let duration = start.elapsed();
@@ -465,7 +467,7 @@ fn check_mapping_bottom_level(
         .debug(&format!("reading internal nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
-    let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal);
+    let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal)?;
     let duration = start.elapsed();
     ctx.report
         .debug(&format!("reading leaf nodes: {:?}", duration));
@@ -482,7 +484,7 @@ fn check_mapping_bottom_level(
     ctx.report
         .info(&format!("nr errors: {}", nodes.node_errors.len()));
 
-    summaries
+    Ok(summaries)
 }
 
 fn collect_nodes_in_use(
@@ -500,12 +502,87 @@ fn collect_nodes_in_use(
     nodes
 }
 
+fn unpacker(
+    blocks_rx: &Arc<Mutex<mpsc::Receiver<Vec<Block>>>>,
+    nodes_tx: SyncSender<Vec<Node<BlockTime>>>,
+    ignore_non_fatal: bool,
+) {
+    loop {
+        let blocks = {
+            let blocks_rx = blocks_rx.lock().unwrap();
+            if let Ok(blocks) = blocks_rx.recv() {
+                blocks
+            } else {
+                break;
+            }
+        };
+
+        let mut nodes = Vec::with_capacity(blocks.len());
+
+        for b in blocks {
+            // Allow under full nodes in this phase.  The under full
+            // property will be check later based on the path context.
+            if let Ok(node) = check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true) {
+                nodes.push(node);
+            }
+        }
+
+        if nodes_tx.send(nodes).is_err() {
+            break;
+        }
+    }
+}
+
+fn summariser(
+    nodes_rx: mpsc::Receiver<Vec<Node<BlockTime>>>,
+    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
+) {
+    let mut summaries = summaries.lock().unwrap();
+    let mut data_sm = data_sm.lock().unwrap();
+
+    loop {
+        let nodes = {
+            if let Ok(nodes) = nodes_rx.recv() {
+                nodes
+            } else {
+                break;
+            }
+        };
+
+        for n in nodes {
+            if let Node::Leaf {
+                keys,
+                values,
+                header,
+            } = n
+            {
+                for v in values {
+                    let _ = data_sm.inc(v.block, 1);
+                }
+
+                let sum = NodeSummary::from_leaf(&keys);
+                summaries.insert(header.block as u32, sum);
+            } else {
+                // FIXME: report error
+            }
+        }
+    }
+}
+
 fn read_leaf_nodes(
     ctx: &Context,
     nodes: NodeMap,
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
-) -> (NodeMap, HashVec<NodeSummary>) {
+) -> Result<(NodeMap, HashVec<NodeSummary>)> {
+    const QUEUE_DEPTH: usize = 4;
+    const NR_UNPACKERS: usize = 4;
+
+    // Single IO thread reads vecs of blocks
+    // Many unpackers take the block vecs and turn them into btree nodes
+    // Single 'summariser' thread processes the nodes
+
     // Build a vec of the leaf locations.  These will be in disk location
     // order.
     let mut leaves = Vec::with_capacity(nodes.nr_leaves as usize);
@@ -513,58 +590,74 @@ fn read_leaf_nodes(
         leaves.push(loc as u64);
     }
 
+    let (blocks_tx, blocks_rx) = mpsc::sync_channel::<Vec<Block>>(QUEUE_DEPTH);
+    let blocks_rx = Arc::new(Mutex::new(blocks_rx));
+
+    let (nodes_tx, nodes_rx) = mpsc::sync_channel::<Vec<Node<BlockTime>>>(QUEUE_DEPTH);
+
     // Process chunks of leaves at once so the io engine can aggregate reads.
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
     let leaves = Arc::new(leaves);
     let nodes = Arc::new(nodes);
-    let mut chunk_start = 0;
-    while chunk_start < leaves.len() {
-        // 1024 is the maximum iovcnt of readv on most systems
-        let len = std::cmp::min(1024, leaves.len() - chunk_start);
-        let engine = ctx.engine.clone();
-        let data_sm = data_sm.clone();
-        let leaves = leaves.clone();
-        let summaries = summaries.clone();
 
-        ctx.pool.execute(move || {
-            let c = &leaves[chunk_start..(chunk_start + len)];
-
-            // TODO: Retry blocks ignored by vectored io
-            if let Ok(blocks) = engine.read_many(c) {
-                for (loc, b) in c.iter().zip(blocks) {
-                    let b = match b {
-                        Ok(b) => b,
-                        Err(_) => continue,
-                    };
-
-                    // Allow underfull nodes in this phase.
-                    // The underfull property will be check later based on the path context.
-                    let node = check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true);
-                    if let Ok(Node::Leaf { keys, values, .. }) = node {
-                        {
-                            let mut data_sm = data_sm.lock().unwrap();
-                            for v in values {
-                                let _ = data_sm.inc(v.block, 1);
-                            }
-                        }
-
-                        {
-                            let sum = NodeSummary::from_leaf(&keys);
-                            let mut sums = summaries.lock().unwrap();
-                            sums.insert(*loc as u32, sum);
-                        }
-                    }
-                }
-            }
-        });
-        chunk_start += len;
+    // Kick off the unpackers
+    let mut unpackers = Vec::with_capacity(NR_UNPACKERS);
+    for _i in 0..NR_UNPACKERS {
+        let blocks_rx = blocks_rx.clone();
+        let nodes_tx = nodes_tx.clone();
+        unpackers.push(thread::spawn(move || {
+            unpacker(&blocks_rx, nodes_tx, ignore_non_fatal)
+        }));
     }
-    ctx.pool.join();
+    drop(blocks_rx);
+    drop(nodes_tx);
 
+    // Kick off the summariser
+    let summariser_tid = {
+        let data_sm = data_sm.clone();
+        let summaries = summaries.clone();
+        thread::spawn(move || {
+            summariser(nodes_rx, &data_sm, &summaries);
+        })
+    };
+
+    // IO is done in the main thread
+    let engine = ctx.engine.clone();
+    for c in leaves.chunks(1024) {
+        let mut bs = Vec::with_capacity(c.len());
+
+        // TODO: Retry blocks ignored by vectored io
+        if let Ok(blocks) = engine.read_many(c) {
+            for b in blocks {
+                if b.is_err() {
+                    continue;
+                }
+
+                let b = b.unwrap();
+                bs.push(b);
+            }
+
+            blocks_tx
+                .send(bs)
+                .expect("couldn't send blocks to unpacker");
+        } else {
+            // FIXME: report error
+        }
+    }
+
+    drop(blocks_tx);
+
+    // Wait for child threads
+    for tid in unpackers {
+        tid.join().expect("couldn't join unpacker");
+    }
+    summariser_tid.join().expect("couldn't join summariser");
+
+    // extract the results
     let nodes = Arc::try_unwrap(nodes).unwrap();
     let summaries = Arc::try_unwrap(summaries).unwrap().into_inner().unwrap();
 
-    (nodes, summaries)
+    Ok((nodes, summaries))
 }
 
 // Revisit the trees to count the number of mappings for each device.
@@ -851,7 +944,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         &data_sm,
         &all_roots,
         opts.ignore_non_fatal,
-    );
+    )?;
 
     // Check the number of mapped blocks
     let mut iter = roots
@@ -1020,7 +1113,7 @@ pub fn check_with_maps(
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
     let all_roots: Vec<u64> = roots.values().map(|(_path, root)| *root).collect();
-    let summaries = check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &all_roots, false);
+    let summaries = check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &all_roots, false)?;
 
     let mut iter = roots
         .iter()
