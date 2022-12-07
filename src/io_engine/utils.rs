@@ -47,20 +47,23 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
         let mut results = Vec::with_capacity(os_bufs.len());
 
         while remaining > 0 {
-            if let Ok(n) = self.dev.read_vectored_at(os_bufs, pos) {
-                remaining -= n as usize;
-                pos += n as u64;
-                assert_eq!(n as usize % block_size, 0);
-                os_bufs = &mut os_bufs[(n as usize / block_size)..];
-                for _ in 0..(n as usize / block_size) {
-                    results.push(Ok(()));
+            match self.dev.read_vectored_at(os_bufs, pos) {
+                Ok(n) => {
+                    remaining -= n as usize;
+                    pos += n as u64;
+                    assert_eq!(n as usize % block_size, 0);
+                    os_bufs = &mut os_bufs[(n as usize / block_size)..];
+                    for _ in 0..(n as usize / block_size) {
+                        results.push(Ok(()));
+                    }
                 }
-            } else {
-                // Skip to the next iovec
-                remaining -= block_size;
-                pos += block_size as u64;
-                os_bufs = &mut os_bufs[1..];
-                results.push(Err(anyhow!("read failed")));
+                Err(_) => {
+                    // Skip to the next iovec
+                    remaining -= block_size;
+                    pos += block_size as u64;
+                    os_bufs = &mut os_bufs[1..];
+                    results.push(Err(anyhow!("read failed")));
+                }
             }
         }
 

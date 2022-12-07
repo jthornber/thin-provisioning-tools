@@ -4,6 +4,7 @@ use std::io::{self, Result};
 use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::path::Path;
 
+use crate::io_engine::gaps::*;
 use crate::io_engine::utils::*;
 use crate::io_engine::*;
 
@@ -45,80 +46,103 @@ impl SyncIoEngine {
     }
 
     fn read_many_(input: &File, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
+        const GAP_THRESHOLD: u64 = 8;
+
+        if blocks.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Split into runs of adjacent blocks
+        let batches = generate_runs(&blocks, GAP_THRESHOLD, libc::UIO_MAXIOV as u64);
+
+        // Issue ios
         let mut bs = blocks
             .iter()
             .map(|loc| Some(Block::new(*loc)))
             .collect::<Vec<Option<Block>>>();
 
-        // sort by location
-        // bs.sort_by(|lhs, rhs| lhs.loc.cmp(&rhs.loc));
-
-        // Split into runs of adjacent blocks
-        let mut runs: Vec<usize> = Vec::with_capacity(blocks.len());
-        let mut last: Option<(u64, u64)> = None;
-        for b in &bs {
-            let b = b.as_ref().unwrap();
-            if let Some((begin, end)) = last {
-                if end != b.loc || end - begin >= libc::UIO_MAXIOV as u64 {
-                    runs.push((end - begin) as usize);
-                    last = Some((b.loc, b.loc + 1));
-                } else {
-                    last = Some((begin, b.loc + 1));
-                }
-            } else {
-                last = Some((b.loc, b.loc + 1));
-            }
-        }
-
-        if let Some((begin, end)) = last {
-            runs.push((end - begin) as usize);
-        }
-
-        // Issue ios
         let vio: VectoredBlockIo<&File> = input.into();
-        let mut issued = 0;
-        let mut run_results = Vec::with_capacity(runs.len());
-        for run_len in &runs {
-            assert!(*run_len > 0);
-            let mut buffers = Vec::with_capacity(*run_len);
-            for i in 0..*run_len {
-                buffers.push(bs[i + issued].as_ref().unwrap().get_data());
-            }
-            run_results.push(vio.read_blocks(
-                &mut buffers[..],
-                bs[issued].as_ref().unwrap().loc * BLOCK_SIZE as u64,
-            ));
-            issued += run_len;
-        }
+        let mut issued_minus_gaps = 0;
 
-        let mut results = Vec::with_capacity(bs.len());
-        let mut index = 0;
-        for (run_len, r) in runs.iter().zip(run_results) {
-            match r {
-                Err(_) => {
-                    for _ in 0..*run_len {
-                        results.push(Self::bad_read());
+        // The same junk buffer is inserted for all the gaps
+        let gap_buffer = Block::new(0);
+        let mut results: Vec<Result<Block>> = Vec::with_capacity(bs.len());
+        let mut bs_index = 0;
+
+        for batch in batches {
+            let mut first = None;
+
+            // build io
+            let mut buffers = Vec::with_capacity(16);
+            for op in &batch {
+                match op {
+                    RunOp::Run(b, e) => {
+                        if first.is_none() {
+                            first = Some(*b);
+                        }
+                        for b in *b..*e {
+                            assert_eq!(b, bs[issued_minus_gaps].as_ref().unwrap().loc);
+                            buffers.push(bs[issued_minus_gaps].as_ref().unwrap().get_data());
+                            issued_minus_gaps += 1;
+                        }
                     }
-                    index += *run_len;
+                    RunOp::Gap(b, e) => {
+                        if first.is_none() {
+                            first = Some(*b);
+                        }
+                        for _ in *b..*e {
+                            buffers.push(gap_buffer.get_data());
+                        }
+                    }
                 }
-                Ok(rs) => {
-                    for r in rs {
-                        match r {
-                            Err(_) => {
-                                results.push(Self::bad_read());
-                            }
-                            Ok(()) => {
-                                results.push(Ok(bs[index].take().unwrap()));
+            }
+
+            assert!(first.is_some());
+
+            // Issue io
+            let run_results = vio.read_blocks(&mut buffers[..], first.unwrap() * BLOCK_SIZE as u64);
+
+            if let Ok(run_results) = run_results {
+                // select results
+                let mut rindex = 0;
+                for op in batch {
+                    match op {
+                        RunOp::Run(b, e) => {
+                            for i in b..e {
+                                if run_results[rindex].is_err() {
+                                    results.push(Self::bad_read());
+                                } else {
+                                    let b = bs[bs_index].take().unwrap();
+                                    assert_eq!(i, b.loc);
+                                    results.push(Ok(b));
+                                }
+                                bs_index += 1;
+                                rindex += 1;
                             }
                         }
-                        index += 1;
+                        RunOp::Gap(b, e) => {
+                            rindex += (e - b) as usize;
+                        }
+                    }
+                }
+            } else {
+                // Error everything
+                for op in batch {
+                    match op {
+                        RunOp::Run(b, e) => {
+                            for _ in b..e {
+                                results.push(Self::bad_read());
+                                bs_index += 1;
+                            }
+                        }
+                        RunOp::Gap(..) => {
+                            // do nothing
+                        }
                     }
                 }
             }
         }
-
-        // unsort
-        // FIXME: finish
+        assert_eq!(results.len(), blocks.len());
 
         Ok(results)
     }
