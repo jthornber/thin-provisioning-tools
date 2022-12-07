@@ -5,7 +5,6 @@ use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use threadpool::ThreadPool;
 
 use crate::commands::engine::*;
 use crate::hashvec::HashVec;
@@ -50,7 +49,6 @@ pub struct ThinCheckOptions<'a> {
 struct Context {
     report: Arc<Report>,
     engine: Arc<dyn IoEngine + Send + Sync>,
-    pool: ThreadPool,
 }
 
 //----------------------------------------
@@ -76,6 +74,7 @@ struct NodeSummary {
     key_high: u64,    // max mapped block, inclusive
     nr_mappings: u64, // number of valid mappings in this subtree
     nr_entries: u8,   // number of entires in this node
+    nr_errors: u8,    // number of errors found in this subtree, up to 255
 }
 
 impl NodeSummary {
@@ -93,6 +92,17 @@ impl NodeSummary {
             key_high,
             nr_mappings: nr_entries as u64,
             nr_entries: nr_entries as u8,
+            nr_errors: 0,
+        }
+    }
+
+    fn error() -> Self {
+        Self {
+            key_low: 0,
+            key_high: 0,
+            nr_mappings: 0,
+            nr_entries: 0,
+            nr_errors: 1,
         }
     }
 
@@ -108,6 +118,7 @@ impl NodeSummary {
                 self.nr_mappings += other.nr_mappings;
             }
         }
+        self.nr_errors = self.nr_errors.saturating_add(other.nr_errors);
 
         Ok(())
     }
@@ -385,7 +396,7 @@ fn summarize_tree(
     if let Some(sum) = summaries.get(root) {
         // Check underfull
         if !ignore_non_fatal && !is_root && sum.nr_entries < MIN_ENTRIES {
-            return NodeSummary::default();
+            return NodeSummary::error();
         }
 
         // Check the key range against the parent keys.
@@ -394,13 +405,13 @@ fn summarize_tree(
                 // The parent key could be less than or equal to,
                 // but not greater than the child's first key
                 if n > sum.key_low {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
             }
             if let Some(n) = kr.end {
                 // note that KeyRange is a right-opened interval
                 if n < sum.key_high {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
             }
         }
@@ -413,14 +424,14 @@ fn summarize_tree(
             if let Some(info) = nodes.internal_info.get(root) {
                 // Check underfull
                 if !ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
-                    return NodeSummary::default();
+                    return NodeSummary::error();
                 }
 
                 // Split up the key range for the children.
                 // Return immediately if the keys don't match.
                 let child_keys = match split_key_ranges(path, kr, &info.keys) {
                     Ok(keys) => keys,
-                    Err(_) => return NodeSummary::default(),
+                    Err(_) => return NodeSummary::error(),
                 };
 
                 // Gather information from the children
@@ -445,10 +456,12 @@ fn summarize_tree(
                 sum
             } else {
                 // This is unexpected. However, we would like to skip that kind of error.
-                NodeSummary::default()
+                NodeSummary::error()
             }
         }
-        _ => NodeSummary::default(),
+
+        // This is unexpected since a leaf should have been summarized
+        _ => NodeSummary::error(),
     }
 }
 
@@ -481,8 +494,26 @@ fn check_mapping_bottom_level(
     ctx.report
         .info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
     ctx.report.info(&format!("nr leaves: {}", nodes.nr_leaves));
-    ctx.report
-        .info(&format!("nr errors: {}", nodes.node_errors.len()));
+
+    if !nodes.node_errors.is_empty() {
+        let mut nr_io_errors = 0;
+        let mut nr_checksum_errors = 0;
+        for e in nodes.node_errors.values() {
+            match e {
+                NodeError::IoError => nr_io_errors += 1,
+                NodeError::ChecksumError => nr_checksum_errors += 1,
+                _ => {}
+            }
+        }
+        ctx.report.fatal(&format!(
+            "{} nodes in data mapping tree contain errors",
+            nodes.node_errors.len()
+        ));
+        ctx.report.fatal(&format!(
+            "{} io errors, {} checksum errors",
+            nr_io_errors, nr_checksum_errors
+        ));
+    }
 
     Ok(summaries)
 }
@@ -505,6 +536,7 @@ fn collect_nodes_in_use(
 fn unpacker(
     blocks_rx: &Arc<Mutex<mpsc::Receiver<Vec<Block>>>>,
     nodes_tx: SyncSender<Vec<Node<BlockTime>>>,
+    node_map: Arc<Mutex<NodeMap>>,
     ignore_non_fatal: bool,
 ) {
     loop {
@@ -518,12 +550,26 @@ fn unpacker(
         };
 
         let mut nodes = Vec::with_capacity(blocks.len());
+        let mut errs = Vec::new();
 
         for b in blocks {
             // Allow under full nodes in this phase.  The under full
             // property will be check later based on the path context.
-            if let Ok(node) = check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true) {
-                nodes.push(node);
+            match check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true) {
+                Ok(n) => {
+                    nodes.push(n);
+                }
+                Err(e) => {
+                    errs.push((b.loc, e));
+                }
+            }
+        }
+
+        if !errs.is_empty() {
+            let mut node_map = node_map.lock().unwrap();
+            for (b, e) in errs {
+                // theoretically never fail
+                let _ = node_map.insert_error(b as u32, e);
             }
         }
 
@@ -564,7 +610,8 @@ fn summariser(
                 let sum = NodeSummary::from_leaf(&keys);
                 summaries.insert(header.block as u32, sum);
             } else {
-                // FIXME: report error
+                // Do not report error here. The error will be captured
+                // in the second phase.
             }
         }
     }
@@ -597,16 +644,16 @@ fn read_leaf_nodes(
 
     // Process chunks of leaves at once so the io engine can aggregate reads.
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
-    let leaves = Arc::new(leaves);
-    let nodes = Arc::new(nodes);
+    let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
     let mut unpackers = Vec::with_capacity(NR_UNPACKERS);
     for _i in 0..NR_UNPACKERS {
         let blocks_rx = blocks_rx.clone();
         let nodes_tx = nodes_tx.clone();
+        let node_map = nodes.clone();
         unpackers.push(thread::spawn(move || {
-            unpacker(&blocks_rx, nodes_tx, ignore_non_fatal)
+            unpacker(&blocks_rx, nodes_tx, node_map, ignore_non_fatal)
         }));
     }
     drop(blocks_rx);
@@ -641,7 +688,10 @@ fn read_leaf_nodes(
                 .send(bs)
                 .expect("couldn't send blocks to unpacker");
         } else {
-            // FIXME: report error
+            let mut nodes = nodes.lock().unwrap();
+            for b in c {
+                let _ = nodes.insert_error(*b as u32, NodeError::IoError);
+            }
         }
     }
 
@@ -654,7 +704,7 @@ fn read_leaf_nodes(
     summariser_tid.join().expect("couldn't join summariser");
 
     // extract the results
-    let nodes = Arc::try_unwrap(nodes).unwrap();
+    let nodes = Arc::try_unwrap(nodes).unwrap().into_inner().unwrap();
     let summaries = Arc::try_unwrap(summaries).unwrap().into_inner().unwrap();
 
     Ok((nodes, summaries))
@@ -701,7 +751,18 @@ fn check_mapped_blocks(
     let mut failed = false;
     for (thin_id, root, details) in devs {
         if let Some(sum) = summaries.get(*root as u32) {
-            if sum.nr_mappings != details.mapped_blocks {
+            if sum.nr_errors > 0 {
+                failed = true;
+                let missed = details.mapped_blocks.saturating_sub(sum.nr_mappings);
+                let mut errors = sum.nr_errors.to_string();
+                if sum.nr_errors == 255 {
+                    errors.push('+');
+                }
+                ctx.report.fatal(&format!(
+                    "Thin devide {} has {} error nodes and is missing {} mappings, while expected {}",
+                    thin_id, errors, missed, details.mapped_blocks
+                ));
+            } else if sum.nr_mappings != details.mapped_blocks {
                 failed = true;
                 ctx.report.fatal(&format!(
                     "Thin device {} has unexpected number of mappings, expected {}, actual {}",
@@ -737,14 +798,7 @@ fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> 
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
-    let nr_threads = engine.suggest_nr_threads();
-    let pool = ThreadPool::new(nr_threads);
-
-    Ok(Context {
-        report,
-        engine,
-        pool,
-    })
+    Ok(Context { report, engine })
 }
 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {

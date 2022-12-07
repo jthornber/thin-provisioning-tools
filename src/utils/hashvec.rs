@@ -59,6 +59,10 @@ impl<T: Clone> HashVec<T> {
         self.map.reserve(additional as usize);
         self.entries.reserve(additional as usize);
     }
+
+    pub fn values(&self) -> std::slice::Iter<T> {
+        self.entries.iter()
+    }
 }
 
 //------------------------------------------
