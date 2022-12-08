@@ -339,8 +339,23 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
     match node {
         Internal { values, .. } => {
-            let n = get_depth(ctx, path, values[0], false)?;
-            Ok(n + 1)
+            // recurse down to the first good leaf
+            let mut last_err = None;
+            for child in values {
+                if path.contains(&child) {
+                    continue; // skip loops
+                }
+
+                path.push(child);
+                match get_depth(ctx, path, child, false) {
+                    Ok(n) => return Ok(n + 1),
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
+                }
+                path.pop();
+            }
+            Err(last_err.unwrap_or_else(|| node_err(path, NodeError::NumEntriesTooSmall).into()))
         }
         Leaf { .. } => Ok(0),
     }
