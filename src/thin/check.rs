@@ -585,7 +585,6 @@ fn summariser(
     summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
 ) {
     let mut summaries = summaries.lock().unwrap();
-    let mut data_sm = data_sm.lock().unwrap();
 
     loop {
         let nodes = {
@@ -603,6 +602,7 @@ fn summariser(
                 header,
             } = n
             {
+                let mut data_sm = data_sm.lock().unwrap();
                 for v in values {
                     let _ = data_sm.inc(v.block, 1);
                 }
@@ -985,10 +985,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let mon_data_sm = data_sm.clone();
     let monitor = ProgressMonitor::new(
         report.clone(),
-        metadata_root.nr_allocated + data_root.nr_allocated,
+        metadata_root.nr_allocated + (data_root.nr_allocated / 8),
         move || {
             mon_meta_sm.lock().unwrap().get_nr_allocated().unwrap()
-                + mon_data_sm.lock().unwrap().get_nr_allocated().unwrap()
+                + (mon_data_sm.lock().unwrap().get_nr_allocated().unwrap() / 8)
         },
     );
 
