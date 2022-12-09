@@ -107,19 +107,19 @@ impl NodeSummary {
         }
     }
 
-    fn append(&mut self, other: &NodeSummary) -> anyhow::Result<()> {
-        if other.nr_mappings > 0 {
-            if self.nr_mappings == 0 {
-                *self = other.clone();
-            } else {
-                if other.key_low <= self.key_high {
-                    return Err(anyhow!("overlapped keys"));
-                }
-                self.key_high = other.key_high;
-                self.nr_mappings += other.nr_mappings;
+    fn append(&mut self, child: &NodeSummary) -> anyhow::Result<()> {
+        if self.nr_mappings == 0 {
+            self.key_low = child.key_low;
+            self.key_high = child.key_high;
+        } else if child.nr_mappings > 0 {
+            if child.key_low <= self.key_high {
+                return Err(anyhow!("overlapped keys"));
             }
+            self.key_high = child.key_high;
         }
-        self.nr_errors = self.nr_errors.saturating_add(other.nr_errors);
+        self.nr_mappings += child.nr_mappings;
+        self.nr_entries += 1;
+        self.nr_errors = self.nr_errors.saturating_add(child.nr_errors);
 
         Ok(())
     }
