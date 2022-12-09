@@ -6,6 +6,7 @@ use std::path::Path;
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
+use crate::report::{parse_log_level, verbose_args};
 use crate::thin::ls::*;
 
 pub struct ThinLsCommand;
@@ -43,7 +44,7 @@ impl ThinLsCommand {
                     .required(true)
                     .index(1),
             );
-        engine_args(cmd)
+        verbose_args(engine_args(cmd))
     }
 }
 
@@ -60,6 +61,12 @@ impl<'a> Command<'a> for ThinLsCommand {
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
         let report = mk_report(false);
+        let log_level = match parse_log_level(&matches) {
+            Ok(level) => level,
+            Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
+        };
+        report.set_level(log_level);
+
         check_input_file(input_file, &report);
         check_file_not_tiny(input_file, &report);
 
