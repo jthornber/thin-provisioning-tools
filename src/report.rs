@@ -151,7 +151,7 @@ impl Report {
         inner.log(txt, LogLevel::Fatal)
     }
 
-    pub fn complete(&mut self) {
+    pub fn complete(&self) {
         let mut inner = self.inner.lock().unwrap();
         inner.complete();
     }
@@ -234,7 +234,7 @@ impl ReportInner for PBInner {
     }
 
     fn complete(&mut self) {
-        self.bar.finish();
+        self.bar.finish_and_clear();
     }
 }
 
