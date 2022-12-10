@@ -108,7 +108,7 @@ mod format1 {
                 }
             }
 
-            // FIXME: duplicate to BTreeWalker::build_aggregrate()
+            // FIXME: duplicate to BTreeWalker::build_aggregate()
             match errs.len() {
                 0 => Ok(()),
                 1 => Err(errs[0].clone()),
@@ -208,7 +208,7 @@ mod format2 {
                 }
             }
 
-            // FIXME: duplicate to BTreeWalker::build_aggregrate()
+            // FIXME: duplicate to BTreeWalker::build_aggregate()
             match errs.len() {
                 0 => Ok(()),
                 1 => Err(errs[0].clone()),

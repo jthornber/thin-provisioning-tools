@@ -232,7 +232,7 @@ impl ToString for StorageSize {
 // The resulting size is a rounded value and might exceed u64::MAX bytes,
 // thus the return type is a plain value rather than the StorageSize struct.
 // e.g., 1023.5 KiB will be rounded to 1024 KiB, and 15.9 EiB will be rounded to 16 EiB.
-// 8192.5 KiB should be coverted to 8 MiB, not 8193 KiB, since the rounded value exceeds
+// 8192.5 KiB should be converted to 8 MiB, not 8193 KiB, since the rounded value exceeds
 // the 8192 threshold.
 pub fn to_pretty_print_size(bytes: u64) -> (u64, Units) {
     use Units::*;

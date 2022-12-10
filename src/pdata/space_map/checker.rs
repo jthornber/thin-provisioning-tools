@@ -76,7 +76,7 @@ fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     Ok(())
 }
 
-// Compare the refernece counts in bitmaps against the expected values
+// Compare the reference counts in bitmaps against the expected values
 //
 // `sm` - The in-core space map of expected reference counts
 fn check_low_ref_counts(

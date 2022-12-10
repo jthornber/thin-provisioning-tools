@@ -40,7 +40,7 @@ impl ThinLsCommand {
             // arguments
             .arg(
                 Arg::new("INPUT")
-                    .help("Specify the input device to dump")
+                    .help("Specify the input device")
                     .required(true)
                     .index(1),
             );

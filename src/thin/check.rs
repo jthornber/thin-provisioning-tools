@@ -74,7 +74,7 @@ struct NodeSummary {
     key_low: u64,     // min mapped block
     key_high: u64,    // max mapped block, inclusive
     nr_mappings: u64, // number of valid mappings in this subtree
-    nr_entries: u8,   // number of entires in this node
+    nr_entries: u8,   // number of entries in this node, up to 252 given it is the mapping tree
     nr_errors: u8,    // number of errors found in this subtree, up to 255
 }
 
@@ -397,7 +397,7 @@ fn read_internal_nodes(
     }
 }
 
-// Summarize a subtree rooted at the speicifc block.
+// Summarize a subtree rooted at the specified block.
 // Only a good internal node will have a summary stored.
 // TODO: check the tree is balanced by comparing the height of visited nodes
 fn summarize_tree(
@@ -775,7 +775,7 @@ fn check_mapped_blocks(
                     errors.push('+');
                 }
                 ctx.report.fatal(&format!(
-                    "Thin devide {} has {} error nodes and is missing {} mappings, while expected {}",
+                    "Thin device {} has {} error nodes and is missing {} mappings, while expected {}",
                     thin_id, errors, missed, details.mapped_blocks
                 ));
             } else if sum.nr_mappings != details.mapped_blocks {
