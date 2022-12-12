@@ -164,11 +164,7 @@ fn read_bitmaps(engine: Arc<dyn IoEngine + Send + Sync>, bitmap_root: u64) -> Re
     Ok(bitmaps)
 }
 
-fn trim_data_device(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    sb: &Superblock,
-    data_dev: &Path,
-) -> Result<()> {
+fn trim_data_device(ctx: &Context, sb: &Superblock, data_dev: &Path) -> Result<()> {
     let root = unpack::<SMRoot>(&sb.data_sm_root[..])?;
     let bs = (sb.data_block_size as u64) << SECTOR_SHIFT; // in bytes
     let expected = root.nr_blocks * bs;
@@ -179,7 +175,7 @@ fn trim_data_device(
         ));
     }
 
-    let bitmaps = read_bitmaps(engine, root.bitmap_root)?;
+    let bitmaps = read_bitmaps(ctx.engine.clone(), root.bitmap_root)?;
 
     let dev_file = OpenOptions::new().read(false).write(true).open(data_dev)?;
     let fd = dev_file.as_raw_fd();
@@ -189,6 +185,11 @@ fn trim_data_device(
             Ok(range) => {
                 if range.start > last_seen {
                     let len = range.start - last_seen;
+                    ctx.report.debug(&format!(
+                        "emitting discard for blocks [{}, {}]",
+                        last_seen,
+                        last_seen + len - 1
+                    ));
                     unsafe {
                         ioctl_blkdiscard(fd, &[last_seen * bs, len * bs])?;
                     }
@@ -219,14 +220,14 @@ pub struct ThinTrimOptions<'a> {
 }
 
 struct Context {
-    _report: Arc<Report>,
+    report: Arc<Report>,
     engine: Arc<dyn IoEngine + Send + Sync>,
 }
 
 fn mk_context(opts: &ThinTrimOptions) -> Result<Context> {
     let engine = EngineBuilder::new(opts.metadata_dev, &opts.engine_opts).build()?;
     Ok(Context {
-        _report: opts.report.clone(),
+        report: opts.report.clone(),
         engine,
     })
 }
@@ -237,7 +238,7 @@ pub fn trim(opts: ThinTrimOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    trim_data_device(ctx.engine, &sb, opts.data_dev)
+    trim_data_device(&ctx, &sb, opts.data_dev)
 }
 
 //------------------------------------------
