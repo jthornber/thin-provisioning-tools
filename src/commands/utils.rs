@@ -70,7 +70,7 @@ pub fn check_not_xml_(input_file: &Path) -> Result<bool> {
     Ok(is_xml(&data))
 }
 
-/// This trys to read the start of input_path to see
+/// This tries to read the start of input_path to see
 /// if it's xml.  If there are any problems reading the file
 /// then it fails silently.
 pub fn check_not_xml(input_file: &Path, report: &Report) {

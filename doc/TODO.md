@@ -84,8 +84,9 @@ Items in the High or Medium sections should be done before the formal release. T
 - [x] thin_check: Factor out functions that uses IoEngine from `src/commands`
 - [ ] Clean up assert & panics
 - [ ] thin_dump: Fix MappingVisitor::visit_again(): should we invoke ref_shared() in this function?
-- [ ] Should we invoke Visitor::end_walk() on every node?
+- [x] BTreeWalker: Do not invoke Visitor::end_walk() on every node.
 - [ ] Preserve the error payload in array/btree Errors (maybe a Boxed Error like std::io::Error::other() or anyhow::Error::from())
 - [x] thin_dump: Optional argument for --metadata-snap
 - [ ] Remove blank lines in help (clap.git issue #2983)
 - [ ] Review the use of Copy trait, especially BTreeWalker.
+- [ ] Pull out common code between thin_check and thin_ls

@@ -132,7 +132,7 @@ impl<'a> Restorer<'a> {
 
         // complete the dirty array
         if let Some(mut builder) = self.dirty_builder.take() {
-            // push the bufferred trailing bits
+            // push the buffered trailing bits
             builder.push_value(
                 self.write_batcher,
                 self.dirty_bits.0 as u64,

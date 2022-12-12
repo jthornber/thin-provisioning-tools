@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
@@ -73,7 +74,7 @@ struct NodeSummary {
     key_low: u64,     // min mapped block
     key_high: u64,    // max mapped block, inclusive
     nr_mappings: u64, // number of valid mappings in this subtree
-    nr_entries: u8,   // number of entires in this node
+    nr_entries: u8,   // number of entries in this node, up to 252 given it is the mapping tree
     nr_errors: u8,    // number of errors found in this subtree, up to 255
 }
 
@@ -106,19 +107,19 @@ impl NodeSummary {
         }
     }
 
-    fn append(&mut self, other: &NodeSummary) -> anyhow::Result<()> {
-        if other.nr_mappings > 0 {
-            if self.nr_mappings == 0 {
-                *self = other.clone();
-            } else {
-                if other.key_low <= self.key_high {
-                    return Err(anyhow!("overlapped keys"));
-                }
-                self.key_high = other.key_high;
-                self.nr_mappings += other.nr_mappings;
+    fn append(&mut self, child: &NodeSummary) -> anyhow::Result<()> {
+        if self.nr_mappings == 0 {
+            self.key_low = child.key_low;
+            self.key_high = child.key_high;
+        } else if child.nr_mappings > 0 {
+            if child.key_low <= self.key_high {
+                return Err(anyhow!("overlapped keys"));
             }
+            self.key_high = child.key_high;
         }
-        self.nr_errors = self.nr_errors.saturating_add(other.nr_errors);
+        self.nr_mappings += child.nr_mappings;
+        self.nr_entries += 1;
+        self.nr_errors = self.nr_errors.saturating_add(child.nr_errors);
 
         Ok(())
     }
@@ -339,8 +340,23 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
     match node {
         Internal { values, .. } => {
-            let n = get_depth(ctx, path, values[0], false)?;
-            Ok(n + 1)
+            // recurse down to the first good leaf
+            let mut last_err = None;
+            for child in values {
+                if path.contains(&child) {
+                    continue; // skip loops
+                }
+
+                path.push(child);
+                match get_depth(ctx, path, child, false) {
+                    Ok(n) => return Ok(n + 1),
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
+                }
+                path.pop();
+            }
+            Err(last_err.unwrap_or_else(|| node_err(path, NodeError::NumEntriesTooSmall).into()))
         }
         Leaf { .. } => Ok(0),
     }
@@ -381,7 +397,7 @@ fn read_internal_nodes(
     }
 }
 
-// Summarize a subtree rooted at the speicifc block.
+// Summarize a subtree rooted at the specified block.
 // Only a good internal node will have a summary stored.
 // TODO: check the tree is balanced by comparing the height of visited nodes
 fn summarize_tree(
@@ -759,7 +775,7 @@ fn check_mapped_blocks(
                     errors.push('+');
                 }
                 ctx.report.fatal(&format!(
-                    "Thin devide {} has {} error nodes and is missing {} mappings, while expected {}",
+                    "Thin device {} has {} error nodes and is missing {} mappings, while expected {}",
                     thin_id, errors, missed, details.mapped_blocks
                 ));
             } else if sum.nr_mappings != details.mapped_blocks {
@@ -770,6 +786,7 @@ fn check_mapped_blocks(
                 ));
             }
         } else {
+            failed = true;
             ctx.report.fatal(&format!(
                 "Thin device {} is missing root with {} mappings",
                 thin_id, details.mapped_blocks
@@ -818,6 +835,25 @@ fn print_info(sb: &Superblock, report: Arc<Report>) -> Result<()> {
     Ok(())
 }
 
+#[derive(thiserror::Error, Debug)]
+struct MetadataError {
+    context: String,
+    err: anyhow::Error,
+}
+
+impl fmt::Display for MetadataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.context, self.err)
+    }
+}
+
+fn metadata_err(context: &str, err: anyhow::Error) -> MetadataError {
+    MetadataError {
+        context: context.to_string(),
+        err,
+    }
+}
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let ctx = mk_context(&opts)?;
 
@@ -853,7 +889,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         engine.clone(),
         opts.ignore_non_fatal,
         sb.details_root,
-    )?;
+    )
+    .map_err(|e| metadata_err("device details tree", e.into()))?;
     let nr_devs = devs.len();
     let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
     inc_superblock(&metadata_sm)?;
@@ -875,7 +912,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         metadata_sm.clone(),
         opts.ignore_non_fatal,
         sb.mapping_root,
-    )?;
+    )
+    .map_err(|e| metadata_err("mapping top level", e.into()))?;
 
     // It's highly possible that the pool is damaged by multiple activation
     // if the two trees are inconsistent. In this situation, there's no need to
@@ -1036,7 +1074,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         data_sm.clone(),
         metadata_sm.clone(),
         opts.ignore_non_fatal,
-    )?;
+    )
+    .map_err(|e| metadata_err("data space map", e))?;
     let duration = start.elapsed();
     ctx.report
         .debug(&format!("checking data space map: {:?}", duration));
@@ -1054,7 +1093,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         root,
         metadata_sm.clone(),
         opts.ignore_non_fatal,
-    )?;
+    )
+    .map_err(|e| metadata_err("metadata space map", e))?;
     let duration = start.elapsed();
     ctx.report
         .debug(&format!("checking metadata space map: {:?}", duration));

@@ -77,12 +77,12 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
     }
 
     // Copying regions within a file
-    pub fn in_file(buffer_size: usize, block_size: usize, inout: T) -> Result<SyncCopier<T>> {
+    pub fn in_file(buffer_size: usize, block_size: usize, in_out: T) -> Result<SyncCopier<T>> {
         if block_size > buffer_size {
             return Err(anyhow!("buffer size too small"));
         }
 
-        let dst = Arc::new(Mutex::new(inout));
+        let dst = Arc::new(Mutex::new(in_out));
 
         // src and dst are behind the same mutex, thus the worker threads
         // cannot read and write simultaneously. It could be useful while

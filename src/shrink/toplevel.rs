@@ -222,7 +222,7 @@ mod tests {
                 input: 100..1000,
                 output: vec![100..1000],
             },
-            // preceeding to remaps
+            // preceding to remaps
             Test {
                 remaps: vec![(10..20, 110)],
                 input: 0..5,

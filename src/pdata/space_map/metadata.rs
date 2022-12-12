@@ -64,7 +64,7 @@ impl Pack for MetadataIndex {
 fn verify_checksum(b: &Block) -> Result<()> {
     match checksum::metadata_block_type(b.get_data()) {
         checksum::BT::INDEX => Ok(()),
-        checksum::BT::UNKNOWN => Err(anyhow!("checksum error in index block")),
+        checksum::BT::UNKNOWN => Err(anyhow!("bad checksum in index block")),
         _ => Err(anyhow!("not an index block")),
     }
 }

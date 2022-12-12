@@ -519,7 +519,7 @@ pub fn build_btree(w: &mut WriteBatcher, leaves: Vec<NodeSummary>) -> Result<u64
 //------------------------------------------
 
 // The pre-built nodes and the contained values were initialized with
-// a ref count 1, which is analogous to a "tempoaray snapshot" of
+// a ref count 1, which is analogous to a "temporary snapshot" of
 // potentially shared leaves. We have to drop those temporary references
 // to pre-built nodes at the end of device building, and also decrease
 // ref counts of the contained values if a pre-built leaf is no longer

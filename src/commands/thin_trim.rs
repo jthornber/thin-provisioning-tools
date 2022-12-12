@@ -6,6 +6,7 @@ use std::path::Path;
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::report::{parse_log_level, verbose_args};
+use crate::thin::check::{check, ThinCheckOptions};
 use crate::thin::trim::{trim, ThinTrimOptions};
 
 //------------------------------------------
@@ -65,15 +66,35 @@ impl<'a> Command<'a> for ThinTrimCommand {
         check_input_file(metadata_dev, &report);
         check_input_file(data_dev, &report);
 
-        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
-        if engine_opts.is_err() {
-            return to_exit_code(&report, engine_opts);
+        let engine_opts = match parse_engine_opts(ToolType::Thin, &matches) {
+            Ok(opts) => opts,
+            Err(_) => return exitcode::USAGE,
+        };
+
+        let check_opts = ThinCheckOptions {
+            input: metadata_dev,
+            engine_opts: engine_opts.clone(),
+            sb_only: false,
+            skip_mappings: false,
+            ignore_non_fatal: false,
+            auto_repair: false,
+            clear_needs_check: false,
+            override_mapping_root: None,
+            report: report.clone(),
+        };
+
+        if check(check_opts).is_err() {
+            report.fatal(
+                "metadata contains errors (run thin_check for details).\n\
+                perhaps you need to run thin_repair.",
+            );
+            return exitcode::DATAERR;
         }
 
         let opts = ThinTrimOptions {
             metadata_dev,
             data_dev,
-            engine_opts: engine_opts.unwrap(),
+            engine_opts,
             report: report.clone(),
         };
 

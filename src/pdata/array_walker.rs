@@ -82,12 +82,12 @@ impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
         // The ordering of keys had been verified in unpack_node(),
         // so comparing the keys against its context is sufficient.
         if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
-            return Err(btree_error::value_err("gaps in array indicies".to_string()));
+            return Err(btree_error::value_err("gaps in array indices".to_string()));
         }
         if let Some(end) = kr.end {
             if *keys.last().unwrap() + 1 != end {
                 return Err(btree_error::value_err(
-                    "non-contiguous array indicies".to_string(),
+                    "non-contiguous array indices".to_string(),
                 ));
             }
         }
@@ -216,12 +216,12 @@ impl NodeVisitor<u64> for BlockPathCollector {
         // The ordering of keys had been verified in unpack_node(),
         // so comparing the keys against the key range is sufficient.
         if *keys.first().unwrap() + keys.len() as u64 != *keys.last().unwrap() + 1 {
-            return Err(btree_error::value_err("gaps in array indicies".to_string()));
+            return Err(btree_error::value_err("gaps in array indices".to_string()));
         }
         if let Some(end) = kr.end {
             if *keys.last().unwrap() + 1 != end {
                 return Err(btree_error::value_err(
-                    "non-contiguous array indicies".to_string(),
+                    "non-contiguous array indices".to_string(),
                 ));
             }
         }

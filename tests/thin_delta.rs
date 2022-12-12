@@ -19,7 +19,7 @@ USAGE:
     thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>
 
 ARGS:
-    <INPUT>    Specify the input device to dump
+    <INPUT>    Specify the input device
 
 OPTIONS:
     -h, --help               Print help information

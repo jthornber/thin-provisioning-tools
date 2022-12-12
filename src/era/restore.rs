@@ -205,7 +205,7 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         let last_idx = last >> 6; // inclusive
         let builder = self.writeset_builder.as_mut().unwrap();
 
-        // emit the bufferred bits
+        // emit the buffered bits
         if idx > self.entry_index {
             builder.push_value(self.w, self.entry_index as u64, self.writeset_entry)?;
             self.entry_index = idx;
