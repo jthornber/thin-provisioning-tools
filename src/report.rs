@@ -184,6 +184,7 @@ impl PBInner {
         bar.set_style(
             ProgressStyle::default_bar()
                 .template(&fmt)
+                .expect("invalid template for the progress bar")
                 .progress_chars("=> "),
         );
         Self {
