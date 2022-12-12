@@ -786,6 +786,7 @@ fn check_mapped_blocks(
                 ));
             }
         } else {
+            failed = true;
             ctx.report.fatal(&format!(
                 "Thin device {} is missing root with {} mappings",
                 thin_id, details.mapped_blocks
