@@ -38,20 +38,15 @@ There is experimental support for io uring that can be enabled:
 
 > cargo build --release --features=io_uring
 
-With current kernels there are issues using the io_uring feature
-with spindle devices that have small queue_depth (eg, 32).
-
 
 Installing
 ==========
 
-There isn't an install script yet.
+Installation is done via the 'make' tool:
 
-> cargo install --path .
+> make install
 
-The above will install for you, but you wont get the man pages, and
-you wont get symlinks from the usual command names to pdata_tools (eg,
-thin_check -> pdata_tools).
+If you wish to change installation directory edit the Makefile.
 
 
 Quick examples

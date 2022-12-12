@@ -41,7 +41,6 @@ era_invalidate
 
 *.metadata
 bad-metadata
-Makefile
 
 unit-tests/Makefile
 unit-tests/unit_tests
