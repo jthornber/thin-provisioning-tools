@@ -3,8 +3,8 @@ V=@
 PDATA_TOOLS=\
 	target/release/pdata_tools
 
-target/release/pdata_tools:
-	cargo build --release
+$(PDATA_TOOLS):
+	$(V) cargo build --release
 
 DESTDIR:=/usr
 BINDIR:=$(DESTDIR)/sbin
@@ -24,6 +24,12 @@ INSTALL_DATA = $(INSTALL) -p -m 644
 	@mkdir -p $(dir $@)
 	$(V) bin/txt2man -t $(basename $(notdir $<)) \
 	-s 8 -v "System Manager's Manual" -r "Device Mapper Tools" $< > $@
+
+.PHONY: clean
+
+clean:
+	cargo clean
+	$(RM) man8/*.8
 
 TOOLS:=\
 	cache_check \
@@ -50,9 +56,9 @@ TOOLS:=\
 
 MANPAGES:=$(patsubst %,man8/%.8,$(TOOLS))
 
-install: bin/pdata_tools $(MANPAGES)
+install: $(PDATA_TOOLS) $(MANPAGES)
 	$(INSTALL_DIR) $(BINDIR)
-	$(INSTALL_PROGRAM) bin/pdata_tools $(BINDIR)
+	$(INSTALL_PROGRAM) $(PDATA_TOOLS) $(BINDIR)
 	$(STRIP) $(BINDIR)/pdata_tools
 	ln -s -f pdata_tools $(BINDIR)/cache_check
 	ln -s -f pdata_tools $(BINDIR)/cache_dump
@@ -99,4 +105,3 @@ install: bin/pdata_tools $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_trim.8 $(MANPATH)/man8
 
 .PHONY: install
-
