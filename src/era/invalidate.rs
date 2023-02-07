@@ -241,7 +241,7 @@ struct Context {
 
 fn mk_context(opts: &EraInvalidateOptions) -> anyhow::Result<Context> {
     let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
-        .write(true)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
         .build()?;
     Ok(Context { engine })
 }
