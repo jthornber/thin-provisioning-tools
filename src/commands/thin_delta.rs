@@ -20,7 +20,7 @@ impl ThinDeltaCommand {
             .version(crate::version::tools_version())
             .about("Print the differences in the mappings between two thin devices")
             .arg(
-                Arg::new("METADATA_SNAP")
+                Arg::new("METADATA_SNAPSHOT")
                     .help("Use metadata snapshot")
                     .short('m')
                     .long("metadata-snap"),
