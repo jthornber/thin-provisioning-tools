@@ -1,46 +1,15 @@
-The file `tmeta.pack` is a packed thin-pool metadata created by the dm-thin target,
-generated with the synthetic workload below. There are leaf nodes of ref counts
-from 1 to 11 in this metadata.
+List of packed thin-pool metadata for tests:
 
-The file `tmeta_with_metadata_snap.pack` is the an identical one with additional
-metadata snap.
-
-```
-#!/bin/bash
-
-VG=vg1
-TP=tp1
-POOL_SIZE=4g
-METADATA_SIZE=64m  # 64MB is the minimum size of having two bitmap blocks
-BLOCKSIZE=64k
-LV=lv1
-LV_SIZE=1g
-
-lvcreate ${VG} --type thin-pool --name ${TP} --size ${POOL_SIZE} \
-         --chunksize ${BLOCKSIZE} --poolmetadatasize ${METADATA_SIZE} \
-         -Zn --poolmetadataspare=n
-
-lvcreate ${VG} --type thin --name ${LV} --thinpool ${TP} --virtualsize ${LV_SIZE}
-fio --filename "/dev/mapper/${VG}-${LV}" --rw=randwrite --percentage_random=20 \
-    --bs ${BLOCKSIZE} --randseed=32767 --randrepeat=0 \
-    --name test --direct=1 --output terse
-
-# create snapshots with some exclusive mappings
-for i in {1..15}
-do
-        lvcreate "${VG}/${LV}" --snapshot --name "snap${i}"
-        fio --filename "/dev/mapper/${VG}-${LV}" --rw=randwrite --percentage_random=20 \
-            --bs ${BLOCKSIZE} --randseed=${i} --randrepeat=0 \
-            --name test --direct=1 --io_size 4m --output terse
-done
-
-# remove snapshots to produce holes in data space map, for thin_shrink tests
-lvremove "${VG}/snap4" -f
-lvremove "${VG}/snap5" -f
-lvremove "${VG}/snap6" -f
-lvremove "${VG}/snap10" -f
-lvremove "${VG}/snap13" -f
-
-lvchange -an "${VG}/${LV}"
-lvchange -an "${VG}/${TP}"
-```
+* tmeta.pack: A pool with a volume and few snapshots. The origin volume is
+  randomly updated by a synthetic workload between snapshots, causes exclusive
+  mappings within each snapshot. The maximum ref count of a mapping tree leaf
+  is equivalent to the number of devices in this pool (11 in this case).
+* tmeta_with_metadata_snap.pack: Identical to `tmeta.pack` with additional
+  metadata snapshot.
+* tmeta_with_corrupted_metadata_snap.pack: A small pool with one device and damaged
+  metadata snapshot broke.
+* corrupted_tmeta_with_metadata_snap.pack: Data structures except that of the
+  metadata snapshot are all corrupted.
+* tmeta_device_id_reuse: Two different subtrees share the same device id
+* tmeta_device_id_reuse_with_corrupted_thins: Same as above but the subtree in
+  metadata snapshot broke.
