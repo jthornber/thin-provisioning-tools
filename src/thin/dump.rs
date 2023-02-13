@@ -183,7 +183,9 @@ struct ThinDumpContext {
 }
 
 fn mk_context(opts: &ThinDumpOptions) -> Result<ThinDumpContext> {
-    let engine = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
+        .build()?;
 
     Ok(ThinDumpContext {
         report: opts.report.clone(),

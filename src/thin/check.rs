@@ -816,6 +816,7 @@ fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> 
 fn mk_context(opts: &ThinCheckOptions) -> Result<Context> {
     let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
         .write(opts.auto_repair || opts.clear_needs_check)
+        .exclusive(!opts.engine_opts.use_metadata_snap)
         .build()?;
     mk_context_(engine, opts.report.clone())
 }

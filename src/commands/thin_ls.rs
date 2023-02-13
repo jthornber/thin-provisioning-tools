@@ -23,7 +23,7 @@ impl ThinLsCommand {
                     .long("no-headers"),
             )
             .arg(
-                Arg::new("METADATA_SNAP")
+                Arg::new("METADATA_SNAPSHOT")
                     .help("Use metadata snapshot")
                     .short('m')
                     .long("metadata-snap"),

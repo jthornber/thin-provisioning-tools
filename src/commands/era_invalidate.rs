@@ -19,7 +19,7 @@ impl EraInvalidateCommand {
             .version(crate::version::tools_version())
             .about("List blocks that may have changed since a given era")
             .arg(
-                Arg::new("METADATA_SNAP")
+                Arg::new("METADATA_SNAPSHOT")
                     .help("Use the metadata snapshot rather than the current superblock")
                     .long("metadata-snapshot"),
             )
