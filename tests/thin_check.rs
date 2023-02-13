@@ -501,3 +501,77 @@ fn auto_repair_clears_needs_check() -> Result<()> {
 }
 
 //------------------------------------------
+// test metadata snapshot
+
+#[test]
+fn online_check_metadata_snapshot() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_with_metadata_snap(&mut td)?;
+    run_ok(thin_check_cmd(args!["-m", &md]))?;
+    Ok(())
+}
+
+#[test]
+fn online_check_should_fail_if_no_metadata_snap() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+    run_fail(thin_check_cmd(args!["-m", &md]))?;
+    Ok(())
+}
+
+#[test]
+fn online_check_should_fail_with_corrupted_metadata_snap() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "tmeta_with_corrupted_metadata_snap.pack")?;
+    let output = run_fail_raw(thin_check_cmd(args!["-m", &md]))?;
+    assert!(output.stdout.is_empty());
+    Ok(())
+}
+
+// Ensure that "thin_check -m" reads the metadata snapshot only.
+// In other words, any issues within the active data structures won't be detected
+// if the metadata snapshot doesn't share data blocks with the active metadata.
+#[test]
+fn online_check_should_read_metadata_snapshot_only() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "corrupted_tmeta_with_metadata_snap.pack")?;
+    run_ok(thin_check_cmd(args![&md, "-m"]))?;
+    Ok(())
+}
+
+// Errors in metadata snapshot should be delayed reported if the metadata is inactive.
+#[test]
+fn offline_check_should_defer_checking_metadata_snap() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "tmeta_with_corrupted_metadata_snap.pack")?;
+    let output = run_fail_raw(thin_check_cmd(args![&md]))?;
+    assert!(!output.stdout.is_empty());
+    Ok(())
+}
+
+// Ensure that every subtree in metadata snapshot is checked properly.
+#[test]
+fn offline_check_should_examine_devices_with_reused_id() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "tmeta_device_id_reuse_with_corrupted_thins.pack")?;
+    run_fail(thin_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+#[test]
+fn offline_check_metadata_with_resued_id_should_success() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "tmeta_device_id_reuse.pack")?;
+    run_ok(thin_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+#[test]
+fn offline_check_metadata_with_deleted_snapshot_should_success() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "tmeta_with_deleted_snapshot.pack")?;
+    run_ok(thin_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+//------------------------------------------

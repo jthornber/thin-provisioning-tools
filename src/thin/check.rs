@@ -27,9 +27,12 @@ use crate::thin::superblock::*;
 // minimum number of entries of a node with 64-bit mapped type
 const MIN_ENTRIES: u8 = 84;
 
-fn inc_superblock(sm: &ASpaceMap) -> Result<()> {
+fn inc_superblock(sm: &ASpaceMap, metadata_snap: u64) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     sm.inc(SUPERBLOCK_LOCATION, 1)?;
+    if metadata_snap > 0 {
+        sm.inc(metadata_snap, 1)?;
+    }
     Ok(())
 }
 
@@ -482,34 +485,32 @@ fn summarize_tree(
 }
 
 // Check the mappings filling in the data_sm as we go.
-fn check_mapping_bottom_level(
+fn check_mappings_bottom_level_(
     ctx: &Context,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<HashVec<NodeSummary>> {
+    let report = &ctx.report;
+
     let start = std::time::Instant::now();
     let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal);
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("reading internal nodes: {:?}", duration));
+    report.debug(&format!("reading internal nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
     let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal)?;
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("reading leaf nodes: {:?}", duration));
+    report.debug(&format!("reading leaf nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("counting mapped blocks: {:?}", duration));
+    report.debug(&format!("counting mapped blocks: {:?}", duration));
 
-    ctx.report
-        .info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
-    ctx.report.info(&format!("nr leaves: {}", nodes.nr_leaves));
+    report.info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
+    report.info(&format!("nr leaves: {}", nodes.nr_leaves));
 
     if !nodes.node_errors.is_empty() {
         let mut nr_io_errors = 0;
@@ -521,11 +522,11 @@ fn check_mapping_bottom_level(
                 _ => {}
             }
         }
-        ctx.report.fatal(&format!(
+        report.fatal(&format!(
             "{} nodes in data mapping tree contain errors",
             nodes.node_errors.len()
         ));
-        ctx.report.fatal(&format!(
+        report.fatal(&format!(
             "{} io errors, {} checksum errors",
             nr_io_errors, nr_checksum_errors
         ));
@@ -620,6 +621,7 @@ fn summariser(
             {
                 let mut data_sm = data_sm.lock().unwrap();
                 for v in values {
+                    // Ignore errors on increment
                     let _ = data_sm.inc(v.block, 1);
                 }
 
@@ -758,11 +760,15 @@ fn count_mapped_blocks(
     }
 }
 
+//------------------------------------------
+
 fn check_mapped_blocks(
     ctx: &Context,
     devs: &mut dyn Iterator<Item = (&u64, &u64, &DeviceDetail)>,
     summaries: &HashVec<NodeSummary>,
 ) -> Result<()> {
+    let report = &ctx.report;
+
     let start = std::time::Instant::now();
     let mut failed = false;
     for (thin_id, root, details) in devs {
@@ -774,44 +780,33 @@ fn check_mapped_blocks(
                 if sum.nr_errors == 255 {
                     errors.push('+');
                 }
-                ctx.report.fatal(&format!(
+                report.fatal(&format!(
                     "Thin device {} has {} error nodes and is missing {} mappings, while expected {}",
                     thin_id, errors, missed, details.mapped_blocks
                 ));
             } else if sum.nr_mappings != details.mapped_blocks {
                 failed = true;
-                ctx.report.fatal(&format!(
+                report.fatal(&format!(
                     "Thin device {} has unexpected number of mappings, expected {}, actual {}",
                     thin_id, details.mapped_blocks, sum.nr_mappings
                 ));
             }
         } else {
             failed = true;
-            ctx.report.fatal(&format!(
+            report.fatal(&format!(
                 "Thin device {} is missing root with {} mappings",
                 thin_id, details.mapped_blocks
             ));
         }
     }
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("checking mapped blocks: {:?}", duration));
+    report.debug(&format!("checking mapped blocks: {:?}", duration));
 
     if failed {
         Err(anyhow!("Check of mappings failed"))
     } else {
         Ok(())
     }
-}
-
-fn read_sb(opts: &ThinCheckOptions, engine: Arc<dyn IoEngine + Sync + Send>) -> Result<Superblock> {
-    // superblock
-    let sb = if opts.engine_opts.use_metadata_snap {
-        read_superblock_snap(engine.as_ref())?
-    } else {
-        read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?
-    };
-    Ok(sb)
 }
 
 fn mk_context_(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<Context> {
@@ -854,66 +849,87 @@ fn metadata_err(context: &str, err: anyhow::Error) -> MetadataError {
     }
 }
 
-pub fn check(opts: ThinCheckOptions) -> Result<()> {
-    let ctx = mk_context(&opts)?;
-
-    // FIXME: temporarily get these out
-    let report = &ctx.report;
-    let engine = &ctx.engine;
-
-    let mut sb = read_sb(&opts, engine.clone())?;
-    let _ = print_info(&sb, report.clone());
-
-    report.set_title("Checking thin metadata");
-
-    sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
-
-    if opts.sb_only {
-        if opts.clear_needs_check {
-            let cleared = clear_needs_check_flag(ctx.engine.clone())?;
-            if cleared {
-                ctx.report.warning("Cleared needs_check flag");
-            }
-        }
-        return Ok(());
-    }
-
-    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+// We read the top-level tree once to get the number of thin devices, and hence the
+// maximum metadata ref count.  Then create metadata space map.
+fn create_metadata_sm(
+    engine: &Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    sb_snap: &Option<Result<Superblock>>,
+    ignore_non_fatal: bool,
+) -> Result<ASpaceMap> {
     let mut path = vec![0];
 
-    // Device details.   We read this once to get the number of thin devices, and hence the
-    // maximum metadata ref count.  Then create metadata space map, and reread to increment
-    // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(
+    // Use a temporary space map to reach out non-shared leaves so we could get
+    // the maximum reference count of a bottom-level leaf it could be.
+    let metadata_sm = Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())));
+
+    let roots = btree_to_map_with_sm::<u64>(
         &mut path,
         engine.clone(),
-        opts.ignore_non_fatal,
+        metadata_sm.clone(),
+        ignore_non_fatal,
+        sb.mapping_root,
+    )
+    .map_err(|e| metadata_err("mapping top-level", e.into()))?;
+
+    let mut nr_devs = roots.len();
+
+    if let Some(Ok(sb_snap)) = sb_snap {
+        let roots_snap = btree_to_map_with_sm::<u64>(
+            &mut path,
+            engine.clone(),
+            metadata_sm,
+            ignore_non_fatal,
+            sb_snap.mapping_root,
+        )
+        .map_err(|e| metadata_err("mapping top-level", e.into()))?;
+        nr_devs += roots_snap.len();
+    }
+
+    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
+
+    Ok(metadata_sm)
+}
+
+fn get_devices_(
+    engine: &Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    metadata_sm: &ASpaceMap,
+    ignore_non_fatal: bool,
+) -> Result<(BTreeMap<u64, DeviceDetail>, BTreeMap<u64, u64>)> {
+    let mut path = vec![0];
+
+    // Reread device details to increment the ref counts for that metadata.
+    let devs = btree_to_map_with_sm::<DeviceDetail>(
+        &mut path,
+        engine.clone(),
+        metadata_sm.clone(),
+        ignore_non_fatal,
         sb.details_root,
     )
     .map_err(|e| metadata_err("device details tree", e.into()))?;
-    let nr_devs = devs.len();
-    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    inc_superblock(&metadata_sm)?;
 
-    report.set_sub_title("device details tree");
-    let _devs = btree_to_map_with_sm::<DeviceDetail>(
+    // Mapping top level
+    let roots = btree_to_map_with_sm::<u64>(
         &mut path,
         engine.clone(),
         metadata_sm.clone(),
-        opts.ignore_non_fatal,
-        sb.details_root,
-    )?;
-
-    // mapping top level
-    report.set_sub_title("mapping tree");
-    let roots = btree_to_map_with_path::<u64>(
-        &mut path,
-        engine.clone(),
-        metadata_sm.clone(),
-        opts.ignore_non_fatal,
+        ignore_non_fatal,
         sb.mapping_root,
     )
-    .map_err(|e| metadata_err("mapping top level", e.into()))?;
+    .map_err(|e| metadata_err("mapping top-level", e.into()))?;
+
+    Ok((devs, roots))
+}
+
+fn get_thins_from_superblock(
+    engine: &Arc<dyn IoEngine + Send + Sync>,
+    sb: &Superblock,
+    metadata_sm: &ASpaceMap,
+    all_roots: &mut Vec<u64>,
+    ignore_non_fatal: bool,
+) -> Result<BTreeMap<u64, (u64, DeviceDetail)>> {
+    let (devs, roots) = get_devices_(engine, sb, metadata_sm, ignore_non_fatal)?;
 
     // It's highly possible that the pool is damaged by multiple activation
     // if the two trees are inconsistent. In this situation, there's no need to
@@ -925,99 +941,87 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         ));
     }
 
-    if opts.skip_mappings {
-        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
-        if cleared {
-            ctx.report.warning("Cleared needs_check flag");
-        }
-        return Ok(());
+    for root in roots.values() {
+        all_roots.push(*root);
     }
 
-    // List of all the roots in-use.
-    // Might contain duplicate entries if there is a metadata snapshot.
-    let mut all_roots: Vec<u64> = roots.values().map(|(_path, root)| *root).collect();
+    let thins = roots
+        .into_iter()
+        .zip(devs.into_values())
+        .map(|((id, root), details)| (id, (root, details)))
+        .collect();
 
-    // Check availability of metadata snapshot (error is allowed)
-    let sb_snap = if sb.metadata_snap > 0 {
-        // Check device id consistency regareless of reading nodes shared with
-        // the main superblock
-        Some(
-            read_superblock(engine.as_ref(), sb.metadata_snap).and_then(|sbs| {
-                is_superblock_consistent(sbs, engine.clone(), opts.ignore_non_fatal)
-            }),
-        )
-    } else {
-        None
-    };
+    Ok(thins)
+}
 
-    // Collect the thins that are exclusive to metadata snapshot for further checking
-    let thins_snap = if let Some(Ok(ref sbs)) = sb_snap {
-        // Increase the ref count for metadata snap
-        {
-            let mut metadata_sm = metadata_sm.lock().unwrap();
-            metadata_sm.inc(sb.metadata_snap, 1)?;
-        }
+fn get_thins_from_metadata_snap(
+    engine: &Arc<dyn IoEngine + Send + Sync>,
+    sb_snap: &Superblock,
+    metadata_sm: &ASpaceMap,
+    thins: &BTreeMap<u64, (u64, DeviceDetail)>,
+    all_roots: &mut Vec<u64>,
+    ignore_non_fatal: bool,
+) -> Result<BTreeMap<u64, (u64, DeviceDetail)>> {
+    // Check consistency between device details and the top-level tree
+    is_superblock_consistent(sb_snap.clone(), engine.clone(), ignore_non_fatal)?;
 
-        // Read the device details in non-shared nodes
-        let devs_snap = btree_to_map_with_sm::<DeviceDetail>(
-            &mut path,
-            engine.clone(),
-            metadata_sm.clone(),
-            opts.ignore_non_fatal,
-            sbs.details_root,
-        )
-        .unwrap();
+    // Extract roots and details stored in non-shared leaves
+    let (devs_snap, roots_snap) = get_devices_(engine, sb_snap, metadata_sm, ignore_non_fatal)?;
 
-        // Read the mapping tree roots in non-shared nodes
-        let roots_snap = btree_to_map_with_sm::<u64>(
-            &mut path,
-            engine.clone(),
-            metadata_sm.clone(),
-            opts.ignore_non_fatal,
-            sbs.mapping_root,
-        )
-        .unwrap();
+    // Select the thins that are exclusive to metadata snapshot for further checking,
+    // i.e., those whose tuples (dev_id, root) are not present in top-level tree of
+    // superblock. Here are some notes:
+    //
+    // * We must use the full tuple (dev_id, root) to identify devices in the context
+    //   of metadata snapshot for these reasons:
+    //   - The data mappings might have been changed after taking a metadata snasphot.
+    //   - Thin id reuse: a long-lived metadata snapshot might contains deleted thins
+    //     whose dev_id are now used by other new thins.
+    // * The roots and details extracted by btree_to_map_with_sm() are those stored in
+    //   non-shared leaves. They might not represent the same subset of thins due to
+    //   their different value sizes in btree, i.e., shadowing a top-level leaves clones
+    //   more entries than a details tree leave.
+    let roots_excl: BTreeMap<u64, u64> = roots_snap
+        .iter()
+        .filter(|(dev_id, root)| thins.get(*dev_id).filter(|(r, _)| *root == r).is_none())
+        .map(|(dev_id, root)| (*dev_id, *root))
+        .collect();
+    let devs_excl: BTreeMap<u64, DeviceDetail> = devs_snap
+        .into_iter()
+        .filter(|(dev_id, _details)| roots_excl.contains_key(dev_id))
+        .collect();
 
-        // Append *all* those roots to the list for further checking.
-        // Roots duplicate to those in superblock are also added for ref counting purpose.
-        roots_snap.values().for_each(|root| {
-            all_roots.push(*root);
-        });
+    if !devs_excl.keys().eq(roots_excl.keys()) {
+        return Err(anyhow!("unexpected thin ids"));
+    }
 
-        // Leave the thins that are exclusive to metadata snapshot.
-        // Considering thin id reuse, the exclusive thins are those whose subtrees
-        // are not used by the current superblock.
-        // Note that the two maps might not have identical thins before filtering
-        // due to their different value sizes.
-        let roots_snap: BTreeMap<u64, u64> = roots_snap
-            .into_iter()
-            .filter(|(_thin_id, root)| !roots.iter().any(|(_id, (_p, r))| root == r))
-            .collect();
-        let devs_snap: BTreeMap<u64, DeviceDetail> = devs_snap
-            .into_iter()
-            .filter(|(thin_id, _details)| roots_snap.contains_key(thin_id))
-            .collect();
+    // Append *all* the roots to the list for further checking.
+    // Roots duplicate to those in superblock are also added for ref counting purpose.
+    roots_snap.values().for_each(|root| {
+        all_roots.push(*root);
+    });
 
-        if devs_snap.keys().eq(roots_snap.keys()) {
-            let thins_snap: Vec<(u64, u64, DeviceDetail)> = roots_snap
-                .into_iter()
-                .zip(devs_snap.values())
-                .map(|((id, root), details)| (id, root, *details))
-                .collect();
-            Some(Ok(thins_snap))
-        } else {
-            Some(Err(anyhow!("unexpected thin ids"))) // unlikely
-        }
-    } else {
-        None
-    };
+    let thins_snap: BTreeMap<u64, (u64, DeviceDetail)> = roots_excl
+        .into_iter()
+        .zip(devs_excl.values())
+        .map(|((id, root), details)| (id, (root, *details)))
+        .collect();
 
-    ctx.report
-        .info(&format!("total number of roots: {}", all_roots.len()));
+    Ok(thins_snap)
+}
 
-    // mapping bottom level
+fn check_mappings_bottom_level(
+    ctx: &Context,
+    sb: &Superblock,
+    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    roots: &[u64],
+    ignore_non_fatal: bool,
+) -> Result<HashVec<NodeSummary>> {
+    let report = &ctx.report;
+
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let data_sm = core_sm(data_root.nr_blocks, nr_devs as u32);
 
     let mon_meta_sm = metadata_sm.clone();
     let mon_data_sm = data_sm.clone();
@@ -1030,8 +1034,145 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         },
     );
 
-    let summaries = check_mapping_bottom_level(
+    let summaries =
+        check_mappings_bottom_level_(ctx, metadata_sm, data_sm, roots, ignore_non_fatal);
+
+    monitor.stop();
+
+    summaries
+}
+
+fn create_data_sm(sb: &Superblock, nr_devs: u32) -> Result<ASpaceMap> {
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+
+    let data_sm = if nr_devs <= 1 {
+        Arc::new(Mutex::new(RestrictedSpaceMap::new(data_root.nr_blocks)))
+    } else {
+        core_sm(data_root.nr_blocks, nr_devs)
+    };
+
+    Ok(data_sm)
+}
+
+pub fn check(opts: ThinCheckOptions) -> Result<()> {
+    if (opts.auto_repair || opts.clear_needs_check)
+        && (opts.engine_opts.use_metadata_snap || opts.override_mapping_root.is_some())
+    {
+        return Err(anyhow!("cannot perform repair outside the actual metadata"));
+    }
+
+    let ctx = mk_context(&opts)?;
+
+    // FIXME: temporarily get these out
+    let report = &ctx.report;
+    let engine = &ctx.engine;
+
+    let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+
+    // Read the superblock in metadata snapshot (allow errors)
+    let sb_snap = if sb.metadata_snap > 0 {
+        Some(read_superblock(engine.as_ref(), sb.metadata_snap))
+    } else {
+        None
+    };
+
+    if opts.engine_opts.use_metadata_snap {
+        if sb_snap.is_none() {
+            return Err(anyhow!("no current metadata snap"));
+        }
+
+        if let Some(Err(e)) = sb_snap {
+            return Err(metadata_err("metadata snap", e).into());
+        }
+    }
+
+    if opts.sb_only {
+        if opts.clear_needs_check {
+            let cleared = clear_needs_check_flag(engine.clone())?;
+            if cleared {
+                report.warning("Cleared needs_check flag");
+            }
+        }
+        return Ok(());
+    }
+
+    let _ = print_info(&sb, report.clone());
+
+    //------------------------------------
+
+    report.set_title("Checking thin metadata");
+
+    let metadata_sm = if opts.engine_opts.use_metadata_snap {
+        Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())))
+    } else {
+        create_metadata_sm(engine, &sb, &sb_snap, opts.ignore_non_fatal)?
+    };
+
+    inc_superblock(&metadata_sm, sb.metadata_snap)?;
+
+    //------------------------------------
+    // Check device details and the top-level tree
+
+    report.set_sub_title("device details tree");
+
+    sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
+
+    // List of all the bottom-level roots referenced by the top-level tree,
+    // including those reside in the metadata snapshot.
+    let mut all_roots = Vec::<u64>::new();
+
+    // Collect thin devices in-use
+    let thins = if !opts.engine_opts.use_metadata_snap {
+        get_thins_from_superblock(
+            engine,
+            &sb,
+            &metadata_sm,
+            &mut all_roots,
+            opts.ignore_non_fatal,
+        )?
+    } else {
+        BTreeMap::new()
+    };
+
+    // Collect thin devices reside in the metadata snapshot only
+    // (allow errors if option -m is not applied)
+    let thins_snap = match sb_snap {
+        Some(Ok(ref sbs)) => get_thins_from_metadata_snap(
+            engine,
+            sbs,
+            &metadata_sm,
+            &thins,
+            &mut all_roots,
+            opts.ignore_non_fatal,
+        ),
+        Some(Err(e)) => Err(e),
+        None => Ok(BTreeMap::new()),
+    };
+
+    if opts.skip_mappings {
+        let cleared = clear_needs_check_flag(engine.clone())?;
+        if cleared {
+            report.warning("Cleared needs_check flag");
+        }
+        return Ok(());
+    }
+
+    //----------------------------------------
+    // Check data mappings
+
+    report.set_sub_title("mapping tree");
+
+    report.info(&format!("number of devices to check: {}", all_roots.len()));
+
+    let data_sm = if opts.engine_opts.use_metadata_snap {
+        create_data_sm(&sb, 1)?
+    } else {
+        create_data_sm(&sb, all_roots.len() as u32)?
+    };
+
+    let summaries = check_mappings_bottom_level(
         &ctx,
+        &sb,
         &metadata_sm,
         &data_sm,
         &all_roots,
@@ -1039,30 +1180,29 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )?;
 
     // Check the number of mapped blocks
-    let mut iter = roots
+    let mut iter = thins
         .iter()
-        .zip(devs.values())
-        .map(|((thin_id, (_, root)), details)| (thin_id, root, details));
+        .map(|(id, (root, details))| (id, root, details));
     check_mapped_blocks(&ctx, &mut iter, &summaries)?;
 
-    if let Some(Err(e)) = sb_snap {
-        return Err(anyhow!("metadata snapshot contains errors: {}", e));
-    }
-
     match thins_snap {
-        Some(Err(e)) => {
-            return Err(anyhow!("metadata snapshot contains errors: {}", e));
+        Err(e) => {
+            return Err(metadata_err("metadata snap", e).into());
         }
-        Some(Ok(thins)) => {
-            let mut iter = thins.iter().map(|(id, root, details)| (id, root, details));
+        Ok(thins_snap) => {
+            let mut iter = thins_snap
+                .iter()
+                .map(|(id, (root, details))| (id, root, details));
             check_mapped_blocks(&ctx, &mut iter, &summaries)?;
         }
-        None => {}
     }
 
-    monitor.stop();
+    if opts.engine_opts.use_metadata_snap {
+        return Ok(());
+    }
 
     //-----------------------------------------
+    // Check the data space map
 
     report.set_sub_title("data space map");
     let start = std::time::Instant::now();
@@ -1077,10 +1217,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )
     .map_err(|e| metadata_err("data space map", e))?;
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("checking data space map: {:?}", duration));
+    report.debug(&format!("checking data space map: {:?}", duration));
 
     //-----------------------------------------
+    // Check the metadata space map
 
     report.set_sub_title("metadata space map");
     let start = std::time::Instant::now();
@@ -1096,21 +1236,15 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     )
     .map_err(|e| metadata_err("metadata space map", e))?;
     let duration = start.elapsed();
-    ctx.report
-        .debug(&format!("checking metadata space map: {:?}", duration));
+    report.debug(&format!("checking metadata space map: {:?}", duration));
 
     //-----------------------------------------
-
-    if (opts.auto_repair || opts.clear_needs_check)
-        && (opts.engine_opts.use_metadata_snap || opts.override_mapping_root.is_some())
-    {
-        return Err(anyhow!("cannot perform repair outside the actual metadata"));
-    }
+    // Fix minor issues found in the metadata
 
     if !data_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.warning("Repairing data leaks.");
-            repair_space_map(ctx.engine.clone(), data_leaks, data_sm.clone())?;
+            report.warning("Repairing data leaks.");
+            repair_space_map(engine.clone(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("data space map contains leaks"));
         }
@@ -1118,17 +1252,17 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     if !metadata_leaks.is_empty() {
         if opts.auto_repair {
-            ctx.report.warning("Repairing metadata leaks.");
-            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+            report.warning("Repairing metadata leaks.");
+            repair_space_map(engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!("metadata space map contains leaks"));
         }
     }
 
     if opts.auto_repair || opts.clear_needs_check {
-        let cleared = clear_needs_check_flag(ctx.engine.clone())?;
+        let cleared = clear_needs_check_flag(engine.clone())?;
         if cleared {
-            ctx.report.warning("Cleared needs_check flag");
+            report.warning("Cleared needs_check flag");
         }
     }
 
@@ -1159,60 +1293,28 @@ pub fn check_with_maps(
     let ctx = mk_context_(engine.clone(), report.clone())?;
     report.set_title("Checking thin metadata");
 
-    // superblock
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let metadata_sm = create_metadata_sm(&engine, &sb, &None, false)?;
+    inc_superblock(&metadata_sm, sb.metadata_snap)?;
 
-    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let mut path = vec![0];
-
-    // Device details.   We read this once to get the number of thin devices, and hence the
-    // maximum metadata ref count.  Then create metadata space map, and reread to increment
-    // the ref counts for that metadata.
-    let devs = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), false, sb.details_root)?;
-    let nr_devs = devs.len();
-    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-    inc_superblock(&metadata_sm)?;
+    //-----------------------------------------
 
     report.set_sub_title("device details tree");
-    let _devs = btree_to_map_with_sm::<DeviceDetail>(
-        &mut path,
-        engine.clone(),
-        metadata_sm.clone(),
-        false,
-        sb.details_root,
-    )?;
 
-    let mon_sm = metadata_sm.clone();
-    let monitor = ProgressMonitor::new(report.clone(), metadata_root.nr_allocated, move || {
-        mon_sm.lock().unwrap().get_nr_allocated().unwrap()
-    });
+    let mut all_roots = Vec::<u64>::new();
+    let thins = get_thins_from_superblock(&engine, &sb, &metadata_sm, &mut all_roots, false)?;
 
-    // mapping top level
+    //-----------------------------------------
+
     report.set_sub_title("mapping tree");
-    let roots = btree_to_map_with_path::<u64>(
-        &mut path,
-        engine.clone(),
-        metadata_sm.clone(),
-        false,
-        sb.mapping_root,
-    )?;
 
-    if !roots.keys().eq(devs.keys()) {
-        return Err(anyhow!(
-            "Inconsistency between the details tree and the mapping tree"
-        ));
-    }
+    let data_sm = create_data_sm(&sb, all_roots.len() as u32)?;
+    let summaries = check_mappings_bottom_level_(&ctx, &metadata_sm, &data_sm, &all_roots, false)?;
 
-    // mapping bottom level
-    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let data_sm = core_sm(root.nr_blocks, nr_devs as u32);
-    let all_roots: Vec<u64> = roots.values().map(|(_path, root)| *root).collect();
-    let summaries = check_mapping_bottom_level(&ctx, &metadata_sm, &data_sm, &all_roots, false)?;
-
-    let mut iter = roots
+    // Check the number of mapped blocks
+    let mut iter = thins
         .iter()
-        .zip(devs.values())
-        .map(|((thin_id, (_, root)), details)| (thin_id, root, details));
+        .map(|(id, (root, details))| (id, root, details));
     check_mapped_blocks(&ctx, &mut iter, &summaries)?;
 
     //-----------------------------------------
@@ -1238,8 +1340,6 @@ pub fn check_with_maps(
         check_metadata_space_map(engine.clone(), report, root, metadata_sm.clone(), false)?;
 
     //-----------------------------------------
-
-    monitor.stop();
 
     Ok(CheckMaps {
         metadata_sm: metadata_sm.clone(),

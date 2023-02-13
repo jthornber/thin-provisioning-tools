@@ -70,6 +70,15 @@ pub fn prep_metadata_with_metadata_snap(td: &mut TestDir) -> Result<PathBuf> {
     Ok(output)
 }
 
+pub fn prep_metadata_from_file(td: &mut TestDir, filename: &str) -> Result<PathBuf> {
+    let mut input = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    input.push("tests/testdata");
+    input.push(filename);
+    let output = td.mk_path("tmeta.bin");
+    unpack_metadata(&input, &output)?;
+    Ok(output)
+}
+
 // Sometimes we need a rebuilt metadata in order to produce binary identical metadata
 // between dump-restore cycles.
 pub fn prep_rebuilt_metadata(td: &mut TestDir) -> Result<PathBuf> {
