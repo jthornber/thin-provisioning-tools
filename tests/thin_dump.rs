@@ -145,6 +145,21 @@ fn no_stderr() -> Result<()> {
 }
 
 //------------------------------------------
+// test dump metadata snapshot from a live metadata
+// here we use a corrupted metadata to ensure that "thin_dump -m" reads the
+// metadata snapshot only.
+
+#[test]
+fn dump_metadata_snapshot() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "corrupted_tmeta_with_metadata_snap.pack")?;
+    let output = run_ok_raw(thin_dump_cmd(args![&md, "-m"]))?;
+
+    assert_eq!(output.stderr.len(), 0);
+    Ok(())
+}
+
+//------------------------------------------
 // test superblock overriding & repair
 // TODO: share with thin_repair
 
