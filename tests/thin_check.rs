@@ -204,6 +204,17 @@ fn prints_info_fields() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn prints_info_with_superblock_only() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let stdout = run_ok(thin_check_cmd(args!["--super-block-only", &md]))?;
+    eprintln!("info: {:?}", stdout);
+    assert!(stdout.contains("TRANSACTION_ID="));
+    assert!(stdout.contains("METADATA_FREE_BLOCKS="));
+    Ok(())
+}
+
 //------------------------------------------
 // test compatibility between options
 
