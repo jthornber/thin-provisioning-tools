@@ -100,6 +100,14 @@ where
     rust_cmd("thin_delta", args)
 }
 
+pub fn thin_ls_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("thin_ls", args)
+}
+
 pub fn thin_metadata_pack_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

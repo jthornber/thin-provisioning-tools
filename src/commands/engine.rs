@@ -88,7 +88,8 @@ fn metadata_snap_flag(matches: &ArgMatches) -> bool {
 
 pub fn parse_engine_opts(tool: ToolType, matches: &ArgMatches) -> Result<EngineOptions> {
     let engine_type = parse_type(matches)?;
-    let use_metadata_snap = (tool == ToolType::Thin) && metadata_snap_flag(matches);
+    let use_metadata_snap =
+        (tool == ToolType::Thin || tool == ToolType::Era) && metadata_snap_flag(matches);
 
     Ok(EngineOptions {
         tool,

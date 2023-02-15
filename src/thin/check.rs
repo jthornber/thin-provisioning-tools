@@ -1087,6 +1087,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
     }
 
+    let _ = print_info(&sb, report.clone());
+
     if opts.sb_only {
         if opts.clear_needs_check {
             let cleared = clear_needs_check_flag(engine.clone())?;
@@ -1096,8 +1098,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
         return Ok(());
     }
-
-    let _ = print_info(&sb, report.clone());
 
     //------------------------------------
 
