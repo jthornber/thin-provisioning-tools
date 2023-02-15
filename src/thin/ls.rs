@@ -1067,6 +1067,7 @@ fn count_data_mappings_(
 fn count_data_mappings(
     ctx: &Context,
     sb: &Superblock,
+    mapping_root: u64,
     ignore_non_fatal: bool,
 ) -> Result<Vec<NodeSummary>> {
     let mut path = Vec::new();
@@ -1074,7 +1075,7 @@ fn count_data_mappings(
         &mut path,
         ctx.engine.clone(),
         ignore_non_fatal,
-        sb.mapping_root,
+        mapping_root,
     )?;
 
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[..])?;
@@ -1179,7 +1180,8 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
     }
 
     if some_counting_fields(&opts.fields) {
-        let mapped = count_data_mappings(&ctx, &sb, false)?;
+        let actual_sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
+        let mapped = count_data_mappings(&ctx, &actual_sb, sb.mapping_root, false)?;
         for ((dev_id, detail), summary) in details.iter().zip(mapped) {
             table.push_row(*dev_id, detail, summary.nr_mappings, summary.nr_shared);
         }
