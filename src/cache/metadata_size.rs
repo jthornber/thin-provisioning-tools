@@ -35,7 +35,7 @@ pub fn metadata_size(opts: &CacheMetadataSizeOptions) -> Result<u64> {
     let hint_size = opts.nr_blocks * (opts.max_hint_width as u64 + HINT_OVERHEAD_PER_BLOCK);
 
     let mut size = TRANSACTION_OVERHEAD + mapping_size + hint_size;
-    size = std::cmp::min(size, (MAX_METADATA_BLOCKS * BLOCK_SIZE) as u64);
+    size = std::cmp::min(size, MAX_METADATA_BLOCKS as u64 * BLOCK_SIZE as u64);
 
     Ok(size)
 }
