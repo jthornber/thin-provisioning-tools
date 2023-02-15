@@ -11,9 +11,15 @@ use std::sync::Arc;
 use crate::file_utils;
 use crate::report::*;
 
+// TODO:
+// 1. Avoid calling Report::complete() explicitly.
+// 2. Do not call to exit() within the Report's lifecycle so that we could
+//    rely on the Drop trait to clean up the progress bar.
+
 pub fn check_input_file(input_file: &Path, report: &Report) {
     if !file_utils::file_exists(input_file) {
         report.fatal(&format!("Couldn't find input file '{:?}'.", &input_file));
+        report.complete();
         exit(1);
     }
 
@@ -22,14 +28,25 @@ pub fn check_input_file(input_file: &Path, report: &Report) {
             "Not a block device or regular file '{:?}'.",
             &input_file
         ));
+        report.complete();
         exit(1);
     }
 }
 
 pub fn check_file_not_tiny(input_file: &Path, report: &Report) {
-    if file_utils::file_size(input_file).expect("couldn't get input size") < 4096 {
-        report.fatal("Metadata device/file too small.  Is this binary metadata?");
-        exit(1);
+    match file_utils::file_size(input_file) {
+        Ok(size) => {
+            if size < 4096 {
+                report.fatal("Metadata device/file too small.  Is this binary metadata?");
+                report.complete();
+                exit(1);
+            }
+        }
+        Err(e) => {
+            report.fatal(&format!("couldn't get input size: {}", e));
+            report.complete();
+            exit(1);
+        }
     }
 }
 
@@ -39,11 +56,13 @@ pub fn check_output_file(path: &Path, report: &Report) {
         Ok(size) => {
             if size < 40960 {
                 report.fatal("Output file too small.");
+                report.complete();
                 exit(1);
             }
         }
         Err(e) => {
             report.fatal(&format!("{}", e));
+            report.complete();
             exit(1);
         }
     }
@@ -76,6 +95,7 @@ pub fn check_not_xml_(input_file: &Path) -> Result<bool> {
 pub fn check_not_xml(input_file: &Path, report: &Report) {
     if let Ok(true) = check_not_xml_(input_file) {
         report.fatal("This looks like XML.  This tool only supports the binary metadata format.");
+        report.complete();
         exit(1);
     }
 }
