@@ -163,6 +163,12 @@ pub fn test_unreadable_input_file<'a, P>() -> Result<()>
 where
     P: InputProgram<'a>,
 {
+    unsafe {
+        if libc::getuid() == 0 {
+            return Ok(());
+        }
+    }
+
     let mut td = TestDir::new()?;
 
     // input an unreadable file
