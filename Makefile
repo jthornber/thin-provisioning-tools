@@ -6,9 +6,9 @@ PDATA_TOOLS=\
 $(PDATA_TOOLS):
 	$(V) cargo build --release
 
-DESTDIR:=/usr
-BINDIR:=$(DESTDIR)/sbin
-DATADIR:=$(DESTDIR)/share
+PREFIX:=/usr
+BINDIR:=$(DESTDIR)$(PREFIX)/sbin
+DATADIR:=$(DESTDIR)$(PREFIX)/share
 MANPATH:=$(DATADIR)/man
 
 STRIP:=strip
