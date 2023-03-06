@@ -11,21 +11,23 @@ use crate::file_utils;
 use crate::report::*;
 
 pub fn check_input_file(input_file: &Path) -> Result<&Path> {
-    if !file_utils::file_exists(input_file) {
-        return Err(anyhow!(
-            "Couldn't find input file '{}'.",
-            input_file.display()
-        ));
-    }
-
-    if !file_utils::is_file_or_blk(input_file) {
-        return Err(anyhow!(
+    match file_utils::is_file_or_blk(input_file) {
+        Ok(true) => Ok(input_file),
+        Ok(false) => Err(anyhow!(
             "Not a block device or regular file '{}'.",
             input_file.display()
-        ));
+        )),
+        Err(e) => {
+            if let Some(libc::ENOENT) = e.raw_os_error() {
+                Err(anyhow!(
+                    "Couldn't find input file '{}'",
+                    input_file.display()
+                ))
+            } else {
+                Err(anyhow!("Invalid output file: {}", e))
+            }
+        }
     }
-
-    Ok(input_file)
 }
 
 pub fn check_file_not_tiny(input_file: &Path) -> Result<&Path> {

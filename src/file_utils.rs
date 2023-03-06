@@ -12,26 +12,19 @@ fn test_bit(mode: u32, flag: SFlag) -> bool {
     SFlag::from_bits_truncate(mode).contains(flag)
 }
 
-pub fn is_file_or_blk_(info: FileStat) -> bool {
+fn is_file_or_blk_(info: FileStat) -> bool {
     test_bit(info.st_mode, SFlag::S_IFBLK) || test_bit(info.st_mode, SFlag::S_IFREG)
 }
 
-pub fn file_exists(path: &Path) -> bool {
-    matches!(stat::stat(path), Ok(_))
+pub fn is_file_or_blk(path: &Path) -> io::Result<bool> {
+    stat::stat(path).map_or_else(|e| Err(e.into()), |info| Ok(is_file_or_blk_(info)))
 }
 
-pub fn is_file_or_blk(path: &Path) -> bool {
-    match stat::stat(path) {
-        Ok(info) => is_file_or_blk_(info),
-        _ => false,
-    }
-}
-
-pub fn is_file(path: &Path) -> bool {
-    match stat::stat(path) {
-        Ok(info) => test_bit(info.st_mode, SFlag::S_IFREG),
-        _ => false,
-    }
+pub fn is_file(path: &Path) -> io::Result<bool> {
+    stat::stat(path).map_or_else(
+        |e| Err(e.into()),
+        |info| Ok(test_bit(info.st_mode, SFlag::S_IFREG)),
+    )
 }
 
 //---------------------------------------
