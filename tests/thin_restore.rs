@@ -12,12 +12,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_restore ",
-    include_str!("../VERSION"),
-    "Convert XML format metadata to binary.
+    tools_version!(),
+    "
+Convert XML format metadata to binary.
 
 USAGE:
     thin_restore [OPTIONS] --input <FILE> --output <FILE>

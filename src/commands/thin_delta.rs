@@ -17,7 +17,7 @@ impl ThinDeltaCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Print the differences in the mappings between two thin devices")
             .arg(
                 Arg::new("METADATA_SNAPSHOT")

@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use thinp::version::tools_version;
+use thinp::tools_version;
 
 use crate::args;
 use crate::common::process::*;
@@ -50,7 +50,7 @@ where
     P: Program<'a>,
 {
     let stdout = run_ok(P::cmd(args!["-V"]))?;
-    assert!(stdout.contains(tools_version()));
+    assert!(stdout.contains(tools_version!()));
     Ok(())
 }
 
@@ -59,7 +59,7 @@ where
     P: Program<'a>,
 {
     let stdout = run_ok(P::cmd(args!["--version"]))?;
-    assert!(stdout.contains(tools_version()));
+    assert!(stdout.contains(tools_version!()));
     Ok(())
 }
 

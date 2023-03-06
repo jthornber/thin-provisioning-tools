@@ -10,12 +10,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "cache_repair ",
-    include_str!("../VERSION"),
-    "Repair binary cache metadata, and write it to a different device or file
+    tools_version!(),
+    "
+Repair binary cache metadata, and write it to a different device or file
 
 USAGE:
     cache_repair [OPTIONS] --input <FILE> --output <FILE>

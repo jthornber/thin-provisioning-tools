@@ -40,7 +40,7 @@ impl ThinMetadataSizeCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Estimate the size of the metadata device needed for a given configuration.")
             // flags
             .arg(

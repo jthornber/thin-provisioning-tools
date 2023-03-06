@@ -847,7 +847,7 @@ impl ThinExploreCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("A text user interface for examining thin metadata.")
             .arg(
                 Arg::new("NODE_PATH")

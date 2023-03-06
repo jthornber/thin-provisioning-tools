@@ -16,7 +16,7 @@ impl EraInvalidateCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("List blocks that may have changed since a given era")
             .arg(
                 Arg::new("METADATA_SNAPSHOT")

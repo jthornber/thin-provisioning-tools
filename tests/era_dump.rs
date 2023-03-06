@@ -13,12 +13,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "era_dump ",
-    include_str!("../VERSION"),
-    "Dump the era metadata to stdout in XML format
+    tools_version!(),
+    "
+Dump the era metadata to stdout in XML format
 
 USAGE:
     era_dump [OPTIONS] <INPUT>

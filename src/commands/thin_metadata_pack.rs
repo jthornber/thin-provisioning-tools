@@ -13,7 +13,7 @@ impl ThinMetadataPackCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
             .arg(Arg::new("INPUT")
                 .help("Specify thinp metadata binary device/file")

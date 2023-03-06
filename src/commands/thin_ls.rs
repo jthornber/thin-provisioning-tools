@@ -15,7 +15,7 @@ impl ThinLsCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("List thin volumes within a pool")
             .arg(
                 Arg::new("NO_HEADERS")

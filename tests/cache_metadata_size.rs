@@ -7,12 +7,15 @@ use common::process::*;
 use common::program::*;
 use common::target::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "cache_metadata_size ",
-    include_str!("../VERSION"),
-    "Estimate the size of the metadata device needed for a given configuration.
+    tools_version!(),
+    "
+Estimate the size of the metadata device needed for a given configuration.
 
 USAGE:
     cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>

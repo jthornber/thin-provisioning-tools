@@ -44,7 +44,7 @@ impl ThinRmapCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Output reverse map of a thin provisioned region of blocks")
             // options
             .arg(

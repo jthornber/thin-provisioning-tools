@@ -12,12 +12,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_metadata_unpack ",
-    include_str!("../VERSION"),
-    "Unpack a compressed file of thin metadata.
+    tools_version!(),
+    "
+Unpack a compressed file of thin metadata.
 
 USAGE:
     thin_metadata_unpack -i <FILE> -o <DEV>

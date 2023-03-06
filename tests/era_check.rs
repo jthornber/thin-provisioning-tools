@@ -11,12 +11,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "era_check ",
-    include_str!("../VERSION"),
-    "Validate era metadata on device or file.
+    tools_version!(),
+    "
+Validate era metadata on device or file.
 
 USAGE:
     era_check [OPTIONS] <INPUT>

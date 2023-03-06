@@ -12,12 +12,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_repair ",
-    include_str!("../VERSION"),
-    "Repair thin-provisioning metadata, and write it to different device or file
+    tools_version!(),
+    "
+Repair thin-provisioning metadata, and write it to different device or file
 
 USAGE:
     thin_repair [OPTIONS] --input <FILE> --output <FILE>
