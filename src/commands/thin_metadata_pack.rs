@@ -42,7 +42,13 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
         let report = mk_simple_report();
-        check_input_file(input_file, &report);
+
+        if let Err(e) = check_input_file(input_file)
+            .and_then(check_file_not_tiny)
+            .and_then(check_not_xml)
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let report = std::sync::Arc::new(report);
         to_exit_code(

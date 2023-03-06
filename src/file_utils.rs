@@ -68,7 +68,7 @@ pub fn file_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
                 fail("Not a block device or regular file")
             }
         }
-        _ => fail("stat failed"),
+        Err(e) => Err(e.into()),
     }
 }
 

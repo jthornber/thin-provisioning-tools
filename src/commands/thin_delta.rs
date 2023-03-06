@@ -86,8 +86,10 @@ impl<'a> Command<'a> for ThinDeltaCommand {
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
         let report = mk_report(false);
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
+
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let snap1 = if matches.is_present("THIN1") {
             Snap::DeviceId(matches.value_of_t_or_exit::<u64>("THIN1"))

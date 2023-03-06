@@ -83,18 +83,6 @@ impl ThinShrinkCommand {
         let binary_mode = matches.is_present("BINARY");
         let report = mk_report(false);
 
-        check_input_file(input, &report);
-        if binary_mode {
-            check_file_not_tiny(input, &report);
-            check_not_xml(input, &report);
-            check_output_file(output, &report);
-        }
-
-        if do_copy {
-            // TODO: check file size
-            check_input_file(data_device, &report);
-        }
-
         Ok(ThinShrinkOptions {
             input: input.to_path_buf(),
             output: output.to_path_buf(),
@@ -120,6 +108,24 @@ impl<'a> Command<'a> for ThinShrinkCommand {
         let opts = opts.unwrap();
 
         let report = std::sync::Arc::new(mk_simple_report());
+
+        let mut r = check_input_file(&opts.input);
+
+        if opts.binary_mode {
+            r = r
+                .and_then(check_file_not_tiny)
+                .and_then(|_| check_output_file(&opts.output));
+        }
+
+        if opts.do_copy {
+            // TODO: check file size
+            r = r.and_then(|_| check_input_file(&opts.data_device));
+        }
+
+        if let Err(e) = r {
+            return to_exit_code::<()>(&report, Err(e));
+        }
+
         to_exit_code(&report, shrink(opts))
     }
 }

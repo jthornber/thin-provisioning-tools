@@ -75,8 +75,9 @@ impl<'a> Command<'a> for CacheRestoreCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(input_file, &report);
-        check_output_file(output_file, &report);
+        if let Err(e) = check_input_file(input_file).and_then(|_| check_output_file(output_file)) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {

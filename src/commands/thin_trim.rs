@@ -63,8 +63,12 @@ impl<'a> Command<'a> for ThinTrimCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(metadata_dev, &report);
-        check_input_file(data_dev, &report);
+        if let Err(e) = check_input_file(metadata_dev)
+            .and_then(check_file_not_tiny)
+            .and_then(|_| check_input_file(data_dev))
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = match parse_engine_opts(ToolType::Thin, &matches) {
             Ok(opts) => opts,

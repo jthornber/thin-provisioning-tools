@@ -49,7 +49,10 @@ impl<'a> Command<'a> for ThinMetadataUnpackCommand {
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
         let report = mk_simple_report();
-        check_input_file(input_file, &report);
+
+        if let Err(e) = check_input_file(input_file) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let report = std::sync::Arc::new(report);
         to_exit_code(&report, unpack(input_file, output_file))

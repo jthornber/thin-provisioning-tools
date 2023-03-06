@@ -65,7 +65,13 @@ impl<'a> Command<'a> for CacheRepairCommand {
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-        check_input_file(input_file, &report);
+        if let Err(e) = check_input_file(input_file)
+            .and_then(check_file_not_tiny)
+            .and_then(|_| check_output_file(output_file))
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
+
         let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);

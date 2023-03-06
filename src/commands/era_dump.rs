@@ -65,8 +65,9 @@ impl<'a> Command<'a> for EraDumpCommand {
 
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
 
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Era, &matches);
         if engine_opts.is_err() {
