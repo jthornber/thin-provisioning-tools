@@ -58,7 +58,10 @@ impl ThinRepairCommand {
                     .help("Override the transaction id if needed")
                     .long("transaction-id")
                     .value_name("NUM"),
-            );
+            )
+            // a dummy argument for compatibility with lvconvert
+            .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
+
         verbose_args(engine_args(cmd))
     }
 }

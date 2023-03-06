@@ -39,7 +39,10 @@ impl CacheRepairCommand {
                     .long("output")
                     .value_name("FILE")
                     .required(true),
-            );
+            )
+            // a dummy argument for compatibility with lvconvert
+            .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
+
         verbose_args(engine_args(cmd))
     }
 }
