@@ -96,6 +96,8 @@ where
     }
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
+        self.check_index_out_of_bounds(b)?;
+
         let old = self.get(b)?;
         assert!(v <= V::max_value().into());
         self.counts[b as usize] = v.try_into().unwrap(); // FIXME: do not panic
@@ -110,8 +112,11 @@ where
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
+        if begin + len > self.counts.len() as u64 {
+            return Err(anyhow!("block out of bounds"));
+        }
+
         for b in begin..(begin + len) {
-            self.check_index_out_of_bounds(b)?;
             let c = &mut self.counts[b as usize];
             assert!(*c < V::max_value());
             if *c == V::from(0u8) {
@@ -194,6 +199,14 @@ impl RestrictedSpaceMap {
             alloc_begin: 0,
         }
     }
+
+    #[inline]
+    fn check_index_out_of_bounds(&self, b: u64) -> Result<()> {
+        if b >= self.counts.len() as u64 {
+            return Err(anyhow!("block out of bounds"));
+        }
+        Ok(())
+    }
 }
 
 impl SpaceMap for RestrictedSpaceMap {
@@ -206,6 +219,8 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn get(&self, b: u64) -> Result<u32> {
+        self.check_index_out_of_bounds(b)?;
+
         if self.counts.contains(b as usize) {
             Ok(1)
         } else {
@@ -214,6 +229,8 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
+        self.check_index_out_of_bounds(b)?;
+
         let old = self.counts.contains(b as usize);
 
         if v > 0 {
@@ -232,6 +249,8 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
+        self.check_index_out_of_bounds(begin + len - 1)?;
+
         for b in begin..(begin + len) {
             if !self.counts.contains(b as usize) {
                 self.nr_allocated += 1;
@@ -258,6 +277,8 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>> {
+        self.check_index_out_of_bounds(end - 1)?;
+
         for b in begin..end {
             if !self.counts.contains(b as usize) {
                 return Ok(Some(b));
