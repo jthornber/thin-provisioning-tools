@@ -15,6 +15,12 @@ impl ThinMetadataPackCommand {
             .color(clap::ColorChoice::Never)
             .version(crate::tools_version!())
             .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
+            // flags
+            .arg(Arg::new("FORCE")
+                .help("Force overwrite the output file")
+                .short('f')
+                .long("force"))
+            // options
             .arg(Arg::new("INPUT")
                 .help("Specify thinp metadata binary device/file")
                 .required(true)
@@ -48,6 +54,12 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
             .and_then(check_not_xml)
         {
             return to_exit_code::<()>(&report, Err(e));
+        }
+
+        if !matches.is_present("FORCE") {
+            if let Err(e) = check_overwrite_metadata(&report, output_file) {
+                return to_exit_code::<()>(&report, Err(e));
+            }
         }
 
         let report = std::sync::Arc::new(report);

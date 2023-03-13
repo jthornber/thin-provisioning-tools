@@ -21,9 +21,10 @@ const USAGE: &str = concat!(
 Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
 USAGE:
-    thin_metadata_pack -i <DEV> -o <FILE>
+    thin_metadata_pack [OPTIONS] -i <DEV> -o <FILE>
 
 OPTIONS:
+    -f, --force      Force overwrite the output file
     -h, --help       Print help information
     -i <DEV>         Specify thinp metadata binary device/file
     -o <FILE>        Specify packed output file

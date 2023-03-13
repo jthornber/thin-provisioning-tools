@@ -7,6 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::checksum::{metadata_block_type, BT};
 use crate::file_utils;
 use crate::report::*;
 
@@ -86,6 +87,42 @@ pub fn check_not_xml(input_file: &Path) -> Result<&Path> {
         )),
         _ => Ok(input_file),
     }
+}
+
+pub fn is_metadata(path: &Path) -> Result<bool> {
+    let mut file = OpenOptions::new().read(true).open(path)?;
+    let mut sb = vec![0; 4096];
+    file.read_exact(&mut sb)?;
+    match metadata_block_type(&sb) {
+        BT::THIN_SUPERBLOCK | BT::CACHE_SUPERBLOCK | BT::ERA_SUPERBLOCK => Ok(true),
+        _ => Ok(false),
+    }
+}
+
+pub fn yes_no_prompt(report: &Report, prompt: &str) -> Result<bool> {
+    report
+        .get_prompt_input(&format!("{} [y/n]: ", prompt))
+        .map(|input| {
+            let input = input.trim_end().to_lowercase();
+            input.eq("yes") || input.eq("y")
+        })
+        .map_err(|e| e.into())
+}
+
+/// Reads the start of the file to see if it's a metadata.
+/// Might fail silently if there are any problems reading the file,
+/// e.g., permission denied or IO errors.
+pub fn check_overwrite_metadata(report: &Report, path: &Path) -> Result<()> {
+    let prompt = "The destintation appears to already contain metadata, are you sure?";
+
+    if matches!(file_utils::is_file_or_blk(path), Ok(true))
+        && matches!(is_metadata(path), Ok(true))
+        && !matches!(yes_no_prompt(report, prompt), Ok(true))
+    {
+        return Err(anyhow!("Output file not overwritten"));
+    }
+
+    Ok(()) // file not found or not a metadata, or 'y' is entered
 }
 
 pub fn optional_value_or_exit<R>(matches: &ArgMatches, name: &str) -> Option<R>

@@ -23,9 +23,10 @@ const USAGE: &str = concat!(
 Unpack a compressed file of thin metadata.
 
 USAGE:
-    thin_metadata_unpack -i <FILE> -o <DEV>
+    thin_metadata_unpack [OPTIONS] -i <FILE> -o <DEV>
 
 OPTIONS:
+    -f, --force      Force overwrite the output file
     -h, --help       Print help information
     -i <FILE>        Specify packed input file
     -o <DEV>         Specify thinp metadata binary device/file
