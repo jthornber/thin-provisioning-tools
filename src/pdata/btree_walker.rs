@@ -81,11 +81,11 @@ impl BTreeWalker {
     }
 
     // Atomically increments the ref count, and returns the _old_ count.
-    fn sm_inc(&self, b: u64) -> u32 {
+    fn sm_inc(&self, b: u64) -> Result<u32> {
         let mut sm = self.sm.lock().unwrap();
-        let count = sm.get(b).unwrap();
-        sm.inc(b, 1).unwrap();
-        count
+        let count = sm.get(b).map_err(|e| value_err(e.to_string()))?;
+        sm.inc(b, 1).map_err(|e| value_err(e.to_string()))?;
+        Ok(count)
     }
 
     fn build_aggregate(&self, b: u64, errs: Vec<BTreeError>) -> Result<()> {
@@ -121,7 +121,14 @@ impl BTreeWalker {
         let mut blocks = Vec::with_capacity(bs.len());
         let mut filtered_krs = Vec::with_capacity(krs.len());
         for i in 0..bs.len() {
-            if self.sm_inc(bs[i]) == 0 {
+            let rc = match self.sm_inc(bs[i]) {
+                Ok(n) => n,
+                Err(_) => {
+                    continue;
+                }
+            };
+
+            if rc == 0 {
                 // Node not yet seen
                 blocks.push(bs[i]);
                 filtered_krs.push(krs[i].clone());
@@ -244,7 +251,7 @@ impl BTreeWalker {
         NV: NodeVisitor<V>,
         V: Unpack,
     {
-        let result = if self.sm_inc(root) > 0 {
+        let result = if self.sm_inc(root)? > 0 {
             if let Some(e) = self.failed(root) {
                 Err(e)
             } else {
@@ -350,7 +357,14 @@ where
     let mut blocks = Vec::with_capacity(bs.len());
     let mut filtered_krs = Vec::with_capacity(krs.len());
     for i in 0..bs.len() {
-        if w.sm_inc(bs[i]) == 0 {
+        let rc = match w.sm_inc(bs[i]) {
+            Ok(n) => n,
+            Err(_) => {
+                continue;
+            }
+        };
+
+        if rc == 0 {
             // Node not yet seen
             blocks.push(bs[i]);
             filtered_krs.push(krs[i].clone());
@@ -431,7 +445,7 @@ where
     NV: NodeVisitor<V> + Send + Sync + 'static,
     V: Unpack,
 {
-    let result = if w.sm_inc(root) > 0 {
+    let result = if w.sm_inc(root)? > 0 {
         if let Some(e) = w.failed(root) {
             Err(e)
         } else {
