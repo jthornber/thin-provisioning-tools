@@ -1,6 +1,6 @@
 [package]
 name = "thinp"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Joe Thornber <ejt@redhat.com>"]
 edition = "2021"
 license = "GPL3"
