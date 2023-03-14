@@ -3,7 +3,6 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
-use common::fixture::*;
 use common::input_arg::*;
 use common::output_option::*;
 use common::process::*;
@@ -107,18 +106,13 @@ test_missing_output_option!(ThinMetadataUnpack);
 fn end_to_end() -> Result<()> {
     let mut td = TestDir::new()?;
     let md_in = mk_valid_md(&mut td)?;
-    let md_out = mk_zeroed_md(&mut td)?;
+    let md_packed = td.mk_path("meta.pack");
+    let md_out = td.mk_path("meta.out");
     run_ok(thin_metadata_pack_cmd(args![
-        "-i",
-        &md_in,
-        "-o",
-        "meta.pack"
+        "-i", &md_in, "-o", &md_packed
     ]))?;
     run_ok(thin_metadata_unpack_cmd(args![
-        "-i",
-        "meta.pack",
-        "-o",
-        &md_out
+        "-i", &md_packed, "-o", &md_out
     ]))?;
 
     let dump1 = run_ok(thin_dump_cmd(args![&md_in]))?;
