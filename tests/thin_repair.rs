@@ -12,12 +12,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_repair ",
-    include_str!("../VERSION"),
-    "Repair thin-provisioning metadata, and write it to different device or file
+    tools_version!(),
+    "
+Repair thin-provisioning metadata, and write it to different device or file
 
 USAGE:
     thin_repair [OPTIONS] --input <FILE> --output <FILE>
@@ -106,6 +109,18 @@ test_corrupted_input_data!(ThinRepair);
 test_readonly_input_file!(ThinRepair);
 
 test_missing_output_option!(ThinRepair);
+
+//-----------------------------------------
+// accepts empty argument
+
+#[test]
+fn accepts_empty_argument() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let input = mk_valid_md(&mut td)?;
+    let output = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args!["-i", &input, "-o", &output, ""]))?;
+    Ok(())
+}
 
 //-----------------------------------------
 // test output to a small file

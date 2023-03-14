@@ -7,7 +7,6 @@ use crate::cache::hint::*;
 use crate::cache::mapping::*;
 use crate::cache::superblock::*;
 use crate::commands::engine::*;
-use crate::commands::utils::*;
 use crate::io_engine::*;
 use crate::pdata::array::{self, ArrayBlock, ArrayError};
 use crate::pdata::array_walker::*;
@@ -283,14 +282,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     let metadata_sm = core_sm(engine.get_nr_blocks(), u8::MAX as u32);
     inc_superblock(&metadata_sm)?;
 
-    let sb = match read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION) {
-        Ok(sb) => sb,
-        Err(e) => {
-            check_not_xml(opts.dev, &opts.report);
-            return Err(e);
-        }
-    };
-
+    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
     check_superblock(&sb)?;
 
     if opts.sb_only {

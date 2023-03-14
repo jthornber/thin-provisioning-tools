@@ -12,12 +12,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "era_restore ",
-    include_str!("../VERSION"),
-    "Convert XML format metadata to binary.
+    tools_version!(),
+    "
+Convert XML format metadata to binary.
 
 USAGE:
     era_restore [OPTIONS] --input <FILE> --output <FILE>

@@ -15,7 +15,7 @@ impl CacheRepairCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Repair binary cache metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -39,7 +39,10 @@ impl CacheRepairCommand {
                     .long("output")
                     .value_name("FILE")
                     .required(true),
-            );
+            )
+            // a dummy argument for compatibility with lvconvert
+            .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
+
         verbose_args(engine_args(cmd))
     }
 }
@@ -62,7 +65,13 @@ impl<'a> Command<'a> for CacheRepairCommand {
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
         let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
 
-        check_input_file(input_file, &report);
+        if let Err(e) = check_input_file(input_file)
+            .and_then(check_file_not_tiny)
+            .and_then(|_| check_output_file(output_file))
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
+
         let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {
             return to_exit_code(&report, engine_opts);

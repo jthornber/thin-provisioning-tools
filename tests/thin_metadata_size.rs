@@ -7,12 +7,15 @@ use common::process::*;
 use common::program::*;
 use common::target::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_metadata_size ",
-    include_str!("../VERSION"),
-    "Estimate the size of the metadata device needed for a given configuration.
+    tools_version!(),
+    "
+Estimate the size of the metadata device needed for a given configuration.
 
 USAGE:
     thin_metadata_size [OPTIONS] --block-size <SIZE[bskmg]> --pool-size <SIZE[bskmgtp]> --max-thins <NUM>

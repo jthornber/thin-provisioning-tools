@@ -41,7 +41,7 @@ impl CacheMetadataSizeCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Estimate the size of the metadata device needed for a given configuration.")
             .override_usage("cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>")
             // flags

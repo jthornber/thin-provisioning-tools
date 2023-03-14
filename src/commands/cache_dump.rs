@@ -16,7 +16,7 @@ impl CacheDumpCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Dump the cache metadata to stdout in XML format")
             .arg(
                 Arg::new("REPAIR")
@@ -61,8 +61,10 @@ impl<'a> Command<'a> for CacheDumpCommand {
         // Create a temporary report just in case these checks
         // need to report anything.
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
+
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Cache, &matches);
         if engine_opts.is_err() {

@@ -14,7 +14,7 @@ impl CacheWritebackCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Repair binary cache metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -104,9 +104,12 @@ impl<'a> Command<'a> for CacheWritebackCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(metadata_dev, &report);
-        check_input_file(origin_dev, &report);
-        check_input_file(fast_dev, &report);
+        if let Err(e) = check_input_file(metadata_dev)
+            .and_then(|_| check_input_file(origin_dev))
+            .and_then(|_| check_input_file(fast_dev))
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = match parse_engine_opts(ToolType::Cache, &matches) {
             Ok(opt) => opt,

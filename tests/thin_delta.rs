@@ -9,11 +9,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
-const USAGE: &str = concat!("thin_delta ",
-include_str!("../VERSION"),
-"Print the differences in the mappings between two thin devices
+const USAGE: &str = concat!(
+    "thin_delta ",
+    tools_version!(),
+    "
+Print the differences in the mappings between two thin devices
 
 USAGE:
     thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>

@@ -3,7 +3,6 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
-use common::fixture::*;
 use common::input_arg::*;
 use common::output_option::*;
 use common::process::*;
@@ -12,17 +11,21 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_metadata_unpack ",
-    include_str!("../VERSION"),
-    "Unpack a compressed file of thin metadata.
+    tools_version!(),
+    "
+Unpack a compressed file of thin metadata.
 
 USAGE:
-    thin_metadata_unpack -i <FILE> -o <DEV>
+    thin_metadata_unpack [OPTIONS] -i <FILE> -o <DEV>
 
 OPTIONS:
+    -f, --force      Force overwrite the output file
     -h, --help       Print help information
     -i <FILE>        Specify packed input file
     -o <DEV>         Specify thinp metadata binary device/file
@@ -103,18 +106,13 @@ test_missing_output_option!(ThinMetadataUnpack);
 fn end_to_end() -> Result<()> {
     let mut td = TestDir::new()?;
     let md_in = mk_valid_md(&mut td)?;
-    let md_out = mk_zeroed_md(&mut td)?;
+    let md_packed = td.mk_path("meta.pack");
+    let md_out = td.mk_path("meta.out");
     run_ok(thin_metadata_pack_cmd(args![
-        "-i",
-        &md_in,
-        "-o",
-        "meta.pack"
+        "-i", &md_in, "-o", &md_packed
     ]))?;
     run_ok(thin_metadata_unpack_cmd(args![
-        "-i",
-        "meta.pack",
-        "-o",
-        &md_out
+        "-i", &md_packed, "-o", &md_out
     ]))?;
 
     let dump1 = run_ok(thin_dump_cmd(args![&md_in]))?;

@@ -4,18 +4,22 @@ mod common;
 
 use common::cache::*;
 use common::common_args::*;
+use common::fixture::*;
 use common::input_arg::*;
 use common::output_option::*;
 use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "cache_repair ",
-    include_str!("../VERSION"),
-    "Repair binary cache metadata, and write it to a different device or file
+    tools_version!(),
+    "
+Repair binary cache metadata, and write it to a different device or file
 
 USAGE:
     cache_repair [OPTIONS] --input <FILE> --output <FILE>
@@ -101,5 +105,17 @@ test_corrupted_input_data!(CacheRepair);
 test_missing_output_option!(CacheRepair);
 
 test_readonly_input_file!(CacheRepair);
+
+//-----------------------------------------
+// accepts empty argument
+
+#[test]
+fn accepts_empty_argument() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let input = mk_valid_md(&mut td)?;
+    let output = mk_zeroed_md(&mut td)?;
+    run_ok(cache_repair_cmd(args!["-i", &input, "-o", &output, ""]))?;
+    Ok(())
+}
 
 //-----------------------------------------

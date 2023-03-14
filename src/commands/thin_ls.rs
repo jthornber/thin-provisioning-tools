@@ -15,7 +15,7 @@ impl ThinLsCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("List thin volumes within a pool")
             .arg(
                 Arg::new("NO_HEADERS")
@@ -67,8 +67,9 @@ impl<'a> Command<'a> for ThinLsCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let fields = if matches.is_present("FORMAT") {
             matches.values_of_t_or_exit::<OutputField>("FORMAT")

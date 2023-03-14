@@ -1,5 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
+use std::io::{self, Write};
 use std::ops::Add;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -89,6 +90,7 @@ pub trait ReportInner {
     fn log(&mut self, txt: &str, level: LogLevel);
     fn to_stdout(&mut self, txt: &str);
     fn complete(&mut self);
+    fn get_prompt_input(&mut self, prompt: &str) -> io::Result<String>;
 }
 
 impl Report {
@@ -167,6 +169,21 @@ impl Report {
         let mut inner = self.inner.lock().unwrap();
         inner.to_stdout(txt)
     }
+
+    pub fn get_prompt_input(&self, prompt: &str) -> io::Result<String> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.get_prompt_input(prompt)
+    }
+}
+
+fn get_prompt_input_(prompt: &str) -> io::Result<String> {
+    let mut stderr = io::stderr().lock();
+    stderr.write_all(prompt.as_bytes())?;
+    stderr.flush()?;
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    Ok(input.trim_end_matches('\n').to_string())
 }
 
 //------------------------------------------
@@ -237,6 +254,10 @@ impl ReportInner for PBInner {
     fn complete(&mut self) {
         self.bar.finish_and_clear();
     }
+
+    fn get_prompt_input(&mut self, prompt: &str) -> io::Result<String> {
+        self.bar.suspend(|| get_prompt_input_(prompt))
+    }
 }
 
 pub fn mk_progress_bar_report() -> Report {
@@ -291,6 +312,10 @@ impl ReportInner for SimpleInner {
     }
 
     fn complete(&mut self) {}
+
+    fn get_prompt_input(&mut self, prompt: &str) -> io::Result<String> {
+        get_prompt_input_(prompt)
+    }
 }
 
 pub fn mk_simple_report() -> Report {
@@ -315,6 +340,10 @@ impl ReportInner for QuietInner {
     fn to_stdout(&mut self, _txt: &str) {}
 
     fn complete(&mut self) {}
+
+    fn get_prompt_input(&mut self, _prompt: &str) -> io::Result<String> {
+        Ok(String::new()) // the quiet report doesn't accept inputs
+    }
 }
 
 pub fn mk_quiet_report() -> Report {

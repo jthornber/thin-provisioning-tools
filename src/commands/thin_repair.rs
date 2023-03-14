@@ -16,7 +16,7 @@ impl ThinRepairCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Repair thin-provisioning metadata, and write it to different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -58,7 +58,10 @@ impl ThinRepairCommand {
                     .help("Override the transaction id if needed")
                     .long("transaction-id")
                     .value_name("NUM"),
-            );
+            )
+            // a dummy argument for compatibility with lvconvert
+            .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
+
         verbose_args(engine_args(cmd))
     }
 }
@@ -81,8 +84,12 @@ impl<'a> Command<'a> for ThinRepairCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(input_file, &report);
-        check_output_file(output_file, &report);
+        if let Err(e) = check_input_file(input_file)
+            .and_then(check_file_not_tiny)
+            .and_then(|_| check_output_file(output_file))
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {

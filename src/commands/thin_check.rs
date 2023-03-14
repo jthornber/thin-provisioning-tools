@@ -13,7 +13,7 @@ impl ThinCheckCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Validates thin provisioning metadata on a device or file.")
             // flags
             .arg(
@@ -99,9 +99,12 @@ impl<'a> Command<'a> for ThinCheckCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
-        check_not_xml(input_file, &report);
+        if let Err(e) = check_input_file(input_file)
+            .and_then(check_file_not_tiny)
+            .and_then(check_not_xml)
+        {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {

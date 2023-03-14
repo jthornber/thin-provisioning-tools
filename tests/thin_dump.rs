@@ -13,12 +13,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_dump ",
-    include_str!("../VERSION"),
-    "Dump thin-provisioning metadata to stdout in XML format
+    tools_version!(),
+    "
+Dump thin-provisioning metadata to stdout in XML format
 
 USAGE:
     thin_dump [OPTIONS] <INPUT>

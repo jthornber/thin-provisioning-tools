@@ -16,7 +16,7 @@ impl ThinDumpCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Dump thin-provisioning metadata to stdout in XML format")
             .arg(
                 Arg::new("QUIET")
@@ -123,7 +123,9 @@ impl<'a> Command<'a> for ThinDumpCommand {
         };
         report.set_level(log_level);
 
-        check_input_file(input_file, &report);
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {

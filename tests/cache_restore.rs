@@ -12,12 +12,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "cache_restore ",
-    include_str!("../VERSION"),
-    "Convert XML format metadata to binary.
+    tools_version!(),
+    "
+Convert XML format metadata to binary.
 
 USAGE:
     cache_restore [OPTIONS] --input <FILE> --output <FILE>

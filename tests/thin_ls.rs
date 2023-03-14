@@ -10,12 +10,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_ls ",
-    include_str!("../VERSION"),
-    "List thin volumes within a pool
+    tools_version!(),
+    "
+List thin volumes within a pool
 
 USAGE:
     thin_ls [OPTIONS] <INPUT>

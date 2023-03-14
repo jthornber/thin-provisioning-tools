@@ -44,7 +44,7 @@ impl ThinRmapCommand {
     fn cli<'a>(&self) -> clap::Command<'a> {
         let cmd = clap::Command::new(self.name())
             .color(clap::ColorChoice::Never)
-            .version(crate::version::tools_version())
+            .version(crate::tools_version!())
             .about("Output reverse map of a thin provisioned region of blocks")
             // options
             .arg(
@@ -79,8 +79,10 @@ impl<'a> Command<'a> for ThinRmapCommand {
         let input_file = Path::new(matches.value_of("INPUT").unwrap());
 
         let report = mk_report(false);
-        check_input_file(input_file, &report);
-        check_file_not_tiny(input_file, &report);
+
+        if let Err(e) = check_input_file(input_file).and_then(check_file_not_tiny) {
+            return to_exit_code::<()>(&report, Err(e));
+        }
 
         // FIXME: get rid of the intermediate RangeU64 struct
         let regions: Vec<Range<u64>> = matches

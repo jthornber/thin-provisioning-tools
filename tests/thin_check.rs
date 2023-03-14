@@ -11,12 +11,15 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "thin_check ",
-    include_str!("../VERSION"),
-    "Validates thin provisioning metadata on a device or file.
+    tools_version!(),
+    "
+Validates thin provisioning metadata on a device or file.
 
 USAGE:
     thin_check [OPTIONS] <INPUT>

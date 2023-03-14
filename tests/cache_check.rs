@@ -11,12 +11,15 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use thinp::tools_version;
+
 //------------------------------------------
 
 const USAGE: &str = concat!(
     "cache_check ",
-    include_str!("../VERSION"),
-    "Validates cache metadata on a device or file.
+    tools_version!(),
+    "
+Validates cache metadata on a device or file.
 
 USAGE:
     cache_check [OPTIONS] <INPUT>
