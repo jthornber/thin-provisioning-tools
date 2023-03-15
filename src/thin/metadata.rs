@@ -137,7 +137,7 @@ pub fn build_metadata_with_dev(
     let defs = Vec::new();
     let mut devs = Vec::new();
     for (thin_id, (_path, root)) in roots {
-        let id = thin_id as u64;
+        let id = thin_id;
         let detail = details.get(&id).expect("couldn't find device details");
         let es = entry_map.get(&root).unwrap();
         let kr = KeyRange::new(); // FIXME: finish

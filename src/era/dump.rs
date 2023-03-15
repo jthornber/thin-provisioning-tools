@@ -281,7 +281,7 @@ pub fn dump_metadata(
 
     let writesets = get_writesets_ordered(engine.clone(), sb, repair)?;
     for (era, ws) in writesets.iter() {
-        dump_writeset(engine.clone(), out, *era as u32, ws, repair)?;
+        dump_writeset(engine.clone(), out, *era, ws, repair)?;
     }
 
     out.era_b().context(OutputError)?;

@@ -49,11 +49,11 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
         while remaining > 0 {
             match self.dev.read_vectored_at(os_bufs, pos) {
                 Ok(n) => {
-                    remaining -= n as usize;
+                    remaining -= n;
                     pos += n as u64;
-                    assert_eq!(n as usize % block_size, 0);
-                    os_bufs = &mut os_bufs[(n as usize / block_size)..];
-                    for _ in 0..(n as usize / block_size) {
+                    assert_eq!(n % block_size, 0);
+                    os_bufs = &mut os_bufs[(n / block_size)..];
+                    for _ in 0..(n / block_size) {
                         results.push(Ok(()));
                     }
                 }
@@ -86,11 +86,11 @@ impl<T: VectoredIo> WriteBlocks for VectoredBlockIo<T> {
 
         while remaining > 0 {
             if let Ok(n) = self.dev.write_vectored_at(os_bufs, pos) {
-                remaining -= n as usize;
+                remaining -= n;
                 pos += n as u64;
-                assert_eq!(n as usize % block_size, 0);
-                os_bufs = &os_bufs[(n as usize / block_size)..];
-                for _ in 0..(n as usize / block_size) {
+                assert_eq!(n % block_size, 0);
+                os_bufs = &os_bufs[(n / block_size)..];
+                for _ in 0..(n / block_size) {
                     results.push(Ok(()));
                 }
             } else {

@@ -227,7 +227,7 @@ pub fn write_common(
                 1 => Small(1),
                 2 => Small(2),
                 _ => {
-                    overflow_builder.push_value(w, b as u64, rc)?;
+                    overflow_builder.push_value(w, b, rc)?;
                     Overflow
                 }
             };
@@ -309,7 +309,7 @@ pub fn write_metadata_common(w: &mut WriteBatcher) -> anyhow::Result<(Vec<IndexE
                     if i == none_free_before {
                         none_free_before = i + 1;
                     }
-                    overflow_builder.push_value(w, b as u64, rc)?;
+                    overflow_builder.push_value(w, b, rc)?;
                     Overflow
                 }
             };

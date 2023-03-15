@@ -121,7 +121,7 @@ impl CacheMetadataSizeCommand {
                 return Err(anyhow!("pool size must be larger than block size"));
             }
 
-            div_up(device_size, block_size as u64)
+            div_up(device_size, block_size)
         } else {
             return Err(anyhow!(
                 "Please specify either --device-size and --block-size, or --nr-blocks."

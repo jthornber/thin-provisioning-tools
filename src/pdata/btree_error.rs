@@ -232,11 +232,11 @@ pub fn encode_node_path(path: &[u64]) -> String {
     // special case this.
     if !path.is_empty() && path[0] == 0 {
         let count = ((path.len() as u8) - 1) << 1;
-        cursor.write_u8(count as u8).unwrap();
+        cursor.write_u8(count).unwrap();
         vm::pack_u64s(&mut cursor, &path[1..]).unwrap();
     } else {
         let count = ((path.len() as u8) << 1) | 1;
-        cursor.write_u8(count as u8).unwrap();
+        cursor.write_u8(count).unwrap();
         vm::pack_u64s(&mut cursor, path).unwrap();
     }
 

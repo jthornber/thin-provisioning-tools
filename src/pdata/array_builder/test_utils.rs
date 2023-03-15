@@ -48,7 +48,7 @@ impl ArrayLayout {
         let nr_leaves = self.block_tree.nr_leaves();
         assert!(leaf_idx <= nr_leaves);
 
-        if leaf_idx as u64 == nr_leaves {
+        if leaf_idx == nr_leaves {
             self.nr_array_blocks()
         } else {
             self.block_tree.leaves()[leaf_idx as usize].entries_begin

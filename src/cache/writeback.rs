@@ -416,9 +416,9 @@ impl BitsetUpdater {
             let bit = b % BITS_PER_WORD;
 
             if v {
-                block.block.values[word as usize] |= 1 << bit;
+                block.block.values[word] |= 1 << bit;
             } else {
-                block.block.values[word as usize] &= !(1 << bit);
+                block.block.values[word] &= !(1 << bit);
             }
         } else {
             panic!("no current block (can't happen)");
@@ -535,7 +535,7 @@ fn update_v1_metadata(
     let mut needs_update = false;
 
     for cblock in cleaned_blocks.iter() {
-        if cblock as usize / max_entries as usize != index {
+        if cblock as usize / max_entries != index {
             if needs_update {
                 // update array block
                 let mut cursor = Cursor::new(b.get_data());
@@ -545,7 +545,7 @@ fn update_v1_metadata(
             }
 
             // move on to the new array block
-            index = cblock as usize / max_entries as usize;
+            index = cblock as usize / max_entries;
             b = ctx.engine.read(ablocks[index])?;
             ablock = unpack_array_block::<Mapping>(&path, b.get_data())?;
         }
@@ -734,7 +734,7 @@ fn copy_selected_blocks(
     report: Arc<Report>,
 ) -> anyhow::Result<(RoaringBitmap, RoaringBitmap, RoaringBitmap)> {
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
-    let progress = Arc::new(ProgressReporter::new(report, blocks.len() as u64));
+    let progress = Arc::new(ProgressReporter::new(report, blocks.len()));
 
     let copier = ThreadedCopier::new(copier);
     let copy_thread = copier.run(rx, progress);

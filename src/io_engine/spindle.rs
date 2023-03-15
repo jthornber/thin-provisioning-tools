@@ -47,7 +47,7 @@ fn unpack_block(z: &[u8], loc: u64) -> Result<Block> {
     // FIXME: remove this copy
     let b = Block::new(loc);
     let mut c = std::io::Cursor::new(z);
-    let data = crate::pack::vm::unpack(&mut c, BLOCK_SIZE as usize)?;
+    let data = crate::pack::vm::unpack(&mut c, BLOCK_SIZE)?;
     unsafe {
         std::ptr::copy(data.as_ptr(), b.get_raw_ptr(), BLOCK_SIZE);
     }

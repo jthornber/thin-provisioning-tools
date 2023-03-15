@@ -61,7 +61,7 @@ impl BitsetVisitor {
 impl ArrayVisitor<u64> for BitsetVisitor {
     fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
         let mut begin = (index as usize * (b.header.max_entries as usize)) << 6;
-        if begin >= self.nr_bits as usize {
+        if begin >= self.nr_bits {
             return Err(array::value_err(format!(
                 "bitset size exceeds limit: {} bits",
                 self.nr_bits
@@ -69,7 +69,7 @@ impl ArrayVisitor<u64> for BitsetVisitor {
         }
 
         for bits in b.values.iter() {
-            let end: usize = std::cmp::min(begin + 64, self.nr_bits as usize);
+            let end: usize = std::cmp::min(begin + 64, self.nr_bits);
 
             let mut mask = 1;
             let mut extracted_bits = self.bits.lock().unwrap();

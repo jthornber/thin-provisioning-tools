@@ -148,10 +148,7 @@ fn read_bitmaps(engine: Arc<dyn IoEngine + Send + Sync>, bitmap_root: u64) -> Re
     let mut path = vec![0];
     let entries = btree_to_map::<IndexEntry>(&mut path, engine.clone(), false, bitmap_root)?;
 
-    let blocknr = entries
-        .iter()
-        .map(|(_, ie)| ie.blocknr)
-        .collect::<Vec<u64>>();
+    let blocknr = entries.values().map(|ie| ie.blocknr).collect::<Vec<u64>>();
     let blocks = engine.read_many(&blocknr[..])?;
     let mut bitmaps = Vec::new();
     for b in blocks {
