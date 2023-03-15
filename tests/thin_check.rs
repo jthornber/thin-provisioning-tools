@@ -573,7 +573,7 @@ fn offline_check_should_examine_devices_with_reused_id() -> Result<()> {
 }
 
 #[test]
-fn offline_check_metadata_with_resued_id_should_success() -> Result<()> {
+fn offline_check_metadata_with_reused_id_should_success() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata_from_file(&mut td, "tmeta_device_id_reuse.pack")?;
     run_ok(thin_check_cmd(args![&md]))?;
