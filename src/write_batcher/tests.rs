@@ -10,6 +10,12 @@ use checksum::BT;
 
 const NR_BLOCKS: u64 = 65536;
 
+#[cfg(target_arch = "x86")]
+const SEED_SIZE: usize = 16;
+
+#[cfg(not(target_arch = "x86"))]
+const SEED_SIZE: usize = 32;
+
 mock! {
     Engine {}
     impl IoEngine for Engine {
@@ -97,7 +103,7 @@ fn writes_should_be_performed_in_batch() {
 #[test]
 fn write_hit() {
     let mut src = vec![0u8; 4096];
-    let mut rng = rand::rngs::SmallRng::from_seed([0; 32]);
+    let mut rng = rand::rngs::SmallRng::from_seed([0; SEED_SIZE]);
     rng.fill_bytes(&mut src[4..]);
     assert!(checksum::write_checksum(&mut src[..], BT::NODE).is_ok());
 
@@ -133,7 +139,7 @@ fn write_hit() {
 #[test]
 fn read_hit() {
     let mut src = vec![0u8; 4096];
-    let mut rng = rand::rngs::SmallRng::from_seed([0; 32]);
+    let mut rng = rand::rngs::SmallRng::from_seed([0; SEED_SIZE]);
     rng.fill_bytes(&mut src[4..]);
     assert!(checksum::write_checksum(&mut src[..], BT::NODE).is_ok());
 
