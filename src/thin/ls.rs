@@ -524,16 +524,15 @@ fn read_internal_nodes(
 
     // FIXME: make get-depth more resilient
     let mut path = Vec::new();
-    let depth;
-    if let Ok(d) = get_depth(ctx, &mut path, root as u64, true) {
-        depth = d;
+    let depth = if let Ok(d) = get_depth(ctx, &mut path, root as u64, true) {
+        d
     } else {
         return;
-    }
+    };
 
     if depth == 0 {
         // The root will be skipped if it is a confirmed internal
-        let _ = nodes.insert_leaf(root as u32);
+        let _ = nodes.insert_leaf(root);
         return;
     }
 

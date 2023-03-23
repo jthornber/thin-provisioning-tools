@@ -86,10 +86,7 @@ impl<T: ReadBlocks + WriteBlocks, V: Validator> ReadWriteTest<T, V> {
 
     fn test_read(&self, blocks: Range<u64>) {
         let buf = Buffer::new(self.block_size * length(&blocks) as usize, 4096);
-        let mut bufs: Vec<&mut [u8]> = buf
-            .get_data()
-            .chunks_mut(self.block_size as usize)
-            .collect();
+        let mut bufs: Vec<&mut [u8]> = buf.get_data().chunks_mut(self.block_size).collect();
         let pos = self.offset + blocks.start * self.block_size as u64;
         let ret = self.dev.read_blocks(&mut bufs, pos);
         assert!(ret.is_ok());
@@ -98,7 +95,7 @@ impl<T: ReadBlocks + WriteBlocks, V: Validator> ReadWriteTest<T, V> {
 
     fn test_write(&self, blocks: Range<u64>) {
         let buf = Buffer::new(self.block_size * length(&blocks) as usize, 4096);
-        let bufs: Vec<&[u8]> = buf.get_data().chunks(self.block_size as usize).collect();
+        let bufs: Vec<&[u8]> = buf.get_data().chunks(self.block_size).collect();
         let pos = self.offset + blocks.start * self.block_size as u64;
         let ret = self.dev.write_blocks(&bufs, pos);
         assert!(ret.is_ok());

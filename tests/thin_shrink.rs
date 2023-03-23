@@ -274,7 +274,7 @@ fn create_data_file(data_path: &Path, xml_path: &Path) -> Result<()> {
     let input = OpenOptions::new().read(true).write(false).open(xml_path)?;
 
     let sb = xml::read_superblock(input)?;
-    let nr_blocks = sb.nr_data_blocks as u64;
+    let nr_blocks = sb.nr_data_blocks;
     let block_size = sb.data_block_size as u64 * 512;
 
     let _file = file_utils::create_sized_file(data_path, nr_blocks * block_size)?;

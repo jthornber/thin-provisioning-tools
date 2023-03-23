@@ -125,8 +125,7 @@ dependencies = [
 [[package]]
 name = "crc32c"
 version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dfea2db42e9927a3845fb268a10a72faed6d416065f77873f05e411457c363e"
+source = "git+https://github.com/zowens/crc32c?rev=refs/pull/35/head#4e362a4b57cf9e267f23dbe1d8b75790f802294e"
 dependencies = [
  "rustc_version",
 ]

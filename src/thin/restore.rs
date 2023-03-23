@@ -206,7 +206,7 @@ impl<'a> Restorer<'a> {
             flags: SuperblockFlags { needs_check: false },
             block: SUPERBLOCK_LOCATION,
             version: 2,
-            time: src_sb.time as u32,
+            time: src_sb.time,
             transaction_id: src_sb.transaction,
             metadata_snap: 0,
             data_sm_root,
@@ -277,8 +277,8 @@ impl<'a> MetadataVisitor for Restorer<'a> {
         self.current_dev = Some(DeviceDetail {
             mapped_blocks: d.mapped_blocks,
             transaction_id: d.transaction,
-            creation_time: d.creation_time as u32,
-            snapshotted_time: d.snap_time as u32,
+            creation_time: d.creation_time,
+            snapshotted_time: d.snap_time,
         });
         self.in_section = Section::Device;
         self.begin_section(MappedSection::Dev(d.dev_id))

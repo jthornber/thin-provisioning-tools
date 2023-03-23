@@ -162,7 +162,7 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
             match results {
                 Ok(results) => {
                     for (i, v) in results.iter().enumerate() {
-                        let index = op.indexes[i as usize];
+                        let index = op.indexes[i];
                         if v.is_ok() {
                             success_bits.insert(index as u32);
                         }
@@ -227,7 +227,7 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
             match results {
                 Ok(results) => {
                     for (i, v) in results.iter().enumerate() {
-                        let index = op.indexes[i as usize];
+                        let index = op.indexes[i];
                         if v.is_ok() {
                             success_bits.insert(index as u32);
                         }
@@ -310,15 +310,15 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
                 }
 
                 let mut stats = stats.write().unwrap();
-                stats.nr_copied += write_success.len() as u64;
+                stats.nr_copied += write_success.len();
                 progress.update(&stats);
             })
         };
 
         // read loop
         let chunk_size = self.buffer_size / self.block_size;
-        for chunk in ops.chunks(chunk_size as usize) {
-            let buffer_size = chunk.len() * self.block_size as usize;
+        for chunk in ops.chunks(chunk_size) {
+            let buffer_size = chunk.len() * self.block_size;
             let ops: Vec<CopyOp> = chunk.to_vec();
             let buffer = Buffer::new(buffer_size, 4096);
             let read_success = Self::do_reads(

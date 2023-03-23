@@ -156,7 +156,7 @@ where
     }
 
     fn get_alloc_begin(&self) -> Result<u64> {
-        Ok(self.alloc_begin as u64)
+        Ok(self.alloc_begin)
     }
 }
 

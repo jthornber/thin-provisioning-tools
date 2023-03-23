@@ -495,7 +495,7 @@ fn apply_snap_runs(
     Ok(runs)
 }
 
-// Snapshots share mappings, not neccessarily the entire ranges.
+// Snapshots share mappings, not necessarily the entire ranges.
 pub struct SnapS {
     pub len: u64,
     pub nr_snaps: u32,

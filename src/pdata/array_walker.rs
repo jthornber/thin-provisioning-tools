@@ -140,7 +140,7 @@ impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
 
 impl ArrayWalker {
     pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> ArrayWalker {
-        let nr_blocks = engine.get_nr_blocks() as u64;
+        let nr_blocks = engine.get_nr_blocks();
         let r: ArrayWalker = ArrayWalker {
             engine,
             sm: Arc::new(Mutex::new(RestrictedSpaceMap::new(nr_blocks))),

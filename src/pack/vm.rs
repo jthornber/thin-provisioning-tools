@@ -95,7 +95,7 @@ fn pack_delta<W: Write>(w: &mut W, d: &Delta) -> io::Result<()> {
                 w.write_u32::<LittleEndian>(*delta as u32)
             } else {
                 pack_tag(w, PosW, 8)?;
-                w.write_u64::<LittleEndian>(*delta as u64)
+                w.write_u64::<LittleEndian>(*delta)
             }
         }
         Delta::Neg { delta, count } => {
@@ -114,7 +114,7 @@ fn pack_delta<W: Write>(w: &mut W, d: &Delta) -> io::Result<()> {
                 w.write_u32::<LittleEndian>(*delta as u32)
             } else {
                 pack_tag(w, NegW, 8)?;
-                w.write_u64::<LittleEndian>(*delta as u64)
+                w.write_u64::<LittleEndian>(*delta)
             }
         }
         Delta::Const { count } => {
@@ -186,7 +186,7 @@ pub fn pack_literal<W: Write>(w: &mut W, bs: &[u8]) -> io::Result<()> {
         w.write_u32::<LittleEndian>(len as u32)?;
     } else {
         pack_tag(w, LitW, 8)?;
-        w.write_u64::<LittleEndian>(len as u64)?;
+        w.write_u64::<LittleEndian>(len)?;
     }
     w.write_all(bs)
 }
@@ -198,7 +198,7 @@ fn unpack_with_width<R: Read>(r: &mut R, nibble: u8) -> io::Result<u64> {
         1 => r.read_u8()? as u64,
         2 => r.read_u16::<LittleEndian>()? as u64,
         4 => r.read_u32::<LittleEndian>()? as u64,
-        8 => r.read_u64::<LittleEndian>()? as u64,
+        8 => r.read_u64::<LittleEndian>()?,
         _ => {
             panic!("SET with bad width");
         }
@@ -313,7 +313,7 @@ impl VM {
             }
             Count8 => {
                 let count = ((nibble as usize) << 8) | (r.read_u8()? as usize);
-                self.unpack_instr(r, w, count as usize)?;
+                self.unpack_instr(r, w, count)?;
             }
             Lit => {
                 assert_eq!(count, 1);
@@ -332,7 +332,7 @@ impl VM {
             ShiftedRun => {
                 // FIXME: repeated unpack, pack, unpack
                 let len = ((nibble as usize) << 8) | (r.read_u8()? as usize);
-                let nr_bytes = (len as usize) * std::mem::size_of::<u64>() as usize;
+                let nr_bytes = len * std::mem::size_of::<u64>();
 
                 let mut high_bytes: Vec<u8> = Vec::with_capacity(nr_bytes);
                 let written = self.exec(r, &mut high_bytes, nr_bytes)?;

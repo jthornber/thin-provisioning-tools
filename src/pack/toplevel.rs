@@ -191,7 +191,7 @@ where
 
 fn get_nr_blocks(path: &Path) -> io::Result<u64> {
     let len = file_utils::file_size(path)?;
-    Ok(len / (BLOCK_SIZE as u64))
+    Ok(len / BLOCK_SIZE)
 }
 
 fn read_blocks<R>(rdr: &mut R, b: u64, count: u64) -> io::Result<Vec<u8>>
