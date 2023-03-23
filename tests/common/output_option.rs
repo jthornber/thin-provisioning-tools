@@ -79,6 +79,12 @@ pub fn test_unwritable_output_file<'a, P>() -> Result<()>
 where
     P: OutputProgram<'a>,
 {
+    unsafe {
+        if libc::getuid() == 0 {
+            return Ok(());
+        }
+    }
+
     let mut td = TestDir::new()?;
     let input = P::mk_valid_input(&mut td)?;
 
