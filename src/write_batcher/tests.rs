@@ -96,8 +96,10 @@ fn writes_should_be_performed_in_batch() {
 
 #[test]
 fn write_hit() {
+    type SeedType = <SmallRng as rand::SeedableRng>::Seed;
+
     let mut src = vec![0u8; 4096];
-    let mut rng = rand::rngs::SmallRng::from_seed([0; 32]);
+    let mut rng = SmallRng::from_seed(SeedType::default());
     rng.fill_bytes(&mut src[4..]);
     assert!(checksum::write_checksum(&mut src[..], BT::NODE).is_ok());
 
@@ -132,8 +134,10 @@ fn write_hit() {
 
 #[test]
 fn read_hit() {
+    type SeedType = <SmallRng as rand::SeedableRng>::Seed;
+
     let mut src = vec![0u8; 4096];
-    let mut rng = rand::rngs::SmallRng::from_seed([0; 32]);
+    let mut rng = SmallRng::from_seed(SeedType::default());
     rng.fill_bytes(&mut src[4..]);
     assert!(checksum::write_checksum(&mut src[..], BT::NODE).is_ok());
 
