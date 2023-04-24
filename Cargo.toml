@@ -11,7 +11,7 @@ anyhow = "1.0"
 base64 = "0.20"
 byteorder = "1.4"
 clap = "3.2"
-crc32c = { git = "https://github.com/zowens/crc32c", rev="refs/pull/35/head" }
+crc32c = { git = "https://github.com/zowens/crc32c", branch = "master" }
 data-encoding = "2.3"
 exitcode = "1.1.2"
 fixedbitset = "0.4"
