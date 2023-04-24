@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate nix;
-
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]

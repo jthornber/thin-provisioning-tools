@@ -132,14 +132,16 @@ impl<'a> Iterator for RangeIterator<'a> {
 
 //------------------------------------------
 
-// defined in include/uapi/linux/fs.h
-const BLK_IOC_CODE: u8 = 0x12;
-const BLKDISCARD_SEQ: u8 = 119;
-ioctl_write_ptr_bad!(
-    ioctl_blkdiscard,
-    nix::request_code_none!(BLK_IOC_CODE, BLKDISCARD_SEQ),
-    [u64; 2]
-);
+const BLKDISCARD: u32 = 0x1277;
+fn ioctl_blkdiscard(fd: i32, range: &[u64; 2]) -> std::io::Result<()> {
+    unsafe {
+        if libc::ioctl(fd, BLKDISCARD as libc::c_ulong, range) == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+}
 
 // Read all the bitmaps at once
 // There might be more than 64k bitmap blocks in a 16GB metadata, if the pool size
@@ -187,9 +189,7 @@ fn trim_data_device(ctx: &Context, sb: &Superblock, data_dev: &Path) -> Result<(
                         last_seen,
                         last_seen + len - 1
                     ));
-                    unsafe {
-                        ioctl_blkdiscard(fd, &[last_seen * bs, len * bs])?;
-                    }
+                    ioctl_blkdiscard(fd, &[last_seen * bs, len * bs])?;
                 }
                 last_seen = range.end;
             }
@@ -199,9 +199,7 @@ fn trim_data_device(ctx: &Context, sb: &Superblock, data_dev: &Path) -> Result<(
 
     if root.nr_blocks > last_seen {
         let len = root.nr_blocks - last_seen;
-        unsafe {
-            ioctl_blkdiscard(fd, &[last_seen * bs, len * bs])?;
-        }
+        ioctl_blkdiscard(fd, &[last_seen * bs, len * bs])?;
     }
 
     Ok(())
