@@ -110,6 +110,7 @@ fn collect_leaves<V: Unpack>(engine: AEngine, roots: &[u64]) -> Result<Vec<NodeS
 
 //------------------------------------------
 
+#[allow(clippy::extra_unused_type_parameters)]
 fn optimise_leaves<V: Unpack + Pack>(
     _batcher: &mut WriteBatcher,
     lvs: Vec<NodeSummary>,
