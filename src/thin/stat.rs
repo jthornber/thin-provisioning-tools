@@ -211,9 +211,7 @@ pub struct ThinStatOpts<'a> {
 }
 
 pub fn stat(opts: ThinStatOpts) -> Result<()> {
-    let engine = EngineBuilder::new(opts.input, &opts.engine_opts)
-        .write(true)
-        .build()?;
+    let engine = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
 
     match opts.op {
         StatOp::DataBlockRefCounts => print_data_blocks_histogram(engine)?,
