@@ -206,7 +206,7 @@ impl<'a> StatefulWidget for SBWidget<'a> {
         let details_root = vec!["details root".to_string(), format!("{}", sb.details_root)];
         let data_block_size = vec![
             "data block size".to_string(),
-            format!("{}k", sb.data_block_size * 2),
+            format!("{}k", sb.data_block_size / 2),
         ];
 
         let table = Table::new(vec![
