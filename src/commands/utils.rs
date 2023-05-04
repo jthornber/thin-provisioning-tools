@@ -139,7 +139,11 @@ where
 
 pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::ExitCode {
     if let Err(e) = result {
-        report.fatal(&format!("{}", e));
+        if e.chain().len() > 1 {
+            report.fatal(&format!("{}: {}", e, e.root_cause()));
+        } else {
+            report.fatal(&format!("{}", e));
+        }
 
         // FIXME: we need a way of getting more meaningful error codes
         exitcode::USAGE

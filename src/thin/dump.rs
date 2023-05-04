@@ -25,16 +25,16 @@ use crate::thin::xml;
 
 //------------------------------------------
 
-struct RunBuilder {
+pub struct RunBuilder {
     run: Option<ir::Map>,
 }
 
 impl RunBuilder {
-    fn new() -> RunBuilder {
+    pub fn new() -> RunBuilder {
         RunBuilder { run: None }
     }
 
-    fn next(&mut self, thin_block: u64, data_block: u64, time: u32) -> Option<ir::Map> {
+    pub fn next(&mut self, thin_block: u64, data_block: u64, time: u32) -> Option<ir::Map> {
         use ir::Map;
 
         match self.run {
@@ -71,8 +71,14 @@ impl RunBuilder {
         }
     }
 
-    fn complete(&mut self) -> Option<ir::Map> {
+    pub fn complete(&mut self) -> Option<ir::Map> {
         self.run.take()
+    }
+}
+
+impl Default for RunBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

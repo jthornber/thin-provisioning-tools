@@ -54,6 +54,7 @@ impl<'a> Command<'a> for ThinStatCommand {
             op: match matches.value_of("OP") {
                 Some("data_blocks") => StatOp::DataBlockRefCounts,
                 Some("metadata_blocks") => StatOp::MetadataBlockRefCounts,
+                Some("data_run_len") => StatOp::DataRunLength,
                 _ => return exitcode::USAGE,
             },
         };

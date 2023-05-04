@@ -46,6 +46,7 @@ pub struct Def {
 pub struct Metadata {
     pub defs: Vec<Def>,
     pub devs: Vec<Device>,
+    nr_blocks: u64,
 }
 
 //------------------------------------------
@@ -151,7 +152,11 @@ pub fn build_metadata_with_dev(
         });
     }
 
-    Ok(Metadata { defs, devs })
+    Ok(Metadata {
+        defs,
+        devs,
+        nr_blocks: engine.get_nr_blocks(),
+    })
 }
 
 pub fn build_metadata_without_mappings(
@@ -178,6 +183,7 @@ pub fn build_metadata_without_mappings(
     Ok(Metadata {
         defs: Vec::new(),
         devs,
+        nr_blocks: engine.get_nr_blocks(),
     })
 }
 
@@ -197,8 +203,8 @@ fn gather_entries(g: &mut Gatherer, es: &[Entry]) {
     }
 }
 
-fn build_runs(devs: &[Device]) -> BTreeMap<u64, (Vec<u64>, bool)> {
-    let mut g = Gatherer::new();
+fn build_runs(devs: &[Device], nr_blocks: u64) -> BTreeMap<u64, (Vec<u64>, bool)> {
+    let mut g = Gatherer::new(nr_blocks);
 
     for d in devs {
         gather_entries(&mut g, &d.map.entries);
@@ -263,7 +269,7 @@ fn build_defs(runs: BTreeMap<u64, (Vec<u64>, bool)>) -> Vec<Def> {
 // FIXME: do we really need to track kr?
 // FIXME: I think this may be better done as part of restore.
 pub fn optimise_metadata(md: Metadata) -> Result<Metadata> {
-    let runs = build_runs(&md.devs);
+    let runs = build_runs(&md.devs, md.nr_blocks);
 
     // Expand old devs to use the new atomic runs
     let mut devs = Vec::new();
@@ -279,7 +285,11 @@ pub fn optimise_metadata(md: Metadata) -> Result<Metadata> {
 
     let defs = build_defs(runs);
 
-    Ok(Metadata { defs, devs })
+    Ok(Metadata {
+        defs,
+        devs,
+        nr_blocks: md.nr_blocks,
+    })
 }
 
 //------------------------------------------

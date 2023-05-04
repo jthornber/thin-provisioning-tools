@@ -34,6 +34,7 @@ use crate::commands::Command;
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::btree_error;
+use crate::pdata::space_map::common::SMRoot;
 use crate::pdata::unpack::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -159,7 +160,7 @@ impl<'a> StatefulWidget for SBWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut ListState) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(10), Constraint::Percentage(80)].as_ref())
+            .constraints([Constraint::Min(18), Constraint::Percentage(80)].as_ref())
             .split(area);
 
         let sb = self.sb;
@@ -180,11 +181,32 @@ impl<'a> StatefulWidget for SBWidget<'a> {
                 format!("{}", sb.metadata_snap)
             },
         ];
+        let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..]).unwrap();
+        let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..]).unwrap();
+        let metadata_allocated = vec![
+            "metadata allocated".to_string(),
+            format!("{}/{}", metadata_root.nr_allocated, metadata_root.nr_blocks),
+        ];
+        let meta_sm_roots = vec![
+            "metadata roots".to_string(),
+            format!(
+                "[{}, {}]",
+                metadata_root.bitmap_root, metadata_root.ref_count_root
+            ),
+        ];
+        let data_allocated = vec![
+            "data allocated".to_string(),
+            format!("{}/{}", data_root.nr_allocated, data_root.nr_blocks),
+        ];
+        let data_sm_roots = vec![
+            "data roots".to_string(),
+            format!("[{}, {}]", data_root.bitmap_root, data_root.ref_count_root),
+        ];
         let mapping_root = vec!["mapping root".to_string(), format!("{}", sb.mapping_root)];
         let details_root = vec!["details root".to_string(), format!("{}", sb.details_root)];
         let data_block_size = vec![
             "data block size".to_string(),
-            format!("{}k", sb.data_block_size * 2),
+            format!("{}k", sb.data_block_size / 2),
         ];
 
         let table = Table::new(vec![
@@ -195,6 +217,10 @@ impl<'a> StatefulWidget for SBWidget<'a> {
             Row::new(time),
             Row::new(transaction_id),
             Row::new(metadata_snap),
+            Row::new(metadata_allocated),
+            Row::new(meta_sm_roots),
+            Row::new(data_allocated),
+            Row::new(data_sm_roots),
             Row::new(mapping_root),
             Row::new(details_root),
             Row::new(data_block_size),

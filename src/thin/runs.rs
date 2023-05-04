@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::mem;
+use fixedbitset::FixedBitSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 //------------------------------------------
 
@@ -16,40 +16,41 @@ impl Entry {
 
 pub struct Gatherer {
     prev: Option<u64>,
-    heads: BTreeMap<u64, bool>,
-    tails: BTreeSet<u64>,
+    heads: FixedBitSet,
+    tails: FixedBitSet,
     entries: BTreeMap<u64, Entry>,
-    back: BTreeMap<u64, u64>,
+    back: HashMap<u64, u64>,
+    shared: FixedBitSet,
 }
 
 impl Gatherer {
-    pub fn new() -> Gatherer {
+    pub fn new(nr_entries: u64) -> Gatherer {
         Gatherer {
             prev: None,
-            heads: BTreeMap::new(),
-            tails: BTreeSet::new(),
+            heads: FixedBitSet::with_capacity(nr_entries as usize),
+            tails: FixedBitSet::with_capacity(nr_entries as usize),
             entries: BTreeMap::new(),
-            back: BTreeMap::new(),
+            back: HashMap::with_capacity(nr_entries as usize),
+            shared: FixedBitSet::with_capacity(nr_entries as usize),
         }
     }
 
     fn is_head(&self, b: u64) -> bool {
-        self.heads.contains_key(&b)
+        self.heads.contains(b as usize)
     }
 
     fn mark_head(&mut self, b: u64) {
-        self.heads
-            .entry(b)
-            .and_modify(|shared| *shared = true)
-            .or_insert(false);
+        if self.heads.put(b as usize) {
+            self.shared.insert(b as usize);
+        }
     }
 
     fn is_tail(&self, b: u64) -> bool {
-        self.tails.contains(&b)
+        self.tails.contains(b as usize)
     }
 
     fn mark_tail(&mut self, b: u64) {
-        self.tails.insert(b);
+        self.tails.insert(b as usize);
     }
 
     pub fn new_seq(&mut self) {
@@ -63,7 +64,9 @@ impl Gatherer {
     pub fn next(&mut self, b: u64) {
         if let Some(prev) = self.prev {
             let e = self.entries.get_mut(&prev).unwrap();
-            e.neighbours.insert(b);
+            if !e.neighbours.insert(b) {
+                self.shared.insert(b as usize)
+            }
 
             if let Some(back) = self.back.get(&b) {
                 if *back != prev {
@@ -106,38 +109,35 @@ impl Gatherer {
     }
 
     fn complete_heads_and_tails(&mut self) {
-        let mut tails = BTreeSet::new();
+        let mut tails = FixedBitSet::with_capacity(self.tails.len());
 
         // add extra tails
         for (b, e) in self.entries.iter() {
             if e.neighbours.len() != 1 {
-                tails.insert(*b);
+                tails.insert(*b as usize);
             }
 
             if let Some(n) = e.first_neighbour() {
                 if self.is_head(n) {
-                    tails.insert(*b);
+                    tails.insert(*b as usize);
                 }
             }
         }
 
-        for t in tails {
-            self.mark_tail(t);
+        for t in tails.ones() {
+            self.mark_tail(t as u64);
         }
 
         // Now we need to mark entries that follow a tail as heads.
-        let mut heads = mem::take(&mut self.heads);
-        for t in &self.tails {
-            if let Some(e) = self.entries.get(t) {
+        for t in self.tails.ones() {
+            if let Some(e) = self.entries.get(&(t as u64)) {
                 for n in &e.neighbours {
-                    heads
-                        .entry(*n)
-                        .and_modify(|shared| *shared = true)
-                        .or_insert(false);
+                    if self.heads.put(*n as usize) {
+                        self.shared.insert(*n as usize);
+                    }
                 }
             }
         }
-        mem::swap(&mut heads, &mut self.heads);
     }
 
     // Returns atomic subsequences and their sharing states.
@@ -148,16 +148,11 @@ impl Gatherer {
 
         // FIXME: there must be a 'map'
         let mut seqs: Vec<(Vec<u64>, bool)> = Vec::new();
-        for (b, shared) in &self.heads {
-            seqs.push((self.extract_seq(*b), *shared));
+        for b in self.heads.ones() {
+            let shared = self.shared.contains(b);
+            seqs.push((self.extract_seq(b as u64), shared));
         }
         seqs
-    }
-}
-
-impl Default for Gatherer {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -213,7 +208,7 @@ mod tests {
                     (vec![1], false),
                     (vec![2], true),
                     (vec![3, 4], true),
-                    (vec![5], false),
+                    (vec![5], true),
                     (vec![6], false),
                 ],
             ),
@@ -224,8 +219,7 @@ mod tests {
         ];
 
         for t in tests {
-            eprintln!("new test case");
-            let mut g = Gatherer::new();
+            let mut g = Gatherer::new(100);
             for s in t.0 {
                 g.new_seq();
                 for b in s {
