@@ -1,6 +1,6 @@
 V=@
 
-PDATA_TOOLS=\
+PDATA_TOOLS:=\
 	target/release/pdata_tools
 
 $(PDATA_TOOLS):
