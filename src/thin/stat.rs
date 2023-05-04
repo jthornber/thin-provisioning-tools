@@ -12,6 +12,8 @@ use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::space_map::metadata::*;
 use crate::pdata::unpack::*;
+use crate::thin::block_time::*;
+use crate::thin::dump::RunBuilder;
 use crate::thin::superblock::*;
 
 //------------------------------------------
@@ -199,9 +201,101 @@ fn print_metadata_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> R
 
 //------------------------------------------
 
+struct RunLengthCounter {
+    histogram: Mutex<BTreeMap<u32, u64>>,
+    builder: Mutex<RunBuilder>,
+}
+
+impl RunLengthCounter {
+    fn new() -> Self {
+        RunLengthCounter {
+            histogram: Mutex::new(BTreeMap::new()),
+            builder: Mutex::new(RunBuilder::new()),
+        }
+    }
+
+    fn complete(self) -> BTreeMap<u32, u64> {
+        self.histogram.into_inner().unwrap()
+    }
+}
+
+impl NodeVisitor<BlockTime> for RunLengthCounter {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _h: &NodeHeader,
+        keys: &[u64],
+        values: &[BlockTime],
+    ) -> btree::Result<()> {
+        let mut histogram = self.histogram.lock().unwrap();
+        let mut builder = self.builder.lock().unwrap();
+
+        for (k, v) in keys.iter().zip(values.iter()) {
+            if let Some(run) = builder.next(*k, v.block, v.time) {
+                *histogram.entry(run.len as u32).or_insert(0) += 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
+        let mut histogram = self.histogram.lock().unwrap();
+        let mut builder = self.builder.lock().unwrap();
+
+        if let Some(run) = builder.complete() {
+            *histogram.entry(run.len as u32).or_insert(0) += 1;
+        }
+
+        Ok(())
+    }
+}
+
+fn stat_data_run_lengths(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    mapping_root: u64,
+) -> Result<BTreeMap<u32, u64>> {
+    let mut path = vec![];
+    let roots = btree_to_map::<u64>(&mut path, engine.clone(), true, mapping_root)?;
+
+    let counter = RunLengthCounter::new();
+    let w = BTreeWalker::new(engine.clone(), true);
+    for root in roots.values() {
+        w.walk(&mut path, &counter, *root)?;
+    }
+
+    Ok(counter.complete())
+}
+
+fn print_data_run_length_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
+    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    let histogram = stat_data_run_lengths(engine, sb.mapping_root)?;
+
+    let nr_runs: u64 = histogram.values().sum();
+    let mut avg_len = 0.0;
+    for (k, v) in histogram {
+        let ratio = v as f64 / nr_runs as f64;
+        avg_len += k as f64 * ratio;
+        println!("{}\t{}\t{:.4}", k, v, ratio * 100.0);
+    }
+
+    println!("{} runs", nr_runs);
+    println!("avg run length = {:.2}", avg_len);
+
+    Ok(())
+}
+
+//------------------------------------------
+
 pub enum StatOp {
     DataBlockRefCounts,
     MetadataBlockRefCounts,
+    DataRunLength,
 }
 
 pub struct ThinStatOpts<'a> {
@@ -216,6 +310,7 @@ pub fn stat(opts: ThinStatOpts) -> Result<()> {
     match opts.op {
         StatOp::DataBlockRefCounts => print_data_blocks_histogram(engine)?,
         StatOp::MetadataBlockRefCounts => print_metadata_blocks_histogram(engine)?,
+        StatOp::DataRunLength => print_data_run_length_histogram(engine)?,
     }
 
     Ok(())
