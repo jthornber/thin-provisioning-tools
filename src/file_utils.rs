@@ -55,8 +55,14 @@ fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
     let file = File::open(path.as_ref())?;
     let fd = file.as_raw_fd();
     let mut cap = 0u64;
+
+    #[cfg(target_env = "musl")]
+    type RequestType = libc::c_int;
+    #[cfg(not(target_env = "musl"))]
+    type RequestType = libc::c_ulong;
+
     unsafe {
-        if libc::ioctl(fd, BLKGETSIZE64 as libc::c_ulong, &mut cap) == 0 {
+        if libc::ioctl(fd, BLKGETSIZE64 as RequestType, &mut cap) == 0 {
             Ok(cap)
         } else {
             Err(io::Error::last_os_error())
