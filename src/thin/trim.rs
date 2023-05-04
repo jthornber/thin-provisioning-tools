@@ -134,8 +134,13 @@ impl<'a> Iterator for RangeIterator<'a> {
 
 const BLKDISCARD: u32 = 0x1277;
 fn ioctl_blkdiscard(fd: i32, range: &[u64; 2]) -> std::io::Result<()> {
+    #[cfg(target_env = "musl")]
+    type RequestType = libc::c_int;
+    #[cfg(not(target_env = "musl"))]
+    type RequestType = libc::c_ulong;
+
     unsafe {
-        if libc::ioctl(fd, BLKDISCARD as libc::c_ulong, range) == 0 {
+        if libc::ioctl(fd, BLKDISCARD as RequestType, range) == 0 {
             Ok(())
         } else {
             Err(std::io::Error::last_os_error())
