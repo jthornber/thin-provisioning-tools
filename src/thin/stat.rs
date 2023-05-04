@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::vec::Vec;
 
@@ -167,6 +168,7 @@ fn print_data_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Resul
     let histogram = stat_data_block_ref_counts(engine, sm_root)?;
     let allocated: u64 = histogram.values().sum();
     let mut avg_rc = 0.0;
+    println!("ref-count\ttimes\tpercentage");
     for (k, v) in histogram {
         let ratio = v as f64 / allocated as f64;
         avg_rc += k as f64 * ratio;
@@ -187,6 +189,7 @@ fn print_metadata_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> R
     let histogram = stat_metadata_block_ref_counts(engine, sm_root)?;
     let allocated: u64 = histogram.values().sum();
     let mut avg_rc = 0.0;
+    println!("ref-count\ttimes\tpercentage");
     for (k, v) in histogram {
         let ratio = v as f64 / allocated as f64;
         avg_rc += k as f64 * ratio;
@@ -204,6 +207,7 @@ fn print_metadata_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> R
 struct RunLengthCounter {
     histogram: Mutex<BTreeMap<u32, u64>>,
     builder: Mutex<RunBuilder>,
+    nr_leaves: AtomicU64,
 }
 
 impl RunLengthCounter {
@@ -211,11 +215,15 @@ impl RunLengthCounter {
         RunLengthCounter {
             histogram: Mutex::new(BTreeMap::new()),
             builder: Mutex::new(RunBuilder::new()),
+            nr_leaves: AtomicU64::default(),
         }
     }
 
-    fn complete(self) -> BTreeMap<u32, u64> {
-        self.histogram.into_inner().unwrap()
+    fn complete(self) -> (BTreeMap<u32, u64>, u64) {
+        (
+            self.histogram.into_inner().unwrap(),
+            self.nr_leaves.load(Ordering::SeqCst),
+        )
     }
 }
 
@@ -236,6 +244,8 @@ impl NodeVisitor<BlockTime> for RunLengthCounter {
                 *histogram.entry(run.len as u32).or_insert(0) += 1;
             }
         }
+
+        self.nr_leaves.fetch_add(1, Ordering::SeqCst);
 
         Ok(())
     }
@@ -259,7 +269,7 @@ impl NodeVisitor<BlockTime> for RunLengthCounter {
 fn stat_data_run_lengths(
     engine: Arc<dyn IoEngine + Send + Sync>,
     mapping_root: u64,
-) -> Result<BTreeMap<u32, u64>> {
+) -> Result<(BTreeMap<u32, u64>, u64)> {
     let mut path = vec![];
     let roots = btree_to_map::<u64>(&mut path, engine.clone(), true, mapping_root)?;
 
@@ -274,17 +284,18 @@ fn stat_data_run_lengths(
 
 fn print_data_run_length_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    let histogram = stat_data_run_lengths(engine, sb.mapping_root)?;
+    let (histogram, nr_leaves) = stat_data_run_lengths(engine, sb.mapping_root)?;
 
     let nr_runs: u64 = histogram.values().sum();
     let mut avg_len = 0.0;
+    println!("length\tcounts\tpercentage");
     for (k, v) in histogram {
         let ratio = v as f64 / nr_runs as f64;
         avg_len += k as f64 * ratio;
         println!("{}\t{}\t{:.4}", k, v, ratio * 100.0);
     }
 
-    println!("{} runs", nr_runs);
+    println!("{} runs in {} leaves", nr_runs, nr_leaves);
     println!("avg run length = {:.2}", avg_len);
 
     Ok(())
