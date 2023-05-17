@@ -211,6 +211,20 @@ fn repair_superblock() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn repair_healthy_metadata() -> Result<()> {
+    let mut td = TestDir::new()?;
+
+    // use the metadata containing multiple transactions
+    let md = prep_metadata(&mut td)?;
+
+    let before = run_ok_raw(thin_dump_cmd(args![&md]))?;
+    let after = run_ok_raw(thin_dump_cmd(args!["--repair", &md]))?;
+    assert_eq!(before.stdout, after.stdout);
+
+    Ok(())
+}
+
 //------------------------------------------
 // test compatibility between options
 // TODO: share with thin_repair

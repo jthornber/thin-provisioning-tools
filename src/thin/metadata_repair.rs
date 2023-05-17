@@ -634,11 +634,6 @@ fn find_root_pairs<'a>(
                 pairs.push((*dev, *details));
             }
         }
-
-        // loop until we've found the two most recent transactions
-        if pairs.len() == 2 {
-            break;
-        }
     }
 
     Ok(pairs)
@@ -687,7 +682,10 @@ fn log_results(
     }
 }
 
-fn find_roots(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> Result<FoundRoots> {
+fn find_roots(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    report: Arc<Report>,
+) -> Result<Vec<FoundRoots>> {
     let mut c = NodeCollector::new(engine.clone(), report.clone());
     c.collect_infos()?;
 
@@ -700,7 +698,10 @@ fn find_roots(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> R
         return Err(anyhow!("no compatible roots found"));
     }
 
-    to_found_roots(pairs[0].0, pairs[0].1)
+    pairs
+        .iter()
+        .map(|(dev, details)| to_found_roots(dev, details))
+        .collect()
 }
 
 fn check_data_block_size(bs: u32) -> Result<u32> {
@@ -740,9 +741,22 @@ pub fn is_superblock_consistent(
     Ok(sb)
 }
 
+fn is_superblock_consistent_(sb: Superblock, found_roots: &[FoundRoots]) -> Result<Superblock> {
+    if !found_roots
+        .iter()
+        .any(|roots| sb.mapping_root == roots.mapping_root && sb.details_root == roots.details_root)
+    {
+        return Err(anyhow::Error::new(SuperblockError {
+            failed_sb: Some(sb),
+        })
+        .context("inconsistent superblock"));
+    }
+
+    Ok(sb)
+}
+
 pub fn rebuild_superblock(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    report: Arc<Report>,
+    roots: &FoundRoots,
     ref_sb: Option<Superblock>,
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
@@ -757,8 +771,6 @@ pub fn rebuild_superblock(
             anyhow!("data block size needs to be provided due to corruption in the superblock")
         })
         .and_then(check_data_block_size)?;
-
-    let roots = find_roots(engine, report)?;
 
     let transaction_id = opts
         .transaction_id
@@ -854,14 +866,16 @@ pub fn read_or_rebuild_superblock(
     loc: u64,
     opts: &SuperblockOverrides,
 ) -> Result<Superblock> {
+    let found_roots = find_roots(engine.clone(), report)?;
+
     read_superblock(engine.as_ref(), loc)
-        .and_then(|sb| is_superblock_consistent(sb, engine.clone(), true))
+        .and_then(|sb| is_superblock_consistent_(sb, &found_roots))
         .and_then(|sb| sb.overrides(opts))
         .or_else(|e| {
             let ref_sb = e
                 .downcast_ref::<SuperblockError>()
                 .and_then(|err| err.failed_sb.clone());
-            rebuild_superblock(engine, report, ref_sb, opts)
+            rebuild_superblock(&found_roots[0], ref_sb, opts)
         })
 }
 

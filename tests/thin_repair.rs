@@ -80,7 +80,7 @@ impl<'a> InputProgram<'a> for ThinRepair {
     }
 
     fn corrupted_input() -> &'a str {
-        "data block size needs to be provided due to corruption in the superblock"
+        "no compatible roots found"
     }
 }
 
