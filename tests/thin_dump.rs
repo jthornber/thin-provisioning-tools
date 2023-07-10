@@ -225,6 +225,29 @@ fn repair_healthy_metadata() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn repair_metadata_with_empty_roots() -> Result<()> {
+    let mut td = TestDir::new()?;
+
+    // use the metadata containing empty roots
+    let md = prep_metadata_from_file(&mut td, "tmeta_with_empty_roots.pack")?;
+    let before = run_ok_raw(thin_dump_cmd(args![&md]))?;
+
+    // repairing dump
+    damage_superblock(&md)?;
+    let after = run_ok_raw(thin_dump_cmd(args![
+        "--repair",
+        "--transaction-id=2",
+        "--data-block-size=128",
+        "--nr-data-blocks=1024",
+        &md
+    ]))?;
+
+    assert_eq!(before.stdout, after.stdout);
+
+    Ok(())
+}
+
 //------------------------------------------
 // test compatibility between options
 // TODO: share with thin_repair

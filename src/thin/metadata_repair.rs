@@ -16,6 +16,9 @@ use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
 
+#[cfg(test)]
+mod sorting_roots_tests;
+
 //------------------------------------------
 
 #[derive(Copy, Clone, Default)]
@@ -562,8 +565,14 @@ fn compare_time_counts(lhs: &BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Or
     let mut rhs_end = false;
 
     while !lhs_end && !rhs_end {
-        if let Some((lhs_time, lhs_count)) = lhs_it.next() {
-            if let Some((rhs_time, rhs_count)) = rhs_it.next() {
+        let lhs_elem = lhs_it.next();
+        let rhs_elem = rhs_it.next();
+
+        lhs_end = lhs_elem.is_none();
+        rhs_end = rhs_elem.is_none();
+
+        if let Some((lhs_time, lhs_count)) = lhs_elem {
+            if let Some((rhs_time, rhs_count)) = rhs_elem {
                 if lhs_time > rhs_time {
                     return Ordering::Less;
                 } else if rhs_time > lhs_time {
@@ -573,18 +582,14 @@ fn compare_time_counts(lhs: &BTreeMap<u32, u32>, rhs: &BTreeMap<u32, u32>) -> Or
                 } else if rhs_count > lhs_count {
                     return Ordering::Greater;
                 }
-            } else {
-                rhs_end = true;
             }
-        } else {
-            lhs_end = true;
         }
     }
 
     if lhs_end && !rhs_end {
-        Ordering::Less
-    } else if !lhs_end && rhs_end {
         Ordering::Greater
+    } else if !lhs_end && rhs_end {
+        Ordering::Less
     } else {
         Ordering::Equal
     }
