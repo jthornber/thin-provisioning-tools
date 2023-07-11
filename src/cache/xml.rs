@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
-use base64::{decode, encode};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use std::io::{BufRead, BufReader};
 use std::io::{Read, Write};
 
@@ -83,7 +84,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         let tag = b"hint";
         let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
         elem.push_attribute(mk_attr(b"cache_block", h.cblock));
-        elem.push_attribute(mk_attr(b"data", encode(&h.data[0..])));
+        elem.push_attribute(mk_attr(b"data", STANDARD.encode(&h.data[0..])));
         self.w.write_event(Event::Empty(elem))?;
         Ok(Visit::Continue)
     }
@@ -181,7 +182,7 @@ fn parse_hint(e: &BytesStart) -> Result<Hint> {
         let kv = a.unwrap();
         match kv.key {
             b"cache_block" => cblock = Some(u32_val(&kv)?),
-            b"data" => data = Some(decode(bytes_val(&kv))?),
+            b"data" => data = Some(STANDARD.decode(bytes_val(&kv))?),
             _ => return bad_attr("mapping", kv.key),
         }
     }
