@@ -11,6 +11,41 @@ use crate::checksum::{metadata_block_type, BT};
 use crate::file_utils;
 use crate::report::*;
 
+#[cfg(test)]
+mod range_parsing_tests;
+
+//------------------------------------------
+
+pub struct RangeU64 {
+    pub start: u64,
+    pub end: u64,
+}
+
+impl FromStr for RangeU64 {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split("..");
+        let start = iter.next().map_or_else(
+            || Err(anyhow!("badly formed region")),
+            |s| s.parse::<u64>().map_err(|e| e.into()),
+        )?;
+        let end = iter.next().map_or_else(
+            || Err(anyhow!("badly formed region")),
+            |s| s.parse::<u64>().map_err(|e| e.into()),
+        )?;
+        if iter.next().is_some() {
+            return Err(anyhow!("badly formed region"));
+        }
+        if end <= start {
+            return Err(anyhow!("end <= begin"));
+        }
+        Ok(RangeU64 { start, end })
+    }
+}
+
+//------------------------------------------
+
 pub fn check_input_file(input_file: &Path) -> Result<&Path> {
     match file_utils::is_file_or_blk(input_file) {
         Ok(true) => Ok(input_file),
