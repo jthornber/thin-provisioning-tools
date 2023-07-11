@@ -39,16 +39,16 @@ pub fn verbose_args(cmd: clap::Command) -> clap::Command {
         Arg::new("VERBOSE")
             .help("Increase log verbosity")
             .short('v')
-            .multiple_occurrences(true)
+            .action(clap::ArgAction::Count)
             .hide(true),
     )
 }
 
 pub fn parse_log_level(matches: &clap::ArgMatches) -> Result<LogLevel, String> {
-    let cnt = matches.occurrences_of("VERBOSE");
+    let cnt = matches.get_count("VERBOSE");
     if cnt > 0 {
         let v: u8 = LogLevel::Warning as u8;
-        (v + cnt as u8).try_into()
+        (v + cnt).try_into()
     } else {
         Ok(LogLevel::Warning)
     }

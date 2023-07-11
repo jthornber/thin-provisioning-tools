@@ -13,28 +13,20 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "cache_dump ",
-    tools_version!(),
-    "
-Dump the cache metadata to stdout in XML format
+const USAGE: &str = "Dump the cache metadata to stdout in XML format
 
-USAGE:
-    cache_dump [OPTIONS] <INPUT>
+Usage: cache_dump [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device to dump
+Arguments:
+  <INPUT>  Specify the input device to dump
 
-OPTIONS:
-    -h, --help             Print help information
-    -o, --output <FILE>    Specify the output file rather than stdout
-    -r, --repair           Repair the metadata whilst dumping it
-    -V, --version          Print version information"
-);
+Options:
+  -h, --help           Print help
+  -o, --output <FILE>  Specify the output file rather than stdout
+  -r, --repair         Repair the metadata whilst dumping it
+  -V, --version        Print version";
 
 //------------------------------------------
 

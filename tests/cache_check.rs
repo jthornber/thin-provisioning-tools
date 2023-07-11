@@ -11,34 +11,26 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "cache_check ",
-    tools_version!(),
-    "
-Validates cache metadata on a device or file.
+const USAGE: &str = "Validates cache metadata on a device or file.
 
-USAGE:
-    cache_check [OPTIONS] <INPUT>
+Usage: cache_check [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device to check
+Arguments:
+  <INPUT>  Specify the input device to check
 
-OPTIONS:
-        --auto-repair                Auto repair trivial issues
-        --clear-needs-check-flag     Clears the 'needs_check' flag in the superblock
-    -h, --help                       Print help information
-        --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
-    -q, --quiet                      Suppress output messages, return only exit code.
-        --skip-discards              Don't check the discard bitset
-        --skip-hints                 Don't check the hint array
-        --skip-mappings              Don't check the mapping array
-        --super-block-only           Only check the superblock
-    -V, --version                    Print version information"
-);
+Options:
+      --auto-repair              Auto repair trivial issues
+      --clear-needs-check-flag   Clears the 'needs_check' flag in the superblock
+  -h, --help                     Print help
+      --ignore-non-fatal-errors  Only return a non-zero exit code if a fatal error is found.
+  -q, --quiet                    Suppress output messages, return only exit code.
+      --skip-discards            Don't check the discard bitset
+      --skip-hints               Don't check the hint array
+      --skip-mappings            Don't check the mapping array
+      --super-block-only         Only check the superblock
+  -V, --version                  Print version";
 
 //------------------------------------------
 

@@ -12,16 +12,15 @@ use crate::commands::Command;
 pub struct ThinGenerateMetadataCommand;
 
 impl ThinGenerateMetadataCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("A tool for creating synthetic thin metadata.")
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
-                    .long("format")
-                    .group("commands"),
+                    .long("format"),
             )
             .arg(
                 Arg::new("SET_NEEDS_CHECK")
@@ -30,10 +29,8 @@ impl ThinGenerateMetadataCommand {
                     .value_name("BOOL")
                     .value_parser(value_parser!(bool))
                     .hide_possible_values(true)
-                    .min_values(0)
-                    .max_values(1)
-                    .require_equals(true)
-                    .group("commands"),
+                    .num_args(0..=1)
+                    .require_equals(true),
             )
             // options
             .arg(
@@ -58,7 +55,11 @@ impl ThinGenerateMetadataCommand {
                     .value_name("FILE")
                     .required(true),
             )
-            .group(ArgGroup::new("commands").required(true));
+            .group(
+                ArgGroup::new("commands")
+                    .args(["FORMAT", "SET_NEEDS_CHECK"])
+                    .required(true),
+            );
         engine_args(cmd)
     }
 }
@@ -78,22 +79,24 @@ impl<'a> Command<'a> for ThinGenerateMetadataCommand {
             return to_exit_code(&report, engine_opts);
         }
 
-        let opts = ThinGenerateOpts {
-            engine_opts: engine_opts.unwrap(),
-            op: if matches.is_present("FORMAT") {
-                MetadataOp::Format(ThinFormatOpts {
-                    data_block_size: matches.value_of_t_or_exit::<u32>("DATA_BLOCK_SIZE"),
-                    nr_data_blocks: matches.value_of_t_or_exit::<u64>("NR_DATA_BLOCKS"),
-                })
-            } else if matches.is_present("SET_NEEDS_CHECK") {
-                MetadataOp::SetNeedsCheck(
-                    *matches.get_one::<bool>("SET_NEEDS_CHECK").unwrap_or(&true),
-                )
-            } else {
+        let op = match matches.get_one::<clap::Id>("commands").unwrap().as_str() {
+            "FORMAT" => MetadataOp::Format(ThinFormatOpts {
+                data_block_size: *matches.get_one::<u32>("DATA_BLOCK_SIZE").unwrap(),
+                nr_data_blocks: *matches.get_one::<u64>("NR_DATA_BLOCKS").unwrap(),
+            }),
+            "SET_NEEDS_CHECK" => MetadataOp::SetNeedsCheck(
+                *matches.get_one::<bool>("SET_NEEDS_CHECK").unwrap_or(&true),
+            ),
+            _ => {
                 eprintln!("unknown option");
                 process::exit(1);
-            },
-            output: Path::new(matches.value_of("OUTPUT").unwrap()),
+            }
+        };
+
+        let opts = ThinGenerateOpts {
+            engine_opts: engine_opts.unwrap(),
+            op,
+            output: Path::new(matches.get_one::<String>("OUTPUT").unwrap()),
         };
 
         to_exit_code(&report, generate_metadata(opts))

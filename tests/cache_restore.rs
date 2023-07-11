@@ -12,29 +12,20 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "cache_restore ",
-    tools_version!(),
-    "
-Convert XML format metadata to binary.
+const USAGE: &str = "Convert XML format metadata to binary.
 
-USAGE:
-    cache_restore [OPTIONS] --input <FILE> --output <FILE>
+Usage: cache_restore [OPTIONS] --input <FILE> --output <FILE>
 
-OPTIONS:
-    -h, --help                      Print help information
-    -i, --input <FILE>              Specify the input xml
-        --metadata-version <NUM>    Specify the output metadata version [default: 2] [possible
-                                    values: 1, 2]
-    -o, --output <FILE>             Specify the output device
-        --omit-clean-shutdown       Don't set the clean shutdown flag
-    -q, --quiet                     Suppress output messages, return only exit code
-    -V, --version                   Print version information"
-);
+Options:
+  -h, --help                    Print help
+  -i, --input <FILE>            Specify the input xml
+      --metadata-version <NUM>  Specify the output metadata version [default: 2] [possible values: 1, 2]
+  -o, --output <FILE>           Specify the output device
+      --omit-clean-shutdown     Don't set the clean shutdown flag
+  -q, --quiet                   Suppress output messages, return only exit code
+  -V, --version                 Print version";
 
 //------------------------------------------
 

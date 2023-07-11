@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{value_parser, Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -12,21 +12,23 @@ use crate::thin::ls::*;
 pub struct ThinLsCommand;
 
 impl ThinLsCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("List thin volumes within a pool")
             .arg(
                 Arg::new("NO_HEADERS")
                     .help("Don't output headers")
-                    .long("no-headers"),
+                    .long("no-headers")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Use metadata snapshot")
                     .short('m')
-                    .long("metadata-snap"),
+                    .long("metadata-snap")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -35,7 +37,8 @@ impl ThinLsCommand {
                     .short('o')
                     .long("format")
                     .value_delimiter(',')
-                    .value_name("FIELDS"),
+                    .value_name("FIELDS")
+                    .value_parser(value_parser!(OutputField)),
             )
             // arguments
             .arg(
@@ -58,7 +61,7 @@ impl<'a> Command<'a> for ThinLsCommand {
 
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 
         let report = mk_report(false);
         let log_level = match parse_log_level(&matches) {
@@ -71,11 +74,10 @@ impl<'a> Command<'a> for ThinLsCommand {
             return to_exit_code::<()>(&report, Err(e));
         }
 
-        let fields = if matches.is_present("FORMAT") {
-            matches.values_of_t_or_exit::<OutputField>("FORMAT")
-        } else {
-            vec![DeviceId, Mapped, CreationTime, SnapshottedTime]
-        };
+        let fields = matches.get_many::<OutputField>("FORMAT").map_or_else(
+            || vec![DeviceId, Mapped, CreationTime, SnapshottedTime],
+            |fmt| fmt.cloned().collect(),
+        );
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
         if engine_opts.is_err() {
@@ -86,7 +88,7 @@ impl<'a> Command<'a> for ThinLsCommand {
             input: input_file,
             engine_opts: engine_opts.unwrap(),
             fields,
-            no_headers: matches.is_present("NO_HEADERS"),
+            no_headers: matches.get_flag("NO_HEADERS"),
             report: report.clone(),
         };
 

@@ -870,9 +870,9 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
 pub struct ThinExploreCommand;
 
 impl ThinExploreCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("A text user interface for examining thin metadata.")
             .arg(
@@ -900,9 +900,9 @@ impl<'a> Command<'a> for ThinExploreCommand {
         let matches = self.cli().get_matches_from(args);
 
         let node_path = matches
-            .value_of("NODE_PATH")
+            .get_one::<String>("NODE_PATH")
             .map(|text| btree_error::decode_node_path(text).unwrap());
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let report = mk_report(false);
 
         to_exit_code(&report, explore(input_file, node_path))

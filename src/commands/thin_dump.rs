@@ -1,6 +1,7 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::builder::{PossibleValuesParser, TypedValueParser};
+use clap::{value_parser, Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -13,42 +14,47 @@ use crate::thin::metadata_repair::SuperblockOverrides;
 pub struct ThinDumpCommand;
 
 impl ThinDumpCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Dump thin-provisioning metadata to stdout in XML format")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("REPAIR")
                     .help("Repair the metadata whilst dumping it")
                     .short('r')
                     .long("repair")
+                    .action(ArgAction::SetTrue)
                     .conflicts_with("METADATA_SNAPSHOT"),
             )
             .arg(
                 Arg::new("SKIP_MAPPINGS")
                     .help("Do not dump the mappings")
-                    .long("skip-mappings"),
+                    .long("skip-mappings")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
                 Arg::new("DATA_BLOCK_SIZE")
                     .help("Provide the data block size for repairing")
                     .long("data-block-size")
-                    .value_name("SECTORS"),
+                    .value_name("SECTORS")
+                    .value_parser(value_parser!(u32)),
             )
             .arg(
                 Arg::new("DEV_ID")
                     .help("Dump the specified device")
                     .long("dev-id")
-                    .multiple_occurrences(true)
-                    .value_name("THIN_ID"),
+                    .action(clap::ArgAction::Append)
+                    .value_name("THIN_ID")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("FORMAT")
@@ -56,7 +62,10 @@ impl ThinDumpCommand {
                     .short('f')
                     .long("format")
                     .value_name("TYPE")
-                    .possible_values(["xml", "human_readable"])
+                    .value_parser(
+                        PossibleValuesParser::new(["xml", "human_readable"])
+                            .map(|s| s.parse::<OutputFormat>().unwrap()),
+                    )
                     .hide_possible_values(true)
                     .default_value("xml")
                     .hide_default_value(true),
@@ -67,15 +76,16 @@ impl ThinDumpCommand {
                     .short('m')
                     .long("metadata-snap")
                     .value_name("BLOCKNR")
-                    .min_values(0)
-                    .max_values(1)
+                    .value_parser(value_parser!(u64))
+                    .num_args(0..=1)
                     .require_equals(true),
             )
             .arg(
                 Arg::new("NR_DATA_BLOCKS")
                     .help("Override the number of data blocks if needed")
                     .long("nr-data-blocks")
-                    .value_name("NUM"),
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("OUTPUT")
@@ -88,7 +98,8 @@ impl ThinDumpCommand {
                 Arg::new("TRANSACTION_ID")
                     .help("Override the transaction id if needed")
                     .long("transaction-id")
-                    .value_name("NUM"),
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             // arguments
             .arg(
@@ -109,14 +120,10 @@ impl<'a> Command<'a> for ThinDumpCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = if matches.is_present("OUTPUT") {
-            Some(Path::new(matches.value_of("OUTPUT").unwrap()))
-        } else {
-            None
-        };
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
@@ -132,30 +139,24 @@ impl<'a> Command<'a> for ThinDumpCommand {
             return to_exit_code(&report, engine_opts);
         }
 
-        let selected_devs = if matches.is_present("DEV_ID") {
-            let devs: Vec<u64> = matches
-                .values_of_t_or_exit::<u64>("DEV_ID")
-                .into_iter()
-                .collect();
-            Some(devs)
-        } else {
-            None
-        };
+        let selected_devs: Option<Vec<u64>> = matches
+            .get_many::<u64>("DEV_ID")
+            .map(|devs| devs.copied().collect());
 
         let opts = ThinDumpOptions {
             input: input_file,
             output: output_file,
             engine_opts: engine_opts.unwrap(),
             report: report.clone(),
-            repair: matches.is_present("REPAIR"),
-            skip_mappings: matches.is_present("SKIP_MAPPINGS"),
+            repair: matches.get_flag("REPAIR"),
+            skip_mappings: matches.get_flag("SKIP_MAPPINGS"),
             overrides: SuperblockOverrides {
-                transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
-                data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
-                nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
+                transaction_id: matches.get_one::<u64>("TRANSACTION_ID").cloned(),
+                data_block_size: matches.get_one::<u32>("DATA_BLOCK_SIZE").cloned(),
+                nr_data_blocks: matches.get_one::<u64>("NR_DATA_BLOCKS").cloned(),
             },
             selected_devs,
-            format: matches.value_of_t_or_exit::<OutputFormat>("FORMAT"),
+            format: matches.get_one::<OutputFormat>("FORMAT").unwrap().clone(),
         };
 
         to_exit_code(&report, dump(opts))

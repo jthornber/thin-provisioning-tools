@@ -11,26 +11,18 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_metadata_unpack ",
-    tools_version!(),
-    "
-Unpack a compressed file of thin metadata.
+const USAGE: &str = "Unpack a compressed file of thin metadata.
 
-USAGE:
-    thin_metadata_unpack [OPTIONS] -i <FILE> -o <DEV>
+Usage: thin_metadata_unpack [OPTIONS] -i <FILE> -o <DEV>
 
-OPTIONS:
-    -f, --force      Force overwrite the output file
-    -h, --help       Print help information
-    -i <FILE>        Specify packed input file
-    -o <DEV>         Specify thinp metadata binary device/file
-    -V, --version    Print version information"
-);
+Options:
+  -f, --force    Force overwrite the output file
+  -h, --help     Print help
+  -i <FILE>      Specify packed input file
+  -o <DEV>       Specify thinp metadata binary device/file
+  -V, --version  Print version";
 
 //------------------------------------------
 

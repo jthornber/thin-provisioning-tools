@@ -1,6 +1,7 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::builder::{PossibleValuesParser, TypedValueParser};
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::cache::restore::{restore, CacheRestoreOptions};
@@ -12,21 +13,23 @@ use crate::report::{parse_log_level, verbose_args};
 pub struct CacheRestoreCommand;
 
 impl CacheRestoreCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Convert XML format metadata to binary.")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("OMIT_CLEAN_SHUTDOWN")
                     .help("Don't set the clean shutdown flag")
-                    .long("omit-clean-shutdown"),
+                    .long("omit-clean-shutdown")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -42,7 +45,9 @@ impl CacheRestoreCommand {
                     .help("Specify the output metadata version")
                     .long("metadata-version")
                     .value_name("NUM")
-                    .possible_values(["1", "2"])
+                    .value_parser(
+                        PossibleValuesParser::new(["1", "2"]).map(|s| s.parse::<u8>().unwrap()),
+                    )
                     .default_value("2"),
             )
             .arg(
@@ -65,10 +70,10 @@ impl<'a> Command<'a> for CacheRestoreCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
@@ -87,10 +92,10 @@ impl<'a> Command<'a> for CacheRestoreCommand {
         let opts = CacheRestoreOptions {
             input: input_file,
             output: output_file,
-            metadata_version: matches.value_of_t_or_exit::<u8>("METADATA_VERSION"),
+            metadata_version: *matches.get_one::<u8>("METADATA_VERSION").unwrap(),
             engine_opts: engine_opts.unwrap(),
             report: report.clone(),
-            omit_clean_shutdown: matches.is_present("OMIT_CLEAN_SHUTDOWN"),
+            omit_clean_shutdown: matches.get_flag("OMIT_CLEAN_SHUTDOWN"),
         };
 
         to_exit_code(&report, restore(opts))

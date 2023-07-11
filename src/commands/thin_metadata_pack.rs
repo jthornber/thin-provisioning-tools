@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::utils::*;
@@ -10,29 +10,28 @@ use crate::report::*;
 pub struct ThinMetadataPackCommand;
 
 impl ThinMetadataPackCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
             // flags
             .arg(Arg::new("FORCE")
                 .help("Force overwrite the output file")
                 .short('f')
-                .long("force"))
+                .long("force")
+                .action(ArgAction::SetTrue))
             // options
             .arg(Arg::new("INPUT")
                 .help("Specify thinp metadata binary device/file")
                 .required(true)
                 .short('i')
-                .value_name("DEV")
-                .takes_value(true))
+                .value_name("DEV"))
             .arg(Arg::new("OUTPUT")
                 .help("Specify packed output file")
                 .required(true)
                 .short('o')
-                .value_name("FILE")
-                .takes_value(true))
+                .value_name("FILE"))
     }
 }
 
@@ -44,8 +43,8 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
         let report = mk_simple_report();
 
@@ -56,7 +55,7 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
             return to_exit_code::<()>(&report, Err(e));
         }
 
-        if !matches.is_present("FORCE") {
+        if !matches.get_flag("FORCE") {
             if let Err(e) = check_overwrite_metadata(&report, output_file) {
                 return to_exit_code::<()>(&report, Err(e));
             }

@@ -101,8 +101,6 @@ impl MetadataGenerator for CacheGenerator {
             }
         }
 
-        eprintln!("generated oblocks");
-
         let mut maps: Vec<(u32, u32)> = Vec::new();
         for (oblock, cblock) in oblocks.iter().zip(cblocks.iter()) {
             maps.push((oblock, *cblock));
@@ -181,6 +179,7 @@ fn set_superblock_version(engine: Arc<dyn IoEngine + Send + Sync>, version: u32)
 
 //------------------------------------------
 
+#[derive(Debug)]
 pub struct CacheFormatOpts {
     pub block_size: u32,
     pub nr_cache_blocks: u32,
@@ -191,6 +190,7 @@ pub struct CacheFormatOpts {
     pub hotspot_size: usize,
 }
 
+#[derive(Debug)]
 pub enum MetadataOp {
     Format(CacheFormatOpts),
     SetNeedsCheck(bool),

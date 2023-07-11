@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -15,16 +15,17 @@ use crate::commands::Command;
 pub struct ThinTrimCommand;
 
 impl ThinTrimCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Issue discard requests for free pool space (offline tool).")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -53,10 +54,10 @@ impl<'a> Command<'a> for ThinTrimCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let metadata_dev = Path::new(matches.value_of("METADATA_DEV").unwrap());
-        let data_dev = Path::new(matches.value_of("DATA_DEV").unwrap());
+        let metadata_dev = Path::new(matches.get_one::<String>("METADATA_DEV").unwrap());
+        let data_dev = Path::new(matches.get_one::<String>("DATA_DEV").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),

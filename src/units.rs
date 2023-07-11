@@ -151,7 +151,7 @@ pub fn to_units(bytes: u64, unit: Units) -> f64 {
 
 //------------------------------------------
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageSize {
     multiple: u64,
     unit: Units,

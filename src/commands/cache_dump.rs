@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::cache::dump::{dump, CacheDumpOptions};
@@ -13,16 +13,17 @@ use crate::commands::Command;
 pub struct CacheDumpCommand;
 
 impl CacheDumpCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Dump the cache metadata to stdout in XML format")
             .arg(
                 Arg::new("REPAIR")
                     .help("Repair the metadata whilst dumping it")
                     .short('r')
-                    .long("repair"),
+                    .long("repair")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -51,12 +52,8 @@ impl<'a> Command<'a> for CacheDumpCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = if matches.is_present("OUTPUT") {
-            Some(Path::new(matches.value_of("OUTPUT").unwrap()))
-        } else {
-            None
-        };
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);
 
         // Create a temporary report just in case these checks
         // need to report anything.
@@ -76,7 +73,7 @@ impl<'a> Command<'a> for CacheDumpCommand {
             input: input_file,
             output: output_file,
             engine_opts,
-            repair: matches.is_present("REPAIR"),
+            repair: matches.get_flag("REPAIR"),
         };
 
         to_exit_code(&report, dump(opts))

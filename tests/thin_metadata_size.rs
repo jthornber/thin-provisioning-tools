@@ -7,28 +7,20 @@ use common::process::*;
 use common::program::*;
 use common::target::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_metadata_size ",
-    tools_version!(),
-    "
-Estimate the size of the metadata device needed for a given configuration.
+const USAGE: &str = "Estimate the size of the metadata device needed for a given configuration.
 
-USAGE:
-    thin_metadata_size [OPTIONS] --block-size <SIZE[bskmg]> --pool-size <SIZE[bskmgtp]> --max-thins <NUM>
+Usage: thin_metadata_size [OPTIONS] --block-size <SIZE[bskmg]> --pool-size <SIZE[bskmgtp]> --max-thins <NUM>
 
-OPTIONS:
-    -b, --block-size <SIZE[bskmg]>     Specify the data block size
-    -h, --help                         Print help information
-    -m, --max-thins <NUM>              Maximum number of thin devices and snapshots
-    -n, --numeric-only[=<OPT>...]      Output numeric value only
-    -s, --pool-size <SIZE[bskmgtp]>    Specify the size of pool device
-    -u, --unit <UNIT>                  Specify the output unit in {bskKmMgG} [default: sector]
-    -V, --version                      Print version information"
-);
+Options:
+  -b, --block-size <SIZE[bskmg]>   Specify the data block size
+  -h, --help                       Print help
+  -m, --max-thins <NUM>            Maximum number of thin devices and snapshots
+  -n, --numeric-only[=<OPT>]       Output numeric value only
+  -s, --pool-size <SIZE[bskmgtp]>  Specify the size of pool device
+  -u, --unit <UNIT>                Specify the output unit in {bskKmMgG} [default: sector]
+  -V, --version                    Print version";
 
 //------------------------------------------
 

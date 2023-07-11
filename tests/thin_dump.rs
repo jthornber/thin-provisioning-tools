@@ -13,36 +13,28 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_dump ",
-    tools_version!(),
-    "
-Dump thin-provisioning metadata to stdout in XML format
+const USAGE: &str = "Dump thin-provisioning metadata to stdout in XML format
 
-USAGE:
-    thin_dump [OPTIONS] <INPUT>
+Usage: thin_dump [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device to dump
+Arguments:
+  <INPUT>  Specify the input device to dump
 
-OPTIONS:
-        --data-block-size <SECTORS>       Provide the data block size for repairing
-        --dev-id <THIN_ID>                Dump the specified device
-    -f, --format <TYPE>                   Choose the output format
-    -h, --help                            Print help information
-    -m, --metadata-snap[=<BLOCKNR>...]    Access the metadata snapshot on a live pool
-        --nr-data-blocks <NUM>            Override the number of data blocks if needed
-    -o, --output <FILE>                   Specify the output file rather than stdout
-    -q, --quiet                           Suppress output messages, return only exit code.
-    -r, --repair                          Repair the metadata whilst dumping it
-        --skip-mappings                   Do not dump the mappings
-        --transaction-id <NUM>            Override the transaction id if needed
-    -V, --version                         Print version information"
-);
+Options:
+      --data-block-size <SECTORS>  Provide the data block size for repairing
+      --dev-id <THIN_ID>           Dump the specified device
+  -f, --format <TYPE>              Choose the output format
+  -h, --help                       Print help
+  -m, --metadata-snap[=<BLOCKNR>]  Access the metadata snapshot on a live pool
+      --nr-data-blocks <NUM>       Override the number of data blocks if needed
+  -o, --output <FILE>              Specify the output file rather than stdout
+  -q, --quiet                      Suppress output messages, return only exit code.
+  -r, --repair                     Repair the metadata whilst dumping it
+      --skip-mappings              Do not dump the mappings
+      --transaction-id <NUM>       Override the transaction id if needed
+  -V, --version                    Print version";
 
 //-----------------------------------------
 

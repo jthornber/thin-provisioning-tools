@@ -10,26 +10,18 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_metadata_pack ",
-    tools_version!(),
-    "
-Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
+const USAGE: &str = "Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
-USAGE:
-    thin_metadata_pack [OPTIONS] -i <DEV> -o <FILE>
+Usage: thin_metadata_pack [OPTIONS] -i <DEV> -o <FILE>
 
-OPTIONS:
-    -f, --force      Force overwrite the output file
-    -h, --help       Print help information
-    -i <DEV>         Specify thinp metadata binary device/file
-    -o <FILE>        Specify packed output file
-    -V, --version    Print version information"
-);
+Options:
+  -f, --force    Force overwrite the output file
+  -h, --help     Print help
+  -i <DEV>       Specify thinp metadata binary device/file
+  -o <FILE>      Specify packed output file
+  -V, --version  Print version";
 
 //------------------------------------------
 

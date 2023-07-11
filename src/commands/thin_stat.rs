@@ -12,9 +12,9 @@ use crate::commands::Command;
 pub struct ThinStatCommand;
 
 impl ThinStatCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Tool to show metadata statistics")
             .arg(
@@ -50,11 +50,11 @@ impl<'a> Command<'a> for ThinStatCommand {
 
         let opts = ThinStatOpts {
             engine_opts: engine_opts.unwrap(),
-            input: Path::new(matches.value_of("INPUT").unwrap()),
-            op: match matches.value_of("OP") {
-                Some("data_blocks") => StatOp::DataBlockRefCounts,
-                Some("metadata_blocks") => StatOp::MetadataBlockRefCounts,
-                Some("data_run_len") => StatOp::DataRunLength,
+            input: Path::new(matches.get_one::<String>("INPUT").unwrap()),
+            op: match matches.get_one::<String>("OP").unwrap().as_ref() {
+                "data_blocks" => StatOp::DataBlockRefCounts,
+                "metadata_blocks" => StatOp::MetadataBlockRefCounts,
+                "data_run_len" => StatOp::DataRunLength,
                 _ => return exitcode::USAGE,
             },
         };

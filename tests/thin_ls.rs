@@ -10,29 +10,21 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_ls ",
-    tools_version!(),
-    "
-List thin volumes within a pool
+const USAGE: &str = "List thin volumes within a pool
 
-USAGE:
-    thin_ls [OPTIONS] <INPUT>
+Usage: thin_ls [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device
+Arguments:
+  <INPUT>  Specify the input device
 
-OPTIONS:
-    -h, --help               Print help information
-    -m, --metadata-snap      Use metadata snapshot
-        --no-headers         Don't output headers
-    -o, --format <FIELDS>    Give a comma separated list of fields to be output
-    -V, --version            Print version information"
-);
+Options:
+  -h, --help             Print help
+  -m, --metadata-snap    Use metadata snapshot
+      --no-headers       Don't output headers
+  -o, --format <FIELDS>  Give a comma separated list of fields to be output
+  -V, --version          Print version";
 
 //-----------------------------------------
 

@@ -154,6 +154,7 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
 
 //------------------------------------------
 
+#[derive(Clone)]
 pub enum OutputFormat {
     XML,
     HumanReadable,

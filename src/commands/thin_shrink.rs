@@ -4,7 +4,7 @@
 
 extern crate clap;
 
-use clap::Arg;
+use clap::{value_parser, Arg, ArgAction};
 use std::ffi;
 use std::io;
 use std::path::Path;
@@ -17,9 +17,9 @@ use crate::thin::shrink::{shrink, ThinShrinkOptions};
 pub struct ThinShrinkCommand;
 
 impl ThinShrinkCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Rewrite xml metadata and move data in an inactive pool.")
             .arg(
@@ -28,8 +28,7 @@ impl ThinShrinkCommand {
                     .required(true)
                     .short('i')
                     .long("input")
-                    .value_name("FILE")
-                    .takes_value(true),
+                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("OUTPUT")
@@ -37,21 +36,20 @@ impl ThinShrinkCommand {
                     .required(true)
                     .short('o')
                     .long("output")
-                    .value_name("FILE")
-                    .takes_value(true),
+                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("DATA")
                     .help("Specify pool data device where data will be moved")
                     .required(true)
                     .long("data")
-                    .value_name("FILE")
-                    .takes_value(true),
+                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("NOCOPY")
                     .help("Skip the copying of data, useful for benchmarking")
-                    .long("no-copy"),
+                    .long("no-copy")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("NR_BLOCKS")
@@ -59,12 +57,13 @@ impl ThinShrinkCommand {
                     .required(true)
                     .long("nr-blocks")
                     .value_name("NUM")
-                    .takes_value(true),
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("BINARY")
                     .help("Perform binary metadata rebuild rather than XML rewrite")
-                    .long("binary"),
+                    .long("binary")
+                    .action(ArgAction::SetTrue),
             )
     }
 
@@ -75,12 +74,12 @@ impl ThinShrinkCommand {
     {
         let matches = self.cli().get_matches_from(args);
 
-        let input = Path::new(matches.value_of("INPUT").unwrap());
-        let output = Path::new(matches.value_of("OUTPUT").unwrap());
-        let nr_blocks = matches.value_of_t_or_exit::<u64>("NR_BLOCKS");
-        let data_device = Path::new(matches.value_of("DATA").unwrap());
-        let do_copy = !matches.is_present("NOCOPY");
-        let binary_mode = matches.is_present("BINARY");
+        let input = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
+        let nr_blocks = *matches.get_one::<u64>("NR_BLOCKS").unwrap();
+        let data_device = Path::new(matches.get_one::<String>("DATA").unwrap());
+        let do_copy = !matches.get_flag("NOCOPY");
+        let binary_mode = matches.get_flag("BINARY");
         let report = mk_report(false);
 
         Ok(ThinShrinkOptions {

@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::cache::repair::{repair, CacheRepairOptions};
@@ -12,16 +12,17 @@ use crate::report::*;
 pub struct CacheRepairCommand;
 
 impl CacheRepairCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Repair binary cache metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -55,15 +56,15 @@ impl<'a> Command<'a> for CacheRepairCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
         report.set_level(log_level);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
         if let Err(e) = check_input_file(input_file)
             .and_then(check_file_not_tiny)

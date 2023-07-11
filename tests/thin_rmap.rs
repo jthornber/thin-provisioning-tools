@@ -9,27 +9,19 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_rmap ",
-    tools_version!(),
-    "
-Output reverse map of a thin provisioned region of blocks
+const USAGE: &str = "Output reverse map of a thin provisioned region of blocks
 
-USAGE:
-    thin_rmap --region <BLOCK_RANGE> <INPUT>
+Usage: thin_rmap --region <BLOCK_RANGE> <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device
+Arguments:
+  <INPUT>  Specify the input device
 
-OPTIONS:
-    -h, --help                    Print help information
-        --region <BLOCK_RANGE>    Specify range of blocks on the data device
-    -V, --version                 Print version information"
-);
+Options:
+  -h, --help                  Print help
+      --region <BLOCK_RANGE>  Specify range of blocks on the data device
+  -V, --version               Print version";
 
 //------------------------------------------
 

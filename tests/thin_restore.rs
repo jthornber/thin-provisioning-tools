@@ -12,29 +12,21 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_restore ",
-    tools_version!(),
-    "
-Convert XML format metadata to binary.
+const USAGE: &str = "Convert XML format metadata to binary.
 
-USAGE:
-    thin_restore [OPTIONS] --input <FILE> --output <FILE>
+Usage: thin_restore [OPTIONS] --input <FILE> --output <FILE>
 
-OPTIONS:
-        --data-block-size <SECTORS>    Override the data block size if needed
-    -h, --help                         Print help information
-    -i, --input <FILE>                 Specify the input xml
-        --nr-data-blocks <NUM>         Override the number of data blocks if needed
-    -o, --output <FILE>                Specify the output device
-    -q, --quiet                        Suppress output messages, return only exit code.
-        --transaction-id <NUM>         Override the transaction id if needed
-    -V, --version                      Print version information"
-);
+Options:
+      --data-block-size <SECTORS>  Override the data block size if needed
+  -h, --help                       Print help
+  -i, --input <FILE>               Specify the input xml
+      --nr-data-blocks <NUM>       Override the number of data blocks if needed
+  -o, --output <FILE>              Specify the output device
+  -q, --quiet                      Suppress output messages, return only exit code.
+      --transaction-id <NUM>       Override the transaction id if needed
+  -V, --version                    Print version";
 
 //------------------------------------------
 

@@ -232,12 +232,12 @@ where
 
 pub mod msg {
     pub const FILE_NOT_FOUND: &str = "Couldn't find input file";
-    pub const MISSING_INPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
-    pub const MISSING_OUTPUT_ARG: &str = "The following required arguments were not provided"; // TODO: be specific
+    pub const MISSING_INPUT_ARG: &str = "the following required arguments were not provided"; // TODO: be specific
+    pub const MISSING_OUTPUT_ARG: &str = "the following required arguments were not provided"; // TODO: be specific
     pub const BAD_SUPERBLOCK: &str = "bad checksum in superblock";
 
     pub fn bad_option_hint(option: &str) -> String {
-        format!("Found argument '{}' which wasn't expected", option)
+        format!("unexpected argument '{}' found", option)
     }
 }
 

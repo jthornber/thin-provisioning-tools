@@ -11,29 +11,21 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "era_check ",
-    tools_version!(),
-    "
-Validate era metadata on device or file.
+const USAGE: &str = "Validate era metadata on device or file.
 
-USAGE:
-    era_check [OPTIONS] <INPUT>
+Usage: era_check [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device to check
+Arguments:
+  <INPUT>  Specify the input device to check
 
-OPTIONS:
-    -h, --help                       Print help information
-        --ignore-non-fatal-errors    Only return a non-zero exit code if a fatal error is found.
-    -q, --quiet                      Suppress output messages, return only exit code.
-        --super-block-only           Only check the superblock.
-    -V, --version                    Print version information"
-);
+Options:
+  -h, --help                     Print help
+      --ignore-non-fatal-errors  Only return a non-zero exit code if a fatal error is found.
+  -q, --quiet                    Suppress output messages, return only exit code.
+      --super-block-only         Only check the superblock.
+  -V, --version                  Print version";
 
 //------------------------------------------
 

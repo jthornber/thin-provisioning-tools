@@ -7,29 +7,21 @@ use common::process::*;
 use common::program::*;
 use common::target::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "cache_metadata_size ",
-    tools_version!(),
-    "
-Estimate the size of the metadata device needed for a given configuration.
+const USAGE: &str = "Estimate the size of the metadata device needed for a given configuration.
 
-USAGE:
-    cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>
+Usage: cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>
 
-OPTIONS:
-        --block-size <SIZE[bskmg]>       Specify the size of each cache block
-        --device-size <SIZE[bskmgtp]>    Specify total size of the fast device used in the cache
-    -h, --help                           Print help information
-        --max-hint-width <BYTES>         Specity the per-block hint width [default: 4]
-    -n, --numeric-only[=<OPT>...]        Output numeric value only
-        --nr-blocks <NUM>                Specify the number of cache blocks
-    -u, --unit <UNIT>                    Specify the output unit in {bskKmMgG} [default: sector]
-    -V, --version                        Print version information"
-);
+Options:
+      --block-size <SIZE[bskmg]>     Specify the size of each cache block
+      --device-size <SIZE[bskmgtp]>  Specify total size of the fast device used in the cache
+  -h, --help                         Print help
+      --max-hint-width <BYTES>       Specity the per-block hint width [default: 4]
+  -n, --numeric-only[=<OPT>]         Output numeric value only
+      --nr-blocks <NUM>              Specify the number of cache blocks
+  -u, --unit <UNIT>                  Specify the output unit in {bskKmMgG} [default: sector]
+  -V, --version                      Print version";
 
 //------------------------------------------
 
