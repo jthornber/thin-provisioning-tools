@@ -1,40 +1,13 @@
 extern crate clap;
 
-use anyhow::anyhow;
 use clap::Arg;
 use std::ops::Range;
 use std::path::Path;
-
-use std::str::FromStr;
 
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::thin::rmap::*;
-
-//------------------------------------------
-
-struct RangeU64 {
-    start: u64,
-    end: u64,
-}
-
-impl FromStr for RangeU64 {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut iter = s.split("..");
-        let start = iter.next().ok_or_else(|| anyhow!("badly formed region"))?;
-        let end = iter.next().ok_or_else(|| anyhow!("badly formed region"))?;
-        if iter.next().is_some() {
-            return Err(anyhow!("badly formed region"));
-        }
-        Ok(RangeU64 {
-            start: start.parse::<u64>()?,
-            end: end.parse::<u64>()?,
-        })
-    }
-}
 
 //------------------------------------------
 
