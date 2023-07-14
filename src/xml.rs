@@ -1,19 +1,14 @@
 use anyhow::anyhow;
 use quick_xml::events::attributes::Attribute;
+use quick_xml::name::QName;
 use std::borrow::Cow;
 use std::fmt::Display;
 
 //------------------------------------------
 
-pub fn bytes_val<'a>(kv: &'a Attribute) -> Cow<'a, [u8]> {
-    kv.unescaped_value().unwrap()
-}
-
 // FIXME: nasty unwraps
 pub fn string_val(kv: &Attribute) -> String {
-    let v = kv.unescaped_value().unwrap();
-    let bytes = v.to_vec();
-    String::from_utf8(bytes).unwrap()
+    kv.unescape_value().unwrap().to_string()
 }
 
 // FIXME: there's got to be a way of doing this without copying the string
@@ -56,7 +51,7 @@ fn missing_attr<T>(tag: &str, attr: &str) -> anyhow::Result<T> {
 
 pub fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
     Attribute {
-        key,
+        key: QName(key),
         value: mk_attr_(value),
     }
 }

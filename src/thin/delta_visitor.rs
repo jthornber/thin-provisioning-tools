@@ -133,25 +133,25 @@ impl<W: Write> SimpleXmlWriter<W> {
     fn write_delta(&mut self, d: &Delta) -> Result<()> {
         match d {
             Delta::LeftOnly(r) => {
-                let mut elem = BytesStart::owned_name(b"left_only".to_vec());
+                let mut elem = BytesStart::new("left_only");
                 elem.push_attribute(mk_attr(b"begin", r.thin_begin));
                 elem.push_attribute(mk_attr(b"length", r.len));
                 self.w.write_event(Event::Empty(elem))?;
             }
             Delta::RightOnly(r) => {
-                let mut elem = BytesStart::owned_name(b"right_only".to_vec());
+                let mut elem = BytesStart::new("right_only");
                 elem.push_attribute(mk_attr(b"begin", r.thin_begin));
                 elem.push_attribute(mk_attr(b"length", r.len));
                 self.w.write_event(Event::Empty(elem))?;
             }
             Delta::Differ(r) => {
-                let mut elem = BytesStart::owned_name(b"different".to_vec());
+                let mut elem = BytesStart::new("different");
                 elem.push_attribute(mk_attr(b"begin", r.thin_begin));
                 elem.push_attribute(mk_attr(b"length", r.len));
                 self.w.write_event(Event::Empty(elem))?;
             }
             Delta::Same(r) => {
-                let mut elem = BytesStart::owned_name(b"same".to_vec());
+                let mut elem = BytesStart::new("same");
                 elem.push_attribute(mk_attr(b"begin", r.thin_begin));
                 elem.push_attribute(mk_attr(b"length", r.len));
                 self.w.write_event(Event::Empty(elem))?;
@@ -219,25 +219,24 @@ impl<W: Write> VerboseXmlWriter<W> {
     }
 
     fn open_type_tag(&mut self, typ: DeltaType) -> Result<()> {
-        let tag: &[u8] = match typ {
-            DeltaType::LeftOnly => b"left_only",
-            DeltaType::RightOnly => b"right_only",
-            DeltaType::Differ => b"different",
-            DeltaType::Same => b"same",
+        let tag: &str = match typ {
+            DeltaType::LeftOnly => "left_only",
+            DeltaType::RightOnly => "right_only",
+            DeltaType::Differ => "different",
+            DeltaType::Same => "same",
         };
-        self.w
-            .write_event(Event::Start(BytesStart::borrowed_name(tag)))?;
+        self.w.write_event(Event::Start(BytesStart::new(tag)))?;
         Ok(())
     }
 
     fn close_type_tag(&mut self, typ: DeltaType) -> Result<()> {
-        let tag: &[u8] = match typ {
-            DeltaType::LeftOnly => b"left_only",
-            DeltaType::RightOnly => b"right_only",
-            DeltaType::Differ => b"different",
-            DeltaType::Same => b"same",
+        let tag: &str = match typ {
+            DeltaType::LeftOnly => "left_only",
+            DeltaType::RightOnly => "right_only",
+            DeltaType::Differ => "different",
+            DeltaType::Same => "same",
         };
-        self.w.write_event(Event::End(BytesEnd::borrowed(tag)))?;
+        self.w.write_event(Event::End(BytesEnd::new(tag)))?;
         Ok(())
     }
 
@@ -256,7 +255,7 @@ impl<W: Write> VerboseXmlWriter<W> {
     }
 
     fn write_delta_range(&mut self, m: &DataMapping) -> Result<()> {
-        let mut elem = BytesStart::owned_name(b"range".to_vec());
+        let mut elem = BytesStart::new("range");
         elem.push_attribute(mk_attr(b"begin", m.thin_begin));
         elem.push_attribute(mk_attr(b"data_begin", m.data_begin));
         elem.push_attribute(mk_attr(b"length", m.len));
@@ -265,7 +264,7 @@ impl<W: Write> VerboseXmlWriter<W> {
     }
 
     fn write_diff_range(&mut self, m: &DiffMapping) -> Result<()> {
-        let mut elem = BytesStart::owned_name(b"range".to_vec());
+        let mut elem = BytesStart::new("range");
         elem.push_attribute(mk_attr(b"begin", m.thin_begin));
         elem.push_attribute(mk_attr(b"left_data_begin", m.left_data_begin));
         elem.push_attribute(mk_attr(b"right_data_begin", m.right_data_begin));
@@ -335,8 +334,7 @@ impl<W: Write> DeltaVisitor for VerboseXmlWriter<W> {
 
 // TODO: move these common functions into an abstract class
 fn write_superblock_b<W: Write>(w: &mut Writer<W>, sb: &ir::Superblock) -> Result<()> {
-    let tag = b"superblock";
-    let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+    let mut elem = BytesStart::new("superblock");
     elem.push_attribute(mk_attr(b"uuid", sb.uuid.clone()));
     elem.push_attribute(mk_attr(b"time", sb.time));
     elem.push_attribute(mk_attr(b"transaction", sb.transaction));
@@ -357,12 +355,12 @@ fn write_superblock_b<W: Write>(w: &mut Writer<W>, sb: &ir::Superblock) -> Resul
 }
 
 fn write_superblock_e<W: Write>(w: &mut Writer<W>) -> Result<()> {
-    w.write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
+    w.write_event(Event::End(BytesEnd::new("superblock")))?;
     Ok(())
 }
 
 fn write_diff_b<W: Write>(w: &mut Writer<W>, snap1: Snap, snap2: Snap) -> Result<()> {
-    let mut elem = BytesStart::owned_name(b"diff".to_vec());
+    let mut elem = BytesStart::new("diff");
     match snap1 {
         Snap::DeviceId(dev_id) => elem.push_attribute(mk_attr(b"left", dev_id)),
         Snap::RootBlock(blocknr) => elem.push_attribute(mk_attr(b"left_root", blocknr)),
@@ -376,7 +374,7 @@ fn write_diff_b<W: Write>(w: &mut Writer<W>, snap1: Snap, snap2: Snap) -> Result
 }
 
 fn write_diff_e<W: Write>(w: &mut Writer<W>) -> Result<()> {
-    w.write_event(Event::End(BytesEnd::borrowed(b"diff")))?;
+    w.write_event(Event::End(BytesEnd::new("diff")))?;
     Ok(())
 }
 
