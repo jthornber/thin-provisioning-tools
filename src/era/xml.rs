@@ -250,13 +250,19 @@ where
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"writeset" => visitor.writeset_b(&parse_writeset(e)?),
             b"era_array" => visitor.era_b(),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown start tag at byte {}",
+                reader.buffer_position()
+            )),
         },
         Ok(Event::End(ref e)) => match e.name().0 {
             b"superblock" => visitor.superblock_e(),
             b"writeset" => visitor.writeset_e(),
             b"era_array" => visitor.era_e(),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown end tag at byte {}",
+                reader.buffer_position()
+            )),
         },
         Ok(Event::Empty(ref e)) => match e.name().0 {
             b"bit" => {
@@ -268,7 +274,10 @@ where
             }
             b"marked" => visitor.writeset_blocks(&parse_writeset_blocks(e)?),
             b"era" => visitor.era(&parse_era(e)?),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown empty tag at byte {}",
+                reader.buffer_position()
+            )),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -276,9 +285,12 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Ok(_) => Err(anyhow!(
+            "unsupported element at byte {}",
+            reader.buffer_position()
+        )),
         Err(e) => Err(anyhow!(
-            "Parse error at byte {}: {:?}",
+            "parse error at byte {}: {:?}",
             reader.buffer_position(),
             e
         )),

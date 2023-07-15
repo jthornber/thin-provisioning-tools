@@ -196,7 +196,7 @@ where
             b"mappings" => visitor.mappings_b(),
             b"hints" => visitor.hints_b(),
             _ => Err(anyhow!(
-                "Parse error 1 at byte {}",
+                "unknown start tag at byte {}",
                 reader.buffer_position()
             )),
         },
@@ -205,7 +205,7 @@ where
             b"mappings" => visitor.mappings_e(),
             b"hints" => visitor.hints_e(),
             _ => Err(anyhow!(
-                "Parse error 2 at byte {}",
+                "unknown end tag at byte {}",
                 reader.buffer_position()
             )),
         },
@@ -213,7 +213,7 @@ where
             b"mapping" => visitor.mapping(&parse_mapping(e)?),
             b"hint" => visitor.hint(&parse_hint(e)?),
             _ => Err(anyhow!(
-                "Parse error 3 at byte {}",
+                "unknown empty element at byte {}",
                 reader.buffer_position()
             )),
         },
@@ -224,11 +224,11 @@ where
             Ok(Visit::Stop)
         }
         Ok(_) => Err(anyhow!(
-            "Parse error 4 at byte {}",
+            "unsupported element at byte {}",
             reader.buffer_position()
         )),
         Err(e) => Err(anyhow!(
-            "Parse error 5 at byte {}: {:?}",
+            "parse error at byte {}: {:?}",
             reader.buffer_position(),
             e
         )),
