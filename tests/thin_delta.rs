@@ -9,33 +9,24 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_delta ",
-    tools_version!(),
-    "
-Print the differences in the mappings between two thin devices
+const USAGE: &str = "Print the differences in the mappings between two thin devices
 
-USAGE:
-    thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>
+Usage: thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device
+Arguments:
+  <INPUT>  Specify the input device
 
-OPTIONS:
-    -h, --help               Print help information
-    -m, --metadata-snap      Use metadata snapshot
-        --root1 <BLOCKNR>    The root block for the first thin volume to diff
-        --root2 <BLOCKNR>    The root block for the second thin volume to diff
-        --thin1 <DEV_ID>     The numeric identifier for the first thin volume to diff [aliases:
-                             snap1]
-        --thin2 <DEV_ID>     The numeric identifier for the second thin volume to diff [aliases:
-                             snap2]
-    -V, --version            Print version information
-        --verbose            Provide extra information on the mappings");
+Options:
+  -h, --help             Print help
+  -m, --metadata-snap    Use metadata snapshot
+      --root1 <BLOCKNR>  The root block for the first thin volume to diff
+      --root2 <BLOCKNR>  The root block for the second thin volume to diff
+      --thin1 <DEV_ID>   The numeric identifier for the first thin volume to diff [aliases: snap1]
+      --thin2 <DEV_ID>   The numeric identifier for the second thin volume to diff [aliases: snap2]
+  -V, --version          Print version
+      --verbose          Provide extra information on the mappings";
 
 //------------------------------------------
 
@@ -81,8 +72,8 @@ fn snap1_unspecified() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap2", "45", &md]))?;
     assert!(stderr.contains(
-        "The following required arguments were not provided:
-    <--root1 <BLOCKNR>|--thin1 <DEV_ID>>"
+        "the following required arguments were not provided:
+  <--root1 <BLOCKNR>|--thin1 <DEV_ID>>"
     ));
     Ok(())
 }
@@ -93,8 +84,8 @@ fn snap2_unspecified() -> Result<()> {
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap1", "45", &md]))?;
     assert!(stderr.contains(
-        "The following required arguments were not provided:
-    <--root2 <BLOCKNR>|--thin2 <DEV_ID>>"
+        "the following required arguments were not provided:
+  <--root2 <BLOCKNR>|--thin2 <DEV_ID>>"
     ));
     Ok(())
 }

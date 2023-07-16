@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use atty::Stream;
-use clap::ArgMatches;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::Path;
@@ -16,6 +15,7 @@ mod range_parsing_tests;
 
 //------------------------------------------
 
+#[derive(Clone)]
 pub struct RangeU64 {
     pub start: u64,
     pub end: u64,
@@ -158,18 +158,6 @@ pub fn check_overwrite_metadata(report: &Report, path: &Path) -> Result<()> {
     }
 
     Ok(()) // file not found or not a metadata, or 'y' is entered
-}
-
-pub fn optional_value_or_exit<R>(matches: &ArgMatches, name: &str) -> Option<R>
-where
-    R: FromStr,
-    <R as FromStr>::Err: std::fmt::Display,
-{
-    if matches.is_present(name) {
-        Some(matches.value_of_t_or_exit::<R>(name))
-    } else {
-        None
-    }
 }
 
 pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::ExitCode {

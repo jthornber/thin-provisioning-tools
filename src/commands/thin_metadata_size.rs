@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use clap::builder::{PossibleValuesParser, TypedValueParser};
 use clap::{value_parser, Arg};
 use std::ffi::OsString;
 use std::io;
@@ -37,9 +38,9 @@ impl FromStr for OutputFormat {
 pub struct ThinMetadataSizeCommand;
 
 impl ThinMetadataSizeCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Estimate the size of the metadata device needed for a given configuration.")
             // flags
@@ -49,11 +50,12 @@ impl ThinMetadataSizeCommand {
                     .short('n')
                     .long("numeric-only")
                     .value_name("OPT")
-                    .value_parser(value_parser!(OutputFormat))
-                    .min_values(0)
-                    .max_values(1)
+                    .value_parser(
+                        PossibleValuesParser::new(["short", "long"])
+                            .map(|s| s.parse::<OutputFormat>().unwrap()),
+                    )
+                    .num_args(0..=1)
                     .require_equals(true)
-                    .possible_values(["short", "long"])
                     .hide_possible_values(true),
             )
             // options
@@ -63,7 +65,8 @@ impl ThinMetadataSizeCommand {
                     .short('b')
                     .long("block-size")
                     .required(true)
-                    .value_name("SIZE[bskmg]"),
+                    .value_name("SIZE[bskmg]")
+                    .value_parser(value_parser!(StorageSize)),
             )
             .arg(
                 Arg::new("POOL_SIZE")
@@ -71,7 +74,8 @@ impl ThinMetadataSizeCommand {
                     .short('s')
                     .long("pool-size")
                     .required(true)
-                    .value_name("SIZE[bskmgtp]"),
+                    .value_name("SIZE[bskmgtp]")
+                    .value_parser(value_parser!(StorageSize)),
             )
             .arg(
                 Arg::new("MAX_THINS")
@@ -79,7 +83,8 @@ impl ThinMetadataSizeCommand {
                     .short('m')
                     .long("max-thins")
                     .required(true)
-                    .value_name("NUM"),
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("UNIT")
@@ -87,6 +92,7 @@ impl ThinMetadataSizeCommand {
                     .short('u')
                     .long("unit")
                     .value_name("UNIT")
+                    .value_parser(value_parser!(Units))
                     .default_value("sector"),
             )
     }
@@ -99,19 +105,23 @@ impl ThinMetadataSizeCommand {
         let matches = self.cli().get_matches_from(args);
 
         let pool_size = matches
-            .value_of_t_or_exit::<StorageSize>("POOL_SIZE")
+            .get_one::<StorageSize>("POOL_SIZE")
+            .unwrap()
             .size_bytes();
         let block_size = matches
-            .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
+            .get_one::<StorageSize>("BLOCK_SIZE")
+            .unwrap()
             .size_bytes();
-        let max_thins = matches.value_of_t_or_exit::<u64>("MAX_THINS");
-        let unit = matches.value_of_t_or_exit::<Units>("UNIT");
+        let max_thins = *matches.get_one::<u64>("MAX_THINS").unwrap();
+        let unit = *matches.get_one::<Units>("UNIT").unwrap();
 
-        let format = if matches.is_present("NUMERIC_ONLY") {
-            matches
-                .get_one::<OutputFormat>("NUMERIC_ONLY")
-                .cloned()
-                .unwrap_or(OutputFormat::NumericOnly)
+        let format = if let Some(fmt) = matches.get_one::<OutputFormat>("NUMERIC_ONLY") {
+            fmt.clone()
+        } else if matches!(
+            matches.value_source("NUMERIC_ONLY"),
+            Some(clap::parser::ValueSource::CommandLine)
+        ) {
+            OutputFormat::NumericOnly
         } else {
             OutputFormat::Full
         };
@@ -167,7 +177,7 @@ impl<'a> Command<'a> for ThinMetadataSizeCommand {
                     }
                     OutputFormat::ShortUnits => output.push_str(&unit.to_letter()),
                     OutputFormat::LongUnits => {
-                        // no space between the numeric value and the unit
+                        // be backward compatible: no space between the numeric value and the unit
                         output.push_str(&unit.to_string());
                         output.push('s'); // plural form
                     }

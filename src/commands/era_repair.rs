@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -12,16 +12,17 @@ use crate::report::*;
 pub struct EraRepairCommand;
 
 impl EraRepairCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Repair binary era metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -52,10 +53,10 @@ impl<'a> Command<'a> for EraRepairCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),

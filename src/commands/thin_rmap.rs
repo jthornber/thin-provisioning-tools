@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{value_parser, Arg};
 use std::ops::Range;
 use std::path::Path;
 
@@ -14,9 +14,9 @@ use crate::thin::rmap::*;
 pub struct ThinRmapCommand;
 
 impl ThinRmapCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Output reverse map of a thin provisioned region of blocks")
             // options
@@ -27,9 +27,10 @@ impl ThinRmapCommand {
                 Arg::new("REGION")
                     .help("Specify range of blocks on the data device")
                     .long("region")
-                    .multiple_occurrences(true)
+                    .action(clap::ArgAction::Append)
                     .required(true)
-                    .value_name("BLOCK_RANGE"),
+                    .value_name("BLOCK_RANGE")
+                    .value_parser(value_parser!(RangeU64)),
             )
             // arguments
             .arg(
@@ -49,7 +50,7 @@ impl<'a> Command<'a> for ThinRmapCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 
         let report = mk_report(false);
 
@@ -59,8 +60,8 @@ impl<'a> Command<'a> for ThinRmapCommand {
 
         // FIXME: get rid of the intermediate RangeU64 struct
         let regions: Vec<Range<u64>> = matches
-            .values_of_t_or_exit::<RangeU64>("REGION")
-            .iter()
+            .get_many::<RangeU64>("REGION")
+            .unwrap()
             .map(|v| Range::<u64> {
                 start: v.start,
                 end: v.end,

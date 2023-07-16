@@ -11,53 +11,26 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_check ",
-    tools_version!(),
-    "
-Validates thin provisioning metadata on a device or file.
+const USAGE: &str = "Validates thin provisioning metadata on a device or file.
 
-USAGE:
-    thin_check [OPTIONS] <INPUT>
+Usage: thin_check [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Specify the input device to check
+Arguments:
+  <INPUT>  Specify the input device to check
 
-OPTIONS:
-        --auto-repair
-            Auto repair trivial issues.
-
-        --clear-needs-check-flag
-            Clears the 'needs_check' flag in the superblock
-
-    -h, --help
-            Print help information
-
-        --ignore-non-fatal-errors
-            Only return a non-zero exit code if a fatal error is found.
-
-    -m, --metadata-snap
-            Check the metadata snapshot on a live pool
-
-        --override-mapping-root <BLOCKNR>
-            Specify a mapping root to use
-
-    -q, --quiet
-            Suppress output messages, return only exit code.
-
-        --skip-mappings
-            Don't check the mapping tree
-
-        --super-block-only
-            Only check the superblock.
-
-    -V, --version
-            Print version information"
-);
+Options:
+      --auto-repair                      Auto repair trivial issues.
+      --clear-needs-check-flag           Clears the 'needs_check' flag in the superblock
+  -h, --help                             Print help
+      --ignore-non-fatal-errors          Only return a non-zero exit code if a fatal error is found.
+  -m, --metadata-snap                    Check the metadata snapshot on a live pool
+      --override-mapping-root <BLOCKNR>  Specify a mapping root to use
+  -q, --quiet                            Suppress output messages, return only exit code.
+      --skip-mappings                    Don't check the mapping tree
+      --super-block-only                 Only check the superblock.
+  -V, --version                          Print version";
 
 //-----------------------------------------
 

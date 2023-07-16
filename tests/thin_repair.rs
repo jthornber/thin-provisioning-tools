@@ -12,29 +12,21 @@ use common::target::*;
 use common::test_dir::*;
 use common::thin::*;
 
-use thinp::tools_version;
-
 //------------------------------------------
 
-const USAGE: &str = concat!(
-    "thin_repair ",
-    tools_version!(),
-    "
-Repair thin-provisioning metadata, and write it to different device or file
+const USAGE: &str = "Repair thin-provisioning metadata, and write it to different device or file
 
-USAGE:
-    thin_repair [OPTIONS] --input <FILE> --output <FILE>
+Usage: thin_repair [OPTIONS] --input <FILE> --output <FILE>
 
-OPTIONS:
-        --data-block-size <SECTORS>    Provide the data block size for repairing
-    -h, --help                         Print help information
-    -i, --input <FILE>                 Specify the input device
-        --nr-data-blocks <NUM>         Override the number of data blocks if needed
-    -o, --output <FILE>                Specify the output device
-    -q, --quiet                        Suppress output messages, return only exit code.
-        --transaction-id <NUM>         Override the transaction id if needed
-    -V, --version                      Print version information"
-);
+Options:
+      --data-block-size <SECTORS>  Provide the data block size for repairing
+  -h, --help                       Print help
+  -i, --input <FILE>               Specify the input device
+      --nr-data-blocks <NUM>       Override the number of data blocks if needed
+  -o, --output <FILE>              Specify the output device
+  -q, --quiet                      Suppress output messages, return only exit code.
+      --transaction-id <NUM>       Override the transaction id if needed
+  -V, --version                    Print version";
 
 //-----------------------------------------
 

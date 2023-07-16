@@ -13,9 +13,9 @@ use crate::era::invalidate::{invalidate, EraInvalidateOptions};
 pub struct EraInvalidateCommand;
 
 impl EraInvalidateCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("List blocks that may have changed since a given era")
             .arg(
@@ -57,12 +57,8 @@ impl<'a> Command<'a> for EraInvalidateCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = if matches.is_present("OUTPUT") {
-            Some(Path::new(matches.value_of("OUTPUT").unwrap()))
-        } else {
-            None
-        };
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);
 
         // Create a temporary report just in case these checks
         // need to report anything.
@@ -81,7 +77,7 @@ impl<'a> Command<'a> for EraInvalidateCommand {
             input: input_file,
             output: output_file,
             engine_opts: engine_opts.unwrap(),
-            threshold: optional_value_or_exit::<u32>(&matches, "WRITTEN_SINCE").unwrap_or(0),
+            threshold: matches.get_one::<u32>("WRITTEN_SINCE").map_or(0, |v| *v),
         };
 
         to_exit_code(&report, invalidate(&opts))

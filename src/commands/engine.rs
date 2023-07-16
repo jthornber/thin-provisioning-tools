@@ -46,7 +46,6 @@ pub fn engine_args(cmd: clap::Command) -> clap::Command {
             .help("Select an io engine to use")
             .long("io-engine")
             .value_name("IO_ENGINE")
-            .takes_value(true)
             .hide(true),
     )
 }
@@ -54,8 +53,8 @@ pub fn engine_args(cmd: clap::Command) -> clap::Command {
 //------------------------------------------
 
 fn parse_type(matches: &ArgMatches) -> Result<EngineType> {
-    let engine_type = if let Some(engine) = matches.value_of("IO_ENGINE") {
-        match engine {
+    let engine_type = if let Some(engine) = matches.get_one::<String>("IO_ENGINE") {
+        match engine.as_str() {
             "sync" => EngineType::Sync,
             "spindle" => EngineType::Spindle,
             #[cfg(feature = "io_uring")]
@@ -78,12 +77,16 @@ fn parse_type(matches: &ArgMatches) -> Result<EngineType> {
 }
 
 fn metadata_snap_flag(matches: &ArgMatches) -> bool {
-    let ms = matches.try_contains_id("METADATA_SNAPSHOT");
-    if ms.is_err() {
-        // This tool doesn't use metadata snaps
+    if !matches!(matches.try_contains_id("METADATA_SNAPSHOT"), Ok(true)) {
+        // This tool doesn't use metadata snaps, or the METADATA_SNAPSHOT
+        // option is not specified.
         return false;
     }
-    ms.unwrap()
+
+    matches!(
+        matches.value_source("METADATA_SNAPSHOT"),
+        Some(clap::parser::ValueSource::CommandLine)
+    )
 }
 
 pub fn parse_engine_opts(tool: ToolType, matches: &ArgMatches) -> Result<EngineOptions> {

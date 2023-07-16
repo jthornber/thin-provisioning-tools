@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -14,27 +14,30 @@ use crate::report::*;
 pub struct EraCheckCommand;
 
 impl EraCheckCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Validate era metadata on device or file.")
             // flags
             .arg(
                 Arg::new("IGNORE_NON_FATAL")
                     .help("Only return a non-zero exit code if a fatal error is found.")
-                    .long("ignore-non-fatal-errors"),
+                    .long("ignore-non-fatal-errors")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("SB_ONLY")
                     .help("Only check the superblock.")
-                    .long("super-block-only"),
+                    .long("super-block-only")
+                    .action(ArgAction::SetTrue),
             )
             // arguments
             .arg(
@@ -55,9 +58,9 @@ impl<'a> Command<'a> for EraCheckCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
@@ -79,8 +82,8 @@ impl<'a> Command<'a> for EraCheckCommand {
         let opts = EraCheckOptions {
             dev: input_file,
             engine_opts: engine_opts.unwrap(),
-            sb_only: matches.is_present("SB_ONLY"),
-            ignore_non_fatal: matches.is_present("IGNORE_NON_FATAL"),
+            sb_only: matches.get_flag("SB_ONLY"),
+            ignore_non_fatal: matches.get_flag("IGNORE_NON_FATAL"),
             report: report.clone(),
         };
 

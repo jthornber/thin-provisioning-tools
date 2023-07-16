@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use clap::builder::{PossibleValuesParser, TypedValueParser};
 use clap::{value_parser, Arg};
 use std::ffi::OsString;
 use std::io;
@@ -13,7 +14,7 @@ use crate::units::*;
 
 //------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum OutputFormat {
     Full,
     ShortUnits,
@@ -38,9 +39,9 @@ impl FromStr for OutputFormat {
 pub struct CacheMetadataSizeCommand;
 
 impl CacheMetadataSizeCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Estimate the size of the metadata device needed for a given configuration.")
             .override_usage("cache_metadata_size [OPTIONS] <--device-size <SIZE> --block-size <SIZE> | --nr-blocks <NUM>>")
@@ -51,11 +52,9 @@ impl CacheMetadataSizeCommand {
                     .short('n')
                     .long("numeric-only")
                     .value_name("OPT")
-                    .value_parser(value_parser!(OutputFormat))
-                    .min_values(0)
-                    .max_values(1)
+                    .value_parser(PossibleValuesParser::new(["short", "long"]).map(|s| s.parse::<OutputFormat>().unwrap()))
+                    .num_args(0..=1)
                     .require_equals(true)
-                    .possible_values(["short", "long"])
                     .hide_possible_values(true),
             )
             // options
@@ -64,27 +63,31 @@ impl CacheMetadataSizeCommand {
                     .help("Specify the size of each cache block")
                     .long("block-size")
                     .requires("DEVICE_SIZE")
-                    .value_name("SIZE[bskmg]"),
+                    .value_name("SIZE[bskmg]")
+                    .value_parser(value_parser!(StorageSize)),
             )
             .arg(
                 Arg::new("DEVICE_SIZE")
                     .help("Specify total size of the fast device used in the cache")
                     .long("device-size")
                     .requires("BLOCK_SIZE")
-                    .value_name("SIZE[bskmgtp]"),
+                    .value_name("SIZE[bskmgtp]")
+                    .value_parser(value_parser!(StorageSize)),
             )
             .arg(
                 Arg::new("NR_BLOCKS")
                     .help("Specify the number of cache blocks")
                     .long("nr-blocks")
-                    .conflicts_with_all(&["BLOCK_SIZE", "DEVICE_SIZE"])
-                    .value_name("NUM"),
+                    .conflicts_with_all(["BLOCK_SIZE", "DEVICE_SIZE"])
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("MAX_HINT_WIDTH")
                     .help("Specity the per-block hint width")
                     .long("max-hint-width")
                     .value_name("BYTES")
+                    .value_parser(value_parser!(u32))
                     .default_value("4"),
             )
             .arg(
@@ -93,6 +96,7 @@ impl CacheMetadataSizeCommand {
                     .short('u')
                     .long("unit")
                     .value_name("UNIT")
+                    .value_parser(value_parser!(Units))
                     .default_value("sector"),
             )
     }
@@ -104,15 +108,15 @@ impl CacheMetadataSizeCommand {
     {
         let matches = self.cli().get_matches_from(args);
 
-        let nr_blocks = if matches.is_present("NR_BLOCKS") {
-            matches.value_of_t_or_exit::<u64>("NR_BLOCKS")
-        } else if matches.is_present("BLOCK_SIZE") && matches.is_present("DEVICE_SIZE") {
-            let device_size = matches
-                .value_of_t_or_exit::<StorageSize>("DEVICE_SIZE")
-                .size_bytes();
-            let block_size = matches
-                .value_of_t_or_exit::<StorageSize>("BLOCK_SIZE")
-                .size_bytes();
+        let nr_blocks = matches.get_one::<u64>("NR_BLOCKS");
+        let device_size = matches.get_one::<StorageSize>("DEVICE_SIZE");
+        let block_size = matches.get_one::<StorageSize>("BLOCK_SIZE");
+
+        let nr_blocks = if let Some(n) = nr_blocks {
+            *n
+        } else if let (Some(ds), Some(bs)) = (device_size, block_size) {
+            let device_size = ds.size_bytes();
+            let block_size = bs.size_bytes();
 
             check_cache_block_size(block_size)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
@@ -128,14 +132,16 @@ impl CacheMetadataSizeCommand {
             ));
         };
 
-        let max_hint_width = matches.value_of_t_or_exit::<u32>("MAX_HINT_WIDTH");
-        let unit = matches.value_of_t_or_exit::<Units>("UNIT");
+        let max_hint_width = *matches.get_one::<u32>("MAX_HINT_WIDTH").unwrap();
+        let unit = *matches.get_one::<Units>("UNIT").unwrap();
 
-        let format = if matches.is_present("NUMERIC_ONLY") {
-            matches
-                .get_one::<OutputFormat>("NUMERIC_ONLY")
-                .cloned()
-                .unwrap_or(OutputFormat::NumericOnly)
+        let format = if let Some(fmt) = matches.get_one::<OutputFormat>("NUMERIC_ONLY") {
+            fmt.clone()
+        } else if matches!(
+            matches.value_source("NUMERIC_ONLY"),
+            Some(clap::parser::ValueSource::CommandLine)
+        ) {
+            OutputFormat::NumericOnly
         } else {
             OutputFormat::Full
         };
@@ -184,7 +190,7 @@ impl<'a> Command<'a> for CacheMetadataSizeCommand {
                     }
                     OutputFormat::ShortUnits => output.push_str(&unit.to_letter()),
                     OutputFormat::LongUnits => {
-                        // no space between the numeric value and the unit
+                        // be backward compatible: no space between the numeric value and the unit
                         output.push_str(&unit.to_string());
                         output.push('s'); // plural form
                     }

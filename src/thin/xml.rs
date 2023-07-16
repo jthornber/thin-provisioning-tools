@@ -25,8 +25,7 @@ const METADATA_VERSION: u32 = 2;
 
 impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {
-        let tag = b"superblock";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("superblock");
         elem.push_attribute(mk_attr(b"uuid", sb.uuid.clone()));
         elem.push_attribute(mk_attr(b"time", sb.time));
         elem.push_attribute(mk_attr(b"transaction", sb.transaction));
@@ -49,26 +48,24 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
 
     fn superblock_e(&mut self) -> Result<Visit> {
         self.w
-            .write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
+            .write_event(Event::End(BytesEnd::new("superblock")))?;
         Ok(Visit::Continue)
     }
 
     fn def_shared_b(&mut self, name: &str) -> Result<Visit> {
-        let tag = b"def";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("def");
         elem.push_attribute(mk_attr(b"name", name));
         self.w.write_event(Event::Start(elem))?;
         Ok(Visit::Continue)
     }
 
     fn def_shared_e(&mut self) -> Result<Visit> {
-        self.w.write_event(Event::End(BytesEnd::borrowed(b"def")))?;
+        self.w.write_event(Event::End(BytesEnd::new("def")))?;
         Ok(Visit::Continue)
     }
 
     fn device_b(&mut self, d: &Device) -> Result<Visit> {
-        let tag = b"device";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("device");
         elem.push_attribute(mk_attr(b"dev_id", d.dev_id));
         elem.push_attribute(mk_attr(b"mapped_blocks", d.mapped_blocks));
         elem.push_attribute(mk_attr(b"transaction", d.transaction));
@@ -79,24 +76,21 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn device_e(&mut self) -> Result<Visit> {
-        self.w
-            .write_event(Event::End(BytesEnd::borrowed(b"device")))?;
+        self.w.write_event(Event::End(BytesEnd::new("device")))?;
         Ok(Visit::Continue)
     }
 
     fn map(&mut self, m: &Map) -> Result<Visit> {
         match m.len {
             1 => {
-                let tag = b"single_mapping";
-                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                let mut elem = BytesStart::new("single_mapping");
                 elem.push_attribute(mk_attr(b"origin_block", m.thin_begin));
                 elem.push_attribute(mk_attr(b"data_block", m.data_begin));
                 elem.push_attribute(mk_attr(b"time", m.time));
                 self.w.write_event(Event::Empty(elem))?;
             }
             _ => {
-                let tag = b"range_mapping";
-                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                let mut elem = BytesStart::new("range_mapping");
                 elem.push_attribute(mk_attr(b"origin_begin", m.thin_begin));
                 elem.push_attribute(mk_attr(b"data_begin", m.data_begin));
                 elem.push_attribute(mk_attr(b"length", m.len));
@@ -108,15 +102,14 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn ref_shared(&mut self, name: &str) -> Result<Visit> {
-        let tag = b"ref";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("ref");
         elem.push_attribute(mk_attr(b"name", name));
         self.w.write_event(Event::Empty(elem))?;
         Ok(Visit::Continue)
     }
 
     fn eof(&mut self) -> Result<Visit> {
-        let w = self.w.inner();
+        let w = self.w.get_mut();
         w.flush()?;
         Ok(Visit::Continue)
     }
@@ -136,8 +129,8 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
-            b"uuid" => uuid = Some(string_val(&kv)),
+        match kv.key.0 {
+            b"uuid" => uuid = Some(string_val(&kv)?),
             b"time" => time = Some(u32_val(&kv)?),
             b"transaction" => transaction = Some(u64_val(&kv)?),
             b"flags" => flags = Some(u32_val(&kv)?),
@@ -145,7 +138,7 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
             b"data_block_size" => data_block_size = Some(u32_val(&kv)?),
             b"nr_data_blocks" => nr_data_blocks = Some(u64_val(&kv)?),
             b"metadata_snap" => metadata_snap = Some(u64_val(&kv)?),
-            _ => return bad_attr("superblock", kv.key),
+            _ => return bad_attr("superblock", kv.key.0),
         }
     }
 
@@ -168,11 +161,11 @@ fn parse_def(e: &BytesStart, tag: &str) -> Result<String> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"name" => {
-                name = Some(string_val(&kv));
+                name = Some(string_val(&kv)?);
             }
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -188,13 +181,13 @@ fn parse_device(e: &BytesStart) -> Result<Device> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"dev_id" => dev_id = Some(u32_val(&kv)?),
             b"mapped_blocks" => mapped_blocks = Some(u64_val(&kv)?),
             b"transaction" => transaction = Some(u64_val(&kv)?),
             b"creation_time" => creation_time = Some(u32_val(&kv)?),
             b"snap_time" => snap_time = Some(u32_val(&kv)?),
-            _ => return bad_attr("device", kv.key),
+            _ => return bad_attr("device", kv.key.0),
         }
     }
 
@@ -216,11 +209,11 @@ fn parse_single_map(e: &BytesStart) -> Result<Map> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"origin_block" => thin_begin = Some(u64_val(&kv)?),
             b"data_block" => data_begin = Some(u64_val(&kv)?),
             b"time" => time = Some(u32_val(&kv)?),
-            _ => return bad_attr("single_mapping", kv.key),
+            _ => return bad_attr("single_mapping", kv.key.0),
         }
     }
 
@@ -242,12 +235,12 @@ fn parse_range_map(e: &BytesStart) -> Result<Map> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"origin_begin" => thin_begin = Some(u64_val(&kv)?),
             b"data_begin" => data_begin = Some(u64_val(&kv)?),
             b"time" => time = Some(u32_val(&kv)?),
             b"length" => length = Some(u64_val(&kv)?),
-            _ => return bad_attr("range_mapping", kv.key),
+            _ => return bad_attr("range_mapping", kv.key.0),
         }
     }
 
@@ -266,24 +259,33 @@ where
     R: Read + BufRead,
     M: MetadataVisitor,
 {
-    match reader.read_event(buf) {
-        Ok(Event::Start(ref e)) => match e.name() {
+    match reader.read_event_into(buf) {
+        Ok(Event::Start(ref e)) => match e.name().0 {
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"device" => visitor.device_b(&parse_device(e)?),
             b"def" => visitor.def_shared_b(&parse_def(e, "def")?),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown start tag at byte {}",
+                reader.buffer_position()
+            )),
         },
-        Ok(Event::End(ref e)) => match e.name() {
+        Ok(Event::End(ref e)) => match e.name().0 {
             b"superblock" => visitor.superblock_e(),
             b"device" => visitor.device_e(),
             b"def" => visitor.def_shared_e(),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown end tag at byte {}",
+                reader.buffer_position()
+            )),
         },
-        Ok(Event::Empty(ref e)) => match e.name() {
+        Ok(Event::Empty(ref e)) => match e.name().0 {
             b"single_mapping" => visitor.map(&parse_single_map(e)?),
             b"range_mapping" => visitor.map(&parse_range_map(e)?),
             b"ref" => visitor.ref_shared(&parse_def(e, "ref")?),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown empty element at byte {}",
+                reader.buffer_position()
+            )),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -291,9 +293,12 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Ok(_) => Err(anyhow!(
+            "unsupported element at byte {}",
+            reader.buffer_position()
+        )),
         Err(e) => Err(anyhow!(
-            "Parse error at byte {}: {:?}",
+            "parse error at byte {}: {:?}",
             reader.buffer_position(),
             e
         )),

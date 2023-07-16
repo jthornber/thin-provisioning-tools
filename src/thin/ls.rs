@@ -31,6 +31,7 @@ const MIN_ENTRIES: u8 = 84;
 
 //------------------------------------------
 
+#[derive(Clone)]
 pub enum OutputField {
     DeviceId,
 

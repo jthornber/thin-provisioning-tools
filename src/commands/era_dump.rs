@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -13,21 +13,23 @@ use crate::era::dump::{dump, EraDumpOptions};
 pub struct EraDumpCommand;
 
 impl EraDumpCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Dump the era metadata to stdout in XML format")
             .arg(
                 Arg::new("LOGICAL")
                     .help("Fold any unprocessed write sets into the final era array")
-                    .long("logical"),
+                    .long("logical")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("REPAIR")
                     .help("Repair the metadata whilst dumping it")
                     .short('r')
-                    .long("repair"),
+                    .long("repair")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
@@ -56,12 +58,8 @@ impl<'a> Command<'a> for EraDumpCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = if matches.is_present("OUTPUT") {
-            Some(Path::new(matches.value_of("OUTPUT").unwrap()))
-        } else {
-            None
-        };
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);
 
         let report = std::sync::Arc::new(crate::report::mk_simple_report());
 
@@ -78,8 +76,8 @@ impl<'a> Command<'a> for EraDumpCommand {
             input: input_file,
             output: output_file,
             engine_opts: engine_opts.unwrap(),
-            logical: matches.is_present("LOGICAL"),
-            repair: matches.is_present("REPAIR"),
+            logical: matches.get_flag("LOGICAL"),
+            repair: matches.get_flag("REPAIR"),
         };
 
         to_exit_code(&report, dump(opts))

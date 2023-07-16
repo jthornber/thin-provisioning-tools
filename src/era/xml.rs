@@ -29,8 +29,7 @@ impl<W: Write> XmlWriter<W> {
 
 impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn superblock_b(&mut self, sb: &Superblock) -> Result<Visit> {
-        let tag = b"superblock";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("superblock");
         elem.push_attribute(mk_attr(b"uuid", sb.uuid.clone()));
         elem.push_attribute(mk_attr(b"block_size", sb.block_size));
         elem.push_attribute(mk_attr(b"nr_blocks", sb.nr_blocks));
@@ -44,13 +43,12 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
 
     fn superblock_e(&mut self) -> Result<Visit> {
         self.w
-            .write_event(Event::End(BytesEnd::borrowed(b"superblock")))?;
+            .write_event(Event::End(BytesEnd::new("superblock")))?;
         Ok(Visit::Continue)
     }
 
     fn writeset_b(&mut self, ws: &Writeset) -> Result<Visit> {
-        let tag = b"writeset";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("writeset");
         elem.push_attribute(mk_attr(b"era", ws.era));
         elem.push_attribute(mk_attr(b"nr_bits", ws.nr_bits));
         self.w.write_event(Event::Start(elem))?;
@@ -63,29 +61,25 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     fn writeset_e(&mut self) -> Result<Visit> {
         if !self.compact {
             for b in self.emitted_blocks..self.nr_blocks {
-                let tag = b"bit";
-                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                let mut elem = BytesStart::new("bit");
                 elem.push_attribute(mk_attr(b"block", b));
                 elem.push_attribute(mk_attr(b"value", "false"));
                 self.w.write_event(Event::Empty(elem))?;
             }
         }
-        self.w
-            .write_event(Event::End(BytesEnd::borrowed(b"writeset")))?;
+        self.w.write_event(Event::End(BytesEnd::new("writeset")))?;
         Ok(Visit::Continue)
     }
 
     fn writeset_blocks(&mut self, blocks: &MarkedBlocks) -> Result<Visit> {
         if self.compact {
-            let tag = b"marked";
-            let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+            let mut elem = BytesStart::new("marked");
             elem.push_attribute(mk_attr(b"block_begin", blocks.begin));
             elem.push_attribute(mk_attr(b"len", blocks.len));
             self.w.write_event(Event::Empty(elem))?;
         } else {
             for b in self.emitted_blocks..blocks.begin {
-                let tag = b"bit";
-                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                let mut elem = BytesStart::new("bit");
                 elem.push_attribute(mk_attr(b"block", b));
                 elem.push_attribute(mk_attr(b"value", "false"));
                 self.w.write_event(Event::Empty(elem))?;
@@ -93,8 +87,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
 
             let end = blocks.begin + blocks.len;
             for b in blocks.begin..end {
-                let tag = b"bit";
-                let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+                let mut elem = BytesStart::new("bit");
                 elem.push_attribute(mk_attr(b"block", b));
                 elem.push_attribute(mk_attr(b"value", "true"));
                 self.w.write_event(Event::Empty(elem))?;
@@ -107,21 +100,18 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn era_b(&mut self) -> Result<Visit> {
-        let tag = b"era_array";
-        let elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let elem = BytesStart::new("era_array");
         self.w.write_event(Event::Start(elem))?;
         Ok(Visit::Continue)
     }
 
     fn era_e(&mut self) -> Result<Visit> {
-        self.w
-            .write_event(Event::End(BytesEnd::borrowed(b"era_array")))?;
+        self.w.write_event(Event::End(BytesEnd::new("era_array")))?;
         Ok(Visit::Continue)
     }
 
     fn era(&mut self, era: &Era) -> Result<Visit> {
-        let tag = b"era";
-        let mut elem = BytesStart::owned(tag.to_vec(), tag.len());
+        let mut elem = BytesStart::new("era");
         elem.push_attribute(mk_attr(b"block", era.block));
         elem.push_attribute(mk_attr(b"era", era.era));
         self.w.write_event(Event::Empty(elem))?;
@@ -129,7 +119,7 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
     }
 
     fn eof(&mut self) -> Result<Visit> {
-        let w = self.w.inner();
+        let w = self.w.get_mut();
         w.flush()?;
         Ok(Visit::Continue)
     }
@@ -146,12 +136,12 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
-            b"uuid" => uuid = Some(string_val(&kv)),
+        match kv.key.0 {
+            b"uuid" => uuid = Some(string_val(&kv)?),
             b"block_size" => block_size = Some(u32_val(&kv)?),
             b"nr_blocks" => nr_blocks = Some(u32_val(&kv)?),
             b"current_era" => current_era = Some(u32_val(&kv)?),
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -170,10 +160,10 @@ fn parse_writeset(e: &BytesStart) -> Result<Writeset> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"era" => era = Some(u32_val(&kv)?),
             b"nr_bits" => nr_bits = Some(u32_val(&kv)?),
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -190,10 +180,10 @@ fn parse_writeset_bit(e: &BytesStart) -> Result<Option<MarkedBlocks>> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"block" => block = Some(u32_val(&kv)?),
             b"value" => value = Some(bool_val(&kv)?),
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -217,10 +207,10 @@ fn parse_writeset_blocks(e: &BytesStart) -> Result<MarkedBlocks> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"block_begin" => begin = Some(u32_val(&kv)?),
             b"len" => len = Some(u32_val(&kv)?),
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -237,10 +227,10 @@ fn parse_era(e: &BytesStart) -> Result<Era> {
 
     for a in e.attributes() {
         let kv = a.unwrap();
-        match kv.key {
+        match kv.key.0 {
             b"block" => block = Some(u32_val(&kv)?),
             b"era" => era = Some(u32_val(&kv)?),
-            _ => return bad_attr(tag, kv.key),
+            _ => return bad_attr(tag, kv.key.0),
         }
     }
 
@@ -255,20 +245,26 @@ where
     R: Read + BufRead,
     M: MetadataVisitor,
 {
-    match reader.read_event(buf) {
-        Ok(Event::Start(ref e)) => match e.name() {
+    match reader.read_event_into(buf) {
+        Ok(Event::Start(ref e)) => match e.name().0 {
             b"superblock" => visitor.superblock_b(&parse_superblock(e)?),
             b"writeset" => visitor.writeset_b(&parse_writeset(e)?),
             b"era_array" => visitor.era_b(),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown start tag at byte {}",
+                reader.buffer_position()
+            )),
         },
-        Ok(Event::End(ref e)) => match e.name() {
+        Ok(Event::End(ref e)) => match e.name().0 {
             b"superblock" => visitor.superblock_e(),
             b"writeset" => visitor.writeset_e(),
             b"era_array" => visitor.era_e(),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown end tag at byte {}",
+                reader.buffer_position()
+            )),
         },
-        Ok(Event::Empty(ref e)) => match e.name() {
+        Ok(Event::Empty(ref e)) => match e.name().0 {
             b"bit" => {
                 if let Some(b) = parse_writeset_bit(e)? {
                     visitor.writeset_blocks(&b)
@@ -278,7 +274,10 @@ where
             }
             b"marked" => visitor.writeset_blocks(&parse_writeset_blocks(e)?),
             b"era" => visitor.era(&parse_era(e)?),
-            _ => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+            _ => Err(anyhow!(
+                "unknown empty tag at byte {}",
+                reader.buffer_position()
+            )),
         },
         Ok(Event::Text(_)) => Ok(Visit::Continue),
         Ok(Event::Comment(_)) => Ok(Visit::Continue),
@@ -286,9 +285,12 @@ where
             visitor.eof()?;
             Ok(Visit::Stop)
         }
-        Ok(_) => Err(anyhow!("Parse error at byte {}", reader.buffer_position())),
+        Ok(_) => Err(anyhow!(
+            "unsupported element at byte {}",
+            reader.buffer_position()
+        )),
         Err(e) => Err(anyhow!(
-            "Parse error at byte {}: {:?}",
+            "parse error at byte {}: {:?}",
             reader.buffer_position(),
             e
         )),

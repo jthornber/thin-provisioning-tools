@@ -1,35 +1,36 @@
 use anyhow::anyhow;
 use quick_xml::events::attributes::Attribute;
+use quick_xml::name::QName;
 use std::borrow::Cow;
 use std::fmt::Display;
 
 //------------------------------------------
 
-pub fn bytes_val<'a>(kv: &'a Attribute) -> Cow<'a, [u8]> {
-    kv.unescaped_value().unwrap()
-}
-
 // FIXME: nasty unwraps
-pub fn string_val(kv: &Attribute) -> String {
-    let v = kv.unescaped_value().unwrap();
-    let bytes = v.to_vec();
-    String::from_utf8(bytes).unwrap()
+pub fn string_val(kv: &Attribute) -> anyhow::Result<String> {
+    kv.unescape_value()
+        .map_or_else(|e| Err(e.into()), |s| Ok(s.as_ref().to_string()))
 }
 
-// FIXME: there's got to be a way of doing this without copying the string
+fn parse_val<T>(kv: &Attribute) -> anyhow::Result<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    std::str::from_utf8(kv.value.as_ref())
+        .map_or_else(|e| Err(e.into()), |s| s.parse::<T>().map_err(|e| e.into()))
+}
+
 pub fn u64_val(kv: &Attribute) -> anyhow::Result<u64> {
-    let n = string_val(kv).parse::<u64>()?;
-    Ok(n)
+    parse_val::<u64>(kv)
 }
 
 pub fn u32_val(kv: &Attribute) -> anyhow::Result<u32> {
-    let n = string_val(kv).parse::<u32>()?;
-    Ok(n)
+    parse_val::<u32>(kv)
 }
 
 pub fn bool_val(kv: &Attribute) -> anyhow::Result<bool> {
-    let n = string_val(kv).parse::<bool>()?;
-    Ok(n)
+    parse_val::<bool>(kv)
 }
 
 pub fn bad_attr<T>(tag: &str, attr: &[u8]) -> anyhow::Result<T> {
@@ -56,7 +57,7 @@ fn missing_attr<T>(tag: &str, attr: &str) -> anyhow::Result<T> {
 
 pub fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
     Attribute {
-        key,
+        key: QName(key),
         value: mk_attr_(value),
     }
 }

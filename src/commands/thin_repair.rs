@@ -1,6 +1,6 @@
 extern crate clap;
 
-use clap::Arg;
+use clap::{value_parser, Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -13,23 +13,25 @@ use crate::thin::repair::{repair, ThinRepairOptions};
 pub struct ThinRepairCommand;
 
 impl ThinRepairCommand {
-    fn cli<'a>(&self) -> clap::Command<'a> {
+    fn cli(&self) -> clap::Command {
         let cmd = clap::Command::new(self.name())
-            .color(clap::ColorChoice::Never)
+            .next_display_order(None)
             .version(crate::tools_version!())
             .about("Repair thin-provisioning metadata, and write it to different device or file")
             .arg(
                 Arg::new("QUIET")
                     .help("Suppress output messages, return only exit code.")
                     .short('q')
-                    .long("quiet"),
+                    .long("quiet")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
                 Arg::new("DATA_BLOCK_SIZE")
                     .help("Provide the data block size for repairing")
                     .long("data-block-size")
-                    .value_name("SECTORS"),
+                    .value_name("SECTORS")
+                    .value_parser(value_parser!(u32)),
             )
             .arg(
                 Arg::new("INPUT")
@@ -43,7 +45,8 @@ impl ThinRepairCommand {
                 Arg::new("NR_DATA_BLOCKS")
                     .help("Override the number of data blocks if needed")
                     .long("nr-data-blocks")
-                    .value_name("NUM"),
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("OUTPUT")
@@ -57,7 +60,8 @@ impl ThinRepairCommand {
                 Arg::new("TRANSACTION_ID")
                     .help("Override the transaction id if needed")
                     .long("transaction-id")
-                    .value_name("NUM"),
+                    .value_name("NUM")
+                    .value_parser(value_parser!(u64)),
             )
             // a dummy argument for compatibility with lvconvert
             .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
@@ -74,10 +78,10 @@ impl<'a> Command<'a> for ThinRepairCommand {
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
 
-        let input_file = Path::new(matches.value_of("INPUT").unwrap());
-        let output_file = Path::new(matches.value_of("OUTPUT").unwrap());
+        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
+        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
-        let report = mk_report(matches.is_present("QUIET"));
+        let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
@@ -102,9 +106,9 @@ impl<'a> Command<'a> for ThinRepairCommand {
             engine_opts: engine_opts.unwrap(),
             report: report.clone(),
             overrides: SuperblockOverrides {
-                transaction_id: optional_value_or_exit::<u64>(&matches, "TRANSACTION_ID"),
-                data_block_size: optional_value_or_exit::<u32>(&matches, "DATA_BLOCK_SIZE"),
-                nr_data_blocks: optional_value_or_exit::<u64>(&matches, "NR_DATA_BLOCKS"),
+                transaction_id: matches.get_one::<u64>("TRANSACTION_ID").cloned(),
+                data_block_size: matches.get_one::<u32>("DATA_BLOCK_SIZE").cloned(),
+                nr_data_blocks: matches.get_one::<u64>("NR_DATA_BLOCKS").cloned(),
             },
         };
 

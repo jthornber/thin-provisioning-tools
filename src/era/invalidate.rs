@@ -151,25 +151,25 @@ fn mark_blocks_since(
 }
 
 fn emit_start<W: Write>(w: &mut Writer<W>) -> Result<()> {
-    let elem = BytesStart::owned_name(b"blocks".to_vec());
+    let elem = BytesStart::new("blocks");
     w.write_event(Event::Start(elem))?;
     Ok(())
 }
 
 fn emit_end<W: Write>(w: &mut Writer<W>) -> Result<()> {
-    let elem = BytesEnd::borrowed(b"blocks");
+    let elem = BytesEnd::new("blocks");
     w.write_event(Event::End(elem))?;
     Ok(())
 }
 
 fn emit_range<W: Write>(w: &mut Writer<W>, begin: u32, end: u32) -> Result<()> {
     if end > begin + 1 {
-        let mut elem = BytesStart::owned_name(b"range".to_vec());
+        let mut elem = BytesStart::new("range");
         elem.push_attribute(mk_attr(b"begin", begin));
         elem.push_attribute(mk_attr(b"end", end));
         w.write_event(Event::Empty(elem))?;
     } else if end > begin {
-        let mut elem = BytesStart::owned_name(b"block".to_vec());
+        let mut elem = BytesStart::new("block");
         elem.push_attribute(mk_attr(b"block", begin));
         w.write_event(Event::Empty(elem))?;
     }
