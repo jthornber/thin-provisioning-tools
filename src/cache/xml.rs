@@ -120,10 +120,10 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     for a in e.attributes() {
         let kv = a.unwrap();
         match kv.key.0 {
-            b"uuid" => uuid = Some(string_val(&kv)),
+            b"uuid" => uuid = Some(string_val(&kv)?),
             b"block_size" => block_size = Some(u32_val(&kv)?),
             b"nr_cache_blocks" => nr_cache_blocks = Some(u32_val(&kv)?),
-            b"policy" => policy = Some(string_val(&kv)),
+            b"policy" => policy = Some(string_val(&kv)?),
             b"hint_width" => hint_width = Some(u32_val(&kv)?),
             _ => return bad_attr("superblock", kv.key.0),
         }

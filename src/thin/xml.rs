@@ -130,7 +130,7 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     for a in e.attributes() {
         let kv = a.unwrap();
         match kv.key.0 {
-            b"uuid" => uuid = Some(string_val(&kv)),
+            b"uuid" => uuid = Some(string_val(&kv)?),
             b"time" => time = Some(u32_val(&kv)?),
             b"transaction" => transaction = Some(u64_val(&kv)?),
             b"flags" => flags = Some(u32_val(&kv)?),
@@ -163,7 +163,7 @@ fn parse_def(e: &BytesStart, tag: &str) -> Result<String> {
         let kv = a.unwrap();
         match kv.key.0 {
             b"name" => {
-                name = Some(string_val(&kv));
+                name = Some(string_val(&kv)?);
             }
             _ => return bad_attr(tag, kv.key.0),
         }

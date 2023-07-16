@@ -137,7 +137,7 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     for a in e.attributes() {
         let kv = a.unwrap();
         match kv.key.0 {
-            b"uuid" => uuid = Some(string_val(&kv)),
+            b"uuid" => uuid = Some(string_val(&kv)?),
             b"block_size" => block_size = Some(u32_val(&kv)?),
             b"nr_blocks" => nr_blocks = Some(u32_val(&kv)?),
             b"current_era" => current_era = Some(u32_val(&kv)?),

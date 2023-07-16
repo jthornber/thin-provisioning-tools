@@ -7,24 +7,30 @@ use std::fmt::Display;
 //------------------------------------------
 
 // FIXME: nasty unwraps
-pub fn string_val(kv: &Attribute) -> String {
-    kv.unescape_value().unwrap().to_string()
+pub fn string_val(kv: &Attribute) -> anyhow::Result<String> {
+    kv.unescape_value()
+        .map_or_else(|e| Err(e.into()), |s| Ok(s.as_ref().to_string()))
 }
 
-// FIXME: there's got to be a way of doing this without copying the string
+fn parse_val<T>(kv: &Attribute) -> anyhow::Result<T>
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    std::str::from_utf8(kv.value.as_ref())
+        .map_or_else(|e| Err(e.into()), |s| s.parse::<T>().map_err(|e| e.into()))
+}
+
 pub fn u64_val(kv: &Attribute) -> anyhow::Result<u64> {
-    let n = string_val(kv).parse::<u64>()?;
-    Ok(n)
+    parse_val::<u64>(kv)
 }
 
 pub fn u32_val(kv: &Attribute) -> anyhow::Result<u32> {
-    let n = string_val(kv).parse::<u32>()?;
-    Ok(n)
+    parse_val::<u32>(kv)
 }
 
 pub fn bool_val(kv: &Attribute) -> anyhow::Result<bool> {
-    let n = string_val(kv).parse::<bool>()?;
-    Ok(n)
+    parse_val::<bool>(kv)
 }
 
 pub fn bad_attr<T>(tag: &str, attr: &[u8]) -> anyhow::Result<T> {
