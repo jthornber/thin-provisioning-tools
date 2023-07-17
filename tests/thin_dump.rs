@@ -256,6 +256,8 @@ fn recovers_transaction_id_from_damaged_superblock() -> Result<()> {
         &md
     ]))?;
     assert!(stdout.contains("transaction=\"1\""));
+    assert!(stdout.contains("data_block_size=\"128\""));
+    assert!(stdout.contains("nr_data_blocks=\"20480\""));
     Ok(())
 }
 
@@ -281,10 +283,28 @@ fn recovers_nr_data_blocks_from_damaged_superblock() -> Result<()> {
     damage_superblock(&md)?;
     let stdout = run_ok(thin_dump_cmd(args![
         "--repair",
-        "--transaction-id=1",
+        "--transaction-id=10",
         "--data-block-size=128",
         &md
     ]))?;
+    assert!(stdout.contains("transaction=\"10\""));
+    assert!(stdout.contains("data_block_size=\"128\""));
+    assert!(stdout.contains("nr_data_blocks=\"1024\""));
+    Ok(())
+}
+
+#[test]
+fn recovers_tid_and_nr_data_blocks_from_damaged_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    damage_superblock(&md)?;
+    let stdout = run_ok(thin_dump_cmd(args![
+        "--repair",
+        "--data-block-size=128",
+        &md
+    ]))?;
+    assert!(stdout.contains("transaction=\"1\""));
+    assert!(stdout.contains("data_block_size=\"128\""));
     assert!(stdout.contains("nr_data_blocks=\"1024\""));
     Ok(())
 }
