@@ -309,4 +309,26 @@ fn recovers_tid_and_nr_data_blocks_from_damaged_superblock() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn repair_metadata_with_stale_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let before = run_ok_raw(thin_dump_cmd(args![&md]))?;
+
+    // produce stale superblock by overriding the data mapping root,
+    // then update the superblock checksum.
+    run_ok(thin_generate_damage_cmd(args![
+        "-o",
+        &md,
+        "--override",
+        "--mapping-root",
+        "10"
+    ]))?;
+
+    let after = run_ok_raw(thin_dump_cmd(args!["--repair", &md]))?;
+    assert_eq!(before.stdout, after.stdout);
+
+    Ok(())
+}
+
 //------------------------------------------
