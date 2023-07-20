@@ -166,6 +166,21 @@ fn detects_corrupt_superblock_with_superblock_only() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn checks_superblock_only() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    // leave the superblock only
+    {
+        let f = std::fs::OpenOptions::new().write(true).open(&md)?;
+        f.set_len(4096)?;
+    }
+
+    run_ok(thin_check_cmd(args!["--super-block-only", &md]))?;
+    Ok(())
+}
+
 //------------------------------------------
 // test info outputs
 

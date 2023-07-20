@@ -24,6 +24,13 @@ impl ThinGenerateDamageCommand {
                     .action(ArgAction::SetTrue)
                     .requires_all(["EXPECTED", "ACTUAL", "NR_BLOCKS"]),
             )
+            .arg(
+                Arg::new("OVERRIDE")
+                    .help("override metadata fields")
+                    .long("override")
+                    .action(ArgAction::SetTrue)
+                    .requires("overrides"),
+            )
             // options
             .arg(
                 Arg::new("EXPECTED")
@@ -47,6 +54,27 @@ impl ThinGenerateDamageCommand {
                     .value_parser(value_parser!(usize)),
             )
             .arg(
+                Arg::new("MAPPING_ROOT")
+                    .help("Specify the data mapping root")
+                    .long("mapping-root")
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
+            )
+            .arg(
+                Arg::new("DETAILS_ROOT")
+                    .help("Specify the device details root")
+                    .long("details-root")
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
+            )
+            .arg(
+                Arg::new("METADATA_SNAPSHOT")
+                    .help("Specify the device details root")
+                    .long("metadata-snap")
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
+            )
+            .arg(
                 Arg::new("OUTPUT")
                     .help("Specify the output device")
                     .short('o')
@@ -56,8 +84,13 @@ impl ThinGenerateDamageCommand {
             )
             .group(
                 ArgGroup::new("commands")
-                    .args(["CREATE_METADATA_LEAKS"])
+                    .args(["CREATE_METADATA_LEAKS", "OVERRIDE"])
                     .required(true),
+            )
+            .group(
+                ArgGroup::new("overrides")
+                    .args(["MAPPING_ROOT", "DETAILS_ROOT", "METADATA_SNAPSHOT"])
+                    .multiple(true),
             );
         engine_args(cmd)
     }
@@ -84,6 +117,11 @@ impl<'a> Command<'a> for ThinGenerateDamageCommand {
                 expected_rc: *matches.get_one::<u32>("EXPECTED").unwrap(),
                 actual_rc: *matches.get_one::<u32>("ACTUAL").unwrap(),
             },
+            "OVERRIDE" => DamageOp::OverrideSuperblock(SuperblockOverrides {
+                mapping_root: matches.get_one::<u64>("MAPPING_ROOT").copied(),
+                details_root: matches.get_one::<u64>("DETAILS_ROOT").cloned(),
+                metadata_snapshot: matches.get_one::<u64>("METADATA_SNAPSHOT").cloned(),
+            }),
             _ => {
                 eprintln!("unknown option");
                 process::exit(1);

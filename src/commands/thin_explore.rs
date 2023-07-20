@@ -395,6 +395,11 @@ where
     V: Adjacent + Copy + fmt::Display,
 {
     let mut items = Vec::new();
+
+    if keys.is_empty() {
+        return (items, 0);
+    }
+
     let bkeys = &keys[0..selected];
     let key = keys[selected];
     let akeys = &keys[(selected + 1)..];
