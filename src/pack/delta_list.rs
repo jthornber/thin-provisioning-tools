@@ -46,7 +46,8 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
                 Greater => {
                     let delta = n - base;
                     let mut count: u64 = 1;
-                    while i < ns.len() && (ns[i] == (base.wrapping_add(count.wrapping_mul(delta)))) {
+                    while i < ns.len() && (ns[i] == (base.wrapping_add(count.wrapping_mul(delta))))
+                    {
                         i += 1;
                         count += 1;
                     }
@@ -67,7 +68,7 @@ mod tests {
 
     fn from_delta(ds: &[Delta]) -> Vec<u64> {
         let mut ns: Vec<u64> = Vec::new();
-        let mut base = 0u64;
+        let mut base: u64 = 0u64;
 
         for d in ds {
             match d {
@@ -82,14 +83,13 @@ mod tests {
                 }
                 Pos { delta, count } => {
                     for _ in 0..*count {
-                        base += delta;
+                        base = base.wrapping_add(*delta);
                         ns.push(base);
                     }
                 }
                 Neg { delta, count } => {
                     for _ in 0..*count {
-                        assert!(base >= *delta);
-                        base -= delta;
+                        base = base.wrapping_sub(*delta);
                         ns.push(base);
                     }
                 }
@@ -155,6 +155,35 @@ mod tests {
                         count: 1,
                     },
                     Const { count: 3 },
+                ],
+            ),
+            TestCase(
+                vec![1, 0, 18446744073709551615],
+                vec![Base { n: 1 }, Neg { delta: 1, count: 2 }],
+            ),
+            TestCase(
+                vec![18446744073709551615, 0, 0],
+                vec![
+                    Base {
+                        n: 18446744073709551615,
+                    },
+                    Neg {
+                        delta: 18446744073709551615,
+                        count: 1,
+                    },
+                    Const { count: 1 },
+                ],
+            ),
+            TestCase(
+                vec![18446744073709551615, 0, 1],
+                vec![
+                    Base {
+                        n: 18446744073709551615,
+                    },
+                    Neg {
+                        delta: 18446744073709551615,
+                        count: 2,
+                    },
                 ],
             ),
         ];
