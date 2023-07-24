@@ -271,27 +271,27 @@ impl VM {
             }
             Pos => {
                 for _ in 0..count {
-                    self.base += nibble as u64;
+                    self.base = self.base.wrapping_add(nibble as u64);
                     self.emit_base(w)?;
                 }
             }
             PosW => {
                 let delta = unpack_with_width(r, nibble)?;
                 for _ in 0..count {
-                    self.base += delta;
+                    self.base = self.base.wrapping_add(delta);
                     self.emit_base(w)?;
                 }
             }
             Neg => {
                 for _ in 0..count {
-                    self.base -= nibble as u64;
+                    self.base = self.base.wrapping_sub(nibble as u64);
                     self.emit_base(w)?;
                 }
             }
             NegW => {
                 let delta = unpack_with_width(r, nibble)?;
                 for _ in 0..count {
-                    self.base -= delta;
+                    self.base = self.base.wrapping_sub(delta);
                     self.emit_base(w)?;
                 }
             }
@@ -431,13 +431,12 @@ mod tests {
         packed == bytes
     }
 
+    #[inline(never)]
     fn check_pack_u64s(ns: &[u64]) -> bool {
-        println!("packing {:?}", &ns);
         let mut bs = Vec::with_capacity(4096);
 
         let mut w = Cursor::new(&mut bs);
         pack_u64s(&mut w, &ns[0..]).unwrap();
-        println!("unpacked len = {}, packed len = {}", ns.len() * 8, bs.len());
 
         let mut r = Cursor::new(&mut bs);
         let unpacked = unpack(&mut r, ns.len() * 8).unwrap();
@@ -450,6 +449,9 @@ mod tests {
         let cases = [
             vec![0],
             vec![1, 5, 9, 10],
+            vec![1, 0, 18446744073709551615],
+            vec![18446744073709551615, 0, 0],
+            vec![18446744073709551615, 0, 1],
             b"the quick brown fox jumps over the lazy dog"
                 .iter()
                 .map(|b| *b as u64)
@@ -463,7 +465,10 @@ mod tests {
 
     #[quickcheck]
     fn prop_pack_u64s(mut ns: Vec<u64>) -> bool {
-        ns.push(42); // We don't handle empty vecs
+        if ns.len() == 0 {
+            // We don't handle empty vecs
+            ns.push(42);
+        }
         check_pack_u64s(&ns)
     }
 

@@ -16,7 +16,7 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
     let mut ds = Vec::with_capacity(ns.len());
 
     if !ns.is_empty() {
-        let mut base = ns[0];
+        let mut base: u64 = ns[0];
         ds.push(Base { n: base });
 
         let mut i = 1;
@@ -25,14 +25,14 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
             match n.cmp(&base) {
                 Less => {
                     let delta = base - n;
-                    let mut count = 1;
-                    while i < ns.len() && (ns[i] + (count * delta) == base) {
+                    let mut count: u64 = 1;
+                    while i < ns.len() && (ns[i].wrapping_add(count.wrapping_mul(delta)) == base) {
                         i += 1;
                         count += 1;
                     }
                     count -= 1;
                     ds.push(Neg { delta, count });
-                    base -= delta * count;
+                    base = base.wrapping_sub(delta.wrapping_mul(count));
                 }
                 Equal => {
                     let mut count = 1;
@@ -45,14 +45,14 @@ pub fn to_delta(ns: &[u64]) -> Vec<Delta> {
                 }
                 Greater => {
                     let delta = n - base;
-                    let mut count = 1;
-                    while i < ns.len() && (ns[i] == (base + (count * delta))) {
+                    let mut count: u64 = 1;
+                    while i < ns.len() && (ns[i] == (base.wrapping_add(count.wrapping_mul(delta)))) {
                         i += 1;
                         count += 1;
                     }
                     count -= 1;
                     ds.push(Pos { delta, count });
-                    base += delta * count;
+                    base = base.wrapping_add(delta.wrapping_mul(count));
                 }
             }
         }
