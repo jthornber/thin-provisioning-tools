@@ -16,6 +16,9 @@ use crate::thin::ir;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 struct RunBuilder {
@@ -29,7 +32,7 @@ impl RunBuilder {
 
     fn next(&mut self, thin_block: u64, data_block: u64) -> Option<DataMapping> {
         if let Some(ref mut r) = self.run {
-            if r.thin_begin + r.len == thin_block {
+            if r.thin_begin + r.len == thin_block && r.data_begin + r.len == data_block {
                 r.len += 1;
                 None
             } else {

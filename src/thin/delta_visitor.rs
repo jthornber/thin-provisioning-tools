@@ -11,6 +11,7 @@ use crate::xml::mk_attr;
 
 // The `time` field is ignored since people are more interest in block address.
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct DataMapping {
     pub thin_begin: u64,
     pub data_begin: u64,
@@ -18,6 +19,7 @@ pub struct DataMapping {
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct DiffMapping {
     pub thin_begin: u64,
     pub left_data_begin: u64,
@@ -26,6 +28,7 @@ pub struct DiffMapping {
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum Delta {
     LeftOnly(DataMapping),
     RightOnly(DataMapping),
