@@ -97,4 +97,42 @@ fn missing_input_arg() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_same_dev_id() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?; // TODO: parameterize metadata creation
+    let thins = get_thins(&md)?;
+    let thin_id = thins.keys().next().unwrap().to_string();
+
+    let stdout = run_ok(thin_delta_cmd(args![
+        "--thin1", &thin_id, "--thin2", &thin_id, &md
+    ]))?;
+    assert_eq!(stdout, format!(
+"<superblock uuid=\"\" time=\"0\" transaction=\"1\" data_block_size=\"128\" nr_data_blocks=\"20480\">
+  <diff left=\"{}\" right=\"{}\">
+    <same begin=\"0\" length=\"1024\"/>
+  </diff>
+</superblock>", thin_id, thin_id));
+    Ok(())
+}
+
+#[test]
+fn test_same_root() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?; // TODO: parameterize metadata creation
+    let thins = get_thins(&md)?;
+    let root = thins.values().next().unwrap().0.to_string();
+
+    let stdout = run_ok(thin_delta_cmd(args![
+        "--root1", &root, "--root2", &root, &md
+    ]))?;
+    assert_eq!(stdout, format!(
+"<superblock uuid=\"\" time=\"0\" transaction=\"1\" data_block_size=\"128\" nr_data_blocks=\"20480\">
+  <diff left_root=\"{}\" right_root=\"{}\">
+    <same begin=\"0\" length=\"1024\"/>
+  </diff>
+</superblock>", root, root));
+    Ok(())
+}
+
 //------------------------------------------

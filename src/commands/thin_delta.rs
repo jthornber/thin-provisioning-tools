@@ -38,13 +38,15 @@ impl ThinDeltaCommand {
                 Arg::new("ROOT1")
                     .help("The root block for the first thin volume to diff")
                     .long("root1")
-                    .value_name("BLOCKNR"),
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("ROOT2")
                     .help("The root block for the second thin volume to diff")
                     .long("root2")
-                    .value_name("BLOCKNR"),
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
             )
             .arg(
                 Arg::new("THIN1")
@@ -107,8 +109,8 @@ impl<'a> Command<'a> for ThinDeltaCommand {
         };
 
         let snap2 = match matches.get_one::<clap::Id>("SNAP2").unwrap().as_str() {
-            "THIN1" => Snap::DeviceId(*matches.get_one::<u64>("THIN2").unwrap()),
-            "ROOT1" => Snap::RootBlock(*matches.get_one::<u64>("ROOT2").unwrap()),
+            "THIN2" => Snap::DeviceId(*matches.get_one::<u64>("THIN2").unwrap()),
+            "ROOT2" => Snap::RootBlock(*matches.get_one::<u64>("ROOT2").unwrap()),
             _ => return to_exit_code::<()>(&report, Err(anyhow!("unknown option"))),
         };
 
