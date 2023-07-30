@@ -66,49 +66,37 @@ impl DeltaRunBuilder {
                 if let Some(Delta::LeftOnly(ref mut cur)) = self.run {
                     if r.thin_begin == cur.thin_begin + cur.len {
                         cur.len += r.len;
-                        None
-                    } else {
-                        self.run.replace(d.clone())
+                        return None;
                     }
-                } else {
-                    self.run.replace(d.clone())
                 }
+                self.run.replace(d.clone())
             }
             Delta::RightOnly(r) => {
                 if let Some(Delta::RightOnly(ref mut cur)) = self.run {
                     if r.thin_begin == cur.thin_begin + cur.len {
                         cur.len += r.len;
-                        None
-                    } else {
-                        self.run.replace(d.clone())
+                        return None;
                     }
-                } else {
-                    self.run.replace(d.clone())
                 }
+                self.run.replace(d.clone())
             }
             Delta::Differ(r) => {
                 if let Some(Delta::Differ(ref mut cur)) = self.run {
                     if r.thin_begin == cur.thin_begin + cur.len {
                         cur.len += r.len;
-                        None
-                    } else {
-                        self.run.replace(d.clone())
+                        return None;
                     }
-                } else {
-                    self.run.replace(d.clone())
                 }
+                self.run.replace(d.clone())
             }
             Delta::Same(r) => {
                 if let Some(Delta::Same(ref mut cur)) = self.run {
                     if r.thin_begin == cur.thin_begin + cur.len {
                         cur.len += r.len;
-                        None
-                    } else {
-                        self.run.replace(d.clone())
+                        return None;
                     }
-                } else {
-                    self.run.replace(d.clone())
                 }
+                self.run.replace(d.clone())
             }
         }
     }

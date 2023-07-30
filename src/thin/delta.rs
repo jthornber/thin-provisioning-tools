@@ -34,21 +34,15 @@ impl RunBuilder {
         if let Some(ref mut r) = self.run {
             if r.thin_begin + r.len == thin_block && r.data_begin + r.len == data_block {
                 r.len += 1;
-                None
-            } else {
-                self.run.replace(DataMapping {
-                    thin_begin: thin_block,
-                    data_begin: data_block,
-                    len: 1,
-                })
+                return None;
             }
-        } else {
-            self.run.replace(DataMapping {
-                thin_begin: thin_block,
-                data_begin: data_block,
-                len: 1,
-            })
         }
+
+        self.run.replace(DataMapping {
+            thin_begin: thin_block,
+            data_begin: data_block,
+            len: 1,
+        })
     }
 
     fn complete(&mut self) -> Option<DataMapping> {
