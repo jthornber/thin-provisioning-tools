@@ -465,7 +465,7 @@ mod tests {
 
     #[quickcheck]
     fn prop_pack_u64s(mut ns: Vec<u64>) -> bool {
-        if ns.len() == 0 {
+        if ns.is_empty() {
             // We don't handle empty vecs
             ns.push(42);
         }
