@@ -11,7 +11,7 @@ anyhow = "1.0"
 base64 = "0.21"
 byteorder = "1.4"
 clap = { version = "4.3", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions"] }
-crc32c = { git = "https://github.com/zowens/crc32c", branch = "master" }
+crc32c = "0.6"
 data-encoding = "2.4"
 exitcode = "1.1.2"
 fixedbitset = "0.4"
