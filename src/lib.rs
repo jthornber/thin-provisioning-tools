@@ -14,6 +14,7 @@ pub mod era;
 pub mod file_utils;
 pub mod grid_layout;
 pub mod io_engine;
+pub mod ioctl;
 pub mod math;
 pub mod pack;
 pub mod pdata;

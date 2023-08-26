@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::commands::engine::*;
 use crate::file_utils::file_size;
 use crate::io_engine::*;
+use crate::ioctl::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::unpack;
@@ -132,15 +133,11 @@ impl<'a> Iterator for RangeIterator<'a> {
 
 //------------------------------------------
 
-const BLKDISCARD: u32 = 0x1277;
-fn ioctl_blkdiscard(fd: i32, range: &[u64; 2]) -> std::io::Result<()> {
-    #[cfg(target_env = "musl")]
-    type RequestType = libc::c_int;
-    #[cfg(not(target_env = "musl"))]
-    type RequestType = libc::c_ulong;
+const BLKDISCARD: ioctl::RequestType = crate::request_code_none!(0x12, 119);
 
+fn ioctl_blkdiscard(fd: i32, range: &[u64; 2]) -> std::io::Result<()> {
     unsafe {
-        if libc::ioctl(fd, BLKDISCARD as RequestType, range) == 0 {
+        if libc::ioctl(fd, BLKDISCARD, range) == 0 {
             Ok(())
         } else {
             Err(std::io::Error::last_os_error())
