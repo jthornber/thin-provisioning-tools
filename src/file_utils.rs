@@ -5,6 +5,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
+use crate::ioctl::{self, *};
+
 //---------------------------------------
 
 fn test_bit(mode: u32, flag: u32) -> bool {
@@ -41,10 +43,7 @@ pub fn is_file(path: &Path) -> io::Result<bool> {
 
 //---------------------------------------
 
-#[cfg(target_pointer_width = "32")]
-const BLKGETSIZE64: u32 = 0x80041272;
-#[cfg(target_pointer_width = "64")]
-const BLKGETSIZE64: u32 = 0x80081272;
+const BLKGETSIZE64: ioctl::RequestType = crate::request_code_read!(0x12, 114, usize);
 
 pub fn fail<T>(msg: &str) -> io::Result<T> {
     let e = io::Error::new(io::ErrorKind::Other, msg);
@@ -56,13 +55,8 @@ fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
     let fd = file.as_raw_fd();
     let mut cap = 0u64;
 
-    #[cfg(target_env = "musl")]
-    type RequestType = libc::c_int;
-    #[cfg(not(target_env = "musl"))]
-    type RequestType = libc::c_ulong;
-
     unsafe {
-        if libc::ioctl(fd, BLKGETSIZE64 as RequestType, &mut cap) == 0 {
+        if libc::ioctl(fd, BLKGETSIZE64, &mut cap) == 0 {
             Ok(cap)
         } else {
             Err(io::Error::last_os_error())
