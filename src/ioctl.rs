@@ -1,5 +1,8 @@
 /* Rust port of kernel include/uapi/asm-generic/ioctl.h */
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 #[cfg(target_env = "musl")]
