@@ -334,7 +334,7 @@ pub fn dump_metadata(
 
 //------------------------------------------
 
-pub fn dump(opts: ThinDumpOptions) -> Result<()> {
+pub fn dump_with_formatter(opts: ThinDumpOptions, mut out: Box<dyn MetadataVisitor>) -> Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = if opts.repair {
         read_or_rebuild_superblock(
@@ -357,6 +357,10 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
         optimise_metadata(m)?
     };
 
+    dump_metadata(ctx.engine, out.as_mut(), &sb, &md)
+}
+
+pub fn dump(opts: ThinDumpOptions) -> Result<()> {
     let writer: Box<dyn Write> = if opts.output.is_some() {
         let f = File::create(opts.output.unwrap()).context(OutputError)?;
         Box::new(BufWriter::new(f))
@@ -364,12 +368,12 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
         Box::new(BufWriter::new(std::io::stdout()))
     };
 
-    let mut out: Box<dyn MetadataVisitor> = match opts.format {
+    let out: Box<dyn MetadataVisitor> = match opts.format {
         OutputFormat::XML => Box::new(xml::XmlWriter::new(writer)),
         OutputFormat::HumanReadable => Box::new(HumanReadableWriter::new(writer)),
     };
 
-    dump_metadata(ctx.engine, out.as_mut(), &sb, &md)
+    dump_with_formatter(opts, out)
 }
 
 //------------------------------------------
