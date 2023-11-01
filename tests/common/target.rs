@@ -212,6 +212,14 @@ where
     rust_cmd("era_dump", args)
 }
 
+pub fn era_invalidate_cmd<I>(args: I) -> Command
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    rust_cmd("era_invalidate", args)
+}
+
 pub fn era_restore_cmd<I>(args: I) -> Command
 where
     I: IntoIterator,

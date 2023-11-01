@@ -1,6 +1,4 @@
-extern crate clap;
-
-use clap::Arg;
+use clap::{value_parser, Arg};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -36,7 +34,8 @@ impl EraInvalidateCommand {
                     .help("Blocks written since the given era will be listed")
                     .long("written-since")
                     .required(true)
-                    .value_name("ERA"),
+                    .value_name("ERA")
+                    .value_parser(value_parser!(u32)),
             )
             // arguments
             .arg(
