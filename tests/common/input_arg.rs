@@ -91,8 +91,7 @@ pub fn test_missing_input_arg<'a, P>() -> Result<()>
 where
     P: InputProgram<'a>,
 {
-    let args: [&str; 0] = [];
-    let stderr = run_fail(P::cmd(args))?;
+    let stderr = run_fail(P::cmd(P::required_args()))?;
     assert!(stderr.contains(P::missing_input_arg()));
     Ok(())
 }
@@ -114,7 +113,9 @@ where
     let mut td = TestDir::new()?;
     let output = mk_zeroed_md(&mut td)?;
     ensure_untouched(&output, || {
-        let stderr = run_fail(P::cmd(args!["-o", &output]))?;
+        let mut args = args!["-o", &output].to_vec();
+        args.extend(P::required_args().iter().map(OsStr::new));
+        let stderr = run_fail(P::cmd(&args))?;
         assert!(stderr.contains(P::missing_input_arg()));
         Ok(())
     })
