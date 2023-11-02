@@ -1,4 +1,4 @@
-use clap::{value_parser, Arg, ArgGroup};
+use clap::{value_parser, Arg, ArgAction, ArgGroup};
 use std::path::Path;
 use std::process;
 
@@ -17,10 +17,12 @@ impl ThinGenerateMetadataCommand {
             .next_display_order(None)
             .version(crate::tools_version!())
             .about("A tool for creating synthetic thin metadata.")
+            // flags
             .arg(
                 Arg::new("FORMAT")
                     .help("Format the metadata")
-                    .long("format"),
+                    .long("format")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("SET_NEEDS_CHECK")
@@ -38,6 +40,7 @@ impl ThinGenerateMetadataCommand {
                     .help("Specify the data block size while formatting")
                     .long("block-size")
                     .value_name("SECTORS")
+                    .value_parser(value_parser!(u32))
                     .default_value("128"),
             )
             .arg(
@@ -45,6 +48,7 @@ impl ThinGenerateMetadataCommand {
                     .help("Specify the number of data blocks")
                     .long("nr-data-blocks")
                     .value_name("NUM")
+                    .value_parser(value_parser!(u64))
                     .default_value("10240"),
             )
             .arg(
