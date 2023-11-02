@@ -41,10 +41,10 @@ pub struct BTreeWalker {
 
 impl BTreeWalker {
     pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> BTreeWalker {
-        let nr_blocks = engine.get_nr_blocks() as usize;
+        let nr_blocks = engine.get_nr_blocks();
         let r: BTreeWalker = BTreeWalker {
             engine,
-            sm: Arc::new(Mutex::new(RestrictedSpaceMap::new(nr_blocks as u64))),
+            sm: Arc::new(Mutex::new(RestrictedSpaceMap::new(nr_blocks))),
             fails: Arc::new(Mutex::new(BTreeMap::new())),
             ignore_non_fatal,
         };

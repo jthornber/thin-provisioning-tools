@@ -1,10 +1,11 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use thinp::era::metadata_generator::CleanShutdownMeta;
 use thinp::file_utils;
 
 use crate::args;
-use crate::common::era_xml_generator::{write_xml, CleanShutdownMeta};
+use crate::common::era_xml_generator::write_xml;
 use crate::common::process::*;
 use crate::common::target::*;
 use crate::common::test_dir::TestDir;

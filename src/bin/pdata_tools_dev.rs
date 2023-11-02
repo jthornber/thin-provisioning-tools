@@ -11,6 +11,7 @@ fn get_basename(path: &OsStr) -> &Path {
 
 fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
     vec![
+        Box::new(era_generate_metadata::EraGenerateMetadataCommand),
         Box::new(cache_generate_metadata::CacheGenerateMetadataCommand),
         Box::new(thin_explore::ThinExploreCommand),
         Box::new(thin_generate_metadata::ThinGenerateMetadataCommand),

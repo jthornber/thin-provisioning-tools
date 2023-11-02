@@ -19,6 +19,9 @@ pub trait Program<'a> {
         I::Item: Into<std::ffi::OsString>;
     fn usage() -> &'a str;
     fn arg_type() -> ArgType;
+    fn required_args() -> &'a [&'a str] {
+        &[]
+    }
 
     // error messages
     fn bad_option_hint(option: &str) -> String;
