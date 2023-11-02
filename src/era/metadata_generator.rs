@@ -1,7 +1,14 @@
 use anyhow::{anyhow, Result};
 use rand::prelude::*;
+use std::path::Path;
+use std::sync::Arc;
 
+use crate::commands::engine::*;
 use crate::era::ir::{self, MetadataVisitor};
+use crate::era::restore::Restorer;
+use crate::io_engine::*;
+use crate::pdata::space_map::metadata::core_metadata_sm;
+use crate::write_batcher::WriteBatcher;
 
 //------------------------------------------
 
@@ -146,6 +153,58 @@ impl MetadataGenerator for CleanShutdownMeta {
         v.superblock_e()?;
         Ok(())
     }
+}
+
+//------------------------------------------
+
+fn format(engine: Arc<dyn IoEngine + Send + Sync>, gen: &dyn MetadataGenerator) -> Result<()> {
+    let sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
+    let batch_size = engine.get_batch_size();
+    let mut w = WriteBatcher::new(engine, sm, batch_size);
+    let mut restorer = Restorer::new(&mut w);
+
+    gen.generate_metadata(&mut restorer)
+}
+
+//------------------------------------------
+
+#[derive(Debug)]
+pub struct EraFormatOpts {
+    pub block_size: u32,
+    pub nr_blocks: u32,
+    pub current_era: u32,
+    pub nr_writesets: u32,
+}
+
+#[derive(Debug)]
+pub enum MetadataOp {
+    Format(EraFormatOpts),
+}
+
+pub struct EraGenerateOpts<'a> {
+    pub op: MetadataOp,
+    pub engine_opts: EngineOptions,
+    pub output: &'a Path,
+}
+
+pub fn generate_metadata(opts: EraGenerateOpts) -> Result<()> {
+    let engine = EngineBuilder::new(opts.output, &opts.engine_opts)
+        .write(true)
+        .build()?;
+
+    match opts.op {
+        MetadataOp::Format(op) => {
+            let era_meta = CleanShutdownMeta {
+                block_size: op.block_size,
+                nr_blocks: op.nr_blocks,
+                current_era: op.current_era,
+                nr_writesets: op.nr_writesets,
+            };
+            format(engine, &era_meta)?;
+        }
+    }
+
+    Ok(())
 }
 
 //------------------------------------------
