@@ -128,8 +128,7 @@ fn mark_blocks_since(
     sb: &Superblock,
     threshold: u32,
 ) -> Result<Vec<u64>> {
-    let mut marked_bits = Vec::<u64>::new();
-    marked_bits.resize(div_up(sb.nr_blocks as usize, 64), 0);
+    let mut marked_bits = vec![0; div_up(sb.nr_blocks as usize, 64)];
 
     let mut path = vec![0];
     let wsets = btree_to_map::<Writeset>(&mut path, engine.clone(), false, sb.writeset_tree_root)?;

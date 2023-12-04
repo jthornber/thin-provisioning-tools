@@ -67,6 +67,7 @@ fn test_build_remaps() {
         result: Vec<(BlockRange, u64)>,
     }
 
+    #[allow(clippy::single_range_in_vec_init)]
     let tests = vec![
         // noop
         Test {
@@ -209,6 +210,7 @@ mod tests {
             output: Vec<BlockRange>,
         }
 
+        #[allow(clippy::single_range_in_vec_init)]
         let tests = [
             // no remaps
             Test {
