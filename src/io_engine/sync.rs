@@ -64,10 +64,10 @@ impl SyncIoEngine {
         let vio: VectoredBlockIo<&File> = input.into();
         let mut issued_minus_gaps = 0;
 
-        // The same junk buffer is inserted for all the gaps
-        let gap_buffer = Block::new(0);
         let mut results: Vec<Result<Block>> = Vec::with_capacity(bs.len());
         let mut bs_index = 0;
+
+        let mut gaps: Vec<Block> = Vec::with_capacity(16);
 
         for batch in batches {
             let mut first = None;
@@ -87,11 +87,15 @@ impl SyncIoEngine {
                         }
                     }
                     RunOp::Gap(b, e) => {
+                        // Initially I reused the same junk buffer for the gaps, since I don't intend
+                        // using what is read.  But this causes issues with dm-integrity.
                         if first.is_none() {
                             first = Some(*b);
                         }
-                        for _ in *b..*e {
+                        for loc in *b..*e {
+                            let gap_buffer = Block::new(loc);
                             buffers.push(gap_buffer.get_data());
+                            gaps.push(gap_buffer);
                         }
                     }
                 }
