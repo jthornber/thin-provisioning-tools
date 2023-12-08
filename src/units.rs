@@ -310,20 +310,14 @@ mod storage_size_tests {
 
     #[test]
     fn test_out_of_bounds() {
-        assert!(matches!(
-            StorageSize::from_str("18446744073709551616b"),
-            Err(_)
-        )); // bytes
-        assert!(matches!(StorageSize::from_str("36028797018963968"), Err(_))); // sectors
-        assert!(matches!(
-            StorageSize::from_str("18014398509481984k"),
-            Err(_)
-        )); // KiB
-        assert!(matches!(StorageSize::from_str("17592186044416m"), Err(_))); // MiB
-        assert!(matches!(StorageSize::from_str("17179869184g"), Err(_))); // GiB
-        assert!(matches!(StorageSize::from_str("16777216t"), Err(_))); // TiB
-        assert!(matches!(StorageSize::from_str("16384p"), Err(_))); // PiB
-        assert!(matches!(StorageSize::from_str("16e"), Err(_))); // EiB
+        assert!(StorageSize::from_str("18446744073709551616b").is_err()); // bytes
+        assert!(StorageSize::from_str("36028797018963968").is_err()); // sectors
+        assert!(StorageSize::from_str("18014398509481984k").is_err()); // KiB
+        assert!(StorageSize::from_str("17592186044416m").is_err()); // MiB
+        assert!(StorageSize::from_str("17179869184g").is_err()); // GiB
+        assert!(StorageSize::from_str("16777216t").is_err()); // TiB
+        assert!(StorageSize::from_str("16384p").is_err()); // PiB
+        assert!(StorageSize::from_str("16e").is_err()); // EiB
     }
 
     #[test]

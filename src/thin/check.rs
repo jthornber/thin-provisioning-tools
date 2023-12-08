@@ -1242,7 +1242,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // Fix minor issues found in the metadata
 
     if !data_leaks.is_empty() {
-        if opts.auto_repair {
+        if opts.auto_repair || opts.clear_needs_check {
             report.warning("Repairing data leaks.");
             repair_space_map(engine.clone(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
@@ -1251,7 +1251,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     if !metadata_leaks.is_empty() {
-        if opts.auto_repair {
+        if opts.auto_repair || opts.clear_needs_check {
             report.warning("Repairing metadata leaks.");
             repair_space_map(engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {

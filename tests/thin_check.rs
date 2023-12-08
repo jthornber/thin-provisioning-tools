@@ -348,28 +348,27 @@ fn rejects_clear_needs_check_with_override_mapping_root() -> Result<()> {
 
 #[test]
 fn clear_needs_check() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = prep_metadata(&mut td)?;
-
-    set_needs_check(&md)?;
-
-    assert!(get_needs_check(&md)?);
-    run_ok(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
-    assert!(!get_needs_check(&md)?);
-    Ok(())
+    test_option_clears_needs_check("--clear-needs-check-flag")
 }
 
 #[test]
-fn no_clear_needs_check_if_error() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = prep_metadata(&mut td)?;
+fn clear_needs_check_opt_fixes_metadata_leaks() -> Result<()> {
+    test_option_fixes_metadata_leaks("--clear-needs-check-flag")
+}
 
-    set_needs_check(&md)?;
-    generate_metadata_leaks(&md, 1, 0, 1)?; // non-fatal error
+#[test]
+fn clear_needs_check_opt_fixes_metadata_leaks_and_clears_flag() -> Result<()> {
+    test_option_fixes_metadata_leaks_and_clears_flag("--clear-needs-check-flag")
+}
 
-    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
-    assert!(get_needs_check(&md)?);
-    Ok(())
+#[test]
+fn clear_needs_check_opt_keeps_health_metadata_untouched() -> Result<()> {
+    test_option_keeps_health_metadata_untouched("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_opt_cannot_fix_unexpected_ref_counts() -> Result<()> {
+    test_option_cannot_fix_unexpected_ref_counts("--clear-needs-check-flag")
 }
 
 #[test]
@@ -454,52 +453,90 @@ fn fatal_errors_cant_be_ignored() -> Result<()> {
 //------------------------------------------
 // test auto-repair
 
-#[test]
-fn auto_repair_fixes_metadata_leaks() -> Result<()> {
+fn test_option_fixes_metadata_leaks(option: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
 
-    generate_metadata_leaks(&md, 16, 0, 1)?;
-    run_fail(thin_check_cmd(args![&md]))?;
-    run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+    generate_metadata_leaks(&md, 16, 0, 1)?; // non-fatal errors
 
-    run_ok(thin_check_cmd(args![&md]))?; // ensure repaired
+    run_fail(thin_check_cmd(args![&md]))?;
+    run_ok(thin_check_cmd(args![option, &md]))?;
+    run_ok(thin_check_cmd(args![&md]))?; // ensure metadata is repaired
+
     Ok(())
 }
 
-#[test]
-fn auto_repair_keeps_health_metadata_untouched() -> Result<()> {
+fn test_option_fixes_metadata_leaks_and_clears_flag(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata(&mut td)?;
+
+    set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 16, 0, 1)?; // non-fatal errors
+
+    run_fail(thin_check_cmd(args![&md]))?;
+    run_ok(thin_check_cmd(args![option, &md]))?;
+    run_ok(thin_check_cmd(args![&md]))?; // ensure metadata is repaired
+    assert!(!get_needs_check(&md)?);
+
+    Ok(())
+}
+
+fn test_option_keeps_health_metadata_untouched(option: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
     ensure_untouched(&md, || {
-        run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+        run_ok(thin_check_cmd(args![option, &md]))?;
         Ok(())
     })?;
     Ok(())
 }
 
-#[test]
-fn auto_repair_cannot_fix_unexpected_ref_counts() -> Result<()> {
+fn test_option_cannot_fix_unexpected_ref_counts(option: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
 
     generate_metadata_leaks(&md, 16, 1, 0)?;
     ensure_untouched(&md, || {
-        run_fail(thin_check_cmd(args!["--auto-repair", &md]))?;
+        run_fail(thin_check_cmd(args![option, &md]))?;
         Ok(())
     })?;
     Ok(())
 }
 
-#[test]
-fn auto_repair_clears_needs_check() -> Result<()> {
+fn test_option_clears_needs_check(option: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = prep_metadata(&mut td)?;
 
     set_needs_check(&md)?;
-    run_ok(thin_check_cmd(args!["--auto-repair", &md]))?;
+    assert!(get_needs_check(&md)?);
+    run_ok(thin_check_cmd(args![option, &md]))?;
     assert!(!get_needs_check(&md)?);
     Ok(())
+}
+
+#[test]
+fn auto_repair_fixes_metadata_leaks() -> Result<()> {
+    test_option_fixes_metadata_leaks("--auto-repair")
+}
+
+#[test]
+fn auto_repair_fixes_metadata_leaks_and_clears_flag() -> Result<()> {
+    test_option_fixes_metadata_leaks_and_clears_flag("--auto-repair")
+}
+
+#[test]
+fn auto_repair_keeps_health_metadata_untouched() -> Result<()> {
+    test_option_keeps_health_metadata_untouched("--auto-repair")
+}
+
+#[test]
+fn auto_repair_cannot_fix_unexpected_ref_counts() -> Result<()> {
+    test_option_cannot_fix_unexpected_ref_counts("--auto-repair")
+}
+
+#[test]
+fn auto_repair_clears_needs_check() -> Result<()> {
+    test_option_clears_needs_check("--auto-repair")
 }
 
 //------------------------------------------

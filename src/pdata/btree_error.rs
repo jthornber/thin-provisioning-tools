@@ -244,7 +244,7 @@ pub fn encode_node_path(path: &[u64]) -> String {
 }
 
 pub fn decode_node_path(text: &str) -> anyhow::Result<Vec<u64>> {
-    let mut buffer = vec![0; 128];
+    let mut buffer = [0; 128];
     let bytes = &mut buffer[0..BASE64.decode_len(text.len()).unwrap()];
     BASE64
         .decode_mut(text.as_bytes(), &mut bytes[0..])

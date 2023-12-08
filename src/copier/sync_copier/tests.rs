@@ -23,7 +23,7 @@ fn mk_ops<T1: IntoIterator<Item = u64>, T2: IntoIterator<Item = u64>>(
 ) -> Vec<CopyOp> {
     src_seq
         .into_iter()
-        .zip(dst_seq.into_iter())
+        .zip(dst_seq)
         .map(|(src, dst)| CopyOp { src, dst })
         .collect()
 }
@@ -38,7 +38,7 @@ fn mk_random_ops(src: Range<u64>, dst: Range<u64>, nr_ops: usize) -> Vec<CopyOp>
     src_blocks
         .into_iter()
         .take(nr_ops)
-        .zip(dst_blocks.into_iter())
+        .zip(dst_blocks)
         .map(|(src, dst)| CopyOp { src, dst })
         .collect()
 }

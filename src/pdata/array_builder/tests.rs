@@ -152,8 +152,7 @@ fn leading_default_values() {
 
     t.verify_nr_blocks();
 
-    let mut expected = Vec::<ValueType>::new();
-    expected.resize(array_size, 0);
+    let mut expected = vec![0; array_size];
     expected[array_size - 1] = 1234;
     t.verify_values(&expected);
 }
@@ -194,8 +193,7 @@ fn short_gaps_within_a_block() {
 
     t.verify_nr_blocks();
 
-    let mut expected = Vec::<ValueType>::new();
-    expected.resize(array_size, 0);
+    let mut expected = vec![0; array_size];
     expected[0] = 1234;
     expected[100] = 2345;
     expected[200] = 3456;
@@ -218,8 +216,7 @@ fn long_stride_across_multiple_blocks() {
 
     t.verify_nr_blocks();
 
-    let mut expected = Vec::<ValueType>::new();
-    expected.resize(array_size, 0);
+    let mut expected = vec![0; array_size];
     expected[10] = 1234;
     expected[array_size - 1] = 2345;
     t.verify_values(&expected);
@@ -254,8 +251,7 @@ fn out_of_order_access_could_be_recovered() {
 
     t.verify_nr_blocks();
 
-    let mut expected = Vec::<ValueType>::new();
-    expected.resize(array_size, 0);
+    let mut expected = vec![0; array_size];
     expected[10] = 1234;
     expected[11] = 5678;
     t.verify_values(&expected);
@@ -289,8 +285,7 @@ fn out_of_bounds_access_could_be_recovered() {
 
     t.verify_nr_blocks();
 
-    let mut expected = Vec::<ValueType>::new();
-    expected.resize(array_size, 0);
+    let mut expected = vec![0; array_size];
     expected[10] = 1234;
     expected[11] = 5678;
     t.verify_values(&expected);

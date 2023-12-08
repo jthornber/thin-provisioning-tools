@@ -27,7 +27,7 @@ fn mk_random_ops(src: Range<u64>, dst: Range<u64>, nr_ops: usize) -> Vec<CopyOp>
     src_blocks
         .into_iter()
         .take(nr_ops)
-        .zip(dst_blocks.into_iter())
+        .zip(dst_blocks)
         .map(|(src, dst)| CopyOp { src, dst })
         .collect()
 }
