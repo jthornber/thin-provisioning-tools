@@ -12,6 +12,13 @@ repos:
     -   id: fmt
 -   repo: local
     hooks:
+    -   id: check-locked
+        name: cargo check
+        description: Check the package for errors.
+        entry: cargo check --locked
+        language: system
+        files: Cargo.(lock|toml)$
+        pass_filenames: false
     -   id: clippy-locked
         name: cargo clippy
         description: Run the Clippy linter on the package.
