@@ -1,22 +1,28 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v4.5.0
     hooks:
     -   id: check-merge-conflict
     -   id: end-of-file-fixer
     -   id: mixed-line-ending
     -   id: trailing-whitespace
 -   repo: https://github.com/doublify/pre-commit-rust
-    rev: master
+    rev: v1.0
     hooks:
     -   id: fmt
-    -   id: clippy
 -   repo: local
     hooks:
+    -   id: clippy-locked
+        name: cargo clippy
+        description: Run the Clippy linter on the package.
+        entry: cargo clippy --locked -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false
     -   id: clippy-tests
         name: clippy-tests
-        description: Run the Clippy linter on tests
-        entry: cargo clippy --tests -- -D warnings
+        description: Run the Clippy linter on tests.
+        entry: cargo clippy --tests --locked -- -D warnings
         language: system
         files: \.rs$
         pass_filenames: false
