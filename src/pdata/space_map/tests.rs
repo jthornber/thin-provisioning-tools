@@ -152,3 +152,99 @@ mod core_sm_u8 {
 }
 
 //------------------------------------------
+
+mod metadata_sm {
+    use anyhow::{ensure, Result};
+    use std::sync::Arc;
+
+    use crate::io_engine::core::CoreIoEngine;
+    use crate::io_engine::*;
+    use crate::math::div_up;
+    use crate::pdata::space_map::common::ENTRIES_PER_BITMAP;
+    use crate::pdata::space_map::metadata::*;
+    use crate::write_batcher::WriteBatcher;
+
+    fn check_index_entries(nr_blocks: u64) -> Result<()> {
+        let engine = Arc::new(CoreIoEngine::new(nr_blocks));
+        let meta_sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
+
+        let mut w = WriteBatcher::new(engine.clone(), meta_sm.clone(), engine.get_batch_size());
+        w.alloc()?; // reserved for the superblock
+        let root = write_metadata_sm(&mut w)?;
+
+        let b = engine.read(root.bitmap_root)?;
+        let entries = check_and_unpack_metadata_index(&b)?.indexes;
+        ensure!(entries.len() as u64 == div_up(nr_blocks, ENTRIES_PER_BITMAP as u64));
+
+        // the number of blocks observed by index_entries must be multiple of ENTRIES_PER_BITMAP
+        let nr_allocated = meta_sm.lock().unwrap().get_nr_allocated()?;
+        let nr_free: u64 = entries.iter().map(|ie| ie.nr_free as u64).sum();
+        ensure!(nr_allocated + nr_free == (entries.len() * ENTRIES_PER_BITMAP) as u64);
+
+        Ok(())
+    }
+
+    #[test]
+    fn check_single_index_entry() -> Result<()> {
+        check_index_entries(1000)
+    }
+
+    #[test]
+    fn check_multiple_index_entries() -> Result<()> {
+        check_index_entries(ENTRIES_PER_BITMAP as u64 * 16 + 1000)
+    }
+}
+
+//------------------------------------------
+
+mod disk_sm {
+    use anyhow::{ensure, Result};
+    use std::ops::Deref;
+    use std::sync::Arc;
+
+    use crate::io_engine::core::CoreIoEngine;
+    use crate::io_engine::*;
+    use crate::math::div_up;
+    use crate::pdata::btree_walker::btree_to_value_vec;
+    use crate::pdata::space_map::common::{IndexEntry, ENTRIES_PER_BITMAP};
+    use crate::pdata::space_map::disk::*;
+    use crate::pdata::space_map::metadata::*;
+    use crate::pdata::space_map::*;
+    use crate::write_batcher::WriteBatcher;
+
+    fn check_index_entries(nr_blocks: u64) -> Result<()> {
+        let engine = Arc::new(CoreIoEngine::new(1024));
+        let meta_sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
+
+        let mut w = WriteBatcher::new(engine.clone(), meta_sm.clone(), engine.get_batch_size());
+        w.alloc()?; // reserved for the superblock
+
+        let data_sm = core_sm(nr_blocks, u32::MAX);
+        data_sm.lock().unwrap().inc(0, 100)?;
+
+        let root = write_disk_sm(&mut w, data_sm.lock().unwrap().deref())?;
+
+        let entries =
+            btree_to_value_vec::<IndexEntry>(&mut Vec::new(), engine, false, root.bitmap_root)?;
+        ensure!(entries.len() as u64 == div_up(nr_blocks, ENTRIES_PER_BITMAP as u64));
+
+        // the number of blocks observed by index_entries must be a multiple of ENTRIES_PER_BITMAP
+        let nr_allocated = data_sm.lock().unwrap().get_nr_allocated()?;
+        let nr_free: u64 = entries.iter().map(|ie| ie.nr_free as u64).sum();
+        ensure!(nr_allocated + nr_free == (entries.len() * ENTRIES_PER_BITMAP) as u64);
+
+        Ok(())
+    }
+
+    #[test]
+    fn check_single_index_entry() -> Result<()> {
+        check_index_entries(1000)
+    }
+
+    #[test]
+    fn check_multiple_index_entries() -> Result<()> {
+        check_index_entries(ENTRIES_PER_BITMAP as u64 * 16 + 1000)
+    }
+}
+
+//------------------------------------------
