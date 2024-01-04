@@ -85,6 +85,7 @@ impl<'a> Command<'a> for ThinTrimCommand {
             auto_repair: false,
             clear_needs_check: false,
             override_mapping_root: None,
+            override_details_root: None,
             report: report.clone(),
         };
 
