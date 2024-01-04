@@ -781,7 +781,7 @@ fn check_mapped_blocks(
                     errors.push('+');
                 }
                 report.fatal(&format!(
-                    "Thin device {} has {} error nodes and is missing {} mappings, while expected {}",
+                    "Thin device {} has {} errors and is missing {} mappings, while expected {}",
                     thin_id, errors, missed, details.mapped_blocks
                 ));
             } else if sum.nr_mappings != details.mapped_blocks {
