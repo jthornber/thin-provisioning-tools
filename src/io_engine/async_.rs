@@ -34,9 +34,11 @@ impl AsyncIoEngine {
             .custom_flags(flags)
             .open(path)?;
 
-        let mut cfg = rio::Config::default();
-        cfg.depth = QUEUE_DEPTH;
-        cfg.io_poll = false;
+        let cfg = rio::Config {
+            depth: QUEUE_DEPTH,
+            io_poll: false,
+            ..Default::default()
+        };
         let ring = cfg.start()?;
 
         Ok(Self {

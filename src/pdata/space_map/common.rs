@@ -211,22 +211,28 @@ pub fn write_common(
         let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
         let mut entries = Vec::with_capacity(ENTRIES_PER_BITMAP);
         let mut first_free: Option<u32> = None;
-        let mut nr_free: u32 = 0;
+        let mut nr_free = ENTRIES_PER_BITMAP as u32; // do not truncate to the sm size boundary
 
         for i in 0..len {
             let b = begin + i;
             let rc = sm.get(b)?;
             let e = match rc {
                 0 => {
-                    nr_free += 1;
                     if first_free.is_none() {
                         first_free = Some(i as u32);
                     }
                     Small(0)
                 }
-                1 => Small(1),
-                2 => Small(2),
+                1 => {
+                    nr_free -= 1;
+                    Small(1)
+                }
+                2 => {
+                    nr_free -= 1;
+                    Small(2)
+                }
                 _ => {
+                    nr_free -= 1;
                     overflow_builder.push_value(w, b, rc)?;
                     Overflow
                 }
@@ -334,16 +340,14 @@ pub fn write_metadata_common(w: &mut WriteBatcher) -> anyhow::Result<(Vec<IndexE
     let nr_blocks = w.sm.lock().unwrap().get_nr_blocks()?;
     let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
     let nr_used_bitmaps = index_entries.len();
-    for bm in nr_used_bitmaps..nr_bitmaps {
-        let begin = bm as u64 * ENTRIES_PER_BITMAP as u64;
-        let len = std::cmp::min(nr_blocks - begin, ENTRIES_PER_BITMAP as u64);
+    for _bm in nr_used_bitmaps..nr_bitmaps {
         let entries = vec![BitmapEntry::Small(0); ENTRIES_PER_BITMAP];
         let blocknr = write_bitmap(w, entries)?;
 
         // Insert into the index list
         let ie = IndexEntry {
             blocknr,
-            nr_free: len as u32,
+            nr_free: ENTRIES_PER_BITMAP as u32, // do not truncate to the sm size boundary
             none_free_before: 0,
         };
         index_entries.push(ie);

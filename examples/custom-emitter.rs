@@ -121,8 +121,8 @@ pub fn main() -> Result<()> {
     let opts = ThinDumpOptions {
         input: input_file,
         output: output_file,
-        engine_opts: engine_opts,
-        report: report,
+        engine_opts,
+        report,
         repair: false,
         skip_mappings: false,
         overrides: SuperblockOverrides {

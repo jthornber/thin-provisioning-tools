@@ -12,24 +12,17 @@ repos:
     -   id: fmt
 -   repo: local
     hooks:
-    -   id: check-locked
+    -   id: cargo-check-locked
         name: cargo check
         description: Check the package for errors.
         entry: cargo check --locked
         language: system
         files: Cargo.(lock|toml)$
         pass_filenames: false
-    -   id: clippy-locked
+    -   id: cargo-clippy-locked
         name: cargo clippy
-        description: Run the Clippy linter on the package.
-        entry: cargo clippy --locked -- -D warnings
-        language: system
-        files: \.rs$
-        pass_filenames: false
-    -   id: clippy-tests
-        name: clippy-tests
-        description: Run the Clippy linter on tests.
-        entry: cargo clippy --tests --locked -- -D warnings
+        description: Run the Clippy linter on all the targets.
+        entry: cargo clippy --locked --all-targets --all-features -- -D warnings
         language: system
         files: \.rs$
         pass_filenames: false
