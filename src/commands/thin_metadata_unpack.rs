@@ -31,6 +31,7 @@ impl ThinMetadataUnpackCommand {
                     .help("Specify packed input file")
                     .required(true)
                     .short('i')
+                    .long("input")
                     .value_name("FILE"),
             )
             .arg(
@@ -38,6 +39,7 @@ impl ThinMetadataUnpackCommand {
                     .help("Specify thinp metadata binary device/file")
                     .required(true)
                     .short('o')
+                    .long("output")
                     .value_name("DEV"),
             );
         engine_args(cmd)
