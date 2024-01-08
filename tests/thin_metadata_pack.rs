@@ -14,14 +14,14 @@ use common::thin::*;
 
 const USAGE: &str = "Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.
 
-Usage: thin_metadata_pack [OPTIONS] -i <DEV> -o <FILE>
+Usage: thin_metadata_pack [OPTIONS] --input <DEV> --output <FILE>
 
 Options:
-  -f, --force    Force overwrite the output file
-  -h, --help     Print help
-  -i <DEV>       Specify thinp metadata binary device/file
-  -o <FILE>      Specify packed output file
-  -V, --version  Print version";
+  -f, --force          Force overwrite the output file
+  -h, --help           Print help
+  -i, --input <DEV>    Specify thinp metadata binary device/file
+  -o, --output <FILE>  Specify packed output file
+  -V, --version        Print version";
 
 //------------------------------------------
 

@@ -15,14 +15,14 @@ use common::thin::*;
 
 const USAGE: &str = "Unpack a compressed file of thin metadata.
 
-Usage: thin_metadata_unpack [OPTIONS] -i <FILE> -o <DEV>
+Usage: thin_metadata_unpack [OPTIONS] --input <FILE> --output <DEV>
 
 Options:
-  -f, --force    Force overwrite the output file
-  -h, --help     Print help
-  -i <FILE>      Specify packed input file
-  -o <DEV>       Specify thinp metadata binary device/file
-  -V, --version  Print version";
+  -f, --force         Force overwrite the output file
+  -h, --help          Print help
+  -i, --input <FILE>  Specify packed input file
+  -o, --output <DEV>  Specify thinp metadata binary device/file
+  -V, --version       Print version";
 
 //------------------------------------------
 
