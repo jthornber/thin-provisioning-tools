@@ -26,11 +26,13 @@ impl ThinMetadataPackCommand {
                 .help("Specify thinp metadata binary device/file")
                 .required(true)
                 .short('i')
+                .long("input")
                 .value_name("DEV"))
             .arg(Arg::new("OUTPUT")
                 .help("Specify packed output file")
                 .required(true)
                 .short('o')
+                .long("output")
                 .value_name("FILE"))
     }
 }
