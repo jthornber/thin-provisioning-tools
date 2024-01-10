@@ -128,10 +128,11 @@ impl DevInfo {
     }
 
     fn push_child(&mut self, child: &DevInfo) -> Result<()> {
-        if self.key_high > 0 && child.key_low <= self.key_high {
-            return Err(anyhow!("incompatible child"));
-        }
-        if !self.pushed {
+        if self.pushed {
+            if child.key_low <= self.key_high {
+                return Err(anyhow!("incompatible child"));
+            }
+        } else {
             self.key_low = child.key_low;
             self.pushed = true;
         }
@@ -175,10 +176,11 @@ impl MappingsInfo {
     }
 
     fn push_child(&mut self, child: &MappingsInfo) -> Result<()> {
-        if self.key_high > 0 && child.key_low <= self.key_high {
-            return Err(anyhow!("incompatible child"));
-        }
-        if !self.pushed {
+        if self.pushed {
+            if child.key_low <= self.key_high {
+                return Err(anyhow!("incompatible child"));
+            }
+        } else {
             self.key_low = child.key_low;
             self.pushed = true;
         }
@@ -221,10 +223,11 @@ impl DetailsInfo {
     }
 
     fn push_child(&mut self, child: &DetailsInfo) -> Result<()> {
-        if self.key_high > 0 && child.key_low <= self.key_high {
-            return Err(anyhow!("incompatible child"));
-        }
-        if !self.pushed {
+        if self.pushed {
+            if child.key_low <= self.key_high {
+                return Err(anyhow!("incompatible child"));
+            }
+        } else {
             self.key_low = child.key_low;
             self.pushed = true;
         }
