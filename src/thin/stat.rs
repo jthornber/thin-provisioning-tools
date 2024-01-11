@@ -72,9 +72,10 @@ fn gather_btree_index_entries(
 fn gather_metadata_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     bitmap_root: u64,
+    nr_blocks: u64,
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
-    let entries = check_and_unpack_metadata_index(&b)?.indexes;
+    let entries = load_metadata_index(&b, nr_blocks)?.indexes;
     Ok(entries)
 }
 
@@ -152,7 +153,8 @@ fn stat_metadata_block_ref_counts(
 ) -> Result<BTreeMap<u32, u64>> {
     let mut histogram = BTreeMap::<u32, u64>::new();
 
-    let index_entries = gather_metadata_index_entries(engine.clone(), root.bitmap_root)?;
+    let index_entries =
+        gather_metadata_index_entries(engine.clone(), root.bitmap_root, root.nr_blocks)?;
     stat_low_ref_counts(engine.clone(), &index_entries, &mut histogram)?;
 
     let histogram = stat_overflow_ref_counts(engine, root.ref_count_root, histogram)?;

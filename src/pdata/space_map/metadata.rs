@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::checksum;
 use crate::io_engine::*;
+use crate::math::div_up;
 use crate::pdata::space_map::common::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
@@ -32,14 +33,11 @@ impl Unpack for MetadataIndex {
         let (i, _csum) = le_u32(i)?;
         let (i, _padding) = le_u32(i)?;
         let (i, blocknr) = le_u64(i)?;
-        let (i, indexes) = nom::multi::count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
+        let (i, mut indexes) = nom::multi::count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
 
-        // Filter out unused entries
-        let indexes: Vec<IndexEntry> = indexes
-            .iter()
-            .take_while(|e| e.blocknr != 0)
-            .cloned()
-            .collect();
+        // Drop unused entries that point to block 0
+        let nr_bitmaps = indexes.iter().take_while(|e| e.blocknr != 0).count();
+        indexes.truncate(nr_bitmaps);
 
         Ok((i, MetadataIndex { blocknr, indexes }))
     }
@@ -69,9 +67,15 @@ fn verify_checksum(b: &Block) -> Result<()> {
     }
 }
 
-pub fn check_and_unpack_metadata_index(b: &Block) -> Result<MetadataIndex> {
+pub fn load_metadata_index(b: &Block, nr_blocks: u64) -> Result<MetadataIndex> {
     verify_checksum(b)?;
-    unpack::<MetadataIndex>(b.get_data()).map_err(|e| e.into())
+    let mut entries = unpack::<MetadataIndex>(b.get_data())?;
+    if entries.blocknr != b.loc {
+        return Err(anyhow!("blocknr mismatch"));
+    }
+    let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+    entries.indexes.truncate(nr_bitmaps);
+    Ok(entries)
 }
 
 //------------------------------------------

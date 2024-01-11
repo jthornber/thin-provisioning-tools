@@ -171,10 +171,11 @@ mod metadata_sm {
         let mut w = WriteBatcher::new(engine.clone(), meta_sm.clone(), engine.get_batch_size());
         w.alloc()?; // reserved for the superblock
         let root = write_metadata_sm(&mut w)?;
+        drop(w);
 
         let b = engine.read(root.bitmap_root)?;
-        let entries = check_and_unpack_metadata_index(&b)?.indexes;
-        ensure!(entries.len() as u64 == div_up(nr_blocks, ENTRIES_PER_BITMAP as u64));
+        let entries = load_metadata_index(&b, root.nr_blocks)?.indexes;
+        ensure!(entries.len() == div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize);
 
         // the number of blocks observed by index_entries must be multiple of ENTRIES_PER_BITMAP
         let nr_allocated = meta_sm.lock().unwrap().get_nr_allocated()?;
@@ -192,6 +193,35 @@ mod metadata_sm {
     #[test]
     fn check_multiple_index_entries() -> Result<()> {
         check_index_entries(ENTRIES_PER_BITMAP as u64 * 16 + 1000)
+    }
+
+    #[test]
+    fn ignore_junk_bytes_in_index_block() -> Result<()> {
+        use crate::checksum;
+        use crate::pdata::space_map::common::IndexEntry;
+        use crate::pdata::unpack::Unpack;
+
+        let nr_blocks = ENTRIES_PER_BITMAP as u64 * 4 + 1000;
+        let nr_bitmaps = div_up(nr_blocks, ENTRIES_PER_BITMAP as u64) as usize;
+        let engine = Arc::new(CoreIoEngine::new(nr_blocks));
+        let meta_sm = core_metadata_sm(engine.get_nr_blocks(), u32::MAX);
+
+        let mut w = WriteBatcher::new(engine.clone(), meta_sm.clone(), engine.get_batch_size());
+        w.alloc()?; // reserved for the superblock
+        let root = write_metadata_sm(&mut w)?;
+
+        // append junk bytes to the unused entry
+        let index_block = w.read(root.bitmap_root)?;
+        index_block.get_data()[nr_bitmaps * IndexEntry::disk_size() as usize + 16] = 1;
+        w.write(index_block, checksum::BT::INDEX)?;
+        w.flush()?;
+        drop(w);
+
+        let b = engine.read(root.bitmap_root)?;
+        let entries = load_metadata_index(&b, root.nr_blocks)?.indexes;
+        ensure!(entries.len() == nr_bitmaps);
+
+        Ok(())
     }
 }
 
@@ -223,6 +253,7 @@ mod disk_sm {
         data_sm.lock().unwrap().inc(0, 100)?;
 
         let root = write_disk_sm(&mut w, data_sm.lock().unwrap().deref())?;
+        drop(w);
 
         let entries =
             btree_to_value_vec::<IndexEntry>(&mut Vec::new(), engine, false, root.bitmap_root)?;

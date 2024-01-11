@@ -194,10 +194,11 @@ fn gather_disk_index_entries(
 fn gather_metadata_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     bitmap_root: u64,
+    nr_blocks: u64,
     metadata_sm: ASpaceMap,
 ) -> Result<Vec<IndexEntry>> {
     let b = engine.read(bitmap_root)?;
-    let entries = check_and_unpack_metadata_index(&b)?.indexes;
+    let entries = load_metadata_index(&b, nr_blocks)?.indexes;
     metadata_sm.lock().unwrap().inc(bitmap_root, 1)?;
     inc_entries(&metadata_sm, &entries[0..])?;
 
@@ -254,8 +255,13 @@ pub fn check_metadata_space_map(
         metadata_sm.clone(),
         false,
     )?;
-    let entries =
-        gather_metadata_index_entries(engine.clone(), root.bitmap_root, metadata_sm.clone())?;
+
+    let entries = gather_metadata_index_entries(
+        engine.clone(),
+        root.bitmap_root,
+        root.nr_blocks,
+        metadata_sm.clone(),
+    )?;
 
     // check overflow ref-counts
     {
