@@ -17,18 +17,21 @@ struct IndexInfo {
 pub fn allocated_blocks(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sm_root: u64,
+    nr_blocks: u64,
 ) -> Result<RoaringBitmap> {
     // Walk index tree to find where the bitmaps are.
     let b = engine.read(sm_root)?;
-    let (_, indexes) = MetadataIndex::unpack(b.get_data())?;
+    let indexes = load_metadata_index(&b, nr_blocks)?;
 
-    let mut infos = Vec::new();
-    for (key, entry) in indexes.indexes.iter().enumerate() {
-        infos.push(IndexInfo {
+    let mut infos: Vec<_> = indexes
+        .indexes
+        .iter()
+        .enumerate()
+        .map(|(key, entry)| IndexInfo {
             key: key as u64,
             loc: entry.blocknr,
-        });
-    }
+        })
+        .collect();
 
     // Read bitmaps in sequence
     infos.sort_by(|lhs, rhs| lhs.loc.partial_cmp(&rhs.loc).unwrap());

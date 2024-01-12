@@ -26,6 +26,7 @@ Options:
   -h, --help                             Print help
       --ignore-non-fatal-errors          Only return a non-zero exit code if a fatal error is found.
   -m, --metadata-snap                    Check the metadata snapshot on a live pool
+      --override-details-root <BLOCKNR>  Specify a details root to use
       --override-mapping-root <BLOCKNR>  Specify a mapping root to use
   -q, --quiet                            Suppress output messages, return only exit code.
       --skip-mappings                    Don't check the mapping tree
@@ -241,6 +242,29 @@ fn rejects_auto_repair_with_override_mapping_root() -> Result<()> {
 }
 
 #[test]
+fn rejects_auto_repair_with_override_details_root() -> Result<()> {
+    use std::io::{Read, Seek};
+
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    let mut f = std::fs::File::open(&md)?;
+    let mut buf = [0; 8];
+    f.seek(std::io::SeekFrom::Start(328))?;
+    f.read_exact(&mut buf)?;
+    let details_root = u64::from_le_bytes(buf).to_string();
+
+    run_fail(thin_check_cmd(args![
+        "--auto-repair",
+        "--override-details-root",
+        &details_root,
+        &md
+    ]))?;
+
+    Ok(())
+}
+
+#[test]
 fn rejects_auto_repair_with_superblock_only() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
@@ -338,6 +362,28 @@ fn rejects_clear_needs_check_with_override_mapping_root() -> Result<()> {
         "--clear-needs-check-flag",
         "--override-mapping-root",
         &mapping_root,
+        &md
+    ]))?;
+    Ok(())
+}
+
+#[test]
+fn rejects_clear_needs_check_with_override_details_root() -> Result<()> {
+    use std::io::{Read, Seek};
+
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    let mut f = std::fs::File::open(&md)?;
+    let mut buf = [0; 8];
+    f.seek(std::io::SeekFrom::Start(328))?;
+    f.read_exact(&mut buf)?;
+    let details_root = u64::from_le_bytes(buf).to_string();
+
+    run_fail(thin_check_cmd(args![
+        "--clear-needs-check-flag",
+        "--override-details-root",
+        &details_root,
         &md
     ]))?;
     Ok(())

@@ -47,6 +47,7 @@ pub struct ThinCheckOptions<'a> {
     pub auto_repair: bool,
     pub clear_needs_check: bool,
     pub override_mapping_root: Option<u64>,
+    pub override_details_root: Option<u64>,
     pub report: Arc<Report>,
 }
 
@@ -780,7 +781,7 @@ fn check_mapped_blocks(
                     errors.push('+');
                 }
                 report.fatal(&format!(
-                    "Thin device {} has {} error nodes and is missing {} mappings, while expected {}",
+                    "Thin device {} has {} errors and is missing {} mappings, while expected {}",
                     thin_id, errors, missed, details.mapped_blocks
                 ));
             } else if sum.nr_mappings != details.mapped_blocks {
@@ -1056,7 +1057,9 @@ fn create_data_sm(sb: &Superblock, nr_devs: u32) -> Result<ASpaceMap> {
 
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if (opts.auto_repair || opts.clear_needs_check)
-        && (opts.engine_opts.use_metadata_snap || opts.override_mapping_root.is_some())
+        && (opts.engine_opts.use_metadata_snap
+            || opts.override_mapping_root.is_some()
+            || opts.override_details_root.is_some())
     {
         return Err(anyhow!("cannot perform repair outside the actual metadata"));
     }
@@ -1116,6 +1119,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     report.set_sub_title("device details tree");
 
     sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
+    sb.details_root = opts.override_details_root.unwrap_or(sb.details_root);
 
     // List of all the bottom-level roots referenced by the top-level tree,
     // including those reside in the metadata snapshot.

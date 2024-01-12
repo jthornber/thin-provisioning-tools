@@ -25,6 +25,7 @@ impl ThinCheckCommand {
                         "IGNORE_NON_FATAL",
                         "METADATA_SNAPSHOT",
                         "OVERRIDE_MAPPING_ROOT",
+                        "OVERRIDE_DETAILS_ROOT",
                         "SB_ONLY",
                         "SKIP_MAPPINGS",
                     ]),
@@ -36,7 +37,11 @@ impl ThinCheckCommand {
                     .help("Clears the 'needs_check' flag in the superblock")
                     .long("clear-needs-check-flag")
                     .action(ArgAction::SetTrue)
-                    .conflicts_with_all(["METADATA_SNAPSHOT", "OVERRIDE_MAPPING_ROOT"]),
+                    .conflicts_with_all([
+                        "METADATA_SNAPSHOT",
+                        "OVERRIDE_MAPPING_ROOT",
+                        "OVERRIDE_DETAILS_ROOT",
+                    ]),
             )
             .arg(
                 Arg::new("IGNORE_NON_FATAL")
@@ -75,6 +80,13 @@ impl ThinCheckCommand {
                 Arg::new("OVERRIDE_MAPPING_ROOT")
                     .help("Specify a mapping root to use")
                     .long("override-mapping-root")
+                    .value_name("BLOCKNR")
+                    .value_parser(value_parser!(u64)),
+            )
+            .arg(
+                Arg::new("OVERRIDE_DETAILS_ROOT")
+                    .help("Specify a details root to use")
+                    .long("override-details-root")
                     .value_name("BLOCKNR")
                     .value_parser(value_parser!(u64)),
             )
@@ -128,6 +140,7 @@ impl<'a> Command<'a> for ThinCheckCommand {
             auto_repair: matches.get_flag("AUTO_REPAIR"),
             clear_needs_check: matches.get_flag("CLEAR_NEEDS_CHECK"),
             override_mapping_root: matches.get_one::<u64>("OVERRIDE_MAPPING_ROOT").cloned(),
+            override_details_root: matches.get_one::<u64>("OVERRIDE_DETAILS_ROOT").cloned(),
             report: report.clone(),
         };
 

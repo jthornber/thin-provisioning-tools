@@ -23,7 +23,7 @@ fn find_blocks_of_rc(
     let mut found = Vec::<u64>::new();
     if ref_count < 3 {
         let b = engine.read(sm_root.bitmap_root)?;
-        let entries = check_and_unpack_metadata_index(&b)?.indexes;
+        let entries = load_metadata_index(&b, sm_root.nr_blocks)?.indexes;
         let bitmaps: Vec<u64> = entries.iter().map(|ie| ie.blocknr).collect();
         let nr_bitmaps = bitmaps.len();
 
@@ -75,7 +75,7 @@ fn adjust_bitmap_entries(
     };
 
     let index_block = engine.read(sm_root.bitmap_root)?;
-    let entries = check_and_unpack_metadata_index(&index_block)?.indexes;
+    let entries = load_metadata_index(&index_block, sm_root.nr_blocks)?.indexes;
 
     let bi = blocks_to_bitmaps(blocks);
     let bitmaps: Vec<u64> = bi.iter().map(|i| entries[*i].blocknr).collect();

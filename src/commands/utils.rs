@@ -148,7 +148,7 @@ pub fn yes_no_prompt(report: &Report, prompt: &str) -> Result<bool> {
 /// Might fail silently if there are any problems reading the file,
 /// e.g., permission denied or IO errors.
 pub fn check_overwrite_metadata(report: &Report, path: &Path) -> Result<()> {
-    let prompt = "The destintation appears to already contain metadata, are you sure?";
+    let prompt = "The destination appears to already contain metadata, are you sure?";
 
     if matches!(file_utils::is_file_or_blk(path), Ok(true))
         && matches!(is_metadata(path), Ok(true))
