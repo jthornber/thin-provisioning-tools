@@ -356,7 +356,7 @@ fn collate_writesets(
 ) -> Result<Box<dyn Archive>> {
     let writesets = get_writesets_ordered(engine.clone(), sb, repair)?;
 
-    let archived_begin = writesets.get(0).map_or(0u32, |(era, _ws)| *era);
+    let archived_begin = writesets.first().map_or(0u32, |(era, _ws)| *era);
     let mut archive = new_era_archive(sb.nr_blocks, archived_begin, writesets.len() as u32);
 
     for (index, (_era, ws)) in writesets.iter().enumerate() {

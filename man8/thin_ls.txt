@@ -5,7 +5,7 @@ SYNOPSIS
   thin_ls [options] {device|file}
 
 DESCRIPTION
-  thin_ls displays infomation about thin volumes in a pool. Pass the metadata
+  thin_ls displays information about thin volumes in a pool. Pass the metadata
   device on the command line, not the pool device.
 
   This tool cannot be run on live metadata unless the --metadata-snap
