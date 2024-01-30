@@ -290,7 +290,7 @@ fn no_clear_needs_check_if_error() -> Result<()> {
     ]))?;
 
     assert!(get_needs_check(&md)?);
-    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
+    run_fail(cache_check_cmd(args!["--clear-needs-check-flag", &md]))?;
     assert!(get_needs_check(&md)?);
     Ok(())
 }
