@@ -387,7 +387,10 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
-            return Err(anyhow!("metadata space map contains leaks"));
+            return Err(anyhow!(concat!(
+                "metadata space map contains leaks\n",
+                "perhaps you wanted to run with --auto-repair"
+            )));
         }
     }
 

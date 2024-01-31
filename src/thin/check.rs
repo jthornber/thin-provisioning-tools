@@ -1250,7 +1250,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             report.warning("Repairing data leaks.");
             repair_space_map(engine.clone(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
-            return Err(anyhow!("data space map contains leaks"));
+            return Err(anyhow!(concat!(
+                "data space map contains leaks\n",
+                "perhaps you wanted to run with --auto-repair"
+            )));
         }
     }
 
@@ -1259,7 +1262,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             report.warning("Repairing metadata leaks.");
             repair_space_map(engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
-            return Err(anyhow!("metadata space map contains leaks"));
+            return Err(anyhow!(concat!(
+                "metadata space map contains leaks\n",
+                "perhaps you wanted to run with --auto-repair"
+            )));
         }
     }
 
