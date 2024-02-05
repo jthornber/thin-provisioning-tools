@@ -19,7 +19,7 @@ use crate::report::*;
 
 //------------------------------------------
 
-// 16m entries is capable for a 1TB cache with 64KB block size
+// 16m entries is capable to address a 1TB device with 64KB block size
 const DEFAULT_OBLOCKS: usize = 16777216;
 
 fn inc_superblock(sm: &ASpaceMap) -> anyhow::Result<()> {
@@ -82,7 +82,7 @@ mod format1 {
             }
             let mut seen_oblocks = self.seen_oblocks.lock().unwrap();
 
-            if m.oblock as usize > seen_oblocks.len() {
+            if m.oblock as usize >= seen_oblocks.len() {
                 seen_oblocks.grow(m.oblock as usize + 1);
             } else if seen_oblocks.contains(m.oblock as usize) {
                 return Err(array::value_err("origin block already mapped".to_string()));
@@ -179,7 +179,7 @@ mod format2 {
                 ));
             }
 
-            if m.oblock as usize > seen_oblocks.len() {
+            if m.oblock as usize >= seen_oblocks.len() {
                 seen_oblocks.grow(m.oblock as usize + 1);
             } else if seen_oblocks.contains(m.oblock as usize) {
                 return Err(array::value_err("origin block already mapped".to_string()));
@@ -387,7 +387,10 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
-            return Err(anyhow!("metadata space map contains leaks"));
+            return Err(anyhow!(concat!(
+                "metadata space map contains leaks\n",
+                "perhaps you wanted to run with --auto-repair"
+            )));
         }
     }
 

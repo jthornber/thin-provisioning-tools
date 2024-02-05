@@ -11,6 +11,8 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
+use std::io::Write;
+
 //------------------------------------------
 
 const USAGE: &str = "Validates cache metadata on a device or file.
@@ -288,9 +290,52 @@ fn no_clear_needs_check_if_error() -> Result<()> {
     ]))?;
 
     assert!(get_needs_check(&md)?);
-    run_fail(thin_check_cmd(args!["--clear-needs-check-flag", &md]))?;
+    run_fail(cache_check_cmd(args!["--clear-needs-check-flag", &md]))?;
     assert!(get_needs_check(&md)?);
     Ok(())
+}
+
+//------------------------------------------
+
+fn metadata_without_slow_dev_size_info(use_v1: bool) -> Result<()> {
+    let mut td = TestDir::new()?;
+
+    // The input metadata has a cached oblock with address equals to the default bitset size
+    // boundary (DEFAULT_OBLOCKS = 16777216), triggering bitset resize.
+    let xml = td.mk_path("meta.xml");
+    let mut file = std::fs::File::create(&xml)?;
+    file.write_all(b"<superblock uuid=\"\" block_size=\"128\" nr_cache_blocks=\"1024\" policy=\"smq\" hint_width=\"4\">
+  <mappings>
+    <mapping cache_block=\"0\" origin_block=\"16777216\" dirty=\"false\"/>
+  </mappings>
+  <hints>
+    <hint cache_block=\"0\" data=\"AAAAAA==\"/>
+  </hints>
+</superblock>")?;
+
+    let md = td.mk_path("meta.bin");
+    thinp::file_utils::create_sized_file(&md, 4096 * 4096)?;
+
+    let cache_restore_args = if use_v1 {
+        args!["-i", &xml, "-o", &md, "--metadata-version=1"]
+    } else {
+        args!["-i", &xml, "-o", &md, "--metadata-version=2"]
+    };
+
+    run_ok(cache_restore_cmd(cache_restore_args))?;
+    run_ok(cache_check_cmd(args![&md]))?;
+
+    Ok(())
+}
+
+#[test]
+fn metadata_v1_without_slow_dev_size_info() -> Result<()> {
+    metadata_without_slow_dev_size_info(true)
+}
+
+#[test]
+fn metadata_v2_without_slow_dev_size_info() -> Result<()> {
+    metadata_without_slow_dev_size_info(false)
 }
 
 //------------------------------------------
