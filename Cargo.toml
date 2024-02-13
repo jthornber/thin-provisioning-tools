@@ -3,7 +3,7 @@ name = "thinp"
 version = "1.0.11"
 authors = ["Joe Thornber <ejt@redhat.com>"]
 edition = "2021"
-license = "GPL3"
+license = "GPL-3.0-only"
 
 [dependencies]
 atty = "0.2"
