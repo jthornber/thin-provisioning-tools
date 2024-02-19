@@ -129,13 +129,83 @@ fn dump_restore_cycle() -> Result<()> {
 // test no stderr with a normal dump
 
 #[test]
-fn no_stderr() -> Result<()> {
+fn no_stderr_on_success() -> Result<()> {
     let mut td = TestDir::new()?;
 
     let md = mk_valid_md(&mut td)?;
     let output = run_ok_raw(thin_dump_cmd(args![&md]))?;
 
     assert_eq!(output.stderr.len(), 0);
+    Ok(())
+}
+
+//------------------------------------------
+// test no stderr on broken pipe errors
+
+#[test]
+fn no_stderr_on_broken_pipe() -> Result<()> {
+    use anyhow::ensure;
+
+    let mut td = TestDir::new()?;
+
+    // use the metadata producing dump more than 64KB (the default pipe buffer size),
+    // such that thin_dump will be blocked on writing to the pipe, then hits EPIPE.
+    let md = prep_metadata(&mut td)?;
+
+    let mut pipefd = [0i32; 2];
+    unsafe {
+        ensure!(libc::pipe2(pipefd.as_mut_slice().as_mut_ptr(), libc::O_CLOEXEC) == 0);
+    }
+
+    let cmd = thin_dump_cmd(args![&md])
+        .to_expr()
+        .stdout_file(pipefd[1])
+        .stderr_capture();
+    let handle = cmd.unchecked().start()?;
+
+    // wait for thin_dump to fill the pipe buffer
+    std::thread::sleep(std::time::Duration::from_millis(1000));
+
+    unsafe {
+        libc::close(pipefd[1]); // close the unused write-end
+        libc::close(pipefd[0]); // causing broken pipe
+    }
+
+    let output = handle.wait()?;
+    ensure!(!output.status.success());
+    ensure!(output.stderr.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn no_stderr_on_broken_fifo() -> Result<()> {
+    use anyhow::ensure;
+
+    let mut td = TestDir::new()?;
+
+    // use the metadata producing dump more than 64KB (the default pipe buffer size),
+    // such that thin_dump will be blocked on writing to the pipe, then hits EPIPE.
+    let md = prep_metadata(&mut td)?;
+
+    let out_fifo = td.mk_path("out_fifo");
+    unsafe {
+        let c_str = std::ffi::CString::new(out_fifo.as_os_str().as_encoded_bytes()).unwrap();
+        ensure!(libc::mkfifo(c_str.as_ptr(), 0o666) == 0);
+    };
+
+    let cmd = thin_dump_cmd(args![&md, "-o", &out_fifo])
+        .to_expr()
+        .stderr_capture();
+    let handle = cmd.unchecked().start()?;
+
+    let fifo = std::fs::File::open(out_fifo)?;
+    drop(fifo); // causing broken pipe
+
+    let output = handle.wait()?;
+    ensure!(!output.status.success());
+    ensure!(output.stderr.is_empty());
+
     Ok(())
 }
 

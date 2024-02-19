@@ -39,7 +39,7 @@ impl Command {
         Command { program, args }
     }
 
-    fn to_expr(&self) -> duct::Expression {
+    pub fn to_expr(&self) -> duct::Expression {
         duct::cmd(&self.program, &self.args)
     }
 }

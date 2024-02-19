@@ -162,10 +162,18 @@ pub fn check_overwrite_metadata(report: &Report, path: &Path) -> Result<()> {
 
 pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::ExitCode {
     if let Err(e) = result {
-        if e.chain().len() > 1 {
-            report.fatal(&format!("{}: {}", e, e.root_cause()));
-        } else {
-            report.fatal(&format!("{}", e));
+        let root_cause = e.root_cause();
+        let is_broken_pipe = root_cause
+            .downcast_ref::<Arc<std::io::Error>>() // quick_xml::Error::Io wraps io::Error in Arc
+            .map(|err| err.kind() == std::io::ErrorKind::BrokenPipe)
+            .unwrap_or(false);
+
+        if !is_broken_pipe {
+            if e.chain().len() > 1 {
+                report.fatal(&format!("{}: {}", e, root_cause));
+            } else {
+                report.fatal(&format!("{}", e));
+            }
         }
 
         // FIXME: we need a way of getting more meaningful error codes
