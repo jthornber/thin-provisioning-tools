@@ -8,6 +8,7 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::{parse_log_level, verbose_args};
 use crate::thin::ls::*;
+use crate::version::*;
 
 pub struct ThinLsCommand;
 
@@ -16,6 +17,7 @@ impl ThinLsCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("List thin volumes within a pool")
             .arg(
                 Arg::new("NO_HEADERS")
@@ -47,7 +49,7 @@ impl ThinLsCommand {
                     .required(true)
                     .index(1),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -60,6 +62,7 @@ impl<'a> Command<'a> for ThinLsCommand {
         use OutputField::*;
 
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 

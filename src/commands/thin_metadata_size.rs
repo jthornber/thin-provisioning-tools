@@ -10,6 +10,7 @@ use crate::commands::Command;
 use crate::report::mk_simple_report;
 use crate::thin::metadata_size::*;
 use crate::units::*;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -39,9 +40,10 @@ pub struct ThinMetadataSizeCommand;
 
 impl ThinMetadataSizeCommand {
     fn cli(&self) -> clap::Command {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Estimate the size of the metadata device needed for a given configuration.")
             // flags
             .arg(
@@ -94,7 +96,9 @@ impl ThinMetadataSizeCommand {
                     .value_name("UNIT")
                     .value_parser(value_parser!(Units))
                     .default_value("sector"),
-            )
+            );
+
+        version_args(cmd)
     }
 
     fn parse_args<I, T>(&self, args: I) -> Result<(ThinMetadataSizeOptions, Units, OutputFormat)>
@@ -103,6 +107,7 @@ impl ThinMetadataSizeCommand {
         T: Into<OsString> + Clone,
     {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let pool_size = matches
             .get_one::<StorageSize>("POOL_SIZE")

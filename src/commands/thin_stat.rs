@@ -5,6 +5,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::report::mk_simple_report;
 use crate::thin::stat::*;
+use crate::version::*;
 
 //------------------------------------------
 use crate::commands::Command;
@@ -16,6 +17,7 @@ impl ThinStatCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Tool to show metadata statistics")
             .arg(
                 Arg::new("OP")
@@ -30,7 +32,7 @@ impl ThinStatCommand {
                     .index(1),
             );
 
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -41,6 +43,7 @@ impl<'a> Command<'a> for ThinStatCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
         let report = std::sync::Arc::new(mk_simple_report());
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);

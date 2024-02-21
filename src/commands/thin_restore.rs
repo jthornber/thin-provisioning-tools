@@ -9,6 +9,7 @@ use crate::commands::Command;
 use crate::report::{parse_log_level, verbose_args};
 use crate::thin::metadata_repair::SuperblockOverrides;
 use crate::thin::restore::{restore, ThinRestoreOptions};
+use crate::version::*;
 
 pub struct ThinRestoreCommand;
 
@@ -17,6 +18,7 @@ impl ThinRestoreCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Convert XML format metadata to binary.")
             .arg(
                 Arg::new("QUIET")
@@ -63,7 +65,7 @@ impl ThinRestoreCommand {
                     .value_name("NUM")
                     .value_parser(value_parser!(u64)),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -74,6 +76,7 @@ impl<'a> Command<'a> for ThinRestoreCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

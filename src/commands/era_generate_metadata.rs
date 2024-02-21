@@ -7,6 +7,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::metadata_generator::*;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -17,6 +18,7 @@ impl EraGenerateMetadataCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("A tool for creating synthetic era metadata.")
             // flags
             .arg(
@@ -67,7 +69,7 @@ impl EraGenerateMetadataCommand {
                     .required(true),
             )
             .group(ArgGroup::new("commands").args(["FORMAT"]).required(true));
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -78,6 +80,7 @@ impl<'a> Command<'a> for EraGenerateMetadataCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 

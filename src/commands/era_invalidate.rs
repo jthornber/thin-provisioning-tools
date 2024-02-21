@@ -5,6 +5,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::invalidate::{invalidate, EraInvalidateOptions};
+use crate::version::*;
 
 //------------------------------------------
 
@@ -15,6 +16,7 @@ impl EraInvalidateCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("List blocks that may have changed since a given era")
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
@@ -44,7 +46,7 @@ impl EraInvalidateCommand {
                     .required(true)
                     .index(1),
             );
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -55,6 +57,7 @@ impl<'a> Command<'a> for EraInvalidateCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);

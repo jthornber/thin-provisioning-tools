@@ -8,6 +8,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
+use crate::version::*;
 
 pub struct CacheRepairCommand;
 
@@ -16,6 +17,7 @@ impl CacheRepairCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Repair binary cache metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -44,7 +46,7 @@ impl CacheRepairCommand {
             // a dummy argument for compatibility with lvconvert
             .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
 
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -55,6 +57,7 @@ impl<'a> Command<'a> for CacheRepairCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
