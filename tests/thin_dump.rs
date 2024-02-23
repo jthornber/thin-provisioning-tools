@@ -142,8 +142,7 @@ fn no_stderr_on_success() -> Result<()> {
 //------------------------------------------
 // test no stderr on broken pipe errors
 
-#[test]
-fn no_stderr_on_broken_pipe() -> Result<()> {
+fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
     use anyhow::ensure;
 
     let mut td = TestDir::new()?;
@@ -157,7 +156,9 @@ fn no_stderr_on_broken_pipe() -> Result<()> {
         ensure!(libc::pipe2(pipefd.as_mut_slice().as_mut_ptr(), libc::O_CLOEXEC) == 0);
     }
 
-    let cmd = thin_dump_cmd(args![&md])
+    let mut args = args![&md].to_vec();
+    args.extend_from_slice(extra_args);
+    let cmd = thin_dump_cmd(args)
         .to_expr()
         .stdout_file(pipefd[1])
         .stderr_capture();
@@ -179,7 +180,16 @@ fn no_stderr_on_broken_pipe() -> Result<()> {
 }
 
 #[test]
-fn no_stderr_on_broken_fifo() -> Result<()> {
+fn no_stderr_on_broken_pipe_xml() -> Result<()> {
+    test_no_stderr_on_broken_pipe(&[])
+}
+
+#[test]
+fn no_stderr_on_broken_pipe_humanreadable() -> Result<()> {
+    test_no_stderr_on_broken_pipe(&args!["--format", "human_readable"])
+}
+
+fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
     use anyhow::ensure;
 
     let mut td = TestDir::new()?;
@@ -194,9 +204,9 @@ fn no_stderr_on_broken_fifo() -> Result<()> {
         ensure!(libc::mkfifo(c_str.as_ptr(), 0o666) == 0);
     };
 
-    let cmd = thin_dump_cmd(args![&md, "-o", &out_fifo])
-        .to_expr()
-        .stderr_capture();
+    let mut args = args![&md, "-o", &out_fifo].to_vec();
+    args.extend_from_slice(extra_args);
+    let cmd = thin_dump_cmd(args).to_expr().stderr_capture();
     let handle = cmd.unchecked().start()?;
 
     let fifo = std::fs::File::open(out_fifo)?;
@@ -207,6 +217,16 @@ fn no_stderr_on_broken_fifo() -> Result<()> {
     ensure!(output.stderr.is_empty());
 
     Ok(())
+}
+
+#[test]
+fn no_stderr_on_broken_fifo_xml() -> Result<()> {
+    test_no_stderr_on_broken_fifo(&[])
+}
+
+#[test]
+fn no_stderr_on_broken_fifo_humanreadable() -> Result<()> {
+    test_no_stderr_on_broken_fifo(&args!["--format", "human_readable"])
 }
 
 //------------------------------------------

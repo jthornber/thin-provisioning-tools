@@ -165,8 +165,11 @@ pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::
         let root_cause = e.root_cause();
         let is_broken_pipe = root_cause
             .downcast_ref::<Arc<std::io::Error>>() // quick_xml::Error::Io wraps io::Error in Arc
-            .map(|err| err.kind() == std::io::ErrorKind::BrokenPipe)
-            .unwrap_or(false);
+            .map_or_else(
+                || root_cause.downcast_ref::<std::io::Error>(),
+                |err| Some(err.as_ref()),
+            )
+            .map_or(false, |err| err.kind() == std::io::ErrorKind::BrokenPipe);
 
         if !is_broken_pipe {
             if e.chain().len() > 1 {
