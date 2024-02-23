@@ -5,6 +5,7 @@ use std::process;
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::thin::damage_generator::*;
+use crate::version::*;
 
 //------------------------------------------
 use crate::commands::Command;
@@ -16,6 +17,7 @@ impl ThinGenerateDamageCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("A tool for creating synthetic thin metadata.")
             .arg(
                 Arg::new("CREATE_METADATA_LEAKS")
@@ -92,7 +94,7 @@ impl ThinGenerateDamageCommand {
                     .args(["MAPPING_ROOT", "DETAILS_ROOT", "METADATA_SNAPSHOT"])
                     .multiple(true),
             );
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -103,6 +105,7 @@ impl<'a> Command<'a> for ThinGenerateDamageCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let report = mk_report(false);
 

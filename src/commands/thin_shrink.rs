@@ -13,14 +13,16 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
 use crate::thin::shrink::{shrink, ThinShrinkOptions};
+use crate::version::*;
 
 pub struct ThinShrinkCommand;
 
 impl ThinShrinkCommand {
     fn cli(&self) -> clap::Command {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Rewrite xml metadata and move data in an inactive pool.")
             .arg(
                 Arg::new("INPUT")
@@ -64,7 +66,9 @@ impl ThinShrinkCommand {
                     .help("Perform binary metadata rebuild rather than XML rewrite")
                     .long("binary")
                     .action(ArgAction::SetTrue),
-            )
+            );
+
+        version_args(cmd)
     }
 
     fn parse_args<I, T>(&self, args: I) -> io::Result<ThinShrinkOptions>
@@ -73,6 +77,7 @@ impl ThinShrinkCommand {
         T: Into<ffi::OsString> + Clone,
     {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

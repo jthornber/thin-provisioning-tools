@@ -10,8 +10,7 @@ use crate::checksum;
 use crate::commands::engine::*;
 use crate::dump_utils::*;
 use crate::io_engine::*;
-use crate::pdata::btree::{self, *};
-use crate::pdata::btree_walker::*;
+use crate::pdata::btree::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::unpack::*;
 use crate::report::*;
@@ -104,9 +103,7 @@ impl<'a> MappingVisitor<'a> {
             }),
         }
     }
-}
 
-impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
     fn visit(
         &self,
         _path: &[u64],
@@ -114,39 +111,21 @@ impl<'a> NodeVisitor<BlockTime> for MappingVisitor<'a> {
         _h: &NodeHeader,
         keys: &[u64],
         values: &[BlockTime],
-    ) -> btree::Result<()> {
+    ) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         for (k, v) in keys.iter().zip(values.iter()) {
             if let Some(run) = inner.builder.next(*k, v.block, v.time) {
-                // FIXME: BTreeError should carry more information than a string
-                //        so the caller could identify the actual root cause,
-                //        e.g., a broken pipe error or something.
-                inner
-                    .md_out
-                    .map(&run)
-                    .map_err(|e| btree::value_err(format!("{}", e)))?;
+                inner.md_out.map(&run)?;
             }
         }
 
         Ok(())
     }
 
-    fn visit_again(&self, _path: &[u64], b: u64) -> btree::Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        inner
-            .md_out
-            .ref_shared(&format!("{}", b))
-            .map_err(|e| btree::value_err(format!("{}", e)))?;
-        Ok(())
-    }
-
-    fn end_walk(&self) -> btree::Result<()> {
+    fn end_walk(&self) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         if let Some(run) = inner.builder.complete() {
-            inner
-                .md_out
-                .map(&run)
-                .map_err(|e| btree::value_err(format!("{}", e)))?;
+            inner.md_out.map(&run)?;
         }
         Ok(())
     }

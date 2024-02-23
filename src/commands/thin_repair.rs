@@ -9,6 +9,7 @@ use crate::commands::Command;
 use crate::report::{parse_log_level, verbose_args};
 use crate::thin::metadata_repair::SuperblockOverrides;
 use crate::thin::repair::{repair, ThinRepairOptions};
+use crate::version::*;
 
 pub struct ThinRepairCommand;
 
@@ -17,6 +18,7 @@ impl ThinRepairCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Repair thin-provisioning metadata, and write it to different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -66,7 +68,7 @@ impl ThinRepairCommand {
             // a dummy argument for compatibility with lvconvert
             .arg(Arg::new("DUMMY").required(false).hide(true).index(1));
 
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -77,6 +79,7 @@ impl<'a> Command<'a> for ThinRepairCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

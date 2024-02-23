@@ -50,7 +50,7 @@ where
     P: Program<'a>,
 {
     let stdout = run_ok(P::cmd(args!["-V"]))?;
-    assert!(stdout.contains(tools_version!()));
+    assert!(stdout.starts_with(tools_version!()));
     Ok(())
 }
 
@@ -59,7 +59,7 @@ where
     P: Program<'a>,
 {
     let stdout = run_ok(P::cmd(args!["--version"]))?;
-    assert!(stdout.contains(tools_version!()));
+    assert!(stdout.starts_with(tools_version!()));
     Ok(())
 }
 

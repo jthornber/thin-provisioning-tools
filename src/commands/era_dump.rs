@@ -7,6 +7,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::dump::{dump, EraDumpOptions};
+use crate::version::*;
 
 //------------------------------------------
 
@@ -17,6 +18,7 @@ impl EraDumpCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Dump the era metadata to stdout in XML format")
             .arg(
                 Arg::new("LOGICAL")
@@ -46,7 +48,7 @@ impl EraDumpCommand {
                     .required(true)
                     .index(1),
             );
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -57,6 +59,7 @@ impl<'a> Command<'a> for EraDumpCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);

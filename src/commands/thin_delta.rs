@@ -9,6 +9,7 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::thin::delta::*;
 use crate::thin::delta_visitor::Snap;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -19,6 +20,7 @@ impl ThinDeltaCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Print the differences in the mappings between two thin devices")
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
@@ -72,17 +74,15 @@ impl ThinDeltaCommand {
                     .index(1),
             )
             // groups
-            .group(
-                ArgGroup::new("SNAP1")
-                    .args(["ROOT1", "THIN1"])
-                    .required(true),
-            )
-            .group(
-                ArgGroup::new("SNAP2")
-                    .args(["ROOT2", "THIN2"])
-                    .required(true),
-            );
-        engine_args(cmd)
+            //
+            // Due to a bug in clap 4.4 that doesn't handle exclusive Args
+            // and ArgGroup::required(true) properly, we avoid using the
+            // 'required(true)' flag on ArgGroup, and perform manual checks
+            // instead. (see github clap-rs/clap#5041)
+            .group(ArgGroup::new("SNAP1").args(["ROOT1", "THIN1"]))
+            .group(ArgGroup::new("SNAP2").args(["ROOT2", "THIN2"]));
+
+        engine_args(version_args(cmd))
     }
 }
 
@@ -93,6 +93,7 @@ impl<'a> Command<'a> for ThinDeltaCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 
@@ -102,16 +103,34 @@ impl<'a> Command<'a> for ThinDeltaCommand {
             return to_exit_code::<()>(&report, Err(e));
         }
 
-        let snap1 = match matches.get_one::<clap::Id>("SNAP1").unwrap().as_str() {
+        let snap1 = match matches
+            .get_one::<clap::Id>("SNAP1")
+            .unwrap_or(&clap::Id::default())
+            .as_str()
+        {
             "THIN1" => Snap::DeviceId(*matches.get_one::<u64>("THIN1").unwrap()),
             "ROOT1" => Snap::RootBlock(*matches.get_one::<u64>("ROOT1").unwrap()),
-            _ => return to_exit_code::<()>(&report, Err(anyhow!("unknown option"))),
+            _ => {
+                return to_exit_code::<()>(
+                    &report,
+                    Err(anyhow!("--thin1 or --root1 not specified")),
+                )
+            }
         };
 
-        let snap2 = match matches.get_one::<clap::Id>("SNAP2").unwrap().as_str() {
+        let snap2 = match matches
+            .get_one::<clap::Id>("SNAP2")
+            .unwrap_or(&clap::Id::default())
+            .as_str()
+        {
             "THIN2" => Snap::DeviceId(*matches.get_one::<u64>("THIN2").unwrap()),
             "ROOT2" => Snap::RootBlock(*matches.get_one::<u64>("ROOT2").unwrap()),
-            _ => return to_exit_code::<()>(&report, Err(anyhow!("unknown option"))),
+            _ => {
+                return to_exit_code::<()>(
+                    &report,
+                    Err(anyhow!("--thin2 or --root2 not specified")),
+                )
+            }
         };
 
         let engine_opts = parse_engine_opts(ToolType::Thin, &matches);

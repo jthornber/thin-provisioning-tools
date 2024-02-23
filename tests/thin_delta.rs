@@ -13,7 +13,7 @@ use common::thin::*;
 
 const USAGE: &str = "Print the differences in the mappings between two thin devices
 
-Usage: thin_delta [OPTIONS] <--root1 <BLOCKNR>|--thin1 <DEV_ID>> <--root2 <BLOCKNR>|--thin2 <DEV_ID>> <INPUT>
+Usage: thin_delta [OPTIONS] <INPUT>
 
 Arguments:
   <INPUT>  Specify the input device
@@ -71,10 +71,7 @@ fn snap1_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap2", "45", &md]))?;
-    assert!(stderr.contains(
-        "the following required arguments were not provided:
-  <--root1 <BLOCKNR>|--thin1 <DEV_ID>>"
-    ));
+    assert!(stderr.contains("--thin1 or --root1 not specified"));
     Ok(())
 }
 
@@ -83,10 +80,7 @@ fn snap2_unspecified() -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
     let stderr = run_fail(thin_delta_cmd(args!["--snap1", "45", &md]))?;
-    assert!(stderr.contains(
-        "the following required arguments were not provided:
-  <--root2 <BLOCKNR>|--thin2 <DEV_ID>>"
-    ));
+    assert!(stderr.contains("--thin2 or --root2 not specified"));
     Ok(())
 }
 

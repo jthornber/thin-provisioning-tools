@@ -9,6 +9,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::{parse_log_level, verbose_args};
+use crate::version::*;
 
 pub struct CacheRestoreCommand;
 
@@ -17,6 +18,7 @@ impl CacheRestoreCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Convert XML format metadata to binary.")
             .arg(
                 Arg::new("QUIET")
@@ -58,7 +60,7 @@ impl CacheRestoreCommand {
                     .value_name("FILE")
                     .required(true),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -69,6 +71,7 @@ impl<'a> Command<'a> for CacheRestoreCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

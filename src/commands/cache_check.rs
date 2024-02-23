@@ -8,6 +8,7 @@ use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -18,6 +19,7 @@ impl CacheCheckCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Validates cache metadata on a device or file.")
             // flags
             .arg(
@@ -76,7 +78,7 @@ impl CacheCheckCommand {
                     .required(true)
                     .index(1),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -87,6 +89,7 @@ impl<'a> Command<'a> for CacheCheckCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 

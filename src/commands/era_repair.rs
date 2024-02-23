@@ -8,6 +8,7 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::repair::{repair, EraRepairOptions};
 use crate::report::*;
+use crate::version::*;
 
 pub struct EraRepairCommand;
 
@@ -16,6 +17,7 @@ impl EraRepairCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Repair binary era metadata, and write it to a different device or file")
             .arg(
                 Arg::new("QUIET")
@@ -41,7 +43,7 @@ impl EraRepairCommand {
                     .value_name("FILE")
                     .required(true),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -52,6 +54,7 @@ impl<'a> Command<'a> for EraRepairCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

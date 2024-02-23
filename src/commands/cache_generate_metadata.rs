@@ -8,6 +8,7 @@ use crate::cache::metadata_generator::*;
 use crate::commands::engine::*;
 use crate::commands::utils::*;
 use crate::commands::Command;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -18,6 +19,7 @@ impl CacheGenerateMetadataCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("A tool for creating synthetic cache metadata.")
             // flags
             .arg(
@@ -128,7 +130,7 @@ impl CacheGenerateMetadataCommand {
                     ])
                     .required(true),
             );
-        engine_args(cmd)
+        engine_args(version_args(cmd))
     }
 }
 
@@ -139,6 +141,7 @@ impl<'a> Command<'a> for CacheGenerateMetadataCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 

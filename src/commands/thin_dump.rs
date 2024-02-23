@@ -10,6 +10,7 @@ use crate::commands::Command;
 use crate::report::*;
 use crate::thin::dump::{dump, OutputFormat, ThinDumpOptions};
 use crate::thin::metadata_repair::SuperblockOverrides;
+use crate::version::*;
 
 pub struct ThinDumpCommand;
 
@@ -18,6 +19,7 @@ impl ThinDumpCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Dump thin-provisioning metadata to stdout in XML format")
             .arg(
                 Arg::new("QUIET")
@@ -108,7 +110,7 @@ impl ThinDumpCommand {
                     .required(true)
                     .index(1),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -119,6 +121,7 @@ impl<'a> Command<'a> for ThinDumpCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = matches.get_one::<String>("OUTPUT").map(Path::new);

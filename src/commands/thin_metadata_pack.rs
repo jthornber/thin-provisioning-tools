@@ -6,14 +6,16 @@ use std::path::Path;
 use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::report::*;
+use crate::version::*;
 
 pub struct ThinMetadataPackCommand;
 
 impl ThinMetadataPackCommand {
     fn cli(&self) -> clap::Command {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Produces a compressed file of thin metadata.  Only packs metadata blocks that are actually used.")
             // flags
             .arg(Arg::new("FORCE")
@@ -33,7 +35,9 @@ impl ThinMetadataPackCommand {
                 .required(true)
                 .short('o')
                 .long("output")
-                .value_name("FILE"))
+                .value_name("FILE"));
+
+        version_args(cmd)
     }
 }
 
@@ -44,6 +48,7 @@ impl<'a> Command<'a> for ThinMetadataPackCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
         let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());

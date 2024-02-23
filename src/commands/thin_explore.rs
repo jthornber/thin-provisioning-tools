@@ -39,6 +39,7 @@ use crate::pdata::unpack::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
+use crate::version::*;
 
 //------------------------------------
 
@@ -879,6 +880,7 @@ impl ThinExploreCommand {
         clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("A text user interface for examining thin metadata.")
             .arg(
                 Arg::new("NODE_PATH")
@@ -903,6 +905,7 @@ impl<'a> Command<'a> for ThinExploreCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let node_path = matches
             .get_one::<String>("NODE_PATH")

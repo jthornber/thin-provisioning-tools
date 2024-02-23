@@ -8,6 +8,7 @@ use crate::commands::utils::*;
 use crate::commands::Command;
 use crate::era::check::{check, EraCheckOptions};
 use crate::report::*;
+use crate::version::*;
 
 //------------------------------------------
 
@@ -18,6 +19,7 @@ impl EraCheckCommand {
         let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
+            .disable_version_flag(true)
             .about("Validate era metadata on device or file.")
             // flags
             .arg(
@@ -46,7 +48,7 @@ impl EraCheckCommand {
                     .required(true)
                     .index(1),
             );
-        verbose_args(engine_args(cmd))
+        verbose_args(engine_args(version_args(cmd)))
     }
 }
 
@@ -57,6 +59,7 @@ impl<'a> Command<'a> for EraCheckCommand {
 
     fn run(&self, args: &mut dyn Iterator<Item = std::ffi::OsString>) -> exitcode::ExitCode {
         let matches = self.cli().get_matches_from(args);
+        display_version(&matches);
 
         let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
 
