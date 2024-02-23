@@ -1,6 +1,6 @@
 [package]
 name = "thinp"
-version = "1.0.11"
+version = "1.0.12"
 authors = ["Joe Thornber <ejt@redhat.com>"]
 edition = "2021"
 license = "GPL-3.0-only"
@@ -10,7 +10,13 @@ atty = "0.2"
 anyhow = "1.0"
 base64 = "0.21"
 byteorder = "1.4"
-clap = { version = "4.5", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions"] }
+clap = { version = "4.5", default-features = false, features = [
+  "std",
+  "help",
+  "usage",
+  "error-context",
+  "suggestions",
+] }
 crc32c = "0.6"
 data-encoding = "2.5"
 exitcode = "1.1.2"
@@ -31,7 +37,9 @@ rio = { git = "https://github.com/jthornber/rio", branch = "master", optional = 
 safemem = "0.3"
 threadpool = "1.8"
 thiserror = "1.0"
-tui = { version = "0.19", default-features = false, features = ["termion"], optional = true }
+tui = { version = "0.19", default-features = false, features = [
+  "termion",
+], optional = true }
 termion = { version = "1.5", optional = true }
 
 [dev-dependencies]
