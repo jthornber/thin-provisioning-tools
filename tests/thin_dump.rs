@@ -165,10 +165,10 @@ fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
         .stderr_capture();
     let handle = cmd.unchecked().start()?;
 
-    // wait for thin_dump to fill the pipe buffer
-    std::thread::sleep(std::time::Duration::from_millis(1000));
-
     unsafe {
+        // read outputs from thin_dump
+        let mut buf = vec![0; 128];
+        libc::read(pipefd[0], buf.as_mut_slice().as_mut_ptr().cast(), 128);
         libc::close(pipefd[0]); // causing broken pipe
     }
 
@@ -191,6 +191,7 @@ fn no_stderr_on_broken_pipe_humanreadable() -> Result<()> {
 
 fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
     use anyhow::ensure;
+    use std::io::Read;
 
     let mut td = TestDir::new()?;
 
@@ -209,7 +210,10 @@ fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
     let cmd = thin_dump_cmd(args).to_expr().stderr_capture();
     let handle = cmd.unchecked().start()?;
 
-    let fifo = std::fs::File::open(out_fifo)?;
+    // read outputs from thin_dump
+    let mut fifo = std::fs::File::open(out_fifo)?;
+    let mut buf = vec![0; 128];
+    fifo.read_exact(&mut buf)?;
     drop(fifo); // causing broken pipe
 
     let output = handle.wait()?;
