@@ -161,7 +161,7 @@ fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
     args.extend_from_slice(extra_args);
     let cmd = thin_dump_cmd(args)
         .to_expr()
-        .stdout_file(pipefd[1])
+        .stdout_file(pipefd[1]) // this transfers ownership of the fd
         .stderr_capture();
     let handle = cmd.unchecked().start()?;
 
@@ -169,7 +169,6 @@ fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
     std::thread::sleep(std::time::Duration::from_millis(1000));
 
     unsafe {
-        libc::close(pipefd[1]); // close the unused write-end
         libc::close(pipefd[0]); // causing broken pipe
     }
 
