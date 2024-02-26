@@ -154,6 +154,7 @@ fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
     let mut pipefd = [0i32; 2];
     unsafe {
         ensure!(libc::pipe2(pipefd.as_mut_slice().as_mut_ptr(), libc::O_CLOEXEC) == 0);
+        ensure!(libc::fcntl(pipefd[0], libc::F_SETPIPE_SZ, 65536) == 65536);
     }
 
     let mut args = args![&md].to_vec();
