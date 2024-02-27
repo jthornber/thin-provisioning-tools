@@ -192,6 +192,8 @@ fn no_stderr_on_broken_pipe_humanreadable() -> Result<()> {
 fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
     use anyhow::ensure;
     use std::io::Read;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::OpenOptionsExt;
 
     let mut td = TestDir::new()?;
 
@@ -205,13 +207,32 @@ fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> 
         ensure!(libc::mkfifo(c_str.as_ptr(), 0o666) == 0);
     };
 
+    let mut fifo = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NONBLOCK)
+        .open(&out_fifo)?;
+    unsafe {
+        ensure!(libc::fcntl(fifo.as_raw_fd(), libc::F_SETPIPE_SZ, 65536) == 65536);
+        let new_flags = libc::O_RDONLY | libc::O_CLOEXEC;
+        ensure!(libc::fcntl(fifo.as_raw_fd(), libc::F_SETFL, new_flags) == 0);
+    }
+
     let mut args = args![&md, "-o", &out_fifo].to_vec();
     args.extend_from_slice(extra_args);
     let cmd = thin_dump_cmd(args).to_expr().stderr_capture();
     let handle = cmd.unchecked().start()?;
 
+    // wait for the fifo is ready
+    unsafe {
+        let mut pollfd = libc::pollfd {
+            fd: fifo.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        ensure!(libc::poll(&mut pollfd, 1, 10000) == 1);
+    }
+
     // read outputs from thin_dump
-    let mut fifo = std::fs::File::open(out_fifo)?;
     let mut buf = vec![0; 128];
     fifo.read_exact(&mut buf)?;
     drop(fifo); // causing broken pipe
