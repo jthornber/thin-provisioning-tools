@@ -133,6 +133,56 @@ impl<'a> MappingVisitor<'a> {
 
 //------------------------------------------
 
+struct OutputVisitor<'a> {
+    out: &'a mut dyn MetadataVisitor,
+}
+
+impl<'a> OutputVisitor<'a> {
+    fn new(out: &'a mut dyn MetadataVisitor) -> Self {
+        Self { out }
+    }
+}
+
+impl<'a> MetadataVisitor for OutputVisitor<'a> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<ir::Visit> {
+        output_context(self.out.superblock_b(sb))
+    }
+
+    fn superblock_e(&mut self) -> Result<ir::Visit> {
+        output_context(self.out.superblock_e())
+    }
+
+    fn def_shared_b(&mut self, name: &str) -> Result<ir::Visit> {
+        output_context(self.out.def_shared_b(name))
+    }
+
+    fn def_shared_e(&mut self) -> Result<ir::Visit> {
+        output_context(self.out.def_shared_e())
+    }
+
+    fn device_b(&mut self, d: &ir::Device) -> Result<ir::Visit> {
+        output_context(self.out.device_b(d))
+    }
+
+    fn device_e(&mut self) -> Result<ir::Visit> {
+        output_context(self.out.device_e())
+    }
+
+    fn map(&mut self, m: &ir::Map) -> Result<ir::Visit> {
+        output_context(self.out.map(m))
+    }
+
+    fn ref_shared(&mut self, name: &str) -> Result<ir::Visit> {
+        output_context(self.out.ref_shared(name))
+    }
+
+    fn eof(&mut self) -> Result<ir::Visit> {
+        output_context(self.out.eof())
+    }
+}
+
+//------------------------------------------
+
 #[derive(Clone)]
 pub enum OutputFormat {
     XML,
@@ -199,9 +249,7 @@ fn emit_leaf(v: &MappingVisitor, b: &Block) -> Result<()> {
             header,
             keys,
             values,
-        } => v
-            .visit(&path, &kr, &header, &keys, &values)
-            .context(OutputError),
+        } => v.visit(&path, &kr, &header, &keys, &values),
     }
 }
 
@@ -234,7 +282,7 @@ fn emit_leaves(
     };
 
     read_for(engine, leaves, proc)?;
-    v.end_walk().context(OutputError)
+    v.end_walk()
 }
 
 fn emit_entries(
@@ -255,7 +303,7 @@ fn emit_entries(
                     leaves.clear();
                 }
                 let str = format!("{}", id);
-                out.ref_shared(&str).context(OutputError)?;
+                out.ref_shared(&str)?;
             }
         }
     }
@@ -273,6 +321,8 @@ pub fn dump_metadata(
     sb: &Superblock,
     md: &Metadata,
 ) -> Result<()> {
+    let out: &mut dyn MetadataVisitor = &mut OutputVisitor::new(out);
+
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let out_sb = ir::Superblock {
         uuid: "".to_string(),
@@ -284,13 +334,12 @@ pub fn dump_metadata(
         nr_data_blocks: data_root.nr_blocks,
         metadata_snap: None,
     };
-    out.superblock_b(&out_sb).context(OutputError)?;
+    out.superblock_b(&out_sb)?;
 
     for d in &md.defs {
-        out.def_shared_b(&format!("{}", d.def_id))
-            .context(OutputError)?;
+        out.def_shared_b(&format!("{}", d.def_id))?;
         emit_entries(engine.clone(), out, &d.map.entries)?;
-        out.def_shared_e().context(OutputError)?;
+        out.def_shared_e()?;
     }
 
     for dev in &md.devs {
@@ -301,19 +350,19 @@ pub fn dump_metadata(
             creation_time: dev.detail.creation_time,
             snap_time: dev.detail.snapshotted_time,
         };
-        out.device_b(&device).context(OutputError)?;
+        out.device_b(&device)?;
         emit_entries(engine.clone(), out, &dev.map.entries)?;
-        out.device_e().context(OutputError)?;
+        out.device_e()?;
     }
-    out.superblock_e().context(OutputError)?;
-    out.eof().context(OutputError)?;
+    out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }
 
 //------------------------------------------
 
-pub fn dump_with_formatter(opts: ThinDumpOptions, mut out: Box<dyn MetadataVisitor>) -> Result<()> {
+pub fn dump_with_formatter(opts: ThinDumpOptions, out: &mut dyn MetadataVisitor) -> Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = if opts.repair {
         read_or_rebuild_superblock(
@@ -336,7 +385,7 @@ pub fn dump_with_formatter(opts: ThinDumpOptions, mut out: Box<dyn MetadataVisit
         optimise_metadata(m)?
     };
 
-    dump_metadata(ctx.engine, out.as_mut(), &sb, &md)
+    dump_metadata(ctx.engine, out, &sb, &md)
 }
 
 pub fn dump(opts: ThinDumpOptions) -> Result<()> {
@@ -347,12 +396,12 @@ pub fn dump(opts: ThinDumpOptions) -> Result<()> {
         Box::new(BufWriter::new(std::io::stdout()))
     };
 
-    let out: Box<dyn MetadataVisitor> = match opts.format {
+    let mut out: Box<dyn MetadataVisitor> = match opts.format {
         OutputFormat::XML => Box::new(xml::XmlWriter::new(writer)),
         OutputFormat::HumanReadable => Box::new(HumanReadableWriter::new(writer)),
     };
 
-    dump_with_formatter(opts, out)
+    dump_with_formatter(opts, out.as_mut())
 }
 
 //------------------------------------------

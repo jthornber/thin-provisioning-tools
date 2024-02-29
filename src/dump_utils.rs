@@ -18,6 +18,11 @@ impl std::fmt::Display for OutputError {
     }
 }
 
+#[inline]
+pub fn output_context<T>(result: anyhow::Result<T>) -> anyhow::Result<T> {
+    result.context(OutputError)
+}
+
 //------------------------------------------
 
 // A slight variation of array_walker::ArrayVisitor returns anyhow::Result
@@ -56,7 +61,7 @@ where
         }
 
         let ablock = unpack_array_block::<V>(&path, b.get_data())?;
-        visitor.visit(index, ablock).context(OutputError)?;
+        visitor.visit(index, ablock)?;
     }
 
     Ok(())

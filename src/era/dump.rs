@@ -152,6 +152,56 @@ impl<'a> dump_utils::ArrayVisitor<u32> for LogicalEraEmitter<'a> {
 
 //------------------------------------------
 
+struct OutputVisitor<'a> {
+    out: &'a mut dyn MetadataVisitor,
+}
+
+impl<'a> OutputVisitor<'a> {
+    fn new(out: &'a mut dyn MetadataVisitor) -> Self {
+        Self { out }
+    }
+}
+
+impl<'a> MetadataVisitor for OutputVisitor<'a> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.superblock_b(sb))
+    }
+
+    fn superblock_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.superblock_e())
+    }
+
+    fn writeset_b(&mut self, ws: &ir::Writeset) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.writeset_b(ws))
+    }
+
+    fn writeset_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.writeset_e())
+    }
+
+    fn writeset_blocks(&mut self, blocks: &ir::MarkedBlocks) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.writeset_blocks(blocks))
+    }
+
+    fn era_b(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.era_b())
+    }
+
+    fn era_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.era_e())
+    }
+
+    fn era(&mut self, era: &ir::Era) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.era(era))
+    }
+
+    fn eof(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.eof())
+    }
+}
+
+//------------------------------------------
+
 pub struct EraDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
@@ -185,8 +235,7 @@ fn dump_writeset(
     out.writeset_b(&ir::Writeset {
         era,
         nr_bits: ws.nr_bits,
-    })
-    .context(OutputError)?;
+    })?;
 
     // [begin, end) denotes the range of set bits.
     let mut begin: u32 = 0;
@@ -207,7 +256,7 @@ fn dump_writeset(
                         begin,
                         len: end - begin,
                     };
-                    out.writeset_blocks(&m).context(OutputError)?;
+                    out.writeset_blocks(&m)?;
                 }
                 n >>= zeros;
                 end += zeros;
@@ -227,7 +276,7 @@ fn dump_writeset(
                     begin,
                     len: end - begin,
                 };
-                out.writeset_blocks(&m).context(OutputError)?;
+                out.writeset_blocks(&m)?;
             }
             begin = endpos;
             end = begin;
@@ -239,10 +288,10 @@ fn dump_writeset(
             begin,
             len: end - begin,
         };
-        out.writeset_blocks(&m).context(OutputError)?;
+        out.writeset_blocks(&m)?;
     }
 
-    out.writeset_e().context(OutputError)?;
+    out.writeset_e()?;
 
     Ok(())
 }
@@ -264,25 +313,27 @@ pub fn dump_metadata(
     sb: &Superblock,
     repair: bool,
 ) -> anyhow::Result<()> {
+    let out: &mut dyn MetadataVisitor = &mut OutputVisitor::new(out);
+
     let xml_sb = ir::Superblock {
         uuid: "".to_string(),
         block_size: sb.data_block_size,
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
     };
-    out.superblock_b(&xml_sb).context(OutputError)?;
+    out.superblock_b(&xml_sb)?;
 
     let writesets = get_writesets_ordered(engine.clone(), sb, repair)?;
     for (era, ws) in writesets.iter() {
         dump_writeset(engine.clone(), out, *era, ws, repair)?;
     }
 
-    out.era_b().context(OutputError)?;
+    out.era_b()?;
     dump_eras(engine, out, sb.era_array_root, repair)?;
-    out.era_e().context(OutputError)?;
+    out.era_e()?;
 
-    out.superblock_e().context(OutputError)?;
-    out.eof().context(OutputError)?;
+    out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }
@@ -379,6 +430,7 @@ pub fn dump_metadata_logical(
     repair: bool,
 ) -> anyhow::Result<()> {
     let era_archive = collate_writesets(engine.clone(), sb, repair)?;
+    let out: &mut dyn MetadataVisitor = &mut OutputVisitor::new(out);
 
     let xml_sb = ir::Superblock {
         uuid: "".to_string(),
@@ -386,14 +438,14 @@ pub fn dump_metadata_logical(
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
     };
-    out.superblock_b(&xml_sb).context(OutputError)?;
+    out.superblock_b(&xml_sb)?;
 
-    out.era_b().context(OutputError)?;
+    out.era_b()?;
     dump_eras_logical(engine, out, sb.era_array_root, era_archive.as_ref(), repair)?;
-    out.era_e().context(OutputError)?;
+    out.era_e()?;
 
-    out.superblock_e().context(OutputError)?;
-    out.eof().context(OutputError)?;
+    out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }

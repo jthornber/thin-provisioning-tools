@@ -237,6 +237,68 @@ fn dump_hint_array(
 
 //------------------------------------------
 
+struct OutputVisitor<'a> {
+    out: &'a mut dyn MetadataVisitor,
+}
+
+impl<'a> OutputVisitor<'a> {
+    fn new(out: &'a mut dyn MetadataVisitor) -> Self {
+        Self { out }
+    }
+}
+
+impl<'a> MetadataVisitor for OutputVisitor<'a> {
+    fn superblock_b(&mut self, sb: &ir::Superblock) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.superblock_b(sb))
+    }
+
+    fn superblock_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.superblock_e())
+    }
+
+    fn mappings_b(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.mappings_b())
+    }
+
+    fn mappings_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.mappings_e())
+    }
+
+    fn mapping(&mut self, m: &ir::Map) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.mapping(m))
+    }
+
+    fn hints_b(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.hints_b())
+    }
+
+    fn hints_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.hints_e())
+    }
+
+    fn hint(&mut self, h: &ir::Hint) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.hint(h))
+    }
+
+    fn discards_b(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.discards_b())
+    }
+
+    fn discards_e(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.discards_e())
+    }
+
+    fn discard(&mut self, d: &ir::Discard) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.discard(d))
+    }
+
+    fn eof(&mut self) -> anyhow::Result<ir::Visit> {
+        output_context(self.out.eof())
+    }
+}
+
+//------------------------------------------
+
 pub struct CacheDumpOptions<'a> {
     pub input: &'a Path,
     pub output: Option<&'a Path>,
@@ -259,6 +321,8 @@ pub fn dump_metadata(
     sb: &Superblock,
     repair: bool,
 ) -> anyhow::Result<()> {
+    let out: &mut dyn MetadataVisitor = &mut OutputVisitor::new(out);
+
     let xml_sb = ir::Superblock {
         uuid: "".to_string(),
         block_size: sb.data_block_size,
@@ -266,9 +330,9 @@ pub fn dump_metadata(
         policy: std::str::from_utf8(&sb.policy_name)?.to_string(),
         hint_width: sb.policy_hint_size,
     };
-    out.superblock_b(&xml_sb).context(OutputError)?;
+    out.superblock_b(&xml_sb)?;
 
-    out.mappings_b().context(OutputError)?;
+    out.mappings_b()?;
     let valid_mappings = match sb.version {
         1 => dump_v1_mappings(
             engine.clone(),
@@ -289,14 +353,14 @@ pub fn dump_metadata(
             return Err(anyhow!("unsupported metadata version: {}", v));
         }
     };
-    out.mappings_e().context(OutputError)?;
+    out.mappings_e()?;
 
-    out.hints_b().context(OutputError)?;
+    out.hints_b()?;
     dump_hint_array(engine, out, sb.hint_root, valid_mappings, repair)?;
-    out.hints_e().context(OutputError)?;
+    out.hints_e()?;
 
-    out.superblock_e().context(OutputError)?;
-    out.eof().context(OutputError)?;
+    out.superblock_e()?;
+    out.eof()?;
 
     Ok(())
 }
