@@ -12,9 +12,9 @@ use crate::cache::mapping::Mapping;
 use crate::cache::superblock::*;
 use crate::cache::xml;
 use crate::commands::engine::*;
-use crate::dump_utils::*;
+use crate::dump_utils::{self, *};
 use crate::io_engine::*;
-use crate::pdata::array::{self, ArrayBlock};
+use crate::pdata::array::ArrayBlock;
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::{read_bitset_checked, CheckedBitSet};
 
@@ -48,8 +48,8 @@ mod format1 {
         }
     }
 
-    impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
-        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+    impl<'a> dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'a> {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> anyhow::Result<()> {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
             for (map, cblock) in b.values.iter().zip(cbegin..cend) {
@@ -65,10 +65,7 @@ mod format1 {
 
                 let mut inner = self.inner.lock().unwrap();
                 inner.valid_mappings.set(cblock as usize, true);
-                inner
-                    .visitor
-                    .mapping(&m)
-                    .map_err(|e| array::value_err(format!("{}", e)))?;
+                inner.visitor.mapping(&m)?;
             }
 
             Ok(())
@@ -115,8 +112,8 @@ mod format2 {
         }
     }
 
-    impl<'a> ArrayVisitor<Mapping> for MappingEmitter<'a> {
-        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+    impl<'a> dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'a> {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> anyhow::Result<()> {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
             for (map, cblock) in b.values.iter().zip(cbegin..cend) {
@@ -138,10 +135,7 @@ mod format2 {
                 };
 
                 inner.valid_mappings.set(cblock as usize, true);
-                inner
-                    .visitor
-                    .mapping(&m)
-                    .map_err(|e| array::value_err(format!("{}", e)))?;
+                inner.visitor.mapping(&m)?;
             }
             Ok(())
         }
@@ -164,8 +158,8 @@ impl<'a> HintEmitter<'a> {
     }
 }
 
-impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
-    fn visit(&self, index: u64, b: ArrayBlock<Hint>) -> array::Result<()> {
+impl<'a> dump_utils::ArrayVisitor<Hint> for HintEmitter<'a> {
+    fn visit(&self, index: u64, b: ArrayBlock<Hint>) -> anyhow::Result<()> {
         let cbegin = index as u32 * b.header.max_entries;
         let cend = cbegin + b.header.nr_entries;
         for (hint, cblock) in b.values.iter().zip(cbegin..cend) {
@@ -178,11 +172,7 @@ impl<'a> ArrayVisitor<Hint> for HintEmitter<'a> {
                 data: hint.hint.to_vec(),
             };
 
-            self.emitter
-                .lock()
-                .unwrap()
-                .hint(&h)
-                .map_err(|e| array::value_err(format!("{}", e)))?;
+            self.emitter.lock().unwrap().hint(&h)?;
         }
 
         Ok(())

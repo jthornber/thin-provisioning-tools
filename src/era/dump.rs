@@ -8,13 +8,13 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::commands::engine::*;
-use crate::dump_utils::*;
+use crate::dump_utils::{self, *};
 use crate::era::ir::{self, MetadataVisitor};
 use crate::era::superblock::*;
 use crate::era::writeset::Writeset;
 use crate::era::xml;
 use crate::io_engine::*;
-use crate::pdata::array::{self, ArrayBlock};
+use crate::pdata::array::ArrayBlock;
 use crate::pdata::array_walker::*;
 use crate::pdata::bitset::read_bitset;
 use crate::pdata::btree_walker::btree_to_map;
@@ -33,18 +33,14 @@ impl<'a> EraEmitter<'a> {
     }
 }
 
-impl<'a> ArrayVisitor<u32> for EraEmitter<'a> {
-    fn visit(&self, index: u64, b: ArrayBlock<u32>) -> array::Result<()> {
+impl<'a> dump_utils::ArrayVisitor<u32> for EraEmitter<'a> {
+    fn visit(&self, index: u64, b: ArrayBlock<u32>) -> anyhow::Result<()> {
         let begin = index as u32 * b.header.max_entries;
         let end = begin + b.header.nr_entries;
         for (v, block) in b.values.iter().zip(begin..end) {
             let era = ir::Era { block, era: *v };
 
-            self.emitter
-                .lock()
-                .unwrap()
-                .era(&era)
-                .map_err(|e| array::value_err(format!("{}", e)))?;
+            self.emitter.lock().unwrap().era(&era)?;
         }
 
         Ok(())
@@ -131,8 +127,8 @@ impl<'a> LogicalEraEmitter<'a> {
     }
 }
 
-impl<'a> ArrayVisitor<u32> for LogicalEraEmitter<'a> {
-    fn visit(&self, index: u64, b: ArrayBlock<u32>) -> array::Result<()> {
+impl<'a> dump_utils::ArrayVisitor<u32> for LogicalEraEmitter<'a> {
+    fn visit(&self, index: u64, b: ArrayBlock<u32>) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().unwrap();
 
         let begin = index as u32 * b.header.max_entries;
@@ -147,10 +143,7 @@ impl<'a> ArrayVisitor<u32> for LogicalEraEmitter<'a> {
                 ir::Era { block, era: *v }
             };
 
-            inner
-                .emitter
-                .era(&era)
-                .map_err(|e| array::value_err(format!("{}", e)))?;
+            inner.emitter.era(&era)?;
         }
 
         Ok(())
