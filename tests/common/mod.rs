@@ -10,6 +10,7 @@ pub mod era_xml_generator;
 pub mod fixture;
 pub mod input_arg;
 pub mod output_option;
+pub mod piping;
 pub mod process;
 pub mod program;
 pub mod target;

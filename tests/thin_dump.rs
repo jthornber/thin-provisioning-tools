@@ -142,116 +142,30 @@ fn no_stderr_on_success() -> Result<()> {
 //------------------------------------------
 // test no stderr on broken pipe errors
 
-fn test_no_stderr_on_broken_pipe(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
-    use anyhow::ensure;
-
-    let mut td = TestDir::new()?;
-
-    // use the metadata producing dump more than 64KB (the default pipe buffer size),
-    // such that thin_dump will be blocked on writing to the pipe, then hits EPIPE.
-    let md = prep_metadata(&mut td)?;
-
-    let mut pipefd = [0i32; 2];
-    unsafe {
-        ensure!(libc::pipe2(pipefd.as_mut_slice().as_mut_ptr(), libc::O_CLOEXEC) == 0);
-        ensure!(libc::fcntl(pipefd[0], libc::F_SETPIPE_SZ, 65536) == 65536);
-    }
-
-    let mut args = args![&md].to_vec();
-    args.extend_from_slice(extra_args);
-    let cmd = thin_dump_cmd(args)
-        .to_expr()
-        .stdout_file(pipefd[1]) // this transfers ownership of the fd
-        .stderr_capture();
-    let handle = cmd.unchecked().start()?;
-
-    unsafe {
-        // read outputs from thin_dump
-        let mut buf = vec![0; 128];
-        libc::read(pipefd[0], buf.as_mut_slice().as_mut_ptr().cast(), 128);
-        libc::close(pipefd[0]); // causing broken pipe
-    }
-
-    let output = handle.wait()?;
-    ensure!(!output.status.success());
-    ensure!(output.stderr.is_empty());
-
-    Ok(())
-}
-
 #[test]
 fn no_stderr_on_broken_pipe_xml() -> Result<()> {
-    test_no_stderr_on_broken_pipe(&[])
+    common::piping::test_no_stderr_on_broken_pipe::<ThinDump>(prep_metadata, &[])
 }
 
 #[test]
 fn no_stderr_on_broken_pipe_humanreadable() -> Result<()> {
-    test_no_stderr_on_broken_pipe(&args!["--format", "human_readable"])
-}
-
-fn test_no_stderr_on_broken_fifo(extra_args: &[&std::ffi::OsStr]) -> Result<()> {
-    use anyhow::ensure;
-    use std::io::Read;
-    use std::os::fd::AsRawFd;
-    use std::os::unix::fs::OpenOptionsExt;
-
-    let mut td = TestDir::new()?;
-
-    // use the metadata producing dump more than 64KB (the default pipe buffer size),
-    // such that thin_dump will be blocked on writing to the pipe, then hits EPIPE.
-    let md = prep_metadata(&mut td)?;
-
-    let out_fifo = td.mk_path("out_fifo");
-    unsafe {
-        let c_str = std::ffi::CString::new(out_fifo.as_os_str().as_encoded_bytes()).unwrap();
-        ensure!(libc::mkfifo(c_str.as_ptr(), 0o666) == 0);
-    };
-
-    let mut fifo = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_CLOEXEC | libc::O_NONBLOCK)
-        .open(&out_fifo)?;
-    unsafe {
-        ensure!(libc::fcntl(fifo.as_raw_fd(), libc::F_SETPIPE_SZ, 65536) == 65536);
-        let new_flags = libc::O_RDONLY | libc::O_CLOEXEC;
-        ensure!(libc::fcntl(fifo.as_raw_fd(), libc::F_SETFL, new_flags) == 0);
-    }
-
-    let mut args = args![&md, "-o", &out_fifo].to_vec();
-    args.extend_from_slice(extra_args);
-    let cmd = thin_dump_cmd(args).to_expr().stderr_capture();
-    let handle = cmd.unchecked().start()?;
-
-    // wait for the fifo is ready
-    unsafe {
-        let mut pollfd = libc::pollfd {
-            fd: fifo.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        ensure!(libc::poll(&mut pollfd, 1, 10000) == 1);
-    }
-
-    // read outputs from thin_dump
-    let mut buf = vec![0; 128];
-    fifo.read_exact(&mut buf)?;
-    drop(fifo); // causing broken pipe
-
-    let output = handle.wait()?;
-    ensure!(!output.status.success());
-    ensure!(output.stderr.is_empty());
-
-    Ok(())
+    common::piping::test_no_stderr_on_broken_pipe::<ThinDump>(
+        prep_metadata,
+        &args!["--format", "human_readable"],
+    )
 }
 
 #[test]
 fn no_stderr_on_broken_fifo_xml() -> Result<()> {
-    test_no_stderr_on_broken_fifo(&[])
+    common::piping::test_no_stderr_on_broken_fifo::<ThinDump>(prep_metadata, &[])
 }
 
 #[test]
 fn no_stderr_on_broken_fifo_humanreadable() -> Result<()> {
-    test_no_stderr_on_broken_fifo(&args!["--format", "human_readable"])
+    common::piping::test_no_stderr_on_broken_fifo::<ThinDump>(
+        prep_metadata,
+        &args!["--format", "human_readable"],
+    )
 }
 
 //------------------------------------------
