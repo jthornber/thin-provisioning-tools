@@ -236,7 +236,6 @@ impl ArrayVisitor<Hint> for HintChecker {
 
 //------------------------------------------
 
-// TODO: clear_needs_check, auto_repair
 pub struct CacheCheckOptions<'a> {
     pub dev: &'a Path,
     pub engine_opts: EngineOptions,
@@ -383,7 +382,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     )?;
 
     if !metadata_leaks.is_empty() {
-        if opts.auto_repair {
+        if opts.auto_repair || opts.clear_needs_check {
             ctx.report.warning("Repairing metadata leaks.");
             repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
