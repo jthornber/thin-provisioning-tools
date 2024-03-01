@@ -54,6 +54,7 @@ thinp = { path = ".", features = ["devtools"] }
 [features]
 devtools = ["tui", "termion"]
 io_uring = ["dep:rio"]
+no_cleanup = []
 
 [profile.release]
 debug = true

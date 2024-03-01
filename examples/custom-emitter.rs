@@ -134,9 +134,9 @@ pub fn main() -> Result<()> {
         format: OutputFormat::XML,
     };
 
-    let out: Box<dyn MetadataVisitor> = Box::new(CustomWriter {});
+    let mut out = CustomWriter {};
 
-    dump_with_formatter(opts, out)
+    dump_with_formatter(opts, &mut out)
 }
 
 //-----------------------------

@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use crate::checksum;
 use crate::io_engine::IoEngine;
-use crate::pdata::array::{self, unpack_array_block};
-use crate::pdata::array_walker::ArrayVisitor;
+use crate::pdata::array::{self, unpack_array_block, ArrayBlock};
 use crate::pdata::unpack;
 
 //------------------------------------------
@@ -18,6 +17,20 @@ impl std::fmt::Display for OutputError {
         write!(f, "output error")
     }
 }
+
+#[inline]
+pub fn output_context<T>(result: anyhow::Result<T>) -> anyhow::Result<T> {
+    result.context(OutputError)
+}
+
+//------------------------------------------
+
+// A slight variation of array_walker::ArrayVisitor returns anyhow::Result
+pub trait ArrayVisitor<V: unpack::Unpack> {
+    fn visit(&self, index: u64, b: ArrayBlock<V>) -> anyhow::Result<()>;
+}
+
+//------------------------------------------
 
 pub fn walk_array_blocks<V, I>(
     engine: Arc<dyn IoEngine + Send + Sync>,
@@ -48,7 +61,7 @@ where
         }
 
         let ablock = unpack_array_block::<V>(&path, b.get_data())?;
-        visitor.visit(index, ablock).context(OutputError)?;
+        visitor.visit(index, ablock)?;
     }
 
     Ok(())
