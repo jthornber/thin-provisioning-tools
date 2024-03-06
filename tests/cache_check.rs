@@ -263,36 +263,143 @@ fn dirty_bitset_not_found_should_fail() -> Result<()> {
 
 #[test]
 fn clear_needs_check() -> Result<()> {
+    test_option_clears_needs_check("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_without_clean_shutdown() -> Result<()> {
+    test_option_clears_needs_check_without_clean_shutdown("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_opt_fixes_metadata_leaks() -> Result<()> {
+    test_option_fixes_metadata_leaks("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_opt_fixes_metadata_leaks_and_clears_flag() -> Result<()> {
+    test_option_fixes_metadata_leaks_and_clears_flag("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_opt_keeps_health_metadata_untouched() -> Result<()> {
+    test_option_keeps_health_metadata_untouched("--clear-needs-check-flag")
+}
+
+#[test]
+fn clear_needs_check_opt_cannot_fix_unexpected_ref_counts() -> Result<()> {
+    test_option_cannot_fix_unexpected_ref_counts("--clear-needs-check-flag")
+}
+
+//------------------------------------------
+// test auto-repair
+
+fn test_option_fixes_metadata_leaks(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    generate_metadata_leaks(&md, 16, 0, 1)?; // non-fatal errors
+
+    run_fail(cache_check_cmd(args![&md]))?;
+    run_ok(cache_check_cmd(args![option, &md]))?;
+    run_ok(cache_check_cmd(args![&md]))?; // ensure metadata is repaired
+
+    Ok(())
+}
+
+fn test_option_fixes_metadata_leaks_and_clears_flag(option: &str) -> Result<()> {
     let mut td = TestDir::new()?;
     let md = mk_valid_md(&mut td)?;
 
     set_needs_check(&md)?;
+    generate_metadata_leaks(&md, 16, 0, 1)?; // non-fatal errors
 
-    assert!(get_needs_check(&md)?);
-    run_ok(cache_check_cmd(args!["--clear-needs-check-flag", &md]))?;
+    run_fail(cache_check_cmd(args![&md]))?;
+    run_ok(cache_check_cmd(args![option, &md]))?;
+    run_ok(cache_check_cmd(args![&md]))?; // ensure metadata is repaired
     assert!(!get_needs_check(&md)?);
+
+    Ok(())
+}
+
+fn test_option_keeps_health_metadata_untouched(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    ensure_untouched(&md, || {
+        run_ok(cache_check_cmd(args![option, &md]))?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+fn test_option_cannot_fix_unexpected_ref_counts(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    generate_metadata_leaks(&md, 16, 1, 0)?;
+    ensure_untouched(&md, || {
+        run_fail(cache_check_cmd(args![option, &md]))?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+fn test_option_clears_needs_check(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    set_needs_check(&md)?;
+    assert!(get_needs_check(&md)?);
+    assert!(get_clean_shutdown(&md)?);
+    run_ok(cache_check_cmd(args![option, &md]))?;
+    assert!(!get_needs_check(&md)?);
+    assert!(get_clean_shutdown(&md)?); // ensure the flag is not touched
+    Ok(())
+}
+
+fn test_option_clears_needs_check_without_clean_shutdown(option: &str) -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+
+    set_needs_check(&md)?;
+    unset_clean_shutdown(&md)?;
+    assert!(get_needs_check(&md)?);
+    assert!(!get_clean_shutdown(&md)?);
+    run_ok(cache_check_cmd(args![option, &md]))?;
+    assert!(!get_needs_check(&md)?);
+    assert!(!get_clean_shutdown(&md)?); // ensure the flag is not touched
     Ok(())
 }
 
 #[test]
-fn no_clear_needs_check_if_error() -> Result<()> {
-    let mut td = TestDir::new()?;
-    let md = mk_valid_md(&mut td)?;
+fn auto_repair_fixes_metadata_leaks() -> Result<()> {
+    test_option_fixes_metadata_leaks("--auto-repair")
+}
 
-    set_needs_check(&md)?;
+#[test]
+fn auto_repair_fixes_metadata_leaks_and_clears_flag() -> Result<()> {
+    test_option_fixes_metadata_leaks_and_clears_flag("--auto-repair")
+}
 
-    // overriding superblock version produces errors
-    run_ok(cache_generate_metadata_cmd(args![
-        "-o",
-        &md,
-        "--set-superblock-version",
-        "1"
-    ]))?;
+#[test]
+fn auto_repair_keeps_health_metadata_untouched() -> Result<()> {
+    test_option_keeps_health_metadata_untouched("--auto-repair")
+}
 
-    assert!(get_needs_check(&md)?);
-    run_fail(cache_check_cmd(args!["--clear-needs-check-flag", &md]))?;
-    assert!(get_needs_check(&md)?);
-    Ok(())
+#[test]
+fn auto_repair_cannot_fix_unexpected_ref_counts() -> Result<()> {
+    test_option_cannot_fix_unexpected_ref_counts("--auto-repair")
+}
+
+#[test]
+fn auto_repair_clears_needs_check() -> Result<()> {
+    test_option_clears_needs_check("--auto-repair")
+}
+
+#[test]
+fn auto_repair_clears_needs_check_without_clean_shutdown() -> Result<()> {
+    test_option_clears_needs_check_without_clean_shutdown("--auto-repair")
 }
 
 //------------------------------------------
