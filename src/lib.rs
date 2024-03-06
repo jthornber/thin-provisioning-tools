@@ -31,4 +31,7 @@ pub mod xml;
 #[cfg(any(test, feature = "devtools"))]
 pub mod random;
 
+#[cfg(feature = "devtools")]
+pub mod devtools;
+
 pub use utils::hashvec;
