@@ -10,6 +10,7 @@ pub mod ls;
 pub mod metadata;
 pub mod metadata_repair;
 pub mod metadata_size;
+pub mod migrate;
 pub mod repair;
 pub mod restore;
 pub mod rmap;

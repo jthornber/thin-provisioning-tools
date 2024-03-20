@@ -15,7 +15,7 @@ use crate::thin::superblock::*;
 //------------------------------------------
 
 type DefId = u64;
-type ThinId = u32;
+pub type ThinId = u32;
 
 #[derive(Clone)]
 pub enum Entry {
