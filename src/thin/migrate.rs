@@ -15,8 +15,10 @@ use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::btree::*;
+use crate::pdata::btree_lookup::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::metadata::*;
+use crate::pdata::unpack::*;
 use crate::report::*;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
@@ -30,220 +32,45 @@ use crate::write_batcher::*;
 
 //---------------------------------
 
-type DevMap = BTreeMap<(u32, u32), DmNameBuf>;
+const MAJOR_BITSHIFT: u64 = 8;
+const MINOR_MASK: u64 = 0xff;
 
-fn collect_dm_devs(dm: &mut DM) -> Result<DevMap> {
-    let mut devs_by_nr = BTreeMap::new();
-    for (name, dev, _) in dm.list_devices()? {
-        devs_by_nr.insert((dev.major, dev.minor), name);
-    }
+/// Splits into (major, minor)
+fn split_device_number(rdev: u64) -> (u32, u32) {
+    let major = (rdev >> MAJOR_BITSHIFT) as u32;
+    let minor = (rdev & MINOR_MASK) as u32;
 
-    Ok(devs_by_nr)
-}
-
-// FIXME: this duplicates a lot of the work done when reading the mappings
-pub fn is_thin_device<P: AsRef<Path>>(path: P) -> Result<bool> {
-    let thin = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        .open(path)?;
-
-    let metadata = thin.metadata()?;
-
-    if !metadata.file_type().is_block_device() {
-        // Not a block device
-        return Ok(false);
-    }
-
-    // Get the major:minor of the device at the given path
-    let mut dm = DM::new()?;
-    let rdev = metadata.rdev();
-    let thin_major = (rdev >> 8) as u32;
-    let thin_minor = (rdev & 0xff) as u32;
-    let dm_devs = collect_dm_devs(&mut dm)?;
-
-    let dm_name = dm_devs.get(&(thin_major, thin_minor));
-    if dm_name.is_none() {
-        // Not a dm device
-        return Ok(false);
-    }
-
-    let thin_name = dm_name.unwrap().clone();
-    let thin_id = DevId::Name(&thin_name);
-
-    // Confirm this is a thin device
-    let mut dm = DM::new()?;
-
-    match get_table(&mut dm, &thin_id, "thin") {
-        Ok(thin_args) => Ok(parse_thin_table(&thin_args).is_ok()),
-        Err(_e) => Ok(false),
-    }
+    (major, minor)
 }
 
 //---------------------------------
 
-#[derive(Default)]
-struct MappingCollector {
-    provisioned: Mutex<RoaringBitmap>,
+/// When contructed this scans udev to build a mapping from
+/// device number to DmName.  It does not rescan, so the contents
+/// can be out of date.
+struct DmIndex {
+    /// Maps (major, minor) -> dm name
+    by_nr: BTreeMap<(u32, u32), DmNameBuf>,
 }
 
-impl MappingCollector {
-    fn provisioned(self) -> RoaringBitmap {
-        self.provisioned.into_inner().unwrap()
-    }
-}
-
-impl NodeVisitor<BlockTime> for MappingCollector {
-    fn visit(
-        &self,
-        _path: &[u64],
-        _kr: &KeyRange,
-        _header: &NodeHeader,
-        keys: &[u64],
-        _values: &[BlockTime],
-    ) -> btree::Result<()> {
-        let mut bits = self.provisioned.lock().unwrap();
-        for k in keys {
-            assert!(*k <= u32::MAX as u64);
-            bits.insert(*k as u32);
+impl DmIndex {
+    fn new(dm: &mut DM) -> Result<Self> {
+        let mut by_nr = BTreeMap::new();
+        for (name, dev, _) in dm.list_devices()? {
+            by_nr.insert((dev.major, dev.minor), name);
         }
-        Ok(())
+
+        Ok(Self { by_nr })
     }
 
-    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
-        Ok(())
+    fn get(&self, major: u32, minor: u32) -> Option<&DmNameBuf> {
+        self.by_nr.get(&(major, minor))
     }
 
-    fn end_walk(&self) -> btree::Result<()> {
-        Ok(())
+    fn get_by_rdev(&self, rdev: u64) -> Option<&DmNameBuf> {
+        let (major, minor) = split_device_number(rdev);
+        self.get(major, minor)
     }
-}
-
-//---------------------------------
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct ThinInfo {
-    pub thin_id: u32,
-    pub data_block_size: u32,
-    pub details: DeviceDetail,
-    pub provisioned_blocks: RoaringBitmap,
-}
-
-fn read_info(metadata: &Path, thin_id: u32) -> Result<ThinInfo> {
-    let engine = Arc::new(SyncIoEngine::new_with(metadata, false, false)?);
-
-    // Read metadata superblock
-    let sb = read_superblock_snap(&*engine)?;
-
-    // look up dev details, we don't actually have a lookup method, but the details
-    // tree is small, so we slurp the whole lot.
-    let details: DeviceDetail = {
-        let mut path = vec![];
-        let details: BTreeMap<u64, DeviceDetail> =
-            btree_to_map(&mut path, engine.clone(), true, sb.details_root)?;
-        let thin_id = thin_id as u64;
-        if let Some(d) = details.get(&thin_id) {
-            *d
-        } else {
-            return Err(anyhow!("couldn't find thin device with id {}", thin_id));
-        }
-    };
-
-    // Build map of the dev mapping roots.  Again a btree lookup method
-    // would be helpful.
-    let mut path = vec![];
-    let roots: BTreeMap<u64, u64> = btree_to_map(&mut path, engine.clone(), true, sb.mapping_root)?;
-
-    // walk mapping tree
-    let ignore_non_fatal = true;
-    let walker = BTreeWalker::new(engine, ignore_non_fatal);
-    let collector = MappingCollector::default();
-    let mut path = vec![];
-    let sub_tree = roots.get(&(thin_id as u64)).unwrap();
-    walker.walk(&mut path, &collector, *sub_tree)?;
-    let provisioned_blocks = collector.provisioned();
-
-    Ok(ThinInfo {
-        thin_id,
-        data_block_size: sb.data_block_size,
-        details,
-        provisioned_blocks,
-    })
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct DeltaInfo {
-    pub thin_id: u32,
-    pub data_block_size: u32,
-    pub details: DeviceDetail,
-    pub additions: RoaringBitmap,
-    pub removals: RoaringBitmap,
-}
-
-fn read_delta_info(metadata: &Path, old_thin_id: u32, new_thin_id: u32) -> Result<DeltaInfo> {
-    let engine = Arc::new(SyncIoEngine::new_with(metadata, false, false)?);
-
-    // Read metadata superblock
-    let sb = read_superblock_snap(&*engine)?;
-
-    // look up dev details, we don't actually have a lookup method, but the details
-    // tree is small, so we slurp the whole lot.
-    let details: DeviceDetail = {
-        let mut path = vec![];
-        let details: BTreeMap<u64, DeviceDetail> =
-            btree_to_map(&mut path, engine.clone(), true, sb.details_root)?;
-        let thin_id = new_thin_id as u64;
-        if let Some(d) = details.get(&thin_id) {
-            *d
-        } else {
-            return Err(anyhow!("couldn't find thin device with id {}", thin_id));
-        }
-    };
-
-    // Build map of the dev mapping roots.  Again a btree lookup method
-    // would be helpful.
-    let mut path = vec![];
-    let roots: BTreeMap<u64, u64> = btree_to_map(&mut path, engine.clone(), true, sb.mapping_root)?;
-
-    // This is slow, we need to walk both trees simultaneously to do delta properly.
-    let old_root = roots.get(&(old_thin_id as u64)).unwrap();
-    let old_mappings: BTreeMap<u64, BlockTime> =
-        btree_to_map(&mut path, engine.clone(), true, *old_root)?;
-
-    let new_root = roots.get(&(new_thin_id as u64)).unwrap();
-    let new_mappings: BTreeMap<u64, BlockTime> = btree_to_map(&mut path, engine, true, *new_root)?;
-
-    let mut additions = RoaringBitmap::default();
-    let mut removals = RoaringBitmap::default();
-    for (k, v1) in &old_mappings {
-        if let Some(v2) = new_mappings.get(k) {
-            if *v2 == *v1 {
-                // mapping hasn't changed
-            } else {
-                additions.insert(*k as u32);
-            }
-        } else {
-            // unmapped
-            removals.insert(*k as u32);
-        }
-    }
-
-    for k in new_mappings.keys() {
-        if old_mappings.get(k).is_none() {
-            additions.insert(*k as u32);
-        }
-    }
-
-    Ok(DeltaInfo {
-        thin_id: new_thin_id,
-        data_block_size: sb.data_block_size,
-        details,
-        additions,
-        removals,
-    })
 }
 
 //---------------------------------
@@ -309,6 +136,250 @@ fn parse_pool_table(input: &str) -> IResult<&str, PoolDetails> {
     ))
 }
 
+//---------------------------------
+
+// FIXME: this duplicates a lot of the work done when reading the mappings
+// FIXME: I think this should take a File rather than opening
+// FIXME: pass in something containing the dm_devs?
+// FIXME: should we return the parsed table?
+pub fn is_thin_device<P: AsRef<Path>>(path: P) -> Result<bool> {
+    let thin = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .create(false)
+        .open(path)?;
+
+    let metadata = thin
+        .metadata()
+        .map_err(|e| anyhow!("Failed to get metadata for {:?}: {}", path.as_ref(), e))?;
+
+    if !metadata.file_type().is_block_device() {
+        // Not a block device
+        return Ok(false);
+    }
+
+    let mut dm = DM::new().map_err(|e| anyhow!("Failed to initialize Device Mapper: {}", e))?;
+    let dm_devs = collect_dm_devs(&mut dm)?;
+
+    // Get the major:minor of the device at the given path
+    let (major, minor) = split_device_number(metadata.rdev());
+
+    if let Some(dm_name) = dm_devs.get(&(major, minor)) {
+        let name = dm_name.clone();
+        let thin_id = DevId::Name(&name);
+
+        match get_table(&mut dm, &thin_id, "thin") {
+            Ok(thin_args) => Ok(parse_thin_table(&thin_args).is_ok()),
+            Err(_e) => Ok(false),
+        }
+    } else {
+        // Not a dm device
+        Ok(false)
+    }
+}
+
+//---------------------------------
+
+/// A NodeVisitor that collects the virtual blocks that have been
+/// mapped.  The results are collected in a RoaringBitmap so we can
+/// handle sparsely provisioned volumes nicely.
+#[derive(Default)]
+struct MappingCollector {
+    provisioned: Mutex<RoaringBitmap>,
+}
+
+impl MappingCollector {
+    fn provisioned(self) -> RoaringBitmap {
+        self.provisioned.into_inner().unwrap()
+    }
+}
+
+impl NodeVisitor<BlockTime> for MappingCollector {
+    fn visit(
+        &self,
+        _path: &[u64],
+        _kr: &KeyRange,
+        _header: &NodeHeader,
+        keys: &[u64],
+        _values: &[BlockTime],
+    ) -> btree::Result<()> {
+        let mut bits = self.provisioned.lock().unwrap();
+        for k in keys {
+            assert!(*k <= u32::MAX as u64);
+            bits.insert(*k as u32);
+        }
+        Ok(())
+    }
+
+    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
+        Ok(())
+    }
+
+    fn end_walk(&self) -> btree::Result<()> {
+        Ok(())
+    }
+}
+
+//---------------------------------
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct ThinInfo {
+    pub thin_id: u32,
+    pub data_block_size: u32,
+    pub details: DeviceDetail,
+    pub provisioned_blocks: RoaringBitmap,
+}
+
+fn read_by_thin_id<V, Engine>(engine: &Engine, root: u64, thin_id: u32) -> Result<V>
+where
+    V: Unpack + Clone,
+    Engine: IoEngine + Send + Sync,
+{
+    let lookup_result = btree_lookup::<V, Engine>(engine, root, thin_id as u64)?;
+
+    if let Some(d) = lookup_result {
+        Ok(d.clone())
+    } else {
+        Err(anyhow!("couldn't find thin device with id {}", thin_id))
+    }
+}
+
+fn read_device_detail<Engine>(
+    engine: &Engine,
+    details_root: u64,
+    thin_id: u32,
+) -> Result<DeviceDetail>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    read_by_thin_id(engine, details_root, thin_id)
+}
+
+fn read_mapping_root<Engine>(
+    engine: &Engine,
+    mappings_top_level_root: u64,
+    thin_id: u32,
+) -> Result<u64>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    read_by_thin_id(engine, mappings_top_level_root, thin_id)
+}
+
+fn read_provisioned_blocks<Engine>(
+    engine: &Arc<Engine>,
+    mapping_top_level_root: u64,
+    thin_id: u32,
+) -> Result<RoaringBitmap>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    let mapping_root = read_mapping_root(engine.as_ref(), mapping_top_level_root, thin_id)?;
+
+    // walk mapping tree
+    let ignore_non_fatal = true;
+    let walker = BTreeWalker::new(engine.clone(), ignore_non_fatal);
+    let collector = MappingCollector::default();
+
+    let mut path = vec![];
+    walker.walk(&mut path, &collector, mapping_root)?;
+    Ok(collector.provisioned())
+}
+
+fn read_info<Engine>(engine: &Arc<Engine>, thin_id: u32) -> Result<ThinInfo>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    let sb = read_superblock_snap(engine.as_ref())?;
+    let details = read_device_detail(engine.as_ref(), sb.details_root, thin_id)?;
+    let provisioned_blocks = read_provisioned_blocks(&engine, sb.mapping_root, thin_id)?;
+
+    Ok(ThinInfo {
+        thin_id,
+        data_block_size: sb.data_block_size,
+        details,
+        provisioned_blocks,
+    })
+}
+
+//---------------------------------
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct DeltaInfo {
+    pub thin_id: u32,
+    pub data_block_size: u32,
+    pub details: DeviceDetail,
+    pub additions: RoaringBitmap,
+    pub removals: RoaringBitmap,
+}
+
+fn read_mappings<Engine>(
+    engine: &Arc<Engine>,
+    mapping_top_level_root: u64,
+    thin_id: u32,
+) -> Result<BTreeMap<u64, BlockTime>>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    let root = read_mapping_root(engine.as_ref(), mapping_top_level_root, thin_id)?;
+
+    let mut path = Vec::new();
+    let new_mappings: BTreeMap<u64, BlockTime> =
+        btree_to_map(&mut path, engine.clone(), true, root)?;
+
+    Ok(new_mappings)
+}
+
+fn read_delta_info<Engine>(
+    engine: &Arc<Engine>,
+    old_thin_id: u32,
+    new_thin_id: u32,
+) -> Result<DeltaInfo>
+where
+    Engine: IoEngine + Send + Sync,
+{
+    // Read metadata superblock
+    let sb = read_superblock_snap(engine.as_ref())?;
+    let details = read_device_detail(engine.as_ref(), sb.details_root, new_thin_id)?;
+
+    // FIXME: this uses a lot of memory
+    let old_mappings = read_mappings(&engine, sb.mapping_root, old_thin_id)?;
+    let new_mappings = read_mappings(&engine, sb.mapping_root, new_thin_id)?;
+
+    let mut additions = RoaringBitmap::default();
+    let mut removals = RoaringBitmap::default();
+    for (k, v1) in &old_mappings {
+        if let Some(v2) = new_mappings.get(k) {
+            if *v2 == *v1 {
+                // mapping hasn't changed
+            } else {
+                additions.insert(*k as u32);
+            }
+        } else {
+            // unmapped
+            removals.insert(*k as u32);
+        }
+    }
+
+    for k in new_mappings.keys() {
+        if old_mappings.get(k).is_none() {
+            additions.insert(*k as u32);
+        }
+    }
+
+    Ok(DeltaInfo {
+        thin_id: new_thin_id,
+        data_block_size: sb.data_block_size,
+        details,
+        additions,
+        removals,
+    })
+}
+
+//---------------------------------
+
 fn get_table(dm: &mut DM, dev: &DevId, expected_target_type: &str) -> Result<String> {
     let (_info, table) = dm.table_status(
         dev,
@@ -344,11 +415,10 @@ fn get_thin_details<P: AsRef<Path>>(thin: P, dm_devs: &DevMap, dm: &mut DM) -> R
         return Err(anyhow!("Thin is not a block device"));
     }
 
-    // Get the major:minor of the device at the given path
+    // FIXME: factor out
     let rdev = metadata.rdev();
-    let thin_major = (rdev >> 8) as u32;
-    let thin_minor = (rdev & 0xff) as u32;
-    let thin_name = dm_devs.get(&(thin_major, thin_minor)).unwrap().clone();
+    let (major, minor) = split_device_number(metadata.rdev());
+    let thin_name = dm_devs.get(&(major, minor)).unwrap().clone();
     let thin_id = DevId::Name(&thin_name);
 
     let thin_args = get_table(dm, &thin_id, "thin")?;
@@ -397,7 +467,8 @@ pub fn read_thin_mappings<P: AsRef<Path>>(thin: P) -> Result<ThinInfo> {
 
     // Parse thin metadata
     dm.target_msg(&pool_id, None, "reserve_metadata_snap")?;
-    let r = read_info(&metadata_path, thin_details.id);
+    let engine = Arc::new(SyncIoEngine::new_with(metadata_path, false, false)?);
+    let r = read_info(&engine, thin_details.id);
     dm.target_msg(&pool_id, None, "release_metadata_snap")?;
 
     r
@@ -465,7 +536,8 @@ pub fn read_thin_delta<P: AsRef<Path>>(old_thin: P, new_thin: P) -> Result<Delta
 
     // Parse thin metadata
     dm.target_msg(&pool_id, None, "reserve_metadata_snap")?;
-    let r = read_delta_info(&metadata_path, old_thin_details.id, new_thin_details.id);
+    let engine = Arc::new(SyncIoEngine::new_with(metadata_path, false, false)?);
+    let r = read_delta_info(&engine, old_thin_details.id, new_thin_details.id);
     dm.target_msg(&pool_id, None, "release_metadata_snap")?;
 
     r

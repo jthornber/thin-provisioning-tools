@@ -14,6 +14,7 @@ use crate::version::*;
 
 //----------------------------------------------------------
 
+/*
 fn parse_thin_source(input: &str) -> Result<migrate::ThinSource> {
     let re = Regex::new(r"^(.*):(\d+)(?:\.\.(\d+))?$").unwrap();
     let caps = re.captures(input);
@@ -81,6 +82,7 @@ fn parse_thin_dest(input: &str) -> Result<migrate::ThinDest> {
         thin_id: thin_id_1,
     })
 }
+*/
 
 //----------------------------------------------------------
 
@@ -113,6 +115,12 @@ impl ThinMigrateCommand {
                     .value_name("SOURCE-THIN"),
             )
             .arg(
+                Arg::new("DELTA-ID")
+                    .help("Specify a thin id that will be the baseline for calculating deltas")
+                    .long("delta-id")
+                    .value_name("DELTA-ID"),
+            )
+            .arg(
                 Arg::new("DEST-DEV")
                     .help("Specify the output device")
                     .long("dest-dev")
@@ -123,12 +131,6 @@ impl ThinMigrateCommand {
                     .help("Specify the output file")
                     .long("dest-file")
                     .value_name("DEST-FILE"),
-            )
-            .arg(
-                Arg::new("DEST-THIN")
-                    .help("Specify the output thin device")
-                    .long("dest-thin")
-                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("ZERO-DEST")
