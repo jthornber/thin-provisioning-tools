@@ -1,328 +1,236 @@
 use anyhow::{anyhow, Result};
-use devicemapper::*;
-use libc;
-use nom::IResult;
-use roaring::bitmap::RoaringBitmap;
-use std::collections::*;
 use std::fs::{File, OpenOptions};
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::sync::Arc;
-use std::sync::Mutex;
-use udev::Enumerator;
+use std::thread::*;
 
-use crate::commands::engine::*;
+use crate::copier::batcher::*;
 use crate::copier::sync_copier::*;
+use crate::copier::*;
+use crate::io_engine::utils::*;
 use crate::io_engine::*;
-use crate::pdata::btree;
-use crate::pdata::btree::*;
-use crate::pdata::btree_lookup::*;
-use crate::pdata::btree_walker::*;
-use crate::pdata::unpack::*;
 use crate::report::*;
-use crate::thin::block_time::*;
-use crate::thin::device_detail::*;
 use crate::thin::metadata::*;
 use crate::thin::migrate::devices::*;
-use crate::thin::migrate::metadata::*;
 use crate::thin::migrate::stream::*;
-use crate::thin::superblock::*;
-
-//---------------------------------
-
-/*
-fn get_table(dm: &mut DM, dev: &DevId, expected_target_type: &str) -> Result<String> {
-    let (_info, table) = dm.table_status(
-        dev,
-        DmOptions::default().set_flags(DmFlags::DM_STATUS_TABLE),
-    )?;
-    if table.len() != 1 {
-        return Err(anyhow!(
-            "thin table has too many rows (is it really a thin/pool device?)"
-        ));
-    }
-
-    let (_offset, _len, target_type, args) = &table[0];
-    if target_type != expected_target_type {
-        return Err(anyhow!(format!(
-            "dm expected table type {}, dm actual table type {}",
-            expected_target_type, target_type
-        )));
-    }
-
-    Ok(args.to_string())
-}
-
-fn get_thin_details<P: AsRef<Path>>(thin: P, dm_devs: &DevMap, dm: &mut DM) -> Result<ThinDetails> {
-    let thin = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        // .custom_flags(nix::fcntl::OFlag::O_EXCL as i32)
-        .open(thin)?;
-
-    let metadata = thin.metadata()?;
-    if !metadata.file_type().is_block_device() {
-        return Err(anyhow!("Thin is not a block device"));
-    }
-
-    // FIXME: factor out
-    let rdev = metadata.rdev();
-    let (major, minor) = split_device_number(metadata.rdev());
-    let thin_name = dm_devs.get(&(major, minor)).unwrap().clone();
-    let thin_id = DevId::Name(&thin_name);
-
-    let thin_args = get_table(dm, &thin_id, "thin")?;
-    let (_, thin_details) =
-        parse_thin_table(&thin_args).map_err(|_| anyhow!("couldn't parse thin table"))?;
-
-    Ok(thin_details)
-}
-
-fn find_device(major: u32, minor: u32) -> Option<PathBuf> {
-    let mut enumerator = Enumerator::new().unwrap();
-
-    for device in enumerator.scan_devices().unwrap() {
-        if let Some(devnum) = device.devnum() {
-            let found_major = unsafe { libc::major(devnum) };
-            let found_minor = unsafe { libc::minor(devnum) };
-
-            if found_major == major && found_minor == minor {
-                return device.devnode().map(PathBuf::from);
-            }
-        }
-    }
-
-    None
-}
-
-pub fn read_thin_mappings<P: AsRef<Path>>(thin: P) -> Result<ThinInfo> {
-    let mut dm = DM::new()?;
-
-    let dm_devs = collect_dm_devs(&mut dm)?;
-
-    let thin_details = get_thin_details(thin, &dm_devs, &mut dm)?;
-
-    let pool_name = dm_devs
-        .get(&(thin_details.pool_major, thin_details.pool_minor))
-        .ok_or_else(|| anyhow!("Pool device not found"))?
-        .clone();
-    let pool_id = DevId::Name(&pool_name);
-    let pool_args = get_table(&mut dm, &pool_id, "thin-pool")?;
-    let (_, pool_details) =
-        parse_pool_table(&pool_args).map_err(|_| anyhow!("couldn't parse pool table"))?;
-
-    // Find the metadata dev
-    let metadata_path = find_device(pool_details.metadata_major, pool_details.metadata_minor)
-        .ok_or_else(|| anyhow!("Couldn't find pool metadata device"))?;
-
-    // Parse thin metadata
-    dm.target_msg(&pool_id, None, "reserve_metadata_snap")?;
-    let engine = Arc::new(SyncIoEngine::new_with(metadata_path, false, false)?);
-    let r = read_info(&engine, thin_details.id);
-    dm.target_msg(&pool_id, None, "release_metadata_snap")?;
-
-    r
-}
-
-//---------------------------------
-
-fn get_thin_name<P: AsRef<Path>>(thin: P, dm_devs: &DevMap) -> Result<DmNameBuf> {
-    let thin = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        // .custom_flags(nix::fcntl::OFlag::O_EXCL as i32)
-        .open(thin)?;
-
-    let metadata = thin.metadata()?;
-
-    if !metadata.file_type().is_block_device() {
-        return Err(anyhow!("Old thin is not a block device"));
-    }
-
-    // Get the major:minor of the device at the given path
-    let rdev = metadata.rdev();
-    let thin_major = (rdev >> 8) as u32;
-    let thin_minor = (rdev & 0xff) as u32;
-    Ok(dm_devs.get(&(thin_major, thin_minor)).unwrap().clone())
-}
-
-fn get_thin_details_(thin_id: &DevId, dm: &mut DM) -> Result<ThinDetails> {
-    let thin_args = get_table(dm, thin_id, "thin")?;
-    let (_, thin_details) =
-        parse_thin_table(&thin_args).map_err(|_| anyhow!("couldn't parse thin table"))?;
-    Ok(thin_details)
-}
-
-pub fn read_thin_delta<P: AsRef<Path>>(old_thin: P, new_thin: P) -> Result<DeltaInfo> {
-    use anyhow::Context;
-
-    let mut dm = DM::new()?;
-    let dm_devs = collect_dm_devs(&mut dm)?;
-
-    let old_name =
-        get_thin_name(old_thin, &dm_devs).context("unable to identify --delta-device")?;
-    let new_name = get_thin_name(new_thin, &dm_devs).context("unable to identify input file")?;
-
-    let old_thin_details = get_thin_details_(&DevId::Name(&old_name), &mut dm)?;
-    let new_thin_details = get_thin_details_(&DevId::Name(&new_name), &mut dm)?;
-
-    if old_thin_details.pool_minor != new_thin_details.pool_minor {
-        return Err(anyhow!("thin devices are not from the same pool"));
-    }
-
-    let pool_name = dm_devs
-        .get(&(old_thin_details.pool_major, old_thin_details.pool_minor))
-        .ok_or_else(|| anyhow!("Pool device not found"))?
-        .clone();
-    let pool_id = DevId::Name(&pool_name);
-    let pool_args = get_table(&mut dm, &pool_id, "thin-pool")?;
-    let (_, pool_details) =
-        parse_pool_table(&pool_args).map_err(|_| anyhow!("couldn't parse pool table"))?;
-
-    // Find the metadata dev
-    let metadata_path = find_device(pool_details.metadata_major, pool_details.metadata_minor)
-        .ok_or_else(|| anyhow!("Couldn't find pool metadata device"))?;
-
-    // Parse thin metadata
-    dm.target_msg(&pool_id, None, "reserve_metadata_snap")?;
-    let engine = Arc::new(SyncIoEngine::new_with(metadata_path, false, false)?);
-    let r = read_delta_info(&engine, old_thin_details.id, new_thin_details.id);
-    dm.target_msg(&pool_id, None, "release_metadata_snap")?;
-
-    r
-}
-*/
 
 //------------------------------------------
 
 #[derive(Debug, PartialEq)]
-pub struct Source {
+pub struct SourceArgs {
     pub path: PathBuf,
     pub delta_id: Option<ThinId>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct ThinDest {
-    pub pool: PathBuf,
-    pub thin_id: ThinId,
-}
-
-pub struct FileDest {
+pub struct FileDestArgs {
     pub path: PathBuf,
     pub create: bool,
 }
 
-pub enum Dest {
-    Thin(ThinDest),
+pub enum DestArgs {
     Dev(PathBuf),
-    File(FileDest),
+    File(FileDestArgs),
 }
 
 pub struct ThinMigrateOptions {
-    pub source: Source,
-    pub dest: Dest,
+    pub source: SourceArgs,
+    pub dest: DestArgs,
     pub zero_dest: bool,
-    pub engine_opts: EngineOptions,
+    pub buffer_size_meg: u64,
     pub report: Arc<Report>,
 }
 
+/*
 struct Context {
     report: Arc<Report>,
     engine_in: Arc<dyn IoEngine + Send + Sync>,
     engine_out: Arc<dyn IoEngine + Send + Sync>,
 }
-
-/*
-fn new_context(opts: &ThinMigrateOptions) -> Result<Context> {
-    let engine_in = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
-    let engine_out = EngineBuilder::new(opts.output, &opts.engine_opts)
-        .write(true)
-        .build()?;
-
-    Ok(Context {
-        report: opts.report.clone(),
-        engine_in,
-        engine_out,
-    })
-}
 */
 
-// FIXME: naive implementation, use SIMD
-fn all_zeroes(data: &[u8]) -> bool {
-    data.iter().all(|&x| x == 0)
+fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>> {
+    let engine = SyncIoEngine::new(path, false)?;
+    Ok(Arc::new(engine))
 }
 
-fn read_vec(file: &mut File, offset: u64, count: usize) -> Result<Option<Vec<u8>>> {
-    // Allocate buffer with the desired capacity without initializing it
-    let mut buffer: Vec<u8> = Vec::with_capacity(count);
-
-    // SAFETY: We are about to read over the uninitialised data.
-    // The uninitialized memory is never read.
-    unsafe {
-        buffer.set_len(count);
-    }
-
-    match file.seek(SeekFrom::Start(offset)) {
-        Ok(_) => {
-            match file.read(&mut buffer) {
-                Ok(bytes_read) if bytes_read == 0 => Ok(None),
-                Ok(bytes_read) => {
-                    // It's important to set the length of the buffer to the actual bytes read
-                    // to avoid exposing uninitialized memory.
-                    unsafe {
-                        buffer.set_len(bytes_read);
-                    }
-
-                    Ok(Some(buffer))
-                }
-                Err(e) => Err(anyhow!("Error reading file: {}", e)),
-            }
-        }
-        Err(e) => Err(anyhow!("Error seeking file: {}", e)),
-    }
+// FIXME: does this work for devices too?
+fn file_len(file: &File) -> Result<u64> {
+    file.metadata()
+        .map(|metadata| metadata.len())
+        .map_err(Into::into)
 }
 
-fn open_source(scanner: &mut ThinDeviceScanner, src: &Source) -> Result<(File, Stream)> {
-    let file = OpenOptions::new().read(true).write(true).open(src.path)?;
+pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<DeviceNr> {
+    let thin_name = scanner.file_to_name(thin)?.clone();
+    let thin_table = get_thin_table(scanner, &thin_name)?;
+    let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
+    let pool_table = get_pool_table(scanner, &pool_name)?;
+    Ok(pool_table.metadata_dev)
+}
 
-    if let Some(thin_id) = scanner.is_thin_device(src.path)? {
-        let stream = ThinStream::new(&mut metadata_engine, thin_id, file);
-        (file, stream);
+struct Source {
+    file: File,
+    stream: Box<dyn Stream>,
+    block_size: u64,
+}
+
+// FIXME: return a struct
+// Returns (file, stream, block_size)
+fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
+    let thin = OpenOptions::new().read(true).write(false).open(&src.path)?;
+    let thin_name = scanner.file_to_name(&thin)?.clone();
+    let thin_table = get_thin_table(scanner, &thin_name)?;
+    let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
+    let pool_table = get_pool_table(scanner, &pool_name)?;
+    let metadata_dev = metadata_dev_from_thin(scanner, &thin)?;
+    let metadata_path = scanner.dev_to_path(&metadata_dev)?.unwrap();
+    let metadata_engine = mk_engine(metadata_path)?;
+
+    let stream = Box::new(ThinStream::new(
+        &metadata_engine,
+        thin_table.thin_id,
+        &thin,
+    )?);
+
+    Ok(Source {
+        file: thin,
+        stream,
+        block_size: pool_table.data_block_size as u64,
+    })
+}
+
+struct Dest {
+    file: File,
+}
+
+fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
+    let out = OpenOptions::new().read(true).write(true).open(path)?;
+    let actual_len = file_len(&out)?;
+    if actual_len != expected_len {
+        return Err(anyhow!(
+            "lengths differ: input({}) != output({})",
+            expected_len,
+            actual_len
+        ));
+    }
+    Ok(Dest { file: out })
+}
+
+fn open_dest_file(path: &PathBuf, create: bool, expected_len: u64) -> Result<File> {
+    if create {
+        let out = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(create)
+            .open(path)?;
+        out.set_len(expected_len)?;
+        Ok(out)
     } else {
-        let stream = DevStream::new(file, chunk_size)?;
-        (file, stream)
+        let out = OpenOptions::new().read(true).write(true).open(path)?;
+        let actual_len = file_len(&out)?;
+        if actual_len != expected_len {
+            return Err(anyhow!(
+                "lengths differ input({}) != output({})",
+                expected_len,
+                actual_len
+            ));
+        }
+        Ok(out)
     }
-
-    // See if it's a thin device
-    // if so:
-    //     see if there's a delta origin
-    //     read metadata
-    // else:
-    //     check there's no delta origin
 }
 
-/*
-fn copy_regions(stream: Stream, in_file: &mut File, out_file: &mut File) -> Result<()> {
-    let vio: VectoredBlockIo<File> = file.into();
-    let buffer_size = std::cmp::max(block_size, 64 * 1024 * 1024);
-    let copier = SyncCopier::in_file(buffer_size, block_size, vio)?;
+fn open_dest(_scanner: &mut DmScanner, dst: &DestArgs, expected_len: u64) -> Result<File> {
+    match dst {
+        DestArgs::Dev(path) => open_dest_dev(path, expected_len).map(|dst| dst.file),
+        DestArgs::File(fdest) => open_dest_file(&fdest.path, fdest.create, expected_len),
+    }
+}
+
+struct ThreadedCopier<T> {
+    copier: T,
+}
+
+// unlike cache_writeback, thin_shrink doesn't allow failures
+impl<T: Copier + Send + 'static> ThreadedCopier<T> {
+    fn new(copier: T) -> ThreadedCopier<T> {
+        ThreadedCopier { copier }
+    }
+
+    fn run(
+        self,
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        progress: Arc<dyn CopyProgress + Send + Sync>,
+    ) -> JoinHandle<Result<()>> {
+        spawn(move || Self::run_(rx, self.copier, progress))
+    }
+
+    fn run_(
+        rx: mpsc::Receiver<Vec<CopyOp>>,
+        mut copier: T,
+        progress: Arc<dyn CopyProgress + Send + Sync>,
+    ) -> Result<()> {
+        while let Ok(ops) = rx.recv() {
+            let r = copier.copy(&ops, progress.clone());
+            if r.is_err() {
+                return Err(anyhow!(""));
+            }
+
+            let stats = r.unwrap();
+            if !stats.read_errors.is_empty() || !stats.write_errors.is_empty() {
+                return Err(anyhow!(""));
+            }
+
+            progress.update(&stats);
+        }
+
+        Ok(())
+    }
+}
+
+struct MigrateProgress {}
+
+impl CopyProgress for MigrateProgress {
+    fn update(&self, _stats: &CopyStats) {
+        todo!()
+    }
+}
+
+fn copy_regions(
+    mut stream: Box<dyn Stream>,
+    in_file: File,
+    out_file: File,
+    block_size: u64,
+    buffer_size_in_blocks: u64,
+) -> Result<()> {
+    let in_vio: VectoredBlockIo<File> = in_file.into();
+    let out_vio: VectoredBlockIo<File> = out_file.into();
+    let buffer_size = buffer_size_in_blocks * block_size;
+    let copier = SyncCopier::new(buffer_size as usize, block_size as usize, in_vio, out_vio)?;
 
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
-    let mut batcher = CopyOpBatcher::new(1_000_000, tx);
+    let mut batcher = CopyOpBatcher::new(buffer_size_in_blocks as usize, tx);
 
     let copier = ThreadedCopier::new(copier);
+    let progress = Arc::new(MigrateProgress {});
     let handle = copier.run(rx, progress);
 
-    for (from, to) in remaps {
-        let len = range_len(from);
-        let dst_range = Range {
-            start: *to,
-            end: *to + len,
-        };
-        for (src, dst) in from.clone().zip(dst_range) {
-            batcher.push(CopyOp { src, dst })?;
+    while let Some(chunk) = stream.next_chunk()? {
+        match chunk.contents {
+            ChunkContents::Skip => {
+                // do nothing
+            }
+            ChunkContents::Copy => {
+                let begin = chunk.offset / block_size;
+                let end = (chunk.offset + chunk.len) / block_size;
+                for b in begin..end {
+                    batcher.push(CopyOp { src: b, dst: b })?;
+                }
+            }
+            ChunkContents::Discard => {
+                // Only needed when migrating a delta
+                todo!();
+            }
         }
     }
 
@@ -331,14 +239,22 @@ fn copy_regions(stream: Stream, in_file: &mut File, out_file: &mut File) -> Resu
 
     Ok(())
 }
-*/
 
 pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
-    let scanner = ThinDeviceScanner::new()?;
-    let (in_file, stream) = open_source(&mut scanner, &opts.source)?;
-    let out_file = open_dest(&opts.dest)?;
+    let mut scanner = DmScanner::new()?;
+    let src = open_source(&mut scanner, &opts.source)?;
+    let expected_len = file_len(&src.file)?;
+    let out_file = open_dest(&mut scanner, &opts.dest, expected_len)?;
 
-    Ok(())
+    let buffer_size_in_blocks = (opts.buffer_size_meg * 1024) / src.block_size;
+
+    copy_regions(
+        src.stream,
+        src.file,
+        out_file,
+        src.block_size,
+        buffer_size_in_blocks as u64,
+    )
 }
 
 //------------------------------------------

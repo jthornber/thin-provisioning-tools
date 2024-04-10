@@ -1,28 +1,27 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 use std::os::unix::fs::MetadataExt;
 use std::sync::Arc;
 
 use crate::io_engine::*;
-use crate::thin::migrate::metadata;
+use crate::thin::migrate::metadata::*;
 
 //---------------------------------------------
 
 pub enum ChunkContents {
-    Data,
-    Unmapped,
+    Copy,
+    Skip,
     Discard,
 }
 
 pub struct Chunk {
-    offset: u64,
-    len: u64,
-    contents: ChunkContents,
+    pub offset: u64,
+    pub len: u64,
+    pub contents: ChunkContents,
 }
 
 pub trait Stream {
-    fn next_chunk(&mut self) -> Option<Chunk>;
+    fn next_chunk(&mut self) -> Result<Option<Chunk>>;
 }
 
 //---------------------------------------------
@@ -33,7 +32,7 @@ pub struct DevStream {
 }
 
 impl DevStream {
-    pub fn new(file: File, chunk_size: u64) -> Result<Self> {
+    pub fn new(file: File, _chunk_size: u64) -> Result<Self> {
         let file_size = file.metadata()?.size();
         Ok(Self {
             eof: false,
@@ -43,100 +42,96 @@ impl DevStream {
 }
 
 impl Stream for DevStream {
-    fn next_chunk(&mut self) -> Option<Chunk> {
+    fn next_chunk(&mut self) -> Result<Option<Chunk>> {
         if self.eof {
-            None
+            Ok(None)
         } else {
-            Some(Chunk {
+            self.eof = true;
+            Ok(Some(Chunk {
                 offset: 0,
                 len: self.file_size,
-                contents: ChunkContents::Data,
-            })
+                contents: ChunkContents::Copy,
+            }))
         }
     }
 }
 
 //---------------------------------------------
 
-// FIXME: allow chunks to be bigger than the data_block_size
 pub struct ThinStream {
-    info: metadata::ThinInfo,
+    iter: ThinIterator,
     current_block: u64,
     nr_blocks: u64,
 }
 
 impl ThinStream {
-    pub fn new<Engine>(metadata_engine: &Arc<Engine>, thin_id: u32, thin: File) -> Result<Self>
-    where
-        Engine: IoEngine + Send + Sync,
-    {
-        let info = metadata::read_info(metadata_engine, thin_id)?;
-        let nr_blocks = thin.metadata()?.size() / info.data_block_size as u64;
+    pub fn new(
+        metadata_engine: &Arc<dyn IoEngine + Sync + Send>,
+        thin_id: u32,
+        thin: &File,
+    ) -> Result<Self> {
+        let iter = ThinIterator::new(metadata_engine, thin_id)?;
+        let nr_blocks = thin.metadata()?.size() / iter.data_block_size as u64;
         Ok(Self {
-            info,
+            iter,
             current_block: 0,
             nr_blocks,
         })
     }
 
-    // FIXME: we need a more efficient way of building runs.  Info shouldn't store in a bitmap.
-    fn get_mapped_run_len(&mut self, begin: u64) -> u64 {
-        let mut end = begin;
-        while end < self.nr_blocks {
-            if !self.info.provisioned_blocks.contains(end as u32) {
+    fn contiguous_run(&mut self, begin: u64) -> Result<u64> {
+        let mut count = 0u64;
+        loop {
+            count += 1;
+            self.iter.mappings.step()?;
+            if let Some((thin_block, _)) = self.iter.mappings.get() {
+                if thin_block != begin + count {
+                    break;
+                }
+            } else {
                 break;
             }
-
-            end += 1;
         }
 
-        end - begin
-    }
-
-    fn get_unmapped_run_len(&mut self, begin: u64) -> u64 {
-        let mut end = begin;
-        while end < self.nr_blocks {
-            if self.info.provisioned_blocks.contains(end as u32) {
-                break;
-            }
-
-            end += 1;
-        }
-
-        end - begin
+        Ok(count)
     }
 }
 
 impl Stream for ThinStream {
-    fn next_chunk(&mut self) -> Option<Chunk> {
-        let begin = self.current_block;
+    fn next_chunk(&mut self) -> Result<Option<Chunk>> {
+        use ChunkContents::*;
 
-        if begin >= self.nr_blocks {
-            return None;
-        }
-
-        // FIXME: is the data_block_size in bytes or sectors?
-        let bsize = self.info.data_block_size as u64;
-        if self.info.provisioned_blocks.contains(begin as u32) {
-            let len = self.get_mapped_run_len(begin);
-            Some(Chunk {
-                offset: begin * bsize,
-                len: len * bsize,
-                contents: ChunkContents::Data,
-            })
-        } else {
-            let len = self.get_unmapped_run_len(begin);
-            Some(Chunk {
-                offset: begin * bsize,
-                len: len * bsize,
-                contents: ChunkContents::Unmapped,
-            })
+        let offset = self.current_block * self.iter.data_block_size;
+        match self.iter.mappings.get() {
+            Some((thin_block, _)) if thin_block == self.current_block => {
+                // There was no intermediate gap, so we can return the next mapping.
+                let nr_blocks = self.contiguous_run(thin_block)?;
+                let len = (thin_block - self.current_block) * self.iter.data_block_size;
+                self.current_block = thin_block + nr_blocks;
+                Ok(Some(Chunk {
+                    offset,
+                    len,
+                    contents: Copy,
+                }))
+            }
+            Some((thin_block, _)) => {
+                // Emit the intermediate unmapped region.
+                let len = (thin_block - self.current_block) * self.iter.data_block_size;
+                self.current_block = thin_block;
+                Ok(Some(Chunk {
+                    offset,
+                    len,
+                    contents: Skip,
+                }))
+            }
+            None => Ok(None),
         }
     }
 }
 
 //---------------------------------------------
 
+/*
 pub struct DeltaStream {
     info: DeltaInfo,
 }
@@ -148,5 +143,6 @@ impl Stream for DeltaStream {
         todo!();
     }
 }
+*/
 
 //---------------------------------------------

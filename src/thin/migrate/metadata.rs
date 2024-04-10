@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use crate::io_engine::*;
 use crate::pdata::btree;
 use crate::pdata::btree::*;
+use crate::pdata::btree_iterator::*;
 use crate::pdata::btree_lookup::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::unpack::*;
@@ -68,12 +69,13 @@ pub struct ThinInfo {
     pub provisioned_blocks: RoaringBitmap,
 }
 
-fn read_by_thin_id<V, Engine>(engine: &Engine, root: u64, thin_id: u32) -> Result<V>
+type ArcEngine = Arc<dyn IoEngine + Send + Sync>;
+
+fn read_by_thin_id<V>(engine: &ArcEngine, root: u64, thin_id: u32) -> Result<V>
 where
     V: Unpack + Clone,
-    Engine: IoEngine + Send + Sync,
 {
-    let lookup_result = btree_lookup::<V, Engine>(engine, root, thin_id as u64)?;
+    let lookup_result = btree_lookup::<V>(engine, root, thin_id as u64)?;
 
     if let Some(d) = lookup_result {
         Ok(d.clone())
@@ -82,37 +84,24 @@ where
     }
 }
 
-fn read_device_detail<Engine>(
-    engine: &Engine,
-    details_root: u64,
-    thin_id: u32,
-) -> Result<DeviceDetail>
-where
-    Engine: IoEngine + Send + Sync,
-{
+fn read_device_detail(engine: &ArcEngine, details_root: u64, thin_id: u32) -> Result<DeviceDetail> {
     read_by_thin_id(engine, details_root, thin_id)
 }
 
-fn read_mapping_root<Engine>(
-    engine: &Engine,
+fn read_mapping_root(
+    engine: &ArcEngine,
     mappings_top_level_root: u64,
     thin_id: u32,
-) -> Result<u64>
-where
-    Engine: IoEngine + Send + Sync,
-{
+) -> Result<u64> {
     read_by_thin_id(engine, mappings_top_level_root, thin_id)
 }
 
-fn read_provisioned_blocks<Engine>(
-    engine: &Arc<Engine>,
+fn read_provisioned_blocks(
+    engine: &ArcEngine,
     mapping_top_level_root: u64,
     thin_id: u32,
-) -> Result<RoaringBitmap>
-where
-    Engine: IoEngine + Send + Sync,
-{
-    let mapping_root = read_mapping_root(engine.as_ref(), mapping_top_level_root, thin_id)?;
+) -> Result<RoaringBitmap> {
+    let mapping_root = read_mapping_root(engine, mapping_top_level_root, thin_id)?;
 
     // walk mapping tree
     let ignore_non_fatal = true;
@@ -124,13 +113,10 @@ where
     Ok(collector.provisioned())
 }
 
-fn read_info<Engine>(engine: &Arc<Engine>, thin_id: u32) -> Result<ThinInfo>
-where
-    Engine: IoEngine + Send + Sync,
-{
+fn read_info(engine: &ArcEngine, thin_id: u32) -> Result<ThinInfo> {
     let sb = read_superblock_snap(engine.as_ref())?;
-    let details = read_device_detail(engine.as_ref(), sb.details_root, thin_id)?;
-    let provisioned_blocks = read_provisioned_blocks(&engine, sb.mapping_root, thin_id)?;
+    let details = read_device_detail(engine, sb.details_root, thin_id)?;
+    let provisioned_blocks = read_provisioned_blocks(engine, sb.mapping_root, thin_id)?;
 
     Ok(ThinInfo {
         thin_id,
@@ -138,6 +124,28 @@ where
         details,
         provisioned_blocks,
     })
+}
+
+// FIXME: replacement for ThinInfo
+pub struct ThinIterator {
+    pub thin_id: u32,
+    pub data_block_size: u64,
+    pub mappings: BTreeIterator<BlockTime>,
+}
+
+impl ThinIterator {
+    pub fn new(engine: &ArcEngine, thin_id: u32) -> Result<Self> {
+        let sb = read_superblock_snap(engine.as_ref())?;
+        let details = read_device_detail(engine, sb.details_root, thin_id)?;
+        let mapping_root = read_mapping_root(engine, sb.mapping_root, thin_id)?;
+        let mappings = BTreeIterator::new(engine.clone(), mapping_root)?;
+
+        Ok(Self {
+            thin_id,
+            data_block_size: sb.data_block_size as u64,
+            mappings,
+        })
+    }
 }
 
 //---------------------------------
@@ -152,15 +160,12 @@ pub struct DeltaInfo {
     pub removals: RoaringBitmap,
 }
 
-fn read_mappings<Engine>(
-    engine: &Arc<Engine>,
+fn read_mappings(
+    engine: &ArcEngine,
     mapping_top_level_root: u64,
     thin_id: u32,
-) -> Result<BTreeMap<u64, BlockTime>>
-where
-    Engine: IoEngine + Send + Sync,
-{
-    let root = read_mapping_root(engine.as_ref(), mapping_top_level_root, thin_id)?;
+) -> Result<BTreeMap<u64, BlockTime>> {
+    let root = read_mapping_root(engine, mapping_top_level_root, thin_id)?;
 
     let mut path = Vec::new();
     let new_mappings: BTreeMap<u64, BlockTime> =
@@ -169,17 +174,10 @@ where
     Ok(new_mappings)
 }
 
-fn read_delta_info<Engine>(
-    engine: &Arc<Engine>,
-    old_thin_id: u32,
-    new_thin_id: u32,
-) -> Result<DeltaInfo>
-where
-    Engine: IoEngine + Send + Sync,
-{
+fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Result<DeltaInfo> {
     // Read metadata superblock
     let sb = read_superblock_snap(engine.as_ref())?;
-    let details = read_device_detail(engine.as_ref(), sb.details_root, new_thin_id)?;
+    let details = read_device_detail(engine, sb.details_root, new_thin_id)?;
 
     // FIXME: this uses a lot of memory
     let old_mappings = read_mappings(&engine, sb.mapping_root, old_thin_id)?;

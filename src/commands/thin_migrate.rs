@@ -1,8 +1,7 @@
 extern crate clap;
 
 use anyhow::{anyhow, Result};
-use clap::{Arg, ArgAction, ArgMatches};
-use regex::Regex;
+use clap::{value_parser, Arg, ArgAction, ArgMatches};
 use std::path::{Path, PathBuf};
 
 use crate::commands::engine::*;
@@ -11,78 +10,6 @@ use crate::commands::Command;
 use crate::report::{parse_log_level, verbose_args};
 use crate::thin::migrate;
 use crate::version::*;
-
-//----------------------------------------------------------
-
-/*
-fn parse_thin_source(input: &str) -> Result<migrate::ThinSource> {
-    let re = Regex::new(r"^(.*):(\d+)(?:\.\.(\d+))?$").unwrap();
-    let caps = re.captures(input);
-
-    if caps.is_none() {
-        return Err(anyhow!("badly formed source-thin"));
-    }
-    let caps = caps.unwrap();
-
-    let pool = caps.get(1);
-    let thin_id_1 = caps.get(2);
-    let thin_id_2 = caps.get(3);
-
-    if pool.is_none() {
-        return Err(anyhow!("badly formed pool for source-thin"));
-    }
-
-    if thin_id_1.is_none() {
-        return Err(anyhow!("badly formed thin id for source-thin"));
-    }
-
-    let pool = PathBuf::from(pool.unwrap().as_str().to_string());
-    let thin_id_1 = thin_id_1.unwrap().as_str().to_string().parse()?;
-    match thin_id_2 {
-        None => Ok(migrate::ThinSource {
-            pool,
-            origin_thin_id: None,
-            thin_id: thin_id_1,
-        }),
-        Some(thin_id_2) => {
-            let thin_id_2 = thin_id_2.as_str().to_string().parse()?;
-            Ok(migrate::ThinSource {
-                pool,
-                origin_thin_id: Some(thin_id_1),
-                thin_id: thin_id_2,
-            })
-        }
-    }
-}
-
-fn parse_thin_dest(input: &str) -> Result<migrate::ThinDest> {
-    let re = Regex::new(r"^(.*):(\d+)$").unwrap();
-    let caps = re.captures(input);
-
-    if caps.is_none() {
-        return Err(anyhow!("badly formed dest-thin"));
-    }
-    let caps = caps.unwrap();
-
-    let pool = caps.get(1);
-    let thin_id_1 = caps.get(2);
-
-    if pool.is_none() {
-        return Err(anyhow!("badly formed pool for source-thin"));
-    }
-
-    if thin_id_1.is_none() {
-        return Err(anyhow!("badly formed thin id for source-thin"));
-    }
-
-    let pool = PathBuf::from(pool.unwrap().as_str().to_string());
-    let thin_id_1 = thin_id_1.unwrap().as_str().to_string().parse()?;
-    Ok(migrate::ThinDest {
-        pool,
-        thin_id: thin_id_1,
-    })
-}
-*/
 
 //----------------------------------------------------------
 
@@ -104,15 +31,9 @@ impl ThinMigrateCommand {
             // options
             .arg(
                 Arg::new("SOURCE-DEV")
-                    .help("Specify the input device")
+                    .help("Specify the input device or file")
                     .long("source-dev")
                     .value_name("SOURCE-DEV"),
-            )
-            .arg(
-                Arg::new("SOURCE-THIN")
-                    .help("Specify the input thin device")
-                    .long("source-thin")
-                    .value_name("SOURCE-THIN"),
             )
             .arg(
                 Arg::new("DELTA-ID")
@@ -133,41 +54,54 @@ impl ThinMigrateCommand {
                     .value_name("DEST-FILE"),
             )
             .arg(
+                Arg::new("BUFFER-SIZE-MEG")
+                    .help("Specify the size of the copy buffers, in megabytes")
+                    .long("buffer-size-meg")
+                    .value_name("MB")
+                    .value_parser(value_parser!(usize)),
+            )
+            .arg(
                 Arg::new("ZERO-DEST")
                     .help("Ensure all unwritten regions of the destination are zeroed")
                     .long("zero-dest")
                     .action(ArgAction::SetTrue),
             );
-        // FIXME: add option to specify buffer size
         verbose_args(engine_args(version_args(cmd)))
     }
 }
 
-fn get_source(matches: &ArgMatches) -> Result<migrate::Source> {
-    if let Some(arg) = matches.get_one::<String>("SOURCE-DEV") {
+fn get_source(matches: &ArgMatches) -> Result<migrate::SourceArgs> {
+    let path_str = matches.get_one::<String>("SOURCE-DEV");
+    let delta_id = matches.get_one::<u32>("DELTA-ID").cloned();
+
+    if path_str.is_none() {
+        return Err(anyhow!("You must specify a source"));
+    }
+
+    let path = PathBuf::from(&path_str.unwrap());
+
+    Ok(migrate::SourceArgs { path, delta_id })
+}
+
+fn get_dest(matches: &ArgMatches) -> Result<migrate::DestArgs> {
+    if let Some(arg) = matches.get_one::<String>("DEST-DEV") {
         let path = PathBuf::from(arg);
-        Ok(migrate::Source::Dev(path))
-    } else if let Some(arg) = matches.get_one::<String>("SOURCE-THIN") {
-        let thin = parse_thin_source(arg)?;
-        Ok(migrate::Source::Thin(thin))
+        Ok(migrate::DestArgs::Dev(path))
+    } else if let Some(arg) = matches.get_one::<String>("DEST-FILE") {
+        let path = PathBuf::from(arg);
+        let file = migrate::FileDestArgs { path, create: true };
+        Ok(migrate::DestArgs::File(file))
+    } else if let Some(arg) = matches.get_one::<String>("DEST-THIN") {
+        Ok(migrate::DestArgs::Dev(PathBuf::from(arg)))
     } else {
-        Err(anyhow!("You must specify a source"))
+        Err(anyhow!("You must specify a dest"))
     }
 }
 
-fn get_dest(matches: &ArgMatches) -> Result<migrate::Dest> {
-    if let Some(arg) = matches.get_one::<String>("DEST-DEV") {
-        let path = PathBuf::from(arg);
-        Ok(migrate::Dest::Dev(path))
-    } else if let Some(arg) = matches.get_one::<String>("DEST-FILE") {
-        let path = PathBuf::from(arg);
-        let file = migrate::FileDest { path, create: true };
-        Ok(migrate::Dest::File(file))
-    } else if let Some(arg) = matches.get_one::<String>("DEST-THIN") {
-        let thin = parse_thin_dest(arg)?;
-        Ok(migrate::Dest::Thin(thin))
-    } else {
-        Err(anyhow!("You must specify a dest"))
+fn get_buffer_size_meg(matches: &ArgMatches) -> u64 {
+    match matches.get_one::<u64>("BUFFER-SIZE-MEG") {
+        None => 64,
+        Some(n) => *n,
     }
 }
 
@@ -212,13 +146,15 @@ impl<'a> Command<'a> for ThinMigrateCommand {
             return to_exit_code(&report, dest);
         }
 
+        let buffer_size_meg = get_buffer_size_meg(&matches);
+
         let zero_dest = matches.get_flag("ZERO-DEST");
 
         let opts = migrate::ThinMigrateOptions {
             source: source.unwrap(),
             dest: dest.unwrap(),
             zero_dest,
-            engine_opts: engine_opts.unwrap(),
+            buffer_size_meg,
             report: report.clone(),
         };
 
