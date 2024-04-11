@@ -75,8 +75,6 @@ struct Source {
     block_size: u64,
 }
 
-// FIXME: return a struct
-// Returns (file, stream, block_size)
 fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     let thin = OpenOptions::new().read(true).write(false).open(&src.path)?;
     let thin_name = scanner.file_to_name(&thin)?.clone();

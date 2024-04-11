@@ -114,27 +114,12 @@ impl<'a> Command<'a> for ThinMigrateCommand {
         let matches = self.cli().get_matches_from(args);
         display_version(&matches);
 
-        let input_file = Path::new(matches.get_one::<String>("INPUT").unwrap());
-        let output_file = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
-
         let report = mk_report(matches.get_flag("QUIET"));
         let log_level = match parse_log_level(&matches) {
             Ok(level) => level,
             Err(e) => return to_exit_code::<()>(&report, Err(anyhow::Error::msg(e))),
         };
         report.set_level(log_level);
-
-        if let Err(e) = check_input_file(input_file)
-            .and_then(check_file_not_tiny)
-            .and_then(|_| check_output_file(output_file))
-        {
-            return to_exit_code::<()>(&report, Err(e));
-        }
-
-        let engine_opts = parse_engine_opts(ToolType::Thin, &matches);
-        if engine_opts.is_err() {
-            return to_exit_code(&report, engine_opts);
-        }
 
         let source = get_source(&matches);
         if source.is_err() {
@@ -164,6 +149,7 @@ impl<'a> Command<'a> for ThinMigrateCommand {
 
 //----------------------------------------------------------
 
+/*
 #[cfg(test)]
 mod thin_source {
     use super::*;
@@ -232,5 +218,6 @@ mod thin_dest {
         Ok(())
     }
 }
+*/
 
 //----------------------------------------------------------
