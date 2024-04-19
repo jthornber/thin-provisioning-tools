@@ -189,9 +189,7 @@ impl<T: Copier + Send + 'static> ThreadedCopier<T> {
 struct MigrateProgress {}
 
 impl CopyProgress for MigrateProgress {
-    fn update(&self, _stats: &CopyStats) {
-        todo!()
-    }
+    fn update(&self, _stats: &CopyStats) {}
 }
 
 fn copy_regions(
