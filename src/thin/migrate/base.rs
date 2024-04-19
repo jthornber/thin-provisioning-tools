@@ -50,7 +50,7 @@ struct Context {
 */
 
 fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>> {
-    let engine = SyncIoEngine::new(path, false)?;
+    let engine = SyncIoEngine::new_with(path, false, false)?;
     Ok(Arc::new(engine))
 }
 
