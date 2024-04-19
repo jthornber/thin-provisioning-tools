@@ -8,6 +8,7 @@ use std::thread::*;
 use crate::copier::batcher::*;
 use crate::copier::sync_copier::*;
 use crate::copier::*;
+use crate::file_utils;
 use crate::io_engine::utils::*;
 use crate::io_engine::*;
 use crate::report::*;
@@ -54,13 +55,6 @@ fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>>
     Ok(Arc::new(engine))
 }
 
-// FIXME: does this work for devices too?
-fn file_len(file: &File) -> Result<u64> {
-    file.metadata()
-        .map(|metadata| metadata.len())
-        .map_err(Into::into)
-}
-
 pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<DeviceNr> {
     let thin_name = scanner.file_to_name(thin)?.clone();
     let thin_table = get_thin_table(scanner, &thin_name)?;
@@ -104,7 +98,7 @@ struct Dest {
 
 fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
     let out = OpenOptions::new().read(true).write(true).open(path)?;
-    let actual_len = file_len(&out)?;
+    let actual_len = file_utils::file_size(path)?;
     if actual_len != expected_len {
         return Err(anyhow!(
             "lengths differ: input({}) != output({})",
@@ -126,7 +120,7 @@ fn open_dest_file(path: &PathBuf, create: bool, expected_len: u64) -> Result<Fil
         Ok(out)
     } else {
         let out = OpenOptions::new().read(true).write(true).open(path)?;
-        let actual_len = file_len(&out)?;
+        let actual_len = file_utils::file_size(path)?;
         if actual_len != expected_len {
             return Err(anyhow!(
                 "lengths differ input({}) != output({})",
@@ -239,7 +233,7 @@ fn copy_regions(
 pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
     let mut scanner = DmScanner::new()?;
     let src = open_source(&mut scanner, &opts.source)?;
-    let expected_len = file_len(&src.file)?;
+    let expected_len = file_utils::file_size(opts.source.path)?;
     let out_file = open_dest(&mut scanner, &opts.dest, expected_len)?;
 
     let buffer_size_in_blocks = (opts.buffer_size_meg * 1024) / src.block_size;
