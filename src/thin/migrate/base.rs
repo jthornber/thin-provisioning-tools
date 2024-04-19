@@ -196,7 +196,12 @@ fn copy_regions(
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
     let buffer_size = buffer_size_in_blocks * block_size;
-    let copier = SyncCopier::new(buffer_size as usize, block_size as usize, in_vio, out_vio)?;
+    let copier = SyncCopier::new(
+        (buffer_size as usize) << SECTOR_SHIFT,
+        (block_size as usize) << SECTOR_SHIFT,
+        in_vio,
+        out_vio,
+    )?;
 
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
     let mut batcher = CopyOpBatcher::new(buffer_size_in_blocks as usize, tx);
