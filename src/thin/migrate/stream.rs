@@ -106,7 +106,7 @@ impl Stream for ThinStream {
             Some((thin_block, _)) if thin_block == self.current_block => {
                 // There was no intermediate gap, so we can return the next mapping.
                 let nr_blocks = self.contiguous_run(thin_block)?;
-                let len = (thin_block - self.current_block) * self.iter.data_block_size;
+                let len = nr_blocks * self.iter.data_block_size;
                 self.current_block = thin_block + nr_blocks;
                 Ok(Some(Chunk {
                     offset,

@@ -8,6 +8,7 @@ use std::thread::*;
 use crate::copier::batcher::*;
 use crate::copier::sync_copier::*;
 use crate::copier::*;
+use crate::file_utils;
 use crate::io_engine::utils::*;
 use crate::io_engine::*;
 use crate::report::*;
@@ -50,15 +51,8 @@ struct Context {
 */
 
 fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>> {
-    let engine = SyncIoEngine::new(path, false)?;
+    let engine = SyncIoEngine::new_with(path, false, false)?;
     Ok(Arc::new(engine))
-}
-
-// FIXME: does this work for devices too?
-fn file_len(file: &File) -> Result<u64> {
-    file.metadata()
-        .map(|metadata| metadata.len())
-        .map_err(Into::into)
 }
 
 pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<DeviceNr> {
@@ -104,7 +98,7 @@ struct Dest {
 
 fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
     let out = OpenOptions::new().read(true).write(true).open(path)?;
-    let actual_len = file_len(&out)?;
+    let actual_len = file_utils::file_size(path)?;
     if actual_len != expected_len {
         return Err(anyhow!(
             "lengths differ: input({}) != output({})",
@@ -126,7 +120,7 @@ fn open_dest_file(path: &PathBuf, create: bool, expected_len: u64) -> Result<Fil
         Ok(out)
     } else {
         let out = OpenOptions::new().read(true).write(true).open(path)?;
-        let actual_len = file_len(&out)?;
+        let actual_len = file_utils::file_size(path)?;
         if actual_len != expected_len {
             return Err(anyhow!(
                 "lengths differ input({}) != output({})",
@@ -189,9 +183,7 @@ impl<T: Copier + Send + 'static> ThreadedCopier<T> {
 struct MigrateProgress {}
 
 impl CopyProgress for MigrateProgress {
-    fn update(&self, _stats: &CopyStats) {
-        todo!()
-    }
+    fn update(&self, _stats: &CopyStats) {}
 }
 
 fn copy_regions(
@@ -204,7 +196,12 @@ fn copy_regions(
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
     let buffer_size = buffer_size_in_blocks * block_size;
-    let copier = SyncCopier::new(buffer_size as usize, block_size as usize, in_vio, out_vio)?;
+    let copier = SyncCopier::new(
+        (buffer_size as usize) << SECTOR_SHIFT,
+        (block_size as usize) << SECTOR_SHIFT,
+        in_vio,
+        out_vio,
+    )?;
 
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
     let mut batcher = CopyOpBatcher::new(buffer_size_in_blocks as usize, tx);
@@ -241,7 +238,7 @@ fn copy_regions(
 pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
     let mut scanner = DmScanner::new()?;
     let src = open_source(&mut scanner, &opts.source)?;
-    let expected_len = file_len(&src.file)?;
+    let expected_len = file_utils::file_size(opts.source.path)?;
     let out_file = open_dest(&mut scanner, &opts.dest, expected_len)?;
 
     let buffer_size_in_blocks = (opts.buffer_size_meg * 1024) / src.block_size;
