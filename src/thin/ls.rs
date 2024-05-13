@@ -38,18 +38,22 @@ pub enum OutputField {
     MappedBlocks,
     ExclusiveBlocks,
     SharedBlocks,
+    HighestMappedBlock,
 
     MappedSectors,
     ExclusiveSectors,
     SharedSectors,
+    HighestMappedSector,
 
     MappedBytes,
     ExclusiveBytes,
     SharedBytes,
+    HighestMappedByte,
 
     Mapped,
     Exclusive,
     Shared,
+    HighestMapped,
 
     TransactionId,
     CreationTime,
@@ -67,18 +71,22 @@ impl FromStr for OutputField {
             "MAPPED_BLOCKS" => Ok(MappedBlocks),
             "EXCLUSIVE_BLOCKS" => Ok(ExclusiveBlocks),
             "SHARED_BLOCKS" => Ok(SharedBlocks),
+            "HIGHEST_BLOCK" => Ok(HighestMappedBlock),
 
             "MAPPED_SECTORS" => Ok(MappedSectors),
             "EXCLUSIVE_SECTORS" => Ok(ExclusiveSectors),
             "SHARED_SECTORS" => Ok(SharedSectors),
+            "HIGHEST_SECTOR" => Ok(HighestMappedSector),
 
             "MAPPED_BYTES" => Ok(MappedBytes),
             "EXCLUSIVE_BYTES" => Ok(ExclusiveBytes),
             "SHARED_BYTES" => Ok(SharedBytes),
+            "HIGHEST_BYTE" => Ok(HighestMappedByte),
 
             "MAPPED" => Ok(Mapped),
             "EXCLUSIVE" => Ok(Exclusive),
             "SHARED" => Ok(Shared),
+            "HIGHEST_MAPPED" => Ok(HighestMapped),
 
             "TRANSACTION" => Ok(TransactionId),
             "CREATE_TIME" => Ok(CreationTime),
@@ -98,18 +106,22 @@ impl ToString for OutputField {
             MappedBlocks => "MAPPED_BLOCKS",
             ExclusiveBlocks => "EXCLUSIVE_BLOCKS",
             SharedBlocks => "SHARED_BLOCKS",
+            HighestMappedBlock => "HIGHEST_BLOCK",
 
             MappedSectors => "MAPPED_SECTORS",
             ExclusiveSectors => "EXCLUSIVE_SECTORS",
             SharedSectors => "SHARED_SECTORS",
+            HighestMappedSector => "HIGHEST_SECTOR",
 
             MappedBytes => "MAPPED_BYTES",
             ExclusiveBytes => "EXCLUSIVE_BYTES",
             SharedBytes => "SHARED_BYTES",
+            HighestMappedByte => "HIGHEST_BYTE",
 
             Mapped => "MAPPED",
             Exclusive => "EXCLUSIVE",
             Shared => "SHARED",
+            HighestMapped => "HIGHEST_MAPPED",
 
             TransactionId => "TRANSACTION",
             CreationTime => "CREATE_TIME",
@@ -154,6 +166,7 @@ impl<'a> LsTable<'a> {
         detail: &DeviceDetail,
         mapped_blocks: u64,
         shared_blocks: u64,
+        highest_mapped_block: u64,
     ) {
         use OutputField::*;
 
@@ -179,10 +192,15 @@ impl<'a> LsTable<'a> {
                 SharedBlocks => shared_blocks,
                 SharedSectors => shared_blocks * bs,
                 SharedBytes | Shared => (shared_blocks * bs) << SECTOR_SHIFT as u64,
+                HighestMappedBlock => highest_mapped_block,
+                HighestMappedSector => (highest_mapped_block + 1) * bs - 1,
+                HighestMappedByte | HighestMapped => {
+                    (((highest_mapped_block + 1) * bs) << SECTOR_SHIFT) - 1
+                }
             };
 
             let cell = match field {
-                Mapped | Exclusive | Shared => {
+                Mapped | Exclusive | Shared | HighestMapped => {
                     let (val, unit) = to_pretty_print_size(val);
                     let mut s = val.to_string();
                     s.push_str(&unit.to_string_short());
@@ -1183,11 +1201,17 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
         let actual_sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
         let mapped = count_data_mappings(&ctx, &actual_sb, sb.mapping_root, false)?;
         for ((dev_id, detail), summary) in details.iter().zip(mapped) {
-            table.push_row(*dev_id, detail, summary.nr_mappings, summary.nr_shared);
+            table.push_row(
+                *dev_id,
+                detail,
+                summary.nr_mappings,
+                summary.nr_shared,
+                summary.key_high,
+            );
         }
     } else {
         for (dev_id, detail) in details.iter() {
-            table.push_row(*dev_id, detail, 0, 0);
+            table.push_row(*dev_id, detail, 0, 0, 0);
         }
     }
 
