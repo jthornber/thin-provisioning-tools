@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::sync::Arc;
 
 use crate::io_engine::*;
@@ -100,7 +100,7 @@ impl<V: Unpack + Clone> BTreeIterator<V> {
         Ok(me)
     }
 
-    /// Access the entry the iterator is curently pointing to.
+    /// Access the entry the iterator is currently pointing to.
     pub fn get(&self) -> Option<(u64, &V)> {
         if let Some(frame) = self.stack.last() {
             match &frame.node {
