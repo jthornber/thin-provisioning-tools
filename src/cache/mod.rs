@@ -12,3 +12,6 @@ pub mod xml;
 
 #[cfg(feature = "devtools")]
 pub mod metadata_generator;
+
+#[cfg(feature = "devtools")]
+pub mod damage_generator;

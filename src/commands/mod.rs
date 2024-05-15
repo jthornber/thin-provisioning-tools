@@ -25,6 +25,8 @@ pub mod thin_trim;
 pub mod utils;
 
 #[cfg(feature = "devtools")]
+pub mod cache_generate_damage;
+#[cfg(feature = "devtools")]
 pub mod cache_generate_metadata;
 #[cfg(feature = "devtools")]
 pub mod era_generate_metadata;

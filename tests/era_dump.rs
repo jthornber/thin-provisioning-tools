@@ -119,3 +119,18 @@ fn dump_restore_cycle() -> Result<()> {
 
     Ok(())
 }
+
+//------------------------------------------
+// test no stderr on broken pipe errors
+
+#[test]
+fn no_stderr_on_broken_pipe_xml() -> Result<()> {
+    common::piping::test_no_stderr_on_broken_pipe::<EraDump>(mk_valid_md, &[])
+}
+
+#[test]
+fn no_stderr_on_broken_fifo_xml() -> Result<()> {
+    common::piping::test_no_stderr_on_broken_fifo::<EraDump>(mk_valid_md, &[])
+}
+
+//------------------------------------------
