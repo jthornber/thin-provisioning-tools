@@ -202,7 +202,7 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn get_batch_size(&self) -> usize {
-        1
+        32 // could be up to libc::UIO_MAXIOV
     }
 
     fn suggest_nr_threads(&self) -> usize {
