@@ -287,4 +287,36 @@ fn repair_metadata_with_stale_superblock() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn preserve_timestamp_of_stale_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_zeroed_md(&mut td)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    let xml = td.mk_path("meta.xml");
+
+    // the superblock has timestamp later than the device's snapshot times
+    let before = b"<superblock uuid=\"\" time=\"2\" transaction=\"3\" version=\"2\" data_block_size=\"128\" nr_data_blocks=\"16384\">
+  <device dev_id=\"1\" mapped_blocks=\"0\" transaction=\"0\" creation_time=\"0\" snap_time=\"1\">
+  </device>
+</superblock>";
+    write_file(&xml, before)?;
+    run_ok(thin_restore_cmd(args!["-i", &xml, "-o", &src]))?;
+
+    // produce stale superblock by overriding the data mapping root,
+    // then update the superblock checksum.
+    run_ok(thin_generate_damage_cmd(args![
+        "-o",
+        &src,
+        "--override",
+        "--mapping-root",
+        "10"
+    ]))?;
+
+    run_ok(thin_repair_cmd(args!["-i", &src, "-o", &dest]))?;
+    let after = run_ok_raw(thin_dump_cmd(args!["--repair", &dest]))?;
+    assert_eq!(&before[..], &after.stdout);
+
+    Ok(())
+}
+
 //-----------------------------------------

@@ -798,6 +798,15 @@ pub fn rebuild_superblock(
         .filter(|n| *n > roots.nr_data_blocks)
         .unwrap_or(roots.nr_data_blocks);
 
+    // The minimal timestamp for rebuilt superblock is the age of the
+    // data mapping tree or the details tree, which guarantees the newly
+    // inserted mappings are not shared. However, it's not harmful to set
+    // the superblock timestamp later than the ages, so choose the greater
+    // value if possible.
+    let time = ref_sb
+        .as_ref()
+        .map_or(roots.time, |sb| std::cmp::max(sb.time, roots.time));
+
     let sm_root = SMRoot {
         nr_blocks: nr_data_blocks,
         nr_allocated: 0,
@@ -810,7 +819,7 @@ pub fn rebuild_superblock(
         flags: SuperblockFlags { needs_check: false },
         block: SUPERBLOCK_LOCATION,
         version: 2,
-        time: roots.time,
+        time,
         transaction_id,
         metadata_snap: 0,
         data_sm_root,
