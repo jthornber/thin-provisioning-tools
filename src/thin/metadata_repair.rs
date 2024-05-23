@@ -28,7 +28,7 @@ pub struct SuperblockOverrides {
     pub nr_data_blocks: Option<u64>,
 }
 
-pub struct FoundRoots {
+struct FoundRoots {
     mapping_root: u64,
     details_root: u64,
     time: u32,
@@ -257,7 +257,7 @@ struct NodeCollector {
 }
 
 impl NodeCollector {
-    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> NodeCollector {
+    fn new(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> NodeCollector {
         let nr_blocks = engine.get_nr_blocks();
         NodeCollector {
             engine,
@@ -763,7 +763,7 @@ fn is_superblock_consistent_(sb: Superblock, found_roots: &[FoundRoots]) -> Resu
     Ok(sb)
 }
 
-pub fn rebuild_superblock(
+fn rebuild_superblock(
     roots: &FoundRoots,
     ref_sb: Option<Superblock>,
     opts: &SuperblockOverrides,
@@ -855,26 +855,6 @@ impl Override for Superblock {
 
         Ok(self)
     }
-}
-
-pub fn override_superblock(mut sb: Superblock, opts: &SuperblockOverrides) -> Result<Superblock> {
-    if let Some(tid) = opts.transaction_id {
-        sb.transaction_id = std::cmp::max(tid, sb.transaction_id);
-    }
-
-    if let Some(bs) = opts.data_block_size {
-        sb.data_block_size = bs;
-    }
-
-    if let Some(nr_data_blocks) = opts.nr_data_blocks {
-        let sm_root = unpack::<SMRoot>(&sb.data_sm_root).map(|mut root| {
-            root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
-            root
-        })?;
-        sb.data_sm_root = pack_root(&sm_root, SPACE_MAP_ROOT_SIZE)?;
-    }
-
-    Ok(sb)
 }
 
 pub fn read_or_rebuild_superblock(
