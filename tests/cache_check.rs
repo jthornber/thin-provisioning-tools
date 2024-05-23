@@ -11,8 +11,6 @@ use common::program::*;
 use common::target::*;
 use common::test_dir::*;
 
-use std::io::Write;
-
 //------------------------------------------
 
 const USAGE: &str = "Validates cache metadata on a device or file.
@@ -410,15 +408,15 @@ fn metadata_without_slow_dev_size_info(use_v1: bool) -> Result<()> {
     // The input metadata has a cached oblock with address equals to the default bitset size
     // boundary (DEFAULT_OBLOCKS = 16777216), triggering bitset resize.
     let xml = td.mk_path("meta.xml");
-    let mut file = std::fs::File::create(&xml)?;
-    file.write_all(b"<superblock uuid=\"\" block_size=\"128\" nr_cache_blocks=\"1024\" policy=\"smq\" hint_width=\"4\">
+    let content = b"<superblock uuid=\"\" block_size=\"128\" nr_cache_blocks=\"1024\" policy=\"smq\" hint_width=\"4\">
   <mappings>
     <mapping cache_block=\"0\" origin_block=\"16777216\" dirty=\"false\"/>
   </mappings>
   <hints>
     <hint cache_block=\"0\" data=\"AAAAAA==\"/>
   </hints>
-</superblock>")?;
+</superblock>";
+    write_file(&xml, content)?;
 
     let md = td.mk_path("meta.bin");
     thinp::file_utils::create_sized_file(&md, 4096 * 4096)?;

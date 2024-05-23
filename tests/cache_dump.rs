@@ -1,6 +1,4 @@
 use anyhow::Result;
-use std::fs::OpenOptions;
-use std::io::Write;
 
 mod common;
 
@@ -99,13 +97,7 @@ fn dump_restore_cycle() -> Result<()> {
     let output = run_ok_raw(cache_dump_cmd(args![&md]))?;
 
     let xml = td.mk_path("meta.xml");
-    let mut file = OpenOptions::new()
-        .read(false)
-        .write(true)
-        .create(true)
-        .open(&xml)?;
-    file.write_all(&output.stdout[0..])?;
-    drop(file);
+    write_file(&xml, &output.stdout)?;
 
     let md2 = mk_zeroed_md(&mut td)?;
     run_ok(cache_restore_cmd(args!["-i", &xml, "-o", &md2]))?;
