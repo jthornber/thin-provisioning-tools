@@ -74,3 +74,11 @@ where
 }
 
 //------------------------------------------
+
+pub fn write_file(p: &Path, buf: &[u8]) -> Result<()> {
+    let mut output = std::fs::File::create(p)?;
+    output.write_all(buf)?;
+    Ok(())
+}
+
+//------------------------------------------

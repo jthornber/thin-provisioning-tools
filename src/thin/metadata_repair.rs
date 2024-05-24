@@ -14,6 +14,7 @@ use crate::pdata::unpack::{unpack, Unpack};
 use crate::report::Report;
 use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
+use crate::thin::metadata::{CoreSuperblock, ThinSuperblock};
 use crate::thin::superblock::*;
 
 #[cfg(test)]
@@ -28,9 +29,20 @@ pub struct SuperblockOverrides {
     pub nr_data_blocks: Option<u64>,
 }
 
-pub struct FoundRoots {
+struct RootPair {
     mapping_root: u64,
     details_root: u64,
+}
+
+enum TreeRoots {
+    OnDisk(RootPair),
+    InCore(BTreeMap<u64, (u64, u64)>), // maps dev_id to (root, mapped_blocks)
+}
+
+struct FoundRoots {
+    // Following time and transaction_id are suggested values for superblock,
+    // given the mapping tree and details tree roots.
+    devices: TreeRoots,
     time: u32,
     transaction_id: u64,
     nr_data_blocks: u64,
@@ -257,7 +269,7 @@ struct NodeCollector {
 }
 
 impl NodeCollector {
-    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> NodeCollector {
+    fn new(engine: Arc<dyn IoEngine + Send + Sync>, report: Arc<Report>) -> NodeCollector {
         let nr_blocks = engine.get_nr_blocks();
         NodeCollector {
             engine,
@@ -517,6 +529,12 @@ impl NodeCollector {
         }
     }
 
+    fn get_ro_info(&self, b: u64) -> Result<&NodeInfo> {
+        self.infos
+            .get(&b)
+            .ok_or_else(|| anyhow!("block {} is not yet examined", b))
+    }
+
     fn get_info(&mut self, b: u64) -> Result<&NodeInfo> {
         if self.examined.contains(b as usize) {
             // TODO: use an extra 'valid' bitset for faster lookup?
@@ -649,10 +667,48 @@ fn find_root_pairs<'a>(
 
 fn to_found_roots(dev_root: &DevInfo, details_root: &DetailsInfo) -> Result<FoundRoots> {
     Ok(FoundRoots {
-        mapping_root: dev_root.b,
-        details_root: details_root._b,
+        devices: TreeRoots::OnDisk(RootPair {
+            mapping_root: dev_root.b,
+            details_root: details_root._b,
+        }),
         time: std::cmp::max(dev_root.age, details_root.age),
         transaction_id: details_root.max_tid + 1, // tid in superblock is ahead by 1
+        nr_data_blocks: dev_root.highest_mapped_data_block + 1,
+    })
+}
+
+fn to_partial_found_roots(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    dev_root: &DevInfo,
+    c: &NodeCollector,
+) -> Result<FoundRoots> {
+    let roots = btree_to_map(&mut vec![], engine, true, dev_root.b)?;
+    let devices = roots
+        .iter()
+        .map(|(dev_id, root)| {
+            if let NodeInfo::Mappings(m) = c.get_ro_info(*root)? {
+                Ok((*dev_id, (*root, m.nr_mappings)))
+            } else {
+                Err(anyhow!("not a subtree root"))
+            }
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
+
+    // We'll have to regenerate the device details for all the thins given
+    // that the details tree broke, where the transaction_id and timestamps
+    // matter:
+    // 1. To ensure data safety, we assume all the data mappings are shared,
+    //    as the number of shared or exclusive blocks in each device is unknowwn
+    //    (or we need a second pass of scanning). Consequently, we convert all
+    //    devices into shared snapshots by setting the snapshotted_time greater
+    //    than the tree ages.
+    // 2. We assume all the devices are created at transaction#0, and the
+    //    metadata is at transaction#1. This suggested value then will be
+    //    compared with that in the on-disk superblock if available.
+    Ok(FoundRoots {
+        devices: TreeRoots::InCore(devices),
+        time: dev_root.age + 1,
+        transaction_id: 1,
         nr_data_blocks: dev_root.highest_mapped_data_block + 1,
     })
 }
@@ -699,11 +755,23 @@ fn find_roots(
 
     let (mut dev_roots, details_roots) = c.gather_roots()?;
 
-    let pairs = find_root_pairs(engine, &mut dev_roots, &details_roots)?;
-    log_results(report, &dev_roots, &details_roots, &pairs);
+    let pairs = find_root_pairs(engine.clone(), &mut dev_roots, &details_roots)?;
+    log_results(report.clone(), &dev_roots, &details_roots, &pairs);
 
     if pairs.is_empty() {
-        return Err(anyhow!("no compatible roots found"));
+        if dev_roots.is_empty() {
+            return Err(anyhow!("no compatible roots found"));
+        }
+
+        report.warning(&format!(
+            "found {} mapping trees without device details",
+            dev_roots.len()
+        ));
+
+        return dev_roots
+            .iter()
+            .map(|dev| to_partial_found_roots(engine.clone(), dev, &c))
+            .collect();
     }
 
     pairs
@@ -750,10 +818,9 @@ pub fn is_superblock_consistent(
 }
 
 fn is_superblock_consistent_(sb: Superblock, found_roots: &[FoundRoots]) -> Result<Superblock> {
-    if !found_roots
-        .iter()
-        .any(|roots| sb.mapping_root == roots.mapping_root && sb.details_root == roots.details_root)
-    {
+    if !found_roots.iter().any(|roots| {
+        matches!(&roots.devices, TreeRoots::OnDisk(r) if sb.mapping_root == r.mapping_root && sb.details_root == r.details_root)
+    }) {
         return Err(anyhow::Error::new(SuperblockError {
             failed_sb: Some(sb),
         })
@@ -763,11 +830,29 @@ fn is_superblock_consistent_(sb: Superblock, found_roots: &[FoundRoots]) -> Resu
     Ok(sb)
 }
 
-pub fn rebuild_superblock(
+fn build_devices(
+    devs: &BTreeMap<u64, (u64, u64)>,
+    tid: u64,
+    time: u32,
+) -> BTreeMap<u64, (u64, DeviceDetail)> {
+    devs.iter()
+        .map(|(&dev_id, &(root, mapped_blocks))| {
+            let detail = DeviceDetail {
+                mapped_blocks,
+                transaction_id: tid,
+                creation_time: time,
+                snapshotted_time: time,
+            };
+            (dev_id, (root, detail))
+        })
+        .collect()
+}
+
+fn rebuild_superblock(
     roots: &FoundRoots,
     ref_sb: Option<Superblock>,
     opts: &SuperblockOverrides,
-) -> Result<Superblock> {
+) -> Result<ThinSuperblock> {
     // 1. Takes the user overrides
     // 2. Takes the reference if there's no user overrides
     // 3. Returns Err if none of the values above are present
@@ -798,6 +883,16 @@ pub fn rebuild_superblock(
         .filter(|n| *n > roots.nr_data_blocks)
         .unwrap_or(roots.nr_data_blocks);
 
+    // The minimal timestamp for the rebuilt superblock is the age derived
+    // from the data mapping tree or the details tree, which ensures the newly
+    // inserted mappings are not shared. However, the actual timestamp in
+    // superblock might be later than this age if there are deleted devices.
+    // Therefore, we choose the greater value to retain the actual timestamp
+    // whenever possible.
+    let time = ref_sb
+        .as_ref()
+        .map_or(roots.time, |sb| std::cmp::max(sb.time, roots.time));
+
     let sm_root = SMRoot {
         nr_blocks: nr_data_blocks,
         nr_allocated: 0,
@@ -806,20 +901,35 @@ pub fn rebuild_superblock(
     };
     let data_sm_root = pack_root(&sm_root, SPACE_MAP_ROOT_SIZE)?;
 
-    Ok(Superblock {
-        flags: SuperblockFlags { needs_check: false },
-        block: SUPERBLOCK_LOCATION,
-        version: 2,
-        time: roots.time,
-        transaction_id,
-        metadata_snap: 0,
-        data_sm_root,
-        metadata_sm_root: vec![0u8; SPACE_MAP_ROOT_SIZE],
-        mapping_root: roots.mapping_root,
-        details_root: roots.details_root,
-        data_block_size,
-        nr_metadata_blocks: 0,
-    })
+    match &roots.devices {
+        TreeRoots::OnDisk(r) => Ok(ThinSuperblock::OnDisk(Superblock {
+            flags: SuperblockFlags { needs_check: false },
+            block: SUPERBLOCK_LOCATION,
+            version: 2,
+            time,
+            transaction_id,
+            metadata_snap: 0,
+            data_sm_root,
+            metadata_sm_root: vec![0u8; SPACE_MAP_ROOT_SIZE],
+            mapping_root: r.mapping_root,
+            details_root: r.details_root,
+            data_block_size,
+            nr_metadata_blocks: 0,
+        })),
+        TreeRoots::InCore(devs) => {
+            // the maximal tid among devices should be less than that in superblock
+            let devices = build_devices(devs, transaction_id.saturating_sub(1), roots.time);
+            Ok(ThinSuperblock::InCore(CoreSuperblock {
+                devices,
+                flags: SuperblockFlags { needs_check: false },
+                version: 2,
+                time,
+                transaction_id,
+                data_block_size,
+                nr_data_blocks,
+            }))
+        }
+    }
 }
 
 pub trait Override {
@@ -848,43 +958,26 @@ impl Override for Superblock {
     }
 }
 
-pub fn override_superblock(mut sb: Superblock, opts: &SuperblockOverrides) -> Result<Superblock> {
-    if let Some(tid) = opts.transaction_id {
-        sb.transaction_id = std::cmp::max(tid, sb.transaction_id);
-    }
-
-    if let Some(bs) = opts.data_block_size {
-        sb.data_block_size = bs;
-    }
-
-    if let Some(nr_data_blocks) = opts.nr_data_blocks {
-        let sm_root = unpack::<SMRoot>(&sb.data_sm_root).map(|mut root| {
-            root.nr_blocks = std::cmp::max(nr_data_blocks, root.nr_blocks);
-            root
-        })?;
-        sb.data_sm_root = pack_root(&sm_root, SPACE_MAP_ROOT_SIZE)?;
-    }
-
-    Ok(sb)
-}
-
 pub fn read_or_rebuild_superblock(
     engine: Arc<dyn IoEngine + Send + Sync>,
     report: Arc<Report>,
     loc: u64,
     opts: &SuperblockOverrides,
-) -> Result<Superblock> {
+) -> Result<ThinSuperblock> {
     let found_roots = find_roots(engine.clone(), report)?;
 
     read_superblock(engine.as_ref(), loc)
         .and_then(|sb| is_superblock_consistent_(sb, &found_roots))
         .and_then(|sb| sb.overrides(opts))
-        .or_else(|e| {
-            let ref_sb = e
-                .downcast_ref::<SuperblockError>()
-                .and_then(|err| err.failed_sb.clone());
-            rebuild_superblock(&found_roots[0], ref_sb, opts)
-        })
+        .map_or_else(
+            |e| {
+                let ref_sb = e
+                    .downcast_ref::<SuperblockError>()
+                    .and_then(|err| err.failed_sb.clone());
+                rebuild_superblock(&found_roots[0], ref_sb, opts)
+            },
+            |sb| Ok(ThinSuperblock::OnDisk(sb)),
+        )
 }
 
 //------------------------------------------
