@@ -969,19 +969,22 @@ fn get_thins_from_metadata_snap(
     // Extract roots and details stored in non-shared leaves
     let (devs_snap, roots_snap) = get_devices_(engine, sb_snap, metadata_sm, ignore_non_fatal)?;
 
-    // Select the thins that are exclusive to metadata snapshot for further checking,
-    // i.e., those whose tuples (dev_id, root) are not present in top-level tree of
-    // superblock. Here are some notes:
+    // Select the thins that are exclusive to metadata snapshot for further device details
+    // checking. The exclusive thins are those whose tuples (dev_id, root) not present in
+    // the top-level tree of the main superblock. Here are some notes:
     //
-    // * We must use the full tuple (dev_id, root) to identify devices in the context
-    //   of metadata snapshot for these reasons:
+    // * We must use the full tuple (dev_id, root) to identify exclusive devices in the
+    //   context of metadata snapshot for these reasons:
     //   - The data mappings might have been changed after taking a metadata snasphot.
     //   - Thin id reuse: a long-lived metadata snapshot might contains deleted thins
     //     whose dev_id are now used by other new thins.
+    //   - Similarly, there might be snapshots created or deleted while the metadata
+    //     snapshot is present, resulting devices sharing the same root but with different
+    //     dev_id. The tuple (dev_id, root) helps identify these devices.
     // * The roots and details extracted by btree_to_map_with_sm() are those stored in
     //   non-shared leaves. They might not represent the same subset of thins due to
-    //   their different value sizes in btree, i.e., shadowing a top-level leaves clones
-    //   more entries than a details tree leave.
+    //   their different value sizes in btree, i.e., shadowing a top-level leaf clones
+    //   more entries than shadowing a details tree leaf.
     let roots_excl: BTreeMap<u64, u64> = roots_snap
         .iter()
         .filter(|(dev_id, root)| thins.get(*dev_id).filter(|(r, _)| *root == r).is_none())
@@ -1167,12 +1170,13 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("mapping tree");
 
+    let nr_devices = thins.len();
+    let nr_devices_snap = thins_snap.as_ref().map_or(0, |thins_snap| thins_snap.len());
     report.info(&format!(
         "number of devices to check: {}{}",
-        all_roots.len(),
-        match thins_snap {
-            Ok(ref thins_snap) if !thins_snap.is_empty() =>
-                format!(" ({} exclusive in metadata snapshot)", thins_snap.len()),
+        nr_devices + nr_devices_snap,
+        match nr_devices_snap {
+            1.. => format!(" ({} exclusive in metadata snapshot)", nr_devices_snap),
             _ => String::new(),
         }
     ));
