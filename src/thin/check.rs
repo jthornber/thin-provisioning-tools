@@ -1138,8 +1138,9 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         BTreeMap::new()
     };
 
-    // Collect thin devices reside in the metadata snapshot only
-    // (allow errors if option -m is not applied)
+    // Collect exclusive thin devices reside in the metadata snapshot only,
+    // i.e., devices reachable from the main superblock are not included.
+    // Errors are allowed if the option -m is not applied.
     let thins_snap = match sb_snap {
         Some(Ok(ref sbs)) => get_thins_from_metadata_snap(
             engine,
@@ -1166,7 +1167,15 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_sub_title("mapping tree");
 
-    report.info(&format!("number of devices to check: {}", all_roots.len()));
+    report.info(&format!(
+        "number of devices to check: {}{}",
+        all_roots.len(),
+        match thins_snap {
+            Ok(ref thins_snap) if !thins_snap.is_empty() =>
+                format!(" ({} exclusive in metadata snapshot)", thins_snap.len()),
+            _ => String::new(),
+        }
+    ));
 
     let data_sm = if opts.engine_opts.use_metadata_snap {
         create_data_sm(&sb, 1)?
