@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use rand::prelude::*;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::fs::OpenOptions;
 use std::ops::Range;
 use std::path::Path;
@@ -146,6 +146,35 @@ fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<T
     runs
 }
 
+// the runs should be sorted by thin_id
+fn count_mapped_blocks(runs: &[MappedRun]) -> Result<BTreeMap<u32, (u64, Range<usize>)>> {
+    if runs.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+
+    let mut results = BTreeMap::new();
+    let mut id = runs[0].thin_id;
+    let mut len = runs[0].len;
+    let mut range = Range::<usize> { start: 0, end: 1 };
+
+    for m in runs.iter().skip(1) {
+        if m.thin_id != id {
+            results.insert(id, (len, range.clone()));
+            id = m.thin_id;
+            len = m.len;
+            range.start = range.end;
+            range.end += 1;
+            continue;
+        }
+
+        len += m.len;
+        range.end += 1;
+    }
+
+    results.insert(id, (len, range));
+    Ok(results)
+}
+
 impl XmlGen for FragmentedS {
     fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         // Allocate each thin fully, in runs between 1 and 16.
@@ -186,21 +215,23 @@ impl XmlGen for FragmentedS {
             o => o,
         });
 
+        let stats = count_mapped_blocks(&dropped)?;
+
         // write the xml
         v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
         for thin in 0..self.nr_thins {
+            let (mapped_blocks, range) = stats.get(&thin).cloned().unwrap_or((0, Range::default()));
+
             v.device_b(&ir::Device {
                 dev_id: thin,
-                mapped_blocks: self.thin_size,
+                mapped_blocks,
                 transaction: 0,
                 creation_time: 0,
                 snap_time: 0,
             })?;
 
-            for m in &dropped {
-                if m.thin_id != thin {
-                    continue;
-                }
+            for m in &dropped[range.start..range.end] {
+                assert!(m.thin_id == thin);
 
                 v.map(&ir::Map {
                     thin_begin: m.thin_begin,
