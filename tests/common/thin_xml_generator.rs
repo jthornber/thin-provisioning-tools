@@ -25,10 +25,10 @@ pub fn write_xml(path: &Path, g: &mut dyn XmlGen) -> Result<()> {
     g.generate_xml(&mut w)
 }
 
-fn common_sb(nr_blocks: u64) -> ir::Superblock {
+fn common_sb(nr_blocks: u64, time: u32) -> ir::Superblock {
     ir::Superblock {
         uuid: "".to_string(),
-        time: 0,
+        time,
         transaction: 1,
         flags: None,
         version: None,
@@ -44,7 +44,7 @@ pub struct EmptyPoolS {}
 
 impl XmlGen for EmptyPoolS {
     fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
-        v.superblock_b(&common_sb(1024))?;
+        v.superblock_b(&common_sb(1024, 0))?;
         v.superblock_e()?;
         Ok(())
     }
@@ -72,7 +72,7 @@ impl SingleThinS {
 
 impl XmlGen for SingleThinS {
     fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
-        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        v.superblock_b(&common_sb(self.old_nr_data_blocks, 0))?;
         v.device_b(&ir::Device {
             dev_id: 0,
             mapped_blocks: self.len,
@@ -218,7 +218,7 @@ impl XmlGen for FragmentedS {
         let stats = count_mapped_blocks(&dropped)?;
 
         // write the xml
-        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        v.superblock_b(&common_sb(self.old_nr_data_blocks, 0))?;
         for thin in 0..self.nr_thins {
             let (mapped_blocks, range) = stats.get(&thin).cloned().unwrap_or((0, Range::default()));
 
@@ -309,21 +309,31 @@ impl Allocator {
 
 // Having explicitly unmapped regions makes it easier to
 // apply snapshots.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Run {
-    Mapped { data_begin: u64, len: u64 },
-    UnMapped { len: u64 },
+    Mapped {
+        data_begin: u64,
+        time: u32,
+        len: u64,
+    },
+    UnMapped {
+        len: u64,
+    },
 }
 
 impl Run {
     #[allow(dead_code)]
     fn len(&self) -> u64 {
         match self {
-            Run::Mapped {
-                data_begin: _data_begin,
-                len,
-            } => *len,
+            Run::Mapped { len, .. } => *len,
             Run::UnMapped { len } => *len,
+        }
+    }
+
+    fn mapped_len(&self) -> u64 {
+        match self {
+            Run::Mapped { len, .. } => *len,
+            Run::UnMapped { .. } => 0,
         }
     }
 
@@ -334,13 +344,19 @@ impl Run {
             (Some(self.clone()), None)
         } else {
             match self {
-                Run::Mapped { data_begin, len } => (
+                Run::Mapped {
+                    data_begin,
+                    time,
+                    len,
+                } => (
                     Some(Run::Mapped {
                         data_begin: *data_begin,
+                        time: *time,
                         len: n,
                     }),
                     Some(Run::Mapped {
                         data_begin: data_begin + n,
+                        time: *time,
                         len: len - n,
                     }),
                 ),
@@ -357,27 +373,34 @@ impl Run {
 struct ThinDev {
     thin_id: u32,
     dev_size: u64,
+    mapped_blocks: u64,
     runs: Vec<Run>,
+    creation_time: u32,
+    snap_time: u32,
 }
 
 impl ThinDev {
     fn emit(&self, v: &mut dyn MetadataVisitor) -> Result<()> {
         v.device_b(&ir::Device {
             dev_id: self.thin_id,
-            mapped_blocks: self.dev_size,
+            mapped_blocks: self.mapped_blocks,
             transaction: 0,
-            creation_time: 0,
-            snap_time: 0,
+            creation_time: self.creation_time,
+            snap_time: self.snap_time,
         })?;
 
         let mut b = 0;
         for r in &self.runs {
             match r {
-                Run::Mapped { data_begin, len } => {
+                Run::Mapped {
+                    data_begin,
+                    time,
+                    len,
+                } => {
                     v.map(&ir::Map {
                         thin_begin: b,
                         data_begin: *data_begin,
-                        time: 0,
+                        time: *time,
                         len: *len,
                     })?;
                     b += len;
@@ -393,38 +416,48 @@ impl ThinDev {
     }
 }
 
-#[derive(Clone)]
+// Denotes the type of io operation to a specific range of blocks.
+// The operation could be noop (unchanged), overwrite, or discard.
+#[derive(Clone, Debug)]
 enum SnapRunType {
     Same,
     Diff,
     Hole,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SnapRun(SnapRunType, u64);
 
-fn mk_origin(thin_id: u32, total_len: u64, allocator: &mut Allocator) -> Result<ThinDev> {
+fn mk_origin(
+    thin_id: u32,
+    total_len: u64,
+    percent_mapped: usize,
+    allocator: &mut Allocator,
+    creation_time: u32,
+    snap_time: u32,
+) -> Result<ThinDev> {
     let mut runs = Vec::new();
+    let mut total_mapped = 0;
     let mut b = 0;
+
     while b < total_len {
         let len = u64::min(thread_rng().gen_range(16..64), total_len - b);
-        match thread_rng().gen_range(0..2) {
-            0 => {
-                for data in allocator.alloc(len)? {
-                    assert!(data.end >= data.start);
-                    runs.push(Run::Mapped {
-                        data_begin: data.start,
-                        len: data.end - data.start,
-                    });
-                }
+
+        let n = thread_rng().gen_range(0..100);
+
+        if n < percent_mapped {
+            for data in allocator.alloc(len)? {
+                assert!(data.end >= data.start);
+                runs.push(Run::Mapped {
+                    data_begin: data.start,
+                    time: creation_time,
+                    len: data.end - data.start,
+                });
             }
-            1 => {
-                runs.push(Run::UnMapped { len });
-            }
-            _ => {
-                return Err(anyhow!("bad value returned from rng"));
-            }
-        };
+            total_mapped += len;
+        } else {
+            runs.push(Run::UnMapped { len });
+        }
 
         b += len;
     }
@@ -432,7 +465,10 @@ fn mk_origin(thin_id: u32, total_len: u64, allocator: &mut Allocator) -> Result<
     Ok(ThinDev {
         thin_id,
         dev_size: total_len,
+        mapped_blocks: total_mapped,
         runs,
+        creation_time,
+        snap_time,
     })
 }
 
@@ -467,6 +503,31 @@ fn mk_snap_mapping(
     runs
 }
 
+fn mk_snapshot(
+    thin_id: u32,
+    origin: &ThinDev,
+    percent_change: usize,
+    allocator: &mut Allocator,
+    creation_time: u32,
+    snap_time: u32,
+) -> Result<ThinDev> {
+    // among the changed mappings, half are overwritten, and the other half are discarded
+    let same_percent = 100 - percent_change;
+    let diff_percent = same_percent + percent_change / 2;
+
+    let snap_runs = mk_snap_mapping(origin.dev_size, 16..64, same_percent, diff_percent);
+    let (runs, total_mapped) = apply_snap_runs(&origin.runs, &snap_runs, allocator, creation_time)?;
+
+    Ok(ThinDev {
+        thin_id,
+        dev_size: origin.dev_size,
+        mapped_blocks: total_mapped,
+        runs,
+        creation_time,
+        snap_time,
+    })
+}
+
 fn split_runs(mut n: u64, runs: &[Run]) -> (Vec<Run>, Vec<Run>) {
     let mut before = Vec::new();
     let mut after = Vec::new();
@@ -485,7 +546,7 @@ fn split_runs(mut n: u64, runs: &[Run]) -> (Vec<Run>, Vec<Run>) {
             }
             (None, None) => {}
         }
-        n -= r.len();
+        n = n.saturating_sub(r.len());
     }
 
     (before, after)
@@ -495,15 +556,18 @@ fn apply_snap_runs(
     origin: &[Run],
     snap: &[SnapRun],
     allocator: &mut Allocator,
-) -> Result<Vec<Run>> {
+    creation_time: u32,
+) -> Result<(Vec<Run>, u64)> {
     let mut origin = origin.to_owned();
     let mut runs = Vec::new();
+    let mut total_mapped = 0;
 
     for SnapRun(st, slen) in snap {
         let (os, rest) = split_runs(*slen, &origin);
         match st {
             SnapRunType::Same => {
                 for o in os {
+                    total_mapped += o.mapped_len();
                     runs.push(o);
                 }
             }
@@ -511,9 +575,11 @@ fn apply_snap_runs(
                 for data in allocator.alloc(*slen)? {
                     runs.push(Run::Mapped {
                         data_begin: data.start,
+                        time: creation_time,
                         len: data.end - data.start,
                     });
                 }
+                total_mapped += *slen;
             }
             SnapRunType::Hole => {
                 runs.push(Run::UnMapped { len: *slen });
@@ -523,7 +589,7 @@ fn apply_snap_runs(
         origin = rest;
     }
 
-    Ok(runs)
+    Ok((runs, total_mapped))
 }
 
 // Snapshots share mappings, not necessarily the entire ranges.
@@ -556,10 +622,33 @@ impl SnapS {
 impl XmlGen for SnapS {
     fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
         let mut allocator = Allocator::new_shuffled(self.old_nr_data_blocks, 64..512);
-        let origin = mk_origin(0, self.len, &mut allocator)?;
+        let mut creation_time = 0;
+        let mut snap_time = if self.nr_snaps > 1 { 1 } else { 0 };
+        let mut origin = mk_origin(0, self.len, 50, &mut allocator, creation_time, snap_time)?;
 
-        v.superblock_b(&common_sb(self.old_nr_data_blocks))?;
+        let time = self.nr_snaps - 1; // timestamp increases by 1 as a snapshot is created
+        v.superblock_b(&common_sb(self.old_nr_data_blocks, time))?;
         origin.emit(v)?;
+
+        // create snapshots recursively,
+        // i.e., a new snapshot is derived from the latest created one.
+        for thin in 1..self.nr_snaps {
+            creation_time += 1;
+            if thin != self.nr_snaps - 1 {
+                snap_time += 1
+            }
+            let snap = mk_snapshot(
+                thin,
+                &origin,
+                self.percent_change,
+                &mut allocator,
+                creation_time,
+                snap_time,
+            )?;
+            snap.emit(v)?;
+            origin = snap;
+        }
+
         v.superblock_e()?;
 
         Ok(())
