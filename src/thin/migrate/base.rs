@@ -79,11 +79,7 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     let metadata_path = scanner.dev_to_path(&metadata_dev)?.unwrap();
     let metadata_engine = mk_engine(metadata_path)?;
 
-    let stream = Box::new(ThinStream::new(
-        &metadata_engine,
-        thin_table.thin_id,
-        &thin,
-    )?);
+    let stream = Box::new(ThinStream::new(&metadata_engine, thin_table.thin_id)?);
 
     Ok(Source {
         file: thin,
