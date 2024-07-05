@@ -201,8 +201,7 @@ impl DmScanner {
             .find(|&(_, (found_major, found_minor))| {
                 found_major == dev.major && found_minor == dev.minor
             })
-            .map(|(device, _)| device.devnode().map(PathBuf::from))
-            .flatten();
+            .and_then(|(device, _)| device.devnode().map(PathBuf::from));
 
         Ok(device_path)
     }

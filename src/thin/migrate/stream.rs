@@ -64,10 +64,7 @@ pub struct ThinStream {
 }
 
 impl ThinStream {
-    pub fn new(
-        metadata_engine: &Arc<dyn IoEngine + Sync + Send>,
-        thin_id: u32,
-    ) -> Result<Self> {
+    pub fn new(metadata_engine: &Arc<dyn IoEngine + Sync + Send>, thin_id: u32) -> Result<Self> {
         let iter = ThinIterator::new(metadata_engine, thin_id)?;
         Ok(Self {
             iter,

@@ -2,7 +2,7 @@ extern crate clap;
 
 use anyhow::{anyhow, Result};
 use clap::{value_parser, Arg, ArgAction, ArgMatches};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::commands::engine::*;
 use crate::commands::utils::*;

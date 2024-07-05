@@ -88,7 +88,11 @@ fn read_mappings(
     Ok(new_mappings)
 }
 
-pub fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Result<DeltaInfo> {
+pub fn read_delta_info(
+    engine: &ArcEngine,
+    old_thin_id: u32,
+    new_thin_id: u32,
+) -> Result<DeltaInfo> {
     // Read metadata superblock
     let sb = read_superblock_snap(engine.as_ref())?;
     let details = read_device_detail(engine, sb.details_root, new_thin_id)?;
