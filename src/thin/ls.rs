@@ -97,11 +97,11 @@ impl FromStr for OutputField {
     }
 }
 
-impl ToString for OutputField {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OutputField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use OutputField::*;
 
-        String::from(match self {
+        let text = match self {
             DeviceId => "DEV",
             MappedBlocks => "MAPPED_BLOCKS",
             ExclusiveBlocks => "EXCLUSIVE_BLOCKS",
@@ -126,7 +126,9 @@ impl ToString for OutputField {
             TransactionId => "TRANSACTION",
             CreationTime => "CREATE_TIME",
             SnapshottedTime => "SNAP_TIME",
-        })
+        };
+
+        write!(f, "{}", text)
     }
 }
 

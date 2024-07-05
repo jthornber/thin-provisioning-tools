@@ -202,8 +202,12 @@ impl CopierTest {
 
         let dst = self.dst.try_clone()?;
         let mut verifier = CopyVerifier::new(dst, self.block_size, self.seed, indicator);
-        verifier.faulty_src_blocks = self.faulty_src_blocks.clone();
-        verifier.faulty_dst_blocks = self.faulty_dst_blocks.clone();
+        verifier
+            .faulty_src_blocks
+            .clone_from(&self.faulty_src_blocks);
+        verifier
+            .faulty_dst_blocks
+            .clone_from(&self.faulty_dst_blocks);
         visit_blocks(self.nr_dst_blocks, &mut verifier)
     }
 

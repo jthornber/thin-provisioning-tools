@@ -2,7 +2,6 @@
 extern crate quickcheck;
 #[cfg(test)]
 #[macro_use(quickcheck)]
-#[cfg(test)]
 extern crate quickcheck_macros;
 
 pub mod cache;
