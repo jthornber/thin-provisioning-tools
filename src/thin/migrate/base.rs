@@ -82,7 +82,6 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     let stream = Box::new(ThinStream::new(
         &metadata_engine,
         thin_table.thin_id,
-        &thin,
     )?);
 
     Ok(Source {

@@ -1,13 +1,9 @@
 use anyhow::{anyhow, Result};
-use devicemapper::*;
 use roaring::bitmap::RoaringBitmap;
 use std::collections::*;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use crate::io_engine::*;
-use crate::pdata::btree;
-use crate::pdata::btree::*;
 use crate::pdata::btree_iterator::*;
 use crate::pdata::btree_lookup::*;
 use crate::pdata::btree_walker::*;
@@ -17,57 +13,6 @@ use crate::thin::device_detail::*;
 use crate::thin::superblock::*;
 
 //---------------------------------
-
-/// A NodeVisitor that collects the virtual blocks that have been
-/// mapped.  The results are collected in a RoaringBitmap so we can
-/// handle sparsely provisioned volumes nicely.
-#[derive(Default)]
-struct MappingCollector {
-    provisioned: Mutex<RoaringBitmap>,
-}
-
-impl MappingCollector {
-    fn provisioned(self) -> RoaringBitmap {
-        self.provisioned.into_inner().unwrap()
-    }
-}
-
-impl NodeVisitor<BlockTime> for MappingCollector {
-    fn visit(
-        &self,
-        _path: &[u64],
-        _kr: &KeyRange,
-        _header: &NodeHeader,
-        keys: &[u64],
-        _values: &[BlockTime],
-    ) -> btree::Result<()> {
-        let mut bits = self.provisioned.lock().unwrap();
-        for k in keys {
-            assert!(*k <= u32::MAX as u64);
-            bits.insert(*k as u32);
-        }
-        Ok(())
-    }
-
-    fn visit_again(&self, _path: &[u64], _b: u64) -> btree::Result<()> {
-        Ok(())
-    }
-
-    fn end_walk(&self) -> btree::Result<()> {
-        Ok(())
-    }
-}
-
-//---------------------------------
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct ThinInfo {
-    pub thin_id: u32,
-    pub data_block_size: u32,
-    pub details: DeviceDetail,
-    pub provisioned_blocks: RoaringBitmap,
-}
 
 type ArcEngine = Arc<dyn IoEngine + Send + Sync>;
 
@@ -96,37 +41,6 @@ fn read_mapping_root(
     read_by_thin_id(engine, mappings_top_level_root, thin_id)
 }
 
-fn read_provisioned_blocks(
-    engine: &ArcEngine,
-    mapping_top_level_root: u64,
-    thin_id: u32,
-) -> Result<RoaringBitmap> {
-    let mapping_root = read_mapping_root(engine, mapping_top_level_root, thin_id)?;
-
-    // walk mapping tree
-    let ignore_non_fatal = true;
-    let walker = BTreeWalker::new(engine.clone(), ignore_non_fatal);
-    let collector = MappingCollector::default();
-
-    let mut path = vec![];
-    walker.walk(&mut path, &collector, mapping_root)?;
-    Ok(collector.provisioned())
-}
-
-fn read_info(engine: &ArcEngine, thin_id: u32) -> Result<ThinInfo> {
-    let sb = read_superblock_snap(engine.as_ref())?;
-    let details = read_device_detail(engine, sb.details_root, thin_id)?;
-    let provisioned_blocks = read_provisioned_blocks(engine, sb.mapping_root, thin_id)?;
-
-    Ok(ThinInfo {
-        thin_id,
-        data_block_size: sb.data_block_size,
-        details,
-        provisioned_blocks,
-    })
-}
-
-// FIXME: replacement for ThinInfo
 pub struct ThinIterator {
     pub thin_id: u32,
     pub data_block_size: u64,
@@ -136,7 +50,7 @@ pub struct ThinIterator {
 impl ThinIterator {
     pub fn new(engine: &ArcEngine, thin_id: u32) -> Result<Self> {
         let sb = read_superblock_snap(engine.as_ref())?;
-        let details = read_device_detail(engine, sb.details_root, thin_id)?;
+        let _details = read_device_detail(engine, sb.details_root, thin_id)?;
         let mapping_root = read_mapping_root(engine, sb.mapping_root, thin_id)?;
         let mappings = BTreeIterator::new(engine.clone(), mapping_root)?;
 
@@ -174,14 +88,14 @@ fn read_mappings(
     Ok(new_mappings)
 }
 
-fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Result<DeltaInfo> {
+pub fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Result<DeltaInfo> {
     // Read metadata superblock
     let sb = read_superblock_snap(engine.as_ref())?;
     let details = read_device_detail(engine, sb.details_root, new_thin_id)?;
 
     // FIXME: this uses a lot of memory
-    let old_mappings = read_mappings(&engine, sb.mapping_root, old_thin_id)?;
-    let new_mappings = read_mappings(&engine, sb.mapping_root, new_thin_id)?;
+    let old_mappings = read_mappings(engine, sb.mapping_root, old_thin_id)?;
+    let new_mappings = read_mappings(engine, sb.mapping_root, new_thin_id)?;
 
     let mut additions = RoaringBitmap::default();
     let mut removals = RoaringBitmap::default();
@@ -199,7 +113,7 @@ fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Re
     }
 
     for k in new_mappings.keys() {
-        if old_mappings.get(k).is_none() {
+        if !old_mappings.contains_key(k) {
             additions.insert(*k as u32);
         }
     }
@@ -211,30 +125,6 @@ fn read_delta_info(engine: &ArcEngine, old_thin_id: u32, new_thin_id: u32) -> Re
         additions,
         removals,
     })
-}
-
-//---------------------------------
-
-fn get_table(dm: &mut DM, dev: &DevId, expected_target_type: &str) -> Result<String> {
-    let (_info, table) = dm.table_status(
-        dev,
-        DmOptions::default().set_flags(DmFlags::DM_STATUS_TABLE),
-    )?;
-    if table.len() != 1 {
-        return Err(anyhow!(
-            "thin table has too many rows (is it really a thin/pool device?)"
-        ));
-    }
-
-    let (_offset, _len, target_type, args) = &table[0];
-    if target_type != expected_target_type {
-        return Err(anyhow!(format!(
-            "dm expected table type {}, dm actual table type {}",
-            expected_target_type, target_type
-        )));
-    }
-
-    Ok(args.to_string())
 }
 
 //---------------------------------

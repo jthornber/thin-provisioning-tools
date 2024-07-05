@@ -61,21 +61,17 @@ impl Stream for DevStream {
 pub struct ThinStream {
     iter: ThinIterator,
     current_block: u64,
-    nr_blocks: u64,
 }
 
 impl ThinStream {
     pub fn new(
         metadata_engine: &Arc<dyn IoEngine + Sync + Send>,
         thin_id: u32,
-        thin: &File,
     ) -> Result<Self> {
         let iter = ThinIterator::new(metadata_engine, thin_id)?;
-        let nr_blocks = thin.metadata()?.size() / iter.data_block_size as u64;
         Ok(Self {
             iter,
             current_block: 0,
-            nr_blocks,
         })
     }
 
