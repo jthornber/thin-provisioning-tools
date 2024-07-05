@@ -79,12 +79,9 @@ impl Gatherer {
             self.mark_head(b);
         }
 
-        if self.entries.get(&b).is_none() {
-            let e = Entry {
-                neighbours: BTreeSet::new(),
-            };
-            self.entries.insert(b, e);
-        }
+        self.entries.entry(b).or_insert_with(|| Entry {
+            neighbours: BTreeSet::new(),
+        });
 
         self.prev = Some(b);
     }

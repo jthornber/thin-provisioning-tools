@@ -66,10 +66,10 @@ fn pack_delta<W: Write>(w: &mut W, d: &Delta) -> io::Result<()> {
 
     match d {
         Delta::Base { n } => {
-            if *n <= std::u8::MAX as u64 {
+            if *n <= u8::MAX as u64 {
                 pack_tag(w, Set, 1)?;
                 w.write_u8(*n as u8)
-            } else if *n <= std::u16::MAX as u64 {
+            } else if *n <= u16::MAX as u64 {
                 pack_tag(w, Set, 2)?;
                 w.write_u16::<LittleEndian>(*n as u16)
             } else if *n <= u32::MAX as u64 {
