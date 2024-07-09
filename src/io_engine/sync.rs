@@ -8,6 +8,9 @@ use crate::io_engine::gaps::*;
 use crate::io_engine::utils::*;
 use crate::io_engine::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub struct SyncIoEngine {
