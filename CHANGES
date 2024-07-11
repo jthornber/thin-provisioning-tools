@@ -1,3 +1,95 @@
+v1.0.13
+=======
+
+- Extend cache_check --clear-needs-check-flag to fix leaked blocks
+- Suppress error messages from cache/era_dump on broken pipe error
+- Add BTreeIterator
+- Support listing the highest mapped block in thin_ls
+- Support repairing device details tree from thin_repair
+- Support vectored write in SyncIoEngine
+- Fix missing version option in thin_explore
+- Fix subcommand parsing in dev-tools
+
+v1.0.12
+=======
+
+- Update license to SPDX identifier
+- Suppress error messages from thin_dump on broken pipe error
+- Fix version string compatibility issue with LVM
+
+v1.0.11
+=======
+
+- Fix bitset index out-of-bounds error in cache_check
+- Improve the hint messages from thin/cache_check for error resolution
+
+v1.0.10
+=======
+
+- Support long options in thin_metadata_pack/unpack
+- Make the space map formatting backward compatible to kernel's expansion behavior
+- Support overriding the details tree root in thin_check
+- Enhance thin_repair to detect a corner case involving incompatible child nodes
+- Improve compatibility of thin_check against unexpect bytes in the index block
+
+v1.0.9
+======
+
+- Extend thin_check --clear-needs-check-flag to fix leaked blocks
+
+v1.0.8
+======
+
+- Stop reusing the same gap buffer in SyncIoEngine
+
+v1.0.7
+======
+
+- Fix ioctl request code for PowerPC architecture
+- Fix era_invalidate command parsing
+
+v1.0.6
+======
+
+- Fix thin_delta command line parsing
+- Fix range mappings preprocessing in thin_delta
+
+v1.0.5
+======
+
+- Fix thin_dump output that doesn't keep shared mappings
+- Fix build error on Musl
+- Allow overriding PDATA_TOOLS in Makefile
+- Ensure thin_dump/repair never fail with repairable metadata
+- Use flatten output in stderr if it is not a tty
+- thin_dump/repair now prefers non-empty roots while searching for roots
+- Check the input values for thin_rmap
+- Update dependencies: clap v4.4 and quick-xml v0.29
+- Improve xml value parsing and error handling
+- Fix value wrapping issue in thin_metadata_pack/unpack
+
+v1.0.4
+======
+
+- Fix incorrect crc32c outputs on big endian targets
+= Fix compilation errors on 32-bit platforms
+
+v1.0.3
+======
+
+- Fix thin/cache_repair command line compatibility issue with lvconvert
+
+v1.0.2
+======
+
+- Fix reading metadata snapshot in thin_ls
+- Fix opening live metadata in era_invalidate
+
+v1.0.1
+======
+
+- Fix checking metadata snapshot in thin_check
+
 v1.0
 ====
 

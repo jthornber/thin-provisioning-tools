@@ -243,7 +243,7 @@ where
     let input = BufReader::new(input);
     let mut reader = Reader::from_reader(input);
 
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
     let mut buf = Vec::new();
 
     while let Visit::Continue = handle_event(&mut reader, &mut buf, visitor)? {}

@@ -36,40 +36,11 @@ fn verify(buf: &[u8], blocknr: u64) {
     assert_eq!(checksum::metadata_block_type(buf), checksum::BT::NODE);
 }
 
-fn generate_runs(blocks: &[Block]) -> Vec<(u64, usize)> {
-    if blocks.is_empty() {
-        return Vec::new();
-    }
-
-    let mut begin = blocks[0].loc;
-    let mut len = 1usize;
-
-    if blocks.len() == 1 {
-        return vec![(begin, len)];
-    }
-
-    let mut runs = Vec::new();
-
-    for b in &blocks[1..] {
-        if b.loc == begin + len as u64 && len < libc::UIO_MAXIOV as usize {
-            len += 1;
-        } else {
-            runs.push((begin, len));
-            begin = b.loc;
-            len = 1;
-        }
-    }
-
-    runs.push((begin, len));
-
-    runs
-}
-
 // Test the write_many_() helper sends iovec properly
 fn test_write_many(blocks: &[Block]) -> io::Result<()> {
     let mut v = MockVio::new();
 
-    let runs = generate_runs(blocks);
+    let runs = find_runs_nogap(blocks, libc::UIO_MAXIOV as usize);
     let batch = std::sync::atomic::AtomicUsize::default();
     let blocks_issued = std::sync::atomic::AtomicUsize::default();
     let data: Vec<&mut [u8]> = blocks.iter().map(|b| b.get_data()).collect();
