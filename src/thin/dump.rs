@@ -315,25 +315,43 @@ fn emit_entries(
     Ok(())
 }
 
+fn to_superblock_ir(sb: &ThinSuperblock) -> Result<ir::Superblock> {
+    match sb {
+        ThinSuperblock::OnDisk(sb) => {
+            let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+            Ok(ir::Superblock {
+                uuid: "".to_string(),
+                time: sb.time,
+                transaction: sb.transaction_id,
+                flags: if sb.flags.needs_check { Some(1) } else { None },
+                version: Some(sb.version),
+                data_block_size: sb.data_block_size,
+                nr_data_blocks: data_root.nr_blocks,
+                metadata_snap: None,
+            })
+        }
+        ThinSuperblock::InCore(sb) => Ok(ir::Superblock {
+            uuid: "".to_string(),
+            time: sb.time,
+            transaction: sb.transaction_id,
+            flags: if sb.flags.needs_check { Some(1) } else { None },
+            version: Some(sb.version),
+            data_block_size: sb.data_block_size,
+            nr_data_blocks: sb.nr_data_blocks,
+            metadata_snap: None,
+        }),
+    }
+}
+
 pub fn dump_metadata(
     engine: Arc<dyn IoEngine>,
     out: &mut dyn MetadataVisitor,
-    sb: &Superblock,
+    sb: &ThinSuperblock,
     md: &Metadata,
 ) -> Result<()> {
     let out: &mut dyn MetadataVisitor = &mut OutputVisitor::new(out);
 
-    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let out_sb = ir::Superblock {
-        uuid: "".to_string(),
-        time: sb.time,
-        transaction: sb.transaction_id,
-        flags: if sb.flags.needs_check { Some(1) } else { None },
-        version: Some(sb.version),
-        data_block_size: sb.data_block_size,
-        nr_data_blocks: data_root.nr_blocks,
-        metadata_snap: None,
-    };
+    let out_sb = to_superblock_ir(sb)?;
     out.superblock_b(&out_sb)?;
 
     for d in &md.defs {
@@ -372,10 +390,12 @@ pub fn dump_with_formatter(opts: ThinDumpOptions, out: &mut dyn MetadataVisitor)
             &opts.overrides,
         )?
     } else if opts.engine_opts.use_metadata_snap {
-        read_superblock_snap(ctx.engine.as_ref())?
+        ThinSuperblock::OnDisk(read_superblock_snap(ctx.engine.as_ref())?)
     } else {
-        read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)
-            .and_then(|sb| sb.overrides(&opts.overrides))?
+        ThinSuperblock::OnDisk(
+            read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)
+                .and_then(|sb| sb.overrides(&opts.overrides))?,
+        )
     };
 
     let md = if opts.skip_mappings {

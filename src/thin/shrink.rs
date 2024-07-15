@@ -274,7 +274,12 @@ fn build_remaps_from_metadata(
     nr_blocks: u64,
 ) -> Result<Vec<(BlockRange, u64)>> {
     let mut collector = MappingCollector::new(nr_blocks);
-    dump_metadata(engine, &mut collector, sb, md)?;
+    dump_metadata(
+        engine,
+        &mut collector,
+        &ThinSuperblock::OnDisk(sb.clone()),
+        md,
+    )?;
     collector.get_remaps()
 }
 
@@ -324,7 +329,7 @@ fn rewrite_xml(opts: ThinShrinkOptions) -> Result<()> {
 fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
     let input = Arc::new(SyncIoEngine::new(&opts.input, false)?);
     let sb = read_superblock(input.as_ref(), SUPERBLOCK_LOCATION)?;
-    let md = build_metadata(input.clone(), &sb)?;
+    let md = build_metadata(input.clone(), &ThinSuperblock::OnDisk(sb.clone()))?;
     let md = optimise_metadata(md)?;
 
     // 1st pass
@@ -342,7 +347,12 @@ fn rebuild_metadata(opts: ThinShrinkOptions) -> Result<()> {
     let mut w = WriteBatcher::new(output.clone(), sm, output.get_batch_size());
     let mut restorer = Restorer::new(&mut w, opts.report);
     let mut remapper = DataRemapper::new(&mut restorer, opts.nr_blocks, remaps);
-    dump_metadata(input, &mut remapper, &sb, &md)
+    dump_metadata(
+        input,
+        &mut remapper,
+        &ThinSuperblock::OnDisk(sb.clone()),
+        &md,
+    )
 }
 
 pub fn shrink(opts: ThinShrinkOptions) -> Result<()> {

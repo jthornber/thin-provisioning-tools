@@ -30,6 +30,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] thin_delta: Multi-threaded get_mappings()
 - [ ] cache_check: Multi-threaded checking
 - [x] io_engine: Remove locks from SyncIoEngine
+- [ ] space map: Improve efficiency in building and writing bitmap blocks, e.g., avoid querying unused entries.
 
 ## Low or Enhancements
 
@@ -55,6 +56,9 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] thin_check: improve error reporting on ref count tree checking (the "overflow" trees).
       Currently it dumps the BTreeError directly.
 - [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concret File
+- [ ] thin_dump: skip empty defs
+- [ ] thin_dump: Support --dev-id in ranges
+- [ ] thin_ls: Sort the outputs by specific fields
 
 ## RFEs
 

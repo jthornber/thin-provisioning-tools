@@ -129,6 +129,13 @@ pub fn generate_metadata_leaks(
     Ok(())
 }
 
+pub fn get_superblock(md: &Path) -> Result<thinp::thin::superblock::Superblock> {
+    use thinp::thin::superblock::*;
+
+    let engine = SyncIoEngine::new(md, false)?;
+    read_superblock(&engine, SUPERBLOCK_LOCATION)
+}
+
 pub fn get_needs_check(md: &Path) -> Result<bool> {
     use thinp::thin::superblock::*;
 

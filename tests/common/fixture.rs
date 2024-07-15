@@ -32,8 +32,8 @@ pub fn damage_superblock(path: &Path) -> Result<()> {
 
 //------------------------------------------
 
-pub fn md5(md: &Path) -> Result<String> {
-    let output = duct::cmd!("md5sum", "-b", &md).stdout_capture().run()?;
+pub fn sha256sum(md: &Path) -> Result<String> {
+    let output = duct::cmd!("sha256sum", "-b", &md).stdout_capture().run()?;
     let csum = std::str::from_utf8(&output.stdout[0..])?.to_string();
     let csum = csum.split_ascii_whitespace().next().unwrap().to_string();
     Ok(csum)
@@ -45,9 +45,9 @@ pub fn ensure_untouched<F>(p: &Path, thunk: F) -> Result<()>
 where
     F: Fn() -> Result<()>,
 {
-    let csum = md5(p)?;
+    let csum = sha256sum(p)?;
     thunk()?;
-    assert_eq!(csum, md5(p)?);
+    assert_eq!(csum, sha256sum(p)?);
     Ok(())
 }
 
@@ -70,6 +70,14 @@ where
 {
     thunk()?;
     assert!(superblock_all_zeroes(p)?);
+    Ok(())
+}
+
+//------------------------------------------
+
+pub fn write_file(p: &Path, buf: &[u8]) -> Result<()> {
+    let mut output = std::fs::File::create(p)?;
+    output.write_all(buf)?;
     Ok(())
 }
 

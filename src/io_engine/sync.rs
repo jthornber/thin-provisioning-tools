@@ -8,6 +8,9 @@ use crate::io_engine::gaps::*;
 use crate::io_engine::utils::*;
 use crate::io_engine::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub struct SyncIoEngine {
@@ -45,7 +48,14 @@ impl SyncIoEngine {
         Err(io::Error::new(io::ErrorKind::Other, "read failed"))
     }
 
-    fn read_many_(input: &File, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
+    fn bad_write() -> io::Error {
+        io::Error::new(io::ErrorKind::Other, "write failed")
+    }
+
+    fn read_many_<T: VectoredIo>(
+        vio: VectoredBlockIo<T>,
+        blocks: &[u64],
+    ) -> Result<Vec<Result<Block>>> {
         const GAP_THRESHOLD: u64 = 8;
 
         if blocks.is_empty() {
@@ -61,7 +71,6 @@ impl SyncIoEngine {
             .map(|loc| Some(Block::new(*loc)))
             .collect::<Vec<Option<Block>>>();
 
-        let vio: VectoredBlockIo<&File> = input.into();
         let mut issued_minus_gaps = 0;
 
         let mut results: Vec<Result<Block>> = Vec::with_capacity(bs.len());
@@ -150,6 +159,44 @@ impl SyncIoEngine {
 
         Ok(results)
     }
+
+    fn write_many_<T: VectoredIo>(
+        vio: VectoredBlockIo<T>,
+        blocks: &[Block],
+    ) -> Result<Vec<Result<()>>> {
+        if blocks.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let batches = find_runs_nogap(blocks, libc::UIO_MAXIOV as usize);
+        let mut issued: usize = 0;
+        let mut results: Vec<Result<()>> = Vec::with_capacity(blocks.len());
+
+        for (batch_start, batch_size) in batches {
+            assert!(batch_size > 0);
+
+            // Issue io
+            let buffers: Vec<&[u8]> = blocks[issued..(issued + batch_size)]
+                .iter()
+                .map(|b| b.as_ref())
+                .collect();
+            let run_results = vio.write_blocks(&buffers, batch_start * BLOCK_SIZE as u64);
+            issued += batch_size;
+
+            if let Ok(run_results) = run_results {
+                for r in run_results {
+                    results.push(r.map_err(|_| Self::bad_write()));
+                }
+            } else {
+                // Error everything
+                for _ in 0..batch_size {
+                    results.push(Err(Self::bad_write()));
+                }
+            }
+        }
+
+        Ok(results)
+    }
 }
 
 impl IoEngine for SyncIoEngine {
@@ -158,7 +205,7 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn get_batch_size(&self) -> usize {
-        1
+        32 // could be up to libc::UIO_MAXIOV
     }
 
     fn suggest_nr_threads(&self) -> usize {
@@ -173,7 +220,7 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>> {
-        Self::read_many_(&self.file, blocks)
+        Self::read_many_((&self.file).into(), blocks)
     }
 
     fn write(&self, b: &Block) -> Result<()> {
@@ -183,12 +230,39 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
-        let mut bs = Vec::new();
-        for b in blocks {
-            bs.push(self.write(b));
-        }
-        Ok(bs)
+        Self::write_many_((&self.file).into(), blocks)
     }
+}
+
+// Simplified version of generate_runs() without gaps. It should be a bit faster
+// since multiple iterations are not required.
+fn find_runs_nogap(blocks: &[Block], max_len: usize) -> Vec<(u64, usize)> {
+    if blocks.is_empty() {
+        return Vec::new();
+    }
+
+    let mut begin = blocks[0].loc;
+    let mut len = 1usize;
+
+    if blocks.len() == 1 {
+        return vec![(begin, len)];
+    }
+
+    let mut runs = Vec::new();
+
+    for b in &blocks[1..] {
+        if b.loc == begin + len as u64 && len < max_len {
+            len += 1;
+        } else {
+            runs.push((begin, len));
+            begin = b.loc;
+            len = 1;
+        }
+    }
+
+    runs.push((begin, len));
+
+    runs
 }
 
 //------------------------------------------

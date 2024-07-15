@@ -36,6 +36,33 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
 
 //-----------------------------------------------
 
+pub fn generate_metadata_leaks(
+    md: &Path,
+    nr_blocks: u64,
+    expected: u32,
+    actual: u32,
+) -> Result<()> {
+    let nr_blocks_str = nr_blocks.to_string();
+    let expected_str = expected.to_string();
+    let actual_str = actual.to_string();
+    let args = args![
+        "-o",
+        &md,
+        "--create-metadata-leaks",
+        "--nr-blocks",
+        &nr_blocks_str,
+        "--expected",
+        &expected_str,
+        "--actual",
+        &actual_str
+    ];
+    run_ok(cache_generate_damage_cmd(args))?;
+
+    Ok(())
+}
+
+//-----------------------------------------------
+
 pub fn get_clean_shutdown(md: &Path) -> Result<bool> {
     use thinp::cache::superblock::*;
 
@@ -50,6 +77,12 @@ pub fn get_needs_check(md: &Path) -> Result<bool> {
     let engine = SyncIoEngine::new(md, false)?;
     let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
     Ok(sb.flags.needs_check)
+}
+
+pub fn unset_clean_shutdown(md: &Path) -> Result<()> {
+    let args = args!["-o", &md, "--set-clean-shutdown=false"];
+    run_ok(cache_generate_metadata_cmd(args))?;
+    Ok(())
 }
 
 pub fn set_needs_check(md: &Path) -> Result<()> {

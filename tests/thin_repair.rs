@@ -287,4 +287,83 @@ fn repair_metadata_with_stale_superblock() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn preserve_timestamp_of_stale_superblock() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let src = mk_zeroed_md(&mut td)?;
+    let dest = mk_zeroed_md(&mut td)?;
+    let xml = td.mk_path("meta.xml");
+
+    // the superblock has timestamp later than the device's snapshot times
+    let before = b"<superblock uuid=\"\" time=\"2\" transaction=\"3\" version=\"2\" data_block_size=\"128\" nr_data_blocks=\"16384\">
+  <device dev_id=\"1\" mapped_blocks=\"0\" transaction=\"0\" creation_time=\"0\" snap_time=\"1\">
+  </device>
+</superblock>";
+    write_file(&xml, before)?;
+    run_ok(thin_restore_cmd(args!["-i", &xml, "-o", &src]))?;
+
+    // produce stale superblock by overriding the data mapping root,
+    // then update the superblock checksum.
+    run_ok(thin_generate_damage_cmd(args![
+        "-o",
+        &src,
+        "--override",
+        "--mapping-root",
+        "10"
+    ]))?;
+
+    run_ok(thin_repair_cmd(args!["-i", &src, "-o", &dest]))?;
+    let after = run_ok_raw(thin_dump_cmd(args!["--repair", &dest]))?;
+    assert_eq!(&before[..], &after.stdout);
+
+    Ok(())
+}
+
+#[test]
+fn repair_device_details_tree() -> Result<()> {
+    use std::os::unix::fs::FileExt;
+
+    let mut td = TestDir::new()?;
+    let orig = prep_metadata(&mut td)?;
+    let orig_sb = get_superblock(&orig)?;
+    let orig_thins = get_thins(&orig)?;
+    let orig_data_usage = get_data_usage(&orig)?;
+
+    // damage the details trees located at block#1 and #2, and the mapping tree
+    // at block#20, leaving the mapping tree at block#5 alone
+    let file = std::fs::OpenOptions::new().write(true).open(&orig)?;
+    file.write_all_at(&[0; 8], 4096)?;
+    file.write_all_at(&[0; 8], 8192)?;
+    file.write_all_at(&[0; 8], 81920)?;
+    drop(file);
+
+    let repaired = mk_zeroed_md(&mut td)?;
+    run_ok(thin_repair_cmd(args!["-i", &orig, "-o", &repaired]))?;
+
+    // verify the number of recovered data blocks
+    assert_eq!(get_data_usage(&repaired)?.1, orig_data_usage.1);
+
+    // verify the recovered devices
+    let repaired_thins = get_thins(&repaired)?;
+    assert!(repaired_thins
+        .iter()
+        .map(|(k, (_, d))| (k, d.mapped_blocks))
+        .eq(orig_thins.iter().map(|(k, (_, d))| (k, d.mapped_blocks))));
+
+    // verify the recovered timestamp
+    let orig_ts = orig_thins
+        .values()
+        .map(|(_, detail)| detail.snapshotted_time)
+        .max()
+        .unwrap_or(0);
+    let expected_ts = std::cmp::max(orig_sb.time, orig_ts + 1);
+    let repaired_sb = get_superblock(&repaired)?;
+    assert_eq!(repaired_sb.time, expected_ts);
+    assert!(repaired_thins
+        .values()
+        .map(|(_, d)| d.snapshotted_time)
+        .all(|ts| ts == expected_ts));
+
+    Ok(())
+}
 //-----------------------------------------
