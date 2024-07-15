@@ -3,10 +3,10 @@ use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread::*;
 
 use crate::copier::batcher::*;
 use crate::copier::sync_copier::*;
+use crate::copier::wrapper::ThreadedCopier;
 use crate::copier::*;
 use crate::file_utils;
 use crate::io_engine::utils::*;
@@ -132,47 +132,6 @@ fn open_dest(_scanner: &mut DmScanner, dst: &DestArgs, expected_len: u64) -> Res
     match dst {
         DestArgs::Dev(path) => open_dest_dev(path, expected_len).map(|dst| dst.file),
         DestArgs::File(fdest) => open_dest_file(&fdest.path, fdest.create, expected_len),
-    }
-}
-
-struct ThreadedCopier<T> {
-    copier: T,
-}
-
-// unlike cache_writeback, thin_shrink doesn't allow failures
-impl<T: Copier + Send + 'static> ThreadedCopier<T> {
-    fn new(copier: T) -> ThreadedCopier<T> {
-        ThreadedCopier { copier }
-    }
-
-    fn run(
-        self,
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> JoinHandle<Result<()>> {
-        spawn(move || Self::run_(rx, self.copier, progress))
-    }
-
-    fn run_(
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        mut copier: T,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> Result<()> {
-        while let Ok(ops) = rx.recv() {
-            let r = copier.copy(&ops, progress.clone());
-            if r.is_err() {
-                return Err(anyhow!(""));
-            }
-
-            let stats = r.unwrap();
-            if !stats.read_errors.is_empty() || !stats.write_errors.is_empty() {
-                return Err(anyhow!(""));
-            }
-
-            progress.update(&stats);
-        }
-
-        Ok(())
     }
 }
 

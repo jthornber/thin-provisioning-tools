@@ -1,5 +1,4 @@
-use anyhow::{anyhow, Result};
-
+use anyhow::Result;
 use rangemap::RangeSet;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -9,10 +8,10 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread::{self, JoinHandle};
 use std::vec::Vec;
 
 use crate::copier::batcher::CopyOpBatcher;
+use crate::copier::wrapper::ThreadedCopier;
 use crate::copier::*;
 use crate::io_engine::utils::VectoredBlockIo;
 use crate::io_engine::{IoEngine, SyncIoEngine, SECTOR_SHIFT};
@@ -28,47 +27,6 @@ use crate::thin::xml;
 use crate::write_batcher::WriteBatcher;
 
 //---------------------------------------
-
-struct ThreadedCopier<T> {
-    copier: T,
-}
-
-// unlike cache_writeback, thin_shrink doesn't allow failures
-impl<T: Copier + Send + 'static> ThreadedCopier<T> {
-    fn new(copier: T) -> ThreadedCopier<T> {
-        ThreadedCopier { copier }
-    }
-
-    fn run(
-        self,
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> JoinHandle<Result<()>> {
-        thread::spawn(move || Self::run_(rx, self.copier, progress))
-    }
-
-    fn run_(
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        mut copier: T,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> Result<()> {
-        while let Ok(ops) = rx.recv() {
-            let r = copier.copy(&ops, progress.clone());
-            if r.is_err() {
-                return Err(anyhow!(""));
-            }
-
-            let stats = r.unwrap();
-            if !stats.read_errors.is_empty() || !stats.write_errors.is_empty() {
-                return Err(anyhow!(""));
-            }
-
-            progress.update(&stats);
-        }
-
-        Ok(())
-    }
-}
 
 fn copy_regions(
     data_dev: &Path,
