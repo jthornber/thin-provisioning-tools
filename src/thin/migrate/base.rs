@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -70,7 +71,11 @@ struct Source {
 }
 
 fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
-    let thin = OpenOptions::new().read(true).write(false).open(&src.path)?;
+    let thin = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+        .open(&src.path)?;
     let thin_name = scanner.file_to_name(&thin)?.clone();
     let thin_table = get_thin_table(scanner, &thin_name)?;
     let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
@@ -93,7 +98,11 @@ struct Dest {
 }
 
 fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
-    let out = OpenOptions::new().read(true).write(true).open(path)?;
+    let out = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+        .open(path)?;
     let actual_len = file_utils::file_size(path)?;
     if actual_len != expected_len {
         return Err(anyhow!(
