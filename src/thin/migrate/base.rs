@@ -19,6 +19,8 @@ use crate::thin::migrate::stream::*;
 
 //------------------------------------------
 
+const DEFAULT_BUFFER_SIZE: usize = 131_072; // 64 MiB in sectors
+
 #[derive(Debug, PartialEq)]
 pub struct SourceArgs {
     pub path: PathBuf,
@@ -39,7 +41,7 @@ pub struct ThinMigrateOptions {
     pub source: SourceArgs,
     pub dest: DestArgs,
     pub zero_dest: bool,
-    pub buffer_size_meg: u64,
+    pub buffer_size: Option<usize>, // in sectors
     pub report: Arc<Report>,
 }
 
@@ -67,7 +69,7 @@ pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<De
 struct Source {
     file: File,
     stream: Box<dyn Stream>,
-    block_size: u64,
+    block_size: usize, // in sectors
 }
 
 fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
@@ -89,7 +91,7 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     Ok(Source {
         file: thin,
         stream,
-        block_size: pool_table.data_block_size as u64,
+        block_size: pool_table.data_block_size as usize,
     })
 }
 
@@ -154,21 +156,20 @@ fn copy_regions(
     mut stream: Box<dyn Stream>,
     in_file: File,
     out_file: File,
-    block_size: u64,
-    buffer_size_in_blocks: u64,
+    block_size: usize,
+    buffer_size: usize,
 ) -> Result<()> {
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
-    let buffer_size = buffer_size_in_blocks * block_size;
     let copier = SyncCopier::new(
-        (buffer_size as usize) << SECTOR_SHIFT,
-        (block_size as usize) << SECTOR_SHIFT,
+        buffer_size << SECTOR_SHIFT,
+        block_size << SECTOR_SHIFT,
         in_vio,
         out_vio,
     )?;
 
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
-    let mut batcher = CopyOpBatcher::new(buffer_size_in_blocks as usize, tx);
+    let mut batcher = CopyOpBatcher::new(buffer_size / block_size, tx);
 
     let copier = ThreadedCopier::new(copier);
     let progress = Arc::new(MigrateProgress {});
@@ -180,8 +181,8 @@ fn copy_regions(
                 // do nothing
             }
             ChunkContents::Copy => {
-                let begin = chunk.offset / block_size;
-                let end = (chunk.offset + chunk.len) / block_size;
+                let begin = chunk.offset / block_size as u64;
+                let end = (chunk.offset + chunk.len) / block_size as u64;
                 for b in begin..end {
                     batcher.push(CopyOp { src: b, dst: b })?;
                 }
@@ -205,15 +206,11 @@ pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
     let expected_len = file_utils::file_size(opts.source.path)?;
     let out_file = open_dest(&mut scanner, &opts.dest, expected_len)?;
 
-    let buffer_size_in_blocks = (opts.buffer_size_meg * 1024) / src.block_size;
+    let buffer_size = opts
+        .buffer_size
+        .unwrap_or_else(|| std::cmp::max(src.block_size, DEFAULT_BUFFER_SIZE));
 
-    copy_regions(
-        src.stream,
-        src.file,
-        out_file,
-        src.block_size,
-        buffer_size_in_blocks as u64,
-    )
+    copy_regions(src.stream, src.file, out_file, src.block_size, buffer_size)
 }
 
 //------------------------------------------

@@ -98,11 +98,10 @@ fn get_dest(matches: &ArgMatches) -> Result<migrate::DestArgs> {
     }
 }
 
-fn get_buffer_size_meg(matches: &ArgMatches) -> u64 {
-    match matches.get_one::<u64>("BUFFER-SIZE-MEG") {
-        None => 64,
-        Some(n) => *n,
-    }
+fn get_buffer_size_sectors(matches: &ArgMatches) -> Option<usize> {
+    matches
+        .get_one::<usize>("BUFFER-SIZE-MEG")
+        .map(|v| *v * 2048)
 }
 
 impl<'a> Command<'a> for ThinMigrateCommand {
@@ -131,7 +130,7 @@ impl<'a> Command<'a> for ThinMigrateCommand {
             return to_exit_code(&report, dest);
         }
 
-        let buffer_size_meg = get_buffer_size_meg(&matches);
+        let buffer_size = get_buffer_size_sectors(&matches);
 
         let zero_dest = matches.get_flag("ZERO-DEST");
 
@@ -139,7 +138,7 @@ impl<'a> Command<'a> for ThinMigrateCommand {
             source: source.unwrap(),
             dest: dest.unwrap(),
             zero_dest,
-            buffer_size_meg,
+            buffer_size,
             report: report.clone(),
         };
 
