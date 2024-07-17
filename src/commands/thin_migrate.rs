@@ -33,25 +33,25 @@ impl ThinMigrateCommand {
                 Arg::new("SOURCE-DEV")
                     .help("Specify the input device or file")
                     .long("source-dev")
-                    .value_name("SOURCE-DEV"),
+                    .value_name("DEVICE"),
             )
             .arg(
                 Arg::new("DELTA-ID")
                     .help("Specify a thin id that will be the baseline for calculating deltas")
                     .long("delta-id")
-                    .value_name("DELTA-ID"),
+                    .value_name("THIN_ID"),
             )
             .arg(
                 Arg::new("DEST-DEV")
                     .help("Specify the output device")
                     .long("dest-dev")
-                    .value_name("DEST-DEV"),
+                    .value_name("DEVICE"),
             )
             .arg(
                 Arg::new("DEST-FILE")
                     .help("Specify the output file")
                     .long("dest-file")
-                    .value_name("DEST-FILE"),
+                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("BUFFER-SIZE-MEG")
