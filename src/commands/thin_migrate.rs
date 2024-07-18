@@ -64,7 +64,8 @@ impl ThinMigrateCommand {
                 Arg::new("ZERO-DEST")
                     .help("Ensure all unwritten regions of the destination are zeroed")
                     .long("zero-dest")
-                    .action(ArgAction::SetTrue),
+                    .action(ArgAction::SetTrue)
+                    .hide(true),
             );
         verbose_args(engine_args(version_args(cmd)))
     }
