@@ -120,11 +120,11 @@ impl FromStr for Units {
     }
 }
 
-impl ToString for Units {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Units {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Units::*;
 
-        String::from(match self {
+        let text = match self {
             Byte => "byte",
             Sector => "sector",
             // base 2
@@ -141,7 +141,9 @@ impl ToString for Units {
             Terabyte => "terabyte",
             Petabyte => "petabyte",
             Exabyte => "exabyte",
-        })
+        };
+
+        write!(f, "{}", text)
     }
 }
 
@@ -220,11 +222,9 @@ impl FromStr for StorageSize {
     }
 }
 
-impl ToString for StorageSize {
-    fn to_string(&self) -> String {
-        let mut s = self.multiple.to_string();
-        s.push_str(&self.unit.to_string_short());
-        s
+impl std::fmt::Display for StorageSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.multiple, self.unit.to_string_short())
     }
 }
 

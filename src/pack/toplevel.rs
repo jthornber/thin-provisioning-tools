@@ -36,9 +36,7 @@ fn shuffle<T>(v: &mut Vec<T>) {
 // across the dev in case there are large regions that don't contain
 // metadata.
 fn mk_chunk_vecs(nr_blocks: u64, nr_jobs: u64) -> Vec<Vec<(u64, u64)>> {
-    use std::cmp::{max, min};
-
-    let chunk_size = min(4 * 1024u64, max(128u64, nr_blocks / (nr_jobs * 64)));
+    let chunk_size = (nr_blocks / (nr_jobs * 64)).clamp(128u64, 4 * 1024u64);
     let nr_chunks = nr_blocks / chunk_size;
     let mut chunks = Vec::with_capacity(nr_chunks as usize);
     for i in 0..nr_chunks {

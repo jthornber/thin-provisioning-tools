@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::io_engine::IoEngine;
 use crate::pdata::btree::{self, *};
@@ -47,6 +47,23 @@ pub struct Metadata {
     pub defs: Vec<Def>,
     pub devs: Vec<Device>,
     nr_blocks: u64,
+}
+
+//------------------------------------------
+
+pub struct CoreSuperblock {
+    pub devices: BTreeMap<u64, (u64, DeviceDetail)>,
+    pub flags: SuperblockFlags,
+    pub version: u32,
+    pub time: u32,
+    pub transaction_id: u64,
+    pub data_block_size: u32,
+    pub nr_data_blocks: u64,
+}
+
+pub enum ThinSuperblock {
+    OnDisk(Superblock),
+    InCore(CoreSuperblock),
 }
 
 //------------------------------------------
@@ -100,74 +117,93 @@ fn collect_leaves(
 
 pub fn build_metadata(
     engine: Arc<dyn IoEngine + Send + Sync>,
-    sb: &Superblock,
+    sb: &ThinSuperblock,
 ) -> Result<Metadata> {
     build_metadata_with_dev(engine, sb, None)
 }
 
-pub fn build_metadata_with_dev(
+fn build_metadata_with_dev_(
     engine: Arc<dyn IoEngine + Send + Sync>,
-    sb: &Superblock,
-    selected_dev: Option<Vec<u64>>,
+    devices: &BTreeMap<u64, (u64, DeviceDetail)>,
 ) -> Result<Metadata> {
-    let mut path = vec![0];
-
-    // report.set_title("Reading device details");
-    let details = btree_to_map::<DeviceDetail>(&mut path, engine.clone(), true, sb.details_root)?;
-
-    // report.set_title("Reading mappings roots");
-    let roots = {
-        let sm = Arc::new(Mutex::new(NoopSpaceMap::new(engine.get_nr_blocks())));
-        let r =
-            btree_to_map_with_path::<u64>(&mut path, engine.clone(), sm, true, sb.mapping_root)?;
-
-        if let Some(mut devs) = selected_dev {
-            devs.sort_unstable();
-            r.into_iter()
-                .filter(|(k, _v)| devs.binary_search(k).is_ok())
-                .collect()
-        } else {
-            r
-        }
-    };
-
-    // report.set_title(&format!("Collecting leaves for {} roots", roots.len()));
-    let mapping_roots = roots.values().map(|(_, root)| *root).collect();
+    let mapping_roots: BTreeSet<u64> = devices.values().map(|(root, _)| *root).collect();
     let entry_map = collect_leaves(engine.clone(), &mapping_roots)?;
 
-    let defs = Vec::new();
-    let mut devs = Vec::new();
-    for (thin_id, (_path, root)) in roots {
-        let id = thin_id;
-        let detail = details.get(&id).expect("couldn't find device details");
-        let es = entry_map.get(&root).unwrap();
-        let kr = KeyRange::new(); // FIXME: finish
-        devs.push(Device {
-            thin_id: thin_id as u32,
-            detail: *detail,
-            map: Mapping {
-                kr,
-                entries: es.to_vec(),
-            },
-        });
-    }
+    let devs: Vec<Device> = devices
+        .iter()
+        .map(|(&thin_id, &(root, detail))| {
+            let kr = KeyRange::new(); // FIXME: finish
+            let es = entry_map.get(&root).unwrap();
+            Device {
+                thin_id: thin_id as u32,
+                detail,
+                map: Mapping {
+                    kr,
+                    entries: es.to_vec(),
+                },
+            }
+        })
+        .collect();
 
     Ok(Metadata {
-        defs,
+        defs: Vec::new(),
         devs,
         nr_blocks: engine.get_nr_blocks(),
     })
 }
 
-pub fn build_metadata_without_mappings(
+fn devices_iter(
     engine: Arc<dyn IoEngine + Send + Sync>,
     sb: &Superblock,
-) -> Result<Metadata> {
+) -> Result<impl Iterator<Item = (u64, (u64, DeviceDetail))>> {
+    // report.set_title("Reading device details");
     let details =
         btree_to_map::<DeviceDetail>(&mut vec![0], engine.clone(), true, sb.details_root)?;
+    let roots = btree_to_map::<u64>(&mut vec![0], engine.clone(), true, sb.mapping_root)?;
+    Ok(roots
+        .into_iter()
+        .zip(details.into_values())
+        .map(|((thin_id, root), detail)| (thin_id, (root, detail))))
+}
 
-    let to_empty_dev = |thin_id: u64, detail: &DeviceDetail| Device {
-        thin_id: thin_id as u32,
+pub fn build_metadata_with_dev(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &ThinSuperblock,
+    selected_dev: Option<Vec<u64>>,
+) -> Result<Metadata> {
+    let devs: BTreeMap<u64, (u64, DeviceDetail)> = match sb {
+        ThinSuperblock::OnDisk(sb) => {
+            let iter = devices_iter(engine.clone(), sb)?;
+            if let Some(mut devs) = selected_dev {
+                devs.sort_unstable();
+                iter.filter(|(k, _)| devs.binary_search(k).is_ok())
+                    .collect()
+            } else {
+                iter.collect()
+            }
+        }
+        ThinSuperblock::InCore(sb) => {
+            let iter = sb.devices.iter();
+            if let Some(mut devs) = selected_dev {
+                devs.sort_unstable();
+                iter.filter(|(k, _)| devs.binary_search(k).is_ok())
+                    .map(|(&k, &(r, d))| (k, (r, d)))
+                    .collect()
+            } else {
+                iter.map(|(&k, &(r, d))| (k, (r, d))).collect()
+            }
+        }
+    };
+
+    build_metadata_with_dev_(engine, &devs)
+}
+
+fn build_metadata_without_mappings_(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    details: &mut dyn Iterator<Item = (&u64, &DeviceDetail)>,
+) -> Result<Metadata> {
+    let to_empty_dev = |(thin_id, detail): (&u64, &DeviceDetail)| Device {
+        thin_id: *thin_id as u32,
         detail: *detail,
         map: Mapping {
             kr: KeyRange::new(),
@@ -175,16 +211,33 @@ pub fn build_metadata_without_mappings(
         },
     };
 
-    let devs = details
-        .iter()
-        .map(|(thin_id, detail)| to_empty_dev(*thin_id, detail))
-        .collect::<Vec<Device>>();
+    let devs = details.map(to_empty_dev).collect::<Vec<Device>>();
 
     Ok(Metadata {
         defs: Vec::new(),
         devs,
         nr_blocks: engine.get_nr_blocks(),
     })
+}
+
+pub fn build_metadata_without_mappings(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    sb: &ThinSuperblock,
+) -> Result<Metadata> {
+    match sb {
+        ThinSuperblock::OnDisk(sb) => {
+            let details =
+                btree_to_map::<DeviceDetail>(&mut vec![0], engine.clone(), true, sb.details_root)?;
+            build_metadata_without_mappings_(engine, &mut details.iter())
+        }
+        ThinSuperblock::InCore(sb) => build_metadata_without_mappings_(
+            engine,
+            &mut sb
+                .devices
+                .iter()
+                .map(|(thin_id, (_, detail))| (thin_id, detail)),
+        ),
+    }
 }
 
 //------------------------------------------

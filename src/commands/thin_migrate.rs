@@ -33,25 +33,25 @@ impl ThinMigrateCommand {
                 Arg::new("SOURCE-DEV")
                     .help("Specify the input device or file")
                     .long("source-dev")
-                    .value_name("SOURCE-DEV"),
+                    .value_name("DEVICE"),
             )
             .arg(
                 Arg::new("DELTA-ID")
                     .help("Specify a thin id that will be the baseline for calculating deltas")
                     .long("delta-id")
-                    .value_name("DELTA-ID"),
+                    .value_name("THIN_ID"),
             )
             .arg(
                 Arg::new("DEST-DEV")
                     .help("Specify the output device")
                     .long("dest-dev")
-                    .value_name("DEST-DEV"),
+                    .value_name("DEVICE"),
             )
             .arg(
                 Arg::new("DEST-FILE")
                     .help("Specify the output file")
                     .long("dest-file")
-                    .value_name("DEST-FILE"),
+                    .value_name("FILE"),
             )
             .arg(
                 Arg::new("BUFFER-SIZE-MEG")
@@ -64,7 +64,8 @@ impl ThinMigrateCommand {
                 Arg::new("ZERO-DEST")
                     .help("Ensure all unwritten regions of the destination are zeroed")
                     .long("zero-dest")
-                    .action(ArgAction::SetTrue),
+                    .action(ArgAction::SetTrue)
+                    .hide(true),
             );
         verbose_args(engine_args(version_args(cmd)))
     }
@@ -98,11 +99,10 @@ fn get_dest(matches: &ArgMatches) -> Result<migrate::DestArgs> {
     }
 }
 
-fn get_buffer_size_meg(matches: &ArgMatches) -> u64 {
-    match matches.get_one::<u64>("BUFFER-SIZE-MEG") {
-        None => 64,
-        Some(n) => *n,
-    }
+fn get_buffer_size_sectors(matches: &ArgMatches) -> Option<usize> {
+    matches
+        .get_one::<usize>("BUFFER-SIZE-MEG")
+        .map(|v| *v * 2048)
 }
 
 impl<'a> Command<'a> for ThinMigrateCommand {
@@ -131,7 +131,7 @@ impl<'a> Command<'a> for ThinMigrateCommand {
             return to_exit_code(&report, dest);
         }
 
-        let buffer_size_meg = get_buffer_size_meg(&matches);
+        let buffer_size = get_buffer_size_sectors(&matches);
 
         let zero_dest = matches.get_flag("ZERO-DEST");
 
@@ -139,7 +139,7 @@ impl<'a> Command<'a> for ThinMigrateCommand {
             source: source.unwrap(),
             dest: dest.unwrap(),
             zero_dest,
-            buffer_size_meg,
+            buffer_size,
             report: report.clone(),
         };
 

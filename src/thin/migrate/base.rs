@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread::*;
 
 use crate::copier::batcher::*;
 use crate::copier::sync_copier::*;
+use crate::copier::wrapper::ThreadedCopier;
 use crate::copier::*;
 use crate::file_utils;
 use crate::io_engine::utils::*;
@@ -17,6 +18,8 @@ use crate::thin::migrate::devices::*;
 use crate::thin::migrate::stream::*;
 
 //------------------------------------------
+
+const DEFAULT_BUFFER_SIZE: usize = 131_072; // 64 MiB in sectors
 
 #[derive(Debug, PartialEq)]
 pub struct SourceArgs {
@@ -38,7 +41,7 @@ pub struct ThinMigrateOptions {
     pub source: SourceArgs,
     pub dest: DestArgs,
     pub zero_dest: bool,
-    pub buffer_size_meg: u64,
+    pub buffer_size: Option<usize>, // in sectors
     pub report: Arc<Report>,
 }
 
@@ -66,11 +69,15 @@ pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<De
 struct Source {
     file: File,
     stream: Box<dyn Stream>,
-    block_size: u64,
+    block_size: usize, // in sectors
 }
 
 fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
-    let thin = OpenOptions::new().read(true).write(false).open(&src.path)?;
+    let thin = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+        .open(&src.path)?;
     let thin_name = scanner.file_to_name(&thin)?.clone();
     let thin_table = get_thin_table(scanner, &thin_name)?;
     let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
@@ -84,7 +91,7 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     Ok(Source {
         file: thin,
         stream,
-        block_size: pool_table.data_block_size as u64,
+        block_size: pool_table.data_block_size as usize,
     })
 }
 
@@ -93,7 +100,11 @@ struct Dest {
 }
 
 fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
-    let out = OpenOptions::new().read(true).write(true).open(path)?;
+    let out = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+        .open(path)?;
     let actual_len = file_utils::file_size(path)?;
     if actual_len != expected_len {
         return Err(anyhow!(
@@ -135,47 +146,6 @@ fn open_dest(_scanner: &mut DmScanner, dst: &DestArgs, expected_len: u64) -> Res
     }
 }
 
-struct ThreadedCopier<T> {
-    copier: T,
-}
-
-// unlike cache_writeback, thin_shrink doesn't allow failures
-impl<T: Copier + Send + 'static> ThreadedCopier<T> {
-    fn new(copier: T) -> ThreadedCopier<T> {
-        ThreadedCopier { copier }
-    }
-
-    fn run(
-        self,
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> JoinHandle<Result<()>> {
-        spawn(move || Self::run_(rx, self.copier, progress))
-    }
-
-    fn run_(
-        rx: mpsc::Receiver<Vec<CopyOp>>,
-        mut copier: T,
-        progress: Arc<dyn CopyProgress + Send + Sync>,
-    ) -> Result<()> {
-        while let Ok(ops) = rx.recv() {
-            let r = copier.copy(&ops, progress.clone());
-            if r.is_err() {
-                return Err(anyhow!(""));
-            }
-
-            let stats = r.unwrap();
-            if !stats.read_errors.is_empty() || !stats.write_errors.is_empty() {
-                return Err(anyhow!(""));
-            }
-
-            progress.update(&stats);
-        }
-
-        Ok(())
-    }
-}
-
 struct MigrateProgress {}
 
 impl CopyProgress for MigrateProgress {
@@ -186,21 +156,20 @@ fn copy_regions(
     mut stream: Box<dyn Stream>,
     in_file: File,
     out_file: File,
-    block_size: u64,
-    buffer_size_in_blocks: u64,
+    block_size: usize,
+    buffer_size: usize,
 ) -> Result<()> {
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
-    let buffer_size = buffer_size_in_blocks * block_size;
     let copier = SyncCopier::new(
-        (buffer_size as usize) << SECTOR_SHIFT,
-        (block_size as usize) << SECTOR_SHIFT,
+        buffer_size << SECTOR_SHIFT,
+        block_size << SECTOR_SHIFT,
         in_vio,
         out_vio,
     )?;
 
     let (tx, rx) = mpsc::sync_channel::<Vec<CopyOp>>(1);
-    let mut batcher = CopyOpBatcher::new(buffer_size_in_blocks as usize, tx);
+    let mut batcher = CopyOpBatcher::new(buffer_size / block_size, tx);
 
     let copier = ThreadedCopier::new(copier);
     let progress = Arc::new(MigrateProgress {});
@@ -212,8 +181,8 @@ fn copy_regions(
                 // do nothing
             }
             ChunkContents::Copy => {
-                let begin = chunk.offset / block_size;
-                let end = (chunk.offset + chunk.len) / block_size;
+                let begin = chunk.offset / block_size as u64;
+                let end = (chunk.offset + chunk.len) / block_size as u64;
                 for b in begin..end {
                     batcher.push(CopyOp { src: b, dst: b })?;
                 }
@@ -237,15 +206,11 @@ pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
     let expected_len = file_utils::file_size(opts.source.path)?;
     let out_file = open_dest(&mut scanner, &opts.dest, expected_len)?;
 
-    let buffer_size_in_blocks = (opts.buffer_size_meg * 1024) / src.block_size;
+    let buffer_size = opts
+        .buffer_size
+        .unwrap_or_else(|| std::cmp::max(src.block_size, DEFAULT_BUFFER_SIZE));
 
-    copy_regions(
-        src.stream,
-        src.file,
-        out_file,
-        src.block_size,
-        buffer_size_in_blocks as u64,
-    )
+    copy_regions(src.stream, src.file, out_file, src.block_size, buffer_size)
 }
 
 //------------------------------------------

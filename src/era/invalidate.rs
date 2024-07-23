@@ -185,7 +185,7 @@ fn emit_blocks<W: Write>(marked_bits: &[u64], nr_blocks: u32, w: &mut Writer<W>)
     for (index, entry) in marked_bits.iter().enumerate() {
         let mut n = *entry;
 
-        if n == u64::max_value() {
+        if n == u64::MAX {
             end = std::cmp::min(end + 64, nr_blocks);
             continue;
         }

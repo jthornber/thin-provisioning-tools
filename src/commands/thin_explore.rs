@@ -877,7 +877,7 @@ pub struct ThinExploreCommand;
 
 impl ThinExploreCommand {
     fn cli(&self) -> clap::Command {
-        clap::Command::new(self.name())
+        let cmd = clap::Command::new(self.name())
             .next_display_order(None)
             .version(crate::tools_version!())
             .disable_version_flag(true)
@@ -894,7 +894,9 @@ impl ThinExploreCommand {
                     .help("Specify the input device to check")
                     .required(true)
                     .index(1),
-            )
+            );
+
+        version_args(cmd)
     }
 }
 

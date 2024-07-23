@@ -107,9 +107,9 @@ impl NodeVisitor<BlockTime> for MappingRecorder {
     }
 }
 
-// The `time` field is not extracted for CoW indication. The mapped data block
-// does the job. i.e., the data block must be different if the mapping had been
-// CoW'ed.
+// In order to compare snapshots that are not derived from the same origin,
+// thin_delta compares mappings based on the data block addresses, thus the
+// mapping timestamps are not extracted.
 pub fn get_mappings(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: u64,

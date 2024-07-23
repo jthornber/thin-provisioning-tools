@@ -13,6 +13,7 @@ fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
     vec![
         Box::new(era_generate_metadata::EraGenerateMetadataCommand),
         Box::new(cache_generate_metadata::CacheGenerateMetadataCommand),
+        Box::new(cache_generate_damage::CacheGenerateDamageCommand),
         Box::new(thin_explore::ThinExploreCommand),
         Box::new(thin_generate_metadata::ThinGenerateMetadataCommand),
         Box::new(thin_generate_damage::ThinGenerateDamageCommand),
@@ -38,7 +39,10 @@ fn main_() -> exitcode::ExitCode {
         return exitcode::USAGE;
     };
 
-    if let Some(c) = commands.iter().find(|c| cmd.unwrap() == c.name()) {
+    if let Some(c) = commands
+        .iter()
+        .find(|c| get_basename(cmd.unwrap()) == Path::new(c.name()))
+    {
         c.run(&mut args)
     } else {
         eprintln!("unrecognised command");
