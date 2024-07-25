@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, ensure, Result};
 use fixedbitset::FixedBitSet;
 use num_traits::Bounded;
 use std::boxed::Box;
@@ -20,7 +20,7 @@ pub trait SpaceMap {
     /// Returns true if the block is now free
     fn dec(&mut self, b: u64) -> Result<bool> {
         let old = self.get(b)?;
-        assert!(old > 0);
+        ensure!(old > 0);
         self.set(b, old - 1)?;
 
         Ok(old == 1)
@@ -80,7 +80,7 @@ where
         + Bounded
         + TryFrom<u32>
         + std::cmp::PartialOrd,
-    <V as TryFrom<u32>>::Error: std::fmt::Debug,
+    <V as TryFrom<u32>>::Error: std::fmt::Debug + std::error::Error,
 {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
@@ -99,8 +99,7 @@ where
         self.check_index_out_of_bounds(b)?;
 
         let old = self.get(b)?;
-        assert!(v <= V::max_value().into());
-        self.counts[b as usize] = v.try_into().unwrap(); // FIXME: do not panic
+        self.counts[b as usize] = v.try_into().map_err(|e| anyhow!("{}", e))?;
 
         if old == 0 && v != 0 {
             self.nr_allocated += 1;
@@ -118,7 +117,7 @@ where
 
         for b in begin..(begin + len) {
             let c = &mut self.counts[b as usize];
-            assert!(*c < V::max_value());
+            ensure!(*c < V::max_value());
             if *c == V::from(0u8) {
                 // FIXME: can we get a ref to save dereferencing counts twice?
                 self.nr_allocated += 1;

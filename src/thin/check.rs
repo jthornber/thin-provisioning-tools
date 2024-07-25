@@ -1074,6 +1074,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let engine = &ctx.engine;
 
     let mut sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+    sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
+    sb.details_root = opts.override_details_root.unwrap_or(sb.details_root);
 
     // Read the superblock in metadata snapshot (allow errors)
     let sb_snap = if sb.metadata_snap > 0 {
@@ -1120,9 +1122,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     // Check device details and the top-level tree
 
     report.set_sub_title("device details tree");
-
-    sb.mapping_root = opts.override_mapping_root.unwrap_or(sb.mapping_root);
-    sb.details_root = opts.override_details_root.unwrap_or(sb.details_root);
 
     // List of all the bottom-level roots referenced by the top-level tree,
     // including those reside in the metadata snapshot.
