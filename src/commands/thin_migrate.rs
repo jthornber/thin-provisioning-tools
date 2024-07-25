@@ -39,7 +39,8 @@ impl ThinMigrateCommand {
                 Arg::new("DELTA-ID")
                     .help("Specify a thin id that will be the baseline for calculating deltas")
                     .long("delta-id")
-                    .value_name("THIN_ID"),
+                    .value_name("THIN_ID")
+                    .hide(true),
             )
             .arg(
                 Arg::new("DEST-DEV")
