@@ -45,14 +45,6 @@ pub struct ThinMigrateOptions {
     pub report: Arc<Report>,
 }
 
-/*
-struct Context {
-    report: Arc<Report>,
-    engine_in: Arc<dyn IoEngine + Send + Sync>,
-    engine_out: Arc<dyn IoEngine + Send + Sync>,
-}
-*/
-
 fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>> {
     let engine = SyncIoEngine::new_with(path, false, false)?;
     Ok(Arc::new(engine))

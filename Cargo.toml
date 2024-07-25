@@ -33,7 +33,6 @@ num-traits = "0.2"
 quick-xml = "0.36"
 rand = "0.8"
 rangemap = "1.5"
-regex = "1.10" # Check for the latest version on crates.io
 roaring = "0.10"
 rio = { git = "https://github.com/jthornber/rio", branch = "master", optional = true }
 safemem = "0.3"
