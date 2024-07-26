@@ -142,6 +142,7 @@ struct MigrateProgress {}
 
 impl CopyProgress for MigrateProgress {
     fn update(&self, _stats: &CopyStats) {}
+    fn inc_stats(&self, _stats: &CopyStats) {}
 }
 
 fn copy_regions(

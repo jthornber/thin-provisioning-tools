@@ -48,8 +48,6 @@ impl<T: Copier + Send + 'static> ThreadedCopier<T> {
                     stats.write_errors[0].dst
                 ));
             }
-
-            progress.update(&stats);
         }
 
         Ok(())

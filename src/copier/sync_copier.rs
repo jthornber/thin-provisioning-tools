@@ -280,6 +280,7 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
         // kick off the writer thread.
         let (tx, rx) = mpsc::sync_channel::<(Vec<CopyOp>, RoaringBitmap, Buffer)>(1);
         let write_thread = {
+            let p = progress.clone();
             let stats = stats.clone();
             let dst = self.dst.clone();
             let offset = self.dst_offset;
@@ -311,7 +312,7 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
 
                 let mut stats = stats.write().unwrap();
                 stats.nr_copied += write_success.len();
-                progress.update(&stats);
+                p.update(&stats);
             })
         };
 
@@ -348,7 +349,10 @@ impl<T: ReadBlocks + WriteBlocks + Send + 'static> Copier for SyncCopier<T> {
             .join()
             .map_err(|_| anyhow!("error joining with writer thread"))?;
 
-        Ok(Arc::try_unwrap(stats).unwrap().into_inner().unwrap())
+        let stats = Arc::try_unwrap(stats).unwrap().into_inner().unwrap();
+        progress.inc_stats(&stats);
+
+        Ok(stats)
     }
 }
 
