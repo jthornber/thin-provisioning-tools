@@ -5,7 +5,7 @@ SYNOPSIS
   cache_metadata_size [options]
 
 DESCRIPTION
-  cache_metadata_size estimates the size of the metadata.  Either --nr-blocks,
+  cache_metadata_size estimates the size of the metadata. Either --nr-blocks,
   or --block-size and --device-size must be specified.
 
 OPTIONS
@@ -29,4 +29,3 @@ SEE ALSO
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>, Heinz Mauelshagen <heinzm@redhat.com>
-

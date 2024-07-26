@@ -22,7 +22,7 @@ OPTIONS
     You probably want to do this if you're intending to process the results as
     it simplifies the XML.
 
-  -o {xml file}	Specify a file for the output rather than writing to stdout.
+  -o {xml file}		Specify a file for the output rather than writing to stdout.
 
 EXAMPLES
   Dumps era metadata on logical volume /dev/vg/metadata to standard output in
