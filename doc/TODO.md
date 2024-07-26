@@ -55,7 +55,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] Check the key ranges in BTreeWalker.
 - [ ] thin_check: improve error reporting on ref count tree checking (the "overflow" trees).
       Currently it dumps the BTreeError directly.
-- [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concret File
+- [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concrete File
 - [ ] thin_dump: skip empty defs
 - [ ] thin_dump: Support --dev-id in ranges
 - [ ] thin_ls: Sort the outputs by specific fields

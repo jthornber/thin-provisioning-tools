@@ -46,7 +46,7 @@ impl DeviceNr {
 
 //---------------------------------
 
-/// When contructed this scans udev to build a mapping from
+/// When constructed this scans udev to build a mapping from
 /// device number to DmName.  It does not rescan, so the contents
 /// can be out of date.
 struct DmIndex {

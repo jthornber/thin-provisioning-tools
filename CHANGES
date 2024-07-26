@@ -30,7 +30,7 @@ v1.0.10
 - Make the space map formatting backward compatible to kernel's expansion behavior
 - Support overriding the details tree root in thin_check
 - Enhance thin_repair to detect a corner case involving incompatible child nodes
-- Improve compatibility of thin_check against unexpect bytes in the index block
+- Improve compatibility of thin_check against unexpected bytes in the index block
 
 v1.0.9
 ======
@@ -72,7 +72,7 @@ v1.0.4
 ======
 
 - Fix incorrect crc32c outputs on big endian targets
-= Fix compilation errors on 32-bit platforms
+- Fix compilation errors on 32-bit platforms
 
 v1.0.3
 ======
@@ -245,7 +245,7 @@ v0.4
 - Removed variable hint size support from cache tools.  The kernel
   still only supports a fixed 32bit width.  This will have a side
   effect of reducing the executable sizes due to less template
-  instatiation.
+  instantiation.
 
 - Tools rolled into a single executable to save space.
 
