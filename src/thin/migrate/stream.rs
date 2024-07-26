@@ -22,6 +22,7 @@ pub struct Chunk {
 
 pub trait Stream {
     fn next_chunk(&mut self) -> Result<Option<Chunk>>;
+    fn size_hint(&self) -> u64;
 }
 
 //---------------------------------------------
@@ -53,6 +54,10 @@ impl Stream for DevStream {
                 contents: ChunkContents::Copy,
             }))
         }
+    }
+
+    fn size_hint(&self) -> u64 {
+        self.file_size
     }
 }
 
@@ -119,6 +124,10 @@ impl Stream for ThinStream {
             }
             None => Ok(None),
         }
+    }
+
+    fn size_hint(&self) -> u64 {
+        self.iter.mapped_blocks * self.iter.data_block_size
     }
 }
 

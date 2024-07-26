@@ -42,12 +42,13 @@ pub struct ThinIterator {
     pub thin_id: u32,
     pub data_block_size: u64,
     pub mappings: BTreeIterator<BlockTime>,
+    pub mapped_blocks: u64,
 }
 
 impl ThinIterator {
     pub fn new(engine: &ArcEngine, thin_id: u32) -> Result<Self> {
         let sb = read_superblock_snap(engine.as_ref())?;
-        let _details = read_device_detail(engine, sb.details_root, thin_id)?;
+        let details = read_device_detail(engine, sb.details_root, thin_id)?;
         let mapping_root = read_mapping_root(engine, sb.mapping_root, thin_id)?;
         let mappings = BTreeIterator::new(engine.clone(), mapping_root)?;
 
@@ -55,6 +56,7 @@ impl ThinIterator {
             thin_id,
             data_block_size: sb.data_block_size as u64,
             mappings,
+            mapped_blocks: details.mapped_blocks,
         })
     }
 }

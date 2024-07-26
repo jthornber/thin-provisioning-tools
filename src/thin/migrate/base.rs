@@ -138,19 +138,13 @@ fn open_dest(_scanner: &mut DmScanner, dst: &DestArgs, expected_len: u64) -> Res
     }
 }
 
-struct MigrateProgress {}
-
-impl CopyProgress for MigrateProgress {
-    fn update(&self, _stats: &CopyStats) {}
-    fn inc_stats(&self, _stats: &CopyStats) {}
-}
-
 fn copy_regions(
     mut stream: Box<dyn Stream>,
     in_file: File,
     out_file: File,
     block_size: usize,
     buffer_size: usize,
+    report: Arc<Report>,
 ) -> Result<()> {
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
@@ -165,7 +159,10 @@ fn copy_regions(
     let mut batcher = CopyOpBatcher::new(buffer_size / block_size, tx);
 
     let copier = ThreadedCopier::new(copier);
-    let progress = Arc::new(MigrateProgress {});
+    let progress = Arc::new(ProgressReporter::new(
+        report,
+        stream.size_hint() / block_size as u64,
+    ));
     let handle = copier.run(rx, progress);
 
     while let Some(chunk) = stream.next_chunk()? {
@@ -203,7 +200,14 @@ pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
         .buffer_size
         .unwrap_or_else(|| std::cmp::max(src.block_size, DEFAULT_BUFFER_SIZE));
 
-    copy_regions(src.stream, src.file, out_file, src.block_size, buffer_size)
+    copy_regions(
+        src.stream,
+        src.file,
+        out_file,
+        src.block_size,
+        buffer_size,
+        opts.report,
+    )
 }
 
 //------------------------------------------
