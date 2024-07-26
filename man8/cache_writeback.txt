@@ -21,9 +21,9 @@ OPTIONS
 
     You may want to use this flag if you're decommissioning the cache.
 
-  --buffer-size-meg {size}		Specify the size for the metadata cache.
+  --buffer-size-meg {size}		Specify the size for the data cache, in megabytes.
 
-    Defaults to 16 Gig, a larger size may improve performance.
+    Defaults to 64 MiB, a larger size may improve performance.
 
   --list-failed-blocks	List any blocks that failed the writeback process.
 
