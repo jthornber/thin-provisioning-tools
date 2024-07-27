@@ -15,7 +15,6 @@ pub type RequestType = libc::c_ulong;
     target_arch = "mips64",
     target_arch = "powerpc",
     target_arch = "powerpc64",
-    target_arch = "powerpc64le",
     target_arch = "sparc",
     target_arch = "sparc64"
 ))]
@@ -33,7 +32,6 @@ mod defs {
     target_arch = "mips64",
     target_arch = "powerpc",
     target_arch = "powerpc64",
-    target_arch = "powerpc64le",
     target_arch = "sparc",
     target_arch = "sparc64"
 )))]
