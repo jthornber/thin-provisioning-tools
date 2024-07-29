@@ -91,10 +91,7 @@ fn get_dest(matches: &ArgMatches) -> Result<migrate::DestArgs> {
         Ok(migrate::DestArgs::Dev(path))
     } else if let Some(arg) = matches.get_one::<String>("DEST-FILE") {
         let path = PathBuf::from(arg);
-        let file = migrate::FileDestArgs { path, create: true };
-        Ok(migrate::DestArgs::File(file))
-    } else if let Some(arg) = matches.get_one::<String>("DEST-THIN") {
-        Ok(migrate::DestArgs::Dev(PathBuf::from(arg)))
+        Ok(migrate::DestArgs::File(path))
     } else {
         Err(anyhow!("You must specify a dest"))
     }
