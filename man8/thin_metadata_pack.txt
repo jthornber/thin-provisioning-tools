@@ -6,7 +6,7 @@ SYNOPSIS
 
 DESCRIPTION
   thin_metadata_pack and thin_metadata_unpack are used to compress
-  binary metadata.  Useful for support.
+  binary metadata. Useful for support.
 
   thin_metadata_pack compresses the metadata, omitting any metadata blocks that are unused.
 
@@ -23,4 +23,3 @@ SEE ALSO
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>
-

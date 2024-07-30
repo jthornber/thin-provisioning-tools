@@ -46,7 +46,7 @@ udev = "0.7"
 
 [dev-dependencies]
 duct = "0.13"
-mockall = "0.12"
+mockall = "0.13"
 quickcheck = "1.0"
 quickcheck_macros = "1.0"
 rand = { version = "0.8", features = ["small_rng"] }

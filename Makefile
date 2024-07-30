@@ -48,6 +48,7 @@ TOOLS:=\
 	thin_metadata_size \
 	thin_metadata_pack \
 	thin_metadata_unpack \
+	thin_migrate \
 	thin_trim \
 	era_check \
 	era_dump \
@@ -76,6 +77,7 @@ install: $(PDATA_TOOLS) $(MANPAGES)
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_size
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_pack
 	ln -s -f pdata_tools $(BINDIR)/thin_metadata_unpack
+	ln -s -f pdata_tools $(BINDIR)/thin_migrate
 	ln -s -f pdata_tools $(BINDIR)/thin_trim
 	ln -s -f pdata_tools $(BINDIR)/era_check
 	ln -s -f pdata_tools $(BINDIR)/era_dump
@@ -98,6 +100,7 @@ install: $(PDATA_TOOLS) $(MANPAGES)
 	$(INSTALL_DATA) man8/thin_metadata_size.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_pack.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/thin_metadata_unpack.8 $(MANPATH)/man8
+	$(INSTALL_DATA) man8/thin_migrate.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_check.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_dump.8 $(MANPATH)/man8
 	$(INSTALL_DATA) man8/era_restore.8 $(MANPATH)/man8

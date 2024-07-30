@@ -17,7 +17,7 @@ Items in the High or Medium sections should be done before the formal release. T
 - [x] cache_writeback: Replace io_uring by sync & threaded IO
 - [x] cache_writeback: Support large chunk size
 - [x] thin_shrink: Migrate to the sync copier
-- [ ] btree_builder: Check pushed key ordering
+- [x] btree_builder: Check pushed key ordering
 - [ ] thin/cache_metadata_size: Improve output precision (for Stratis)
 - [x] cache_restore: Support v1 metadata
 - [ ] Update man pages, e.g., limit the pool_size for thin_metadata_size to petabytes.
@@ -55,20 +55,24 @@ Items in the High or Medium sections should be done before the formal release. T
 - [ ] Check the key ranges in BTreeWalker.
 - [ ] thin_check: improve error reporting on ref count tree checking (the "overflow" trees).
       Currently it dumps the BTreeError directly.
-- [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concret File
-- [ ] thin_dump: skip empty defs
+- [ ] Parameterize IoEngine: Relies on ReadBlocks or WriteBlocks rather than concrete File
 - [ ] thin_dump: Support --dev-id in ranges
 - [ ] thin_ls: Sort the outputs by specific fields
+
+## Security
+
+- [ ] Fix TOCTOU issues in checking input/output files
+- [ ] Privilege separation
 
 ## RFEs
 
 - [x] thin_shrink: Support binary-to-binary translation
-- [ ] thin_repair: Rebuild the device details tree even though it's unavailable
+- [x] thin_repair: Rebuild the device details tree even though it's unavailable
 
 ## Tests
 
 - [ ] tests: Use packed metadata for all the programs incl. cache/era tools, to reduce coupling between tests
-- [ ] tests: Do not remove the test directory if an external program failed
+- [x] tests: Do not remove the test directory if an external program failed (workaround by using the no_cleanup feature flag)
 - [ ] thin_generate_metadata: Finish the metadata generator
 - [ ] btree_walker: Ensure visited nodes are counted (btree_walker with sm)
 - [ ] btree_builder: Verify ref counts of written nodes

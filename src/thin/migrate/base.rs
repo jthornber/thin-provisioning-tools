@@ -89,6 +89,11 @@ fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<File> {
         .write(true)
         .custom_flags(libc::O_EXCL | libc::O_DIRECT)
         .open(path)?;
+
+    if !out.metadata()?.file_type().is_block_device() {
+        return Err(anyhow!("not a block device"));
+    }
+
     let actual_len = file_utils::device_size(out.as_raw_fd())?;
     if actual_len != expected_len {
         return Err(anyhow!(
@@ -101,7 +106,11 @@ fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<File> {
 }
 
 fn open_dest_file(path: &PathBuf, expected_len: u64) -> Result<File> {
-    let out = OpenOptions::new().write(true).create(true).open(path)?;
+    let out = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)?;
 
     let metadata = out.metadata()?;
     let file_type = metadata.file_type();
