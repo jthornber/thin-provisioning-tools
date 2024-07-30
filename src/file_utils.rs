@@ -50,11 +50,8 @@ pub fn fail<T>(msg: &str) -> io::Result<T> {
     Err(e)
 }
 
-fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
-    let file = File::open(path.as_ref())?;
-    let fd = file.as_raw_fd();
+pub fn device_size(fd: libc::c_int) -> io::Result<u64> {
     let mut cap = 0u64;
-
     unsafe {
         if libc::ioctl(fd, BLKGETSIZE64, &mut cap) == 0 {
             Ok(cap)
@@ -62,6 +59,11 @@ fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
             Err(io::Error::last_os_error())
         }
     }
+}
+
+fn get_device_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {
+    let file = File::open(path.as_ref())?;
+    device_size(file.as_raw_fd())
 }
 
 pub fn file_size<P: AsRef<Path>>(path: P) -> io::Result<u64> {

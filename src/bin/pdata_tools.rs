@@ -29,6 +29,7 @@ fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
         Box::new(thin_metadata_pack::ThinMetadataPackCommand),
         Box::new(thin_metadata_size::ThinMetadataSizeCommand),
         Box::new(thin_metadata_unpack::ThinMetadataUnpackCommand),
+        Box::new(thin_migrate::ThinMigrateCommand),
         Box::new(thin_repair::ThinRepairCommand),
         Box::new(thin_restore::ThinRestoreCommand),
         Box::new(thin_rmap::ThinRmapCommand),

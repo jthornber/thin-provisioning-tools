@@ -19,6 +19,7 @@ clap = { version = "4.5", default-features = false, features = [
 ] }
 crc32c = "0.6"
 data-encoding = "2.5"
+devicemapper = "0.34.3"
 exitcode = "1.1.2"
 fixedbitset = "0.4"
 flate2 = "1.0"
@@ -41,6 +42,7 @@ tui = { version = "0.19", default-features = false, features = [
   "termion",
 ], optional = true }
 termion = { version = "1.5", optional = true }
+udev = "0.7"
 
 [dev-dependencies]
 duct = "0.13"

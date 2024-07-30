@@ -31,7 +31,14 @@ impl CopyStats {
 }
 
 pub trait CopyProgress {
+    /// This method is invoked during a copy batch for updating the progress bar
+    /// more frequently, providing a smoother display of progress.
     fn update(&self, stats: &CopyStats);
+
+    /// This method is called with the resulting stats of a copy batch while
+    /// the copy batch is complete. The implementors should include these values
+    /// into its internal statistics for further accumulative updates.
+    fn inc_stats(&self, stats: &CopyStats);
 }
 
 // The constructor for the instance should be passed the src and dst
@@ -45,15 +52,6 @@ pub trait Copier {
         ops: &[CopyOp],
         progress: Arc<dyn CopyProgress + Sync + Send>,
     ) -> Result<CopyStats>;
-}
-
-//-------------------------------------
-
-#[derive(Default)]
-pub struct IgnoreProgress {}
-
-impl CopyProgress for IgnoreProgress {
-    fn update(&self, _: &CopyStats) {}
 }
 
 //-------------------------------------

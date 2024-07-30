@@ -39,69 +39,6 @@ struct WritebackStats {
     nr_write_errors: u64,
 }
 
-/// Updates the progress bar in the reporter as the stats are
-/// updated by the copier threads.
-struct ProgressReporter {
-    report: Arc<Report>,
-    inner: Mutex<WritebackStats>,
-}
-
-impl ProgressReporter {
-    /// nr_blocks - nr to be copied
-    fn new(report: Arc<Report>, nr_blocks: u64) -> Self {
-        Self {
-            report,
-            inner: Mutex::new(WritebackStats {
-                nr_blocks,
-                nr_copied: 0,
-                nr_read_errors: 0,
-                nr_write_errors: 0,
-            }),
-        }
-    }
-
-    /// Adds stats into the internal base.  Then updates the progress.
-    fn inc_stats(&self, stats: &CopyStats) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.nr_copied += stats.nr_copied;
-        inner.nr_read_errors += stats.read_errors.len() as u64;
-        inner.nr_write_errors += stats.write_errors.len() as u64;
-
-        self.report.set_sub_title(&format!(
-            "read errors {}, write errors {}",
-            inner.nr_read_errors, inner.nr_write_errors
-        ));
-
-        let percent = (inner.nr_copied * 100)
-            .checked_div(inner.nr_blocks)
-            .unwrap_or(100);
-        self.report.progress(percent as u8);
-    }
-
-    /// Accessor for the current stats
-    fn _stats(&self) -> WritebackStats {
-        let inner = self.inner.lock().unwrap();
-        (*inner).clone()
-    }
-}
-
-impl CopyProgress for ProgressReporter {
-    // This doesn't update the data fields, that is left until the copy
-    // batch is complete.
-    fn update(&self, stats: &CopyStats) {
-        let inner = self.inner.lock().unwrap();
-
-        self.report.set_sub_title(&format!(
-            "read errors {}, write errors {}",
-            inner.nr_read_errors + stats.read_errors.len() as u64,
-            inner.nr_write_errors + stats.write_errors.len() as u64
-        ));
-
-        let percent = (inner.nr_copied + stats.nr_copied * 100) / inner.nr_blocks;
-        self.report.progress(percent as u8);
-    }
-}
-
 //-----------------------------------------
 
 // Indicates whether a block should be copied.  There are differences
@@ -484,7 +421,6 @@ impl ThreadedCopier {
             let stats = copier
                 .copy(&ops, progress.clone())
                 .map_err(|e| anyhow!("copy failed: {}", e))?;
-            progress.inc_stats(&stats);
 
             {
                 for op in stats.read_errors {
