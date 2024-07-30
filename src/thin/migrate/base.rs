@@ -89,6 +89,11 @@ fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<File> {
         .write(true)
         .custom_flags(libc::O_EXCL | libc::O_DIRECT)
         .open(path)?;
+
+    if !out.metadata()?.file_type().is_block_device() {
+        return Err(anyhow!("not a block device"));
+    }
+
     let actual_len = file_utils::device_size(out.as_raw_fd())?;
     if actual_len != expected_len {
         return Err(anyhow!(
