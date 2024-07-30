@@ -141,7 +141,7 @@ impl<T: FileExt + 'static> Copier for RescueCopier<T> {
         }
 
         stats.nr_copied += nr_copied as u64;
-        progress.update(&stats);
+        progress.inc_stats(&stats);
 
         Ok(stats)
     }

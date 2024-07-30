@@ -39,7 +39,8 @@ impl ThinMigrateCommand {
                 Arg::new("DELTA-ID")
                     .help("Specify a thin id that will be the baseline for calculating deltas")
                     .long("delta-id")
-                    .value_name("THIN_ID"),
+                    .value_name("THIN_ID")
+                    .hide(true),
             )
             .arg(
                 Arg::new("DEST-DEV")
@@ -90,10 +91,7 @@ fn get_dest(matches: &ArgMatches) -> Result<migrate::DestArgs> {
         Ok(migrate::DestArgs::Dev(path))
     } else if let Some(arg) = matches.get_one::<String>("DEST-FILE") {
         let path = PathBuf::from(arg);
-        let file = migrate::FileDestArgs { path, create: true };
-        Ok(migrate::DestArgs::File(file))
-    } else if let Some(arg) = matches.get_one::<String>("DEST-THIN") {
-        Ok(migrate::DestArgs::Dev(PathBuf::from(arg)))
+        Ok(migrate::DestArgs::File(path))
     } else {
         Err(anyhow!("You must specify a dest"))
     }
@@ -146,78 +144,5 @@ impl<'a> Command<'a> for ThinMigrateCommand {
         to_exit_code(&report, migrate::migrate(opts))
     }
 }
-
-//----------------------------------------------------------
-
-/*
-#[cfg(test)]
-mod thin_source {
-    use super::*;
-    use anyhow::ensure;
-
-    #[test]
-    fn parse_single_thin_volume() -> Result<()> {
-        let input = "mypool:123";
-        let expected = migrate::ThinSource {
-            pool: PathBuf::from("mypool".to_string()),
-            origin_thin_id: None,
-            thin_id: 123,
-        };
-        ensure!(parse_thin_source(input).unwrap() == expected);
-        Ok(())
-    }
-
-    #[test]
-    fn parse_thin_volume_with_delta() -> Result<()> {
-        let input = "anotherpool:with:colon:100..123";
-        let expected = migrate::ThinSource {
-            pool: PathBuf::from("anotherpool:with:colon".to_string()),
-            origin_thin_id: Some(100),
-            thin_id: 123,
-        };
-        ensure!(parse_thin_source(input).unwrap() == expected);
-        Ok(())
-    }
-
-    #[test]
-    fn parse_bad() -> Result<()> {
-        let inputs = ["invalidformat", "pool:", ":::", ""];
-
-        for input in inputs {
-            ensure!(parse_thin_source(input).is_err());
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod thin_dest {
-    use super::*;
-    use anyhow::ensure;
-
-    #[test]
-    fn parse_thin_good() -> Result<()> {
-        let input = "mypool:123";
-        let expected = migrate::ThinDest {
-            pool: PathBuf::from("mypool"),
-            thin_id: 123,
-        };
-        ensure!(parse_thin_dest(input).unwrap() == expected);
-        Ok(())
-    }
-
-    #[test]
-    fn parse_bad() -> Result<()> {
-        let inputs = vec!["mypool", "mypool:123..456", "one two three", "", "123..456"];
-
-        for input in inputs {
-            ensure!(parse_thin_dest(input).is_err());
-        }
-
-        Ok(())
-    }
-}
-*/
 
 //----------------------------------------------------------

@@ -19,7 +19,7 @@ clap = { version = "4.5", default-features = false, features = [
 ] }
 crc32c = "0.6"
 data-encoding = "2.5"
-devicemapper = { git = "https://github.com/stratis-storage/devicemapper-rs", branch = "master" }
+devicemapper = "0.34.3"
 exitcode = "1.1.2"
 fixedbitset = "0.4"
 flate2 = "1.0"
@@ -33,7 +33,6 @@ num-traits = "0.2"
 quick-xml = "0.36"
 rand = "0.8"
 rangemap = "1.5"
-regex = "1.10" # Check for the latest version on crates.io
 roaring = "0.10"
 rio = { git = "https://github.com/jthornber/rio", branch = "master", optional = true }
 safemem = "0.3"

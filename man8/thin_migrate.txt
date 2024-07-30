@@ -1,0 +1,48 @@
+NAME
+  thin_migrate
+
+SYNOPSIS
+  thin_migrate [options] --source-dev {device} --dest-dev {device}
+  thin_migrate [options] --source-dev {device} --dest-file {file}
+
+DESCRIPTION
+  thin_migrate copies provisioned data blocks from a thin device to another
+  device or file. It is designed to create a point-of-time backup of a live
+  thin device, by using the metadata snapshot.
+
+OPTIONS
+  -h, --help		 Print help and exit.
+  -V, --version		 Print version information and exit.
+  --source-dev {device}	 The input thin device to copy.
+  --dest-dev {device}	 The output device as the copy destination.
+  --dest-file {file}	 The output file as the copy destination.
+  -q, --quit		 Suppress output messages, return only exit code.
+  --buffer-size-meg	 Specify the size of the data buffers, in megabytes.
+
+EXAMPLE
+
+  To run thin_migrate on a live thin pool, first create a metadata snapshot:
+
+    $ dmsetup message vg-mythinpool-tpool 0 reserve_metadata_snap
+
+  Once the metadata snapshot is created, copy a thin logical volume into
+  another linear or thin volume. The destination device must have the same size
+  as the source device.
+
+    $ thin_migrate --src-device /dev/vg/lv --dest-device /dev/vg2/lv2
+
+  Alternatively, copy a thin logical volume into a file. thin_migrate can
+  optionally create the destination file if it is not present, or the size of
+  the file will be truncated to match that of the source file.
+
+    $ thin_migrate --src-device /dev/vg/lv --dest-file lv.bin
+
+  Finally, release the metadata snapshot after thin_migrate finishes its job:
+
+    $ dmsetup message vg-mythinpool-tpool 0 release_metadata_snap
+
+DIAGNOSTICS
+  thin_migrate returns an exit code of 0 for success or 1 for error.
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>

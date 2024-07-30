@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -27,14 +28,9 @@ pub struct SourceArgs {
     pub delta_id: Option<ThinId>,
 }
 
-pub struct FileDestArgs {
-    pub path: PathBuf,
-    pub create: bool,
-}
-
 pub enum DestArgs {
     Dev(PathBuf),
-    File(FileDestArgs),
+    File(PathBuf),
 }
 
 pub struct ThinMigrateOptions {
@@ -44,14 +40,6 @@ pub struct ThinMigrateOptions {
     pub buffer_size: Option<usize>, // in sectors
     pub report: Arc<Report>,
 }
-
-/*
-struct Context {
-    report: Arc<Report>,
-    engine_in: Arc<dyn IoEngine + Send + Sync>,
-    engine_out: Arc<dyn IoEngine + Send + Sync>,
-}
-*/
 
 fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>> {
     let engine = SyncIoEngine::new_with(path, false, false)?;
@@ -95,17 +83,13 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     })
 }
 
-struct Dest {
-    file: File,
-}
-
-fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
+fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<File> {
     let out = OpenOptions::new()
         .read(true)
         .write(true)
         .custom_flags(libc::O_EXCL | libc::O_DIRECT)
         .open(path)?;
-    let actual_len = file_utils::file_size(path)?;
+    let actual_len = file_utils::device_size(out.as_raw_fd())?;
     if actual_len != expected_len {
         return Err(anyhow!(
             "lengths differ: input({}) != output({})",
@@ -113,43 +97,37 @@ fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<Dest> {
             actual_len
         ));
     }
-    Ok(Dest { file: out })
+    Ok(out)
 }
 
-fn open_dest_file(path: &PathBuf, create: bool, expected_len: u64) -> Result<File> {
-    if create {
-        let out = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(create)
-            .open(path)?;
+fn open_dest_file(path: &PathBuf, expected_len: u64) -> Result<File> {
+    let out = OpenOptions::new().write(true).create(true).open(path)?;
+
+    let metadata = out.metadata()?;
+    let file_type = metadata.file_type();
+    if file_type.is_file() {
         out.set_len(expected_len)?;
-        Ok(out)
-    } else {
-        let out = OpenOptions::new().read(true).write(true).open(path)?;
-        let actual_len = file_utils::file_size(path)?;
+    } else if file_type.is_block_device() {
+        let actual_len = file_utils::device_size(out.as_raw_fd())?;
         if actual_len != expected_len {
             return Err(anyhow!(
-                "lengths differ input({}) != output({})",
+                "lengths differ: input({}) != output({})",
                 expected_len,
                 actual_len
             ));
         }
-        Ok(out)
+    } else {
+        return Err(anyhow!("unsupported file type"));
     }
+
+    Ok(out)
 }
 
 fn open_dest(_scanner: &mut DmScanner, dst: &DestArgs, expected_len: u64) -> Result<File> {
     match dst {
-        DestArgs::Dev(path) => open_dest_dev(path, expected_len).map(|dst| dst.file),
-        DestArgs::File(fdest) => open_dest_file(&fdest.path, fdest.create, expected_len),
+        DestArgs::Dev(path) => open_dest_dev(path, expected_len),
+        DestArgs::File(path) => open_dest_file(path, expected_len),
     }
-}
-
-struct MigrateProgress {}
-
-impl CopyProgress for MigrateProgress {
-    fn update(&self, _stats: &CopyStats) {}
 }
 
 fn copy_regions(
@@ -158,6 +136,7 @@ fn copy_regions(
     out_file: File,
     block_size: usize,
     buffer_size: usize,
+    report: Arc<Report>,
 ) -> Result<()> {
     let in_vio: VectoredBlockIo<File> = in_file.into();
     let out_vio: VectoredBlockIo<File> = out_file.into();
@@ -172,7 +151,10 @@ fn copy_regions(
     let mut batcher = CopyOpBatcher::new(buffer_size / block_size, tx);
 
     let copier = ThreadedCopier::new(copier);
-    let progress = Arc::new(MigrateProgress {});
+    let progress = Arc::new(ProgressReporter::new(
+        report,
+        stream.size_hint() / block_size as u64,
+    ));
     let handle = copier.run(rx, progress);
 
     while let Some(chunk) = stream.next_chunk()? {
@@ -210,7 +192,14 @@ pub fn migrate(opts: ThinMigrateOptions) -> Result<()> {
         .buffer_size
         .unwrap_or_else(|| std::cmp::max(src.block_size, DEFAULT_BUFFER_SIZE));
 
-    copy_regions(src.stream, src.file, out_file, src.block_size, buffer_size)
+    copy_regions(
+        src.stream,
+        src.file,
+        out_file,
+        src.block_size,
+        buffer_size,
+        opts.report,
+    )
 }
 
 //------------------------------------------
