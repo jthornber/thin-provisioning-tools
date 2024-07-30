@@ -1,3 +1,10 @@
+v1.0.14
+=======
+
+- Introduce thin_migrate for volume migration (technical preview)
+- Fix thin_check's overriding roots not working if the original one broke
+- Improve error tolerance of ref counting in building space maps
+
 v1.0.13
 =======
 
