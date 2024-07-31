@@ -7,35 +7,41 @@ SYNOPSIS
 
 DESCRIPTION
   thin_migrate copies provisioned data blocks from a thin device to another
-  device or file. It is designed to create a point-of-time backup of a live
-  thin device, by using the metadata snapshot.
+  device or file. It is designed for cloning a read-only snapshot or thin
+  volume within a live thin-pool. A metadata snapshot is required to read the
+  data mappings.
 
 OPTIONS
   -h, --help		 Print help and exit.
   -V, --version		 Print version information and exit.
-  --source-dev {device}	 The input thin device to copy.
+  --source-dev {device}	 The input read-only thin device to copy.
   --dest-dev {device}	 The output device as the copy destination.
   --dest-file {file}	 The output file as the copy destination.
   -q, --quit		 Suppress output messages, return only exit code.
-  --buffer-size-meg	 Specify the size of the data buffers, in megabytes.
+  --buffer-size-meg {size}	 Specify the size of the data buffers, in megabytes.
 
 EXAMPLE
 
-  To run thin_migrate on a live thin pool, first create a metadata snapshot:
+  Assuming that there's a thin snapshot 'vg/snap' to copy, we must first set
+  the snapshot to read-only:
+
+    $ lvchange vg/snap --permission r
+
+  Next, create a metadata snapshot for running thin_migrate:
 
     $ dmsetup message vg-mythinpool-tpool 0 reserve_metadata_snap
 
-  Once the metadata snapshot is created, copy a thin logical volume into
-  another linear or thin volume. The destination device must have the same size
-  as the source device.
+  Once the metadata snapshot is created, copy the snapshot into another linear
+  or thin volume. The destination volume must have the same size as the source
+  device.
 
-    $ thin_migrate --src-device /dev/vg/lv --dest-device /dev/vg2/lv2
+    $ thin_migrate --src-device /dev/vg/snap --dest-device /dev/vg2/dest
 
-  Alternatively, copy a thin logical volume into a file. thin_migrate can
-  optionally create the destination file if it is not present, or the size of
-  the file will be truncated to match that of the source file.
+  Alternatively, copy the snapshot into a file. thin_migrate can optionally
+  create the destination file if it is not present, or the size of the file
+  will be truncated to match that of the source device.
 
-    $ thin_migrate --src-device /dev/vg/lv --dest-file lv.bin
+    $ thin_migrate --src-device /dev/vg/snap --dest-file dest.bin
 
   Finally, release the metadata snapshot after thin_migrate finishes its job:
 
