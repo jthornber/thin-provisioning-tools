@@ -64,7 +64,7 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     let thin = OpenOptions::new()
         .read(true)
         .write(false)
-        .custom_flags(libc::O_EXCL | libc::O_DIRECT)
+        .custom_flags(libc::O_DIRECT)
         .open(&src.path)?;
     let thin_name = scanner.file_to_name(&thin)?.clone();
     let thin_table = get_thin_table(scanner, &thin_name)?;
