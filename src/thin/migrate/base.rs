@@ -46,12 +46,16 @@ fn mk_engine<P: AsRef<Path>>(path: P) -> Result<Arc<dyn IoEngine + Send + Sync>>
     Ok(Arc::new(engine))
 }
 
-pub fn metadata_dev_from_thin(scanner: &mut DmScanner, thin: &File) -> Result<DeviceNr> {
-    let thin_name = scanner.file_to_name(thin)?.clone();
-    let thin_table = get_thin_table(scanner, &thin_name)?;
-    let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
-    let pool_table = get_pool_table(scanner, &pool_name)?;
-    Ok(pool_table.metadata_dev)
+fn ensure_device_size(file: &File, expected_len: u64) -> Result<()> {
+    let actual_len = file_utils::device_size(file.as_raw_fd())?;
+    if actual_len != expected_len {
+        return Err(anyhow!(
+            "lengths differ: input({}) != output({})",
+            expected_len,
+            actual_len
+        ));
+    }
+    Ok(())
 }
 
 struct Source {
@@ -70,8 +74,7 @@ fn open_source(scanner: &mut DmScanner, src: &SourceArgs) -> Result<Source> {
     let thin_table = get_thin_table(scanner, &thin_name)?;
     let pool_name = scanner.dev_to_name(&thin_table.pool_dev)?.clone();
     let pool_table = get_pool_table(scanner, &pool_name)?;
-    let metadata_dev = metadata_dev_from_thin(scanner, &thin)?;
-    let metadata_path = scanner.dev_to_path(&metadata_dev)?.unwrap();
+    let metadata_path = scanner.dev_to_path(&pool_table.metadata_dev)?.unwrap();
     let metadata_engine = mk_engine(metadata_path)?;
 
     if !get_device_info(scanner, &thin_name)?.read_only {
@@ -98,14 +101,7 @@ fn open_dest_dev(path: &PathBuf, expected_len: u64) -> Result<File> {
         return Err(anyhow!("not a block device"));
     }
 
-    let actual_len = file_utils::device_size(out.as_raw_fd())?;
-    if actual_len != expected_len {
-        return Err(anyhow!(
-            "lengths differ: input({}) != output({})",
-            expected_len,
-            actual_len
-        ));
-    }
+    ensure_device_size(&out, expected_len)?;
     Ok(out)
 }
 
@@ -121,14 +117,7 @@ fn open_dest_file(path: &PathBuf, expected_len: u64) -> Result<File> {
     if file_type.is_file() {
         out.set_len(expected_len)?;
     } else if file_type.is_block_device() {
-        let actual_len = file_utils::device_size(out.as_raw_fd())?;
-        if actual_len != expected_len {
-            return Err(anyhow!(
-                "lengths differ: input({}) != output({})",
-                expected_len,
-                actual_len
-            ));
-        }
+        ensure_device_size(&out, expected_len)?;
     } else {
         return Err(anyhow!("unsupported file type"));
     }
