@@ -44,6 +44,15 @@ impl DeviceNr {
     }
 }
 
+impl From<Device> for DeviceNr {
+    fn from(dev: Device) -> Self {
+        DeviceNr {
+            major: dev.major,
+            minor: dev.minor,
+        }
+    }
+}
+
 //---------------------------------
 
 /// When constructed this scans udev to build a mapping from
@@ -127,6 +136,58 @@ fn parse_pool_table(input: &str) -> IResult<&str, PoolTable> {
 
 //---------------------------------
 
+#[derive(Debug)]
+pub struct DmInfo {
+    pub name: String,
+    pub uuid: String,
+
+    pub dev: DeviceNr,
+    pub open_count: i32,
+    pub event_nr: u32,
+
+    pub suspended: bool,
+    pub read_only: bool,
+    pub live_table: bool,
+    pub inactive_table: bool,
+    pub deferred_remove: bool,
+    pub internal_suspended: bool,
+}
+
+impl From<DeviceInfo> for DmInfo {
+    fn from(info: DeviceInfo) -> DmInfo {
+        let name = info.name().map_or_else(Default::default, |v| v.to_string());
+        let uuid = info.uuid().map_or_else(Default::default, |v| v.to_string());
+        let dev = info.device().into();
+        let open_count = info.open_count();
+        let event_nr = info.event_nr();
+
+        let flags = info.flags();
+        let suspended = flags.contains(DmFlags::DM_SUSPEND);
+        let read_only = flags.contains(DmFlags::DM_READONLY);
+        let live_table = flags.contains(DmFlags::DM_ACTIVE_PRESENT);
+        let inactive_table = flags.contains(DmFlags::DM_INACTIVE_PRESENT);
+        let deferred_remove = flags.contains(DmFlags::DM_DEFERRED_REMOVE);
+        let internal_suspended = flags.contains(DmFlags::DM_INTERNAL_SUSPEND);
+
+        // FIXME: missing the target_count since it is private in DeviceInfo
+        DmInfo {
+            name,
+            uuid,
+            dev,
+            open_count,
+            event_nr,
+            suspended,
+            read_only,
+            live_table,
+            inactive_table,
+            deferred_remove,
+            internal_suspended,
+        }
+    }
+}
+
+//---------------------------------
+
 /// Manages scanning and interaction with Device Mapper (DM) devices.
 ///
 /// `DmScanner` initializes a connection to the DM subsystem and builds an index
@@ -166,6 +227,11 @@ impl DmScanner {
         }
 
         Ok(args.to_string())
+    }
+
+    pub fn get_info(&mut self, dev_name: &DmName) -> Result<DeviceInfo> {
+        let dev = DevId::Name(dev_name);
+        self.dm.device_info(&dev).map_err(|e| e.into())
     }
 
     /// Convert a device nr to a DmNameBuf
@@ -223,6 +289,10 @@ pub fn get_pool_table(scanner: &mut DmScanner, dev_name: &DmName) -> Result<Pool
     let (_, pool_table) =
         parse_pool_table(&pool_args).map_err(|_| anyhow!("couldn't parse pool table"))?;
     Ok(pool_table)
+}
+
+pub fn get_device_info(scanner: &mut DmScanner, dev_name: &DmName) -> Result<DmInfo> {
+    scanner.get_info(dev_name).map(|info| info.into())
 }
 
 //------------------------------------------

@@ -19,15 +19,9 @@ DESCRIPTION
 OPTIONS
   -h, --help		Print help and exit.
   -V, --version		Print version information and exit.
-  -f, --format {xml|human_readable|custom}	Choose output format.
-
-    Custom formats are supported via shared library plugins.  They should be
-    specified as in this example:
-
-      $ thin_dump --format custom=mylib.so /dev/sda
-
+  -f, --format {xml|human_readable}	Choose output format.
   -r, --repair		Repair the metadata whilst dumping it.
-  -m, --metadata-snap{=<block nr>}	Dump metadata snapshot.
+  -m, --metadata-snap[=<block nr>]	Dump metadata snapshot.
 
     If block is not provided, access the default metadata snapshot created by
     the thin provisioning device-mapper target, else try the one at block nr.
@@ -40,7 +34,7 @@ OPTIONS
     device.
 
   --transaction-id {natural}	Override the transaction id given in the input xml.
-  --data-block-size {natural}	Override the data block size given in the input xml.
+  --data-block-size {sectors}	Override the data block size given in the input xml.
   --nr-data-blocks {natural}    Override the nr data blocks given in the input xml.
 
   --skip-mappings	Do not dump the mappings.
