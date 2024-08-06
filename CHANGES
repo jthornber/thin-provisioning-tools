@@ -1,3 +1,9 @@
+v1.1.0
+=======
+
+- Correct the use case and update instructions in thin_migrate's man page
+- Ensure that the source device for thin_migrate is read-only
+
 v1.0.14
 =======
 
