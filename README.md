@@ -7,10 +7,13 @@ dm-era device-mapper targets.
 Requirements
 ============
 
-We are in the process of switching these tools over from C++ to Rust.
-The performance of many of the tools has increased (particularly thin_check).
-The best way to install Rust is via the [rustup](https://rustup.rs/)
+The tools were rewritten in Rust starting from v1.0, bringing significant
+performance improvements to many of the tools (particularly thin_check).
+The recommended way to install Rust is via the [rustup](https://rustup.rs/)
 command.
+
+Additional dependencies like clang, libudev-devel and device-mapper-devel must
+be installed separately.
 
 Building
 ========
