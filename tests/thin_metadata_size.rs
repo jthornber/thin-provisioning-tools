@@ -120,7 +120,7 @@ fn dev_size_and_block_size_succeeds() -> Result<()> {
 
 #[test]
 fn test_valid_block_sizes() -> Result<()> {
-    let block_sizes = [128, 256, 384, 2097152];
+    let block_sizes = [8, 16, 32, 64, 128, 256, 384, 2097152];
     for bs in block_sizes {
         let bs = bs.to_string();
         run_ok(thin_metadata_size_cmd(args![
@@ -137,7 +137,7 @@ fn test_valid_block_sizes() -> Result<()> {
 
 #[test]
 fn invalid_block_size_should_fail() -> Result<()> {
-    let block_sizes = [0, 64, 127, 2097153, 2097280, 4194304];
+    let block_sizes = [0, 4, 127, 2097153, 2097280, 4194304];
     for bs in block_sizes {
         let bs = bs.to_string();
         run_fail(thin_metadata_size_cmd(args![
