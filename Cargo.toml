@@ -34,7 +34,6 @@ rand = "0.8"
 rangemap = "1.5"
 roaring = "0.10"
 rio = { git = "https://github.com/jthornber/rio", branch = "master", optional = true }
-safemem = "0.3"
 thiserror = "1.0"
 tui = { version = "0.19", default-features = false, features = [
   "termion",

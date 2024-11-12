@@ -1,4 +1,3 @@
-use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::io::{self, Result};
@@ -33,7 +32,7 @@ impl Block {
 
     pub fn zeroed(loc: u64) -> Self {
         let r = Self::new(loc);
-        write_bytes(r.get_data(), 0);
+        r.get_data().fill(0);
         r
     }
 
