@@ -6,7 +6,6 @@ edition = "2021"
 license = "GPL-3.0-only"
 
 [dependencies]
-atty = "0.2"
 anyhow = "1.0"
 base64 = "0.22"
 byteorder = "1.4"

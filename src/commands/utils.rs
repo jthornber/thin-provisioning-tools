@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
-use atty::Stream;
 use std::fs::OpenOptions;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -94,7 +93,7 @@ pub fn check_output_file(path: &Path) -> Result<&Path> {
 pub fn mk_report(quiet: bool) -> std::sync::Arc<Report> {
     if quiet {
         Arc::new(mk_quiet_report())
-    } else if atty::is(Stream::Stderr) {
+    } else if std::io::stderr().is_terminal() {
         Arc::new(mk_progress_bar_report())
     } else {
         Arc::new(mk_simple_report())
