@@ -1,5 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
-use nom::{number::complete::*, IResult};
+use nom::{bytes::complete::take, number::complete::*, IResult};
 use std::io;
 
 use crate::io_engine::*;
@@ -122,6 +122,7 @@ impl<V: Unpack> Node<V> {
     }
 }
 
+#[inline(always)]
 fn convert_result<V>(r: IResult<&[u8], V>) -> std::result::Result<(&[u8], V), NodeError> {
     r.map_err(|_e| NodeError::IncompleteData)
 }
@@ -176,19 +177,12 @@ pub fn unpack_node_raw<V: Unpack>(
 
     let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
 
-    let mut last = None;
-    for k in &keys {
-        if let Some(l) = last {
-            if k <= l {
-                return Err(NodeError::KeysOutOfOrder);
-            }
-        }
-
-        last = Some(k);
+    if !keys.windows(2).all(|w| w[0] < w[1]) {
+        return Err(NodeError::KeysOutOfOrder);
     }
 
     let nr_free = header.max_entries - header.nr_entries;
-    let (i, _padding) = convert_result(count(le_u64, nr_free as usize)(i))?;
+    let (i, _padding) = convert_result(take(nr_free * 8)(i))?;
 
     if header.is_leaf {
         let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
