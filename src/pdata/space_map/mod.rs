@@ -1,3 +1,4 @@
+pub mod aggregator;
 pub mod allocated_blocks;
 pub mod base;
 pub mod checker;
