@@ -3,9 +3,11 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{self, Result};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
+use crate::io_engine::stream_reader::*;
 use crate::io_engine::*;
 
 //------------------------------------------
@@ -120,6 +122,25 @@ impl IoEngine for AsyncIoEngine {
         }
 
         Ok(results)
+    }
+
+    fn streaming_read(&self, blocks: &[u64], handler: &mut dyn ReadHandler) -> std::io::Result<()> {
+        // FIXME: calculate this two based on the blocks
+        let io_block_size = 64 * 1024;
+
+        // FIXME: make configurable
+        let buffer_size = 32; // 32meg
+        let mut reader = StreamReader::new(self.input.as_raw_fd(), io_block_size, buffer_size)?;
+
+        let callback = |block: u64, data: Result<&[u8]>| {
+            // FIXME: propagate the error
+            handler.handle(block, data).expect("handle failed");
+        };
+
+        reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
+        handler.complete()?;
+
+        Ok(())
     }
 
     fn write(&self, b: &Block) -> Result<()> {

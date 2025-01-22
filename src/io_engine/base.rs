@@ -84,6 +84,11 @@ pub fn is_page_aligned(v: u64) -> bool {
 
 //------------------------------------------
 
+pub trait ReadHandler {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()>;
+    fn complete(&mut self) -> std::io::Result<()>;
+}
+
 pub trait IoEngine: Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
@@ -96,6 +101,9 @@ pub trait IoEngine: Send + Sync {
     fn read(&self, b: u64) -> Result<Block>;
     // The whole io could fail, or individual blocks
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>>;
+
+    /// Blocks should be in sorted ascending order
+    fn streaming_read(&self, blocks: &[u64], callback: &mut dyn ReadHandler) -> Result<()>;
 
     fn write(&self, block: &Block) -> Result<()>;
     // The whole io could fail, or individual blocks

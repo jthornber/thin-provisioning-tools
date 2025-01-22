@@ -635,6 +635,71 @@ fn summariser(
     }
 }
 
+// Copies the raw data to a block, then batches them into runs and
+// sends them down the channel.
+struct LeafHandler {
+    batch_size: usize,
+    blocks: Vec<Block>,
+    tx: SyncSender<Vec<Block>>,
+
+    // In case there's an error reading the block
+    nodes: Arc<Mutex<NodeMap>>,
+}
+
+impl LeafHandler {
+    fn new(batch_size: usize, tx: SyncSender<Vec<Block>>, nodes: Arc<Mutex<NodeMap>>) -> Self {
+        Self {
+            batch_size,
+            blocks: Vec::with_capacity(batch_size),
+            tx,
+            nodes,
+        }
+    }
+
+    fn send_blocks(&mut self) -> std::io::Result<()> {
+        let mut blocks = Vec::with_capacity(self.batch_size);
+        std::mem::swap(&mut blocks, &mut self.blocks);
+        self.tx.send(blocks).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Unable to send blocks over queue".to_string(),
+            )
+        })?;
+        Ok(())
+    }
+}
+
+impl ReadHandler for LeafHandler {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
+        match data {
+            Ok(data) => {
+                let b = Block::new(loc);
+                b.get_data().copy_from_slice(data);
+
+                self.blocks.push(b);
+
+                if self.blocks.len() == self.batch_size {
+                    self.send_blocks()?;
+                }
+            }
+            Err(_) => {
+                let mut nodes = self.nodes.lock().unwrap();
+                let _ = nodes.insert_error(loc as u32, NodeError::IoError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn complete(&mut self) -> std::io::Result<()> {
+        if !self.blocks.is_empty() {
+            self.send_blocks()?;
+        }
+
+        Ok(())
+    }
+}
+
 fn read_leaf_nodes(
     ctx: &Context,
     nodes: NodeMap,
@@ -688,29 +753,10 @@ fn read_leaf_nodes(
 
     // IO is done in the main thread
     let engine = ctx.engine.clone();
-    for c in leaves.chunks(1024) {
-        let mut bs = Vec::with_capacity(c.len());
 
-        // TODO: Retry blocks ignored by vectored io
-        if let Ok(blocks) = engine.read_many(c) {
-            for b in blocks {
-                if b.is_err() {
-                    continue;
-                }
-
-                let b = b.unwrap();
-                bs.push(b);
-            }
-
-            blocks_tx
-                .send(bs)
-                .expect("couldn't send blocks to unpacker");
-        } else {
-            let mut nodes = nodes.lock().unwrap();
-            for b in c {
-                let _ = nodes.insert_error(*b as u32, NodeError::IoError);
-            }
-        }
+    {
+        let mut handler = LeafHandler::new(1024, blocks_tx.clone(), nodes.clone());
+        engine.streaming_read(&leaves, &mut handler)?;
     }
 
     drop(blocks_tx);

@@ -206,6 +206,14 @@ impl IoEngine for SpindleIoEngine {
         Ok(bs)
     }
 
+    fn streaming_read(
+        &self,
+        _blocks: &[u64],
+        _callback: &mut dyn ReadHandler,
+    ) -> std::io::Result<()> {
+        todo!();
+    }
+
     fn write(&self, b: &Block) -> io::Result<()> {
         let mut inner = self.inner.write().unwrap();
         inner.write_(b)?;

@@ -13,6 +13,9 @@ pub use crate::io_engine::sync::SyncIoEngine;
 pub mod async_;
 
 #[cfg(feature = "io_uring")]
+pub mod stream_reader;
+
+#[cfg(feature = "io_uring")]
 pub use crate::io_engine::async_::AsyncIoEngine;
 
 #[cfg(test)]
