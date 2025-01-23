@@ -112,6 +112,76 @@ impl Region {
             }
         }
     }
+
+    /// Retrieves the reference counts for a range of blocks.
+    ///
+    /// This method allows you to look up the reference counts for a contiguous range of blocks,
+    /// starting from the specified `begin` block. It fills the provided `results` slice with
+    /// the reference counts and returns the number of blocks actually processed.
+    ///
+    /// # Arguments
+    ///
+    /// * `begin` - The starting block number to look up.
+    /// * `results` - A mutable slice to store the retrieved reference counts. The length of this
+    ///               slice determines the maximum number of blocks to look up.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of blocks actually processed. This may be less than `results.len()` if
+    /// the range extends beyond the end of the Aggregator's entries.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let aggregator = Aggregator::new(1000);
+    /// // ... (assume some increments have been performed)
+    ///
+    /// let mut results = vec![0; 10];
+    /// let blocks_read = aggregator.lookup(500, &mut results);
+    /// println!("Read {} blocks, first few counts: {:?}", blocks_read, &results[..3]);
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - If `begin` is beyond the last entry in the Aggregator, this method will return 0 and
+    ///   leave `results` unchanged.
+    /// - The method will read up to `results.len()` blocks, but may read fewer if the end of
+    ///   the Aggregator's range is reached.
+    /// - This method is thread-safe and can be called concurrently with `increment` operations.
+    fn lookup(&self, block: u64, results: &mut [u32]) -> u64 {
+        let b = block % REGION_SIZE as u64;
+        let e = (b as usize + results.len()).min(REGION_SIZE);
+
+        match &self.rep {
+            NoCounts => {
+                // All zeroes
+                for i in (b as usize)..e {
+                    results[i - b as usize] = 0;
+                }
+            }
+            Bits(bits) => {
+                for i in (b as usize)..e {
+                    results[i - b as usize] = if bits.contains(i) { 1 } else { 0 };
+                }
+            }
+            U8s(counts) => {
+                for i in (b as usize)..e {
+                    results[i - b as usize] = counts[i] as u32;
+                }
+            }
+            U16s(counts) => {
+                for i in (b as usize)..e {
+                    results[i - b as usize] = counts[i] as u32;
+                }
+            }
+            U32s(counts) => {
+                for i in (b as usize)..e {
+                    results[i - b as usize] = counts[i] as u32;
+                }
+            }
+        }
+        return e as u64 - b;
+    }
 }
 
 /// Aggregates reference count increments across multiple regions.
@@ -232,8 +302,31 @@ impl Aggregator {
         region.increment(&blocks[start_idx..]);
     }
 
-    pub fn get_nr_entries(&self) -> usize {
+    pub fn get_nr_blocks(&self) -> usize {
         self.nr_entries
+    }
+
+    pub fn lookup(&mut self, begin: u64, results: &mut [u32]) -> u64 {
+        if begin >= self.nr_entries as u64 {
+            return 0;
+        }
+
+        // Adjust the results slice to take into account the nr_entries
+        let len = results.len();
+        let results = &mut results[0..len.min(self.nr_entries - begin as usize)];
+
+        let mut b = begin;
+        let end = (begin as usize + results.len()).min(self.nr_entries);
+        let mut nr_read = 0;
+        while b < end as u64 {
+            let region_idx = b as usize / REGION_SIZE;
+            let region = self.regions[region_idx].lock().unwrap();
+            let len = region.lookup(b, &mut results[nr_read as usize..]);
+            b += len;
+            nr_read += len;
+        }
+
+        nr_read
     }
 }
 
@@ -362,6 +455,111 @@ mod tests {
                 panic!("Expected U8s representation");
             }
         }
+    }
+
+    #[test]
+    fn test_region_lookup_no_counts() {
+        let region = Region::default();
+        let mut results = vec![0; 10];
+        let blocks_read = region.lookup(5, &mut results);
+        assert_eq!(blocks_read, 10);
+        assert_eq!(results, vec![0; 10]);
+    }
+
+    #[test]
+    fn test_region_lookup_bits() {
+        let mut region = Region {
+            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
+        };
+        if let Bits(bits) = &mut region.rep {
+            bits.insert(7);
+            bits.insert(9);
+        }
+        let mut results = vec![0; 5];
+        let blocks_read = region.lookup(6, &mut results);
+        assert_eq!(blocks_read, 5);
+        assert_eq!(results, vec![0, 1, 0, 1, 0]);
+    }
+
+    #[test]
+    fn test_region_lookup_u8s() {
+        let mut counts = vec![0; REGION_SIZE];
+        counts[3] = 2;
+        counts[4] = 1;
+        let region = Region { rep: U8s(counts) };
+        let mut results = vec![0; 5];
+        let blocks_read = region.lookup(2, &mut results);
+        assert_eq!(blocks_read, 5);
+        assert_eq!(results, vec![0, 2, 1, 0, 0]);
+    }
+
+    #[test]
+    fn test_region_lookup_u16s() {
+        let mut counts = vec![0; REGION_SIZE];
+        counts[1] = 300;
+        counts[2] = 500;
+        let region = Region { rep: U16s(counts) };
+        let mut results = vec![0; 3];
+        let blocks_read = region.lookup(1, &mut results);
+        assert_eq!(blocks_read, 3);
+        assert_eq!(results, vec![300, 500, 0]);
+    }
+
+    #[test]
+    fn test_region_lookup_u32s() {
+        let mut counts = vec![0; REGION_SIZE];
+        counts[0] = 1_000_000;
+        counts[1] = 2_000_000;
+        let region = Region { rep: U32s(counts) };
+        let mut results = vec![0; 3];
+        let blocks_read = region.lookup(0, &mut results);
+        assert_eq!(blocks_read, 3);
+        assert_eq!(results, vec![1_000_000, 2_000_000, 0]);
+    }
+
+    #[test]
+    fn test_aggregator_lookup_single_region() {
+        let mut aggregator = Aggregator::new(REGION_SIZE);
+        aggregator.increment(&[1, 2, 1, 3]);
+        let mut results = vec![0; 5];
+        let blocks_read = aggregator.lookup(0, &mut results);
+        assert_eq!(blocks_read, 5);
+        assert_eq!(results, vec![0, 2, 1, 1, 0]);
+    }
+
+    #[test]
+    fn test_aggregator_lookup_multiple_regions() {
+        let mut aggregator = Aggregator::new(REGION_SIZE * 2);
+        aggregator.increment(&[1, REGION_SIZE as u64 + 1, 1, REGION_SIZE as u64 + 2]);
+        let mut results = vec![0; REGION_SIZE + 5];
+        let blocks_read = aggregator.lookup(0, &mut results);
+        assert_eq!(blocks_read, REGION_SIZE as u64 + 5);
+        assert_eq!(results[1], 2);
+        assert_eq!(results[REGION_SIZE + 1], 1);
+        assert_eq!(results[REGION_SIZE + 2], 1);
+    }
+
+    #[test]
+    fn test_aggregator_lookup_out_of_bounds() {
+        let mut aggregator = Aggregator::new(REGION_SIZE);
+        let mut results = vec![0; 5];
+        let blocks_read = aggregator.lookup(REGION_SIZE as u64, &mut results);
+        assert_eq!(blocks_read, 0);
+        assert_eq!(results, vec![0; 5]);
+    }
+
+    #[test]
+    fn test_aggregator_lookup_partial_read() {
+        let mut aggregator = Aggregator::new(REGION_SIZE + 5);
+        aggregator.increment(&[
+            REGION_SIZE as u64,
+            REGION_SIZE as u64 + 1,
+            REGION_SIZE as u64 + 2,
+        ]);
+        let mut results = vec![0; 10];
+        let blocks_read = aggregator.lookup(REGION_SIZE as u64 - 2, &mut results);
+        assert_eq!(blocks_read, 7);
+        assert_eq!(results[2..5], vec![1, 1, 1]);
     }
 }
 
