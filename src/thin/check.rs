@@ -560,68 +560,6 @@ fn convert_result<V>(r: IResult<&[u8], V>) -> std::result::Result<(&[u8], V), No
     r.map_err(|_e| NodeError::IncompleteData)
 }
 
-pub fn unpack_node_raw_<V: Unpack>(
-    data: &[u8],
-    ignore_non_fatal: bool,
-    is_root: bool,
-) -> std::result::Result<Node<V>, NodeError> {
-    use nom::multi::count;
-
-    let (i, header) = NodeHeader::unpack(data).map_err(|_e| NodeError::IncompleteData)?;
-
-    if header.is_leaf && header.value_size != V::disk_size() {
-        return Err(NodeError::ValueSizeMismatch);
-    }
-
-    let elt_size = header.value_size + 8;
-    if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
-        return Err(NodeError::MaxEntriesTooLarge);
-    }
-
-    if header.nr_entries > header.max_entries {
-        return Err(NodeError::NumEntriesTooLarge);
-    }
-
-    if !ignore_non_fatal {
-        if header.max_entries % 3 != 0 {
-            return Err(NodeError::MaxEntriesNotDivisible);
-        }
-
-        if !is_root {
-            let min = header.max_entries / 3;
-            if header.nr_entries < min {
-                return Err(NodeError::NumEntriesTooSmall);
-            }
-        }
-    }
-
-    let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
-
-    if !keys.windows(2).all(|w| w[0] < w[1]) {
-        return Err(NodeError::KeysOutOfOrder);
-    }
-
-    let nr_free = header.max_entries - header.nr_entries;
-    let (i, _padding) = convert_result(take(nr_free * 8)(i))?;
-
-    if header.is_leaf {
-        let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
-
-        Ok(Node::Leaf {
-            header,
-            keys,
-            values,
-        })
-    } else {
-        let (_i, values) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
-        Ok(Node::Internal {
-            header,
-            keys,
-            values,
-        })
-    }
-}
-
 // Verify the checksum of a node
 fn verify_checksum(b: &Block) -> std::result::Result<(), NodeError> {
     use crate::checksum;
@@ -632,42 +570,83 @@ fn verify_checksum(b: &Block) -> std::result::Result<(), NodeError> {
     }
 }
 
-// Unpack a node and verify the checksum.
-// The returned error is content based. Context information is up to the caller.
-fn check_and_unpack_node_<V: Unpack>(
-    b: &Block,
-    ignore_non_fatal: bool,
-    is_root: bool,
-) -> std::result::Result<Node<V>, NodeError> {
-    verify_checksum(b)?;
-    let node = unpack_node_raw_::<V>(b.get_data(), ignore_non_fatal, is_root)?;
-    if node.get_header().block != b.loc {
-        return Err(NodeError::BlockNrMismatch);
-    }
-    Ok(node)
-}
-
 fn examine_leaf_(
     b: &Block,
     ignore_non_fatal: bool,
     data_blocks: &mut Vec<u64>,
 ) -> std::result::Result<NodeSummary, NodeError> {
-    // FIXME: why are we setting is_root to true?  Because we don't know?
-    match check_and_unpack_node_::<BlockTime>(&b, ignore_non_fatal, true) {
-        Ok(n) => {
-            if let Node::Leaf { values, keys, .. } = &n {
-                for v in values {
-                    data_blocks.push(v.block);
-                }
+    verify_checksum(b)?;
 
-                let sum = NodeSummary::from_leaf(keys);
-                Ok(sum)
-            } else {
-                Err(NodeError::ExpectedLeaf)
+    let (i, header) = NodeHeader::unpack(b.get_data()).map_err(|_e| NodeError::IncompleteData)?;
+
+    if header.is_leaf && header.value_size != BlockTime::disk_size() {
+        return Err(NodeError::ValueSizeMismatch);
+    }
+
+    let elt_size = header.value_size + 8;
+    if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
+        return Err(NodeError::MaxEntriesTooLarge);
+    }
+
+    if header.block != b.loc {
+        return Err(NodeError::BlockNrMismatch);
+    }
+
+    if header.nr_entries > header.max_entries {
+        return Err(NodeError::NumEntriesTooLarge);
+    }
+
+    if !ignore_non_fatal {
+        if header.max_entries % 3 != 0 {
+            return Err(NodeError::MaxEntriesNotDivisible);
+        }
+    }
+
+    let mut key_low = 0;
+    let mut key_high = 0;
+    let mut input = i;
+    if header.nr_entries > 0 {
+        let (i, k) = convert_result(le_u64(input))?;
+        input = i;
+        key_low = k;
+        key_high = k;
+
+        let mut last = k;
+        for idx in 1..header.nr_entries {
+            let (i, k) = convert_result(le_u64(input))?;
+            input = i;
+
+            if k < last {
+                return Err(NodeError::KeysOutOfOrder);
+            }
+            last = k;
+
+            if idx == header.nr_entries - 1 {
+                key_high = k;
             }
         }
-        Err(e) => Err(e),
     }
+    let i = input;
+
+    let nr_free = header.max_entries - header.nr_entries;
+    let (i, _padding) = convert_result(take(nr_free * 8)(i))?;
+
+    let mut input = i;
+    for _ in 0..header.nr_entries {
+        let (i, bt) = convert_result(BlockTime::unpack(input))?;
+        input = i;
+        data_blocks.push(bt.block);
+    }
+
+    let sum = NodeSummary {
+        key_low,
+        key_high,
+        nr_mappings: header.nr_entries as u64,
+        nr_entries: header.nr_entries as u8,
+        nr_errors: 0,
+    };
+
+    Ok(sum)
 }
 
 fn unpacker(
@@ -677,7 +656,7 @@ fn unpacker(
     summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
 ) {
-    const INC_BATCH_SIZE: usize = 1024;
+    const INC_BATCH_SIZE: usize = 10240;
     const SUMMARY_BATCH_SIZE: usize = 1024;
 
     // I don't want to check the batch size after every single block
@@ -704,7 +683,7 @@ fn unpacker(
 
             if inc_batch.len() >= INC_BATCH_SIZE {
                 // FIXME: verify this sort helps
-                inc_batch.sort_unstable();
+                // inc_batch.sort_unstable();
                 data_sm.increment(&inc_batch);
                 inc_batch.clear();
             }

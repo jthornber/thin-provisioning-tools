@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 //--------------------------------
 
-const REGION_SIZE: usize = 512;
+const REGION_SIZE: usize = 1024;
 
 enum Rep {
     NoCounts,
