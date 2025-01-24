@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
@@ -25,6 +27,23 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
+fn get_memory_usage() -> Result<usize, std::io::Error> {
+    let mut s = String::new();
+    File::open("/proc/self/statm")?.read_to_string(&mut s)?;
+    let pages = s
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse::<usize>()
+        .unwrap();
+    Ok((pages * 4096) / (1024 * 1024))
+}
+
+fn print_mem(msg: &str) {
+    eprintln!("{}: {} meg", msg, get_memory_usage().unwrap());
+}
+
+//------------------------------------------
 // minimum number of entries of a node with 64-bit mapped type
 const MIN_ENTRIES: u8 = 84;
 
@@ -837,8 +856,10 @@ fn read_leaf_nodes(
     data_sm: &Arc<Aggregator>,
     ignore_non_fatal: bool,
 ) -> Result<(NodeMap, HashVec<NodeSummary>)> {
-    const QUEUE_DEPTH: usize = 4;
+    const QUEUE_DEPTH: usize = 1;
     const NR_UNPACKERS: usize = 4;
+
+    print_mem("read_leaf_nodes start");
 
     // Single IO thread reads vecs of blocks
     // Many unpackers take the block vecs and turn them into btree nodes
@@ -850,6 +871,8 @@ fn read_leaf_nodes(
     for loc in nodes.leaf_nodes.ones() {
         leaves.push(loc as u64);
     }
+    eprintln!("leaves size = {} meg", leaves.len() * 8 / (1024 * 1024));
+    eprintln!("nodes count start = {}", nodes.len());
 
     let (blocks_tx, blocks_rx) = mpsc::sync_channel::<Vec<Block>>(QUEUE_DEPTH);
     let blocks_rx = Arc::new(Mutex::new(blocks_rx));
@@ -889,7 +912,14 @@ fn read_leaf_nodes(
     // extract the results
     let nodes = Arc::try_unwrap(nodes).unwrap().into_inner().unwrap();
     let summaries = Arc::try_unwrap(summaries).unwrap().into_inner().unwrap();
+    eprintln!(
+        "summaries size = {} bytes",
+        std::mem::size_of::<NodeSummary>() * summaries.len()
+    );
 
+    print_mem("read_leaf_nodes end");
+    eprintln!("data_sm size {} meg", data_sm.rep_size() / (1024 * 1024));
+    eprintln!("nodes count end = {}", nodes.len());
     Ok((nodes, summaries))
 }
 
