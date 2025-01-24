@@ -4,13 +4,14 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
+use std::os::fd::RawFd;
 use std::path::Path;
-use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::commands::engine::*;
 use crate::hashvec::HashVec;
+use crate::io_engine::stream_reader::*;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
@@ -580,9 +581,9 @@ fn convert_result<V>(r: IResult<&[u8], V>) -> std::result::Result<(&[u8], V), No
 }
 
 // Verify the checksum of a node
-fn verify_checksum(b: &Block) -> std::result::Result<(), NodeError> {
+fn verify_checksum(data: &[u8]) -> std::result::Result<(), NodeError> {
     use crate::checksum;
-    match checksum::metadata_block_type(b.get_data()) {
+    match checksum::metadata_block_type(data) {
         checksum::BT::NODE => Ok(()),
         checksum::BT::UNKNOWN => Err(NodeError::ChecksumError),
         _ => Err(NodeError::NotANode),
@@ -590,13 +591,14 @@ fn verify_checksum(b: &Block) -> std::result::Result<(), NodeError> {
 }
 
 fn examine_leaf_(
-    b: &Block,
+    loc: u64,
+    data: &[u8],
     ignore_non_fatal: bool,
     data_blocks: &mut Vec<u64>,
 ) -> std::result::Result<NodeSummary, NodeError> {
-    verify_checksum(b)?;
+    verify_checksum(data)?;
 
-    let (i, header) = NodeHeader::unpack(b.get_data()).map_err(|_e| NodeError::IncompleteData)?;
+    let (i, header) = NodeHeader::unpack(data).map_err(|_e| NodeError::IncompleteData)?;
 
     if header.is_leaf && header.value_size != BlockTime::disk_size() {
         return Err(NodeError::ValueSizeMismatch);
@@ -607,7 +609,7 @@ fn examine_leaf_(
         return Err(NodeError::MaxEntriesTooLarge);
     }
 
-    if header.block != b.loc {
+    if header.block != loc {
         return Err(NodeError::BlockNrMismatch);
     }
 
@@ -668,154 +670,88 @@ fn examine_leaf_(
     Ok(sum)
 }
 
-fn unpacker(
-    blocks_rx: &Arc<Mutex<mpsc::Receiver<Vec<Block>>>>,
+fn streaming_read(fd: RawFd, blocks: &[u64], handler: &mut dyn ReadHandler) -> std::io::Result<()> {
+    // FIXME: calculate this two based on the blocks
+    let io_block_size = 64 * 1024;
+
+    // FIXME: make configurable
+    let buffer_size = 16; // 32meg
+    let mut reader = StreamReader::new(fd, io_block_size, buffer_size)?;
+
+    let callback = |block: u64, data: std::io::Result<&[u8]>| {
+        // FIXME: propagate the error
+        handler.handle(block, data).expect("handle failed");
+    };
+
+    reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
+    handler.complete()?;
+
+    Ok(())
+}
+
+struct LeafHandler {
     data_sm: Arc<Aggregator>,
     node_map: Arc<Mutex<NodeMap>>,
-    summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
+    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
-) {
-    const INC_BATCH_SIZE: usize = 10240;
-    const SUMMARY_BATCH_SIZE: usize = 1024;
 
-    // I don't want to check the batch size after every single block
-    // is inserted.  So I add 256 for some wiggle room.
-    let mut inc_batch = Vec::with_capacity(INC_BATCH_SIZE + 256);
-    let mut summary_batch: Vec<(u32, NodeSummary)> = Vec::with_capacity(SUMMARY_BATCH_SIZE + 256);
-
-    loop {
-        let blocks = {
-            let blocks_rx = blocks_rx.lock().unwrap();
-            if let Ok(blocks) = blocks_rx.recv() {
-                blocks
-            } else {
-                break;
-            }
-        };
-
-        let mut errs = Vec::new();
-
-        for b in blocks {
-            // Allow under full nodes in this phase.  The under full
-            // property will be check later based on the path context.
-            let sum = examine_leaf_(&b, ignore_non_fatal, &mut inc_batch);
-
-            if inc_batch.len() >= INC_BATCH_SIZE {
-                // FIXME: verify this sort helps
-                // inc_batch.sort_unstable();
-                data_sm.increment(&inc_batch);
-                inc_batch.clear();
-            }
-
-            match sum {
-                Ok(sum) => {
-                    summary_batch.push((b.loc as u32, sum));
-                }
-                Err(e) => errs.push((b.loc, e)),
-            }
-        }
-
-        if summary_batch.len() >= SUMMARY_BATCH_SIZE {
-            let mut summaries = summaries.lock().unwrap();
-            for (loc, sum) in &summary_batch {
-                summaries.insert(*loc, sum.clone());
-            }
-            summary_batch.clear();
-        }
-
-        if !errs.is_empty() {
-            let mut node_map = node_map.lock().unwrap();
-            for (b, e) in errs {
-                // theoretically never fail
-                let _ = node_map.insert_error(b as u32, e);
-            }
-        }
-    }
-
-    if !inc_batch.is_empty() {
-        // eprintln!("incrementing {} entries", batch.len());
-        inc_batch.sort_unstable();
-        data_sm.increment(&inc_batch);
-    }
-
-    if !summary_batch.is_empty() {
-        let mut summaries = summaries.lock().unwrap();
-        for (loc, sum) in &summary_batch {
-            summaries.insert(*loc, sum.clone());
-        }
-        summary_batch.clear();
-    }
+    inc_batch: Vec<u64>,
+    summary_batch: Vec<(u32, NodeSummary)>,
 }
 
-/*
-fn summariser(
-    nodes_rx: mpsc::Receiver<Vec<Node<BlockTime>>>,
-    data_sm: Arc<Aggregator>,
-    summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
-) {
-    let mut summaries = summaries.lock().unwrap();
-
-    loop {
-        let nodes = {
-            if let Ok(nodes) = nodes_rx.recv() {
-                nodes
-            } else {
-                break;
-            }
-        };
-
-        for n in nodes {
-            if let Node::Leaf {
-                keys,
-                values,
-                header,
-            } = n
-            {
-                let sum = NodeSummary::from_leaf(&keys);
-                summaries.insert(header.block as u32, sum);
-            } else {
-                // Do not report error here. The error will be captured
-                // in the second phase.
-            }
-        }
-    }
-
-    eprintln!("summariser done");
-    eprintln!("aggregator used {} bytes", data_sm.rep_size());
-}
-*/
-
-// Copies the raw data to a block, then batches them into runs and
-// sends them down the channel.
-struct LeafHandler {
-    batch_size: usize,
-    blocks: Vec<Block>,
-    tx: SyncSender<Vec<Block>>,
-
-    // In case there's an error reading the block
-    nodes: Arc<Mutex<NodeMap>>,
-}
+const INC_BATCH_SIZE: usize = 1024;
+const SUMMARY_BATCH_SIZE: usize = 1024;
 
 impl LeafHandler {
-    fn new(batch_size: usize, tx: SyncSender<Vec<Block>>, nodes: Arc<Mutex<NodeMap>>) -> Self {
+    fn new(
+        data_sm: Arc<Aggregator>,
+        node_map: Arc<Mutex<NodeMap>>,
+        summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+        ignore_non_fatal: bool,
+    ) -> Self {
         Self {
-            batch_size,
-            blocks: Vec::with_capacity(batch_size),
-            tx,
-            nodes,
+            data_sm,
+            node_map,
+            summaries,
+            ignore_non_fatal,
+            inc_batch: Vec::with_capacity(INC_BATCH_SIZE + 256),
+            summary_batch: Vec::with_capacity(SUMMARY_BATCH_SIZE + 256),
         }
     }
 
-    fn send_blocks(&mut self) -> std::io::Result<()> {
-        let mut blocks = Vec::with_capacity(self.batch_size);
-        std::mem::swap(&mut blocks, &mut self.blocks);
-        self.tx.send(blocks).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Unable to send blocks over queue".to_string(),
-            )
-        })?;
-        Ok(())
+    fn flush_incs(&mut self) {
+        if self.inc_batch.is_empty() {
+            return;
+        }
+
+        // FIXME: verify this sort helps
+        // inc_batch.sort_unstable();
+        self.data_sm.increment(&self.inc_batch);
+        self.inc_batch.clear();
+    }
+
+    fn maybe_flush_incs(&mut self) {
+        if self.inc_batch.len() >= INC_BATCH_SIZE {
+            self.flush_incs();
+        }
+    }
+
+    fn flush_summaries(&mut self) {
+        if self.summary_batch.is_empty() {
+            return;
+        }
+
+        let mut summaries = self.summaries.lock().unwrap();
+        for (loc, sum) in &self.summary_batch {
+            summaries.insert(*loc, sum.clone());
+        }
+        self.summary_batch.clear();
+    }
+
+    fn maybe_flush_summaries(&mut self) {
+        if self.summary_batch.len() >= SUMMARY_BATCH_SIZE {
+            self.flush_summaries();
+        }
     }
 }
 
@@ -823,31 +759,58 @@ impl ReadHandler for LeafHandler {
     fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
         match data {
             Ok(data) => {
-                let b = Block::new(loc);
-                b.get_data().copy_from_slice(data);
+                // Allow under full nodes in this phase.  The under full
+                // property will be check later based on the path context.
+                let sum = examine_leaf_(loc, data, self.ignore_non_fatal, &mut self.inc_batch);
+                self.maybe_flush_incs();
 
-                self.blocks.push(b);
-
-                if self.blocks.len() == self.batch_size {
-                    self.send_blocks()?;
+                match sum {
+                    Ok(sum) => {
+                        self.summary_batch.push((loc as u32, sum));
+                        self.maybe_flush_summaries();
+                    }
+                    Err(e) => {
+                        todo!();
+                        // errs.push((loc, e));
+                    }
                 }
+
+                Ok(())
             }
-            Err(_) => {
-                let mut nodes = self.nodes.lock().unwrap();
-                let _ = nodes.insert_error(loc as u32, NodeError::IoError);
+            Err(e) => {
+                todo!();
             }
         }
-
-        Ok(())
     }
 
     fn complete(&mut self) -> std::io::Result<()> {
-        if !self.blocks.is_empty() {
-            self.send_blocks()?;
-        }
-
+        self.flush_incs();
+        self.flush_summaries();
         Ok(())
     }
+}
+
+fn unpacker(
+    fd: RawFd,
+    leaves: &[u64],
+    data_sm: Arc<Aggregator>,
+    node_map: Arc<Mutex<NodeMap>>,
+    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let mut handler = LeafHandler::new(data_sm, node_map, summaries, ignore_non_fatal);
+    streaming_read(fd, leaves, &mut handler)?;
+    Ok(())
+
+    /*
+    if !errs.is_empty() {
+        let mut node_map = node_map.lock().unwrap();
+        for (b, e) in errs {
+            // theoretically never fail
+            let _ = node_map.insert_error(b as u32, e);
+        }
+    }
+    */
 }
 
 fn read_leaf_nodes(
@@ -856,8 +819,7 @@ fn read_leaf_nodes(
     data_sm: &Arc<Aggregator>,
     ignore_non_fatal: bool,
 ) -> Result<(NodeMap, HashVec<NodeSummary>)> {
-    const QUEUE_DEPTH: usize = 1;
-    const NR_UNPACKERS: usize = 4;
+    const NR_UNPACKERS: usize = 6;
 
     print_mem("read_leaf_nodes start");
 
@@ -874,39 +836,33 @@ fn read_leaf_nodes(
     eprintln!("leaves size = {} meg", leaves.len() * 8 / (1024 * 1024));
     eprintln!("nodes count start = {}", nodes.len());
 
-    let (blocks_tx, blocks_rx) = mpsc::sync_channel::<Vec<Block>>(QUEUE_DEPTH);
-    let blocks_rx = Arc::new(Mutex::new(blocks_rx));
+    // FIXME: handle error
+    let raw_fd = ctx.engine.get_fd().unwrap();
 
     // Process chunks of leaves at once so the io engine can aggregate reads.
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
     let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
-    let mut unpackers = Vec::with_capacity(NR_UNPACKERS);
-    for _i in 0..NR_UNPACKERS {
-        let blocks_rx = blocks_rx.clone();
-        let node_map = nodes.clone();
-        let data_sm = data_sm.clone();
-        let summaries = summaries.clone();
-        unpackers.push(thread::spawn(move || {
-            unpacker(&blocks_rx, data_sm, node_map, &summaries, ignore_non_fatal)
-        }));
-    }
-    drop(blocks_rx);
+    thread::scope(|s| {
+        let chunk_size = (leaves.len() + NR_UNPACKERS - 1) / NR_UNPACKERS;
+        for leaves in leaves.chunks(chunk_size) {
+            let node_map = nodes.clone();
+            let data_sm = data_sm.clone();
+            let summaries = summaries.clone();
+            s.spawn(move || {
+                unpacker(
+                    raw_fd,
+                    leaves,
+                    data_sm,
+                    node_map,
+                    summaries,
+                    ignore_non_fatal,
+                )
+            });
+        }
+    });
 
-    // IO is done in the main thread
-    let engine = ctx.engine.clone();
-
-    {
-        let mut handler = LeafHandler::new(1024, blocks_tx.clone(), nodes.clone());
-        engine.streaming_read(&leaves, &mut handler)?;
-    }
-
-    // Wait for child threads
-    drop(blocks_tx);
-    for tid in unpackers {
-        tid.join().expect("couldn't join unpacker");
-    }
     eprintln!("joined unpackers");
 
     // extract the results

@@ -2,7 +2,7 @@ use safemem::write_bytes;
 use std::alloc::{alloc, dealloc, Layout};
 use std::fs::File;
 use std::io::{self, Result};
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::Path;
 
 use crate::file_utils;
@@ -102,8 +102,9 @@ pub trait IoEngine: Send + Sync {
     // The whole io could fail, or individual blocks
     fn read_many(&self, blocks: &[u64]) -> Result<Vec<Result<Block>>>;
 
-    /// Blocks should be in sorted ascending order
-    fn streaming_read(&self, blocks: &[u64], callback: &mut dyn ReadHandler) -> Result<()>;
+    fn get_fd(&self) -> Option<RawFd> {
+        None
+    }
 
     fn write(&self, block: &Block) -> Result<()>;
     // The whole io could fail, or individual blocks

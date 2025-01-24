@@ -350,7 +350,7 @@ impl Aggregator {
         let mut total = 0;
         for i in 0..self.regions.len() {
             let region = self.regions[i].lock().unwrap();
-            total += std::mem::size_of::<Region>();
+            total += std::mem::size_of::<Mutex<Region>>();
             total += region.rep_size();
         }
         total
