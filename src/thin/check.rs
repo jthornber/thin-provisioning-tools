@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
@@ -24,6 +26,23 @@ use crate::thin::superblock::*;
 
 //------------------------------------------
 
+fn get_memory_usage() -> Result<usize, std::io::Error> {
+    let mut s = String::new();
+    File::open("/proc/self/statm")?.read_to_string(&mut s)?;
+    let pages = s
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse::<usize>()
+        .unwrap();
+    Ok((pages * 4096) / (1024 * 1024))
+}
+
+fn print_mem(report: &Report, msg: &str) {
+    report.debug(&format!("{}: {} meg", msg, get_memory_usage().unwrap()));
+}
+
+//------------------------------------------
 // minimum number of entries of a node with 64-bit mapped type
 const MIN_ENTRIES: u8 = 84;
 
@@ -499,9 +518,11 @@ fn check_mappings_bottom_level_(
     let duration = start.elapsed();
     report.debug(&format!("reading internal nodes: {:?}", duration));
 
+    print_mem(&ctx.report, "memory usage before read_leaf_nodes");
     let start = std::time::Instant::now();
     let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal)?;
     let duration = start.elapsed();
+    print_mem(&ctx.report, "memory usage after read_leaf_nodes");
     report.debug(&format!("reading leaf nodes: {:?}", duration));
 
     let start = std::time::Instant::now();
