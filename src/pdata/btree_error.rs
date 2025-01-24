@@ -322,6 +322,7 @@ pub enum NodeError {
     NumEntriesTooSmall, // i.e., underfull
     KeysOutOfOrder,
     IncompleteData,
+    ExpectedLeaf,
 }
 
 impl fmt::Display for NodeError {
@@ -340,6 +341,7 @@ impl fmt::Display for NodeError {
             NumEntriesTooSmall => write!(f, "nr_entries < max_entries / 3"),
             KeysOutOfOrder => write!(f, "keys out of order"),
             IncompleteData => write!(f, "incomplete data"),
+            ExpectedLeaf => write!(f, "expected leaf node"),
         }
     }
 }

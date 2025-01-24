@@ -1,9 +1,10 @@
 use fixedbitset::*;
+use std::intrinsics::unlikely;
 use std::sync::Mutex;
 
 //--------------------------------
 
-const REGION_SIZE: usize = 256;
+const REGION_SIZE: usize = 512;
 
 enum Rep {
     NoCounts,
@@ -18,7 +19,7 @@ use Rep::*;
 impl Rep {
     fn upgrade(&self) -> Self {
         match self {
-            NoCounts => Bits(FixedBitSet::with_capacity(256)),
+            NoCounts => Bits(FixedBitSet::with_capacity(REGION_SIZE)),
             Bits(bits) => {
                 let mut bytes = vec![0; REGION_SIZE];
                 for b in bits.ones() {
@@ -72,7 +73,7 @@ impl Region {
             U8s(counts) => {
                 for i in 0..blocks.len() {
                     let b = blocks[i] % REGION_SIZE as u64;
-                    if counts[b as usize] == u8::MAX {
+                    if unlikely(counts[b as usize] == u8::MAX) {
                         return IncResult::NeedUpgrade(i);
                     }
                     counts[b as usize] += 1;
@@ -181,6 +182,16 @@ impl Region {
             }
         }
         return e as u64 - b;
+    }
+
+    fn rep_size(&self) -> usize {
+        match &self.rep {
+            NoCounts => 0,
+            Bits(_) => REGION_SIZE / 8,
+            U8s(_) => REGION_SIZE,
+            U16s(_) => REGION_SIZE * 2,
+            U32s(_) => REGION_SIZE * 4,
+        }
     }
 }
 
@@ -302,6 +313,10 @@ impl Aggregator {
         region.increment(&blocks[start_idx..]);
     }
 
+    pub fn inc_single(&self, block: u64) {
+        self.increment(&[block]);
+    }
+
     pub fn get_nr_blocks(&self) -> usize {
         self.nr_entries
     }
@@ -327,6 +342,18 @@ impl Aggregator {
         }
 
         nr_read
+    }
+
+    pub fn rep_size(&self) -> usize {
+        eprintln!("{} regions", self.regions.len());
+        eprintln!("Region size = {}", std::mem::size_of::<Region>());
+        let mut total = 0;
+        for i in 0..self.regions.len() {
+            let region = self.regions[i].lock().unwrap();
+            total += std::mem::size_of::<Region>();
+            total += region.rep_size();
+        }
+        total
     }
 }
 

@@ -53,6 +53,10 @@ where
     V: Copy + Default + std::ops::AddAssign + From<u8>,
 {
     pub fn new(nr_entries: u64) -> CoreSpaceMap<V> {
+        use std::mem::size_of;
+
+        let size = size_of::<Self>() + size_of::<V>() * nr_entries as usize;
+        eprintln!("CoreSpaceMap size {} bytes", size);
         CoreSpaceMap {
             nr_allocated: 0,
             alloc_begin: 0,

@@ -1,3 +1,5 @@
+#![feature(core_intrinsics)]
+
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
