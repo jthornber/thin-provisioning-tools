@@ -5,7 +5,6 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -14,7 +13,7 @@ use crate::hashvec::HashVec;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
-use crate::pdata::space_map::checker::*;
+use crate::pdata::space_map::aggregator::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
@@ -23,6 +22,7 @@ use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
+use crate::utils::ranged_bitset_iter::*;
 
 //------------------------------------------
 
@@ -102,24 +102,6 @@ struct NodeSummary {
 }
 
 impl NodeSummary {
-    fn from_leaf(keys: &[u64]) -> Self {
-        let nr_entries = keys.len();
-        let key_low = if nr_entries > 0 { keys[0] } else { 0 };
-        let key_high = if nr_entries > 0 {
-            keys[nr_entries - 1]
-        } else {
-            0
-        };
-
-        NodeSummary {
-            key_low,
-            key_high,
-            nr_mappings: nr_entries as u64,
-            nr_entries: nr_entries as u8,
-            nr_errors: 0,
-        }
-    }
-
     fn error() -> Self {
         Self {
             key_low: 0,
@@ -507,7 +489,7 @@ fn summarize_tree(
 fn check_mappings_bottom_level_(
     ctx: &Context,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Aggregator>,
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<HashVec<NodeSummary>> {
@@ -571,176 +553,251 @@ fn collect_nodes_in_use(
     nodes
 }
 
-fn unpacker(
-    blocks_rx: &Arc<Mutex<mpsc::Receiver<Vec<Block>>>>,
-    nodes_tx: SyncSender<Vec<Node<BlockTime>>>,
-    node_map: Arc<Mutex<NodeMap>>,
+//--------------------------------
+
+use nom::{bytes::complete::take, number::complete::*, IResult};
+
+#[inline(always)]
+fn convert_result<V>(r: IResult<&[u8], V>) -> std::result::Result<(&[u8], V), NodeError> {
+    r.map_err(|_e| NodeError::IncompleteData)
+}
+
+// Verify the checksum of a node
+fn verify_checksum(data: &[u8]) -> std::result::Result<(), NodeError> {
+    use crate::checksum;
+    match checksum::metadata_block_type(data) {
+        checksum::BT::NODE => Ok(()),
+        checksum::BT::UNKNOWN => Err(NodeError::ChecksumError),
+        _ => Err(NodeError::NotANode),
+    }
+}
+
+fn examine_leaf_(
+    loc: u64,
+    data: &[u8],
     ignore_non_fatal: bool,
-) {
-    loop {
-        let blocks = {
-            let blocks_rx = blocks_rx.lock().unwrap();
-            if let Ok(blocks) = blocks_rx.recv() {
-                blocks
-            } else {
-                break;
+    data_blocks: &mut Vec<u64>,
+) -> std::result::Result<NodeSummary, NodeError> {
+    verify_checksum(data)?;
+
+    let (i, header) = NodeHeader::unpack(data).map_err(|_e| NodeError::IncompleteData)?;
+
+    if header.is_leaf && header.value_size != BlockTime::disk_size() {
+        return Err(NodeError::ValueSizeMismatch);
+    }
+
+    let elt_size = header.value_size + 8;
+    if elt_size as usize * header.max_entries as usize + NODE_HEADER_SIZE > BLOCK_SIZE {
+        return Err(NodeError::MaxEntriesTooLarge);
+    }
+
+    if header.block != loc {
+        return Err(NodeError::BlockNrMismatch);
+    }
+
+    if header.nr_entries > header.max_entries {
+        return Err(NodeError::NumEntriesTooLarge);
+    }
+
+    if !ignore_non_fatal && header.max_entries % 3 != 0 {
+        return Err(NodeError::MaxEntriesNotDivisible);
+    }
+
+    let mut key_low = 0;
+    let mut key_high = 0;
+    let mut input = i;
+    if header.nr_entries > 0 {
+        let (i, k) = convert_result(le_u64(input))?;
+        input = i;
+        key_low = k;
+        key_high = k;
+
+        let mut last = k;
+        for idx in 1..header.nr_entries {
+            let (i, k) = convert_result(le_u64(input))?;
+            input = i;
+
+            if k < last {
+                return Err(NodeError::KeysOutOfOrder);
             }
-        };
+            last = k;
 
-        let mut nodes = Vec::with_capacity(blocks.len());
-        let mut errs = Vec::new();
-
-        for b in blocks {
-            // Allow under full nodes in this phase.  The under full
-            // property will be check later based on the path context.
-            match check_and_unpack_node::<BlockTime>(&b, ignore_non_fatal, true) {
-                Ok(n) => {
-                    nodes.push(n);
-                }
-                Err(e) => {
-                    errs.push((b.loc, e));
-                }
+            if idx == header.nr_entries - 1 {
+                key_high = k;
             }
         }
+    }
+    let i = input;
 
-        if !errs.is_empty() {
-            let mut node_map = node_map.lock().unwrap();
-            for (b, e) in errs {
-                // theoretically never fail
-                let _ = node_map.insert_error(b as u32, e);
-            }
+    let nr_free = header.max_entries - header.nr_entries;
+    let (i, _padding) = convert_result(take(nr_free * 8)(i))?;
+
+    let mut input = i;
+    for _ in 0..header.nr_entries {
+        let (i, bt) = convert_result(BlockTime::unpack(input))?;
+        input = i;
+        data_blocks.push(bt.block);
+    }
+
+    let sum = NodeSummary {
+        key_low,
+        key_high,
+        nr_mappings: header.nr_entries as u64,
+        nr_entries: header.nr_entries as u8,
+        nr_errors: 0,
+    };
+
+    Ok(sum)
+}
+
+struct LeafHandler {
+    data_sm: Arc<Aggregator>,
+    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+    ignore_non_fatal: bool,
+
+    inc_batch: Vec<u64>,
+    summary_batch: Vec<(u32, NodeSummary)>,
+}
+
+const INC_BATCH_SIZE: usize = 1024;
+const SUMMARY_BATCH_SIZE: usize = 1024;
+
+impl LeafHandler {
+    fn new(
+        data_sm: Arc<Aggregator>,
+        summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+        ignore_non_fatal: bool,
+    ) -> Self {
+        Self {
+            data_sm,
+            summaries,
+            ignore_non_fatal,
+            inc_batch: Vec::with_capacity(INC_BATCH_SIZE + 256),
+            summary_batch: Vec::with_capacity(SUMMARY_BATCH_SIZE + 256),
+        }
+    }
+
+    fn flush_incs(&mut self) {
+        if self.inc_batch.is_empty() {
+            return;
         }
 
-        if nodes_tx.send(nodes).is_err() {
-            break;
+        // Sadly this sort is too slow.
+
+        // FIXME: magic numbers
+        // self.inc_batch
+        // .sort_unstable_by(|a, b| (a & !1023).cmp(&(b & !1023)));
+        self.data_sm.increment(&self.inc_batch);
+        self.inc_batch.clear();
+    }
+
+    fn maybe_flush_incs(&mut self) {
+        if self.inc_batch.len() >= INC_BATCH_SIZE {
+            self.flush_incs();
+        }
+    }
+
+    fn flush_summaries(&mut self) {
+        if self.summary_batch.is_empty() {
+            return;
+        }
+
+        let mut summaries = self.summaries.lock().unwrap();
+        for (loc, sum) in &self.summary_batch {
+            summaries.insert(*loc, sum.clone());
+        }
+        self.summary_batch.clear();
+    }
+
+    fn maybe_flush_summaries(&mut self) {
+        if self.summary_batch.len() >= SUMMARY_BATCH_SIZE {
+            self.flush_summaries();
         }
     }
 }
 
-fn summariser(
-    nodes_rx: mpsc::Receiver<Vec<Node<BlockTime>>>,
-    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    summaries: &Arc<Mutex<HashVec<NodeSummary>>>,
-) {
-    let mut summaries = summaries.lock().unwrap();
+impl ReadHandler for LeafHandler {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) {
+        match data {
+            Ok(data) => {
+                // Allow under full nodes in this phase.  The under full
+                // property will be check later based on the path context.
+                let sum = examine_leaf_(loc, data, self.ignore_non_fatal, &mut self.inc_batch);
+                self.maybe_flush_incs();
 
-    loop {
-        let nodes = {
-            if let Ok(nodes) = nodes_rx.recv() {
-                nodes
-            } else {
-                break;
-            }
-        };
-
-        for n in nodes {
-            if let Node::Leaf {
-                keys,
-                values,
-                header,
-            } = n
-            {
-                let mut data_sm = data_sm.lock().unwrap();
-                for v in values {
-                    // Ignore errors on increment
-                    let _ = data_sm.inc(v.block, 1);
+                match sum {
+                    Ok(sum) => {
+                        self.summary_batch.push((loc as u32, sum));
+                        self.maybe_flush_summaries();
+                    }
+                    Err(_e) => {
+                        todo!();
+                    }
                 }
-
-                let sum = NodeSummary::from_leaf(&keys);
-                summaries.insert(header.block as u32, sum);
-            } else {
-                // Do not report error here. The error will be captured
-                // in the second phase.
+            }
+            Err(_e) => {
+                todo!();
             }
         }
     }
+
+    fn complete(&mut self) {
+        self.flush_incs();
+        self.flush_summaries();
+    }
+}
+
+fn unpacker(
+    engine: Arc<dyn IoEngine>,
+    leaves: &mut dyn Iterator<Item = u64>,
+    data_sm: Arc<Aggregator>,
+    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+    ignore_non_fatal: bool,
+) -> Result<()> {
+    let io_block_size = 64 * 1024;
+    let buffer_size = 16 * 1024 * 1024; // 16m
+    let nr_io_blocks = buffer_size / io_block_size;
+    let mut buffers = BufferPool::new(nr_io_blocks, io_block_size);
+
+    let mut handler = LeafHandler::new(data_sm, summaries, ignore_non_fatal);
+    engine.read_blocks(&mut buffers, leaves, &mut handler)?;
+
+    Ok(())
 }
 
 fn read_leaf_nodes(
     ctx: &Context,
     nodes: NodeMap,
-    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Aggregator>,
     ignore_non_fatal: bool,
 ) -> Result<(NodeMap, HashVec<NodeSummary>)> {
-    const QUEUE_DEPTH: usize = 4;
     const NR_UNPACKERS: usize = 4;
 
-    // Single IO thread reads vecs of blocks
-    // Many unpackers take the block vecs and turn them into btree nodes
-    // Single 'summariser' thread processes the nodes
-
-    // Build a vec of the leaf locations.  These will be in disk location
-    // order.
-    let mut leaves = Vec::with_capacity(nodes.nr_leaves as usize);
-    for loc in nodes.leaf_nodes.ones() {
-        leaves.push(loc as u64);
-    }
-
-    let (blocks_tx, blocks_rx) = mpsc::sync_channel::<Vec<Block>>(QUEUE_DEPTH);
-    let blocks_rx = Arc::new(Mutex::new(blocks_rx));
-
-    let (nodes_tx, nodes_rx) = mpsc::sync_channel::<Vec<Node<BlockTime>>>(QUEUE_DEPTH);
-
-    // Process chunks of leaves at once so the io engine can aggregate reads.
+    let leaves = nodes.leaf_nodes.clone();
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
     let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
-    let mut unpackers = Vec::with_capacity(NR_UNPACKERS);
-    for _i in 0..NR_UNPACKERS {
-        let blocks_rx = blocks_rx.clone();
-        let nodes_tx = nodes_tx.clone();
-        let node_map = nodes.clone();
-        unpackers.push(thread::spawn(move || {
-            unpacker(&blocks_rx, nodes_tx, node_map, ignore_non_fatal)
-        }));
-    }
-    drop(blocks_rx);
-    drop(nodes_tx);
+    thread::scope(|s| {
+        let chunk_size = leaves.len().div_ceil(NR_UNPACKERS);
+        for i in 0..NR_UNPACKERS {
+            let l_begin = i * chunk_size;
+            let l_end = ((i + 1) * chunk_size).min(leaves.len());
+            let mut leaves = RangedBitsetIter::new(&leaves, l_begin..l_end);
+            let data_sm = data_sm.clone();
+            let summaries = summaries.clone();
 
-    // Kick off the summariser
-    let summariser_tid = {
-        let data_sm = data_sm.clone();
-        let summaries = summaries.clone();
-        thread::spawn(move || {
-            summariser(nodes_rx, &data_sm, &summaries);
-        })
-    };
-
-    // IO is done in the main thread
-    let engine = ctx.engine.clone();
-    for c in leaves.chunks(1024) {
-        let mut bs = Vec::with_capacity(c.len());
-
-        // TODO: Retry blocks ignored by vectored io
-        if let Ok(blocks) = engine.read_many(c) {
-            for b in blocks {
-                if b.is_err() {
-                    continue;
-                }
-
-                let b = b.unwrap();
-                bs.push(b);
-            }
-
-            blocks_tx
-                .send(bs)
-                .expect("couldn't send blocks to unpacker");
-        } else {
-            let mut nodes = nodes.lock().unwrap();
-            for b in c {
-                let _ = nodes.insert_error(*b as u32, NodeError::IoError);
-            }
+            s.spawn(move || {
+                unpacker(
+                    ctx.engine.clone(),
+                    &mut leaves,
+                    data_sm,
+                    summaries,
+                    ignore_non_fatal,
+                )
+            });
         }
-    }
-
-    drop(blocks_tx);
-
-    // Wait for child threads
-    for tid in unpackers {
-        tid.join().expect("couldn't join unpacker");
-    }
-    summariser_tid.join().expect("couldn't join summariser");
+    });
 
     // extract the results
     let nodes = Arc::try_unwrap(nodes).unwrap().into_inner().unwrap();
@@ -1039,10 +1096,11 @@ fn check_mappings_bottom_level(
     ctx: &Context,
     sb: &Superblock,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    data_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    data_sm: &Arc<Aggregator>,
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<HashVec<NodeSummary>> {
+    use crate::pdata::space_map::SpaceMap;
     let report = &ctx.report;
 
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
@@ -1055,7 +1113,7 @@ fn check_mappings_bottom_level(
         metadata_root.nr_allocated + (data_root.nr_allocated / 8),
         move || {
             mon_meta_sm.lock().unwrap().get_nr_allocated().unwrap()
-                + (mon_data_sm.lock().unwrap().get_nr_allocated().unwrap() / 8)
+                + (mon_data_sm.get_nr_allocated().unwrap() / 8)
         },
     );
 
@@ -1067,16 +1125,9 @@ fn check_mappings_bottom_level(
     summaries
 }
 
-fn create_data_sm(sb: &Superblock, nr_devs: u32) -> Result<ASpaceMap> {
+fn create_data_sm(sb: &Superblock) -> Result<Arc<Aggregator>> {
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-
-    let data_sm = if nr_devs <= 1 {
-        Arc::new(Mutex::new(RestrictedSpaceMap::new(data_root.nr_blocks)))
-    } else {
-        core_sm(data_root.nr_blocks, nr_devs)
-    };
-
-    Ok(data_sm)
+    Ok(Arc::new(Aggregator::new(data_root.nr_blocks as usize)))
 }
 
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
@@ -1201,11 +1252,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
     ));
 
-    let data_sm = if opts.engine_opts.use_metadata_snap {
-        create_data_sm(&sb, 1)?
-    } else {
-        create_data_sm(&sb, all_roots.len() as u32)?
-    };
+    let data_sm = create_data_sm(&sb)?;
 
     let summaries = check_mappings_bottom_level(
         &ctx,
@@ -1239,45 +1286,9 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     //-----------------------------------------
-    // Check the data space map
-
-    report.set_sub_title("data space map");
-    let start = std::time::Instant::now();
-    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let data_leaks = check_disk_space_map(
-        engine.as_ref(),
-        report.clone(),
-        root,
-        data_sm.clone(),
-        metadata_sm.clone(),
-        opts.ignore_non_fatal,
-    )
-    .map_err(|e| metadata_err("data space map", e))?;
-    let duration = start.elapsed();
-    report.debug(&format!("checking data space map: {:?}", duration));
-
-    //-----------------------------------------
-    // Check the metadata space map
-
-    report.set_sub_title("metadata space map");
-    let start = std::time::Instant::now();
-    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-
-    // Now the counts should be correct and we can check it.
-    let metadata_leaks = check_metadata_space_map(
-        engine.as_ref(),
-        report.clone(),
-        root,
-        metadata_sm.clone(),
-        opts.ignore_non_fatal,
-    )
-    .map_err(|e| metadata_err("metadata space map", e))?;
-    let duration = start.elapsed();
-    report.debug(&format!("checking metadata space map: {:?}", duration));
-
-    //-----------------------------------------
     // Fix minor issues found in the metadata
 
+    /*
     if !data_leaks.is_empty() {
         if opts.auto_repair || opts.clear_needs_check {
             report.warning("Repairing data leaks.");
@@ -1308,6 +1319,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             report.warning("Cleared needs_check flag");
         }
     }
+    */
 
     Ok(())
 }
@@ -1326,7 +1338,7 @@ pub fn clear_needs_check_flag(engine: Arc<dyn IoEngine + Send + Sync>) -> Result
 // Some callers wish to know which blocks are allocated.
 pub struct CheckMaps {
     pub metadata_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    pub data_sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    pub data_sm: Arc<Aggregator>,
 }
 
 pub fn check_with_maps(
@@ -1351,7 +1363,7 @@ pub fn check_with_maps(
 
     report.set_sub_title("mapping tree");
 
-    let data_sm = create_data_sm(&sb, all_roots.len() as u32)?;
+    let data_sm = create_data_sm(&sb)?;
     let summaries = check_mappings_bottom_level_(&ctx, &metadata_sm, &data_sm, &all_roots, false)?;
 
     // Check the number of mapped blocks
@@ -1359,28 +1371,6 @@ pub fn check_with_maps(
         .iter()
         .map(|(id, (root, details))| (id, root, details));
     check_mapped_blocks(&ctx, &mut iter, &summaries)?;
-
-    //-----------------------------------------
-
-    report.set_sub_title("data space map");
-    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let _data_leaks = check_disk_space_map(
-        engine.as_ref(),
-        report.clone(),
-        root,
-        data_sm.clone(),
-        metadata_sm.clone(),
-        false,
-    )?;
-
-    //-----------------------------------------
-
-    report.set_sub_title("metadata space map");
-    let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-
-    // Now the counts should be correct and we can check it.
-    let _metadata_leaks =
-        check_metadata_space_map(engine.as_ref(), report, root, metadata_sm.clone(), false)?;
 
     //-----------------------------------------
 
