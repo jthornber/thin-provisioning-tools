@@ -25,6 +25,7 @@ use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
+use crate::utils::ranged_bitset_iter::*;
 
 //------------------------------------------
 
@@ -520,10 +521,13 @@ fn check_mappings_bottom_level_(
     let duration = start.elapsed();
     report.debug(&format!("reading internal nodes: {:?}", duration));
 
+    print_mem("read_leaf_nodes start");
     let start = std::time::Instant::now();
     let (nodes, mut summaries) = read_leaf_nodes(ctx, nodes, data_sm, ignore_non_fatal)?;
     let duration = start.elapsed();
+    print_mem("read_leaf_nodes end");
     report.debug(&format!("reading leaf nodes: {:?}", duration));
+    panic!("bang");
 
     let start = std::time::Instant::now();
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
@@ -670,7 +674,10 @@ fn examine_leaf_(
     Ok(sum)
 }
 
-fn streaming_read(fd: RawFd, blocks: &[u64], handler: &mut dyn ReadHandler) -> std::io::Result<()> {
+fn streaming_read<I>(fd: RawFd, blocks: I, handler: &mut dyn ReadHandler) -> std::io::Result<()>
+where
+    I: Iterator<Item = u64>,
+{
     // FIXME: calculate this two based on the blocks
     let io_block_size = 64 * 1024;
 
@@ -790,14 +797,17 @@ impl ReadHandler for LeafHandler {
     }
 }
 
-fn unpacker(
+fn unpacker<I>(
     fd: RawFd,
-    leaves: &[u64],
+    leaves: I,
     data_sm: Arc<Aggregator>,
     node_map: Arc<Mutex<NodeMap>>,
     summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
-) -> Result<()> {
+) -> Result<()>
+where
+    I: Iterator<Item = u64>,
+{
     let mut handler = LeafHandler::new(data_sm, node_map, summaries, ignore_non_fatal);
     streaming_read(fd, leaves, &mut handler)?;
     Ok(())
@@ -819,34 +829,24 @@ fn read_leaf_nodes(
     data_sm: &Arc<Aggregator>,
     ignore_non_fatal: bool,
 ) -> Result<(NodeMap, HashVec<NodeSummary>)> {
-    const NR_UNPACKERS: usize = 6;
+    const NR_UNPACKERS: usize = 4;
 
-    print_mem("read_leaf_nodes start");
-
-    // Single IO thread reads vecs of blocks
-    // Many unpackers take the block vecs and turn them into btree nodes
-    // Single 'summariser' thread processes the nodes
-
-    // Build a vec of the leaf locations.  These will be in disk location
-    // order.
-    let mut leaves = Vec::with_capacity(nodes.nr_leaves as usize);
-    for loc in nodes.leaf_nodes.ones() {
-        leaves.push(loc as u64);
-    }
-    eprintln!("leaves size = {} meg", leaves.len() * 8 / (1024 * 1024));
+    let leaves = nodes.leaf_nodes.clone();
     eprintln!("nodes count start = {}", nodes.len());
 
     // FIXME: handle error
     let raw_fd = ctx.engine.get_fd().unwrap();
 
-    // Process chunks of leaves at once so the io engine can aggregate reads.
     let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
     let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
     thread::scope(|s| {
         let chunk_size = (leaves.len() + NR_UNPACKERS - 1) / NR_UNPACKERS;
-        for leaves in leaves.chunks(chunk_size) {
+        for i in 0..NR_UNPACKERS {
+            let l_begin = i * chunk_size;
+            let l_end = ((i + 1) * chunk_size).min(leaves.len());
+            let leaves = RangedBitsetIter::new(&leaves, l_begin..l_end);
             let node_map = nodes.clone();
             let data_sm = data_sm.clone();
             let summaries = summaries.clone();
@@ -873,7 +873,6 @@ fn read_leaf_nodes(
         std::mem::size_of::<NodeSummary>() * summaries.len()
     );
 
-    print_mem("read_leaf_nodes end");
     eprintln!("data_sm size {} meg", data_sm.rep_size() / (1024 * 1024));
     eprintln!("nodes count end = {}", nodes.len());
     Ok((nodes, summaries))

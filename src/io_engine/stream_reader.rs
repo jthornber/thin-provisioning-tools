@@ -206,14 +206,15 @@ impl StreamReader {
 
     /// Utility function to read smaller blocks using larger IO blocks.  Indices must be sorted into
     /// ascending order.
-    pub fn read_blocks<F>(
+    pub fn read_blocks<F, I>(
         &mut self,
         small_block_size: usize,
-        small_block_indices: &[u64],
+        small_block_indices: I,
         mut callback: F,
     ) -> io::Result<()>
     where
         F: FnMut(u64, Result<&[u8], io::Error>),
+        I: Iterator<Item = u64>,
     {
         let io_block_size = self.block_size;
         assert!(small_block_size <= io_block_size);
@@ -230,7 +231,7 @@ impl StreamReader {
         let mut current_io_idx: Option<u64> = None;
         let mut current_bitmask: u64 = 0;
 
-        for &small_idx in small_block_indices {
+        for small_idx in small_block_indices {
             let io_idx = small_idx / blocks_per_io as u64;
             let bit = small_idx % blocks_per_io as u64;
 
