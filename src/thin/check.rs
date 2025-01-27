@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::commands::engine::*;
-use crate::hashvec::HashVec;
 use crate::io_engine::stream_reader::*;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
@@ -26,6 +25,11 @@ use crate::thin::device_detail::*;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
 use crate::utils::ranged_bitset_iter::*;
+
+//------------------------------------------
+
+// FIXME: move
+type HashVec<T> = HashMap<u32, T>;
 
 //------------------------------------------
 
@@ -95,7 +99,7 @@ struct InternalNodeInfo {
     children: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 struct NodeSummary {
     key_low: u64,     // min mapped block
     key_high: u64,    // max mapped block, inclusive
@@ -422,49 +426,50 @@ fn read_internal_nodes(
     }
 }
 
+struct SummarizeContext<'a> {
+    nodes: &'a NodeMap,
+    summaries: &'a mut HashVec<NodeSummary>,
+    ignore_non_fatal: bool,
+}
+
+#[inline(always)]
+fn get_and_check_sum(ctx: &mut SummarizeContext, kr: &KeyRange, block: u32) -> Option<NodeSummary> {
+    ctx.summaries.get(&block).map(|sum| {
+        // Check the key range against the parent keys.
+        if sum.nr_mappings > 0 {
+            if let Some(start) = kr.start {
+                // The parent key could be less than or equal to,
+                // but not greater than the child's first key
+                if start > sum.key_low {
+                    return NodeSummary::error();
+                }
+            }
+            if let Some(end) = kr.end {
+                // note that KeyRange is a right-opened interval
+                if end < sum.key_high {
+                    return NodeSummary::error();
+                }
+            }
+        }
+        *sum
+    })
+}
+
 // Summarize a subtree rooted at the specified block.
 // Only a good internal node will have a summary stored.
 // TODO: check the tree is balanced by comparing the height of visited nodes
-fn summarize_tree(
+fn summarize_tree_(
+    ctx: &mut SummarizeContext,
     path: &mut Vec<u64>,
     kr: &KeyRange,
-    root: u32,
+    block: u32,
     is_root: bool,
-    nodes: &NodeMap,
-    summaries: &mut HashVec<NodeSummary>,
-    ignore_non_fatal: bool,
 ) -> NodeSummary {
-    if let Some(sum) = summaries.get(root) {
-        // Check underfull
-        if !ignore_non_fatal && !is_root && sum.nr_entries < MIN_ENTRIES {
-            return NodeSummary::error();
-        }
-
-        // Check the key range against the parent keys.
-        if sum.nr_mappings > 0 {
-            if let Some(n) = kr.start {
-                // The parent key could be less than or equal to,
-                // but not greater than the child's first key
-                if n > sum.key_low {
-                    return NodeSummary::error();
-                }
-            }
-            if let Some(n) = kr.end {
-                // note that KeyRange is a right-opened interval
-                if n < sum.key_high {
-                    return NodeSummary::error();
-                }
-            }
-        }
-
-        return sum.clone();
-    }
-
-    match nodes.get_type(root) {
+    match ctx.nodes.get_type(block) {
         NodeType::Internal => {
-            if let Some(info) = nodes.internal_info.get(root) {
+            if let Some(info) = ctx.nodes.internal_info.get(&block) {
                 // Check underfull
-                if !ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
+                if !ctx.ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
                     return NodeSummary::error();
                 }
 
@@ -479,20 +484,17 @@ fn summarize_tree(
                 let mut sum = NodeSummary::default();
                 for (i, b) in info.children.iter().enumerate() {
                     path.push(*b as u64);
-                    let child_sums = summarize_tree(
-                        path,
-                        &child_keys[i],
-                        *b,
-                        false,
-                        nodes,
-                        summaries,
-                        ignore_non_fatal,
-                    );
+                    let child_sums =
+                        if let Some(child_sums) = get_and_check_sum(ctx, &child_keys[i], *b) {
+                            child_sums
+                        } else {
+                            summarize_tree_(ctx, path, &child_keys[i], *b, false)
+                        };
                     let _ = sum.append(&child_sums);
                     path.pop();
                 }
 
-                summaries.insert(root, sum.clone());
+                ctx.summaries.insert(block, sum);
 
                 sum
             } else {
@@ -503,6 +505,27 @@ fn summarize_tree(
 
         // This is unexpected since a leaf should have been summarized
         _ => NodeSummary::error(),
+    }
+}
+
+fn summarize_tree(
+    path: &mut Vec<u64>,
+    kr: &KeyRange,
+    root: u32,
+    is_root: bool,
+    nodes: &NodeMap,
+    summaries: &mut HashVec<NodeSummary>,
+    ignore_non_fatal: bool,
+) -> NodeSummary {
+    let mut ctx = SummarizeContext {
+        nodes,
+        summaries,
+        ignore_non_fatal,
+    };
+    if let Some(sum) = get_and_check_sum(&mut ctx, kr, root) {
+        sum
+    } else {
+        summarize_tree_(&mut ctx, path, kr, root, is_root)
     }
 }
 
@@ -527,12 +550,12 @@ fn check_mappings_bottom_level_(
     let duration = start.elapsed();
     print_mem("read_leaf_nodes end");
     report.debug(&format!("reading leaf nodes: {:?}", duration));
-    panic!("bang");
 
     let start = std::time::Instant::now();
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
     let duration = start.elapsed();
     report.debug(&format!("counting mapped blocks: {:?}", duration));
+    panic!("bang");
 
     report.info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
     report.info(&format!("nr leaves: {}", nodes.nr_leaves));
@@ -540,6 +563,8 @@ fn check_mappings_bottom_level_(
     if !nodes.node_errors.is_empty() {
         let mut nr_io_errors = 0;
         let mut nr_checksum_errors = 0;
+        // FIXME: is it important that the errors are visited in order?  That
+        // seems to be the only use case for HashVec.
         for e in nodes.node_errors.values() {
             match e {
                 NodeError::IoError => nr_io_errors += 1,
@@ -731,8 +756,11 @@ impl LeafHandler {
             return;
         }
 
-        // FIXME: verify this sort helps
-        // inc_batch.sort_unstable();
+        // Sadly this sort is too slow.
+
+        // FIXME: magic numbers
+        // self.inc_batch
+        // .sort_unstable_by(|a, b| (a & !1023).cmp(&(b & !1023)));
         self.data_sm.increment(&self.inc_batch);
         self.inc_batch.clear();
     }
@@ -750,7 +778,7 @@ impl LeafHandler {
 
         let mut summaries = self.summaries.lock().unwrap();
         for (loc, sum) in &self.summary_batch {
-            summaries.insert(*loc, sum.clone());
+            summaries.insert(*loc, *sum);
         }
         self.summary_batch.clear();
     }
@@ -837,7 +865,7 @@ fn read_leaf_nodes(
     // FIXME: handle error
     let raw_fd = ctx.engine.get_fd().unwrap();
 
-    let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
+    let summaries = Arc::new(Mutex::new(HashMap::new()));
     let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
@@ -922,7 +950,7 @@ fn check_mapped_blocks(
     let start = std::time::Instant::now();
     let mut failed = false;
     for (thin_id, root, details) in devs {
-        if let Some(sum) = summaries.get(*root as u32) {
+        if let Some(sum) = summaries.get(&(*root as u32)) {
             if sum.nr_errors > 0 {
                 failed = true;
                 let missed = details.mapped_blocks.saturating_sub(sum.nr_mappings);
@@ -1359,10 +1387,10 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     //-----------------------------------------
     // Check the data space map
 
+    /*
     report.set_sub_title("data space map");
     let start = std::time::Instant::now();
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    /*
     let data_leaks = check_disk_space_map(
         engine.clone(),
         report.clone(),
@@ -1372,7 +1400,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         opts.ignore_non_fatal,
     )
     .map_err(|e| metadata_err("data space map", e))?;
-    */
     let duration = start.elapsed();
     report.debug(&format!("checking data space map: {:?}", duration));
 
@@ -1430,6 +1457,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
             report.warning("Cleared needs_check flag");
         }
     }
+    */
 
     Ok(())
 }
