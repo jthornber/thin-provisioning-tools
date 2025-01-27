@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::commands::engine::*;
-use crate::hashvec::HashVec;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
@@ -92,7 +91,7 @@ struct InternalNodeInfo {
     children: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 struct NodeSummary {
     key_low: u64,     // min mapped block
     key_high: u64,    // max mapped block, inclusive
@@ -143,10 +142,10 @@ struct NodeMap {
     node_type: FixedBitSet,
     leaf_nodes: FixedBitSet, // FIXME: remove this one
     nr_leaves: u32,
-    internal_info: HashVec<InternalNodeInfo>,
+    internal_info: HashMap<u32, InternalNodeInfo>,
 
     // Stores errors of the node itself; errors in children are not included
-    node_errors: HashVec<NodeError>,
+    node_errors: HashMap<u32, NodeError>,
 }
 
 impl NodeMap {
@@ -155,8 +154,8 @@ impl NodeMap {
             node_type: FixedBitSet::with_capacity((nr_blocks as usize) * 2),
             leaf_nodes: FixedBitSet::with_capacity(nr_blocks as usize),
             nr_leaves: 0,
-            internal_info: HashVec::new(),
-            node_errors: HashVec::new(),
+            internal_info: HashMap::new(),
+            node_errors: HashMap::new(),
         }
     }
 
@@ -233,11 +232,6 @@ impl NodeMap {
         self.node_errors.insert(blocknr, e);
         self.set_type_(blocknr, NodeType::Error);
         Ok(())
-    }
-
-    // Returns total number of nodes found
-    fn len(&self) -> u32 {
-        self.internal_info.len() as u32 + self.nr_leaves
     }
 }
 
@@ -401,49 +395,50 @@ fn read_internal_nodes(
     }
 }
 
+struct SummarizeContext<'a> {
+    nodes: &'a NodeMap,
+    summaries: &'a mut HashMap<u32, NodeSummary>,
+    ignore_non_fatal: bool,
+}
+
+#[inline(always)]
+fn get_and_check_sum(ctx: &mut SummarizeContext, kr: &KeyRange, block: u32) -> Option<NodeSummary> {
+    ctx.summaries.get(&block).map(|sum| {
+        // Check the key range against the parent keys.
+        if sum.nr_mappings > 0 {
+            if let Some(start) = kr.start {
+                // The parent key could be less than or equal to,
+                // but not greater than the child's first key
+                if start > sum.key_low {
+                    return NodeSummary::error();
+                }
+            }
+            if let Some(end) = kr.end {
+                // note that KeyRange is a right-opened interval
+                if end < sum.key_high {
+                    return NodeSummary::error();
+                }
+            }
+        }
+        *sum
+    })
+}
+
 // Summarize a subtree rooted at the specified block.
 // Only a good internal node will have a summary stored.
 // TODO: check the tree is balanced by comparing the height of visited nodes
-fn summarize_tree(
+fn summarize_tree_(
+    ctx: &mut SummarizeContext,
     path: &mut Vec<u64>,
     kr: &KeyRange,
-    root: u32,
+    block: u32,
     is_root: bool,
-    nodes: &NodeMap,
-    summaries: &mut HashVec<NodeSummary>,
-    ignore_non_fatal: bool,
 ) -> NodeSummary {
-    if let Some(sum) = summaries.get(root) {
-        // Check underfull
-        if !ignore_non_fatal && !is_root && sum.nr_entries < MIN_ENTRIES {
-            return NodeSummary::error();
-        }
-
-        // Check the key range against the parent keys.
-        if sum.nr_mappings > 0 {
-            if let Some(n) = kr.start {
-                // The parent key could be less than or equal to,
-                // but not greater than the child's first key
-                if n > sum.key_low {
-                    return NodeSummary::error();
-                }
-            }
-            if let Some(n) = kr.end {
-                // note that KeyRange is a right-opened interval
-                if n < sum.key_high {
-                    return NodeSummary::error();
-                }
-            }
-        }
-
-        return sum.clone();
-    }
-
-    match nodes.get_type(root) {
+    match ctx.nodes.get_type(block) {
         NodeType::Internal => {
-            if let Some(info) = nodes.internal_info.get(root) {
+            if let Some(info) = ctx.nodes.internal_info.get(&block) {
                 // Check underfull
-                if !ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
+                if !ctx.ignore_non_fatal && !is_root && info.keys.len() < MIN_ENTRIES as usize {
                     return NodeSummary::error();
                 }
 
@@ -458,20 +453,17 @@ fn summarize_tree(
                 let mut sum = NodeSummary::default();
                 for (i, b) in info.children.iter().enumerate() {
                     path.push(*b as u64);
-                    let child_sums = summarize_tree(
-                        path,
-                        &child_keys[i],
-                        *b,
-                        false,
-                        nodes,
-                        summaries,
-                        ignore_non_fatal,
-                    );
+                    let child_sums =
+                        if let Some(child_sums) = get_and_check_sum(ctx, &child_keys[i], *b) {
+                            child_sums
+                        } else {
+                            summarize_tree_(ctx, path, &child_keys[i], *b, false)
+                        };
                     let _ = sum.append(&child_sums);
                     path.pop();
                 }
 
-                summaries.insert(root, sum.clone());
+                ctx.summaries.insert(block, sum);
 
                 sum
             } else {
@@ -485,6 +477,27 @@ fn summarize_tree(
     }
 }
 
+fn summarize_tree(
+    path: &mut Vec<u64>,
+    kr: &KeyRange,
+    root: u32,
+    is_root: bool,
+    nodes: &NodeMap,
+    summaries: &mut HashMap<u32, NodeSummary>,
+    ignore_non_fatal: bool,
+) -> NodeSummary {
+    let mut ctx = SummarizeContext {
+        nodes,
+        summaries,
+        ignore_non_fatal,
+    };
+    if let Some(sum) = get_and_check_sum(&mut ctx, kr, root) {
+        sum
+    } else {
+        summarize_tree_(&mut ctx, path, kr, root, is_root)
+    }
+}
+
 // Check the mappings filling in the data_sm as we go.
 fn check_mappings_bottom_level_(
     ctx: &Context,
@@ -492,7 +505,7 @@ fn check_mappings_bottom_level_(
     data_sm: &Arc<Aggregator>,
     roots: &[u64],
     ignore_non_fatal: bool,
-) -> Result<HashVec<NodeSummary>> {
+) -> Result<HashMap<u32, NodeSummary>> {
     let report = &ctx.report;
 
     let start = std::time::Instant::now();
@@ -518,6 +531,8 @@ fn check_mappings_bottom_level_(
     if !nodes.node_errors.is_empty() {
         let mut nr_io_errors = 0;
         let mut nr_checksum_errors = 0;
+        // FIXME: is it important that the errors are visited in order?  That
+        // seems to be the only use case for HashVec.
         for e in nodes.node_errors.values() {
             match e {
                 NodeError::IoError => nr_io_errors += 1,
@@ -652,7 +667,7 @@ fn examine_leaf_(
 
 struct LeafHandler {
     data_sm: Arc<Aggregator>,
-    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+    summaries: Arc<Mutex<HashMap<u32, NodeSummary>>>,
     ignore_non_fatal: bool,
 
     inc_batch: Vec<u64>,
@@ -665,7 +680,7 @@ const SUMMARY_BATCH_SIZE: usize = 1024;
 impl LeafHandler {
     fn new(
         data_sm: Arc<Aggregator>,
-        summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+        summaries: Arc<Mutex<HashMap<u32, NodeSummary>>>,
         ignore_non_fatal: bool,
     ) -> Self {
         Self {
@@ -704,7 +719,7 @@ impl LeafHandler {
 
         let mut summaries = self.summaries.lock().unwrap();
         for (loc, sum) in &self.summary_batch {
-            summaries.insert(*loc, sum.clone());
+            summaries.insert(*loc, *sum);
         }
         self.summary_batch.clear();
     }
@@ -751,7 +766,7 @@ fn unpacker(
     engine: Arc<dyn IoEngine>,
     leaves: &mut dyn Iterator<Item = u64>,
     data_sm: Arc<Aggregator>,
-    summaries: Arc<Mutex<HashVec<NodeSummary>>>,
+    summaries: Arc<Mutex<HashMap<u32, NodeSummary>>>,
     ignore_non_fatal: bool,
 ) -> Result<()> {
     let io_block_size = 64 * 1024;
@@ -770,11 +785,11 @@ fn read_leaf_nodes(
     nodes: NodeMap,
     data_sm: &Arc<Aggregator>,
     ignore_non_fatal: bool,
-) -> Result<(NodeMap, HashVec<NodeSummary>)> {
+) -> Result<(NodeMap, HashMap<u32, NodeSummary>)> {
     const NR_UNPACKERS: usize = 4;
 
     let leaves = nodes.leaf_nodes.clone();
-    let summaries = Arc::new(Mutex::new(HashVec::with_capacity(nodes.len())));
+    let summaries = Arc::new(Mutex::new(HashMap::new()));
     let nodes = Arc::new(Mutex::new(nodes));
 
     // Kick off the unpackers
@@ -820,7 +835,7 @@ fn read_leaf_nodes(
 fn count_mapped_blocks(
     roots: &[u64],
     nodes: &NodeMap,
-    summaries: &mut HashVec<NodeSummary>,
+    summaries: &mut HashMap<u32, NodeSummary>,
     ignore_non_fatal: bool,
 ) {
     for root in roots.iter() {
@@ -843,14 +858,14 @@ fn count_mapped_blocks(
 fn check_mapped_blocks(
     ctx: &Context,
     devs: &mut dyn Iterator<Item = (&u64, &u64, &DeviceDetail)>,
-    summaries: &HashVec<NodeSummary>,
+    summaries: &HashMap<u32, NodeSummary>,
 ) -> Result<()> {
     let report = &ctx.report;
 
     let start = std::time::Instant::now();
     let mut failed = false;
     for (thin_id, root, details) in devs {
-        if let Some(sum) = summaries.get(*root as u32) {
+        if let Some(sum) = summaries.get(&(*root as u32)) {
             if sum.nr_errors > 0 {
                 failed = true;
                 let missed = details.mapped_blocks.saturating_sub(sum.nr_mappings);
@@ -1099,7 +1114,7 @@ fn check_mappings_bottom_level(
     data_sm: &Arc<Aggregator>,
     roots: &[u64],
     ignore_non_fatal: bool,
-) -> Result<HashVec<NodeSummary>> {
+) -> Result<HashMap<u32, NodeSummary>> {
     use crate::pdata::space_map::SpaceMap;
     let report = &ctx.report;
 
