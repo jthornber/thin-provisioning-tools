@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
 use fixedbitset::FixedBitSet;
+use rand::seq::SliceRandom;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
-use std::ops::DerefMut;
 use std::os::fd::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -267,12 +267,57 @@ impl NodeMap {
     }
 }
 
-/*
-fn is_seen(loc: u32, sm: &mut dyn SpaceMap) -> Result<bool> {
-    sm.inc(loc as u64, 1)?;
-    Ok(sm.get(loc as u64).unwrap_or(0) > 1)
+//--------------------------------
+
+struct NodeUpdate {
+    loc: u32,
+    info: NodeInfo,
 }
-*/
+
+enum NodeInfo {
+    Leaf(),
+    Internal(InternalNodeInfo),
+    Error(NodeError),
+}
+
+const NODE_MAP_BATCH_SIZE: usize = 1024;
+
+struct BatchedNodeMap {
+    inner: Mutex<NodeMap>,
+}
+
+impl BatchedNodeMap {
+    fn new(inner: NodeMap) -> Self {
+        Self {
+            inner: Mutex::new(inner),
+        }
+    }
+
+    fn batch_update(&self, updates: Vec<NodeUpdate>) {
+        let mut guard = self.inner.lock().unwrap();
+        for update in updates {
+            match update.info {
+                NodeInfo::Leaf() => {
+                    guard.insert_leaf(update.loc);
+                }
+                NodeInfo::Internal(info) => {
+                    let _ = guard.insert_internal_node(update.loc, info);
+                }
+                NodeInfo::Error(error) => {
+                    let _ = guard.insert_error(update.loc, error);
+                }
+            }
+        }
+    }
+
+    /*
+    fn into_inner(self) -> NodeMap {
+        self.inner.into_inner().unwrap()
+    }
+    */
+}
+
+//--------------------------------
 
 /*
 // FIXME: split up this function
@@ -367,11 +412,56 @@ struct LayerHandler<'a> {
     is_root: bool,
     aggregator: &'a Aggregator,
     ignore_non_fatal: bool,
-    nodes: &'a mut NodeMap,
+    nodes: Arc<BatchedNodeMap>,
     children: FixedBitSet,
+    updates: Vec<NodeUpdate>,
 }
 
 impl<'a> LayerHandler<'a> {
+    fn new(
+        is_root: bool,
+        aggregator: &'a Aggregator,
+        ignore_non_fatal: bool,
+        nodes: Arc<BatchedNodeMap>,
+    ) -> Self {
+        Self {
+            is_root,
+            aggregator,
+            ignore_non_fatal,
+            nodes,
+            children: FixedBitSet::with_capacity(aggregator.get_nr_blocks()),
+            updates: Vec::new(),
+        }
+    }
+
+    fn flush_updates(&mut self) {
+        if !self.updates.is_empty() {
+            self.nodes.batch_update(std::mem::take(&mut self.updates));
+        }
+    }
+
+    fn maybe_flush(&mut self) {
+        if self.updates.len() >= NODE_MAP_BATCH_SIZE {
+            if self.updates.len() >= 1000 {
+                self.flush_updates();
+            }
+        }
+    }
+
+    fn push_error(&mut self, loc: u32, e: NodeError) {
+        self.updates.push(NodeUpdate {
+            loc: loc as u32,
+            info: NodeInfo::Error(e),
+        });
+    }
+
+    fn push_internal(&mut self, loc: u32, info: InternalNodeInfo) {
+        self.updates.push(NodeUpdate {
+            loc: loc as u32,
+            info: NodeInfo::Internal(info),
+        });
+    }
+
     fn get_children(self) -> FixedBitSet {
         self.children
     }
@@ -379,27 +469,33 @@ impl<'a> LayerHandler<'a> {
 
 impl<'a> ReadHandler for LayerHandler<'a> {
     fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
+        self.maybe_flush();
+
         match data {
             Ok(data) => {
-                // FIXME: remove once we inline the unpack
-                let b = Block::new(loc);
-                b.get_data().copy_from_slice(data);
+                if let Err(e) = verify_checksum(data) {
+                    let _ = self.push_error(loc as u32, e);
+                    return Ok(());
+                }
 
-                // allow under-full nodes in the first pass
-                let node =
-                    match check_and_unpack_node::<u64>(&b, self.ignore_non_fatal, self.is_root) {
-                        Ok(n) => n,
-                        Err(e) => {
-                            let _ = self.nodes.insert_error(loc as u32, e);
-                            return Ok(());
-                        }
-                    };
+                let node = unpack_node_raw::<u64>(data, self.ignore_non_fatal, self.is_root);
+
+                if let Err(e) = &node {
+                    let _ = self.push_error(loc as u32, *e);
+                    return Ok(());
+                }
+
+                let node = node.unwrap();
+                if node.get_header().block != loc {
+                    let _ = self.push_error(loc as u32, NodeError::BlockNrMismatch);
+                    return Ok(());
+                }
 
                 if let Node::Internal { keys, values, .. } = node {
                     // insert the node info in pre-order fashion to better detect loops in the path
                     let children = values.iter().map(|v| *v as u32).collect::<Vec<u32>>(); // FIXME: slow
                     let info = InternalNodeInfo { keys, children };
-                    let _ = self.nodes.insert_internal_node(loc as u32, info);
+                    let _ = self.push_internal(loc as u32, info);
 
                     let values_to_check: Vec<u64> = values.iter().map(|&v| v).collect();
                     let seen = self.aggregator.test_and_inc(&values_to_check);
@@ -412,7 +508,7 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                 }
             }
             Err(_) => {
-                let _ = self.nodes.insert_error(loc as u32, NodeError::IoError);
+                let _ = self.push_error(loc as u32, NodeError::IoError);
             }
         }
 
@@ -420,6 +516,7 @@ impl<'a> ReadHandler for LayerHandler<'a> {
     }
 
     fn complete(&mut self) -> std::io::Result<()> {
+        self.flush_updates();
         Ok(())
     }
 }
@@ -462,7 +559,7 @@ fn read_internal_nodes(
     aggregator: &Aggregator,
     root: u32,
     ignore_non_fatal: bool,
-    nodes: &mut NodeMap,
+    nodes: Arc<BatchedNodeMap>,
 ) -> Result<()> {
     let mut seen = aggregator.test_and_inc(&[root as u64]);
     if seen.contains(0) {
@@ -473,7 +570,10 @@ fn read_internal_nodes(
 
     let depth = get_depth(ctx, &mut path, root as u64, true)?;
     if depth == 0 {
-        nodes.insert_leaf(root)?;
+        nodes.batch_update(vec![NodeUpdate {
+            loc: root,
+            info: NodeInfo::Leaf(),
+        }]);
         return Ok(());
     }
 
@@ -493,8 +593,9 @@ fn read_internal_nodes(
             is_root,
             aggregator,
             ignore_non_fatal,
-            nodes,
+            nodes: nodes.clone(),
             children: FixedBitSet::with_capacity(nr_blocks as usize),
+            updates: Vec::new(),
         };
         is_root = false;
 
@@ -509,9 +610,15 @@ fn read_internal_nodes(
     }
 
     // insert leaves
-    for b in current_layer.ones() {
-        nodes.insert_leaf(b as u32)?;
-    }
+    // FIXME: we've been trying to avoid creating huge arrays!
+    let blocks = current_layer
+        .ones()
+        .map(|loc| NodeUpdate {
+            loc: loc as u32,
+            info: NodeInfo::Leaf(),
+        })
+        .collect();
+    nodes.batch_update(blocks);
 
     Ok(())
 }
@@ -670,7 +777,6 @@ fn check_mappings_bottom_level_(
     let nodes = collect_nodes_in_use(ctx, &aggregator, roots, ignore_non_fatal)?;
     let duration = start.elapsed();
     eprintln!("reading internal nodes: {:?}", duration);
-    panic!("bang");
 
     print_mem("read_leaf_nodes start");
     let start = std::time::Instant::now();
@@ -683,7 +789,7 @@ fn check_mappings_bottom_level_(
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
     let duration = start.elapsed();
     report.debug(&format!("counting mapped blocks: {:?}", duration));
-    panic!("bang");
+    std::process::exit(0);
 
     report.info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
     report.info(&format!("nr leaves: {}", nodes.nr_leaves));
@@ -719,11 +825,42 @@ fn collect_nodes_in_use(
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<NodeMap> {
-    let mut nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
+    const NR_THREADS: usize = 4;
 
-    for root in roots {
-        read_internal_nodes(ctx, aggregator, *root as u32, ignore_non_fatal, &mut nodes)?;
-    }
+    let nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
+    let batch_nodes = Arc::new(BatchedNodeMap::new(nodes));
+
+    let mut roots: Vec<u64> = roots.to_vec();
+    roots.shuffle(&mut rand::thread_rng());
+
+    let chunk_size = (roots.len() + NR_THREADS - 1) / NR_THREADS;
+    let root_chunks: Vec<&[u64]> = roots.chunks(chunk_size).collect();
+
+    thread::scope(|s| {
+        for chunk in root_chunks {
+            let batch_nodes = batch_nodes.clone();
+            s.spawn(move || {
+                for &root in chunk {
+                    if let Err(e) = read_internal_nodes(
+                        ctx,
+                        aggregator,
+                        root as u32,
+                        ignore_non_fatal,
+                        batch_nodes.clone(),
+                    ) {
+                        // FIXME: handle error properly
+                        eprintln!("Error reading internal nodes: {:?}", e);
+                    }
+                }
+            });
+        }
+    });
+
+    let nodes = Arc::into_inner(batch_nodes)
+        .unwrap()
+        .inner
+        .into_inner()
+        .unwrap();
 
     Ok(nodes)
 }
