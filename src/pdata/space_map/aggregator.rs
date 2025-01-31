@@ -114,6 +114,72 @@ impl Region {
         }
     }
 
+    fn test_and_inc_(
+        &mut self,
+        blocks: &[u64],
+        results: &mut FixedBitSet,
+        offset: usize,
+    ) -> IncResult {
+        match &mut self.rep {
+            NoCounts => IncResult::NeedUpgrade(0),
+            Bits(bits) => {
+                for (i, &block) in blocks.iter().enumerate() {
+                    let b = block as usize % REGION_SIZE;
+                    results.set(offset + i, bits.contains(b));
+                    if bits.contains(b) {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    bits.insert(b);
+                }
+                IncResult::Success
+            }
+            U8s(counts) => {
+                for (i, &block) in blocks.iter().enumerate() {
+                    let b = block as usize % REGION_SIZE;
+                    results.set(offset + i, counts[b] > 0);
+                    if counts[b] == u8::MAX {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    counts[b] += 1;
+                }
+                IncResult::Success
+            }
+            U16s(counts) => {
+                for (i, &block) in blocks.iter().enumerate() {
+                    let b = block as usize % REGION_SIZE;
+                    results.set(offset + i, counts[b] > 0);
+                    if counts[b] == u16::MAX {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    counts[b] += 1;
+                }
+                IncResult::Success
+            }
+            U32s(counts) => {
+                for (i, &block) in blocks.iter().enumerate() {
+                    let b = block as usize % REGION_SIZE;
+                    results.set(offset + i, counts[b] > 0);
+                    counts[b] = counts[b].saturating_add(1);
+                }
+                IncResult::Success
+            }
+        }
+    }
+
+    pub fn test_and_inc(&mut self, blocks: &[u64], results: &mut FixedBitSet, offset: usize) {
+        let mut processed = 0;
+
+        while processed < blocks.len() {
+            match self.test_and_inc_(&blocks[processed..], results, offset + processed) {
+                IncResult::Success => break,
+                IncResult::NeedUpgrade(i) => {
+                    self.rep = self.rep.upgrade();
+                    processed += i;
+                }
+            }
+        }
+    }
+
     /// Retrieves the reference counts for a range of blocks.
     ///
     /// This method allows you to look up the reference counts for a contiguous range of blocks,
@@ -342,6 +408,33 @@ impl Aggregator {
         }
 
         nr_read
+    }
+
+    pub fn test_and_inc(&self, blocks: &[u64]) -> FixedBitSet {
+        let mut results = FixedBitSet::with_capacity(blocks.len());
+
+        if blocks.is_empty() {
+            return results;
+        }
+
+        let mut start_idx = 0;
+        let mut start_region = blocks[start_idx] / REGION_SIZE as u64;
+
+        for i in 1..blocks.len() {
+            let current_region = blocks[i] / REGION_SIZE as u64;
+            if current_region != start_region {
+                let mut region = self.regions[start_region as usize].lock().unwrap();
+                region.test_and_inc(&blocks[start_idx..i], &mut results, start_idx);
+
+                start_idx = i;
+                start_region = current_region;
+            }
+        }
+
+        let mut region = self.regions[start_region as usize].lock().unwrap();
+        region.test_and_inc(&blocks[start_idx..], &mut results, start_idx);
+
+        results
     }
 
     pub fn rep_size(&self) -> usize {
@@ -587,6 +680,135 @@ mod tests {
         let blocks_read = aggregator.lookup(REGION_SIZE as u64 - 2, &mut results);
         assert_eq!(blocks_read, 7);
         assert_eq!(results[2..5], vec![1, 1, 1]);
+    }
+
+    #[test]
+    fn test_region_test_and_inc_no_counts() {
+        let mut region = Region::default();
+        let blocks = vec![1, 2, 3];
+        let mut results = FixedBitSet::with_capacity(3);
+        region.test_and_inc(&blocks, &mut results, 0);
+
+        assert_eq!(results.len(), 3);
+        assert!(!results.contains(0));
+        assert!(!results.contains(1));
+        assert!(!results.contains(2));
+
+        if let Bits(bits) = &region.rep {
+            assert!(bits.contains(1));
+            assert!(bits.contains(2));
+            assert!(bits.contains(3));
+        } else {
+            panic!("Expected Bits representation after upgrade");
+        }
+    }
+
+    #[test]
+    fn test_region_test_and_inc_bits() {
+        let mut region = Region {
+            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
+        };
+        if let Bits(bits) = &mut region.rep {
+            bits.insert(2);
+        }
+        let blocks = vec![1, 2, 3];
+        let mut results = FixedBitSet::with_capacity(3);
+        region.test_and_inc(&blocks, &mut results, 0);
+
+        assert_eq!(results.len(), 3);
+        assert!(!results.contains(0));
+        assert!(results.contains(1));
+        assert!(!results.contains(2));
+
+        if let U8s(counts) = &region.rep {
+            assert_eq!(counts[1], 1);
+            assert_eq!(counts[2], 2);
+            assert_eq!(counts[3], 1);
+        } else {
+            panic!("Expected U8s representation after upgrade from Bits");
+        }
+    }
+
+    #[test]
+    fn test_region_test_and_inc_u8s() {
+        let mut counts = vec![0; REGION_SIZE];
+        counts[1] = 1;
+        counts[2] = 255;
+        let mut region = Region { rep: U8s(counts) };
+        let blocks = vec![1, 2, 3];
+        let mut results = FixedBitSet::with_capacity(3);
+        region.test_and_inc(&blocks, &mut results, 0);
+
+        assert_eq!(results.len(), 3);
+        assert!(results.contains(0));
+        assert!(results.contains(1));
+        assert!(!results.contains(2));
+
+        if let U16s(counts) = &region.rep {
+            assert_eq!(counts[1], 2);
+            assert_eq!(counts[2], 256);
+            assert_eq!(counts[3], 1);
+        } else {
+            panic!("Expected U16s representation after upgrade");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_test_and_inc_single_region() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+        let blocks = vec![1, 2, 1];
+        let results = aggregator.test_and_inc(&blocks);
+
+        assert_eq!(results.len(), 3);
+        assert!(!results.contains(0));
+        assert!(!results.contains(1));
+        assert!(results.contains(2));
+
+        let region = aggregator.regions[0].lock().unwrap();
+        if let U8s(counts) = &region.rep {
+            assert_eq!(counts[1], 2);
+            assert_eq!(counts[2], 1);
+        } else {
+            panic!("Expected U8s representation");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_test_and_inc_multiple_regions() {
+        let nr_entries = REGION_SIZE * 2;
+        let aggregator = Aggregator::new(nr_entries);
+        let blocks = vec![1, REGION_SIZE as u64 + 1, 1, REGION_SIZE as u64 + 2];
+        let results = aggregator.test_and_inc(&blocks);
+
+        assert_eq!(results.len(), 4);
+        assert!(!results.contains(0));
+        assert!(!results.contains(1));
+        assert!(results.contains(2));
+        assert!(!results.contains(3));
+
+        let region0 = aggregator.regions[0].lock().unwrap();
+        if let U8s(counts) = &region0.rep {
+            assert_eq!(counts[1], 2);
+        } else {
+            panic!("Expected U8s representation for region 0");
+        }
+
+        let region1 = aggregator.regions[1].lock().unwrap();
+        if let Bits(bits) = &region1.rep {
+            assert!(bits.contains(1));
+            assert!(bits.contains(2));
+        } else {
+            panic!("Expected Bits representation for region 1");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_test_and_inc_empty_blocks() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+        let blocks = vec![];
+        let results = aggregator.test_and_inc(&blocks);
+
+        assert_eq!(results.len(), 0);
     }
 }
 

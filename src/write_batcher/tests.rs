@@ -18,7 +18,6 @@ mock! {
         fn suggest_nr_threads(&self) -> usize;
         fn read(&self, b: u64) -> io::Result<Block>;
         fn read_many(&self, blocks: &[u64]) -> io::Result<Vec<io::Result<Block>>>;
-        fn streaming_read(&self, blocks: &[u64], callback: &mut dyn ReadHandler) -> io::Result<()>;
         fn write(&self, block: &Block) -> io::Result<()>;
         fn write_many(&self, blocks: &[Block]) -> io::Result<Vec<io::Result<()>>>;
     }

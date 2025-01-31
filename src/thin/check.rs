@@ -267,10 +267,12 @@ impl NodeMap {
     }
 }
 
+/*
 fn is_seen(loc: u32, sm: &mut dyn SpaceMap) -> Result<bool> {
     sm.inc(loc as u64, 1)?;
     Ok(sm.get(loc as u64).unwrap_or(0) > 1)
 }
+*/
 
 /*
 // FIXME: split up this function
@@ -363,7 +365,7 @@ fn read_node(
 
 struct LayerHandler<'a> {
     is_root: bool,
-    metadata_sm: &'a mut dyn SpaceMap,
+    aggregator: &'a Aggregator,
     ignore_non_fatal: bool,
     nodes: &'a mut NodeMap,
     children: FixedBitSet,
@@ -394,20 +396,18 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                     };
 
                 if let Node::Internal { keys, values, .. } = node {
-                    let children = values.iter().map(|v| *v as u32).collect::<Vec<u32>>(); // FIXME: slow
-
                     // insert the node info in pre-order fashion to better detect loops in the path
+                    let children = values.iter().map(|v| *v as u32).collect::<Vec<u32>>(); // FIXME: slow
                     let info = InternalNodeInfo { keys, children };
-
                     let _ = self.nodes.insert_internal_node(loc as u32, info);
 
-                    for v in &values {
-                        // filter out previously visited nodes
-                        if let Ok(true) = is_seen(*v as u32, self.metadata_sm) {
-                            continue;
-                        }
+                    let values_to_check: Vec<u64> = values.iter().map(|&v| v).collect();
+                    let seen = self.aggregator.test_and_inc(&values_to_check);
 
-                        self.children.insert(*v as usize);
+                    for (i, v) in values.iter().enumerate() {
+                        if !seen.contains(i) {
+                            self.children.insert(*v as usize);
+                        }
                     }
                 }
             }
@@ -459,13 +459,13 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
 fn read_internal_nodes(
     ctx: &Context,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    aggregator: &Aggregator,
     root: u32,
     ignore_non_fatal: bool,
     nodes: &mut NodeMap,
 ) -> Result<()> {
-    let mut sm = metadata_sm.lock().unwrap();
-    if is_seen(root, sm.deref_mut())? {
+    let mut seen = aggregator.test_and_inc(&[root as u64]);
+    if seen.contains(0) {
         return Ok(());
     }
 
@@ -477,17 +477,21 @@ fn read_internal_nodes(
         return Ok(());
     }
 
-    let nr_blocks = sm.get_nr_blocks()?;
+    let nr_blocks = aggregator.get_nr_blocks();
     let mut current_layer = FixedBitSet::with_capacity(nr_blocks as usize);
 
     current_layer.insert(root as usize);
+
+    let io_block_size = BLOCK_SIZE;
+    let buffer_size_m = 16;
+    let mut reader = StreamReader::new(ctx.engine.get_fd().unwrap(), io_block_size, buffer_size_m)?;
 
     // Read the internal nodes, layer by layer.
     let mut is_root = true;
     for _d in (0..depth).rev() {
         let mut handler = LayerHandler {
             is_root,
-            metadata_sm: sm.deref_mut(),
+            aggregator,
             ignore_non_fatal,
             nodes,
             children: FixedBitSet::with_capacity(nr_blocks as usize),
@@ -497,7 +501,7 @@ fn read_internal_nodes(
         // FIXME: this keeps reallocating the buffers, which might be slow if there are a lot of
         // thin devices.
         streaming_read(
-            ctx.engine.get_fd().unwrap(), // FIXME: handle error
+            &mut reader,
             current_layer.ones().map(|n| n as u64),
             &mut handler,
         )?;
@@ -662,7 +666,8 @@ fn check_mappings_bottom_level_(
     let report = &ctx.report;
 
     let start = std::time::Instant::now();
-    let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal)?;
+    let aggregator = Aggregator::new(metadata_sm.lock().unwrap().get_nr_blocks().unwrap() as usize);
+    let nodes = collect_nodes_in_use(ctx, &aggregator, roots, ignore_non_fatal)?;
     let duration = start.elapsed();
     eprintln!("reading internal nodes: {:?}", duration);
     panic!("bang");
@@ -710,14 +715,14 @@ fn check_mappings_bottom_level_(
 
 fn collect_nodes_in_use(
     ctx: &Context,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    aggregator: &Aggregator,
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<NodeMap> {
     let mut nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
 
     for root in roots {
-        read_internal_nodes(ctx, metadata_sm, *root as u32, ignore_non_fatal, &mut nodes)?;
+        read_internal_nodes(ctx, aggregator, *root as u32, ignore_non_fatal, &mut nodes)?;
     }
 
     Ok(nodes)
@@ -822,17 +827,14 @@ fn examine_leaf_(
     Ok(sum)
 }
 
-fn streaming_read<I>(fd: RawFd, blocks: I, handler: &mut dyn ReadHandler) -> std::io::Result<()>
+fn streaming_read<I>(
+    reader: &mut StreamReader,
+    blocks: I,
+    handler: &mut dyn ReadHandler,
+) -> std::io::Result<()>
 where
     I: Iterator<Item = u64>,
 {
-    // FIXME: calculate this two based on the blocks
-    let io_block_size = 64 * 1024;
-
-    // FIXME: make configurable
-    let buffer_size = 16; // 32meg
-    let mut reader = StreamReader::new(fd, io_block_size, buffer_size)?;
-
     let callback = |block: u64, data: std::io::Result<&[u8]>| {
         // FIXME: propagate the error
         handler.handle(block, data).expect("handle failed");
@@ -960,7 +962,10 @@ where
     I: Iterator<Item = u64>,
 {
     let mut handler = LeafHandler::new(data_sm, node_map, summaries, ignore_non_fatal);
-    streaming_read(fd, leaves, &mut handler)?;
+    let io_block_size = 64 * 1024;
+    let buffer_size_m = 16;
+    let mut reader = StreamReader::new(fd, io_block_size, buffer_size_m)?;
+    streaming_read(&mut reader, leaves, &mut handler)?;
     Ok(())
 
     /*

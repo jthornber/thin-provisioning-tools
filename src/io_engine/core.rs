@@ -78,14 +78,6 @@ impl IoEngine for CoreIoEngine {
         Ok(bs)
     }
 
-    fn streaming_read(
-        &self,
-        _blocks: &[u64],
-        _handler: &mut dyn ReadHandler,
-    ) -> std::io::Result<()> {
-        todo!()
-    }
-
     fn write(&self, block: &Block) -> io::Result<()> {
         if block.loc >= self.nr_blocks {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
