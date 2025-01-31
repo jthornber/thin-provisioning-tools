@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
+use std::ops::DerefMut;
 use std::os::fd::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -266,12 +267,12 @@ impl NodeMap {
     }
 }
 
-fn is_seen(loc: u32, metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>) -> Result<bool> {
-    let mut sm = metadata_sm.lock().unwrap();
+fn is_seen(loc: u32, sm: &mut dyn SpaceMap) -> Result<bool> {
     sm.inc(loc as u64, 1)?;
     Ok(sm.get(loc as u64).unwrap_or(0) > 1)
 }
 
+/*
 // FIXME: split up this function
 fn read_node_(
     ctx: &Context,
@@ -281,7 +282,7 @@ fn read_node_(
     ignore_non_fatal: bool,
     nodes: &mut NodeMap,
 ) {
-    // allow underfull nodes in the first pass
+    // allow under-full nodes in the first pass
     let node = match check_and_unpack_node::<u64>(b, ignore_non_fatal, true) {
         Ok(n) => n,
         Err(e) => {
@@ -358,6 +359,70 @@ fn read_node(
 ) {
     read_node_(ctx, metadata_sm, b, depth, ignore_non_fatal, nodes);
 }
+*/
+
+struct LayerHandler<'a> {
+    is_root: bool,
+    metadata_sm: &'a mut dyn SpaceMap,
+    ignore_non_fatal: bool,
+    nodes: &'a mut NodeMap,
+    children: FixedBitSet,
+}
+
+impl<'a> LayerHandler<'a> {
+    fn get_children(self) -> FixedBitSet {
+        self.children
+    }
+}
+
+impl<'a> ReadHandler for LayerHandler<'a> {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
+        match data {
+            Ok(data) => {
+                // FIXME: remove once we inline the unpack
+                let b = Block::new(loc);
+                b.get_data().copy_from_slice(data);
+
+                // allow under-full nodes in the first pass
+                let node =
+                    match check_and_unpack_node::<u64>(&b, self.ignore_non_fatal, self.is_root) {
+                        Ok(n) => n,
+                        Err(e) => {
+                            let _ = self.nodes.insert_error(loc as u32, e);
+                            return Ok(());
+                        }
+                    };
+
+                if let Node::Internal { keys, values, .. } = node {
+                    let children = values.iter().map(|v| *v as u32).collect::<Vec<u32>>(); // FIXME: slow
+
+                    // insert the node info in pre-order fashion to better detect loops in the path
+                    let info = InternalNodeInfo { keys, children };
+
+                    let _ = self.nodes.insert_internal_node(loc as u32, info);
+
+                    for v in &values {
+                        // filter out previously visited nodes
+                        if let Ok(true) = is_seen(*v as u32, self.metadata_sm) {
+                            continue;
+                        }
+
+                        self.children.insert(*v as usize);
+                    }
+                }
+            }
+            Err(_) => {
+                let _ = self.nodes.insert_error(loc as u32, NodeError::IoError);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn complete(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Gets the depth of a bottom level mapping tree.  0 means the root is a leaf node.
 // FIXME: what if there's an error on the path to the leftmost leaf?
@@ -398,6 +463,62 @@ fn read_internal_nodes(
     root: u32,
     ignore_non_fatal: bool,
     nodes: &mut NodeMap,
+) -> Result<()> {
+    let mut sm = metadata_sm.lock().unwrap();
+    if is_seen(root, sm.deref_mut())? {
+        return Ok(());
+    }
+
+    let mut path = Vec::new();
+
+    let depth = get_depth(ctx, &mut path, root as u64, true)?;
+    if depth == 0 {
+        nodes.insert_leaf(root)?;
+        return Ok(());
+    }
+
+    let nr_blocks = sm.get_nr_blocks()?;
+    let mut current_layer = FixedBitSet::with_capacity(nr_blocks as usize);
+
+    current_layer.insert(root as usize);
+
+    // Read the internal nodes, layer by layer.
+    let mut is_root = true;
+    for _d in (0..depth).rev() {
+        let mut handler = LayerHandler {
+            is_root,
+            metadata_sm: sm.deref_mut(),
+            ignore_non_fatal,
+            nodes,
+            children: FixedBitSet::with_capacity(nr_blocks as usize),
+        };
+        is_root = false;
+
+        // FIXME: this keeps reallocating the buffers, which might be slow if there are a lot of
+        // thin devices.
+        streaming_read(
+            ctx.engine.get_fd().unwrap(), // FIXME: handle error
+            current_layer.ones().map(|n| n as u64),
+            &mut handler,
+        )?;
+        current_layer = handler.get_children();
+    }
+
+    // insert leaves
+    for b in current_layer.ones() {
+        nodes.insert_leaf(b as u32)?;
+    }
+
+    Ok(())
+}
+
+/*
+fn read_internal_nodes(
+    ctx: &Context,
+    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
+    root: u32,
+    ignore_non_fatal: bool,
+    nodes: &mut NodeMap,
 ) {
     match is_seen(root, metadata_sm) {
         Ok(true) | Err(_) => return,
@@ -425,6 +546,7 @@ fn read_internal_nodes(
         let _ = nodes.insert_error(root, NodeError::IoError);
     }
 }
+*/
 
 struct SummarizeContext<'a> {
     nodes: &'a NodeMap,
@@ -540,9 +662,10 @@ fn check_mappings_bottom_level_(
     let report = &ctx.report;
 
     let start = std::time::Instant::now();
-    let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal);
+    let nodes = collect_nodes_in_use(ctx, metadata_sm, roots, ignore_non_fatal)?;
     let duration = start.elapsed();
-    report.debug(&format!("reading internal nodes: {:?}", duration));
+    eprintln!("reading internal nodes: {:?}", duration);
+    panic!("bang");
 
     print_mem("read_leaf_nodes start");
     let start = std::time::Instant::now();
@@ -590,14 +713,14 @@ fn collect_nodes_in_use(
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     roots: &[u64],
     ignore_non_fatal: bool,
-) -> NodeMap {
+) -> Result<NodeMap> {
     let mut nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
 
     for root in roots {
-        read_internal_nodes(ctx, metadata_sm, *root as u32, ignore_non_fatal, &mut nodes);
+        read_internal_nodes(ctx, metadata_sm, *root as u32, ignore_non_fatal, &mut nodes)?;
     }
 
-    nodes
+    Ok(nodes)
 }
 
 //--------------------------------
