@@ -387,7 +387,7 @@ impl Aggregator {
         self.nr_entries
     }
 
-    pub fn lookup(&mut self, begin: u64, results: &mut [u32]) -> u64 {
+    pub fn lookup(&self, begin: u64, results: &mut [u32]) -> u64 {
         if begin >= self.nr_entries as u64 {
             return 0;
         }
