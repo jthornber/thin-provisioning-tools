@@ -250,6 +250,54 @@ impl Region {
         return e as u64 - b;
     }
 
+    fn set_(&mut self, pairs: &[(u64, u32)]) -> IncResult {
+        for (i, &(block, ref_count)) in pairs.iter().enumerate() {
+            let b = block % REGION_SIZE as u64;
+            match &mut self.rep {
+                NoCounts => {
+                    if ref_count > 0 {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                }
+                Bits(bits) => {
+                    if ref_count > 1 {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    bits.set(b as usize, ref_count == 1);
+                }
+                U8s(counts) => {
+                    if ref_count > u8::MAX as u32 {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    counts[b as usize] = ref_count as u8;
+                }
+                U16s(counts) => {
+                    if ref_count > u16::MAX as u32 {
+                        return IncResult::NeedUpgrade(i);
+                    }
+                    counts[b as usize] = ref_count as u16;
+                }
+                U32s(counts) => {
+                    counts[b as usize] = ref_count;
+                }
+            }
+        }
+        IncResult::Success
+    }
+
+    pub fn set(&mut self, pairs: &[(u64, u32)]) {
+        let mut processed = 0;
+        while processed < pairs.len() {
+            match self.set_(&pairs[processed..]) {
+                IncResult::Success => break,
+                IncResult::NeedUpgrade(i) => {
+                    self.rep = self.rep.upgrade();
+                    processed += i;
+                }
+            }
+        }
+    }
+
     fn rep_size(&self) -> usize {
         match &self.rep {
             NoCounts => 0,
@@ -435,6 +483,29 @@ impl Aggregator {
         region.test_and_inc(&blocks[start_idx..], &mut results, start_idx);
 
         results
+    }
+
+    pub fn set(&self, pairs: &[(u64, u32)]) {
+        if pairs.is_empty() {
+            return;
+        }
+
+        let mut start_idx = 0;
+        let mut start_region = pairs[0].0 / REGION_SIZE as u64;
+
+        for i in 1..pairs.len() {
+            let current_region = pairs[i].0 / REGION_SIZE as u64;
+            if current_region != start_region {
+                let mut region = self.regions[start_region as usize].lock().unwrap();
+                region.set(&pairs[start_idx..i]);
+
+                start_idx = i;
+                start_region = current_region;
+            }
+        }
+
+        let mut region = self.regions[start_region as usize].lock().unwrap();
+        region.set(&pairs[start_idx..]);
     }
 
     pub fn rep_size(&self) -> usize {
@@ -639,7 +710,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_lookup_single_region() {
-        let mut aggregator = Aggregator::new(REGION_SIZE);
+        let aggregator = Aggregator::new(REGION_SIZE);
         aggregator.increment(&[1, 2, 1, 3]);
         let mut results = vec![0; 5];
         let blocks_read = aggregator.lookup(0, &mut results);
@@ -649,7 +720,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_lookup_multiple_regions() {
-        let mut aggregator = Aggregator::new(REGION_SIZE * 2);
+        let aggregator = Aggregator::new(REGION_SIZE * 2);
         aggregator.increment(&[1, REGION_SIZE as u64 + 1, 1, REGION_SIZE as u64 + 2]);
         let mut results = vec![0; REGION_SIZE + 5];
         let blocks_read = aggregator.lookup(0, &mut results);
@@ -661,7 +732,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_lookup_out_of_bounds() {
-        let mut aggregator = Aggregator::new(REGION_SIZE);
+        let aggregator = Aggregator::new(REGION_SIZE);
         let mut results = vec![0; 5];
         let blocks_read = aggregator.lookup(REGION_SIZE as u64, &mut results);
         assert_eq!(blocks_read, 0);
@@ -809,6 +880,177 @@ mod tests {
         let results = aggregator.test_and_inc(&blocks);
 
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_region_set_no_counts() {
+        let mut region = Region::default();
+        let pairs = vec![(1, 0), (2, 1), (3, 2)];
+        region.set(&pairs);
+
+        if let U8s(counts) = &region.rep {
+            assert_eq!(counts[1], 0);
+            assert_eq!(counts[2], 1);
+            assert_eq!(counts[3], 2);
+        } else {
+            panic!("Expected U8s representation");
+        }
+    }
+
+    #[test]
+    fn test_region_set_bits() {
+        let mut region = Region {
+            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
+        };
+        let pairs = vec![(1, 0), (2, 1), (3, 2)];
+        region.set(&pairs);
+
+        if let U8s(counts) = &region.rep {
+            assert_eq!(counts[1], 0);
+            assert_eq!(counts[2], 1);
+            assert_eq!(counts[3], 2);
+        } else {
+            panic!("Expected U8s representation after upgrade");
+        }
+    }
+
+    #[test]
+    fn test_region_set_u8s() {
+        let mut region = Region {
+            rep: U8s(vec![0; REGION_SIZE]),
+        };
+        let pairs = vec![(1, 255), (2, 256), (3, 1)];
+        region.set(&pairs);
+
+        if let U16s(counts) = &region.rep {
+            assert_eq!(counts[1], 255);
+            assert_eq!(counts[2], 256);
+            assert_eq!(counts[3], 1);
+        } else {
+            panic!("Expected U16s representation after upgrade");
+        }
+    }
+
+    #[test]
+    fn test_region_set_u16s() {
+        let mut region = Region {
+            rep: U16s(vec![0; REGION_SIZE]),
+        };
+        let pairs = vec![(1, 65535), (2, 65536), (3, 1)];
+        region.set(&pairs);
+
+        if let U32s(counts) = &region.rep {
+            assert_eq!(counts[1], 65535);
+            assert_eq!(counts[2], 65536);
+            assert_eq!(counts[3], 1);
+        } else {
+            panic!("Expected U32s representation after upgrade");
+        }
+    }
+
+    #[test]
+    fn test_region_set_u32s() {
+        let mut region = Region {
+            rep: U32s(vec![0; REGION_SIZE]),
+        };
+        let pairs = vec![(1, 1000000), (2, 2000000), (3, 3000000)];
+        region.set(&pairs);
+
+        if let U32s(counts) = &region.rep {
+            assert_eq!(counts[1], 1000000);
+            assert_eq!(counts[2], 2000000);
+            assert_eq!(counts[3], 3000000);
+        } else {
+            panic!("Expected U32s representation");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_set_single_region() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+        let pairs = vec![(1, 1), (2, 2), (3, 3)];
+        aggregator.set(&pairs);
+
+        let region = aggregator.regions[0].lock().unwrap();
+        if let U8s(counts) = &region.rep {
+            assert_eq!(counts[1], 1);
+            assert_eq!(counts[2], 2);
+            assert_eq!(counts[3], 3);
+        } else {
+            panic!("Expected U8s representation");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_set_multiple_regions() {
+        let nr_entries = REGION_SIZE * 2;
+        let aggregator = Aggregator::new(nr_entries);
+        let pairs = vec![
+            (1, 1),
+            (REGION_SIZE as u64 + 1, 2),
+            (2, 3),
+            (REGION_SIZE as u64 + 2, 4),
+        ];
+        aggregator.set(&pairs);
+
+        // Check first region
+        let region0 = aggregator.regions[0].lock().unwrap();
+        if let U8s(counts) = &region0.rep {
+            assert_eq!(counts[1], 1);
+            assert_eq!(counts[2], 3);
+        } else {
+            panic!("Expected U8s representation for region 0");
+        }
+
+        // Check second region
+        let region1 = aggregator.regions[1].lock().unwrap();
+        if let U8s(counts) = &region1.rep {
+            assert_eq!(counts[1], 2);
+            assert_eq!(counts[2], 4);
+        } else {
+            panic!("Expected U8s representation for region 1");
+        }
+    }
+
+    #[test]
+    fn test_aggregator_set_empty_pairs() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+        let pairs: Vec<(u64, u32)> = vec![];
+        aggregator.set(&pairs);
+
+        // Verify that no changes were made
+        for region in &aggregator.regions {
+            let region = region.lock().unwrap();
+            assert!(matches!(region.rep, NoCounts));
+        }
+    }
+
+    #[test]
+    fn test_aggregator_set_upgrade_path() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+
+        // Set initial values
+        aggregator.set(&[(1, 1), (2, 2)]);
+
+        // Upgrade to U8s
+        aggregator.set(&[(3, 3)]);
+
+        // Upgrade to U16s
+        aggregator.set(&[(4, 256)]);
+
+        // Upgrade to U32s
+        aggregator.set(&[(5, 65536)]);
+
+        let region = aggregator.regions[0].lock().unwrap();
+        if let U32s(counts) = &region.rep {
+            assert_eq!(counts[1], 1);
+            assert_eq!(counts[2], 2);
+            assert_eq!(counts[3], 3);
+            assert_eq!(counts[4], 256);
+            assert_eq!(counts[5], 65536);
+        } else {
+            panic!("Expected U32s representation");
+        }
     }
 }
 
