@@ -353,7 +353,7 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                 let node = unpack_node_raw::<u64>(data, self.ignore_non_fatal, self.is_root);
 
                 if let Err(e) = &node {
-                    self.push_error(loc as u32, e.clone());
+                    self.push_error(loc as u32, *e);
                     return;
                 }
 

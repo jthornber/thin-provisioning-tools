@@ -309,7 +309,7 @@ fn test_encode_path() {
 
 //------------------------------------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum NodeError {
     IoError,
     NotANode,
