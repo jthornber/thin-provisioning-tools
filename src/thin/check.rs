@@ -556,12 +556,13 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
 fn read_internal_nodes(
     ctx: &Context,
+    reader: &mut StreamReader,
     aggregator: &Aggregator,
     root: u32,
     ignore_non_fatal: bool,
     nodes: Arc<BatchedNodeMap>,
 ) -> Result<()> {
-    let mut seen = aggregator.test_and_inc(&[root as u64]);
+    let seen = aggregator.test_and_inc(&[root as u64]);
     if seen.contains(0) {
         return Ok(());
     }
@@ -582,10 +583,6 @@ fn read_internal_nodes(
 
     current_layer.insert(root as usize);
 
-    let io_block_size = BLOCK_SIZE;
-    let buffer_size_m = 16;
-    let mut reader = StreamReader::new(ctx.engine.get_fd().unwrap(), io_block_size, buffer_size_m)?;
-
     // Read the internal nodes, layer by layer.
     let mut is_root = true;
     for _d in (0..depth).rev() {
@@ -599,13 +596,7 @@ fn read_internal_nodes(
         };
         is_root = false;
 
-        // FIXME: this keeps reallocating the buffers, which might be slow if there are a lot of
-        // thin devices.
-        streaming_read(
-            &mut reader,
-            current_layer.ones().map(|n| n as u64),
-            &mut handler,
-        )?;
+        streaming_read(reader, current_layer.ones().map(|n| n as u64), &mut handler)?;
         current_layer = handler.get_children();
     }
 
@@ -622,42 +613,6 @@ fn read_internal_nodes(
 
     Ok(())
 }
-
-/*
-fn read_internal_nodes(
-    ctx: &Context,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    root: u32,
-    ignore_non_fatal: bool,
-    nodes: &mut NodeMap,
-) {
-    match is_seen(root, metadata_sm) {
-        Ok(true) | Err(_) => return,
-        _ => {}
-    }
-
-    // FIXME: make get-depth more resilient
-    let mut path = Vec::new();
-    let depth = if let Ok(d) = get_depth(ctx, &mut path, root as u64, true) {
-        d
-    } else {
-        return;
-    };
-
-    if depth == 0 {
-        // The root will be skipped if it is a confirmed internal
-        let _ = nodes.insert_leaf(root);
-        return;
-    }
-
-    if let Ok(b) = ctx.engine.read(root as u64) {
-        read_node(ctx, metadata_sm, &b, depth - 1, ignore_non_fatal, nodes);
-    } else {
-        // FIXME: factor out common code
-        let _ = nodes.insert_error(root, NodeError::IoError);
-    }
-}
-*/
 
 struct SummarizeContext<'a> {
     nodes: &'a NodeMap,
@@ -789,7 +744,6 @@ fn check_mappings_bottom_level_(
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
     let duration = start.elapsed();
     report.debug(&format!("counting mapped blocks: {:?}", duration));
-    std::process::exit(0);
 
     report.info(&format!("nr internal nodes: {}", nodes.internal_info.len()));
     report.info(&format!("nr leaves: {}", nodes.nr_leaves));
@@ -840,9 +794,16 @@ fn collect_nodes_in_use(
         for chunk in root_chunks {
             let batch_nodes = batch_nodes.clone();
             s.spawn(move || {
+                let io_block_size = BLOCK_SIZE;
+                let buffer_size_m = 16;
+                let mut reader =
+                    StreamReader::new(ctx.engine.get_fd().unwrap(), io_block_size, buffer_size_m)
+                        .expect("unable to create stream reader");
+
                 for &root in chunk {
                     if let Err(e) = read_internal_nodes(
                         ctx,
+                        &mut reader,
                         aggregator,
                         root as u32,
                         ignore_non_fatal,
