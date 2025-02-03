@@ -25,12 +25,14 @@ mock! {
 
 mock! {
     TestSpaceMap {}
-    impl SpaceMap for TestSpaceMap {
+    impl RefCount for TestSpaceMap {
         fn get_nr_blocks(&self) -> Result<u64>;
-        fn get_nr_allocated(&self) -> Result<u64>;
         fn get(&self, b: u64) -> Result<u32>;
         fn set(&mut self, b: u64, v: u32) -> Result<u32>;
         fn inc(&mut self, begin: u64, len: u64) -> Result<()>;
+    }
+    impl SpaceMap for TestSpaceMap {
+        fn get_nr_allocated(&self) -> Result<u64>;
         fn alloc(&mut self) -> Result<Option<u64>>;
         fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>>;
         fn get_alloc_begin(&self) -> Result<u64>;

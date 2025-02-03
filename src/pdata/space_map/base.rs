@@ -7,9 +7,10 @@ use std::sync::{Arc, Mutex};
 
 //------------------------------------------
 
-pub trait SpaceMap {
+// FIXME: this overlaps with the RefCounter<V> trait in btree_builder
+pub trait RefCount {
     fn get_nr_blocks(&self) -> Result<u64>;
-    fn get_nr_allocated(&self) -> Result<u64>;
+
     fn get(&self, b: u64) -> Result<u32>;
 
     /// Returns the old ref count
@@ -25,6 +26,10 @@ pub trait SpaceMap {
 
         Ok(old == 1)
     }
+}
+
+pub trait SpaceMap: RefCount {
+    fn get_nr_allocated(&self) -> Result<u64>;
 
     /// Finds a block with a zero reference count. Increments the count.
     /// Returns Ok(None) if no free block (ENOSPC)
@@ -73,7 +78,7 @@ where
     }
 }
 
-impl<V> SpaceMap for CoreSpaceMap<V>
+impl<V> RefCount for CoreSpaceMap<V>
 where
     V: Copy
         + Default
@@ -88,10 +93,6 @@ where
 {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
-    }
-
-    fn get_nr_allocated(&self) -> Result<u64> {
-        Ok(self.nr_allocated)
     }
 
     fn get(&self, b: u64) -> Result<u32> {
@@ -131,6 +132,24 @@ where
             }
         }
         Ok(())
+    }
+}
+
+impl<V> SpaceMap for CoreSpaceMap<V>
+where
+    V: Copy
+        + Default
+        + Eq
+        + std::ops::AddAssign
+        + From<u8>
+        + Into<u32>
+        + Bounded
+        + TryFrom<u32>
+        + std::cmp::PartialOrd,
+    <V as TryFrom<u32>>::Error: std::fmt::Debug + std::error::Error,
+{
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(self.nr_allocated)
     }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
@@ -212,13 +231,9 @@ impl RestrictedSpaceMap {
     }
 }
 
-impl SpaceMap for RestrictedSpaceMap {
+impl RefCount for RestrictedSpaceMap {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.counts.len() as u64)
-    }
-
-    fn get_nr_allocated(&self) -> Result<u64> {
-        Ok(self.nr_allocated)
     }
 
     fn get(&self, b: u64) -> Result<u32> {
@@ -261,6 +276,12 @@ impl SpaceMap for RestrictedSpaceMap {
             }
         }
         Ok(())
+    }
+}
+
+impl SpaceMap for RestrictedSpaceMap {
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(self.nr_allocated)
     }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
@@ -317,13 +338,9 @@ impl RestrictedTwoSpaceMap {
     }
 }
 
-impl SpaceMap for RestrictedTwoSpaceMap {
+impl RefCount for RestrictedTwoSpaceMap {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok((self.counts.len() >> 1) as u64)
-    }
-
-    fn get_nr_allocated(&self) -> Result<u64> {
-        Ok(self.nr_allocated)
     }
 
     fn get(&self, b: u64) -> Result<u32> {
@@ -383,6 +400,12 @@ impl SpaceMap for RestrictedTwoSpaceMap {
         }
         Ok(())
     }
+}
+
+impl SpaceMap for RestrictedTwoSpaceMap {
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(self.nr_allocated)
+    }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
         let mut b = self.find_free(self.alloc_begin as u64, self.counts.len() as u64)?;
@@ -429,13 +452,9 @@ impl NoopSpaceMap {
     }
 }
 
-impl SpaceMap for NoopSpaceMap {
+impl RefCount for NoopSpaceMap {
     fn get_nr_blocks(&self) -> Result<u64> {
         Ok(self.nr_blocks)
-    }
-
-    fn get_nr_allocated(&self) -> Result<u64> {
-        Ok(0)
     }
 
     fn get(&self, _b: u64) -> Result<u32> {
@@ -448,6 +467,12 @@ impl SpaceMap for NoopSpaceMap {
 
     fn inc(&mut self, _begin: u64, _len: u64) -> Result<()> {
         Ok(())
+    }
+}
+
+impl SpaceMap for NoopSpaceMap {
+    fn get_nr_allocated(&self) -> Result<u64> {
+        Ok(0)
     }
 
     fn alloc(&mut self) -> Result<Option<u64>> {
