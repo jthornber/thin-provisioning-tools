@@ -299,8 +299,8 @@ impl StreamReader {
 //--------------------------------
 
 pub trait ReadHandler {
-    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()>;
-    fn complete(&mut self) -> std::io::Result<()>;
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>);
+    fn complete(&mut self);
 }
 
 pub fn streaming_read<I>(
@@ -313,11 +313,11 @@ where
 {
     let callback = |block: u64, data: std::io::Result<&[u8]>| {
         // FIXME: propagate the error
-        handler.handle(block, data).expect("handle failed");
+        handler.handle(block, data);
     };
 
     reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
-    handler.complete()?;
+    handler.complete();
 
     Ok(())
 }
