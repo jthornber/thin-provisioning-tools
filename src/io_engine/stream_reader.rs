@@ -6,6 +6,8 @@ use std::io;
 use std::os::fd::RawFd;
 use std::vec::Vec;
 
+use crate::io_engine::base::*;
+
 //--------------------------------
 
 const QUEUE_DEPTH: u32 = 256;
@@ -292,6 +294,32 @@ impl StreamReader {
             }
         })
     }
+}
+
+//--------------------------------
+
+pub trait ReadHandler {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()>;
+    fn complete(&mut self) -> std::io::Result<()>;
+}
+
+pub fn streaming_read<I>(
+    reader: &mut StreamReader,
+    blocks: I,
+    handler: &mut dyn ReadHandler,
+) -> std::io::Result<()>
+where
+    I: Iterator<Item = u64>,
+{
+    let callback = |block: u64, data: std::io::Result<&[u8]>| {
+        // FIXME: propagate the error
+        handler.handle(block, data).expect("handle failed");
+    };
+
+    reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
+    handler.complete()?;
+
+    Ok(())
 }
 
 //--------------------------------

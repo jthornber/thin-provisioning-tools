@@ -84,11 +84,6 @@ pub fn is_page_aligned(v: u64) -> bool {
 
 //------------------------------------------
 
-pub trait ReadHandler {
-    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()>;
-    fn complete(&mut self) -> std::io::Result<()>;
-}
-
 pub trait IoEngine: Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
