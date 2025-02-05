@@ -1,6 +1,9 @@
+use anyhow::Result;
 use fixedbitset::*;
 use std::intrinsics::unlikely;
 use std::sync::Mutex;
+
+use crate::pdata::space_map::base::*;
 
 //--------------------------------
 
@@ -285,6 +288,7 @@ impl Region {
         IncResult::Success
     }
 
+    /// Name clash with RefCount.set()
     pub fn set(&mut self, pairs: &[(u64, u32)]) {
         let mut processed = 0;
         while processed < pairs.len() {
@@ -485,7 +489,7 @@ impl Aggregator {
         results
     }
 
-    pub fn set(&self, pairs: &[(u64, u32)]) {
+    pub fn set_batch(&self, pairs: &[(u64, u32)]) {
         if pairs.is_empty() {
             return;
         }
@@ -518,6 +522,58 @@ impl Aggregator {
             total += region.rep_size();
         }
         total
+    }
+}
+
+impl RefCount for Aggregator {
+    fn get_nr_blocks(&self) -> Result<u64> {
+        Ok(self.get_nr_blocks() as u64)
+    }
+
+    fn get(&self, b: u64) -> Result<u32> {
+        // So slow
+        let mut r = Vec::with_capacity(1);
+        r.push(0);
+        self.lookup(b, &mut r[0..]);
+        Ok(r[0])
+    }
+
+    /// Returns the old ref count
+    fn set(&mut self, b: u64, v: u32) -> Result<u32> {
+        let r = self.get(b)? as u32;
+        self.set_batch(&[(b, v)]);
+        Ok(r)
+    }
+
+    fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
+        for b in begin..(begin + len) {
+            self.inc_single(b);
+        }
+        Ok(())
+    }
+}
+
+// FIXME: only doing this as a stop gap solution
+impl SpaceMap for Aggregator {
+    fn get_nr_allocated(&self) -> Result<u64> {
+        todo!();
+    }
+
+    /// Finds a block with a zero reference count. Increments the count.
+    /// Returns Ok(None) if no free block (ENOSPC)
+    /// Returns Err on fatal error
+    fn alloc(&mut self) -> Result<Option<u64>> {
+        todo!();
+    }
+
+    /// Finds a free block within the range
+    fn find_free(&mut self, _begin: u64, _end: u64) -> Result<Option<u64>> {
+        todo!();
+    }
+
+    /// Returns the position where allocation starts
+    fn get_alloc_begin(&self) -> Result<u64> {
+        todo!();
     }
 }
 
@@ -741,7 +797,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_lookup_partial_read() {
-        let mut aggregator = Aggregator::new(REGION_SIZE + 5);
+        let aggregator = Aggregator::new(REGION_SIZE + 5);
         aggregator.increment(&[
             REGION_SIZE as u64,
             REGION_SIZE as u64 + 1,
@@ -969,7 +1025,7 @@ mod tests {
     fn test_aggregator_set_single_region() {
         let aggregator = Aggregator::new(REGION_SIZE);
         let pairs = vec![(1, 1), (2, 2), (3, 3)];
-        aggregator.set(&pairs);
+        aggregator.set_batch(&pairs);
 
         let region = aggregator.regions[0].lock().unwrap();
         if let U8s(counts) = &region.rep {
@@ -991,7 +1047,7 @@ mod tests {
             (2, 3),
             (REGION_SIZE as u64 + 2, 4),
         ];
-        aggregator.set(&pairs);
+        aggregator.set_batch(&pairs);
 
         // Check first region
         let region0 = aggregator.regions[0].lock().unwrap();
@@ -1016,7 +1072,7 @@ mod tests {
     fn test_aggregator_set_empty_pairs() {
         let aggregator = Aggregator::new(REGION_SIZE);
         let pairs: Vec<(u64, u32)> = vec![];
-        aggregator.set(&pairs);
+        aggregator.set_batch(&pairs);
 
         // Verify that no changes were made
         for region in &aggregator.regions {
@@ -1030,16 +1086,16 @@ mod tests {
         let aggregator = Aggregator::new(REGION_SIZE);
 
         // Set initial values
-        aggregator.set(&[(1, 1), (2, 2)]);
+        aggregator.set_batch(&[(1, 1), (2, 2)]);
 
         // Upgrade to U8s
-        aggregator.set(&[(3, 3)]);
+        aggregator.set_batch(&[(3, 3)]);
 
         // Upgrade to U16s
-        aggregator.set(&[(4, 256)]);
+        aggregator.set_batch(&[(4, 256)]);
 
         // Upgrade to U32s
-        aggregator.set(&[(5, 65536)]);
+        aggregator.set_batch(&[(5, 65536)]);
 
         let region = aggregator.regions[0].lock().unwrap();
         if let U32s(counts) = &region.rep {
