@@ -16,6 +16,7 @@ use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::aggregator::*;
+use crate::pdata::space_map::aggregator_load::*;
 use crate::pdata::space_map::checker::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::space_map::*;
@@ -309,104 +310,9 @@ impl BatchedNodeMap {
             }
         }
     }
-
-    /*
-    fn into_inner(self) -> NodeMap {
-        self.inner.into_inner().unwrap()
-    }
-    */
 }
 
 //--------------------------------
-
-/*
-// FIXME: split up this function
-fn read_node_(
-    ctx: &Context,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    b: &Block,
-    depth: usize,
-    ignore_non_fatal: bool,
-    nodes: &mut NodeMap,
-) {
-    // allow under-full nodes in the first pass
-    let node = match check_and_unpack_node::<u64>(b, ignore_non_fatal, true) {
-        Ok(n) => n,
-        Err(e) => {
-            // theoretically never fail
-            let _ = nodes.insert_error(b.loc as u32, e);
-            return;
-        }
-    };
-
-    use btree::Node::*;
-    if let Internal { keys, values, .. } = node {
-        let children = values.iter().map(|v| *v as u32).collect::<Vec<u32>>(); // FIXME: slow
-
-        // insert the node info in pre-order fashion to better detect loops in the path
-        let info = InternalNodeInfo { keys, children };
-
-        let _ = nodes.insert_internal_node(b.loc as u32, info);
-
-        // filter out previously visited nodes
-        let mut new_values = Vec::with_capacity(values.len());
-        for v in values {
-            if let Ok(seen) = is_seen(v as u32, metadata_sm) {
-                // Add the unread leaf if now it looks like an internal.
-                // Add the visited internal if now it looks like a leaf.
-                let node_type = nodes.get_type(v as u32);
-                let maybe_internal = depth > 0 && node_type == NodeType::Leaf;
-                let maybe_leaf = depth == 0 && node_type == NodeType::None;
-                if !seen || maybe_internal || maybe_leaf {
-                    new_values.push(v);
-                }
-            }
-        }
-        let values = new_values;
-
-        if depth == 0 {
-            for loc in values {
-                let _ = nodes.insert_leaf(loc as u32);
-            }
-        } else {
-            // we could error each child rather than the current node
-            match ctx.engine.read_many(&values) {
-                Ok(bs) => {
-                    for (i, b) in bs.iter().enumerate() {
-                        if let Ok(b) = b {
-                            read_node(ctx, metadata_sm, b, depth - 1, ignore_non_fatal, nodes);
-                        } else {
-                            // theoretically never fail
-                            let _ = nodes.insert_error(values[i] as u32, NodeError::IoError);
-                        }
-                    }
-                }
-                Err(_) => {
-                    // error every child node
-                    for loc in values {
-                        // theoretically never fail
-                        let _ = nodes.insert_error(loc as u32, NodeError::IoError);
-                    }
-                }
-            };
-        }
-    }
-}
-
-/// Reads a btree node and all internal btree nodes below it into the
-/// nodes parameter.  No errors are returned, instead the optional
-/// error field of the nodes will be filled in.
-fn read_node(
-    ctx: &Context,
-    metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
-    b: &Block,
-    depth: usize,
-    ignore_non_fatal: bool,
-    nodes: &mut NodeMap,
-) {
-    read_node_(ctx, metadata_sm, b, depth, ignore_non_fatal, nodes);
-}
-*/
 
 struct LayerHandler<'a> {
     is_root: bool,
@@ -468,27 +374,27 @@ impl<'a> LayerHandler<'a> {
 }
 
 impl<'a> ReadHandler for LayerHandler<'a> {
-    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) {
         self.maybe_flush();
 
         match data {
             Ok(data) => {
                 if let Err(e) = verify_checksum(data) {
                     let _ = self.push_error(loc as u32, e);
-                    return Ok(());
+                    return;
                 }
 
                 let node = unpack_node_raw::<u64>(data, self.ignore_non_fatal, self.is_root);
 
                 if let Err(e) = &node {
                     let _ = self.push_error(loc as u32, *e);
-                    return Ok(());
+                    return;
                 }
 
                 let node = node.unwrap();
                 if node.get_header().block != loc {
                     let _ = self.push_error(loc as u32, NodeError::BlockNrMismatch);
-                    return Ok(());
+                    return;
                 }
 
                 if let Node::Internal { keys, values, .. } = node {
@@ -511,13 +417,10 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                 let _ = self.push_error(loc as u32, NodeError::IoError);
             }
         }
-
-        Ok(())
     }
 
-    fn complete(&mut self) -> std::io::Result<()> {
+    fn complete(&mut self) {
         self.flush_updates();
-        Ok(())
     }
 }
 
@@ -925,25 +828,6 @@ fn examine_leaf_(
     Ok(sum)
 }
 
-fn streaming_read<I>(
-    reader: &mut StreamReader,
-    blocks: I,
-    handler: &mut dyn ReadHandler,
-) -> std::io::Result<()>
-where
-    I: Iterator<Item = u64>,
-{
-    let callback = |block: u64, data: std::io::Result<&[u8]>| {
-        // FIXME: propagate the error
-        handler.handle(block, data).expect("handle failed");
-    };
-
-    reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
-    handler.complete()?;
-
-    Ok(())
-}
-
 struct LeafHandler {
     data_sm: Arc<Aggregator>,
     node_map: Arc<Mutex<NodeMap>>,
@@ -1014,7 +898,7 @@ impl LeafHandler {
 }
 
 impl ReadHandler for LeafHandler {
-    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) -> std::io::Result<()> {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) {
         match data {
             Ok(data) => {
                 // Allow under full nodes in this phase.  The under full
@@ -1027,24 +911,21 @@ impl ReadHandler for LeafHandler {
                         self.summary_batch.push((loc as u32, sum));
                         self.maybe_flush_summaries();
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         todo!();
                         // errs.push((loc, e));
                     }
                 }
-
-                Ok(())
             }
-            Err(e) => {
+            Err(_e) => {
                 todo!();
             }
         }
     }
 
-    fn complete(&mut self) -> std::io::Result<()> {
+    fn complete(&mut self) {
         self.flush_incs();
         self.flush_summaries();
-        Ok(())
     }
 }
 
@@ -1611,9 +1492,21 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     //-----------------------------------------
-    // Check the data space map
+    // Read the data space map
+    let start = std::time::Instant::now();
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let _data_sm_on_disk = read_space_map(
+        ctx.engine.clone(),
+        data_root,
+        opts.ignore_non_fatal,
+        metadata_sm,
+    )?;
+    let duration = start.elapsed();
+    eprintln!("reading data sm: {:?}", duration);
 
     /*
+    //-----------------------------------------
+    // Compare the data space map
     report.set_sub_title("data space map");
     let start = std::time::Instant::now();
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
