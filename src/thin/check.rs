@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use fixedbitset::FixedBitSet;
 use rand::seq::SliceRandom;
 use std::collections::{BTreeMap, HashMap};
@@ -14,6 +14,7 @@ use crate::io_engine::*;
 use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::aggregator::*;
+use crate::pdata::space_map::aggregator_load::*;
 use crate::pdata::space_map::common::*;
 use crate::pdata::space_map::*;
 use crate::pdata::unpack::*;
@@ -22,6 +23,7 @@ use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
+use crate::utils::future::spawn_future;
 use crate::utils::ranged_bitset_iter::*;
 
 //------------------------------------------
@@ -1066,48 +1068,6 @@ fn metadata_err(context: &str, err: anyhow::Error) -> MetadataError {
     }
 }
 
-// We read the top-level tree once to get the number of thin devices, and hence the
-// maximum metadata ref count.  Then create metadata space map.
-fn create_metadata_sm(
-    engine: &Arc<dyn IoEngine + Send + Sync>,
-    sb: &Superblock,
-    sb_snap: &Option<Result<Superblock>>,
-    ignore_non_fatal: bool,
-) -> Result<ASpaceMap> {
-    let mut path = vec![0];
-
-    // Use a temporary space map to reach out non-shared leaves so we could get
-    // the maximum reference count of a bottom-level leaf it could be.
-    let metadata_sm = Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())));
-
-    let roots = btree_to_map_with_sm::<u64>(
-        &mut path,
-        engine.as_ref(),
-        metadata_sm.clone(),
-        ignore_non_fatal,
-        sb.mapping_root,
-    )
-    .map_err(|e| metadata_err("mapping top-level", e.into()))?;
-
-    let mut nr_devs = roots.len();
-
-    if let Some(Ok(sb_snap)) = sb_snap {
-        let roots_snap = btree_to_map_with_sm::<u64>(
-            &mut path,
-            engine.as_ref(),
-            metadata_sm,
-            ignore_non_fatal,
-            sb_snap.mapping_root,
-        )
-        .map_err(|e| metadata_err("mapping top-level", e.into()))?;
-        nr_devs += roots_snap.len();
-    }
-
-    let metadata_sm = core_sm(engine.get_nr_blocks(), nr_devs as u32);
-
-    Ok(metadata_sm)
-}
-
 fn get_devices_(
     engine: &Arc<dyn IoEngine + Send + Sync>,
     sb: &Superblock,
@@ -1320,11 +1280,8 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_title("Checking thin metadata");
 
-    let metadata_sm = if opts.engine_opts.use_metadata_snap {
-        Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())))
-    } else {
-        create_metadata_sm(engine, &sb, &sb_snap, opts.ignore_non_fatal)?
-    };
+    let metadata_sm_agg = Arc::new(Mutex::new(Aggregator::new(engine.get_nr_blocks() as usize)));
+    let metadata_sm: ASpaceMap = metadata_sm_agg.clone();
 
     inc_superblock(&metadata_sm, sb.metadata_snap)?;
 
@@ -1374,6 +1331,42 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         return Ok(());
     }
 
+    //-----------------------------------------
+    // Kick off reading the data space map
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+        let report = ctx.report.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let data_sm_on_disk =
+                read_data_space_map(engine, data_root, opts.ignore_non_fatal, metadata_sm)?;
+            let duration = start.elapsed();
+            report.debug(&format!("reading data sm: {:?}", duration));
+            Ok(data_sm_on_disk)
+        })
+    };
+
+    //-----------------------------------------
+    // Kick off reading the metadata space map
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let _metadata_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+        let report = ctx.report.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let metadata_sm_on_disk =
+                read_metadata_space_map(engine, metadata_root, opts.ignore_non_fatal, metadata_sm)?;
+            let duration = start.elapsed();
+            report.debug(&format!("reading metadata sm: {:?}", duration));
+            Ok(metadata_sm_on_disk)
+        })
+    };
+
     //----------------------------------------
     // Check data mappings
 
@@ -1422,6 +1415,47 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if opts.engine_opts.use_metadata_snap {
         return Ok(());
     }
+
+    //-----------------------------------------
+    // Compare the data space maps
+    match data_sm_on_disk_future() {
+        Ok(data_sm_on_disk) => {
+            data_sm.diff(
+                &data_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    report.debug(&format!(
+                        "data count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    ));
+                },
+            );
+        }
+        Err(_e) => {
+            todo!()
+        }
+    }
+
+    /*
+    //-----------------------------------------
+    // Compare the metadata space maps
+    match metadata_sm_on_disk_future() {
+        Ok(metadata_sm_on_disk) => {
+            let metadata_sm_agg = metadata_sm_agg.lock().unwrap();
+            metadata_sm_agg.diff(
+                &metadata_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    report.debug(&format!(
+                        "metadata count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    ));
+                },
+            );
+        }
+        Err(_e) => {
+            todo!();
+        }
+    }
+    */
 
     //-----------------------------------------
     // Fix minor issues found in the metadata
@@ -1487,7 +1521,8 @@ pub fn check_with_maps(
     report.set_title("Checking thin metadata");
 
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    let metadata_sm = create_metadata_sm(&engine, &sb, &None, false)?;
+    let metadata_sm_agg = Arc::new(Mutex::new(Aggregator::new(engine.get_nr_blocks() as usize)));
+    let metadata_sm: ASpaceMap = metadata_sm_agg.clone();
     inc_superblock(&metadata_sm, sb.metadata_snap)?;
 
     //-----------------------------------------
@@ -1496,6 +1531,41 @@ pub fn check_with_maps(
 
     let mut all_roots = Vec::<u64>::new();
     let thins = get_thins_from_superblock(&engine, &sb, &metadata_sm, &mut all_roots, false)?;
+
+    //-----------------------------------------
+    // Kick off reading the data space map
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+        let report = report.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let data_sm_on_disk = read_data_space_map(engine, data_root, false, metadata_sm)?;
+            let duration = start.elapsed();
+            report.debug(&format!("reading data sm: {:?}", duration));
+            Ok(data_sm_on_disk)
+        })
+    };
+
+    //-----------------------------------------
+    // Kick off reading the metadata space map
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let _metadata_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+        let report = report.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let metadata_sm_on_disk =
+                read_metadata_space_map(engine, metadata_root, false, metadata_sm)?;
+            let duration = start.elapsed();
+            report.debug(&format!("reading metadata sm: {:?}", duration));
+            Ok(metadata_sm_on_disk)
+        })
+    };
 
     //-----------------------------------------
 
@@ -1509,6 +1579,47 @@ pub fn check_with_maps(
         .iter()
         .map(|(id, (root, details))| (id, root, details));
     check_mapped_blocks(&ctx, &mut iter, &summaries)?;
+
+    //-----------------------------------------
+    // Compare the data space maps
+    match data_sm_on_disk_future() {
+        Ok(data_sm_on_disk) => {
+            data_sm.diff(
+                &data_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    report.debug(&format!(
+                        "data count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    ));
+                },
+            );
+        }
+        Err(_e) => {
+            todo!()
+        }
+    }
+
+    /*
+    //-----------------------------------------
+    // Compare the metadata space maps
+    match metadata_sm_on_disk_future() {
+        Ok(metadata_sm_on_disk) => {
+            let metadata_sm_agg = metadata_sm_agg.lock().unwrap();
+            metadata_sm_agg.diff(
+                &metadata_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    report.debug(&format!(
+                        "metadata count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    ));
+                },
+            );
+        }
+        Err(_e) => {
+            todo!();
+        }
+    }
+    */
 
     //-----------------------------------------
 
