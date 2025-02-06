@@ -527,6 +527,8 @@ impl Aggregator {
         let total_entries = self.nr_entries;
         let nr_regions = self.regions.len().min(other.regions.len());
 
+        // FIXME: we could be more efficient here and just gather counts from one side
+        // and have a region method to do the comparison.
         let mut self_counts = vec![0u32; REGION_SIZE];
         let mut other_counts = vec![0u32; REGION_SIZE];
 
