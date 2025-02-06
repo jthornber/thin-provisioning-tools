@@ -15,6 +15,15 @@ use crate::pdata::unpack::*;
 
 //------------------------------------------
 
+enum SmType {
+    DataSm,
+    MetadataSm,
+}
+
+use SmType::*;
+
+//------------------------------------------
+
 fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     let mut sm = sm.lock().unwrap();
     for ie in entries {
@@ -23,7 +32,7 @@ fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
     Ok(())
 }
 
-fn gather_disk_index_entries(
+fn gather_data_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     bitmap_root: u64,
     metadata_sm: ASpaceMap,
@@ -43,7 +52,6 @@ fn gather_disk_index_entries(
     Ok(entries)
 }
 
-/*
 fn gather_metadata_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     bitmap_root: u64,
@@ -57,7 +65,28 @@ fn gather_metadata_index_entries(
 
     Ok(entries)
 }
+
+/*
+fn gather_index_entries(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    bitmap_root: u64,
+    metadata_sm: ASpaceMap,
+    ignore_non_fatal: bool,
+    kind: SmType,
+) -> Result<Vec<IndexEntry>> {
+    match kind {
+        DataSm => gather_data_index_entries(engine, bitmap_root, metadata_sm, ignore_non_fatal),
+        MetadataSm => gather_metadata_index_entries(
+            engine,
+            bitmap_root,
+            metadata_sm.get_nr_blocks()?,
+            metadata_sm,
+        ),
+    }
+}
 */
+
+//------------------------------------------
 
 struct IndexHandler<'a> {
     loc_to_block_index: HashMap<u64, u64>,
@@ -133,17 +162,28 @@ pub fn read_space_map(
     root: SMRoot,
     ignore_non_fatal: bool,
     metadata_sm: ASpaceMap,
+    kind: SmType,
 ) -> Result<Aggregator> {
     let nr_blocks = root.nr_blocks as usize;
     let aggregator = Aggregator::new(nr_blocks);
 
     // First, load the bitmap data
-    let entries = gather_disk_index_entries(
-        engine.clone(),
-        root.bitmap_root,
-        metadata_sm,
-        ignore_non_fatal,
-    )?;
+    let entries = {
+        match kind {
+            DataSm => gather_data_index_entries(
+                engine.clone(),
+                root.bitmap_root,
+                metadata_sm,
+                ignore_non_fatal,
+            )?,
+            MetadataSm => gather_metadata_index_entries(
+                engine.clone(),
+                root.bitmap_root,
+                root.nr_blocks,
+                metadata_sm,
+            )?,
+        }
+    };
     eprintln!("nr index entries: {}", entries.len());
 
     let mut loc_to_index = HashMap::new();
@@ -198,6 +238,24 @@ pub fn read_space_map(
     walker.walk(&mut vec![0], &visitor, root.ref_count_root)?;
 
     Ok(aggregator)
+}
+
+pub fn read_data_space_map(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    root: SMRoot,
+    ignore_non_fatal: bool,
+    metadata_sm: ASpaceMap,
+) -> Result<Aggregator> {
+    read_space_map(engine, root, ignore_non_fatal, metadata_sm, DataSm)
+}
+
+pub fn read_metadata_space_map(
+    engine: Arc<dyn IoEngine + Send + Sync>,
+    root: SMRoot,
+    ignore_non_fatal: bool,
+    metadata_sm: ASpaceMap,
+) -> Result<Aggregator> {
+    read_space_map(engine, root, ignore_non_fatal, metadata_sm, MetadataSm)
 }
 
 //------------------------------------------
