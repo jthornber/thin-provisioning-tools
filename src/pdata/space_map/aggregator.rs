@@ -512,6 +512,44 @@ impl Aggregator {
         region.set(&pairs[start_idx..]);
     }
 
+    /// Compares the reference counts with another aggregator and calls the provided
+    /// callback for any block with differing counts.
+    ///
+    /// The callback is invoked with (global block number, self count, other count).
+    ///
+    /// Panics if the two aggregators do not manage the same number of entries.
+    pub fn diff<F>(&self, other: &Aggregator, mut f: F)
+    where
+        F: FnMut(u64, u32, u32),
+    {
+        assert_eq!(self.nr_entries, other.nr_entries, "Mismatched nr_entries");
+
+        let total_entries = self.nr_entries;
+        let nr_regions = self.regions.len().min(other.regions.len());
+
+        let mut self_counts = vec![0u32; REGION_SIZE];
+        let mut other_counts = vec![0u32; REGION_SIZE];
+
+        for region_idx in 0..nr_regions {
+            let region_base = region_idx * REGION_SIZE;
+            let region_limit = ((region_idx + 1) * REGION_SIZE).min(total_entries);
+            let len = region_limit - region_base;
+
+            let self_region = self.regions[region_idx].lock().unwrap();
+            let other_region = other.regions[region_idx].lock().unwrap();
+
+            // Read counts from both regions.
+            let _ = self_region.lookup(region_base as u64, &mut self_counts[0..len]);
+            let _ = other_region.lookup(region_base as u64, &mut other_counts[0..len]);
+
+            for i in 0..len {
+                if self_counts[i] != other_counts[i] {
+                    f((region_base + i) as u64, self_counts[i], other_counts[i]);
+                }
+            }
+        }
+    }
+
     pub fn rep_size(&self) -> usize {
         eprintln!("{} regions", self.regions.len());
         eprintln!("Region size = {}", std::mem::size_of::<Region>());
