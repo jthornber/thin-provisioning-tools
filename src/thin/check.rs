@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use fixedbitset::FixedBitSet;
 use rand::seq::SliceRandom;
 use std::collections::{BTreeMap, HashMap};
@@ -26,6 +26,7 @@ use crate::thin::block_time::*;
 use crate::thin::device_detail::*;
 use crate::thin::metadata_repair::is_superblock_consistent;
 use crate::thin::superblock::*;
+use crate::utils::future::spawn_future;
 use crate::utils::ranged_bitset_iter::*;
 
 //------------------------------------------
@@ -1442,9 +1443,42 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         return Ok(());
     }
 
+    //-----------------------------------------
+    // Kick off reading the data space map
+    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let data_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let data_sm_on_disk =
+                read_data_space_map(engine, data_root, opts.ignore_non_fatal, metadata_sm)?;
+            let duration = start.elapsed();
+            eprintln!("reading data sm: {:?}", duration);
+            Ok(data_sm_on_disk)
+        })
+    };
+
+    //-----------------------------------------
+    // Kick off reading the metadata space map
+    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    let metadata_sm_on_disk_future = {
+        let engine = ctx.engine.clone();
+        let metadata_sm = metadata_sm.clone();
+
+        spawn_future(move || -> Result<Aggregator, Error> {
+            let start = std::time::Instant::now();
+            let metadata_sm_on_disk =
+                read_metadata_space_map(engine, metadata_root, opts.ignore_non_fatal, metadata_sm)?;
+            let duration = start.elapsed();
+            eprintln!("reading metadata sm: {:?}", duration);
+            Ok(metadata_sm_on_disk)
+        })
+    };
+
     //----------------------------------------
     // Check data mappings
-
     report.set_sub_title("mapping tree");
 
     let nr_devices = thins.len();
@@ -1492,17 +1526,46 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     }
 
     //-----------------------------------------
-    // Read the data space map
-    let start = std::time::Instant::now();
-    let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let _data_sm_on_disk = read_space_map(
-        ctx.engine.clone(),
-        data_root,
-        opts.ignore_non_fatal,
-        metadata_sm,
-    )?;
-    let duration = start.elapsed();
-    eprintln!("reading data sm: {:?}", duration);
+    // Compare the data space maps
+    match data_sm_on_disk_future() {
+        Ok(data_sm_on_disk) => {
+            data_sm.diff(
+                &data_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    eprintln!(
+                        "data count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    );
+                },
+            );
+        }
+        Err(_e) => {
+            todo!()
+        }
+    }
+
+    //-----------------------------------------
+    // Compare the metadata space maps
+    /*
+    match metadata_sm_on_disk_future() {
+        Ok(metadata_sm_on_disk) => {
+            metadata_sm.diff(
+                &metadata_sm_on_disk,
+                |block: u64, l_count: u32, r_count: u32| {
+                    eprintln!("metadata sm read");
+                    eprintln!(
+                        "metadata count difference for block {}: {}, {}",
+                        block, l_count, r_count
+                    );
+                },
+            );
+        }
+        Err(e) => {
+            eprintln!("metadata sm read failed: {:?}", e);
+            todo!();
+        }
+    }
+    */
 
     /*
     //-----------------------------------------
@@ -1523,7 +1586,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     report.debug(&format!("checking data space map: {:?}", duration));
 
     //-----------------------------------------
-    // Check the metadata space map
+    // Compare the metadata space map
 
     report.set_sub_title("metadata space map");
     let start = std::time::Instant::now();
