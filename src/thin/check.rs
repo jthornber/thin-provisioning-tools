@@ -1310,9 +1310,10 @@ fn check_mappings_bottom_level(
 ) -> Result<HashVec<NodeSummary>> {
     let report = &ctx.report;
 
-    let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
+    // let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     // let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
 
+    /*
     let mon_meta_sm = metadata_sm.clone();
     // let mon_data_sm = data_sm.clone();
     let monitor = ProgressMonitor::new(
@@ -1323,11 +1324,12 @@ fn check_mappings_bottom_level(
             // + (mon_data_sm.lock().unwrap().get_nr_allocated().unwrap() / 8)
         },
     );
+    */
 
     let summaries =
         check_mappings_bottom_level_(ctx, metadata_sm, data_sm, roots, ignore_non_fatal);
 
-    monitor.stop();
+    // monitor.stop();
 
     summaries
 }
@@ -1389,11 +1391,16 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     report.set_title("Checking thin metadata");
 
+    let metadata_sm_agg = Arc::new(Mutex::new(Aggregator::new(engine.get_nr_blocks() as usize)));
+    let metadata_sm: ASpaceMap = metadata_sm_agg.clone();
+
+    /*
     let metadata_sm = if opts.engine_opts.use_metadata_snap {
         Arc::new(Mutex::new(RestrictedSpaceMap::new(engine.get_nr_blocks())))
     } else {
         create_metadata_sm(engine, &sb, &sb_snap, opts.ignore_non_fatal)?
     };
+    */
 
     inc_superblock(&metadata_sm, sb.metadata_snap)?;
 
@@ -1544,15 +1551,15 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
         }
     }
 
+    /*
     //-----------------------------------------
     // Compare the metadata space maps
-    /*
     match metadata_sm_on_disk_future() {
         Ok(metadata_sm_on_disk) => {
-            metadata_sm.diff(
+            let metadata_sm_agg = metadata_sm_agg.lock().unwrap();
+            metadata_sm_agg.diff(
                 &metadata_sm_on_disk,
                 |block: u64, l_count: u32, r_count: u32| {
-                    eprintln!("metadata sm read");
                     eprintln!(
                         "metadata count difference for block {}: {}, {}",
                         block, l_count, r_count
