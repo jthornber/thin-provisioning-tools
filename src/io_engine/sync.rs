@@ -232,6 +232,14 @@ impl IoEngine for SyncIoEngine {
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
         Self::write_many_((&self.file).into(), blocks)
     }
+
+    fn build_stream_reader(
+        &self,
+        _io_block_size_bytes: usize,
+        _buffer_size_meg: usize,
+    ) -> Result<Box<dyn StreamReader>> {
+        todo!();
+    }
 }
 
 // Simplified version of generate_runs() without gaps. It should be a bit faster

@@ -220,6 +220,14 @@ impl IoEngine for SpindleIoEngine {
         }
         Ok(bs)
     }
+
+    fn build_stream_reader(
+        &self,
+        _io_block_size_bytes: usize,
+        _buffer_size_meg: usize,
+    ) -> io::Result<Box<dyn StreamReader>> {
+        todo!()
+    }
 }
 
 //------------------------------------------

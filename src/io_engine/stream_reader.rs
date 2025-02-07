@@ -89,14 +89,17 @@ struct IoData {
 }
 
 // New StreamingRead Struct
-pub struct StreamReader {
+pub struct AsyncStreamReader {
     fd: RawFd,
     block_size: usize,
     blocks: FreeList,
     ring: IoUring,
 }
 
-impl StreamReader {
+unsafe impl Send for AsyncStreamReader {}
+unsafe impl Sync for AsyncStreamReader {}
+
+impl AsyncStreamReader {
     pub fn new(fd: RawFd, block_size: usize, buffer_size_mb: usize) -> io::Result<Self> {
         let buffer_size = buffer_size_mb * 1024 * 1024;
         let num_buffer_blocks = buffer_size / block_size;
@@ -205,26 +208,23 @@ impl StreamReader {
 
         Ok(())
     }
+}
 
+impl StreamReader for AsyncStreamReader {
     /// Utility function to read smaller blocks using larger IO blocks.  Indices must be sorted into
     /// ascending order.
-    pub fn read_blocks<F, I>(
+    fn read_blocks(
         &mut self,
-        small_block_size: usize,
-        small_block_indices: I,
-        mut callback: F,
-    ) -> io::Result<()>
-    where
-        F: FnMut(u64, Result<&[u8], io::Error>),
-        I: Iterator<Item = u64>,
-    {
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
         let io_block_size = self.block_size;
-        assert!(small_block_size <= io_block_size);
+        assert!(BLOCK_SIZE <= io_block_size);
         assert!(
-            io_block_size % small_block_size == 0,
+            io_block_size % BLOCK_SIZE == 0,
             "IO block size must be a multiple of small block size"
         );
-        let blocks_per_io = io_block_size / small_block_size;
+        let blocks_per_io = io_block_size / BLOCK_SIZE;
         assert!(blocks_per_io <= 64); // so we can fit the bitset in a u64
 
         // Map small blocks to IO blocks
@@ -233,7 +233,7 @@ impl StreamReader {
         let mut current_io_idx: Option<u64> = None;
         let mut current_bitmask: u64 = 0;
 
-        for small_idx in small_block_indices {
+        for small_idx in blocks {
             let io_idx = small_idx / blocks_per_io as u64;
             let bit = small_idx % blocks_per_io as u64;
 
@@ -257,7 +257,7 @@ impl StreamReader {
         io_indices.sort_unstable();
 
         // Read IO blocks
-        self.read_io_blocks_(&io_indices, move |io_idx, result| {
+        self.read_io_blocks_(&io_indices, |io_idx, result| {
             match result {
                 Ok(data) => {
                     // Find the bitmask for the current io_idx
@@ -270,9 +270,9 @@ impl StreamReader {
                             }
                             bm &= !(1 << tz);
                             let small_idx = io_idx * blocks_per_io as u64 + tz as u64;
-                            let offset = (tz as usize) * small_block_size;
-                            let small_data = &data[offset..offset + small_block_size];
-                            callback(small_idx, Ok(small_data));
+                            let offset = (tz as usize) * BLOCK_SIZE;
+                            let small_data = &data[offset..offset + BLOCK_SIZE];
+                            handler.handle(small_idx, Ok(small_data));
                         }
                     }
                 }
@@ -287,39 +287,16 @@ impl StreamReader {
                             }
                             bm &= !(1 << tz);
                             let small_idx = io_idx * blocks_per_io as u64 + tz as u64;
-                            callback(small_idx, Err(io::Error::last_os_error()));
+                            handler.handle(small_idx, Err(io::Error::last_os_error()));
                         }
                     }
                 }
             }
-        })
+        })?;
+
+        handler.complete();
+        Ok(())
     }
-}
-
-//--------------------------------
-
-pub trait ReadHandler {
-    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>);
-    fn complete(&mut self);
-}
-
-pub fn streaming_read<I>(
-    reader: &mut StreamReader,
-    blocks: I,
-    handler: &mut dyn ReadHandler,
-) -> std::io::Result<()>
-where
-    I: Iterator<Item = u64>,
-{
-    let callback = |block: u64, data: std::io::Result<&[u8]>| {
-        // FIXME: propagate the error
-        handler.handle(block, data);
-    };
-
-    reader.read_blocks(BLOCK_SIZE, blocks, callback)?;
-    handler.complete();
-
-    Ok(())
 }
 
 //--------------------------------

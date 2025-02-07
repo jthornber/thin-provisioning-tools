@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::checksum;
-use crate::io_engine::stream_reader::*;
-use crate::io_engine::{IoEngine, BLOCK_SIZE};
+use crate::io_engine::{IoEngine, ReadHandler, BLOCK_SIZE};
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::aggregator::*;
@@ -195,10 +194,10 @@ pub fn read_space_map(
 
     let buffer_size_m = 16;
     let mut index_handler = IndexHandler::new(loc_to_index, &aggregator);
-    let mut reader = StreamReader::new(engine.get_fd().unwrap(), BLOCK_SIZE, buffer_size_m)?;
+    let mut reader = engine.build_stream_reader(BLOCK_SIZE, buffer_size_m)?;
 
     // FIXME: is the cloned() expensive?
-    streaming_read(&mut reader, blocks.iter().cloned(), &mut index_handler)?;
+    reader.read_blocks(&mut blocks.iter().cloned(), &mut index_handler)?;
 
     // Now, handle the overflow entries in the ref count tree
     struct OverflowVisitor<'a> {

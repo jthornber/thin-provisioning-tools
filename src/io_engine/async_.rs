@@ -7,6 +7,7 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
+use crate::io_engine::stream_reader::*;
 use crate::io_engine::*;
 
 //------------------------------------------
@@ -51,6 +52,10 @@ impl AsyncIoEngine {
 
     pub fn new<P: AsRef<Path>>(path: P, writable: bool) -> Result<Self> {
         Self::new_with(path, writable, true)
+    }
+
+    fn get_fd(&self) -> RawFd {
+        self.input.as_raw_fd()
     }
 }
 
@@ -123,10 +128,6 @@ impl IoEngine for AsyncIoEngine {
         Ok(results)
     }
 
-    fn get_fd(&self) -> Option<RawFd> {
-        Some(self.input.as_raw_fd())
-    }
-
     fn write(&self, b: &Block) -> Result<()> {
         let loc = b.loc * BLOCK_SIZE as u64;
         let completion = self.ring.write_at(&self.input, &b, loc);
@@ -174,6 +175,20 @@ impl IoEngine for AsyncIoEngine {
         }
 
         Ok(results)
+    }
+
+    fn build_stream_reader(
+        &self,
+        io_block_size_bytes: usize,
+        buffer_size_meg: usize,
+    ) -> Result<Box<dyn StreamReader>> {
+        let r: Box<dyn StreamReader> = Box::new(AsyncStreamReader::new(
+            self.get_fd(),
+            io_block_size_bytes,
+            buffer_size_meg,
+        )?);
+
+        Ok(r)
     }
 }
 

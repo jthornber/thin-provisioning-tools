@@ -11,9 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::commands::engine::*;
-use crate::io_engine::stream_reader::*;
 use crate::io_engine::*;
-use crate::pdata::btree::{self, *};
+use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::aggregator::*;
 use crate::pdata::space_map::aggregator_load::*;
@@ -460,7 +459,7 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
 fn read_internal_nodes(
     ctx: &Context,
-    reader: &mut StreamReader,
+    reader: &mut dyn StreamReader,
     aggregator: &Aggregator,
     root: u32,
     ignore_non_fatal: bool,
@@ -500,7 +499,7 @@ fn read_internal_nodes(
         };
         is_root = false;
 
-        streaming_read(reader, current_layer.ones().map(|n| n as u64), &mut handler)?;
+        reader.read_blocks(&mut current_layer.ones().map(|n| n as u64), &mut handler)?;
         current_layer = handler.get_children();
     }
 
@@ -700,14 +699,17 @@ fn collect_nodes_in_use(
             s.spawn(move || {
                 let io_block_size = BLOCK_SIZE;
                 let buffer_size_m = 16;
-                let mut reader =
-                    StreamReader::new(ctx.engine.get_fd().unwrap(), io_block_size, buffer_size_m)
-                        .expect("unable to create stream reader");
+
+                // FIXME: handle error, create reader outside thread?
+                let mut reader = ctx
+                    .engine
+                    .build_stream_reader(io_block_size, buffer_size_m)
+                    .expect("unable to create stream reader");
 
                 for &root in chunk {
                     if let Err(e) = read_internal_nodes(
                         ctx,
-                        &mut reader,
+                        reader.as_mut(),
                         aggregator,
                         root as u32,
                         ignore_non_fatal,
@@ -930,22 +932,16 @@ impl ReadHandler for LeafHandler {
     }
 }
 
-fn unpacker<I>(
-    fd: RawFd,
-    leaves: I,
+fn unpacker(
+    mut reader: Box<dyn StreamReader>,
+    leaves: &mut dyn Iterator<Item = u64>,
     data_sm: Arc<Aggregator>,
     node_map: Arc<Mutex<NodeMap>>,
     summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
-) -> Result<()>
-where
-    I: Iterator<Item = u64>,
-{
+) -> Result<()> {
     let mut handler = LeafHandler::new(data_sm, node_map, summaries, ignore_non_fatal);
-    let io_block_size = 64 * 1024;
-    let buffer_size_m = 16;
-    let mut reader = StreamReader::new(fd, io_block_size, buffer_size_m)?;
-    streaming_read(&mut reader, leaves, &mut handler)?;
+    reader.read_blocks(leaves, &mut handler)?;
     Ok(())
 
     /*
@@ -970,9 +966,6 @@ fn read_leaf_nodes(
     let leaves = nodes.leaf_nodes.clone();
     eprintln!("nodes count start = {}", nodes.len());
 
-    // FIXME: handle error
-    let raw_fd = ctx.engine.get_fd().unwrap();
-
     let summaries = Arc::new(Mutex::new(HashMap::new()));
     let nodes = Arc::new(Mutex::new(nodes));
 
@@ -982,14 +975,22 @@ fn read_leaf_nodes(
         for i in 0..NR_UNPACKERS {
             let l_begin = i * chunk_size;
             let l_end = ((i + 1) * chunk_size).min(leaves.len());
-            let leaves = RangedBitsetIter::new(&leaves, l_begin..l_end);
+            let mut leaves = RangedBitsetIter::new(&leaves, l_begin..l_end);
             let node_map = nodes.clone();
             let data_sm = data_sm.clone();
             let summaries = summaries.clone();
+
+            let io_block_size = 64 * 1024;
+            let buffer_size_m = 16;
+            let reader = ctx
+                .engine
+                .build_stream_reader(io_block_size, buffer_size_m)
+                .expect("couldn't build stream reader");
+
             s.spawn(move || {
                 unpacker(
-                    raw_fd,
-                    leaves,
+                    reader,
+                    &mut leaves,
                     data_sm,
                     node_map,
                     summaries,
