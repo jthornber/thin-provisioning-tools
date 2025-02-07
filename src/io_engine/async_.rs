@@ -7,7 +7,7 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
-use crate::io_engine::stream_reader::*;
+use crate::io_engine::async_stream_reader::*;
 use crate::io_engine::*;
 
 //------------------------------------------
