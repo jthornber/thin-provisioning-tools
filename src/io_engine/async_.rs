@@ -64,10 +64,6 @@ impl IoEngine for AsyncIoEngine {
         QUEUE_DEPTH
     }
 
-    fn suggest_nr_threads(&self) -> usize {
-        std::cmp::min(2, num_cpus::get())
-    }
-
     fn read(&self, b: u64) -> Result<Block> {
         let b = Block::new(b);
 
