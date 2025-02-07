@@ -208,10 +208,6 @@ impl IoEngine for SyncIoEngine {
         32 // could be up to libc::UIO_MAXIOV
     }
 
-    fn suggest_nr_threads(&self) -> usize {
-        std::cmp::min(8, num_cpus::get())
-    }
-
     fn read(&self, loc: u64) -> Result<Block> {
         let b = Block::new(loc);
         self.file
