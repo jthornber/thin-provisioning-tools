@@ -1,13 +1,16 @@
 pub mod base;
 pub mod buffer;
+pub mod buffer_pool;
 pub mod gaps;
 pub mod spindle;
 pub mod sync;
+pub mod sync_stream_reader;
 pub mod utils;
 
 pub use crate::io_engine::base::*;
 pub use crate::io_engine::spindle::SpindleIoEngine;
 pub use crate::io_engine::sync::SyncIoEngine;
+pub use crate::io_engine::sync_stream_reader::SyncStreamReader;
 
 #[cfg(feature = "io_uring")]
 pub mod async_;

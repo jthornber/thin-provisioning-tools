@@ -1,11 +1,14 @@
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{self, Result};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::path::Path;
 
-use crate::io_engine::gaps::*;
+use crate::io_engine::base::*;
+use crate::io_engine::sync_stream_reader::SyncStreamReader;
 use crate::io_engine::utils::*;
+use crate::io_engine::gaps::*;
 use crate::io_engine::*;
 
 #[cfg(test)]
@@ -231,10 +234,16 @@ impl IoEngine for SyncIoEngine {
 
     fn build_stream_reader(
         &self,
-        _io_block_size_bytes: usize,
-        _buffer_size_meg: usize,
+        io_block_size_bytes: usize,
+        buffer_size_meg: usize,
     ) -> Result<Box<dyn StreamReader>> {
-        todo!();
+        let r: Box<dyn StreamReader> = Box::new(SyncStreamReader::new(
+            self.file.as_raw_fd(),
+            io_block_size_bytes,
+            buffer_size_meg,
+        )?);
+
+        Ok(r)
     }
 }
 

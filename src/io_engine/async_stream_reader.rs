@@ -1,85 +1,17 @@
 use io_uring::{opcode, types, IoUring};
 use libc::iovec;
-use std::alloc::{alloc, dealloc, Layout};
-use std::collections::HashMap;
 use std::io;
 use std::os::fd::RawFd;
 use std::vec::Vec;
+use std::collections::HashMap;
 
 use crate::io_engine::base::*;
+use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
 
 //--------------------------------
 
 const QUEUE_DEPTH: u32 = 256;
 const MAX_BLOCKS_PER_READ: usize = 64;
-
-#[derive(Clone)]
-struct IOBlock {
-    loc: u64,
-    data: *mut u8,
-}
-
-// SAFETY: Block contains a raw pointer, but we ensure it's used safely.
-unsafe impl Send for IOBlock {}
-
-//--------------------------------
-
-struct BufferPool {
-    nr_blocks: usize,
-    block_size: usize,
-    buffer: *mut u8,
-    blocks: Vec<IOBlock>,
-}
-
-impl BufferPool {
-    fn layout(nr_blocks: usize, block_size: usize) -> Layout {
-        Layout::from_size_align(block_size * nr_blocks, block_size).unwrap()
-    }
-
-    fn new(nr_blocks: usize, block_size: usize) -> Self {
-        let layout = Self::layout(nr_blocks, block_size);
-        let buffer = unsafe { alloc(layout) };
-
-        if buffer.is_null() {
-            panic!("Failed to allocate memory for BufferPool");
-        }
-
-        let mut blocks = Vec::with_capacity(nr_blocks);
-        for i in 0..nr_blocks {
-            blocks.push(IOBlock {
-                loc: 0,
-                data: unsafe { buffer.add(i * block_size) },
-            });
-        }
-
-        BufferPool {
-            nr_blocks,
-            block_size,
-            buffer,
-            blocks,
-        }
-    }
-
-    fn get(&mut self, loc: u64) -> Option<IOBlock> {
-        let b = self.blocks.pop();
-        b.map(|b| IOBlock { loc, data: b.data })
-    }
-
-    fn put(&mut self, block: IOBlock) {
-        self.blocks.push(block);
-    }
-
-    fn is_empty(&self) -> bool {
-        self.blocks.is_empty()
-    }
-}
-
-impl Drop for BufferPool {
-    fn drop(&mut self) {
-        let layout = Self::layout(self.nr_blocks, self.block_size);
-        unsafe { dealloc(self.buffer, layout) };
-    }
-}
 
 //--------------------------------
 
