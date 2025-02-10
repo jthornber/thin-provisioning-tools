@@ -28,6 +28,14 @@ use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
 const QUEUE_DEPTH: u32 = 256;
 /// Maximum number of IO blocks that can be read in a single io_uring operation
 const MAX_BLOCKS_PER_READ: usize = 64;
+/// Minimum block size in bytes (4KB)
+const MIN_BLOCK_SIZE: usize = 4 * 1024;
+/// Maximum block size in bytes (16MB)
+const MAX_BLOCK_SIZE: usize = 16 * 1024 * 1024;
+/// Minimum buffer size in megabytes
+const MIN_BUFFER_SIZE_MB: usize = 1;
+/// Maximum buffer size in megabytes (1GB)
+const MAX_BUFFER_SIZE_MB: usize = 1024;
 
 //--------------------------------
 
@@ -74,7 +82,27 @@ impl AsyncStreamReader {
     /// 
     /// # Returns
     /// * `io::Result<Self>` - A new AsyncStreamReader instance or an IO error
+    /// 
+    /// # Errors
+    /// Returns an error if:
+    /// * block_size is not within MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE
+    /// * buffer_size_mb is not within MIN_BUFFER_SIZE_MB..=MAX_BUFFER_SIZE_MB
+    /// * io_uring initialization fails
     pub fn new(fd: RawFd, block_size: usize, buffer_size_mb: usize) -> io::Result<Self> {
+        // Validate input parameters
+        if !(MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE).contains(&block_size) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("block_size must be between {} and {} bytes", MIN_BLOCK_SIZE, MAX_BLOCK_SIZE)
+            ));
+        }
+        if !(MIN_BUFFER_SIZE_MB..=MAX_BUFFER_SIZE_MB).contains(&buffer_size_mb) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("buffer_size_mb must be between {} and {} MB", MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB)
+            ));
+        }
+
         let buffer_size = buffer_size_mb * 1024 * 1024;
         let num_buffer_blocks = buffer_size / block_size;
 
@@ -139,6 +167,12 @@ impl AsyncStreamReader {
     /// 
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
+    /// 
+    /// # Safety
+    /// This function is safe because:
+    /// * The io_data pointer is valid as it's created from a Box
+    /// * The iov pointers are valid as they point to allocated IOBlock data
+    /// * The fd is owned by this struct and valid for the struct's lifetime
     fn submit_read_request(&mut self, io_data: Box<IoData>, offset: u64) -> io::Result<()> {
         let read_op = opcode::Readv::new(
             types::Fd(self.fd),
@@ -153,7 +187,7 @@ impl AsyncStreamReader {
             self.ring
                 .submission()
                 .push(&read_op)
-                .expect("submission queue is full");
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "submission queue is full"))?;
         }
         Ok(())
     }
@@ -255,7 +289,8 @@ impl AsyncStreamReader {
     /// # Returns
     /// * `HashMap<u64, u64>` - Mapping from logical block numbers to IO block numbers
     fn map_small_blocks_to_io(blocks: &mut dyn Iterator<Item = u64>, blocks_per_io: usize) -> HashMap<u64, u64> {
-        let mut io_block_map: HashMap<u64, u64> = HashMap::new();
+        // Pre-allocate with a reasonable capacity
+        let mut io_block_map = HashMap::with_capacity(1024);
         let mut current_io_idx: Option<u64> = None;
         let mut current_bitmask: u64 = 0;
 
