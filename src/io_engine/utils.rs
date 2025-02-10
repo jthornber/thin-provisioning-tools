@@ -9,18 +9,41 @@ mod tests;
 
 //-------------------------------------
 
+/// Trait for types that can perform block-aligned reads from a device.
 pub trait ReadBlocks {
-    // All the individual buffers are assumed to be the same size.
+    /// Reads multiple blocks of data from the device starting at the specified position.
+    ///
+    /// # Arguments
+    /// * `buffers` - Slice of mutable buffers to read into. All buffers must be the same size.
+    /// * `pos` - Starting position in bytes where the read should begin.
+    ///
+    /// # Returns
+    /// A vector of results, one for each buffer. Each result indicates whether the read for that
+    /// buffer succeeded or failed.
     fn read_blocks(&self, buffers: &mut [&mut [u8]], pos: u64) -> Result<Vec<Result<()>>>;
 }
 
+/// Trait for types that can perform block-aligned writes to a device.
 pub trait WriteBlocks {
-    // All the individual buffers are assumed to be the same size.
+    /// Writes multiple blocks of data to the device starting at the specified position.
+    ///
+    /// # Arguments
+    /// * `buffers` - Slice of buffers containing data to write. All buffers must be the same size.
+    /// * `pos` - Starting position in bytes where the write should begin.
+    ///
+    /// # Returns
+    /// A vector of results, one for each buffer. Each result indicates whether the write for that
+    /// buffer succeeded or failed.
     fn write_blocks(&self, buffers: &[&[u8]], pos: u64) -> Result<Vec<Result<()>>>;
 }
 
 //-------------------------------------
 
+/// A block I/O implementation that uses vectored I/O operations for improved performance.
+///
+/// This struct wraps any type that implements the `VectoredIo` trait and provides block-aligned
+/// read and write operations. It attempts to perform I/O operations on multiple blocks at once
+/// using vectored I/O, falling back to processing individual blocks on failure.
 pub struct VectoredBlockIo<T> {
     dev: T,
 }
@@ -108,6 +131,11 @@ impl<T: VectoredIo> WriteBlocks for VectoredBlockIo<T> {
 
 //-------------------------------------
 
+/// A simple block I/O implementation that performs individual block operations.
+///
+/// This struct wraps any type that implements the `FileExt` trait and provides block-aligned
+/// read and write operations. It processes each block individually using standard file I/O
+/// operations.
 pub struct SimpleBlockIo<T> {
     dev: T,
 }
