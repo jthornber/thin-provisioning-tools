@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io;
 use std::os::fd::{FromRawFd, RawFd};
-use std::os::unix::fs::FileExt;
 use std::vec::Vec;
 
 use super::base::StreamReader;
@@ -10,7 +9,7 @@ use super::stream_reader_common::{
     MIN_BLOCK_SIZE, MAX_BLOCK_SIZE, MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB,
 };
 use super::utils::{ReadBlocks, VectoredBlockIo};
-use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
+use crate::io_engine::buffer_pool::BufferPool;
 use crate::io_engine::*;
 
 //--------------------------------

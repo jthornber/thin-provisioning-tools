@@ -14,7 +14,7 @@ use crate::pdata::unpack::*;
 
 //------------------------------------------
 
-enum SmType {
+pub enum SmType {
     DataSm,
     MetadataSm,
 }

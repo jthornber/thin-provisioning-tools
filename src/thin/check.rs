@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
-use std::os::fd::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -111,6 +110,7 @@ struct NodeSummary {
 }
 
 impl NodeSummary {
+    /* 
     fn from_leaf(keys: &[u64]) -> Self {
         let nr_entries = keys.len();
         let key_low = if nr_entries > 0 { keys[0] } else { 0 };
@@ -128,6 +128,7 @@ impl NodeSummary {
             nr_errors: 0,
         }
     }
+    */
 
     fn error() -> Self {
         Self {
@@ -299,7 +300,7 @@ impl BatchedNodeMap {
         for update in updates {
             match update.info {
                 NodeInfo::Leaf() => {
-                    guard.insert_leaf(update.loc);
+                    let _ = guard.insert_leaf(update.loc);
                 }
                 NodeInfo::Internal(info) => {
                     let _ = guard.insert_internal_node(update.loc, info);
@@ -489,14 +490,12 @@ fn read_internal_nodes(
     // Read the internal nodes, layer by layer.
     let mut is_root = true;
     for _d in (0..depth).rev() {
-        let mut handler = LayerHandler {
+        let mut handler = LayerHandler::new(
             is_root,
             aggregator,
             ignore_non_fatal,
-            nodes: nodes.clone(),
-            children: FixedBitSet::with_capacity(nr_blocks as usize),
-            updates: Vec::new(),
-        };
+            nodes.clone(),
+        );
         is_root = false;
 
         reader.read_blocks(&mut current_layer.ones().map(|n| n as u64), &mut handler)?;
@@ -833,7 +832,7 @@ fn examine_leaf_(
 
 struct LeafHandler {
     data_sm: Arc<Aggregator>,
-    node_map: Arc<Mutex<NodeMap>>,
+    // node_map: Arc<Mutex<NodeMap>>,
     summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
 
@@ -847,13 +846,13 @@ const SUMMARY_BATCH_SIZE: usize = 1024;
 impl LeafHandler {
     fn new(
         data_sm: Arc<Aggregator>,
-        node_map: Arc<Mutex<NodeMap>>,
+        // node_map: Arc<Mutex<NodeMap>>,
         summaries: Arc<Mutex<HashVec<NodeSummary>>>,
         ignore_non_fatal: bool,
     ) -> Self {
         Self {
             data_sm,
-            node_map,
+            // node_map,
             summaries,
             ignore_non_fatal,
             inc_batch: Vec::with_capacity(INC_BATCH_SIZE + 256),
@@ -936,11 +935,11 @@ fn unpacker(
     mut reader: Box<dyn StreamReader>,
     leaves: &mut dyn Iterator<Item = u64>,
     data_sm: Arc<Aggregator>,
-    node_map: Arc<Mutex<NodeMap>>,
+    // node_map: Arc<Mutex<NodeMap>>,
     summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
 ) -> Result<()> {
-    let mut handler = LeafHandler::new(data_sm, node_map, summaries, ignore_non_fatal);
+    let mut handler = LeafHandler::new(data_sm, /*node_map,*/ summaries, ignore_non_fatal);
     reader.read_blocks(leaves, &mut handler)?;
     Ok(())
 
@@ -976,7 +975,7 @@ fn read_leaf_nodes(
             let l_begin = i * chunk_size;
             let l_end = ((i + 1) * chunk_size).min(leaves.len());
             let mut leaves = RangedBitsetIter::new(&leaves, l_begin..l_end);
-            let node_map = nodes.clone();
+            // let node_map = nodes.clone();
             let data_sm = data_sm.clone();
             let summaries = summaries.clone();
 
@@ -992,7 +991,7 @@ fn read_leaf_nodes(
                     reader,
                     &mut leaves,
                     data_sm,
-                    node_map,
+                    // node_map,
                     summaries,
                     ignore_non_fatal,
                 )
@@ -1303,13 +1302,13 @@ fn get_thins_from_metadata_snap(
 
 fn check_mappings_bottom_level(
     ctx: &Context,
-    sb: &Superblock,
+    // sb: &Superblock,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     data_sm: &Arc<Aggregator>,
     roots: &[u64],
     ignore_non_fatal: bool,
 ) -> Result<HashVec<NodeSummary>> {
-    let report = &ctx.report;
+    // let report = &ctx.report;
 
     // let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     // let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
@@ -1471,7 +1470,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     //-----------------------------------------
     // Kick off reading the metadata space map
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let metadata_sm_on_disk_future = {
+    let _metadata_sm_on_disk_future = {
         let engine = ctx.engine.clone();
         let metadata_sm = metadata_sm.clone();
 
@@ -1504,7 +1503,6 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     let summaries = check_mappings_bottom_level(
         &ctx,
-        &sb,
         &metadata_sm,
         &data_sm,
         &all_roots,
@@ -1703,7 +1701,7 @@ pub fn check_with_maps(
     //-----------------------------------------
 
     report.set_sub_title("data space map");
-    let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
+    let _root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     /*
     let _data_leaks = check_disk_space_map(
         engine.clone(),

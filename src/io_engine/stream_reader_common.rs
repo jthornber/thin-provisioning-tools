@@ -72,7 +72,7 @@ pub fn process_io_block_result(
                 }
             }
         }
-        Err(e) => {
+        Err(_e) => {
             // Find all logical blocks affected by this IO error
             for (&logical_block, &io_block) in io_block_map.iter() {
                 if io_block == io_idx {

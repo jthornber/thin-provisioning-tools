@@ -95,8 +95,8 @@ impl IoEngine for CoreIoEngine {
 
     fn build_stream_reader(
         &self,
-        io_block_size_bytes: usize,
-        buffer_size_meg: usize,
+        _io_block_size_bytes: usize,
+        _buffer_size_meg: usize,
     ) -> io::Result<Box<dyn StreamReader>> {
         todo!();
     }

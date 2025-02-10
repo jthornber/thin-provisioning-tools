@@ -25,8 +25,8 @@ struct EraEmitter<'a> {
     emitter: Mutex<&'a mut dyn MetadataVisitor>,
 }
 
-impl<'a> EraEmitter<'a> {
-    pub fn new(emitter: &'a mut dyn MetadataVisitor) -> EraEmitter {
+    impl<'a> EraEmitter<'a> {
+        pub fn new(emitter: &'a mut dyn MetadataVisitor) -> EraEmitter<'a> {
         EraEmitter {
             emitter: Mutex::new(emitter),
         }

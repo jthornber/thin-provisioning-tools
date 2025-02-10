@@ -150,7 +150,7 @@ struct HintEmitter<'a> {
 }
 
 impl<'a> HintEmitter<'a> {
-    pub fn new(emitter: &'a mut dyn MetadataVisitor, valid_mappings: FixedBitSet) -> HintEmitter {
+    pub fn new(emitter: &'a mut dyn MetadataVisitor, valid_mappings: FixedBitSet) -> HintEmitter<'a> {
         HintEmitter {
             emitter: Mutex::new(emitter),
             valid_mappings,
