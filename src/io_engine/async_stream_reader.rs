@@ -24,14 +24,14 @@ unsafe impl Send for IOBlock {}
 
 //--------------------------------
 
-struct FreeList {
+struct BufferPool {
     nr_blocks: usize,
     block_size: usize,
     buffer: *mut u8,
     blocks: Vec<IOBlock>,
 }
 
-impl FreeList {
+impl BufferPool {
     fn layout(nr_blocks: usize, block_size: usize) -> Layout {
         Layout::from_size_align(block_size * nr_blocks, block_size).unwrap()
     }
@@ -41,7 +41,7 @@ impl FreeList {
         let buffer = unsafe { alloc(layout) };
 
         if buffer.is_null() {
-            panic!("Failed to allocate memory for FreeList");
+            panic!("Failed to allocate memory for BufferPool");
         }
 
         let mut blocks = Vec::with_capacity(nr_blocks);
@@ -52,7 +52,7 @@ impl FreeList {
             });
         }
 
-        FreeList {
+        BufferPool {
             nr_blocks,
             block_size,
             buffer,
@@ -74,7 +74,7 @@ impl FreeList {
     }
 }
 
-impl Drop for FreeList {
+impl Drop for BufferPool {
     fn drop(&mut self) {
         let layout = Self::layout(self.nr_blocks, self.block_size);
         unsafe { dealloc(self.buffer, layout) };
@@ -92,7 +92,7 @@ struct IoData {
 pub struct AsyncStreamReader {
     fd: RawFd,
     block_size: usize,
-    blocks: FreeList,
+    blocks: BufferPool,
     ring: IoUring,
 }
 
@@ -105,7 +105,7 @@ impl AsyncStreamReader {
         let num_buffer_blocks = buffer_size / block_size;
 
         // Initialize free list
-        let blocks = FreeList::new(num_buffer_blocks as usize, block_size);
+        let blocks = BufferPool::new(num_buffer_blocks as usize, block_size);
 
         // Initialize io_uring
         let ring = IoUring::new(QUEUE_DEPTH)?;
