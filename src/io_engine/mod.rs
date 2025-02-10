@@ -1,5 +1,6 @@
 pub mod base;
 pub mod buffer;
+pub mod buffer_pool;
 pub mod gaps;
 pub mod spindle;
 pub mod sync;
