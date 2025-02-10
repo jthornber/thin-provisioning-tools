@@ -1,3 +1,18 @@
+/// This module provides asynchronous block-oriented reading capabilities using io_uring.
+/// It manages two distinct block sizes for different purposes:
+///
+/// 1. IO Block Size: Used by the BufferPool for background IO operations
+///    - These are larger blocks managed internally by the BufferPool
+///    - Optimized for efficient IO operations with the storage device
+///    - Used in the actual read_io_blocks_() method for physical reads
+///
+/// 2. Logical Block Size: Used by the StreamReader::read_blocks() interface
+///    - These are typically smaller blocks that represent the logical view of the data
+///    - Callers of read_blocks() work with these logical block sizes
+///    - The AsyncStreamReader internally maps these logical blocks to IO blocks
+///
+/// The relationship between these block sizes is handled transparently by the reader,
+/// which may batch multiple logical blocks into a single IO operation for efficiency.
 use io_uring::{opcode, types, IoUring};
 use libc::iovec;
 use std::io;
@@ -11,20 +26,38 @@ use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
 //--------------------------------
 
 const QUEUE_DEPTH: u32 = 256;
+/// Maximum number of IO blocks that can be read in a single io_uring operation
 const MAX_BLOCKS_PER_READ: usize = 64;
 
 //--------------------------------
 
+/// Represents a single IO operation's data and buffer management
 struct IoData {
+    /// Array of IO vectors for scatter/gather operations
     iov: Vec<iovec>,
+    /// The actual IO blocks being used for this operation
     blocks: Vec<IOBlock>,
 }
 
-// New StreamingRead Struct
+/// AsyncStreamReader provides asynchronous block-oriented reading capabilities using io_uring.
+/// It manages two different block sizes:
+///
+/// - The IO block size (block_size): Used for actual IO operations through the BufferPool
+///   This is typically larger to optimize IO performance with the storage device.
+///
+/// - The logical block size: Used by callers of read_blocks()
+///   This is the block size that the higher-level code works with, and may be smaller
+///   than the IO block size.
+///
+/// The reader automatically handles the mapping between these two block sizes, potentially
+/// batching multiple logical blocks into single IO operations for better performance.
 pub struct AsyncStreamReader {
     fd: RawFd,
+    /// The size of IO blocks used for physical reads
     block_size: usize,
+    /// Pool of IO blocks for buffering data
     blocks: BufferPool,
+    /// The io_uring instance for async IO operations
     ring: IoUring,
 }
 
