@@ -1,6 +1,5 @@
 use anyhow::Result;
 use fixedbitset::*;
-use std::intrinsics::unlikely;
 use std::sync::Mutex;
 
 use crate::pdata::space_map::base::*;
@@ -76,7 +75,7 @@ impl Region {
             U8s(counts) => {
                 for i in 0..blocks.len() {
                     let b = blocks[i] % REGION_SIZE as u64;
-                    if unlikely(counts[b as usize] == u8::MAX) {
+                    if counts[b as usize] == u8::MAX {
                         return IncResult::NeedUpgrade(i);
                     }
                     counts[b as usize] += 1;
