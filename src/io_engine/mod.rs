@@ -3,6 +3,7 @@ pub mod buffer;
 pub mod buffer_pool;
 pub mod gaps;
 pub mod spindle;
+pub mod stream_reader_common;
 pub mod sync;
 pub mod sync_stream_reader;
 pub mod utils;

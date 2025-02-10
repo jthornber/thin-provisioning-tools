@@ -4,19 +4,23 @@ use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::fs::FileExt;
 use std::vec::Vec;
 
-use crate::io_engine::base::*;
+use super::base::StreamReader;
+use super::stream_reader_common::{
+    map_small_blocks_to_io, process_io_block_result,
+    MIN_BLOCK_SIZE, MAX_BLOCK_SIZE, MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB,
+};
+use super::utils::{ReadBlocks, VectoredBlockIo};
 use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
-use crate::io_engine::utils::{ReadBlocks, SimpleBlockIo};
+use crate::io_engine::*;
 
 //--------------------------------
 
 const MAX_BLOCKS_PER_READ: usize = 64;
 
 pub struct SyncStreamReader {
-    fd: RawFd,
     block_size: usize,
     blocks: BufferPool,
-    reader: SimpleBlockIo<File>,
+    reader: VectoredBlockIo<File>,
 }
 
 unsafe impl Send for SyncStreamReader {}
@@ -24,19 +28,32 @@ unsafe impl Sync for SyncStreamReader {}
 
 impl SyncStreamReader {
     pub fn new(fd: RawFd, block_size: usize, buffer_size_mb: usize) -> io::Result<Self> {
+        // Validate input parameters
+        if !(MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE).contains(&block_size) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("block_size must be between {} and {} bytes", MIN_BLOCK_SIZE, MAX_BLOCK_SIZE)
+            ));
+        }
+        if !(MIN_BUFFER_SIZE_MB..=MAX_BUFFER_SIZE_MB).contains(&buffer_size_mb) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("buffer_size_mb must be between {} and {} MB", MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB)
+            ));
+        }
+
         let buffer_size = buffer_size_mb * 1024 * 1024;
         let num_buffer_blocks = buffer_size / block_size;
 
         // Initialize buffer pool
         let blocks = BufferPool::new(num_buffer_blocks as usize, block_size);
 
-        // Convert RawFd to File and initialize simple block io
+        // Convert RawFd to File and initialize vectored block io
         // SAFETY: We're taking ownership of the fd, and it will be valid for the lifetime of SyncStreamReader
         let file = unsafe { File::from_raw_fd(fd) };
-        let reader = SimpleBlockIo::from(file);
+        let reader = VectoredBlockIo::from(file);
 
         Ok(SyncStreamReader {
-            fd,
             block_size,
             blocks,
             reader,
@@ -53,7 +70,6 @@ impl SyncStreamReader {
         // Get blocks from the pool and prepare buffers
         for &index in block_indices {
             if let Some(block) = self.blocks.get(index) {
-                // Clone for storing in io_blocks
                 io_blocks.push(block.clone());
                 // SAFETY: The buffer is valid for the lifetime of the IOBlock
                 let buf = unsafe { std::slice::from_raw_parts_mut(block.data, self.block_size) };
@@ -96,52 +112,37 @@ impl SyncStreamReader {
 }
 
 impl StreamReader for SyncStreamReader {
-    /// Utility function to read smaller blocks using larger IO blocks. Indices must be sorted into
-    /// ascending order.
     fn read_blocks(
         &mut self,
         blocks: &mut dyn Iterator<Item = u64>,
         handler: &mut dyn ReadHandler,
     ) -> io::Result<()> {
-        let mut io_blocks = Vec::with_capacity(MAX_BLOCKS_PER_READ);
-        let mut current_io_block = None;
-        let mut current_io_block_index = 0;
-        let block_size = self.block_size;
+        let blocks_per_io = self.block_size / super::base::BLOCK_SIZE;
+        let io_block_map = map_small_blocks_to_io(blocks, blocks_per_io);
 
-        for block_index in blocks {
-            let io_block_index = block_index / (block_size as u64);
-
-            if Some(io_block_index) != current_io_block {
-                if !io_blocks.is_empty() {
-                    self.read_io_blocks_(&io_blocks, |data, loc| {
-                        handler.handle(loc * block_size as u64, Ok(data));
-                        Ok(())
-                    })?;
-                    io_blocks.clear();
-                }
-                current_io_block = Some(io_block_index);
-                current_io_block_index = io_block_index;
-            }
-
-            io_blocks.push(current_io_block_index);
-
-            if io_blocks.len() == MAX_BLOCKS_PER_READ {
-                self.read_io_blocks_(&io_blocks, |data, loc| {
-                    handler.handle(loc * block_size as u64, Ok(data));
-                    Ok(())
-                })?;
-                io_blocks.clear();
-            }
+        if io_block_map.is_empty() {
+            return Ok(());
         }
 
-        if !io_blocks.is_empty() {
-            self.read_io_blocks_(&io_blocks, |data, loc| {
-                handler.handle(loc * block_size as u64, Ok(data));
+        // Get unique IO blocks we need to read
+        let mut io_blocks: Vec<_> = io_block_map.values().copied().collect();
+        io_blocks.sort_unstable();
+        io_blocks.dedup();
+
+        // Read blocks in chunks to avoid excessive memory usage
+        for chunk in io_blocks.chunks(MAX_BLOCKS_PER_READ) {
+            self.read_io_blocks_(chunk, |data, io_idx| {
+                process_io_block_result(
+                    io_idx,
+                    Ok(data),
+                    blocks_per_io,
+                    &io_block_map,
+                    handler,
+                );
                 Ok(())
             })?;
         }
 
-        handler.complete();
         Ok(())
     }
 }
