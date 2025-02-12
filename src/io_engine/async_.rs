@@ -1,6 +1,5 @@
 use io_uring::{opcode, types, IoUring};
 use libc::iovec;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -11,7 +10,6 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::vec::Vec;
 
-use crate::io_engine::async_stream_reader::*;
 use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
 use crate::io_engine::*;
 
@@ -309,7 +307,7 @@ impl<'a> AsyncReader<'a> {
     ///
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
-    fn read_blocks(
+    fn stream_blocks(
         &mut self,
         blocks: &mut dyn Iterator<Item = u64>,
         handler: &mut dyn ReadHandler,
@@ -494,8 +492,27 @@ impl AsyncIoEngineInner {
         let mut reader = AsyncReader::new(self.get_fd(), &mut self.small_pool, &mut self.ring)?;
         let mut handler = BlockReadHandler::new(blocks);
 
-        reader.read_blocks(&mut blocks.iter().cloned(), &mut handler)?;
+        reader.stream_blocks(&mut blocks.iter().cloned(), &mut handler)?;
         Ok(handler.get_results())
+    }
+
+    /// Utility function to read smaller blocks using larger IO blocks.  Indices must be sorted into
+    /// ascending order.
+    ///
+    /// # Arguments
+    /// * `blocks` - Iterator over logical block numbers to read
+    /// * `handler` - Handler to receive the read results
+    ///
+    /// # Returns
+    /// * `io::Result<()>` - Success or an IO error
+    fn read_blocks(
+        &mut self,
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        let mut reader = AsyncReader::new(self.get_fd(), io_block_pool, &mut self.ring)?;
+        reader.stream_blocks(blocks, handler)
     }
 
     fn write(&mut self, block: &Block) -> Result<()> {
@@ -587,18 +604,6 @@ impl AsyncIoEngineInner {
 
         todo!();
     }
-
-    fn build_stream_reader(
-        &mut self,
-        io_block_size_bytes: usize,
-        buffer_size_meg: usize,
-    ) -> Result<Box<dyn StreamReader>> {
-        Ok(Box::new(AsyncStreamReader::new(
-            self.get_fd(),
-            io_block_size_bytes,
-            buffer_size_meg,
-        )?))
-    }
 }
 
 //------------------------------------------
@@ -648,13 +653,15 @@ impl IoEngine for AsyncIoEngine {
         let mut inner = self.inner.lock().unwrap();
         inner.write_many(blocks)
     }
-    fn build_stream_reader(
+
+    fn read_blocks(
         &self,
-        io_block_size_bytes: usize,
-        buffer_size_meg: usize,
-    ) -> Result<Box<dyn StreamReader>> {
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
         let mut inner = self.inner.lock().unwrap();
-        inner.build_stream_reader(io_block_size_bytes, buffer_size_meg)
+        inner.read_blocks(io_block_pool, blocks, handler)
     }
 }
 

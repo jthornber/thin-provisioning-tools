@@ -6,9 +6,9 @@ use std::os::unix::fs::{FileExt, OpenOptionsExt};
 use std::path::Path;
 
 use crate::io_engine::base::*;
-use crate::io_engine::sync_stream_reader::SyncStreamReader;
-use crate::io_engine::utils::*;
+use crate::io_engine::buffer_pool::*;
 use crate::io_engine::gaps::*;
+use crate::io_engine::utils::*;
 
 #[cfg(test)]
 mod tests;
@@ -231,18 +231,13 @@ impl IoEngine for SyncIoEngine {
         Self::write_many_((&self.file).into(), blocks)
     }
 
-    fn build_stream_reader(
+    fn read_blocks(
         &self,
-        io_block_size_bytes: usize,
-        buffer_size_meg: usize,
-    ) -> Result<Box<dyn StreamReader>> {
-        let r: Box<dyn StreamReader> = Box::new(SyncStreamReader::new(
-            self.file.as_raw_fd(),
-            io_block_size_bytes,
-            buffer_size_meg,
-        )?);
-
-        Ok(r)
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        todo!();
     }
 }
 

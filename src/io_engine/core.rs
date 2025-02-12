@@ -93,11 +93,12 @@ impl IoEngine for CoreIoEngine {
         Ok(ret)
     }
 
-    fn build_stream_reader(
+    fn read_blocks(
         &self,
-        _io_block_size_bytes: usize,
-        _buffer_size_meg: usize,
-    ) -> io::Result<Box<dyn StreamReader>> {
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
         todo!();
     }
 }

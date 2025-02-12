@@ -5,8 +5,8 @@ use std::vec::Vec;
 
 use super::base::StreamReader;
 use super::stream_reader_common::{
-    map_small_blocks_to_io, process_io_block_result,
-    MIN_BLOCK_SIZE, MAX_BLOCK_SIZE, MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB,
+    map_small_blocks_to_io, process_io_block_result, MAX_BLOCK_SIZE, MAX_BUFFER_SIZE_MB,
+    MIN_BLOCK_SIZE, MIN_BUFFER_SIZE_MB,
 };
 use super::utils::{ReadBlocks, VectoredBlockIo};
 use crate::io_engine::buffer_pool::BufferPool;
@@ -31,13 +31,19 @@ impl SyncStreamReader {
         if !(MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE).contains(&block_size) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("block_size must be between {} and {} bytes", MIN_BLOCK_SIZE, MAX_BLOCK_SIZE)
+                format!(
+                    "block_size must be between {} and {} bytes",
+                    MIN_BLOCK_SIZE, MAX_BLOCK_SIZE
+                ),
             ));
         }
         if !(MIN_BUFFER_SIZE_MB..=MAX_BUFFER_SIZE_MB).contains(&buffer_size_mb) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("buffer_size_mb must be between {} and {} MB", MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB)
+                format!(
+                    "buffer_size_mb must be between {} and {} MB",
+                    MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB
+                ),
             ));
         }
 
@@ -131,13 +137,7 @@ impl StreamReader for SyncStreamReader {
         // Read blocks in chunks to avoid excessive memory usage
         for chunk in io_blocks.chunks(MAX_BLOCKS_PER_READ) {
             self.read_io_blocks_(chunk, |data, io_idx| {
-                process_io_block_result(
-                    io_idx,
-                    Ok(data),
-                    blocks_per_io,
-                    &io_block_map,
-                    handler,
-                );
+                process_io_block_result(io_idx, Ok(data), blocks_per_io, &io_block_map, handler);
                 Ok(())
             })?;
         }

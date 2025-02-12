@@ -13,6 +13,7 @@ use std::thread;
 
 use crate::checksum::*;
 use crate::io_engine::buffer::*;
+use crate::io_engine::buffer_pool::*;
 use crate::io_engine::*;
 use crate::pack::node_encode::*;
 use crate::run_iter::*;
@@ -217,11 +218,12 @@ impl IoEngine for SpindleIoEngine {
         Ok(bs)
     }
 
-    fn build_stream_reader(
+    fn read_blocks(
         &self,
-        _io_block_size_bytes: usize,
-        _buffer_size_meg: usize,
-    ) -> io::Result<Box<dyn StreamReader>> {
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
         todo!()
     }
 }

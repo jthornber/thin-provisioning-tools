@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::commands::engine::*;
+use crate::io_engine::buffer_pool::BufferPool;
 use crate::io_engine::*;
 use crate::pdata::btree::*;
 use crate::pdata::btree_walker::*;
@@ -110,7 +111,7 @@ struct NodeSummary {
 }
 
 impl NodeSummary {
-    /* 
+    /*
     fn from_leaf(keys: &[u64]) -> Self {
         let nr_entries = keys.len();
         let key_low = if nr_entries > 0 { keys[0] } else { 0 };
@@ -460,7 +461,7 @@ fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Re
 
 fn read_internal_nodes(
     ctx: &Context,
-    reader: &mut dyn StreamReader,
+    io_buffers: &mut BufferPool,
     aggregator: &Aggregator,
     root: u32,
     ignore_non_fatal: bool,
@@ -490,15 +491,14 @@ fn read_internal_nodes(
     // Read the internal nodes, layer by layer.
     let mut is_root = true;
     for _d in (0..depth).rev() {
-        let mut handler = LayerHandler::new(
-            is_root,
-            aggregator,
-            ignore_non_fatal,
-            nodes.clone(),
-        );
+        let mut handler = LayerHandler::new(is_root, aggregator, ignore_non_fatal, nodes.clone());
         is_root = false;
 
-        reader.read_blocks(&mut current_layer.ones().map(|n| n as u64), &mut handler)?;
+        ctx.engine.read_blocks(
+            io_buffers,
+            &mut current_layer.ones().map(|n| n as u64),
+            &mut handler,
+        )?;
         current_layer = handler.get_children();
     }
 
@@ -696,19 +696,24 @@ fn collect_nodes_in_use(
         for chunk in root_chunks {
             let batch_nodes = batch_nodes.clone();
             s.spawn(move || {
+                // FIXME: factor out
                 let io_block_size = BLOCK_SIZE;
-                let buffer_size_m = 16;
+                let buffer_size = 16 * 1024 * 1024;
+                let nr_io_blocks = buffer_size / io_block_size;
+                let mut pool = BufferPool::new(nr_io_blocks, io_block_size);
 
+                /*
                 // FIXME: handle error, create reader outside thread?
                 let mut reader = ctx
                     .engine
                     .build_stream_reader(io_block_size, buffer_size_m)
                     .expect("unable to create stream reader");
+                */
 
                 for &root in chunk {
                     if let Err(e) = read_internal_nodes(
                         ctx,
-                        reader.as_mut(),
+                        &mut pool,
                         aggregator,
                         root as u32,
                         ignore_non_fatal,
@@ -932,15 +937,21 @@ impl ReadHandler for LeafHandler {
 }
 
 fn unpacker(
-    mut reader: Box<dyn StreamReader>,
+    engine: Arc<dyn IoEngine>,
     leaves: &mut dyn Iterator<Item = u64>,
     data_sm: Arc<Aggregator>,
     // node_map: Arc<Mutex<NodeMap>>,
     summaries: Arc<Mutex<HashVec<NodeSummary>>>,
     ignore_non_fatal: bool,
 ) -> Result<()> {
+    let io_block_size = 64 * 1024;
+    let buffer_size = 16 * 1024 * 1024; // 16m
+    let nr_io_blocks = buffer_size / io_block_size;
+    let mut buffers = BufferPool::new(nr_io_blocks, io_block_size);
+
     let mut handler = LeafHandler::new(data_sm, /*node_map,*/ summaries, ignore_non_fatal);
-    reader.read_blocks(leaves, &mut handler)?;
+    engine.read_blocks(&mut buffers, leaves, &mut handler)?;
+
     Ok(())
 
     /*
@@ -979,16 +990,9 @@ fn read_leaf_nodes(
             let data_sm = data_sm.clone();
             let summaries = summaries.clone();
 
-            let io_block_size = 64 * 1024;
-            let buffer_size_m = 16;
-            let reader = ctx
-                .engine
-                .build_stream_reader(io_block_size, buffer_size_m)
-                .expect("couldn't build stream reader");
-
             s.spawn(move || {
                 unpacker(
-                    reader,
+                    ctx.engine.clone(),
                     &mut leaves,
                     data_sm,
                     // node_map,

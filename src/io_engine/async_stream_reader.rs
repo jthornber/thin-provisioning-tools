@@ -15,10 +15,10 @@
 /// which may batch multiple logical blocks into a single IO operation for efficiency.
 use io_uring::{opcode, types, IoUring};
 use libc::iovec;
+use std::collections::HashMap;
 use std::io;
 use std::os::fd::RawFd;
 use std::vec::Vec;
-use std::collections::HashMap;
 
 use crate::io_engine::base::*;
 use crate::io_engine::buffer_pool::{BufferPool, IOBlock};
@@ -74,15 +74,15 @@ unsafe impl Sync for AsyncStreamReader {}
 
 impl AsyncStreamReader {
     /// Creates a new AsyncStreamReader with the specified file descriptor, block size, and buffer size.
-    /// 
+    ///
     /// # Arguments
     /// * `fd` - Raw file descriptor for the input file
     /// * `block_size` - Size of IO blocks used for physical reads
     /// * `buffer_size_mb` - Size of the buffer pool in megabytes
-    /// 
+    ///
     /// # Returns
     /// * `io::Result<Self>` - A new AsyncStreamReader instance or an IO error
-    /// 
+    ///
     /// # Errors
     /// Returns an error if:
     /// * block_size is not within MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE
@@ -93,13 +93,19 @@ impl AsyncStreamReader {
         if !(MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE).contains(&block_size) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("block_size must be between {} and {} bytes", MIN_BLOCK_SIZE, MAX_BLOCK_SIZE)
+                format!(
+                    "block_size must be between {} and {} bytes",
+                    MIN_BLOCK_SIZE, MAX_BLOCK_SIZE
+                ),
             ));
         }
         if !(MIN_BUFFER_SIZE_MB..=MAX_BUFFER_SIZE_MB).contains(&buffer_size_mb) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("buffer_size_mb must be between {} and {} MB", MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB)
+                format!(
+                    "buffer_size_mb must be between {} and {} MB",
+                    MIN_BUFFER_SIZE_MB, MAX_BUFFER_SIZE_MB
+                ),
             ));
         }
 
@@ -121,16 +127,20 @@ impl AsyncStreamReader {
     }
 
     /// Builds an IoData structure for a sequence of contiguous blocks starting at the specified block.
-    /// 
+    ///
     /// # Arguments
     /// * `start_block` - The starting block number
     /// * `remaining_blocks` - Slice of remaining block numbers to process
-    /// 
+    ///
     /// # Returns
     /// * A tuple containing:
     ///   - An optional boxed IoData structure
     ///   - The number of blocks prepared
-    fn prepare_io_request(&mut self, start_block: u64, remaining_blocks: &[u64]) -> (Option<Box<IoData>>, u64) {
+    fn prepare_io_request(
+        &mut self,
+        start_block: u64,
+        remaining_blocks: &[u64],
+    ) -> (Option<Box<IoData>>, u64) {
         let mut blocks_this_read = 0;
         let mut io_data = IoData {
             iov: Vec::with_capacity(MAX_BLOCKS_PER_READ),
@@ -160,14 +170,14 @@ impl AsyncStreamReader {
     }
 
     /// Submits a read request to io_uring for the given IoData.
-    /// 
+    ///
     /// # Arguments
     /// * `io_data` - The IoData structure containing the IO vectors and blocks to read
     /// * `offset` - The offset in bytes where to start reading
-    /// 
+    ///
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
-    /// 
+    ///
     /// # Safety
     /// This function is safe because:
     /// * The io_data pointer is valid as it's created from a Box
@@ -193,15 +203,20 @@ impl AsyncStreamReader {
     }
 
     /// Processes completion events from io_uring and invokes callbacks for completed reads.
-    /// 
+    ///
     /// # Arguments
     /// * `inflight` - Number of currently in-flight IO operations
     /// * `total_bytes_read` - Running total of bytes read
     /// * `callback` - Function to call with the results of each completed read
-    /// 
+    ///
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
-    fn process_completions<F>(&mut self, inflight: &mut u64, total_bytes_read: &mut u64, callback: &mut F) -> io::Result<()>
+    fn process_completions<F>(
+        &mut self,
+        inflight: &mut u64,
+        total_bytes_read: &mut u64,
+        callback: &mut F,
+    ) -> io::Result<()>
     where
         F: FnMut(u64, Result<&[u8], io::Error>),
     {
@@ -232,11 +247,11 @@ impl AsyncStreamReader {
     }
 
     /// Reads a sequence of IO blocks asynchronously using io_uring.
-    /// 
+    ///
     /// # Arguments
     /// * `block_indices` - Slice of block indices to read
     /// * `callback` - Function to call with the results of each read
-    /// 
+    ///
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
     fn read_io_blocks_<F>(&mut self, block_indices: &[u64], mut callback: F) -> io::Result<()>
@@ -250,15 +265,16 @@ impl AsyncStreamReader {
 
         while blocks_read < blocks_to_read || inflight > 0 {
             // Submit as many I/O requests as possible
-            while blocks_read < blocks_to_read && inflight < QUEUE_DEPTH as u64 && !self.blocks.is_empty() {
+            while blocks_read < blocks_to_read
+                && inflight < QUEUE_DEPTH as u64
+                && !self.blocks.is_empty()
+            {
                 let start_block = block_indices[blocks_read as usize];
                 let offset = start_block * self.block_size as u64;
-                
+
                 // Prepare the next IO request
-                let (io_data, blocks_this_read) = self.prepare_io_request(
-                    start_block,
-                    &block_indices[blocks_read as usize..]
-                );
+                let (io_data, blocks_this_read) =
+                    self.prepare_io_request(start_block, &block_indices[blocks_read as usize..]);
 
                 if let Some(io_data) = io_data {
                     // Submit the read request
@@ -281,14 +297,17 @@ impl AsyncStreamReader {
     }
 
     /// Maps smaller logical blocks to larger IO blocks for efficient reading.
-    /// 
+    ///
     /// # Arguments
     /// * `blocks` - Iterator over logical block numbers
     /// * `blocks_per_io` - Number of logical blocks that fit in one IO block
-    /// 
+    ///
     /// # Returns
     /// * `HashMap<u64, u64>` - Mapping from logical block numbers to IO block numbers
-    fn map_small_blocks_to_io(blocks: &mut dyn Iterator<Item = u64>, blocks_per_io: usize) -> HashMap<u64, u64> {
+    fn map_small_blocks_to_io(
+        blocks: &mut dyn Iterator<Item = u64>,
+        blocks_per_io: usize,
+    ) -> HashMap<u64, u64> {
         // Pre-allocate with a reasonable capacity
         let mut io_block_map = HashMap::with_capacity(1024);
         let mut current_io_idx: Option<u64> = None;
@@ -317,7 +336,7 @@ impl AsyncStreamReader {
     }
 
     /// Processes the result of reading an IO block and splits it into logical blocks.
-    /// 
+    ///
     /// # Arguments
     /// * `io_idx` - Index of the IO block
     /// * `result` - Result containing the read data or an error
@@ -341,7 +360,7 @@ impl AsyncStreamReader {
                 }
                 bm &= !(1 << tz);
                 let small_idx = io_idx * blocks_per_io as u64 + tz as u64;
-                
+
                 match &result {
                     Ok(data) => {
                         let offset = (tz as usize) * BLOCK_SIZE;
@@ -355,17 +374,16 @@ impl AsyncStreamReader {
             }
         }
     }
-
 }
 
 impl StreamReader for AsyncStreamReader {
     /// Utility function to read smaller blocks using larger IO blocks.  Indices must be sorted into
     /// ascending order.
-    /// 
+    ///
     /// # Arguments
     /// * `blocks` - Iterator over logical block numbers to read
     /// * `handler` - Handler to receive the read results
-    /// 
+    ///
     /// # Returns
     /// * `io::Result<()>` - Success or an IO error
     fn read_blocks(
