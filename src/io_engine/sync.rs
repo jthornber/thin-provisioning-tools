@@ -228,6 +228,15 @@ impl IoEngine for SyncIoEngine {
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>> {
         Self::write_many_((&self.file).into(), blocks)
     }
+
+    fn read_blocks(
+        &self,
+        _io_block_pool: &mut BufferPool,
+        _blocks: &mut dyn Iterator<Item = u64>,
+        _handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        todo!();
+    }
 }
 
 // Simplified version of generate_runs() without gaps. It should be a bit faster

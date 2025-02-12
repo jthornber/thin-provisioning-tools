@@ -5,6 +5,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use crate::file_utils;
+pub use crate::io_engine::buffer_pool::BufferPool;
 
 //------------------------------------------
 
@@ -83,6 +84,11 @@ pub fn is_page_aligned(v: u64) -> bool {
 
 //------------------------------------------
 
+pub trait ReadHandler {
+    fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>);
+    fn complete(&mut self);
+}
+
 pub trait IoEngine: Send + Sync {
     fn get_nr_blocks(&self) -> u64;
     fn get_batch_size(&self) -> usize;
@@ -94,6 +100,14 @@ pub trait IoEngine: Send + Sync {
     fn write(&self, block: &Block) -> Result<()>;
     // The whole io could fail, or individual blocks
     fn write_many(&self, blocks: &[Block]) -> Result<Vec<Result<()>>>;
+
+    // FIXME: rename to stream_blocks?
+    fn read_blocks(
+        &self,
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()>;
 }
 
 pub fn get_nr_blocks<P: AsRef<Path>>(path: P) -> io::Result<u64> {

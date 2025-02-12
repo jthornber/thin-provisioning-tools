@@ -216,6 +216,15 @@ impl IoEngine for SpindleIoEngine {
         }
         Ok(bs)
     }
+
+    fn read_blocks(
+        &self,
+        _io_block_pool: &mut BufferPool,
+        _blocks: &mut dyn Iterator<Item = u64>,
+        _handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        todo!();
+    }
 }
 
 //------------------------------------------

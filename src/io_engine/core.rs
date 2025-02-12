@@ -2,6 +2,7 @@ use std::alloc::{alloc, dealloc, Layout};
 use std::io;
 use std::vec::*;
 
+use crate::io_engine::base::*;
 use crate::io_engine::{Block, IoEngine, BLOCK_SIZE};
 
 //------------------------------------------
@@ -90,6 +91,15 @@ impl IoEngine for CoreIoEngine {
             ret.push(self.write(b));
         }
         Ok(ret)
+    }
+
+    fn read_blocks(
+        &self,
+        _io_block_pool: &mut BufferPool,
+        _blocks: &mut dyn Iterator<Item = u64>,
+        _handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        todo!();
     }
 }
 

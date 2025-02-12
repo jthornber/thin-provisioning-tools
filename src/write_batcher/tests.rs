@@ -19,6 +19,12 @@ mock! {
         fn read_many(&self, blocks: &[u64]) -> io::Result<Vec<io::Result<Block>>>;
         fn write(&self, block: &Block) -> io::Result<()>;
         fn write_many(&self, blocks: &[Block]) -> io::Result<Vec<io::Result<()>>>;
+        fn read_blocks(
+            &self,
+            io_block_pool: &mut BufferPool,
+            blocks: &mut dyn Iterator<Item = u64>,
+            handler: &mut dyn ReadHandler,
+        ) -> io::Result<()>;
     }
 }
 

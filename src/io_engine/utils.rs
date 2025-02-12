@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
 use iovec::{unix, IoVec};
+use std::collections::HashMap;
 use std::os::unix::fs::FileExt;
 
-use crate::io_engine::VectoredIo;
+use crate::io_engine::{ReadHandler, VectoredIo};
 
 #[cfg(test)]
 mod tests;
@@ -177,6 +178,87 @@ impl<T: FileExt> WriteBlocks for SimpleBlockIo<T> {
         }
 
         Ok(results)
+    }
+}
+
+//-------------------------------------
+
+/// Maps smaller logical blocks to larger IO blocks for efficient reading.
+///
+/// # Arguments
+/// * `blocks` - Iterator over logical block numbers
+/// * `blocks_per_io` - Number of logical blocks that fit in one IO block
+///
+/// # Returns
+/// * `HashMap<u64, u64>` - Mapping from logical block numbers to IO block numbers
+pub fn map_small_blocks_to_io(
+    blocks: &mut dyn Iterator<Item = u64>,
+    blocks_per_io: usize,
+) -> HashMap<u64, u64> {
+    // Pre-allocate with a reasonable capacity
+    let mut io_block_map = HashMap::with_capacity(1024);
+    let mut current_io_idx: Option<u64> = None;
+    let mut current_bitmask: u64 = 0;
+
+    for small_idx in blocks {
+        let io_idx = small_idx / blocks_per_io as u64;
+        let bit = small_idx % blocks_per_io as u64;
+
+        if Some(io_idx) != current_io_idx {
+            if let Some(idx) = current_io_idx {
+                io_block_map.insert(idx, current_bitmask);
+            }
+            current_io_idx = Some(io_idx);
+            current_bitmask = 0;
+        }
+        current_bitmask |= 1 << bit;
+    }
+
+    // Push the last accumulated io_idx and bitmask
+    if let Some(idx) = current_io_idx {
+        io_block_map.insert(idx, current_bitmask);
+    }
+
+    io_block_map
+}
+
+/// Processes the result of reading an IO block and splits it into logical blocks.
+///
+/// # Arguments
+/// * `io_idx` - Index of the IO block
+/// * `result` - Result containing the read data or an error
+/// * `blocks_per_io` - Number of logical blocks per IO block
+/// * `io_block_map` - Mapping from logical to IO block numbers
+/// * `handler` - Handler to receive the processed results
+pub fn process_io_block_result(
+    io_idx: u64,
+    result: std::io::Result<&[u8]>,
+    blocks_per_io: usize,
+    io_block_map: &HashMap<u64, u64>,
+    handler: &mut dyn ReadHandler,
+) {
+    // Find the bitmask for the current io_idx
+    if let Some(bitmask) = io_block_map.get(&io_idx) {
+        let mut bm = *bitmask;
+        while bm != 0 {
+            let tz = bm.trailing_zeros();
+            if tz >= blocks_per_io as u32 {
+                break;
+            }
+            bm &= !(1 << tz);
+            let small_idx = io_idx * blocks_per_io as u64 + tz as u64;
+
+            match &result {
+                Ok(data) => {
+                    let offset = (tz as usize) * crate::io_engine::BLOCK_SIZE;
+                    let small_data = &data[offset..offset + crate::io_engine::BLOCK_SIZE];
+                    handler.handle(small_idx, Ok(small_data));
+                }
+                Err(_) => {
+                    handler.handle(small_idx, Err(std::io::Error::last_os_error()));
+                }
+            }
+        }
     }
 }
 
