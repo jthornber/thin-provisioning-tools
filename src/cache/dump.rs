@@ -188,7 +188,7 @@ fn dump_v1_mappings(
     cache_blocks: u32,
     repair: bool,
 ) -> anyhow::Result<FixedBitSet> {
-    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, mapping_root)?;
+    let ablocks = collect_array_blocks_with_path(engine.as_ref(), repair, mapping_root)?;
     let emitter = format1::MappingEmitter::new(cache_blocks as usize, out);
     walk_array_blocks(engine, ablocks, &emitter)?;
 
@@ -216,7 +216,7 @@ fn dump_v2_mappings(
         return Err(anyhow!("format 2 selected, but no dirty bitset present"));
     };
 
-    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, mapping_root)?;
+    let ablocks = collect_array_blocks_with_path(engine.as_ref(), repair, mapping_root)?;
     let emitter = format2::MappingEmitter::new(cache_blocks as usize, dirty_bits, out);
     walk_array_blocks(engine, ablocks, &emitter)?;
 
@@ -230,7 +230,7 @@ fn dump_hint_array(
     valid_mappings: FixedBitSet,
     repair: bool,
 ) -> anyhow::Result<()> {
-    let ablocks = collect_array_blocks_with_path(engine.clone(), repair, hint_root)?;
+    let ablocks = collect_array_blocks_with_path(engine.as_ref(), repair, hint_root)?;
     let emitter = HintEmitter::new(out, valid_mappings);
     walk_array_blocks(engine, ablocks, &emitter)
 }

@@ -129,7 +129,7 @@ pub fn check(opts: &EraCheckOptions) -> Result<()> {
         }
     }
 
-    let w = ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
+    let w = ArrayWalker::new_with_sm(engine.as_ref(), metadata_sm.clone(), opts.ignore_non_fatal)?;
     let c = EraChecker::new(sb.current_era);
     if let Err(e) = w.walk(&c, sb.era_array_root) {
         ctx.report.fatal(&format!("{}", e));

@@ -434,7 +434,7 @@ mod format1 {
         let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
         let v = RmapCollector::new(nr_cache_blocks);
-        let w = ArrayWalker::new(engine, false);
+        let w = ArrayWalker::new(engine.as_ref(), false);
         w.walk(&v, sb.mapping_root)?;
 
         v.complete()
@@ -649,7 +649,7 @@ mod format2 {
         let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
         let v = RmapCollector::new();
-        let w = ArrayWalker::new(engine, false);
+        let w = ArrayWalker::new(engine.as_ref(), false);
         w.walk(&v, sb.mapping_root)?;
 
         v.complete()

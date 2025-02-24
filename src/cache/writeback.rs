@@ -138,7 +138,7 @@ fn count_mappings<F: Fn(&Mapping) -> bool>(
     sb: &Superblock,
     predicate: F,
 ) -> anyhow::Result<u32> {
-    let w = ArrayWalker::new(engine.clone(), true);
+    let w = ArrayWalker::new(engine.as_ref(), true);
     let v = MappingCounter::new(predicate);
     w.walk(&v, sb.mapping_root)?;
     Ok(v.count.load(Ordering::SeqCst) as u32)
@@ -651,7 +651,7 @@ fn copy_all_dirty_blocks(
 
     // Build batches of copy operations and pass them to the copy thread
     let batcher = WritebackBatcher::new(1_000_000, tx, selector);
-    let w = ArrayWalker::new(engine, true);
+    let w = ArrayWalker::new(engine.as_ref(), true);
 
     // FIXME: do something with this
     w.walk(&batcher, sb.mapping_root)?;

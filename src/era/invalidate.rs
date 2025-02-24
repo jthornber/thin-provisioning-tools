@@ -105,7 +105,7 @@ fn collate_writeset(
     writeset_root: u64,
     marked_bits: Vec<u64>,
 ) -> Result<Vec<u64>> {
-    let w = ArrayWalker::new(engine, false);
+    let w = ArrayWalker::new(engine.as_ref(), false);
     let c = BitsetCollator::new(marked_bits);
     w.walk(&c, writeset_root)?;
     Ok(c.complete())
@@ -117,7 +117,7 @@ fn collate_era_array(
     marked_bits: Vec<u64>,
     threshold: u32,
 ) -> Result<Vec<u64>> {
-    let w = ArrayWalker::new(engine, false);
+    let w = ArrayWalker::new(engine.as_ref(), false);
     let c = EraArrayCollator::new(marked_bits, threshold);
     w.walk(&c, era_array_root)?;
     Ok(c.complete())

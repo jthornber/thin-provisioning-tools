@@ -302,7 +302,7 @@ fn dump_eras(
     root: u64,
     ignore_non_fatal: bool,
 ) -> Result<()> {
-    let ablocks = collect_array_blocks_with_path(engine.clone(), ignore_non_fatal, root)?;
+    let ablocks = collect_array_blocks_with_path(engine.as_ref(), ignore_non_fatal, root)?;
     let emitter = EraEmitter::new(out);
     walk_array_blocks(engine, ablocks, &emitter)
 }
@@ -418,7 +418,7 @@ fn dump_eras_logical(
     era_archive: &dyn Archive,
     ignore_non_fatal: bool,
 ) -> Result<()> {
-    let ablocks = collect_array_blocks_with_path(engine.clone(), ignore_non_fatal, root)?;
+    let ablocks = collect_array_blocks_with_path(engine.as_ref(), ignore_non_fatal, root)?;
     let emitter = LogicalEraEmitter::new(out, era_archive);
     walk_array_blocks(engine, ablocks, &emitter)
 }

@@ -304,7 +304,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // TODO: factor out into check_mappings()
     if !opts.skip_mappings {
         let w =
-            ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
+            ArrayWalker::new_with_sm(engine.as_ref(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         match sb.version {
             1 => {
                 let c = format1::MappingChecker::new(nr_origin_blocks);
@@ -339,7 +339,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             return Err(anyhow!("cache_check only supports policy hint size of 4"));
         }
         let w =
-            ArrayWalker::new_with_sm(engine.clone(), metadata_sm.clone(), opts.ignore_non_fatal)?;
+            ArrayWalker::new_with_sm(engine.as_ref(), metadata_sm.clone(), opts.ignore_non_fatal)?;
         let c = HintChecker::new();
         if let Err(e) = w.walk(&c, sb.hint_root) {
             ctx.report.fatal(&format!("{}", e));

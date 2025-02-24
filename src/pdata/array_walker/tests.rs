@@ -154,7 +154,7 @@ where
             (self.values.len() % max_entries as usize) as u32
         };
 
-        let walker = ArrayWalker::new(self.w.engine.clone(), false);
+        let walker = ArrayWalker::new(self.w.engine.as_ref(), false);
         let mut visitor = MockVisitor::<V>::new();
 
         visitor.expect_visit().times(nr_good_ablocks).returning(

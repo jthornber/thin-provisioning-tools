@@ -140,7 +140,7 @@ pub fn read_bitset_checked(
     nr_bits: usize,
     ignore_none_fatal: bool,
 ) -> (CheckedBitSet, Option<array::ArrayError>) {
-    let w = ArrayWalker::new(engine, ignore_none_fatal);
+    let w = ArrayWalker::new(engine.as_ref(), ignore_none_fatal);
     let v = BitsetVisitor::new(nr_bits);
     let err = match w.walk(&v, root) {
         Ok(()) => None,
@@ -157,7 +157,7 @@ pub fn read_bitset_checked_with_sm(
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_none_fatal: bool,
 ) -> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
-    let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
+    let w = ArrayWalker::new_with_sm(engine.as_ref(), sm, ignore_none_fatal)?;
     let v = BitsetVisitor::new(nr_bits);
     let err = match w.walk(&v, root) {
         Ok(()) => None,
@@ -172,7 +172,7 @@ pub fn read_bitset(
     nr_bits: usize,
     ignore_none_fatal: bool,
 ) -> array::Result<FixedBitSet> {
-    let w = ArrayWalker::new(engine, ignore_none_fatal);
+    let w = ArrayWalker::new(engine.as_ref(), ignore_none_fatal);
     let v = BitsetCollector::new(nr_bits);
     w.walk(&v, root)?;
     Ok(v.get_bitset())
