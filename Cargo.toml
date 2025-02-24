@@ -36,7 +36,6 @@ rand = "0.8"
 rangemap = "1.5"
 roaring = "0.10"
 safemem = "0.3"
-threadpool = "1.8"
 thiserror = "1.0"
 tui = { version = "0.19", default-features = false, features = [
   "termion",
