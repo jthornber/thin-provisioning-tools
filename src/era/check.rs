@@ -117,7 +117,7 @@ pub fn check(opts: &EraCheckOptions) -> Result<()> {
 
     for ws in writesets.values() {
         let (_bs, err) = read_bitset_checked_with_sm(
-            engine.clone(),
+            engine.as_ref(),
             ws.root,
             ws.nr_bits as usize,
             metadata_sm.clone(),

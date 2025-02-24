@@ -151,7 +151,7 @@ fn v2_read_dirty_bitset(
     sb: &Superblock,
 ) -> anyhow::Result<(u32, RoaringBitmap)> {
     let (cbits, err) = read_bitset_checked(
-        engine,
+        engine.as_ref(),
         sb.dirty_root.unwrap(),
         sb.cache_blocks as usize,
         true,

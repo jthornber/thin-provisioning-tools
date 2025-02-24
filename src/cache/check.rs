@@ -314,7 +314,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             }
             2 => {
                 let (dirty_bits, err) = read_bitset_checked_with_sm(
-                    engine.clone(),
+                    engine.as_ref(),
                     sb.dirty_root.unwrap(),
                     sb.cache_blocks as usize,
                     metadata_sm.clone(),
@@ -350,7 +350,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     // e.g., a crash of freshly created cache.
     if !opts.skip_discards && sb.discard_root != 0 {
         let (_discard_bits, err) = read_bitset_checked_with_sm(
-            engine.clone(),
+            engine.as_ref(),
             sb.discard_root,
             sb.discard_nr_blocks as usize,
             metadata_sm.clone(),

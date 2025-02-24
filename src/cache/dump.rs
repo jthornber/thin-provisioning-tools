@@ -205,7 +205,8 @@ fn dump_v2_mappings(
 ) -> anyhow::Result<FixedBitSet> {
     // We need to walk the dirty bitset first.
     let dirty_bits = if let Some(root) = dirty_root {
-        let (bits, errs) = read_bitset_checked(engine.clone(), root, cache_blocks as usize, repair);
+        let (bits, errs) =
+            read_bitset_checked(engine.as_ref(), root, cache_blocks as usize, repair);
         if errs.is_some() && !repair {
             return Err(anyhow!("errors in bitset {}", errs.unwrap()));
         }

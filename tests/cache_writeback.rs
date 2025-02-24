@@ -660,7 +660,7 @@ mod format2 {
         let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
         let dirty_bits = read_bitset(
-            engine,
+            engine.as_ref(),
             sb.dirty_root.unwrap(),
             nr_cache_blocks as usize,
             false,

@@ -230,7 +230,7 @@ fn dump_writeset(
     repair: bool,
 ) -> anyhow::Result<()> {
     // TODO: deal with broken writeset
-    let bits = read_bitset(engine.clone(), ws.root, ws.nr_bits as usize, repair)?;
+    let bits = read_bitset(engine.as_ref(), ws.root, ws.nr_bits as usize, repair)?;
 
     out.writeset_b(&ir::Writeset {
         era,
@@ -404,7 +404,7 @@ fn collate_writesets(
     let mut archive = new_era_archive(sb.nr_blocks, archived_begin, writesets.len() as u32);
 
     for (index, (_era, ws)) in writesets.iter().enumerate() {
-        let bitset = read_bitset(engine.clone(), ws.root, ws.nr_bits as usize, repair)?;
+        let bitset = read_bitset(engine.as_ref(), ws.root, ws.nr_bits as usize, repair)?;
         collate_writeset(index as u32, &bitset, archive.as_mut())?;
     }
 
