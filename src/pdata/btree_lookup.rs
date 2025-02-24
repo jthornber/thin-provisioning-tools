@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::sync::Arc;
 
 use crate::io_engine::*;
 use crate::pdata::btree::*;
@@ -9,11 +8,7 @@ use crate::pdata::unpack::*;
 
 // Inefficient because we unpack entire nodes, but I think that's
 // fine for the current use cases (eg, lookup of dev_details).
-pub fn btree_lookup<V>(
-    engine: &Arc<dyn IoEngine + Send + Sync>,
-    root: u64,
-    key: u64,
-) -> Result<Option<V>>
+pub fn btree_lookup<V>(engine: &dyn IoEngine, root: u64, key: u64) -> Result<Option<V>>
 where
     V: Unpack + Clone,
 {

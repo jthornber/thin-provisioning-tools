@@ -17,7 +17,7 @@ fn read_by_thin_id<V>(engine: &ArcEngine, root: u64, thin_id: u32) -> Result<V>
 where
     V: Unpack + Clone,
 {
-    let lookup_result = btree_lookup::<V>(engine, root, thin_id as u64)?;
+    let lookup_result = btree_lookup::<V>(engine.as_ref(), root, thin_id as u64)?;
 
     if let Some(d) = lookup_result {
         Ok(d.clone())
