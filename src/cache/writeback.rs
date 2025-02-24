@@ -267,7 +267,7 @@ struct BitsetUpdater {
 impl BitsetUpdater {
     fn new(engine: Arc<dyn IoEngine + Sync + Send>, root: u64) -> anyhow::Result<Self> {
         let mut path = Vec::new();
-        let bitmaps_map = btree_to_map::<u64>(&mut path, engine.clone(), true, root)?;
+        let bitmaps_map = btree_to_map::<u64>(&mut path, engine.as_ref(), true, root)?;
 
         let mut bitmaps = Vec::with_capacity(bitmaps_map.len());
         for (i, (k, v)) in bitmaps_map.iter().enumerate() {
@@ -461,7 +461,7 @@ fn update_v1_metadata(
     cleaned_blocks: &RoaringBitmap,
 ) -> anyhow::Result<()> {
     let mut path = Vec::new();
-    let ablocks = btree_to_value_vec::<u64>(&mut path, ctx.engine.clone(), true, sb.mapping_root)?;
+    let ablocks = btree_to_value_vec::<u64>(&mut path, ctx.engine.as_ref(), true, sb.mapping_root)?;
     let max_entries = array::calc_max_entries::<Mapping>();
     path.clear();
 
@@ -677,7 +677,7 @@ fn copy_selected_blocks(
 
     let mut batcher = CopyOpBatcher::new(1_000_000, tx);
 
-    let ablocks = btree_to_value_vec::<u64>(&mut vec![0], engine.clone(), true, sb.mapping_root)?;
+    let ablocks = btree_to_value_vec::<u64>(&mut vec![0], engine.as_ref(), true, sb.mapping_root)?;
     let entries_per_block = array::calc_max_entries::<Mapping>();
     let mut index = 0;
     let b = engine.read(ablocks[index])?;

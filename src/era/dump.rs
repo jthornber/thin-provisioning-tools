@@ -347,7 +347,7 @@ fn get_writesets_ordered(
 ) -> Result<Vec<(u32, Writeset)>> {
     let mut path = vec![0];
     let mut writesets =
-        btree_to_map::<Writeset>(&mut path, engine.clone(), repair, sb.writeset_tree_root)?;
+        btree_to_map::<Writeset>(&mut path, engine.as_ref(), repair, sb.writeset_tree_root)?;
 
     if sb.current_writeset.root != 0 {
         if writesets.contains_key(&(sb.current_era as u64)) {

@@ -150,7 +150,7 @@ fn ioctl_blkdiscard(fd: i32, range: &[u64; 2]) -> std::io::Result<()> {
 // exceeds the maximum number of mappings allowed.
 fn read_bitmaps(engine: Arc<dyn IoEngine + Send + Sync>, bitmap_root: u64) -> Result<Vec<Block>> {
     let mut path = vec![0];
-    let entries = btree_to_map::<IndexEntry>(&mut path, engine.clone(), false, bitmap_root)?;
+    let entries = btree_to_map::<IndexEntry>(&mut path, engine.as_ref(), false, bitmap_root)?;
 
     let blocknr = entries.values().map(|ie| ie.blocknr).collect::<Vec<u64>>();
     let blocks = engine.read_many(&blocknr[..])?;

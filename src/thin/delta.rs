@@ -115,7 +115,7 @@ pub fn get_mappings(
     root: u64,
 ) -> Result<Vec<DataMapping>> {
     let mr = MappingRecorder::new();
-    let w = Arc::new(BTreeWalker::new(engine.clone(), false));
+    let w = Arc::new(BTreeWalker::new(engine.as_ref(), false));
     let mut path = Vec::new();
     w.walk(&mut path, &mr, root)?;
     Ok(mr.complete())
@@ -243,7 +243,7 @@ fn dump_diff(
     snap2: Snap,
 ) -> Result<()> {
     let mut path = Vec::new();
-    let roots = btree_to_map::<u64>(&mut path, engine.clone(), false, sb.mapping_root)?;
+    let roots = btree_to_map::<u64>(&mut path, engine.as_ref(), false, sb.mapping_root)?;
 
     let root1 = match snap1 {
         Snap::DeviceId(dev_id) => *roots

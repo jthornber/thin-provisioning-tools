@@ -110,7 +110,7 @@ pub fn check(opts: &EraCheckOptions) -> Result<()> {
     let mut path = vec![0];
     let writesets = btree_to_map::<Writeset>(
         &mut path,
-        engine.clone(),
+        engine.as_ref(),
         opts.ignore_non_fatal,
         sb.writeset_tree_root,
     )?;

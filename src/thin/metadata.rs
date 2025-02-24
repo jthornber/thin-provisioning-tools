@@ -158,8 +158,8 @@ fn devices_iter(
 ) -> Result<impl Iterator<Item = (u64, (u64, DeviceDetail))>> {
     // report.set_title("Reading device details");
     let details =
-        btree_to_map::<DeviceDetail>(&mut vec![0], engine.clone(), true, sb.details_root)?;
-    let roots = btree_to_map::<u64>(&mut vec![0], engine.clone(), true, sb.mapping_root)?;
+        btree_to_map::<DeviceDetail>(&mut vec![0], engine.as_ref(), true, sb.details_root)?;
+    let roots = btree_to_map::<u64>(&mut vec![0], engine.as_ref(), true, sb.mapping_root)?;
     Ok(roots
         .into_iter()
         .zip(details.into_values())
@@ -227,7 +227,7 @@ pub fn build_metadata_without_mappings(
     match sb {
         ThinSuperblock::OnDisk(sb) => {
             let details =
-                btree_to_map::<DeviceDetail>(&mut vec![0], engine.clone(), true, sb.details_root)?;
+                btree_to_map::<DeviceDetail>(&mut vec![0], engine.as_ref(), true, sb.details_root)?;
             build_metadata_without_mappings_(engine, &mut details.iter())
         }
         ThinSuperblock::InCore(sb) => build_metadata_without_mappings_(

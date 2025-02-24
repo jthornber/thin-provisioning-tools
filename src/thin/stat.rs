@@ -64,7 +64,7 @@ fn gather_btree_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     bitmap_root: u64,
 ) -> Result<Vec<IndexEntry>> {
-    let entries_map = btree_to_map::<IndexEntry>(&mut vec![0], engine, true, bitmap_root)?;
+    let entries_map = btree_to_map::<IndexEntry>(&mut vec![0], engine.as_ref(), true, bitmap_root)?;
     let entries: Vec<IndexEntry> = entries_map.values().cloned().collect();
     Ok(entries)
 }
@@ -126,7 +126,7 @@ fn stat_overflow_ref_counts(
     root: u64,
     histogram: BTreeMap<u32, u64>,
 ) -> Result<BTreeMap<u32, u64>> {
-    let w = BTreeWalker::new(engine, true);
+    let w = BTreeWalker::new(engine.as_ref(), true);
     let v = RefCounter::new(histogram);
     w.walk(&mut vec![0], &v, root)
         .map_err(|_| anyhow!("Errors in reading ref-count tree"))?;
@@ -273,10 +273,10 @@ fn stat_data_run_lengths(
     mapping_root: u64,
 ) -> Result<(BTreeMap<u32, u64>, u64)> {
     let mut path = vec![];
-    let roots = btree_to_map::<u64>(&mut path, engine.clone(), true, mapping_root)?;
+    let roots = btree_to_map::<u64>(&mut path, engine.as_ref(), true, mapping_root)?;
 
     let counter = RunLengthCounter::new();
-    let w = BTreeWalker::new(engine.clone(), true);
+    let w = BTreeWalker::new(engine.as_ref(), true);
     for root in roots.values() {
         w.walk(&mut path, &counter, *root)?;
     }

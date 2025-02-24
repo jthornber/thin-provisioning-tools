@@ -866,7 +866,7 @@ fn create_metadata_sm(
 
     let roots = btree_to_map_with_sm::<u64>(
         &mut path,
-        engine.clone(),
+        engine.as_ref(),
         metadata_sm.clone(),
         ignore_non_fatal,
         sb.mapping_root,
@@ -878,7 +878,7 @@ fn create_metadata_sm(
     if let Some(Ok(sb_snap)) = sb_snap {
         let roots_snap = btree_to_map_with_sm::<u64>(
             &mut path,
-            engine.clone(),
+            engine.as_ref(),
             metadata_sm,
             ignore_non_fatal,
             sb_snap.mapping_root,
@@ -903,7 +903,7 @@ fn get_devices_(
     // Reread device details to increment the ref counts for that metadata.
     let devs = btree_to_map_with_sm::<DeviceDetail>(
         &mut path,
-        engine.clone(),
+        engine.as_ref(),
         metadata_sm.clone(),
         ignore_non_fatal,
         sb.details_root,
@@ -913,7 +913,7 @@ fn get_devices_(
     // Mapping top level
     let roots = btree_to_map_with_sm::<u64>(
         &mut path,
-        engine.clone(),
+        engine.as_ref(),
         metadata_sm.clone(),
         ignore_non_fatal,
         sb.mapping_root,

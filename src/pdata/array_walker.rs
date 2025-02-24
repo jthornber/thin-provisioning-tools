@@ -171,7 +171,7 @@ impl ArrayWalker {
         V: Unpack,
     {
         let w =
-            BTreeWalker::new_with_sm(self.engine.clone(), self.sm.clone(), self.ignore_non_fatal)?;
+            BTreeWalker::new_with_sm(self.engine.as_ref(), self.sm.clone(), self.ignore_non_fatal)?;
         let mut path = vec![0];
         let v = BlockValueVisitor::<V>::new(self.engine.clone(), self.sm.clone(), visitor);
         let btree_err = w.walk(&mut path, &v, root).map_err(ArrayError::BTreeError);
@@ -248,7 +248,7 @@ pub fn collect_array_blocks_with_path(
     ignore_non_fatal: bool,
     root: u64,
 ) -> btree_error::Result<BTreeMap<u64, (Vec<u64>, u64)>> {
-    let walker = BTreeWalker::new(engine, ignore_non_fatal);
+    let walker = BTreeWalker::new(engine.as_ref(), ignore_non_fatal);
     let visitor = BlockPathCollector::new();
     walker.walk(&mut vec![0], &visitor, root)?;
     Ok(visitor.ablocks.into_inner().unwrap())

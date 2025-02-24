@@ -98,7 +98,7 @@ pub type AEngine = Arc<dyn IoEngine + Send + Sync>;
 
 fn collect_leaves<V: Unpack>(engine: AEngine, roots: &[u64]) -> Result<Vec<NodeSummary>> {
     let lv = LeafVisitor::new();
-    let walker = BTreeWalker::new(engine, false);
+    let walker = BTreeWalker::new(engine.as_ref(), false);
 
     let mut path = Vec::new();
     for root in roots {

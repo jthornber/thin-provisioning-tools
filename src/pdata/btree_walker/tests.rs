@@ -128,7 +128,7 @@ impl<V: 'static + Pack + Unpack + Clone + PartialEq + std::fmt::Debug + std::mar
         let mut leaf_iter = expected_leaves.into_iter();
         let mut m_iter = self.build_expected_mappings().into_iter();
 
-        let walker = BTreeWalker::new(self.w.engine.clone(), false);
+        let walker = BTreeWalker::new(self.w.engine.as_ref(), false);
         let mut visitor = MockVisitor::<V>::new();
 
         visitor.expect_visit().times(nr_good_leaves).returning(

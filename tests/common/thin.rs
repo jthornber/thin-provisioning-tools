@@ -174,9 +174,9 @@ pub fn get_thins(md: &Path) -> Result<BTreeMap<u64, (u64, DeviceDetail)>> {
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
     let devs =
-        btree_to_map::<DeviceDetail>(&mut Vec::new(), engine.clone(), false, sb.details_root)?;
+        btree_to_map::<DeviceDetail>(&mut Vec::new(), engine.as_ref(), false, sb.details_root)?;
 
-    let roots = btree_to_map::<u64>(&mut Vec::new(), engine, false, sb.mapping_root)?;
+    let roots = btree_to_map::<u64>(&mut Vec::new(), engine.as_ref(), false, sb.mapping_root)?;
 
     let thins = roots
         .into_iter()

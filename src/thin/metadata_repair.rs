@@ -55,10 +55,15 @@ fn devices_identical(
     ignore_non_fatal: bool,
 ) -> bool {
     let mut path = vec![0];
-    let ids1 = btree_to_key_set::<u64>(&mut path, engine.clone(), ignore_non_fatal, dev_root);
+    let ids1 = btree_to_key_set::<u64>(&mut path, engine.as_ref(), ignore_non_fatal, dev_root);
 
     path = vec![0];
-    let ids2 = btree_to_key_set::<DeviceDetail>(&mut path, engine, ignore_non_fatal, details_root);
+    let ids2 = btree_to_key_set::<DeviceDetail>(
+        &mut path,
+        engine.as_ref(),
+        ignore_non_fatal,
+        details_root,
+    );
 
     if ids1.is_err() || ids2.is_err() || ids1.unwrap() != ids2.unwrap() {
         return false;
@@ -682,7 +687,7 @@ fn to_partial_found_roots(
     dev_root: &DevInfo,
     c: &NodeCollector,
 ) -> Result<FoundRoots> {
-    let roots = btree_to_map(&mut vec![], engine, true, dev_root.b)?;
+    let roots = btree_to_map(&mut vec![], engine.as_ref(), true, dev_root.b)?;
     let devices = roots
         .iter()
         .map(|(dev_id, root)| {

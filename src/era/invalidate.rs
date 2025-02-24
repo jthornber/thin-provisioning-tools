@@ -131,7 +131,7 @@ fn mark_blocks_since(
     let mut marked_bits = vec![0; div_up(sb.nr_blocks as usize, 64)];
 
     let mut path = vec![0];
-    let wsets = btree_to_map::<Writeset>(&mut path, engine.clone(), false, sb.writeset_tree_root)?;
+    let wsets = btree_to_map::<Writeset>(&mut path, engine.as_ref(), false, sb.writeset_tree_root)?;
     for (era, ws) in wsets.iter() {
         if (*era as u32) < threshold {
             continue;

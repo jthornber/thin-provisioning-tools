@@ -1093,7 +1093,7 @@ fn count_data_mappings(
     let mut path = Vec::new();
     let roots = btree_to_value_vec(
         &mut path,
-        ctx.engine.clone(),
+        ctx.engine.as_ref(),
         ignore_non_fatal,
         mapping_root,
     )?;
@@ -1192,7 +1192,7 @@ pub fn ls(opts: ThinLsOptions) -> Result<()> {
 
     let mut path = vec![0];
     let details =
-        btree_to_map::<DeviceDetail>(&mut path, ctx.engine.clone(), false, sb.details_root)?;
+        btree_to_map::<DeviceDetail>(&mut path, ctx.engine.as_ref(), false, sb.details_root)?;
 
     let mut table = LsTable::new(&opts.fields, details.len(), sb.data_block_size);
     if !opts.no_headers {

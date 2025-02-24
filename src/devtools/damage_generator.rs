@@ -48,7 +48,8 @@ fn find_blocks_of_rc(
         }
     } else {
         let mut path = Vec::new();
-        let high_rc = btree_to_map::<u32>(&mut path, engine, false, sm_root.ref_count_root)?;
+        let high_rc =
+            btree_to_map::<u32>(&mut path, engine.as_ref(), false, sm_root.ref_count_root)?;
         for (k, v) in high_rc.iter() {
             if *v == ref_count {
                 found.push(*k);

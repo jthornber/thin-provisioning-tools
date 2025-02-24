@@ -31,15 +31,15 @@ pub trait NodeVisitor<V: Unpack> {
 }
 
 #[derive(Clone)]
-pub struct BTreeWalker {
-    engine: Arc<dyn IoEngine + Send + Sync>,
+pub struct BTreeWalker<'a> {
+    engine: &'a dyn IoEngine,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     fails: Arc<Mutex<BTreeMap<u64, BTreeError>>>,
     ignore_non_fatal: bool,
 }
 
-impl BTreeWalker {
-    pub fn new(engine: Arc<dyn IoEngine + Send + Sync>, ignore_non_fatal: bool) -> BTreeWalker {
+impl<'a> BTreeWalker<'a> {
+    pub fn new(engine: &'a dyn IoEngine, ignore_non_fatal: bool) -> Self {
         let nr_blocks = engine.get_nr_blocks();
         let r: BTreeWalker = BTreeWalker {
             engine,
@@ -51,10 +51,10 @@ impl BTreeWalker {
     }
 
     pub fn new_with_sm(
-        engine: Arc<dyn IoEngine + Send + Sync>,
+        engine: &'a dyn IoEngine,
         sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
         ignore_non_fatal: bool,
-    ) -> Result<BTreeWalker> {
+    ) -> Result<Self> {
         {
             let sm = sm.lock().unwrap();
             assert_eq!(sm.get_nr_blocks().unwrap(), engine.get_nr_blocks());
@@ -316,9 +316,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
     }
 }
 
-pub fn btree_to_map<V: Unpack + Copy>(
+pub fn btree_to_map<'a, V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &'a dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
@@ -328,9 +328,9 @@ pub fn btree_to_map<V: Unpack + Copy>(
     Ok(visitor.values.into_inner().unwrap())
 }
 
-pub fn btree_to_map_with_sm<V: Unpack + Copy>(
+pub fn btree_to_map_with_sm<'a, V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &'a dyn IoEngine,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
     root: u64,
@@ -382,9 +382,9 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
     }
 }
 
-pub fn btree_to_map_with_path<V: Unpack + Copy>(
+pub fn btree_to_map_with_path<'a, V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &'a dyn IoEngine,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
     root: u64,
@@ -436,9 +436,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for KeyCollector {
     }
 }
 
-pub fn btree_to_key_set<V: Unpack + Copy>(
+pub fn btree_to_key_set<'a, V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &'a dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeSet<u64>> {
@@ -486,9 +486,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueVecCollector<V> {
     }
 }
 
-pub fn btree_to_value_vec<V: Unpack + Copy>(
+pub fn btree_to_value_vec<'a, V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &'a dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<Vec<V>> {
@@ -533,8 +533,8 @@ impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
     }
 }
 
-pub fn count_btree_blocks<V: Unpack>(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+pub fn count_btree_blocks<'a, V: Unpack>(
+    engine: &'a dyn IoEngine,
     path: &mut Vec<u64>,
     root: u64,
     metadata_sm: ASpaceMap,

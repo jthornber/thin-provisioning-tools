@@ -179,7 +179,7 @@ fn gather_disk_index_entries(
 ) -> Result<Vec<IndexEntry>> {
     let entries_map = btree_to_map_with_sm::<IndexEntry>(
         &mut vec![0],
-        engine,
+        engine.as_ref(),
         metadata_sm.clone(),
         ignore_non_fatal,
         bitmap_root,
@@ -230,7 +230,7 @@ pub fn check_disk_space_map(
     {
         let sm = disk_sm.lock().unwrap();
         let v = OverflowChecker::new("data", &*sm);
-        let w = BTreeWalker::new_with_sm(engine.clone(), metadata_sm.clone(), ignore_non_fatal)?;
+        let w = BTreeWalker::new_with_sm(engine.as_ref(), metadata_sm.clone(), ignore_non_fatal)?;
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 
@@ -249,7 +249,7 @@ pub fn check_metadata_space_map(
     ignore_non_fatal: bool,
 ) -> Result<Vec<BitmapLeak>> {
     count_btree_blocks::<u32>(
-        engine.clone(),
+        engine.as_ref(),
         &mut vec![0],
         root.ref_count_root,
         metadata_sm.clone(),
@@ -267,7 +267,7 @@ pub fn check_metadata_space_map(
     {
         let sm = metadata_sm.lock().unwrap();
         let v = OverflowChecker::new("metadata", &*sm);
-        let w = BTreeWalker::new(engine.clone(), ignore_non_fatal);
+        let w = BTreeWalker::new(engine.as_ref(), ignore_non_fatal);
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 

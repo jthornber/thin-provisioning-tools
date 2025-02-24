@@ -214,11 +214,11 @@ pub fn rmap(opts: ThinRmapOptions) -> Result<()> {
     )));
 
     let mut path = Vec::new();
-    let roots = btree_to_map(&mut path, ctx.engine.clone(), false, sb.mapping_root)?;
+    let roots = btree_to_map(&mut path, ctx.engine.as_ref(), false, sb.mapping_root)?;
 
     let rv = RmapVisitor::new(opts.regions);
     let w = Arc::new(BTreeWalker::new_with_sm(
-        ctx.engine.clone(),
+        ctx.engine.as_ref(),
         metadata_sm,
         false,
     )?);

@@ -255,8 +255,12 @@ mod disk_sm {
         let root = write_disk_sm(&mut w, data_sm.lock().unwrap().deref())?;
         drop(w);
 
-        let entries =
-            btree_to_value_vec::<IndexEntry>(&mut Vec::new(), engine, false, root.bitmap_root)?;
+        let entries = btree_to_value_vec::<IndexEntry>(
+            &mut Vec::new(),
+            engine.as_ref(),
+            false,
+            root.bitmap_root,
+        )?;
         ensure!(entries.len() as u64 == div_up(nr_blocks, ENTRIES_PER_BITMAP as u64));
 
         // the number of blocks observed by index_entries must be a multiple of ENTRIES_PER_BITMAP
