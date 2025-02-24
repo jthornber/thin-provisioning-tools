@@ -374,7 +374,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
 
     let root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
     let metadata_leaks = check_metadata_space_map(
-        engine.clone(),
+        engine.as_ref(),
         ctx.report.clone(),
         root,
         metadata_sm.clone(),
@@ -384,7 +384,7 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
     if !metadata_leaks.is_empty() {
         if opts.auto_repair || opts.clear_needs_check {
             ctx.report.warning("Repairing metadata leaks.");
-            repair_space_map(ctx.engine.clone(), metadata_leaks, metadata_sm.clone())?;
+            repair_space_map(ctx.engine.as_ref(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!(concat!(
                 "metadata space map contains leaks\n",

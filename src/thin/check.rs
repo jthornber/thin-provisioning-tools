@@ -1224,7 +1224,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     let start = std::time::Instant::now();
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let data_leaks = check_disk_space_map(
-        engine.clone(),
+        engine.as_ref(),
         report.clone(),
         root,
         data_sm.clone(),
@@ -1244,7 +1244,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     // Now the counts should be correct and we can check it.
     let metadata_leaks = check_metadata_space_map(
-        engine.clone(),
+        engine.as_ref(),
         report.clone(),
         root,
         metadata_sm.clone(),
@@ -1260,7 +1260,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if !data_leaks.is_empty() {
         if opts.auto_repair || opts.clear_needs_check {
             report.warning("Repairing data leaks.");
-            repair_space_map(engine.clone(), data_leaks, data_sm.clone())?;
+            repair_space_map(engine.as_ref(), data_leaks, data_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!(concat!(
                 "data space map contains leaks\n",
@@ -1272,7 +1272,7 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if !metadata_leaks.is_empty() {
         if opts.auto_repair || opts.clear_needs_check {
             report.warning("Repairing metadata leaks.");
-            repair_space_map(engine.clone(), metadata_leaks, metadata_sm.clone())?;
+            repair_space_map(engine.as_ref(), metadata_leaks, metadata_sm.clone())?;
         } else if !opts.ignore_non_fatal {
             return Err(anyhow!(concat!(
                 "metadata space map contains leaks\n",
@@ -1344,7 +1344,7 @@ pub fn check_with_maps(
     report.set_sub_title("data space map");
     let root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
     let _data_leaks = check_disk_space_map(
-        engine.clone(),
+        engine.as_ref(),
         report.clone(),
         root,
         data_sm.clone(),
@@ -1359,7 +1359,7 @@ pub fn check_with_maps(
 
     // Now the counts should be correct and we can check it.
     let _metadata_leaks =
-        check_metadata_space_map(engine.clone(), report, root, metadata_sm.clone(), false)?;
+        check_metadata_space_map(engine.as_ref(), report, root, metadata_sm.clone(), false)?;
 
     //-----------------------------------------
 

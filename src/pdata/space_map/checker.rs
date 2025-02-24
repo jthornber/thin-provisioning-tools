@@ -80,7 +80,7 @@ fn inc_entries(sm: &ASpaceMap, entries: &[IndexEntry]) -> Result<()> {
 //
 // `sm` - The in-core space map of expected reference counts
 fn check_low_ref_counts(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     report: Arc<Report>,
     kind: &str,
     entries: Vec<IndexEntry>,
@@ -172,14 +172,14 @@ fn check_low_ref_counts(
 }
 
 fn gather_disk_index_entries(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     bitmap_root: u64,
     metadata_sm: ASpaceMap,
     ignore_non_fatal: bool,
 ) -> Result<Vec<IndexEntry>> {
     let entries_map = btree_to_map_with_sm::<IndexEntry>(
         &mut vec![0],
-        engine.as_ref(),
+        engine,
         metadata_sm.clone(),
         ignore_non_fatal,
         bitmap_root,
@@ -192,7 +192,7 @@ fn gather_disk_index_entries(
 }
 
 fn gather_metadata_index_entries(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     bitmap_root: u64,
     nr_blocks: u64,
     metadata_sm: ASpaceMap,
@@ -212,7 +212,7 @@ fn gather_metadata_index_entries(
 // `disk_sm` - The in-core space map of expected data block ref-counts
 // `metadata_sm` - The in-core space for storing ref-counts of verified blocks
 pub fn check_disk_space_map(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     report: Arc<Report>,
     root: SMRoot,
     disk_sm: ASpaceMap,
@@ -220,7 +220,7 @@ pub fn check_disk_space_map(
     ignore_non_fatal: bool,
 ) -> Result<Vec<BitmapLeak>> {
     let entries = gather_disk_index_entries(
-        engine.clone(),
+        engine,
         root.bitmap_root,
         metadata_sm.clone(),
         ignore_non_fatal,
@@ -230,7 +230,7 @@ pub fn check_disk_space_map(
     {
         let sm = disk_sm.lock().unwrap();
         let v = OverflowChecker::new("data", &*sm);
-        let w = BTreeWalker::new_with_sm(engine.as_ref(), metadata_sm.clone(), ignore_non_fatal)?;
+        let w = BTreeWalker::new_with_sm(engine, metadata_sm.clone(), ignore_non_fatal)?;
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 
@@ -242,14 +242,14 @@ pub fn check_disk_space_map(
 //
 // `metadata_sm`: The in-core space map of expected metadata block ref-counts
 pub fn check_metadata_space_map(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     report: Arc<Report>,
     root: SMRoot,
     metadata_sm: ASpaceMap,
     ignore_non_fatal: bool,
 ) -> Result<Vec<BitmapLeak>> {
     count_btree_blocks::<u32>(
-        engine.as_ref(),
+        engine,
         &mut vec![0],
         root.ref_count_root,
         metadata_sm.clone(),
@@ -257,7 +257,7 @@ pub fn check_metadata_space_map(
     )?;
 
     let entries = gather_metadata_index_entries(
-        engine.clone(),
+        engine,
         root.bitmap_root,
         root.nr_blocks,
         metadata_sm.clone(),
@@ -267,7 +267,7 @@ pub fn check_metadata_space_map(
     {
         let sm = metadata_sm.lock().unwrap();
         let v = OverflowChecker::new("metadata", &*sm);
-        let w = BTreeWalker::new(engine.as_ref(), ignore_non_fatal);
+        let w = BTreeWalker::new(engine, ignore_non_fatal);
         w.walk(&mut vec![0], &v, root.ref_count_root)?;
     }
 
@@ -278,7 +278,7 @@ pub fn check_metadata_space_map(
 // This assumes the only errors in the space map are leaks.  Entries should just be
 // those that contain leaks.
 pub fn repair_space_map(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     entries: Vec<BitmapLeak>,
     sm: ASpaceMap,
 ) -> Result<()> {
