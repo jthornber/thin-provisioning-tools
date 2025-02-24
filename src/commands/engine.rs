@@ -138,7 +138,7 @@ fn thin_valid_blocks<P: AsRef<Path>>(path: P, opts: &EngineOptions) -> RoaringBi
     }
     let metadata_root = metadata_root.unwrap();
     let valid_blocks = allocated_blocks(
-        e.clone(),
+        e.as_ref(),
         metadata_root.bitmap_root,
         metadata_root.nr_blocks,
     );

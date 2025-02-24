@@ -1,6 +1,5 @@
 use anyhow::Result;
 use roaring::RoaringBitmap;
-use std::sync::Arc;
 
 use crate::io_engine::*;
 use crate::pdata::space_map::common::*;
@@ -15,7 +14,7 @@ struct IndexInfo {
 }
 
 pub fn allocated_blocks(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     sm_root: u64,
     nr_blocks: u64,
 ) -> Result<RoaringBitmap> {
