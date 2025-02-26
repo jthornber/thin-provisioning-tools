@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::vec::Vec;
 
 use crate::checksum;
@@ -60,17 +60,14 @@ impl NodeVisitor<u32> for RefCounter {
     }
 }
 
-fn gather_btree_index_entries(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    bitmap_root: u64,
-) -> Result<Vec<IndexEntry>> {
-    let entries_map = btree_to_map::<IndexEntry>(&mut vec![0], engine.as_ref(), true, bitmap_root)?;
+fn gather_btree_index_entries(engine: &dyn IoEngine, bitmap_root: u64) -> Result<Vec<IndexEntry>> {
+    let entries_map = btree_to_map::<IndexEntry>(&mut vec![0], engine, true, bitmap_root)?;
     let entries: Vec<IndexEntry> = entries_map.values().cloned().collect();
     Ok(entries)
 }
 
 fn gather_metadata_index_entries(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     bitmap_root: u64,
     nr_blocks: u64,
 ) -> Result<Vec<IndexEntry>> {
@@ -94,7 +91,7 @@ fn stat_low_ref_counts_in_bitmap(bitmap: Bitmap, histogram: &mut BTreeMap<u32, u
 //------------------------------------------
 
 fn stat_low_ref_counts(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     entries: &[IndexEntry],
     histogram: &mut BTreeMap<u32, u64>,
 ) -> Result<()> {
@@ -122,25 +119,22 @@ fn stat_low_ref_counts(
 }
 
 fn stat_overflow_ref_counts(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     root: u64,
     histogram: BTreeMap<u32, u64>,
 ) -> Result<BTreeMap<u32, u64>> {
-    let w = BTreeWalker::new(engine.as_ref(), true);
+    let w = BTreeWalker::new(engine, true);
     let v = RefCounter::new(histogram);
     w.walk(&mut vec![0], &v, root)
         .map_err(|_| anyhow!("Errors in reading ref-count tree"))?;
     Ok(v.complete())
 }
 
-fn stat_data_block_ref_counts(
-    engine: Arc<dyn IoEngine + Send + Sync>,
-    root: SMRoot,
-) -> Result<BTreeMap<u32, u64>> {
+fn stat_data_block_ref_counts(engine: &dyn IoEngine, root: SMRoot) -> Result<BTreeMap<u32, u64>> {
     let mut histogram = BTreeMap::<u32, u64>::new();
 
-    let index_entries = gather_btree_index_entries(engine.clone(), root.bitmap_root)?;
-    stat_low_ref_counts(engine.clone(), &index_entries, &mut histogram)?;
+    let index_entries = gather_btree_index_entries(engine, root.bitmap_root)?;
+    stat_low_ref_counts(engine, &index_entries, &mut histogram)?;
 
     let histogram = stat_overflow_ref_counts(engine, root.ref_count_root, histogram)?;
 
@@ -148,14 +142,13 @@ fn stat_data_block_ref_counts(
 }
 
 fn stat_metadata_block_ref_counts(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     root: SMRoot,
 ) -> Result<BTreeMap<u32, u64>> {
     let mut histogram = BTreeMap::<u32, u64>::new();
 
-    let index_entries =
-        gather_metadata_index_entries(engine.clone(), root.bitmap_root, root.nr_blocks)?;
-    stat_low_ref_counts(engine.clone(), &index_entries, &mut histogram)?;
+    let index_entries = gather_metadata_index_entries(engine, root.bitmap_root, root.nr_blocks)?;
+    stat_low_ref_counts(engine, &index_entries, &mut histogram)?;
 
     let histogram = stat_overflow_ref_counts(engine, root.ref_count_root, histogram)?;
 
@@ -163,8 +156,8 @@ fn stat_metadata_block_ref_counts(
 }
 
 // TODO: plot the graph
-fn print_data_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+fn print_data_blocks_histogram(engine: &dyn IoEngine) -> Result<()> {
+    let sb = read_superblock(engine, SUPERBLOCK_LOCATION)?;
     let sm_root = unpack::<SMRoot>(&sb.data_sm_root)?;
 
     let histogram = stat_data_block_ref_counts(engine, sm_root)?;
@@ -184,8 +177,8 @@ fn print_data_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Resul
 }
 
 // TODO: plot the graph
-fn print_metadata_blocks_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+fn print_metadata_blocks_histogram(engine: &dyn IoEngine) -> Result<()> {
+    let sb = read_superblock(engine, SUPERBLOCK_LOCATION)?;
     let sm_root = unpack::<SMRoot>(&sb.metadata_sm_root)?;
 
     let histogram = stat_metadata_block_ref_counts(engine, sm_root)?;
@@ -269,14 +262,14 @@ impl NodeVisitor<BlockTime> for RunLengthCounter {
 }
 
 fn stat_data_run_lengths(
-    engine: Arc<dyn IoEngine + Send + Sync>,
+    engine: &dyn IoEngine,
     mapping_root: u64,
 ) -> Result<(BTreeMap<u32, u64>, u64)> {
     let mut path = vec![];
-    let roots = btree_to_map::<u64>(&mut path, engine.as_ref(), true, mapping_root)?;
+    let roots = btree_to_map::<u64>(&mut path, engine, true, mapping_root)?;
 
     let counter = RunLengthCounter::new();
-    let w = BTreeWalker::new(engine.as_ref(), true);
+    let w = BTreeWalker::new(engine, true);
     for root in roots.values() {
         w.walk(&mut path, &counter, *root)?;
     }
@@ -284,8 +277,8 @@ fn stat_data_run_lengths(
     Ok(counter.complete())
 }
 
-fn print_data_run_length_histogram(engine: Arc<dyn IoEngine + Send + Sync>) -> Result<()> {
-    let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
+fn print_data_run_length_histogram(engine: &dyn IoEngine) -> Result<()> {
+    let sb = read_superblock(engine, SUPERBLOCK_LOCATION)?;
     let (histogram, nr_leaves) = stat_data_run_lengths(engine, sb.mapping_root)?;
 
     let nr_runs: u64 = histogram.values().sum();
@@ -321,9 +314,9 @@ pub fn stat(opts: ThinStatOpts) -> Result<()> {
     let engine = EngineBuilder::new(opts.input, &opts.engine_opts).build()?;
 
     match opts.op {
-        StatOp::DataBlockRefCounts => print_data_blocks_histogram(engine)?,
-        StatOp::MetadataBlockRefCounts => print_metadata_blocks_histogram(engine)?,
-        StatOp::DataRunLength => print_data_run_length_histogram(engine)?,
+        StatOp::DataBlockRefCounts => print_data_blocks_histogram(engine.as_ref())?,
+        StatOp::MetadataBlockRefCounts => print_metadata_blocks_histogram(engine.as_ref())?,
+        StatOp::DataRunLength => print_data_run_length_histogram(engine.as_ref())?,
     }
 
     Ok(())
