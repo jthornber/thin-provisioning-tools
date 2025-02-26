@@ -15,6 +15,9 @@ pub mod async_;
 #[cfg(feature = "io_uring")]
 pub use crate::io_engine::async_::AsyncIoEngine;
 
+#[cfg(feature = "io_uring")]
+pub mod ring_pool;
+
 #[cfg(test)]
 pub mod core;
 

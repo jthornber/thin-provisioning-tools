@@ -22,6 +22,7 @@ devicemapper = "0.34"
 exitcode = "1.1.2"
 fixedbitset = "0.5"
 flate2 = "1.1"
+io-uring = { version = "0.7.10", optional = true }
 iovec = "0.1"
 indicatif = "0.18"
 libc = "0.2"
@@ -52,7 +53,7 @@ thinp = { path = ".", features = ["devtools"] }
 
 [features]
 devtools = ["tui", "termion"]
-io_uring = ["dep:rio"]
+io_uring = ["dep:rio", "dep:io-uring"]
 no_cleanup = []
 
 [profile.release]
