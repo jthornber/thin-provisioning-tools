@@ -34,7 +34,6 @@ quick-xml = "0.38"
 rand = "0.9"
 rangemap = "1.6"
 roaring = "0.11"
-rio = { git = "https://github.com/jthornber/rio", branch = "master", optional = true }
 thiserror = "2.0"
 tui = { version = "0.19", default-features = false, features = [
   "termion",
@@ -53,7 +52,7 @@ thinp = { path = ".", features = ["devtools"] }
 
 [features]
 devtools = ["tui", "termion"]
-io_uring = ["dep:rio", "dep:io-uring"]
+io_uring = ["dep:io-uring"]
 no_cleanup = []
 
 [profile.release]
