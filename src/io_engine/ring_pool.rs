@@ -6,11 +6,6 @@ use std::vec::Vec;
 
 //--------------------------------
 
-// FIXME: reduce this if it makes no difference to performance.
-const QUEUE_DEPTH: u32 = 256;
-
-//--------------------------------
-
 /// Manages a pool of io_uring instances for concurrent IO operations
 pub struct RingPool {
     available_rings: Mutex<VecDeque<usize>>,
