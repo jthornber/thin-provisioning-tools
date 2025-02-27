@@ -1,6 +1,11 @@
+/// Represents either a contiguous run of blocks or a gap between runs.
+/// 
+/// Each variant contains a start and end position (end is exclusive).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunOp {
+    /// Represents a contiguous run of blocks from start (inclusive) to end (exclusive)
     Run(u64, u64),
+    /// Represents a gap between runs from start (inclusive) to end (exclusive)
     Gap(u64, u64),
 }
 
@@ -312,6 +317,8 @@ fn split_contiguous(runs: Vec<RunOp>, max: u64, result: &mut Batches) {
     }
 }
 
+/// A type alias representing a collection of batches, where each batch is a vector of `RunOp`s.
+/// Batches are used to group related runs and gaps together for processing.
 type Batches = Vec<Vec<RunOp>>;
 
 fn split_batches(batches: Batches, max: u64) -> Batches {
@@ -365,10 +372,30 @@ mod split_tests {
 
 //-----------------------------------------
 
+/// Generates batches of runs from a list of block numbers, considering gaps and maximum batch sizes.
+///
+/// # Arguments
+///
+/// * `blocks` - A slice of block numbers to process
+/// * `gap_threshold` - The maximum size of gap that will be included in a run rather than split
+/// * `max` - The maximum size of a single run batch
+///
+/// # Returns
+///
+/// Returns a `Batches` containing vectors of `RunOp`s representing the runs and gaps
 pub fn generate_runs(blocks: &[u64], gap_threshold: u64, max: u64) -> Batches {
     split_batches(batch_adjacent(&find_runs(blocks, gap_threshold)), max)
 }
 
+/// Counts the total number of gaps across all batches.
+///
+/// # Arguments
+///
+/// * `batches` - A reference to a `Batches` containing runs and gaps
+///
+/// # Returns
+///
+/// Returns the total number of gaps found across all batches
 pub fn count_gaps(batches: &Batches) -> u64 {
     let mut count = 0;
     for batch in batches {
