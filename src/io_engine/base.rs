@@ -115,7 +115,7 @@ pub trait VectoredIo {
 
 fn read_vectored_at(file: &File, bufs: &mut [libc::iovec], pos: u64) -> io::Result<usize> {
     let ptr = bufs.as_ptr();
-    let ret = match unsafe { libc::preadv64(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
+    let ret = match unsafe { libc::preadv(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
     {
         -1 => return Err(io::Error::last_os_error()),
         n => n,
@@ -125,7 +125,7 @@ fn read_vectored_at(file: &File, bufs: &mut [libc::iovec], pos: u64) -> io::Resu
 
 fn write_vectored_at(file: &File, bufs: &[libc::iovec], pos: u64) -> io::Result<usize> {
     let ptr = bufs.as_ptr();
-    let ret = match unsafe { libc::pwritev64(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
+    let ret = match unsafe { libc::pwritev(file.as_raw_fd(), ptr, bufs.len() as i32, pos as i64) }
     {
         -1 => return Err(io::Error::last_os_error()),
         n => n,
