@@ -19,12 +19,12 @@ use crate::run_iter::*;
 
 //------------------------------------------
 
-/// Examining BTrees can lead to a lot of random io, which can be
-/// very slow on spindle devices.  This io engine reads in all
-/// metadata blocks of interest (we know these from the metadata
-/// space map), compresses them and caches them in memory.  This
-/// greatly speeds up performance but obviously uses a lot of memory.
-/// Writes or reads to blocks not in the space map fall back to sync io.
+// Examining BTrees can lead to a lot of random io, which can be
+// very slow on spindle devices.  This io engine reads in all
+// metadata blocks of interest (we know these from the metadata
+// space map), compresses them and caches them in memory.  This
+// greatly speeds up performance but obviously uses a lot of memory.
+// Writes or reads to blocks not in the space map fall back to sync io.
 
 //------------------------------------------
 

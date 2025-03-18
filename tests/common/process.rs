@@ -112,7 +112,7 @@ pub fn run_ok(command: Command) -> Result<String> {
 
     let stdout = std::str::from_utf8(&output.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
 
     Ok(stdout)
@@ -139,7 +139,7 @@ pub fn run_fail(command: Command) -> Result<String> {
 
     let stderr = std::str::from_utf8(&output.stderr[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
 
     Ok(stderr)

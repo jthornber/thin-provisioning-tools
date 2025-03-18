@@ -122,12 +122,10 @@ mod format2 {
                 }
 
                 let mut inner = self.inner.lock().unwrap();
-                let dirty = if let Some(bit) = inner.dirty_bits.contains(cblock as usize) {
-                    bit
-                } else {
-                    // default to dirty if the bitset is damaged
-                    true
-                };
+
+                // default to dirty if the bitset is damaged
+                let dirty = inner.dirty_bits.contains(cblock as usize).unwrap_or(true);
+
                 let m = ir::Map {
                     cblock,
                     oblock: map.oblock,

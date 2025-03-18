@@ -110,7 +110,7 @@ fn all_args_agree() -> Result<()> {
     ))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
     assert_eq!(stdout, "8248 sectors");
     assert_eq!(out.stderr.len(), 0);
@@ -145,7 +145,7 @@ fn nr_blocks_alone() -> Result<()> {
     let out = run_ok_raw(cache_metadata_size_cmd(args!["--nr-blocks", "1024"]))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
     assert_eq!(stdout, "8248 sectors");
     assert_eq!(out.stderr.len(), 0);
@@ -162,7 +162,7 @@ fn dev_size_and_block_size_succeeds() -> Result<()> {
     ]))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
     assert_eq!(stdout, "8248 sectors");
     assert_eq!(out.stderr.len(), 0);
@@ -174,7 +174,7 @@ fn large_nr_blocks() -> Result<()> {
     let out = run_ok_raw(cache_metadata_size_cmd(args!["--nr-blocks", "67108864"]))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
     assert_eq!(stdout, "3678208 sectors");
     assert_eq!(out.stderr.len(), 0);

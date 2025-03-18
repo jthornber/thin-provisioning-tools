@@ -111,7 +111,7 @@ fn dev_size_and_block_size_succeeds() -> Result<()> {
     ]))?;
     let stdout = std::str::from_utf8(&out.stdout[..])
         .unwrap()
-        .trim_end_matches(|c| c == '\n' || c == '\r')
+        .trim_end_matches(['\n', '\r'])
         .to_string();
     assert_eq!(stdout, "1064 sectors");
     assert_eq!(out.stderr.len(), 0);
