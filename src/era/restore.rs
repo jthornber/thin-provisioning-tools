@@ -133,7 +133,7 @@ impl<'a> Restorer<'a> {
     }
 }
 
-impl<'a> MetadataVisitor for Restorer<'a> {
+impl MetadataVisitor for Restorer<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         if self.in_section != Section::None {
             return Err(anyhow!("duplicated superblock"));

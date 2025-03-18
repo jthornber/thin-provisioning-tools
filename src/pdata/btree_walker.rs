@@ -316,9 +316,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueCollector<V> {
     }
 }
 
-pub fn btree_to_map<'a, V: Unpack + Copy>(
+pub fn btree_to_map<V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: &'a dyn IoEngine,
+    engine: &dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeMap<u64, V>> {
@@ -328,9 +328,9 @@ pub fn btree_to_map<'a, V: Unpack + Copy>(
     Ok(visitor.values.into_inner().unwrap())
 }
 
-pub fn btree_to_map_with_sm<'a, V: Unpack + Copy>(
+pub fn btree_to_map_with_sm<V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: &'a dyn IoEngine,
+    engine: &dyn IoEngine,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
     root: u64,
@@ -382,9 +382,9 @@ impl<V: Unpack + Clone> NodeVisitor<V> for ValuePathCollector<V> {
     }
 }
 
-pub fn btree_to_map_with_path<'a, V: Unpack + Copy>(
+pub fn btree_to_map_with_path<V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: &'a dyn IoEngine,
+    engine: &dyn IoEngine,
     sm: Arc<Mutex<dyn SpaceMap + Send + Sync>>,
     ignore_non_fatal: bool,
     root: u64,
@@ -436,9 +436,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for KeyCollector {
     }
 }
 
-pub fn btree_to_key_set<'a, V: Unpack + Copy>(
+pub fn btree_to_key_set<V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: &'a dyn IoEngine,
+    engine: &dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<BTreeSet<u64>> {
@@ -486,9 +486,9 @@ impl<V: Unpack + Copy> NodeVisitor<V> for ValueVecCollector<V> {
     }
 }
 
-pub fn btree_to_value_vec<'a, V: Unpack + Copy>(
+pub fn btree_to_value_vec<V: Unpack + Copy>(
     path: &mut Vec<u64>,
-    engine: &'a dyn IoEngine,
+    engine: &dyn IoEngine,
     ignore_non_fatal: bool,
     root: u64,
 ) -> Result<Vec<V>> {
@@ -533,8 +533,8 @@ impl<V: Unpack> NodeVisitor<V> for NoopVisitor<V> {
     }
 }
 
-pub fn count_btree_blocks<'a, V: Unpack>(
-    engine: &'a dyn IoEngine,
+pub fn count_btree_blocks<V: Unpack>(
+    engine: &dyn IoEngine,
     path: &mut Vec<u64>,
     root: u64,
     metadata_sm: ASpaceMap,

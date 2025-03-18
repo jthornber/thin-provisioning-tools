@@ -166,7 +166,7 @@ impl<'a> DataRemapper<'a> {
     }
 }
 
-impl<'a> MetadataVisitor for DataRemapper<'a> {
+impl MetadataVisitor for DataRemapper<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.writer.superblock_b(sb)
     }

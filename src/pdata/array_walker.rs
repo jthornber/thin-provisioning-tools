@@ -65,7 +65,7 @@ impl<'a, V: Unpack> BlockValueVisitor<'a, V> {
     }
 }
 
-impl<'a, V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'a, V> {
+impl<V: Unpack> NodeVisitor<u64> for BlockValueVisitor<'_, V> {
     fn visit(
         &self,
         path: &[u64],

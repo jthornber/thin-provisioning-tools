@@ -75,7 +75,7 @@ impl<'a> InputProgram<'a> for EraDump {
     }
 }
 
-impl<'a> MetadataReader<'a> for EraDump {}
+impl MetadataReader<'_> for EraDump {}
 
 //------------------------------------------
 

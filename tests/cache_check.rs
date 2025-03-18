@@ -80,7 +80,7 @@ impl<'a> InputProgram<'a> for CacheCheck {
     }
 }
 
-impl<'a> MetadataReader<'a> for CacheCheck {}
+impl MetadataReader<'_> for CacheCheck {}
 
 //------------------------------------------
 

@@ -143,7 +143,7 @@ impl<'a> OutputVisitor<'a> {
     }
 }
 
-impl<'a> MetadataVisitor for OutputVisitor<'a> {
+impl MetadataVisitor for OutputVisitor<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<ir::Visit> {
         output_context(self.out.superblock_b(sb))
     }

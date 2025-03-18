@@ -25,15 +25,15 @@ struct EraEmitter<'a> {
     emitter: Mutex<&'a mut dyn MetadataVisitor>,
 }
 
-impl<'a> EraEmitter<'a> {
-    pub fn new(emitter: &'a mut dyn MetadataVisitor) -> Self {
+impl EraEmitter<'_> {
+    pub fn new(emitter: &mut dyn MetadataVisitor) -> EraEmitter {
         EraEmitter {
             emitter: Mutex::new(emitter),
         }
     }
 }
 
-impl<'a> dump_utils::ArrayVisitor<u32> for EraEmitter<'a> {
+impl dump_utils::ArrayVisitor<u32> for EraEmitter<'_> {
     fn visit(&self, index: u64, b: ArrayBlock<u32>) -> anyhow::Result<()> {
         let begin = index as u32 * b.header.max_entries;
         let end = begin + b.header.nr_entries;
@@ -127,7 +127,7 @@ impl<'a> LogicalEraEmitter<'a> {
     }
 }
 
-impl<'a> dump_utils::ArrayVisitor<u32> for LogicalEraEmitter<'a> {
+impl dump_utils::ArrayVisitor<u32> for LogicalEraEmitter<'_> {
     fn visit(&self, index: u64, b: ArrayBlock<u32>) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().unwrap();
 
@@ -162,7 +162,7 @@ impl<'a> OutputVisitor<'a> {
     }
 }
 
-impl<'a> MetadataVisitor for OutputVisitor<'a> {
+impl MetadataVisitor for OutputVisitor<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> anyhow::Result<ir::Visit> {
         output_context(self.out.superblock_b(sb))
     }

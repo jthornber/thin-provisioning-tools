@@ -140,8 +140,8 @@ pub struct LsTable<'a> {
     data_block_size: u64,
 }
 
-impl<'a> LsTable<'a> {
-    fn new(fields: &'a [OutputField], nr_rows: usize, bs: u32) -> Self {
+impl LsTable<'_> {
+    fn new(fields: &[OutputField], nr_rows: usize, bs: u32) -> LsTable {
         let grid = GridLayout::new_with_size(nr_rows, fields.len());
 
         LsTable {

@@ -48,7 +48,7 @@ mod format1 {
         }
     }
 
-    impl<'a> dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'a> {
+    impl dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'_> {
         fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> anyhow::Result<()> {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
@@ -112,7 +112,7 @@ mod format2 {
         }
     }
 
-    impl<'a> dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'a> {
+    impl dump_utils::ArrayVisitor<Mapping> for MappingEmitter<'_> {
         fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> anyhow::Result<()> {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
@@ -149,8 +149,8 @@ struct HintEmitter<'a> {
     valid_mappings: FixedBitSet,
 }
 
-impl<'a> HintEmitter<'a> {
-    pub fn new(emitter: &'a mut dyn MetadataVisitor, valid_mappings: FixedBitSet) -> Self {
+impl HintEmitter<'_> {
+    pub fn new(emitter: &mut dyn MetadataVisitor, valid_mappings: FixedBitSet) -> HintEmitter {
         HintEmitter {
             emitter: Mutex::new(emitter),
             valid_mappings,
@@ -158,7 +158,7 @@ impl<'a> HintEmitter<'a> {
     }
 }
 
-impl<'a> dump_utils::ArrayVisitor<Hint> for HintEmitter<'a> {
+impl dump_utils::ArrayVisitor<Hint> for HintEmitter<'_> {
     fn visit(&self, index: u64, b: ArrayBlock<Hint>) -> anyhow::Result<()> {
         let cbegin = index as u32 * b.header.max_entries;
         let cend = cbegin + b.header.nr_entries;
@@ -248,7 +248,7 @@ impl<'a> OutputVisitor<'a> {
     }
 }
 
-impl<'a> MetadataVisitor for OutputVisitor<'a> {
+impl MetadataVisitor for OutputVisitor<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> anyhow::Result<ir::Visit> {
         output_context(self.out.superblock_b(sb))
     }

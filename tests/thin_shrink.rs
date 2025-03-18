@@ -75,7 +75,7 @@ impl ThinBlock {
     //}
 }
 
-impl<'a, W: Write + Seek> Drop for ThinWriteRef<'a, W> {
+impl<W: Write + Seek> Drop for ThinWriteRef<'_, W> {
     fn drop(&mut self) {
         // FIXME: We shouldn't panic in a drop function, so any IO
         // errors will have to make their way back to the user
@@ -98,7 +98,7 @@ struct ThinXmlVisitor<'a, V: ThinVisitor> {
     thin_id: Option<u64>,
 }
 
-impl<'a, V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'a, V> {
+impl<V: ThinVisitor> MetadataVisitor for ThinXmlVisitor<'_, V> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
         self.inner
             .init(sb.data_block_size as usize, sb.nr_data_blocks)?;
@@ -196,7 +196,7 @@ impl<'a, W: Write + Seek> Stamper<'a, W> {
     }
 }
 
-impl<'a, W: Write + Seek> ThinVisitor for Stamper<'a, W> {
+impl<W: Write + Seek> ThinVisitor for Stamper<'_, W> {
     fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()> {
         self.data_block_size = data_block_size;
         self.provisioned.grow(nr_data_blocks as usize);
@@ -242,7 +242,7 @@ impl<'a, R: Read + Seek> Verifier<'a, R> {
     }
 }
 
-impl<'a, R: Read + Seek> ThinVisitor for Verifier<'a, R> {
+impl<R: Read + Seek> ThinVisitor for Verifier<'_, R> {
     fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()> {
         self.data_block_size = data_block_size;
         self.provisioned.grow(nr_data_blocks as usize);

@@ -25,8 +25,8 @@ struct RangeIterator<'a> {
     current: u64,
 }
 
-impl<'a> RangeIterator<'a> {
-    fn new(bitmaps: &'a [Block], nr_blocks: u64) -> Result<Self> {
+impl RangeIterator<'_> {
+    fn new(bitmaps: &[Block], nr_blocks: u64) -> Result<RangeIterator> {
         if bitmaps.is_empty() || nr_blocks > bitmaps.len() as u64 * ENTRIES_PER_BITMAP as u64 {
             return Err(anyhow!("invalid parameter"));
         }
@@ -64,7 +64,7 @@ fn find_first_unset(entries: &[BitmapEntry]) -> usize {
     i
 }
 
-impl<'a> Iterator for RangeIterator<'a> {
+impl Iterator for RangeIterator<'_> {
     type Item = std::io::Result<std::ops::Range<u64>>;
 
     fn next(&mut self) -> Option<Self::Item> {

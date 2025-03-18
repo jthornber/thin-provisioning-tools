@@ -32,7 +32,7 @@ impl<'a> OverflowChecker<'a> {
     }
 }
 
-impl<'a> NodeVisitor<u32> for OverflowChecker<'a> {
+impl NodeVisitor<u32> for OverflowChecker<'_> {
     fn visit(
         &self,
         _path: &[u64],

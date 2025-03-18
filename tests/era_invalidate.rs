@@ -82,7 +82,7 @@ impl<'a> InputProgram<'a> for EraInvalidate {
     }
 }
 
-impl<'a> MetadataReader<'a> for EraInvalidate {}
+impl MetadataReader<'_> for EraInvalidate {}
 
 //------------------------------------------
 

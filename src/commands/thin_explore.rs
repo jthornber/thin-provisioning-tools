@@ -155,7 +155,7 @@ struct SBWidget<'a> {
     sb: &'a Superblock,
 }
 
-impl<'a> StatefulWidget for SBWidget<'a> {
+impl StatefulWidget for SBWidget<'_> {
     type State = ListState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut ListState) {
@@ -262,7 +262,7 @@ struct HeaderWidget<'a> {
     hdr: &'a btree::NodeHeader,
 }
 
-impl<'a> Widget for HeaderWidget<'a> {
+impl Widget for HeaderWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let hdr = &self.hdr;
         let block = vec!["block".to_string(), format!("{}", hdr.block)];
@@ -426,7 +426,7 @@ where
     (items, i)
 }
 
-impl<'a, V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'a, V> {
+impl<V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'_, V> {
     type State = ListState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut ListState) {
