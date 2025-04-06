@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
+use portable_atomic::{AtomicU64, Ordering};
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::vec::Vec;
 

@@ -1,9 +1,9 @@
 use anyhow::anyhow;
+use portable_atomic::{AtomicU64, Ordering};
 use roaring::RoaringBitmap;
 use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
