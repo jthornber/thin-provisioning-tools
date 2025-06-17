@@ -7,6 +7,9 @@ use crate::pdata::array::{self, ArrayBlock};
 use crate::pdata::array_walker::{ArrayVisitor, ArrayWalker};
 use crate::pdata::space_map::*;
 
+#[cfg(test)]
+mod tests;
+
 //------------------------------------------
 
 pub struct CheckedBitSet {
@@ -89,6 +92,7 @@ impl ArrayVisitor<u64> for BitsetVisitor {
 struct BitsetCollector {
     bits: Mutex<FixedBitSet>,
     nr_bits: usize,
+    nr_entries: usize,
 }
 
 impl BitsetCollector {
@@ -96,6 +100,7 @@ impl BitsetCollector {
         BitsetCollector {
             bits: Mutex::new(FixedBitSet::with_capacity(nr_bits)),
             nr_bits,
+            nr_entries: div_up(nr_bits, fixedbitset::Block::BITS as usize),
         }
     }
 
@@ -104,29 +109,78 @@ impl BitsetCollector {
     }
 }
 
+#[cfg(target_pointer_width = "32")]
+fn copy_to_usize_slice_le(dest: &mut [usize], src: &[u64]) {
+    assert!(usize::BITS == 32);
+
+    let mut pos = 0;
+    for &val in src {
+        if pos == dest.len() {
+            break;
+        }
+
+        dest[pos] = (val & usize::MAX as u64) as usize;
+        pos += 1;
+
+        if pos < dest.len() {
+            dest[pos] = (val >> usize::BITS as u64) as usize;
+            pos += 1;
+        }
+    }
+}
+
 impl ArrayVisitor<u64> for BitsetCollector {
+    #[cfg(target_pointer_width = "64")]
     fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
         let mut bitset = self.bits.lock().unwrap();
-        let mut idx = (index as usize * b.header.max_entries as usize) << 1; // index of u32 in bitset array
-        let idx_end = div_up(self.nr_bits, 32);
-        let mut dest = bitset.as_mut_slice().iter_mut().skip(idx);
-        for entry in b.values.iter() {
-            let lower = (*entry & (u32::MAX as u64)) as u32;
-            *(dest.next().ok_or_else(|| {
-                array::value_err(format!("bitset size exceeds limit: {} bits", self.nr_bits))
-            })?) = lower;
-            idx += 1;
+        let begin = index as usize * b.header.max_entries as usize;
+        let end = begin + b.values.len();
 
-            if idx == idx_end {
-                break;
-            }
-
-            let upper = (*entry >> 32) as u32;
-            *(dest.next().ok_or_else(|| {
-                array::value_err(format!("bitset size exceeds limit: {} bits", self.nr_bits))
-            })?) = upper;
-            idx += 1;
+        if begin >= self.nr_entries || end > self.nr_entries {
+            return Err(array::value_err(format!(
+                "bitset size exceeds limit: {} bits",
+                self.nr_bits
+            )));
         }
+
+        let src: &[usize] = unsafe {
+            std::slice::from_raw_parts(b.values.as_ptr() as *const usize, b.values.len())
+        };
+        let dest: &mut [usize] = &mut bitset.as_mut_slice()[begin..end];
+        dest.copy_from_slice(src);
+
+        Ok(())
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    fn visit(&self, index: u64, b: ArrayBlock<u64>) -> array::Result<()> {
+        let mut bitset = self.bits.lock().unwrap();
+        let begin = (index as usize * b.header.max_entries as usize) * 2;
+        let end = begin + b.values.len() * 2;
+
+        /*
+         * For 32-bit targets, FixedBitSet stores its bits as an array of 32-bit
+         * usize entries, while the source ArrayBlock uses u64. When the number of
+         * 32-bit usize entries required to represent the bitset is odd, the upper
+         * half of the last u64 in the source is unused during conversion.
+         * The check below ensures the source ArrayBlock fits the allocated
+         * FixedBitSet, allowing at most one unused usize entry from the source.
+         *
+         * The check below is safe and correct when `self.nr_entries` is even,
+         * since the estimated size `end` is even as well, making
+         * `end == self.nr_entries + 1` impossible in this case.
+         */
+        if begin >= self.nr_entries || end > self.nr_entries + 1 {
+            return Err(array::value_err(format!(
+                "bitset size exceeds limit: {} bits",
+                self.nr_bits
+            )));
+        }
+
+        let end = std::cmp::min(end, self.nr_entries);
+        let dest = &mut bitset.as_mut_slice()[begin..end];
+        copy_to_usize_slice_le(dest, &b.values);
+
         Ok(())
     }
 }

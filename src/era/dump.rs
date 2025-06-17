@@ -240,11 +240,13 @@ fn dump_writeset(
     // [begin, end) denotes the range of set bits.
     let mut begin: u32 = 0;
     let mut end: u32 = 0;
+    let bits_per_block = fixedbitset::Block::BITS;
+    let bits_shift = bits_per_block.trailing_zeros();
     for (index, entry) in bits.as_slice().iter().enumerate() {
         let mut n = *entry;
 
-        if n == u32::MAX {
-            end = std::cmp::min(end + 32, ws.nr_bits);
+        if n == fixedbitset::Block::MAX {
+            end = std::cmp::min(end + bits_per_block, ws.nr_bits);
             continue;
         }
 
@@ -269,7 +271,7 @@ fn dump_writeset(
         }
 
         // emit the range if it ends before the entry boundary
-        let endpos = ((index as u32) << 5) + 32;
+        let endpos = (index as u32 + 1) << bits_shift;
         if end < endpos {
             if end > begin {
                 let m = ir::MarkedBlocks {
