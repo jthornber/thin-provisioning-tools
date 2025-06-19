@@ -167,7 +167,8 @@ pub fn to_exit_code<T>(report: &Report, result: anyhow::Result<T>) -> exitcode::
             .map_or_else(
                 || root_cause.downcast_ref::<std::io::Error>(),
                 |err| Some(err.as_ref()),
-            ).is_some_and(|err| err.kind() == std::io::ErrorKind::BrokenPipe);
+            )
+            .is_some_and(|err| err.kind() == std::io::ErrorKind::BrokenPipe);
 
         if !is_broken_pipe {
             if e.chain().len() > 1 {
