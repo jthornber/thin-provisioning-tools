@@ -148,7 +148,7 @@ impl SpindleIoEngine_ {
 
     fn read_(&self, loc: u64) -> io::Result<Block> {
         if let Some(z) = self.compressed.get(&(loc as u32)) {
-            unpack_block(z, loc).map_err(|_| io::Error::new(io::ErrorKind::Other, "unpack failed"))
+            unpack_block(z, loc).map_err(|_| io::Error::other("unpack failed"))
         } else {
             let b = Block::new(loc);
             self.input

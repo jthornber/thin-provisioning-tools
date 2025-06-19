@@ -45,11 +45,11 @@ impl SyncIoEngine {
     }
 
     fn bad_read<T>() -> Result<T> {
-        Err(io::Error::new(io::ErrorKind::Other, "read failed"))
+        Err(io::Error::other("read failed"))
     }
 
     fn bad_write() -> io::Error {
-        io::Error::new(io::ErrorKind::Other, "write failed")
+        io::Error::other("write failed")
     }
 
     fn read_many_<T: VectoredIo>(

@@ -46,7 +46,7 @@ pub fn is_file(path: &Path) -> io::Result<bool> {
 const BLKGETSIZE64: ioctl::RequestType = crate::request_code_read!(0x12, 114, usize);
 
 pub fn fail<T>(msg: &str) -> io::Result<T> {
-    let e = io::Error::new(io::ErrorKind::Other, msg);
+    let e = io::Error::other(msg);
     Err(e)
 }
 

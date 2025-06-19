@@ -71,7 +71,7 @@ impl VectoredIo for Ramdisk {
             }
 
             if !Self::is_valid_range(&invalid_pages, begin..begin + buf.iov_len as u32) {
-                return Err(io::Error::new(io::ErrorKind::Other, "read error"));
+                return Err(io::Error::other("read error"));
             }
 
             unsafe {
@@ -97,7 +97,7 @@ impl VectoredIo for Ramdisk {
             }
 
             if !Self::is_valid_range(&invalid_pages, begin..begin + buf.iov_len as u32) {
-                return Err(io::Error::new(io::ErrorKind::Other, "write error"));
+                return Err(io::Error::other("write error"));
             }
 
             unsafe {
@@ -121,7 +121,7 @@ impl FileExt for Ramdisk {
             &invalid_pages,
             offset as u32..offset as u32 + buf.len() as u32,
         ) {
-            return Err(io::Error::new(io::ErrorKind::Other, "read error"));
+            return Err(io::Error::other("read error"));
         }
         buf.clone_from_slice(&self.data.get_data()[offset as usize..(offset as usize + buf.len())]);
 
@@ -134,7 +134,7 @@ impl FileExt for Ramdisk {
             &invalid_pages,
             offset as u32..offset as u32 + buf.len() as u32,
         ) {
-            return Err(io::Error::new(io::ErrorKind::Other, "write error"));
+            return Err(io::Error::other("write error"));
         }
         self.data.get_data()[offset as usize..offset as usize + buf.len()].clone_from_slice(buf);
 

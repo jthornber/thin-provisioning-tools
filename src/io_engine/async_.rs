@@ -76,7 +76,7 @@ impl IoEngine for AsyncIoEngine {
 
         let nr_read = completion.wait()?;
         if nr_read != BLOCK_SIZE {
-            return Err(io::Error::new(io::ErrorKind::Other, "short read"));
+            return Err(io::Error::other("short read"));
         }
 
         Ok(b)
@@ -102,7 +102,7 @@ impl IoEngine for AsyncIoEngine {
                 }
                 Ok(nr_read) => {
                     if nr_read != BLOCK_SIZE {
-                        errs.insert(i, io::Error::new(io::ErrorKind::Other, "short read"));
+                        errs.insert(i, io::Error::other("short read"));
                     }
                 }
             }
@@ -111,7 +111,7 @@ impl IoEngine for AsyncIoEngine {
         let mut results = Vec::with_capacity(blocks.len());
         for (i, b) in blocks.into_iter().enumerate() {
             if let Some(e) = errs.get_mut(&i) {
-                let mut err = io::Error::new(io::ErrorKind::Other, "stub");
+                let mut err = io::Error::other("stub");
                 std::mem::swap(&mut err, e);
                 results.push(Err(err));
             } else {
@@ -128,7 +128,7 @@ impl IoEngine for AsyncIoEngine {
 
         let nr_written = completion.wait()?;
         if nr_written != BLOCK_SIZE {
-            return Err(io::Error::new(io::ErrorKind::Other, "short write"));
+            return Err(io::Error::other("short write"));
         }
 
         Ok(())
@@ -151,7 +151,7 @@ impl IoEngine for AsyncIoEngine {
                 }
                 Ok(nr_written) => {
                     if nr_written != BLOCK_SIZE {
-                        errs.insert(i, io::Error::new(io::ErrorKind::Other, "short write"));
+                        errs.insert(i, io::Error::other("short write"));
                     }
                 }
             }
@@ -160,7 +160,7 @@ impl IoEngine for AsyncIoEngine {
         let mut results = Vec::with_capacity(blocks.len());
         for i in 0..blocks.len() {
             if let Some(e) = errs.get_mut(&i) {
-                let mut err = io::Error::new(io::ErrorKind::Other, "stub");
+                let mut err = io::Error::other("stub");
                 std::mem::swap(&mut err, e);
                 results.push(Err(err));
             } else {
