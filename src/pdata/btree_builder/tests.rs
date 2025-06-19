@@ -42,6 +42,7 @@ impl Iterator for EntriesCounter {
 }
 
 #[test]
+#[allow(clippy::manual_div_ceil)]
 fn test_entries_counter() {
     type ValueType = u32;
     let max_entries = calc_max_entries::<ValueType>();
