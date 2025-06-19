@@ -23,8 +23,8 @@ Options:
   -m, --metadata-snap    Use metadata snapshot
       --root1 <BLOCKNR>  The root block for the first thin volume to diff
       --root2 <BLOCKNR>  The root block for the second thin volume to diff
-      --thin1 <DEV_ID>   The numeric identifier for the first thin volume to diff [aliases: snap1]
-      --thin2 <DEV_ID>   The numeric identifier for the second thin volume to diff [aliases: snap2]
+      --thin1 <DEV_ID>   The numeric identifier for the first thin volume to diff [aliases: --snap1]
+      --thin2 <DEV_ID>   The numeric identifier for the second thin volume to diff [aliases: --snap2]
   -V, --version          Print version
       --verbose          Provide extra information on the mappings";
 
