@@ -196,10 +196,7 @@ pub fn read_bitset_checked(
 ) -> (CheckedBitSet, Option<array::ArrayError>) {
     let w = ArrayWalker::new(engine, ignore_none_fatal);
     let v = BitsetVisitor::new(nr_bits);
-    let err = match w.walk(&v, root) {
-        Ok(()) => None,
-        Err(e) => Some(e),
-    };
+    let err = w.walk(&v, root).err();
     (v.get_bitset(), err)
 }
 
@@ -213,10 +210,7 @@ pub fn read_bitset_checked_with_sm(
 ) -> array::Result<(CheckedBitSet, Option<array::ArrayError>)> {
     let w = ArrayWalker::new_with_sm(engine, sm, ignore_none_fatal)?;
     let v = BitsetVisitor::new(nr_bits);
-    let err = match w.walk(&v, root) {
-        Ok(()) => None,
-        Err(e) => Some(e),
-    };
+    let err = w.walk(&v, root).err();
     Ok((v.get_bitset(), err))
 }
 
