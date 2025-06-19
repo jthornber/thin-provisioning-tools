@@ -582,7 +582,7 @@ fn copy_dirty_blocks(
         copy_all_dirty_blocks(ctx.engine.clone(), sb, copier, ctx.report.clone())?
     };
 
-    // Retry blocks ignoed by vectored io
+    // Retry blocks ignored by vectored io
     if !read_failed.is_empty() || !write_failed.is_empty() {
         let copier = Box::new(
             SyncCopier::<SimpleBlockIo<File>>::from_path(
