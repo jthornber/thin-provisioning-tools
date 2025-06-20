@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use nom::Parser;
 use nom::{number::complete::*, IResult};
 use std::io;
 
@@ -174,7 +175,7 @@ pub fn unpack_node_raw<V: Unpack>(
         }
     }
 
-    let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
+    let (i, keys) = convert_result(count(le_u64, header.nr_entries as usize).parse_complete(i))?;
 
     let mut last = None;
     for k in &keys {
@@ -188,10 +189,11 @@ pub fn unpack_node_raw<V: Unpack>(
     }
 
     let nr_free = header.max_entries - header.nr_entries;
-    let (i, _padding) = convert_result(count(le_u64, nr_free as usize)(i))?;
+    let (i, _padding) = convert_result(count(le_u64, nr_free as usize).parse_complete(i))?;
 
     if header.is_leaf {
-        let (_i, values) = convert_result(count(V::unpack, header.nr_entries as usize)(i))?;
+        let (_i, values) =
+            convert_result(count(V::unpack, header.nr_entries as usize).parse_complete(i))?;
 
         Ok(Node::Leaf {
             header,
@@ -199,7 +201,8 @@ pub fn unpack_node_raw<V: Unpack>(
             values,
         })
     } else {
-        let (_i, values) = convert_result(count(le_u64, header.nr_entries as usize)(i))?;
+        let (_i, values) =
+            convert_result(count(le_u64, header.nr_entries as usize).parse_complete(i))?;
         Ok(Node::Internal {
             header,
             keys,

@@ -1,6 +1,7 @@
 use std::{io, io::Write};
 use thiserror::Error;
 
+use nom::Parser;
 use nom::{bytes::complete::*, number::complete::*, IResult};
 
 use crate::pack::vm::*;
@@ -29,7 +30,7 @@ fn io_to_pr<T>(r: io::Result<T>) -> PResult<T> {
 //-------------------------------------------
 
 fn run64(i: &[u8], count: usize) -> IResult<&[u8], Vec<u64>> {
-    let (i, ns) = nom::multi::many_m_n(count, count, le_u64)(i)?;
+    let (i, ns) = nom::multi::many_m_n(count, count, le_u64).parse_complete(i)?;
     Ok((i, ns))
 }
 

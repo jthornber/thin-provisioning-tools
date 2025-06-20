@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, WriteBytesExt};
+use nom::Parser;
 use nom::{number::complete::*, IResult};
 use std::io::{self, Cursor};
 use std::sync::{Arc, Mutex};
@@ -33,7 +34,8 @@ impl Unpack for MetadataIndex {
         let (i, _csum) = le_u32(i)?;
         let (i, _padding) = le_u32(i)?;
         let (i, blocknr) = le_u64(i)?;
-        let (i, mut indexes) = nom::multi::count(IndexEntry::unpack, MAX_METADATA_BITMAPS)(i)?;
+        let (i, mut indexes) =
+            nom::multi::count(IndexEntry::unpack, MAX_METADATA_BITMAPS).parse_complete(i)?;
 
         // Drop unused entries that point to block 0
         let nr_bitmaps = indexes.iter().take_while(|e| e.blocknr != 0).count();

@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use nom::Parser;
 use nom::{multi::count, number::complete::*, IResult};
 use std::fmt;
 use std::io;
@@ -181,7 +182,10 @@ pub fn unpack_array_block<V: Unpack>(path: &[u64], data: &[u8]) -> Result<ArrayB
         return Err(array_block_err(path, "nr_entries > max_entries"));
     }
 
-    let (_i, values) = convert_result(path, count(V::unpack, header.nr_entries as usize)(i))?;
+    let (_i, values) = convert_result(
+        path,
+        count(V::unpack, header.nr_entries as usize).parse_complete(i),
+    )?;
 
     Ok(ArrayBlock { header, values })
 }
