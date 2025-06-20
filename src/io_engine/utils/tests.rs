@@ -50,7 +50,7 @@ impl TestContext {
         let block_begin = (bytes.start - self.offset) / self.block_size;
         let block_end = div_up(bytes.end - self.offset, self.block_size);
         for b in block_begin..block_end {
-            self.faulty_blocks.push(b);
+            let _ = self.faulty_blocks.try_push(b);
         }
     }
 }

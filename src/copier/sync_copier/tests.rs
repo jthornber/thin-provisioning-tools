@@ -177,7 +177,7 @@ impl CopierTest {
         self.src.invalidate(bytes);
 
         for b in block_begin..block_end {
-            self.faulty_src_blocks.push(b);
+            let _ = self.faulty_src_blocks.try_push(b);
         }
 
         Ok(())
@@ -190,7 +190,7 @@ impl CopierTest {
         self.dst.invalidate(bytes);
 
         for b in block_begin..block_end {
-            self.faulty_dst_blocks.push(b);
+            let _ = self.faulty_dst_blocks.try_push(b);
         }
 
         Ok(())

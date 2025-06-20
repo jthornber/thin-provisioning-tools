@@ -170,7 +170,7 @@ impl CopierTest {
         self.src.invalidate(bytes);
 
         for p in page_begin..page_end {
-            self.faulty_src_pages.push(p);
+            let _ = self.faulty_src_pages.try_push(p);
         }
 
         Ok(())
@@ -183,7 +183,7 @@ impl CopierTest {
         self.dst.invalidate(bytes);
 
         for p in page_begin..page_end {
-            self.faulty_dst_pages.push(p);
+            let _ = self.faulty_dst_pages.try_push(p);
         }
 
         Ok(())
