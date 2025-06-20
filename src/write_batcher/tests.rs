@@ -52,7 +52,7 @@ fn runs_out_of_space_should_fail() {
 fn allocated_ranges_should_be_coalesced() {
     let mut sm = MockTestSpaceMap::new();
     let mut blocks: Vec<u64> = (0..65536).collect();
-    blocks.shuffle(&mut rand::thread_rng());
+    blocks.shuffle(&mut rand::rng());
     let mut b_iter = blocks.into_iter();
     sm.expect_alloc().times(65536).returning(move || {
         let b = b_iter.next().unwrap();

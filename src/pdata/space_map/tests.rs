@@ -32,7 +32,7 @@ fn test_runs_out_of_space(sm: &mut dyn SpaceMap) {
 
 fn test_inc_and_dec(sm: &mut dyn SpaceMap) {
     let nr_blocks = sm.get_nr_blocks().unwrap();
-    let b = rand::thread_rng().gen_range(0..nr_blocks);
+    let b = rand::rng().random_range(0..nr_blocks);
 
     for i in 0..255 {
         assert_eq!(sm.get(b).unwrap(), i);

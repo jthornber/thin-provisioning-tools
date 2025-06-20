@@ -74,16 +74,16 @@ impl MetadataGenerator for CacheGenerator {
         // cblocks are chosen at random, with no locality
         // FIXME: slow & memory demanding
         let mut cblocks = (0..self.nr_cache_blocks).collect::<Vec<u32>>();
-        cblocks.shuffle(&mut rand::thread_rng());
+        cblocks.shuffle(&mut rand::rng());
         cblocks.truncate(nr_resident as usize);
 
         // The origin blocks are allocated in randomly positioned runs.
         let mut oblocks = roaring::RoaringBitmap::new();
         let mut total_allocated = 0;
-        let mut rng = rand::thread_rng();
-        let mut dirty_rng = rand::thread_rng();
+        let mut rng = rand::rng();
+        let mut dirty_rng = rand::rng();
         'top: loop {
-            let oblock = rng.gen_range(0..nr_origin_blocks);
+            let oblock = rng.random_range(0..nr_origin_blocks);
 
             'run: for i in 0..self.hotspot_size {
                 if total_allocated >= nr_resident {
@@ -112,7 +112,7 @@ impl MetadataGenerator for CacheGenerator {
             v.mapping(&ir::Map {
                 cblock,
                 oblock: oblock as u64,
-                dirty: dirty_rng.gen_ratio(self.percent_dirty as u32, 100),
+                dirty: dirty_rng.random_ratio(self.percent_dirty as u32, 100),
             })?;
         }
         v.mappings_e()?;

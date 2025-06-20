@@ -134,7 +134,7 @@ fn mk_runs(thin_id: u32, total_len: u64, run_len: std::ops::Range<u64>) -> Vec<T
     while b < total_len {
         let len = u64::min(
             total_len - b,
-            thread_rng().gen_range(run_len.start..run_len.end),
+            rand::rng().random_range(run_len.start..run_len.end),
         );
         runs.push(ThinRun {
             thin_id,
@@ -184,7 +184,7 @@ impl XmlGen for FragmentedS {
         }
 
         // Shuffle
-        runs.shuffle(&mut rand::thread_rng());
+        runs.shuffle(&mut rand::rng());
 
         // map across the data
         let mut maps = Vec::new();
@@ -262,13 +262,13 @@ impl Allocator {
         while b < total_len {
             let len = u64::min(
                 total_len - b,
-                thread_rng().gen_range(run_len.start..run_len.end),
+                rand::rng().random_range(run_len.start..run_len.end),
             );
             runs.push(b..(b + len));
             b += len;
         }
 
-        runs.shuffle(&mut thread_rng());
+        runs.shuffle(&mut rand::rng());
         let runs: VecDeque<Range<u64>> = runs.iter().cloned().collect();
         Allocator { runs }
     }
@@ -441,9 +441,9 @@ fn mk_origin(
     let mut b = 0;
 
     while b < total_len {
-        let len = u64::min(thread_rng().gen_range(16..64), total_len - b);
+        let len = u64::min(rand::rng().random_range(16..64), total_len - b);
 
-        let n = thread_rng().gen_range(0..100);
+        let n = rand::rng().random_range(0..100);
 
         if n < percent_mapped {
             for data in allocator.alloc(len)? {
@@ -484,10 +484,10 @@ fn mk_snap_mapping(
     while b < total_len {
         let len = u64::min(
             total_len - b,
-            thread_rng().gen_range(run_len.start..run_len.end),
+            rand::rng().random_range(run_len.start..run_len.end),
         );
 
-        let n = thread_rng().gen_range(0..100);
+        let n = rand::rng().random_range(0..100);
 
         if n < same_percent {
             runs.push(SnapRun(SnapRunType::Same, len));

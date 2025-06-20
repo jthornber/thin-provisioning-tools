@@ -33,7 +33,7 @@ impl IndependentSequence {
             begin,
             end,
             prob,
-            rng: rand::thread_rng(),
+            rng: rand::rng(),
         }
     }
 }
@@ -48,7 +48,7 @@ impl Iterator for IndependentSequence {
         }
 
         let mut b = self.begin;
-        while b < self.end && self.rng.gen_range(0..100) >= self.prob {
+        while b < self.end && self.rng.random_range(0..100) >= self.prob {
             b += 1;
         }
 
@@ -57,7 +57,7 @@ impl Iterator for IndependentSequence {
         }
 
         let mut e = b + 1;
-        while e < self.end && self.rng.gen_range(0..100) < self.prob {
+        while e < self.end && self.rng.random_range(0..100) < self.prob {
             e += 1;
         }
         self.begin = e + 1;
@@ -109,10 +109,10 @@ impl CleanShutdownMeta {
     }
 
     fn generate_era_array(v: &mut dyn MetadataVisitor, nr_blocks: u32, max_era: u32) -> Result<()> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         v.era_b()?;
         for b in 0..nr_blocks {
-            let era = rng.gen_range(0..max_era);
+            let era = rng.random_range(0..max_era);
             v.era(&ir::Era { block: b, era })?;
         }
         v.era_e()?;

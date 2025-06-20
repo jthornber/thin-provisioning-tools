@@ -3,12 +3,12 @@ use super::*;
 //------------------------------------------
 
 fn mk_random_leaf(nr_entries: usize) -> Node<u64> {
-    use rand::{thread_rng, Rng};
+    use rand::{rng, Rng};
 
     let mut keys = vec![0u64; nr_entries];
     let mut values = vec![0u64; nr_entries];
-    thread_rng().fill(&mut keys[..]);
-    thread_rng().fill(&mut values[..]);
+    rng().fill(&mut keys[..]);
+    rng().fill(&mut values[..]);
     keys.sort_unstable();
 
     Node::Leaf {

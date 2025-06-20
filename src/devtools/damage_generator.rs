@@ -128,7 +128,7 @@ pub fn create_metadata_leaks(
         ));
     }
 
-    blocks.shuffle(&mut rand::thread_rng());
+    blocks.shuffle(&mut rand::rng());
     blocks.truncate(nr_leaks);
     blocks.sort_unstable();
 

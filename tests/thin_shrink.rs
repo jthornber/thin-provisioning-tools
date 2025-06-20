@@ -312,8 +312,8 @@ where
     write_xml(&xml_before, scenario)?;
     create_data_file(&data_path, &xml_before)?;
 
-    let mut rng = rand::thread_rng();
-    let seed = rng.gen::<u64>();
+    let mut rng = rand::rng();
+    let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;
@@ -378,8 +378,8 @@ where
 
     create_data_file(&data_path, &xml_before)?;
 
-    let mut rng = rand::thread_rng();
-    let seed = rng.gen::<u64>();
+    let mut rng = rand::rng();
+    let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;
@@ -602,8 +602,8 @@ fn shrink_multiple_snaps() -> Result<()> {
     run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
     create_data_file(&data_path, &xml_before)?;
 
-    let mut rng = rand::thread_rng();
-    let seed = rng.gen::<u64>();
+    let mut rng = rand::rng();
+    let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;
@@ -639,8 +639,8 @@ fn shrink_multiple_snaps_in_binary() -> Result<()> {
     run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
     create_data_file(&data_path, &xml_before)?;
 
-    let mut rng = rand::thread_rng();
-    let seed = rng.gen::<u64>();
+    let mut rng = rand::rng();
+    let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
     verify(&xml_before, &data_path, seed)?;

@@ -21,8 +21,8 @@ fn mk_random_ops(src: Range<u64>, dst: Range<u64>, nr_ops: usize) -> Vec<CopyOp>
     let mut src_blocks: Vec<u64> = src.into_iter().collect();
     let mut dst_blocks: Vec<u64> = dst.into_iter().collect();
 
-    src_blocks.shuffle(&mut rand::thread_rng());
-    dst_blocks.shuffle(&mut rand::thread_rng());
+    src_blocks.shuffle(&mut rand::rng());
+    dst_blocks.shuffle(&mut rand::rng());
 
     src_blocks
         .into_iter()
@@ -143,7 +143,7 @@ impl CopierTest {
             block_size: block_size as usize,
             nr_src_blocks: nr_src_blocks as u64,
             nr_dst_blocks: nr_dst_blocks as u64,
-            seed: rand::thread_rng().gen::<u64>(),
+            seed: rand::rng().random::<u64>(),
             faulty_src_pages: RoaringBitmap::new(),
             faulty_dst_pages: RoaringBitmap::new(),
         }

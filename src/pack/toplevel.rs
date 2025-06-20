@@ -27,7 +27,7 @@ const MAGIC: u64 = 0xa537a0aa6309ef77;
 const PACK_VERSION: u64 = 3;
 
 fn shuffle<T>(v: &mut [T]) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     v.shuffle(&mut rng);
 }
 

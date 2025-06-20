@@ -179,7 +179,7 @@ impl WritebackTest {
             origin_dev,
             fast_dev_offset: 0,
             origin_dev_offset: 0,
-            seed: rand::thread_rng().gen::<u64>(),
+            seed: rand::rng().random::<u64>(),
         })
     }
 

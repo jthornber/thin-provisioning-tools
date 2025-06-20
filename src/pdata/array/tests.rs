@@ -3,10 +3,10 @@ use super::*;
 //------------------------------------------
 
 fn mk_random_block(nr_entries: usize) -> ArrayBlock<u64> {
-    use rand::{thread_rng, Rng};
+    use rand::{rng, Rng};
 
     let mut values = vec![0u64; nr_entries];
-    thread_rng().fill(&mut values[..]);
+    rng().fill(&mut values[..]);
 
     ArrayBlock {
         header: ArrayBlockHeader {
