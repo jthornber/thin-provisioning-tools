@@ -1,3 +1,12 @@
+v1.2.0
+=======
+
+- Remove atty and safemem dependencies due to security concerns
+- Remove unused threaded btree walk code
+- Change BTreeWalker constructor to take IoEngine by reference for simplicity
+  (breaking change)
+- Update fixedbitset and few other dependencies with required code changes
+
 v1.1.0
 =======
 
