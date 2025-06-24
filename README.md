@@ -4,6 +4,15 @@ Introduction
 A suite of tools for manipulating the metadata of the dm-thin, dm-cache and
 dm-era device-mapper targets.
 
+## Project hosting
+
+The upstream repository has been moved to
+[device-mapper-utils](https://github.com/device-mapper-utils/), an organization
+established to collect utilities for various device mapper targets.  While the
+original repository remains mirrored, we recommend cloning from the
+[new location](https://github.com/device-mapper-utils/thin-provisioning-tools)
+for better long-term maintenance.
+
 Requirements
 ============
 
