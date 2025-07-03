@@ -199,11 +199,12 @@ pub fn read_space_map(
             keys: &[u64],
             values: &[u32],
         ) -> btree::Result<()> {
-            for (&k, &v) in keys.iter().zip(values.iter()) {
-                for _ in 0..v {
-                    self.aggregator.inc_single(k);
-                }
-            }
+            let batch = keys
+                .iter()
+                .copied()
+                .zip(values.iter().copied())
+                .collect::<Vec<(u64, u32)>>();
+            self.aggregator.set_batch(&batch);
             Ok(())
         }
 
