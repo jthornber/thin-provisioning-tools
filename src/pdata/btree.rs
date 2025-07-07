@@ -260,13 +260,27 @@ pub fn calc_max_entries<V: Unpack>() -> usize {
 }
 
 // Verify the checksum of a node
-fn verify_checksum(b: &Block) -> std::result::Result<(), NodeError> {
+fn verify_checksum(data: &[u8]) -> std::result::Result<(), NodeError> {
     use crate::checksum;
-    match checksum::metadata_block_type(b.get_data()) {
+    match checksum::metadata_block_type(data) {
         checksum::BT::NODE => Ok(()),
         checksum::BT::UNKNOWN => Err(NodeError::ChecksumError),
         _ => Err(NodeError::NotANode),
     }
+}
+
+pub fn check_and_unpack_node_<V: Unpack>(
+    data: &[u8],
+    loc: u64,
+    ignore_non_fatal: bool,
+    is_root: bool,
+) -> std::result::Result<Node<V>, NodeError> {
+    verify_checksum(data)?;
+    let node = unpack_node_raw::<V>(data, ignore_non_fatal, is_root)?;
+    if node.get_header().block != loc {
+        return Err(NodeError::BlockNrMismatch);
+    }
+    Ok(node)
 }
 
 // Unpack a node and verify the checksum.
@@ -276,12 +290,7 @@ pub fn check_and_unpack_node<V: Unpack>(
     ignore_non_fatal: bool,
     is_root: bool,
 ) -> std::result::Result<Node<V>, NodeError> {
-    verify_checksum(b)?;
-    let node = unpack_node_raw::<V>(b.get_data(), ignore_non_fatal, is_root)?;
-    if node.get_header().block != b.loc {
-        return Err(NodeError::BlockNrMismatch);
-    }
-    Ok(node)
+    check_and_unpack_node_(b.get_data(), b.loc, ignore_non_fatal, is_root)
 }
 
 //------------------------------------------
