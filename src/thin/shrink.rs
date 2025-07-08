@@ -168,7 +168,9 @@ impl<'a> DataRemapper<'a> {
 
 impl MetadataVisitor for DataRemapper<'_> {
     fn superblock_b(&mut self, sb: &ir::Superblock) -> Result<Visit> {
-        self.writer.superblock_b(sb)
+        let mut sb = sb.clone();
+        sb.nr_data_blocks = self.nr_blocks;
+        self.writer.superblock_b(&sb)
     }
 
     fn superblock_e(&mut self) -> Result<Visit> {

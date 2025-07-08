@@ -40,11 +40,23 @@ fn common_sb(nr_blocks: u64, time: u32) -> ir::Superblock {
 
 //------------------------------------------
 
-pub struct EmptyPoolS {}
+pub struct EmptyPoolS {
+    pub old_nr_data_blocks: u64,
+    pub new_nr_data_blocks: u64,
+}
+
+impl EmptyPoolS {
+    pub fn new(old_nr_data_blocks: u64, new_nr_data_blocks: u64) -> Self {
+        Self {
+            old_nr_data_blocks,
+            new_nr_data_blocks,
+        }
+    }
+}
 
 impl XmlGen for EmptyPoolS {
     fn generate_xml(&mut self, v: &mut dyn MetadataVisitor) -> Result<()> {
-        v.superblock_b(&common_sb(1024, 0))?;
+        v.superblock_b(&common_sb(self.old_nr_data_blocks, 0))?;
         v.superblock_e()?;
         Ok(())
     }

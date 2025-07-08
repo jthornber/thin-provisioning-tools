@@ -225,16 +225,18 @@ impl<W: Write + Seek> ThinVisitor for Stamper<'_, W> {
 struct Verifier<'a, R: Read + Seek> {
     data_file: &'a mut R,
     data_block_size: usize, // in sectors
+    nr_data_blocks: u64,
     seed: u64,
     provisioned: FixedBitSet, // provisioned data blocks
     salts: Vec<u64>,          // salts for each data block
 }
 
 impl<'a, R: Read + Seek> Verifier<'a, R> {
-    fn new(r: &'a mut R, seed: u64) -> Verifier<'a, R> {
+    fn new(r: &'a mut R, nr_data_blocks: u64, seed: u64) -> Verifier<'a, R> {
         Verifier {
             data_file: r,
             data_block_size: 0,
+            nr_data_blocks,
             seed,
             provisioned: FixedBitSet::new(),
             salts: Vec::new(),
@@ -244,6 +246,7 @@ impl<'a, R: Read + Seek> Verifier<'a, R> {
 
 impl<R: Read + Seek> ThinVisitor for Verifier<'_, R> {
     fn init(&mut self, data_block_size: usize, nr_data_blocks: u64) -> Result<()> {
+        anyhow::ensure!(nr_data_blocks == self.nr_data_blocks);
         self.data_block_size = data_block_size;
         self.provisioned.grow(nr_data_blocks as usize);
         self.salts.resize(nr_data_blocks as usize, self.seed);
@@ -289,14 +292,15 @@ fn stamp(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
     thin_visit(xml, &mut stamper)
 }
 
-fn verify(xml_path: &Path, data_path: &Path, seed: u64) -> Result<()> {
+fn verify(xml_path: &Path, data_path: &Path, nr_data_blocks: u64, seed: u64) -> Result<()> {
     let mut data = OpenOptions::new().read(true).write(false).open(data_path)?;
     let xml = OpenOptions::new().read(true).write(false).open(xml_path)?;
-    let mut verifier = Verifier::new(&mut data, seed);
+    let mut verifier = Verifier::new(&mut data, nr_data_blocks, seed);
     thin_visit(xml, &mut verifier)
 }
 
 trait Scenario {
+    fn get_old_nr_blocks(&self) -> u64;
     fn get_new_nr_blocks(&self) -> u64;
 }
 
@@ -316,7 +320,7 @@ where
     let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-    verify(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, scenario.get_old_nr_blocks(), seed)?;
 
     let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
 
@@ -333,7 +337,7 @@ where
 
     if expect_ok {
         run_ok(cmd)?;
-        verify(&xml_after, &data_path, seed)?;
+        verify(&xml_after, &data_path, scenario.get_new_nr_blocks(), seed)?;
     } else {
         run_fail(cmd)?;
     }
@@ -382,7 +386,7 @@ where
     let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-    verify(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, scenario.get_old_nr_blocks(), seed)?;
 
     let new_nr_blocks = scenario.get_new_nr_blocks().to_string();
 
@@ -401,7 +405,7 @@ where
     if expect_ok {
         run_ok(cmd)?;
         run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
-        verify(&xml_after, &data_path, seed)?;
+        verify(&xml_after, &data_path, scenario.get_new_nr_blocks(), seed)?;
     } else {
         run_fail(cmd)?;
     }
@@ -426,20 +430,28 @@ where
 //------------------------------------
 
 impl Scenario for EmptyPoolS {
+    fn get_old_nr_blocks(&self) -> u64 {
+        self.old_nr_data_blocks
+    }
+
     fn get_new_nr_blocks(&self) -> u64 {
-        512
+        self.new_nr_data_blocks
     }
 }
 
 #[test]
 fn shrink_empty_pool() -> Result<()> {
-    let mut s = EmptyPoolS {};
+    let mut s = EmptyPoolS::new(1024, 512);
     test_shrink(&mut s)
 }
 
 //------------------------------------
 
 impl Scenario for SingleThinS {
+    fn get_old_nr_blocks(&self) -> u64 {
+        self.old_nr_data_blocks
+    }
+
     fn get_new_nr_blocks(&self) -> u64 {
         self.new_nr_data_blocks
     }
@@ -522,6 +534,10 @@ fn shrink_insufficient_space_in_binary() -> Result<()> {
 //------------------------------------
 
 impl Scenario for FragmentedS {
+    fn get_old_nr_blocks(&self) -> u64 {
+        self.old_nr_data_blocks
+    }
+
     fn get_new_nr_blocks(&self) -> u64 {
         self.new_nr_data_blocks
     }
@@ -580,6 +596,10 @@ fn shrink_fragmented_thin_64_in_binary() -> Result<()> {
 //------------------------------------
 
 impl Scenario for SnapS {
+    fn get_old_nr_blocks(&self) -> u64 {
+        self.old_nr_data_blocks
+    }
+
     fn get_new_nr_blocks(&self) -> u64 {
         self.new_nr_data_blocks
     }
@@ -598,6 +618,7 @@ fn shrink_multiple_snaps() -> Result<()> {
     let meta_before = prep_rebuilt_metadata(&mut td)?;
     let xml_before = td.mk_path("before.xml");
     let data_path = td.mk_path("data.bin");
+    let data_usage = get_data_usage(&meta_before)?;
 
     run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
     create_data_file(&data_path, &xml_before)?;
@@ -606,10 +627,10 @@ fn shrink_multiple_snaps() -> Result<()> {
     let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-    verify(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, data_usage.0, seed)?;
 
     let xml_after = td.mk_path("after.xml");
-    let new_nr_blocks = get_data_usage(&meta_before)?.1.to_string();
+    let new_nr_blocks = data_usage.1.to_string();
 
     run_ok(thin_shrink_cmd(args![
         "-i",
@@ -622,7 +643,7 @@ fn shrink_multiple_snaps() -> Result<()> {
         &new_nr_blocks
     ]))?;
 
-    verify(&xml_after, &data_path, seed)?;
+    verify(&xml_after, &data_path, data_usage.1, seed)?;
     Ok(())
 }
 
@@ -635,6 +656,7 @@ fn shrink_multiple_snaps_in_binary() -> Result<()> {
     let meta_before = prep_rebuilt_metadata(&mut td)?;
     let xml_before = td.mk_path("before.xml");
     let data_path = td.mk_path("data.bin");
+    let data_usage = get_data_usage(&meta_before)?;
 
     run_ok(thin_dump_cmd(args![&meta_before, "-o", &xml_before]))?;
     create_data_file(&data_path, &xml_before)?;
@@ -643,11 +665,11 @@ fn shrink_multiple_snaps_in_binary() -> Result<()> {
     let seed = rng.random::<u64>();
 
     stamp(&xml_before, &data_path, seed)?;
-    verify(&xml_before, &data_path, seed)?;
+    verify(&xml_before, &data_path, data_usage.0, seed)?;
 
     let meta_after = td.mk_path("after.bin");
     let xml_after = td.mk_path("after.xml");
-    let new_nr_blocks = get_data_usage(&meta_before)?.1.to_string();
+    let new_nr_blocks = data_usage.1.to_string();
 
     file_utils::create_sized_file(&meta_after, file_utils::file_size(&meta_before)?)?;
 
@@ -664,7 +686,7 @@ fn shrink_multiple_snaps_in_binary() -> Result<()> {
     ]))?;
 
     run_ok(thin_dump_cmd(args![&meta_after, "-o", &xml_after]))?;
-    verify(&xml_after, &data_path, seed)?;
+    verify(&xml_after, &data_path, data_usage.1, seed)?;
     Ok(())
 }
 
