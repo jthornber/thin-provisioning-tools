@@ -15,8 +15,8 @@ use crate::report::Report;
 //------------------------------------------
 
 pub struct BitmapLeak {
-    blocknr: u64, // blocknr for the first entry in the bitmap
-    loc: u64,     // location of the bitmap
+    pub blocknr: u64, // blocknr for the first entry in the bitmap
+    pub loc: u64,     // location of the bitmap
 }
 
 //------------------------------------------
