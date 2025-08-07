@@ -28,7 +28,9 @@ where
     let mut r = range_iter.next().unwrap_or(u64::MAX..u64::MAX);
     let mut f = free_iter.next().unwrap_or(u64::MAX..u64::MAX);
 
-    while !r.is_empty() && !f.is_empty() {
+
+    while !r.is_empty() && !f.is_empty() &&
+        r.start != u64::MAX && f.start != u64::MAX {
         let rlen = range_len(&r);
         let flen = range_len(&f);
 
@@ -103,6 +105,24 @@ fn test_build_remaps() {
 
     for t in tests {
         assert_eq!(build_remaps(t.ranges, t.free).unwrap(), t.result);
+    }
+
+
+    let tests = vec![
+        // sentinel at start: no free space
+        Test {
+            ranges: vec![0..10],
+            free: vec![],
+        },
+        // sentinel mid-loop: partial free, then none
+        Test {
+            ranges: vec![0..5, 5..10],
+            free: vec![100..103],
+        },
+    ];
+
+    for t in tests {
+        assert!(build_remaps(t.ranges, t.free).is_err());
     }
 }
 
