@@ -59,50 +59,162 @@ where
     }
 }
 
-#[test]
-fn test_build_remaps() {
+#[cfg(test)]
+mod remap_tests {
+    use super::*;
+
     struct Test {
         ranges: Vec<BlockRange>,
         free: Vec<BlockRange>,
-        result: Vec<(BlockRange, u64)>,
+        result: Result<Vec<(BlockRange, u64)>>,
     }
 
-    #[allow(clippy::single_range_in_vec_init)]
-    let tests = vec![
-        // noop
-        Test {
-            ranges: vec![],
-            free: vec![],
-            result: vec![],
-        },
-        // no inputs
-        Test {
-            ranges: vec![],
-            free: vec![0..100],
-            result: vec![],
-        },
-        // fit a single range
-        Test {
-            ranges: vec![1000..1002],
-            free: vec![0..100],
-            result: vec![(1000..1002, 0)],
-        },
-        // fit multiple ranges
-        Test {
-            ranges: vec![1000..1002, 1100..1110],
-            free: vec![0..100],
-            result: vec![(1000..1002, 0), (1100..1110, 2)],
-        },
-        // split an input range
-        Test {
-            ranges: vec![100..120],
-            free: vec![0..5, 20..23, 30..50],
-            result: vec![(100..105, 0), (105..108, 20), (108..120, 30)],
-        },
-    ];
+    fn run_build_remaps_test(test: &Test) {
+        let remaps = build_remaps(test.ranges.iter().cloned(), test.free.iter().cloned());
+        match (&remaps, &test.result) {
+            (Ok(actual), Ok(expected)) => assert_eq!(actual, expected),
+            (Err(actual), Err(expected)) => assert_eq!(actual.to_string(), expected.to_string()),
+            (Ok(actual), Err(expected)) => {
+                panic!("got {:?}, while expected {:?}", actual, expected)
+            }
+            (Err(actual), Ok(expected)) => {
+                panic!("got {:?}, while expected {:?}", actual, expected)
+            }
+        }
+    }
 
-    for t in tests {
-        assert_eq!(build_remaps(t.ranges, t.free).unwrap(), t.result);
+    #[test]
+    fn test_build_remaps_one_to_one() {
+        #[allow(clippy::single_range_in_vec_init)]
+        let tests = vec![
+            // basic fitting
+            Test {
+                ranges: vec![1000..1002],
+                free: vec![0..100],
+                result: Ok(vec![(1000..1002, 0)]),
+            },
+            // exact fitting
+            Test {
+                ranges: vec![1000..1002],
+                free: vec![0..2],
+                result: Ok(vec![(1000..1002, 0)]),
+            },
+            // error: insufficient space
+            Test {
+                ranges: vec![1000..1002],
+                free: vec![0..1],
+                result: Err(anyhow!("Insufficient free space")),
+            },
+            // error: no free space
+            Test {
+                ranges: vec![0..10],
+                free: vec![],
+                result: Err(anyhow!("Insufficient free space")),
+            },
+        ];
+        for test in &tests {
+            run_build_remaps_test(test);
+        }
+    }
+
+    #[test]
+    fn test_build_remaps_one_to_many() {
+        #[allow(clippy::single_range_in_vec_init)]
+        let tests = vec![
+            // split an input range
+            Test {
+                ranges: vec![100..120],
+                free: vec![0..5, 20..23, 30..50],
+                result: Ok(vec![(100..105, 0), (105..108, 20), (108..120, 30)]),
+            },
+            // error: insufficient total space
+            Test {
+                ranges: vec![100..120],
+                free: vec![0..5, 20..30],
+                result: Err(anyhow!("Insufficient free space")),
+            },
+        ];
+        for test in &tests {
+            run_build_remaps_test(test);
+        }
+    }
+
+    #[test]
+    fn test_build_remaps_many_to_one() {
+        #[allow(clippy::single_range_in_vec_init)]
+        let tests = vec![
+            // fit multiple ranges
+            Test {
+                ranges: vec![1000..1002, 1100..1110],
+                free: vec![0..100],
+                result: Ok(vec![(1000..1002, 0), (1100..1110, 2)]),
+            },
+            // error: insufficient space for all ranges
+            Test {
+                ranges: vec![1000..1002, 1100..1110],
+                free: vec![0..10],
+                result: Err(anyhow!("Insufficient free space")),
+            },
+        ];
+        for test in &tests {
+            run_build_remaps_test(test);
+        }
+    }
+
+    #[test]
+    fn test_build_remaps_many_to_many() {
+        //#[allow(clippy::single_range_in_vec_init)]
+        let tests = vec![
+            // exact fitting (one-to-one)
+            Test {
+                ranges: vec![100..103, 200..205, 300..304],
+                free: vec![0..3, 10..15, 20..24],
+                result: Ok(vec![(100..103, 0), (200..205, 10), (300..304, 20)]),
+            },
+            // interleaved pattern
+            Test {
+                ranges: vec![100..102, 200..203, 300..305],
+                free: vec![0..10, 20..30],
+                result: Ok(vec![(100..102, 0), (200..203, 2), (300..305, 5)]),
+            },
+            // error: complex insufficient space
+            Test {
+                ranges: vec![100..105, 200..210, 300..315],
+                free: vec![0..3, 10..12, 20..25],
+                result: Err(anyhow!("Insufficient free space")),
+            },
+        ];
+        for test in &tests {
+            run_build_remaps_test(test);
+        }
+    }
+
+    #[test]
+    fn test_build_remaps_edge_cases() {
+        #[allow(clippy::single_range_in_vec_init)]
+        let tests = vec![
+            // noop
+            Test {
+                ranges: vec![],
+                free: vec![],
+                result: Ok(vec![]),
+            },
+            // no inputs
+            Test {
+                ranges: vec![],
+                free: vec![0..100],
+                result: Ok(vec![]),
+            },
+            // boundary values
+            Test {
+                ranges: vec![(u64::MAX - 5)..(u64::MAX)],
+                free: vec![(u64::MAX - 10)..(u64::MAX - 5)],
+                result: Ok(vec![((u64::MAX - 5)..(u64::MAX), u64::MAX - 10)]),
+            },
+        ];
+        for test in &tests {
+            run_build_remaps_test(test);
+        }
     }
 }
 
