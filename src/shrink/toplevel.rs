@@ -8,10 +8,6 @@ pub fn range_len(r: &BlockRange) -> u64 {
     r.end - r.start
 }
 
-pub fn is_empty(r: &BlockRange) -> bool {
-    r.start == r.end
-}
-
 //---------------------------------------
 
 pub fn build_remaps<T1, T2>(ranges: T1, free: T2) -> Result<Vec<(BlockRange, u64)>>
@@ -276,7 +272,7 @@ pub fn remap(r: &BlockRange, remaps: &[(BlockRange, u64)]) -> Vec<BlockRange> {
                 mapped.push(r.start..(r.start + len));
                 r = (r.start + len)..r.end;
 
-                if is_empty(&r) {
+                if r.is_empty() {
                     break;
                 }
             }
@@ -290,7 +286,7 @@ pub fn remap(r: &BlockRange, remaps: &[(BlockRange, u64)]) -> Vec<BlockRange> {
             mapped.push(remap_start..(remap_start + len));
 
             r = (r.start + len)..r.end;
-            if is_empty(&r) {
+            if r.is_empty() {
                 break;
             }
 
