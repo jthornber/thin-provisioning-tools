@@ -18,15 +18,14 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
-use tui::{
+use ratatui::{
     backend::TermionBackend,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    terminal::Frame,
     text::Span,
     widgets::{Block, Borders, List, ListItem, ListState, Row, StatefulWidget, Table, Widget},
-    Terminal,
+    Frame, Terminal,
 };
 
 use crate::commands::utils::*;
@@ -210,29 +209,31 @@ impl StatefulWidget for SBWidget<'_> {
             format!("{}k", sb.data_block_size / 2),
         ];
 
-        let table = Table::new(vec![
-            Row::new(flags),
-            Row::new(block),
-            Row::new(uuid),
-            Row::new(version),
-            Row::new(time),
-            Row::new(transaction_id),
-            Row::new(metadata_snap),
-            Row::new(metadata_allocated),
-            Row::new(meta_sm_roots),
-            Row::new(data_allocated),
-            Row::new(data_sm_roots),
-            Row::new(mapping_root),
-            Row::new(details_root),
-            Row::new(data_block_size),
-        ])
+        let table = Table::new(
+            vec![
+                Row::new(flags),
+                Row::new(block),
+                Row::new(uuid),
+                Row::new(version),
+                Row::new(time),
+                Row::new(transaction_id),
+                Row::new(metadata_snap),
+                Row::new(metadata_allocated),
+                Row::new(meta_sm_roots),
+                Row::new(data_allocated),
+                Row::new(data_sm_roots),
+                Row::new(mapping_root),
+                Row::new(details_root),
+                Row::new(data_block_size),
+            ],
+            [Constraint::Length(20), Constraint::Length(60)],
+        )
         .header(Row::new(vec!["Field", "Value"]).style(Style::default().fg(Color::Yellow)))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Superblock".to_string()),
         )
-        .widths(&[Constraint::Length(20), Constraint::Length(60)])
         .style(Style::default().fg(Color::White))
         .column_spacing(1);
 
@@ -277,16 +278,18 @@ impl Widget for HeaderWidget<'_> {
         let max_entries = vec!["max_entries".to_string(), format!("{}", hdr.max_entries)];
         let value_size = vec!["value size".to_string(), format!("{}", hdr.value_size)];
 
-        let table = Table::new(vec![
-            Row::new(block),
-            Row::new(kind),
-            Row::new(nr_entries),
-            Row::new(max_entries),
-            Row::new(value_size),
-        ])
+        let table = Table::new(
+            vec![
+                Row::new(block),
+                Row::new(kind),
+                Row::new(nr_entries),
+                Row::new(max_entries),
+                Row::new(value_size),
+            ],
+            [Constraint::Length(20), Constraint::Length(60)],
+        )
         .header(Row::new(vec!["Field", "Value"]).style(Style::default().fg(Color::Yellow)))
         .block(Block::default().borders(Borders::ALL).title(self.title))
-        .widths(&[Constraint::Length(20), Constraint::Length(60)])
         .style(Style::default().fg(Color::White))
         .column_spacing(1);
 
@@ -483,10 +486,8 @@ enum Action {
 
 use Action::*;
 
-type Frame_<'a, 'b> = Frame<'a, TermionBackend<termion::raw::RawTerminal<std::io::StdoutLock<'b>>>>;
-
 trait Panel {
-    fn render(&mut self, area: Rect, f: &mut Frame_);
+    fn render(&mut self, area: Rect, f: &mut Frame);
     fn input(&mut self, k: Key) -> Option<Action>;
     fn path_action(&mut self, child: u64) -> Option<Action>;
 }
@@ -508,7 +509,7 @@ impl SBPanel {
 }
 
 impl Panel for SBPanel {
-    fn render(&mut self, area: Rect, f: &mut Frame_) {
+    fn render(&mut self, area: Rect, f: &mut Frame) {
         let w = SBWidget { sb: &self.sb };
         f.render_stateful_widget(w, area, &mut self.state);
     }
@@ -569,7 +570,7 @@ impl DeviceDetailPanel {
 }
 
 impl Panel for DeviceDetailPanel {
-    fn render(&mut self, area: Rect, f: &mut Frame_) {
+    fn render(&mut self, area: Rect, f: &mut Frame) {
         let w = NodeWidget {
             title: "Device Details".to_string(),
             node: &self.node,
@@ -639,7 +640,7 @@ impl TopLevelPanel {
 }
 
 impl Panel for TopLevelPanel {
-    fn render(&mut self, area: Rect, f: &mut Frame_) {
+    fn render(&mut self, area: Rect, f: &mut Frame) {
         let w = NodeWidget {
             title: "Top Level".to_string(),
             node: &self.node,
@@ -722,7 +723,7 @@ impl BottomLevelPanel {
 }
 
 impl Panel for BottomLevelPanel {
-    fn render(&mut self, area: Rect, f: &mut Frame_) {
+    fn render(&mut self, area: Rect, f: &mut Frame) {
         let w = NodeWidget {
             title: format!("Thin dev #{}", self.thin_id),
             node: &self.node,
@@ -832,11 +833,11 @@ fn explore(path: &Path, node_path: Option<Vec<u64>>) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     'main: loop {
-        let render_panels = |f: &mut Frame_| {
+        let render_panels = |f: &mut Frame| {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-                .split(f.size());
+                .split(f.area());
 
             let mut base = panels.len();
             if base >= 2 {
