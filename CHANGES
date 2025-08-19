@@ -1,3 +1,8 @@
+v1.2.1
+=======
+
+- Fix incorrect number of data blocks in thin_shrink's output superblock
+
 v1.2.0
 =======
 
