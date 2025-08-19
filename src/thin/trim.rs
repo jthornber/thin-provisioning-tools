@@ -26,7 +26,7 @@ struct RangeIterator<'a> {
 }
 
 impl RangeIterator<'_> {
-    fn new(bitmaps: &[Block], nr_blocks: u64) -> Result<RangeIterator> {
+    fn new(bitmaps: &[Block], nr_blocks: u64) -> Result<RangeIterator<'_>> {
         if bitmaps.is_empty() || nr_blocks > bitmaps.len() as u64 * ENTRIES_PER_BITMAP as u64 {
             return Err(anyhow!("invalid parameter"));
         }

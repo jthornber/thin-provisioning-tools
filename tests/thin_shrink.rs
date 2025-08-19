@@ -49,7 +49,7 @@ impl ThinBlock {
         Ok(rr)
     }
 
-    fn zero_ref<W: Write + Seek>(w: &mut W, b: u64, block_size: usize) -> ThinWriteRef<W> {
+    fn zero_ref<W: Write + Seek>(w: &mut W, b: u64, block_size: usize) -> ThinWriteRef<'_, W> {
         ThinWriteRef {
             file: w,
             block_byte: b * (block_size as u64) * 512,

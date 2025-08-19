@@ -55,7 +55,7 @@ fn missing_attr<T>(tag: &str, attr: &str) -> anyhow::Result<T> {
     Err(anyhow!(msg))
 }
 
-pub fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute {
+pub fn mk_attr<T: Display>(key: &[u8], value: T) -> Attribute<'_> {
     Attribute {
         key: QName(key),
         value: mk_attr_(value),
