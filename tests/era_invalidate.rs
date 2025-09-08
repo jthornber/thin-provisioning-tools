@@ -19,16 +19,11 @@ Arguments:
   <INPUT>  Specify the input device
 
 Options:
-  -h, --help
-          Print help
-      --metadata-snapshot <METADATA_SNAPSHOT>
-          Use the metadata snapshot rather than the current superblock
-  -o, --output <FILE>
-          Specify the output file rather than stdout
-  -V, --version
-          Print version
-      --written-since <ERA>
-          Blocks written since the given era will be listed";
+  -h, --help                 Print help
+      --metadata-snapshot    Use the metadata snapshot rather than the current superblock
+  -o, --output <FILE>        Specify the output file rather than stdout
+  -V, --version              Print version
+      --written-since <ERA>  Blocks written since the given era will be listed";
 
 //------------------------------------------
 

@@ -1,4 +1,4 @@
-use clap::{value_parser, Arg};
+use clap::{value_parser, Arg, ArgAction};
 use std::path::Path;
 
 use crate::commands::engine::*;
@@ -21,7 +21,8 @@ impl EraInvalidateCommand {
             .arg(
                 Arg::new("METADATA_SNAPSHOT")
                     .help("Use the metadata snapshot rather than the current superblock")
-                    .long("metadata-snapshot"),
+                    .long("metadata-snapshot")
+                    .action(ArgAction::SetTrue),
             )
             // options
             .arg(
