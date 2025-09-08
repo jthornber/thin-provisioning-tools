@@ -107,4 +107,67 @@ fn written_since_unspecified() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn metadata_snapshot_fails_when_none_exists() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let stderr = run_fail(era_invalidate_cmd(args![
+        &md,
+        "--written-since",
+        "0",
+        "--metadata-snapshot"
+    ]))?;
+    assert!(stderr.contains("no current metadata snap"));
+    Ok(())
+}
+
+#[test]
+fn list_changes_in_metadata_snapshot() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = prep_metadata_from_file(&mut td, "emeta_with_metadata_snap.pack")?;
+
+    let stdout = run_ok(era_invalidate_cmd(args![
+        &md,
+        "--written-since",
+        "0",
+        "--metadata-snapshot"
+    ]))?;
+    assert_eq!(
+        stdout,
+        "<blocks>\n  <range begin=\"0\" end=\"512\"/>\n</blocks>"
+    );
+
+    let stdout = run_ok(era_invalidate_cmd(args![
+        &md,
+        "--written-since",
+        "1",
+        "--metadata-snapshot"
+    ]))?;
+    assert_eq!(
+        stdout,
+        "<blocks>\n  <range begin=\"0\" end=\"64\"/>\n</blocks>"
+    );
+
+    let stdout = run_ok(era_invalidate_cmd(args![
+        &md,
+        "--written-since",
+        "2",
+        "--metadata-snapshot"
+    ]))?;
+    assert_eq!(
+        stdout,
+        "<blocks>\n  <range begin=\"0\" end=\"32\"/>\n</blocks>"
+    );
+
+    let stdout = run_ok(era_invalidate_cmd(args![
+        &md,
+        "--written-since",
+        "3",
+        "--metadata-snapshot"
+    ]))?;
+    assert_eq!(stdout, "<blocks>\n</blocks>");
+
+    Ok(())
+}
+
 //------------------------------------------

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thinp::era::metadata_generator::CleanShutdownMeta;
 use thinp::file_utils;
@@ -30,6 +30,23 @@ pub fn mk_valid_md(td: &mut TestDir) -> Result<PathBuf> {
     run_ok(era_restore_cmd(args!["-i", &xml, "-o", &md]))?;
 
     Ok(md)
+}
+
+//-----------------------------------------------
+
+fn unpack_metadata(input: &Path, output: &Path) -> Result<()> {
+    let args = args!["-i", input, "-o", output];
+    run_ok(thin_metadata_unpack_cmd(args))?;
+    Ok(())
+}
+
+pub fn prep_metadata_from_file(td: &mut TestDir, filename: &str) -> Result<PathBuf> {
+    let mut input = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    input.push("tests/testdata");
+    input.push(filename);
+    let output = td.mk_path("emeta.bin");
+    unpack_metadata(&input, &output)?;
+    Ok(output)
 }
 
 //-----------------------------------------------
