@@ -13,6 +13,135 @@ mod tests;
 
 //------------------------------------------
 
+/// Minimum block size in bytes (4KB)
+const MIN_BLOCK_SIZE: usize = 4 * 1024;
+/// Maximum block size in bytes (16MB)
+const MAX_BLOCK_SIZE: usize = 16 * 1024 * 1024;
+/// Maximum number of blocks per IO
+const MAX_IO_BLOCKS: usize = 64;
+
+//------------------------------------------
+
+struct SyncReader<'a> {
+    reader: VectoredBlockIo<&'a File>,
+    io_blocks: &'a mut BufferPool,
+}
+
+impl<'a> SyncReader<'a> {
+    pub fn new(file: &'a File, io_blocks: &'a mut BufferPool) -> io::Result<Self> {
+        let block_size = io_blocks.get_block_size();
+
+        // Validate input parameters
+        if !(MIN_BLOCK_SIZE..=MAX_BLOCK_SIZE).contains(&block_size) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "block_size must be between {} and {} bytes",
+                    MIN_BLOCK_SIZE, MAX_BLOCK_SIZE
+                ),
+            ));
+        }
+
+        let reader = VectoredBlockIo::from(file);
+
+        Ok(Self { reader, io_blocks })
+    }
+
+    fn read_io_blocks_<F>(&mut self, block_indices: &[u64], mut callback: F) -> io::Result<()>
+    where
+        F: FnMut(u64, io::Result<&[u8]>) -> io::Result<()>,
+    {
+        let block_size = self.io_blocks.get_block_size();
+        let mut bufs = Vec::with_capacity(block_indices.len());
+        let mut io_blocks = Vec::with_capacity(block_indices.len());
+
+        // Get blocks from the pool and prepare buffers
+        for &index in block_indices {
+            if let Some(block) = self.io_blocks.get(index) {
+                io_blocks.push(block.clone());
+                // SAFETY: The buffer is valid for the lifetime of the IOBlock
+                let buf = unsafe { std::slice::from_raw_parts_mut(block.data, block_size) };
+                bufs.push(buf);
+            } else {
+                // Return any blocks we've already taken from the pool
+                for block in io_blocks {
+                    self.io_blocks.put(block);
+                }
+                return Err(io::Error::other("failed to get buffer from pool"));
+            }
+        }
+
+        // Convert bufs into slice references for read_blocks
+        let mut buf_refs: Vec<&mut [u8]> = bufs.iter_mut().map(|b| &mut b[..]).collect();
+
+        // Read the blocks
+        let results = self
+            .reader
+            .read_blocks(&mut buf_refs, block_indices[0] * block_size as u64)
+            .map_err(io::Error::other)?;
+
+        // Process results and invoke callback
+        for (i, result) in results.into_iter().enumerate() {
+            match result {
+                Ok(_) => callback(io_blocks[i].loc, Ok(bufs[i]))?,
+                Err(e) => callback(io_blocks[i].loc, Err(io::Error::other(e)))?,
+            }
+        }
+
+        // Return blocks to the pool
+        for block in io_blocks {
+            self.io_blocks.put(block);
+        }
+
+        Ok(())
+    }
+
+    fn stream_blocks(
+        &mut self,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
+    ) -> io::Result<()> {
+        let io_block_size = self.io_blocks.get_block_size();
+        assert!(BLOCK_SIZE <= io_block_size);
+        assert!(
+            io_block_size.is_multiple_of(BLOCK_SIZE),
+            "IO block size must be a multiple of small block size"
+        );
+        let blocks_per_io = io_block_size / base::BLOCK_SIZE;
+        assert!(blocks_per_io <= 64); // so we can fit the bitset in a u64
+
+        // Map small blocks to IO blocks
+        let io_block_map = utils::map_small_blocks_to_io(blocks, blocks_per_io);
+
+        if io_block_map.is_empty() {
+            return Ok(());
+        }
+
+        // Get unique IO blocks we need to read
+        let mut io_blocks: Vec<_> = io_block_map.keys().cloned().collect();
+        io_blocks.sort_unstable();
+
+        // Read blocks in chunks to avoid excessive memory usage
+        for chunk in crate::utils::adjacent_chunks::adjacent_chunks(&io_blocks, MAX_IO_BLOCKS) {
+            self.read_io_blocks_(chunk, |io_idx, result| {
+                utils::process_io_block_result(
+                    io_idx,
+                    result,
+                    blocks_per_io,
+                    &io_block_map,
+                    handler,
+                );
+                Ok(())
+            })?;
+        }
+
+        handler.complete();
+        Ok(())
+    }
+}
+
+//------------------------------------------
+
 pub struct SyncIoEngine {
     nr_blocks: u64,
     file: File,
@@ -231,11 +360,12 @@ impl IoEngine for SyncIoEngine {
 
     fn read_blocks(
         &self,
-        _io_block_pool: &mut BufferPool,
-        _blocks: &mut dyn Iterator<Item = u64>,
-        _handler: &mut dyn ReadHandler,
+        io_block_pool: &mut BufferPool,
+        blocks: &mut dyn Iterator<Item = u64>,
+        handler: &mut dyn ReadHandler,
     ) -> io::Result<()> {
-        todo!();
+        let mut reader = SyncReader::new(&self.file, io_block_pool)?;
+        reader.stream_blocks(blocks, handler)
     }
 }
 
