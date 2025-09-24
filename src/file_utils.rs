@@ -13,18 +13,18 @@ fn test_bit(mode: u32, flag: u32) -> bool {
     (mode & libc::S_IFMT) == flag
 }
 
-fn is_file_or_blk_(info: &libc::stat64) -> bool {
+fn is_file_or_blk_(info: &libc::stat) -> bool {
     test_bit(info.st_mode, libc::S_IFBLK) || test_bit(info.st_mode, libc::S_IFREG)
 }
 
 // wrapper of libc::stat64
-fn libc_stat64(path: &Path) -> io::Result<libc::stat64> {
+fn libc_stat64(path: &Path) -> io::Result<libc::stat> {
     let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
     unsafe {
-        let mut st: libc::stat64 = std::mem::zeroed();
-        let r = libc::stat64(c_path.as_ptr(), &mut st);
+        let mut st: libc::stat = std::mem::zeroed();
+        let r = libc::stat(c_path.as_ptr(), &mut st);
         if r == 0 {
             Ok(st)
         } else {
