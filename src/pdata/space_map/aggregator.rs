@@ -40,11 +40,15 @@ impl Rep {
 
 struct Region {
     rep: Rep,
+    nr_allocated: u32,
 }
 
 impl Default for Region {
     fn default() -> Self {
-        Self { rep: NoCounts }
+        Self {
+            rep: NoCounts,
+            nr_allocated: 0,
+        }
     }
 }
 
@@ -70,6 +74,7 @@ impl Region {
                         return IncResult::NeedUpgrade(i);
                     }
                     bits.insert(b as usize);
+                    self.nr_allocated += 1;
                 }
             }
             U8s(counts) => {
@@ -77,6 +82,9 @@ impl Region {
                     let b = block % REGION_SIZE as u64;
                     if counts[b as usize] == u8::MAX {
                         return IncResult::NeedUpgrade(i);
+                    }
+                    if counts[b as usize] == 0 {
+                        self.nr_allocated += 1;
                     }
                     counts[b as usize] += 1;
                 }
@@ -87,12 +95,18 @@ impl Region {
                     if counts[b as usize] == u16::MAX {
                         return IncResult::NeedUpgrade(i);
                     }
+                    if counts[b as usize] == 0 {
+                        self.nr_allocated += 1;
+                    }
                     counts[b as usize] += 1;
                 }
             }
             U32s(counts) => {
                 for b in blocks {
                     let b = b % REGION_SIZE as u64;
+                    if counts[b as usize] == 0 {
+                        self.nr_allocated += 1;
+                    }
                     counts[b as usize] += 1;
                 }
             }
@@ -132,6 +146,7 @@ impl Region {
                         return IncResult::NeedUpgrade(i);
                     }
                     bits.insert(b);
+                    self.nr_allocated += 1;
                 }
                 IncResult::Success
             }
@@ -141,6 +156,9 @@ impl Region {
                     results.set(offset + i, counts[b] > 0);
                     if counts[b] == u8::MAX {
                         return IncResult::NeedUpgrade(i);
+                    }
+                    if counts[b] == 0 {
+                        self.nr_allocated += 1;
                     }
                     counts[b] += 1;
                 }
@@ -153,6 +171,9 @@ impl Region {
                     if counts[b] == u16::MAX {
                         return IncResult::NeedUpgrade(i);
                     }
+                    if counts[b] == 0 {
+                        self.nr_allocated += 1;
+                    }
                     counts[b] += 1;
                 }
                 IncResult::Success
@@ -161,6 +182,9 @@ impl Region {
                 for (i, &block) in blocks.iter().enumerate() {
                     let b = block as usize % REGION_SIZE;
                     results.set(offset + i, counts[b] > 0);
+                    if counts[b] == 0 {
+                        self.nr_allocated += 1;
+                    }
                     counts[b] = counts[b].saturating_add(1);
                 }
                 IncResult::Success
@@ -267,22 +291,50 @@ impl Region {
                     if ref_count > 1 {
                         return IncResult::NeedUpgrade(i);
                     }
+                    let rc_before = if bits.contains(b as usize) { 1 } else { 0 };
                     bits.set(b as usize, ref_count == 1);
+
+                    if rc_before == 0 && ref_count != 0 {
+                        self.nr_allocated += 1;
+                    } else if rc_before != 0 && ref_count == 0 {
+                        self.nr_allocated -= 1;
+                    }
                 }
                 U8s(counts) => {
                     if ref_count > u8::MAX as u32 {
                         return IncResult::NeedUpgrade(i);
                     }
+                    let rc_before = counts[b as usize] as u32;
                     counts[b as usize] = ref_count as u8;
+
+                    if rc_before == 0 && ref_count != 0 {
+                        self.nr_allocated += 1;
+                    } else if rc_before != 0 && ref_count == 0 {
+                        self.nr_allocated -= 1;
+                    }
                 }
                 U16s(counts) => {
                     if ref_count > u16::MAX as u32 {
                         return IncResult::NeedUpgrade(i);
                     }
+                    let rc_before = counts[b as usize] as u32;
                     counts[b as usize] = ref_count as u16;
+
+                    if rc_before == 0 && ref_count != 0 {
+                        self.nr_allocated += 1;
+                    } else if rc_before != 0 && ref_count == 0 {
+                        self.nr_allocated -= 1;
+                    }
                 }
                 U32s(counts) => {
+                    let rc_before = counts[b as usize];
                     counts[b as usize] = ref_count;
+
+                    if rc_before == 0 && ref_count != 0 {
+                        self.nr_allocated += 1;
+                    } else if rc_before != 0 && ref_count == 0 {
+                        self.nr_allocated -= 1;
+                    }
                 }
             }
         }
@@ -345,6 +397,7 @@ impl Region {
 pub struct Aggregator {
     nr_entries: usize,
     regions: Vec<Mutex<Region>>,
+    nr_allocated: Mutex<u64>,
 }
 
 impl Aggregator {
@@ -374,6 +427,7 @@ impl Aggregator {
         Self {
             nr_entries,
             regions,
+            nr_allocated: Mutex::new(0),
         }
     }
 
@@ -418,18 +472,27 @@ impl Aggregator {
         // times the mutex is taken.
         let mut start_idx = 0;
         let mut start_region = blocks[start_idx] / REGION_SIZE as u64;
+        let mut nr_allocated = 0u64;
+
         for i in 1..blocks.len() {
             let current_region = blocks[i] / REGION_SIZE as u64;
             if current_region != start_region {
                 let mut region = self.regions[start_region as usize].lock().unwrap();
+                let allocated_before = region.nr_allocated;
                 region.increment(&blocks[start_idx..i]);
+                nr_allocated += (region.nr_allocated - allocated_before) as u64;
+
                 start_idx = i;
                 start_region = current_region;
             }
         }
 
         let mut region = self.regions[start_region as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
         region.increment(&blocks[start_idx..]);
+        nr_allocated += (region.nr_allocated - allocated_before) as u64;
+
+        self.inc_allocated(nr_allocated);
     }
 
     pub fn inc_single(&self, block: u64) {
@@ -472,12 +535,15 @@ impl Aggregator {
 
         let mut start_idx = 0;
         let mut start_region = blocks[start_idx] / REGION_SIZE as u64;
+        let mut nr_allocated = 0u64;
 
         for i in 1..blocks.len() {
             let current_region = blocks[i] / REGION_SIZE as u64;
             if current_region != start_region {
                 let mut region = self.regions[start_region as usize].lock().unwrap();
+                let allocated_before = region.nr_allocated;
                 region.test_and_inc(&blocks[start_idx..i], &mut results, start_idx);
+                nr_allocated += (region.nr_allocated - allocated_before) as u64;
 
                 start_idx = i;
                 start_region = current_region;
@@ -485,7 +551,11 @@ impl Aggregator {
         }
 
         let mut region = self.regions[start_region as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
         region.test_and_inc(&blocks[start_idx..], &mut results, start_idx);
+        nr_allocated += (region.nr_allocated - allocated_before) as u64;
+
+        self.inc_allocated(nr_allocated);
 
         results
     }
@@ -498,11 +568,22 @@ impl Aggregator {
         let mut start_idx = 0;
         let mut start_region = pairs[0].0 / REGION_SIZE as u64;
 
+        // Use two unsigned counters to prevent integer overflow with a signed counter
+        let mut nr_allocated = 0u64;
+        let mut nr_freed = 0u64;
+
         for i in 1..pairs.len() {
             let current_region = pairs[i].0 / REGION_SIZE as u64;
             if current_region != start_region {
                 let mut region = self.regions[start_region as usize].lock().unwrap();
+                let allocated_before = region.nr_allocated;
                 region.set(&pairs[start_idx..i]);
+
+                if region.nr_allocated >= allocated_before {
+                    nr_allocated += (region.nr_allocated - allocated_before) as u64;
+                } else {
+                    nr_freed += (allocated_before - region.nr_allocated) as u64;
+                }
 
                 start_idx = i;
                 start_region = current_region;
@@ -510,7 +591,22 @@ impl Aggregator {
         }
 
         let mut region = self.regions[start_region as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
         region.set(&pairs[start_idx..]);
+
+        if region.nr_allocated >= allocated_before {
+            nr_allocated += (region.nr_allocated - allocated_before) as u64;
+        } else {
+            nr_freed += (allocated_before - region.nr_allocated) as u64;
+        }
+
+        // Apply net allocation change with single lock
+        // If nr_allocated == nr_freed, do nothing (optimal)
+        if nr_allocated > nr_freed {
+            self.inc_allocated(nr_allocated - nr_freed);
+        } else if nr_allocated < nr_freed {
+            self.dec_allocated(nr_freed - nr_allocated);
+        }
     }
 
     /// Compares the reference counts with another aggregator and calls the provided
@@ -562,6 +658,16 @@ impl Aggregator {
         }
         total
     }
+
+    fn inc_allocated(&self, count: u64) {
+        let mut nr_allocated = self.nr_allocated.lock().unwrap();
+        *nr_allocated = nr_allocated.saturating_add(count);
+    }
+
+    fn dec_allocated(&self, count: u64) {
+        let mut nr_allocated = self.nr_allocated.lock().unwrap();
+        *nr_allocated = nr_allocated.saturating_sub(count);
+    }
 }
 
 impl RefCount for Aggregator {
@@ -594,7 +700,8 @@ impl RefCount for Aggregator {
 // FIXME: only doing this as a stop gap solution
 impl SpaceMap for Aggregator {
     fn get_nr_allocated(&self) -> Result<u64> {
-        Ok(0) // TODO
+        let nr_allocated = self.nr_allocated.lock().unwrap();
+        Ok(*nr_allocated)
     }
 
     /// Finds a block with a zero reference count. Increments the count.
@@ -623,6 +730,18 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
+    fn from_rep(rep: Rep) -> Region {
+        let nr_allocated = match &rep {
+            NoCounts => 0,
+            Bits(bits) => bits.count_ones(..),
+            U8s(counts) => counts.iter().filter(|&x| *x != 0).count(),
+            U16s(counts) => counts.iter().filter(|&x| *x != 0).count(),
+            U32s(counts) => counts.iter().filter(|&x| *x != 0).count(),
+        } as u32;
+
+        Region { rep, nr_allocated }
+    }
+
     #[test]
     fn test_initial_no_counts() {
         let mut region = Region::default();
@@ -633,9 +752,7 @@ mod tests {
 
     #[test]
     fn test_u8_increment() {
-        let mut region = Region {
-            rep: U8s(vec![0; REGION_SIZE]),
-        };
+        let mut region = from_rep(U8s(vec![0; REGION_SIZE]));
         let blocks = [10, 20, 10];
         let result = region.increment_(&blocks);
         assert!(matches!(result, IncResult::Success));
@@ -650,7 +767,7 @@ mod tests {
     #[test]
     fn test_u8_overflow_upgrade() {
         let counts = vec![u8::MAX; REGION_SIZE];
-        let mut region = Region { rep: U8s(counts) };
+        let mut region = from_rep(U8s(counts));
         let blocks = [5];
         let result = region.increment_(&blocks);
         assert!(matches!(result, IncResult::NeedUpgrade(0)));
@@ -753,9 +870,7 @@ mod tests {
 
     #[test]
     fn test_region_lookup_bits() {
-        let mut region = Region {
-            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
-        };
+        let mut region = from_rep(Bits(FixedBitSet::with_capacity(REGION_SIZE)));
         if let Bits(bits) = &mut region.rep {
             bits.insert(7);
             bits.insert(9);
@@ -771,7 +886,7 @@ mod tests {
         let mut counts = vec![0; REGION_SIZE];
         counts[3] = 2;
         counts[4] = 1;
-        let region = Region { rep: U8s(counts) };
+        let region = from_rep(U8s(counts));
         let mut results = vec![0; 5];
         let blocks_read = region.lookup(2, &mut results);
         assert_eq!(blocks_read, 5);
@@ -783,7 +898,7 @@ mod tests {
         let mut counts = vec![0; REGION_SIZE];
         counts[1] = 300;
         counts[2] = 500;
-        let region = Region { rep: U16s(counts) };
+        let region = from_rep(U16s(counts));
         let mut results = vec![0; 3];
         let blocks_read = region.lookup(1, &mut results);
         assert_eq!(blocks_read, 3);
@@ -795,7 +910,7 @@ mod tests {
         let mut counts = vec![0; REGION_SIZE];
         counts[0] = 1_000_000;
         counts[1] = 2_000_000;
-        let region = Region { rep: U32s(counts) };
+        let region = from_rep(U32s(counts));
         let mut results = vec![0; 3];
         let blocks_read = region.lookup(0, &mut results);
         assert_eq!(blocks_read, 3);
@@ -870,9 +985,7 @@ mod tests {
 
     #[test]
     fn test_region_test_and_inc_bits() {
-        let mut region = Region {
-            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
-        };
+        let mut region = from_rep(Bits(FixedBitSet::with_capacity(REGION_SIZE)));
         if let Bits(bits) = &mut region.rep {
             bits.insert(2);
         }
@@ -899,7 +1012,7 @@ mod tests {
         let mut counts = vec![0; REGION_SIZE];
         counts[1] = 1;
         counts[2] = 255;
-        let mut region = Region { rep: U8s(counts) };
+        let mut region = from_rep(U8s(counts));
         let blocks = vec![1, 2, 3];
         let mut results = FixedBitSet::with_capacity(3);
         region.test_and_inc(&blocks, &mut results, 0);
@@ -993,9 +1106,7 @@ mod tests {
 
     #[test]
     fn test_region_set_bits() {
-        let mut region = Region {
-            rep: Bits(FixedBitSet::with_capacity(REGION_SIZE)),
-        };
+        let mut region = from_rep(Bits(FixedBitSet::with_capacity(REGION_SIZE)));
         let pairs = vec![(1, 0), (2, 1), (3, 2)];
         region.set(&pairs);
 
@@ -1010,9 +1121,7 @@ mod tests {
 
     #[test]
     fn test_region_set_u8s() {
-        let mut region = Region {
-            rep: U8s(vec![0; REGION_SIZE]),
-        };
+        let mut region = from_rep(U8s(vec![0; REGION_SIZE]));
         let pairs = vec![(1, 255), (2, 256), (3, 1)];
         region.set(&pairs);
 
@@ -1027,9 +1136,7 @@ mod tests {
 
     #[test]
     fn test_region_set_u16s() {
-        let mut region = Region {
-            rep: U16s(vec![0; REGION_SIZE]),
-        };
+        let mut region = from_rep(U16s(vec![0; REGION_SIZE]));
         let pairs = vec![(1, 65535), (2, 65536), (3, 1)];
         region.set(&pairs);
 
@@ -1044,9 +1151,7 @@ mod tests {
 
     #[test]
     fn test_region_set_u32s() {
-        let mut region = Region {
-            rep: U32s(vec![0; REGION_SIZE]),
-        };
+        let mut region = from_rep(U32s(vec![0; REGION_SIZE]));
         let pairs = vec![(1, 1000000), (2, 2000000), (3, 3000000)];
         region.set(&pairs);
 
@@ -1145,6 +1250,51 @@ mod tests {
         } else {
             panic!("Expected U32s representation");
         }
+    }
+
+    #[test]
+    fn test_aggregator_allocation_tracking_with_set() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+
+        // Start with 0 allocated blocks
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 0);
+
+        // Set some blocks to non-zero values (should increase allocation count)
+        aggregator.set_batch(&[(1, 1), (2, 2), (3, 3)]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 3);
+
+        // Set some of those blocks to zero (should decrease allocation count)
+        aggregator.set_batch(&[(1, 0), (3, 0)]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 1);
+
+        // Set some new blocks and update existing ones
+        aggregator.set_batch(&[(4, 5), (2, 10), (5, 1)]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 3);
+
+        // Set all to zero
+        aggregator.set_batch(&[(2, 0), (4, 0), (5, 0)]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_aggregator_allocation_tracking_mixed_operations() {
+        let aggregator = Aggregator::new(REGION_SIZE);
+
+        // Start with increments
+        aggregator.increment(&[1, 2, 3]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 3);
+
+        // Use set_batch to change some values
+        aggregator.set_batch(&[(1, 0), (4, 5)]); // Remove 1, add 4
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 3);
+
+        // Use test_and_inc
+        let _results = aggregator.test_and_inc(&[5, 6]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 5);
+
+        // Set all allocated blocks to zero
+        aggregator.set_batch(&[(2, 0), (3, 0), (4, 0), (5, 0), (6, 0)]);
+        assert_eq!(aggregator.get_nr_allocated().unwrap(), 0);
     }
 }
 
