@@ -604,6 +604,15 @@ fn check_mappings_bottom_level_(
     let duration = start.elapsed();
     print_mem(&ctx.report, "memory usage after read_leaf_nodes");
     report.debug(&format!("reading leaf nodes: {:?}", duration));
+    report.debug(&format!(
+        "summaries size: {} bytes",
+        std::mem::size_of::<NodeSummary>() * summaries.len()
+    ));
+    report.debug(&format!(
+        "data_sm size: {} meg in {} regions",
+        data_sm.rep_size() / (1024 * 1024),
+        data_sm.get_nr_regions()
+    ));
 
     let start = std::time::Instant::now();
     count_mapped_blocks(roots, &nodes, &mut summaries, ignore_non_fatal);
