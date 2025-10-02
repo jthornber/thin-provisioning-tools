@@ -947,8 +947,8 @@ fn read_leaf_nodes(
     });
 
     // extract the results
-    let nodes = Arc::try_unwrap(nodes).unwrap().into_inner().unwrap();
-    let summaries = Arc::try_unwrap(summaries).unwrap().into_inner().unwrap();
+    let nodes = Arc::into_inner(nodes).unwrap().into_inner().unwrap();
+    let summaries = Arc::into_inner(summaries).unwrap().into_inner().unwrap();
 
     Ok((nodes, summaries))
 }
