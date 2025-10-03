@@ -87,6 +87,7 @@ struct IndexHandler<'a> {
     loc_to_block_index: HashMap<u64, u64>,
     aggregator: &'a Aggregator,
     batch: Vec<(u64, u32)>,
+    error: Option<anyhow::Error>,
 }
 
 impl<'a> IndexHandler<'a> {
@@ -95,6 +96,7 @@ impl<'a> IndexHandler<'a> {
             loc_to_block_index: entries,
             aggregator,
             batch: Vec::with_capacity(4096 * 4),
+            error: None,
         }
     }
 
@@ -110,16 +112,39 @@ impl<'a> IndexHandler<'a> {
 
 impl<'a> ReadHandler for IndexHandler<'a> {
     fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) {
+        use anyhow::anyhow;
+
         if let Some(block_index) = self.loc_to_block_index.get(&loc) {
             match data {
                 Ok(data) => {
-                    if checksum::metadata_block_type(data) != checksum::BT::BITMAP {
-                        todo!();
+                    match checksum::metadata_block_type(data) {
+                        checksum::BT::BITMAP => {}
+                        checksum::BT::UNKNOWN => {
+                            self.error.get_or_insert(anyhow!(
+                                "checksum error at block {}, index entry {}",
+                                loc,
+                                block_index
+                            ));
+                            return;
+                        }
+                        _ => {
+                            self.error.get_or_insert(anyhow!(
+                                "block {} of index entry {} is not a bitmap",
+                                loc,
+                                block_index
+                            ));
+                            return;
+                        }
                     }
 
                     let bitmap = unpack::<Bitmap>(data);
                     if bitmap.is_err() {
-                        todo!();
+                        self.error.get_or_insert(anyhow!(
+                            "incomplete data at block {}, index entry {}",
+                            loc,
+                            block_index
+                        ));
+                        return;
                     }
                     let bitmap = bitmap.unwrap();
 
@@ -140,12 +165,18 @@ impl<'a> ReadHandler for IndexHandler<'a> {
                     }
                     self.flush_batch();
                 }
-                Err(_e) => {
-                    todo!();
+                Err(e) => {
+                    self.error.get_or_insert(anyhow!(
+                        "{} at block {}, index entry {}",
+                        e,
+                        loc,
+                        block_index
+                    ));
                 }
             }
         } else {
-            todo!();
+            self.error
+                .get_or_insert(anyhow!("unexpected bitmap {} without index entry", loc));
         }
     }
 
@@ -183,6 +214,10 @@ pub fn read_space_map(
         &mut entries.iter().map(|e| e.blocknr),
         &mut index_handler,
     )?;
+
+    if let Some(e) = index_handler.error {
+        return Err(e);
+    }
 
     // Now, handle the overflow entries in the ref count tree
     struct OverflowVisitor {
