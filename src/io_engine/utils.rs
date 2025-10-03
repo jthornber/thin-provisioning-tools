@@ -72,6 +72,12 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
 
         while remaining > 0 {
             match self.dev.read_vectored_at(os_bufs, pos) {
+                Ok(0) => {
+                    for _ in 0..os_bufs.len() {
+                        results.push(Err(anyhow!("EOF")));
+                    }
+                    remaining = 0;
+                }
                 Ok(n) => {
                     remaining -= n;
                     pos += n as u64;
