@@ -28,7 +28,7 @@ impl Generator {
     pub fn fill_buffer(&mut self, seed: u64, bytes: &mut [u8]) -> Result<()> {
         self.x = seed;
 
-        assert!(bytes.len() % 8 == 0);
+        assert!(bytes.len().is_multiple_of(8));
         let nr_words = bytes.len() / 8;
         let mut out = Cursor::new(bytes);
 
@@ -43,7 +43,7 @@ impl Generator {
     pub fn verify_buffer(&mut self, seed: u64, bytes: &[u8]) -> Result<bool> {
         self.x = seed;
 
-        assert!(bytes.len() % 8 == 0);
+        assert!(bytes.len().is_multiple_of(8));
         let nr_words = bytes.len() / 8;
         let mut input = Cursor::new(bytes);
 

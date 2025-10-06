@@ -80,7 +80,7 @@ impl<V: Pack + Unpack + Default + Clone + PartialEq + std::fmt::Debug> ArrayBloc
             assert_eq!(ablock.header.value_size, V::disk_size());
 
             if idx == nr_ablocks - 1 {
-                let last_nr_entries = if values.len() % nr_ablocks == 0 {
+                let last_nr_entries = if values.len().is_multiple_of(nr_ablocks) {
                     max_entries
                 } else {
                     (values.len() % nr_ablocks) as u32

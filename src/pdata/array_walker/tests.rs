@@ -148,7 +148,7 @@ where
         let layout = self.layout.as_ref().unwrap();
         let nr_ablocks = layout.nr_array_blocks();
         let max_entries = array::calc_max_entries::<V>() as u32;
-        let last_nr_entries: u32 = if self.values.len() as u64 % nr_ablocks == 0 {
+        let last_nr_entries: u32 = if (self.values.len() as u64).is_multiple_of(nr_ablocks) {
             max_entries
         } else {
             (self.values.len() % max_entries as usize) as u32
