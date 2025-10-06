@@ -1,3 +1,8 @@
+v1.2.2
+=======
+
+- Fix command line parsing for era_invalidate --metadata-snapshot
+
 v1.2.1
 =======
 
