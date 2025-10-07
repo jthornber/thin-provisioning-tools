@@ -656,6 +656,11 @@ fn collect_nodes_in_use(
     const NR_THREADS: usize = 4;
 
     let nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
+
+    if roots.is_empty() {
+        return Ok(nodes);
+    }
+
     let batch_nodes = Arc::new(BatchedNodeMap::new(nodes));
 
     let mut roots: Vec<u64> = roots.to_vec();
