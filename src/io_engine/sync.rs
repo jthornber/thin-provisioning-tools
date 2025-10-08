@@ -42,7 +42,7 @@ impl<'a> SyncReader<'a> {
             ));
         }
 
-        let reader = VectoredBlockIo::from(file);
+        let reader = VectoredBlockIo::with_partial(file);
 
         Ok(Self { reader, io_blocks })
     }

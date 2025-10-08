@@ -47,11 +47,24 @@ pub trait WriteBlocks {
 /// using vectored I/O, falling back to processing individual blocks on failure.
 pub struct VectoredBlockIo<T> {
     dev: T,
+    partial_io: bool,
+}
+
+impl<T: VectoredIo> VectoredBlockIo<T> {
+    pub fn with_partial(dev: T) -> VectoredBlockIo<T> {
+        VectoredBlockIo {
+            dev,
+            partial_io: true,
+        }
+    }
 }
 
 impl<T: VectoredIo> From<T> for VectoredBlockIo<T> {
     fn from(dev: T) -> VectoredBlockIo<T> {
-        VectoredBlockIo { dev }
+        VectoredBlockIo {
+            dev,
+            partial_io: false,
+        }
     }
 }
 
@@ -70,6 +83,11 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
         let mut os_bufs = unix::as_os_slice_mut(&mut bufs[..]);
         let mut results = Vec::with_capacity(os_bufs.len());
 
+        // Track partial buffers that need zero-filling:
+        // (buffer_index, start_offset)
+        let mut partial_bufs = Vec::new();
+        let mut buffer_idx = 0;
+
         while remaining > 0 {
             match self.dev.read_vectored_at(os_bufs, pos) {
                 Ok(0) => {
@@ -79,13 +97,32 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
                     remaining = 0;
                 }
                 Ok(n) => {
-                    remaining -= n;
-                    pos += n as u64;
-                    assert_eq!(n % block_size, 0);
-                    os_bufs = &mut os_bufs[(n / block_size)..];
-                    for _ in 0..(n / block_size) {
+                    let blocks_completed = n / block_size;
+                    let partial_bytes = n % block_size;
+                    let blocks_to_skip = n.div_ceil(block_size);
+
+                    // Skip to the next iovec: for partial reads this skips to next iovec boundary,
+                    // for complete reads this continues normally
+                    remaining -= blocks_to_skip * block_size;
+                    pos += blocks_to_skip as u64 * block_size as u64;
+                    os_bufs = &mut os_bufs[blocks_to_skip..];
+
+                    // Save the return status (complete + partial if any)
+                    for _ in 0..blocks_completed {
                         results.push(Ok(()));
                     }
+                    if partial_bytes > 0 {
+                        if self.partial_io {
+                            results.push(Ok(()));
+                        } else {
+                            results.push(Err(anyhow!("incomplete read")));
+                        }
+
+                        // Mark the partial block for zero-filling later
+                        partial_bufs.push((buffer_idx + blocks_completed, partial_bytes));
+                    }
+
+                    buffer_idx += blocks_to_skip;
                 }
                 Err(_) => {
                     // Skip to the next iovec
@@ -93,8 +130,14 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
                     pos += block_size as u64;
                     os_bufs = &mut os_bufs[1..];
                     results.push(Err(anyhow!("read failed")));
+                    buffer_idx += 1;
                 }
             }
+        }
+
+        // Zero-fill the partial buffers
+        for (buf_idx, offset) in partial_bufs {
+            buffers[buf_idx][offset..].fill(0);
         }
 
         Ok(results)
