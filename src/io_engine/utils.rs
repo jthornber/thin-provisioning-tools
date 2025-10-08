@@ -260,12 +260,24 @@ pub fn process_io_block_result(
                     let small_data = &data[offset..offset + crate::io_engine::BLOCK_SIZE];
                     handler.handle(small_idx, Ok(small_data));
                 }
-                Err(_) => {
-                    handler.handle(small_idx, Err(std::io::Error::last_os_error()));
+                Err(e) => {
+                    let block_error = clone_error(e);
+                    handler.handle(small_idx, Err(block_error));
                 }
             }
         }
     }
+}
+
+fn clone_error(origin: &std::io::Error) -> std::io::Error {
+    use std::error::Error;
+    let mut message = origin.to_string();
+    let mut src = origin.source();
+    while let Some(err) = src {
+        message.push_str(&err.to_string());
+        src = err.source();
+    }
+    std::io::Error::new(origin.kind(), message)
 }
 
 //-------------------------------------
