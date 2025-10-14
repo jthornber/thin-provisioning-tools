@@ -1120,15 +1120,6 @@ fn get_devices_(
     metadata_sm: &Aggregator,
     ignore_non_fatal: bool,
 ) -> Result<(BTreeMap<u64, DeviceDetail>, BTreeMap<u64, u64>)> {
-    // Reread device details to increment the ref counts for that metadata.
-    let devs = btree_to_map_with_aggregator::<DeviceDetail>(
-        engine.clone(),
-        metadata_sm,
-        sb.details_root,
-        ignore_non_fatal,
-    )
-    .map_err(|e| metadata_err("device details tree", e))?;
-
     // Mapping top level
     let roots = btree_to_map_with_aggregator::<u64>(
         engine.clone(),
@@ -1137,6 +1128,15 @@ fn get_devices_(
         ignore_non_fatal,
     )
     .map_err(|e| metadata_err("mapping top-level", e))?;
+
+    // Device details
+    let devs = btree_to_map_with_aggregator::<DeviceDetail>(
+        engine.clone(),
+        metadata_sm,
+        sb.details_root,
+        ignore_non_fatal,
+    )
+    .map_err(|e| metadata_err("device details tree", e))?;
 
     Ok((devs, roots))
 }
