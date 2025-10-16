@@ -1274,6 +1274,89 @@ fn create_data_sm(sb: &Superblock) -> Result<Arc<Aggregator>> {
     Ok(Arc::new(Aggregator::new(data_root.nr_blocks as usize)))
 }
 
+//------------------------------------------
+
+struct DiffHandler<'a> {
+    entries: &'a [IndexEntry],
+    report: &'a Report,
+    current_index: Option<u64>,
+    leaked_entries: Vec<BitmapLeak>,
+    nr_leaks: usize,
+    bad_refs: usize,
+    kind: &'static str,
+}
+
+impl<'a> DiffHandler<'a> {
+    fn new(entries: &'a [IndexEntry], report: &'a Report, kind: &'static str) -> Self {
+        Self {
+            entries,
+            report,
+            current_index: None,
+            leaked_entries: Vec::new(),
+            nr_leaks: 0,
+            bad_refs: 0,
+            kind,
+        }
+    }
+
+    fn handle(&mut self, block: u64, l_count: u32, r_count: u32) {
+        if l_count == 0 && r_count == 1 {
+            let bitmap_index = block / ENTRIES_PER_BITMAP as u64;
+            if self.current_index != Some(bitmap_index) {
+                self.leaked_entries.push(BitmapLeak {
+                    loc: self.entries[bitmap_index as usize].blocknr,
+                    blocknr: ENTRIES_PER_BITMAP as u64 * bitmap_index,
+                });
+                self.current_index = Some(bitmap_index);
+            }
+            self.nr_leaks += 1;
+        } else {
+            self.bad_refs += 1;
+        }
+        self.report.debug(&format!(
+            "{} count difference for block {}: {}, {}",
+            self.kind, block, l_count, r_count
+        ));
+    }
+
+    fn complete(self) -> (Vec<BitmapLeak>, usize, usize) {
+        (self.leaked_entries, self.nr_leaks, self.bad_refs)
+    }
+}
+
+fn compare_space_maps(
+    read_result: anyhow::Result<(Aggregator, Vec<IndexEntry>)>,
+    sm: &Aggregator,
+    report: &Report,
+    kind: &'static str,
+) -> Result<Vec<BitmapLeak>> {
+    let (sm_on_disk, entries_on_disk) = read_result?;
+
+    let mut handler = DiffHandler::new(&entries_on_disk, report, kind);
+
+    sm.diff(&sm_on_disk, |block, l_count, r_count| {
+        handler.handle(block, l_count, r_count)
+    });
+
+    let (leaks, nr_leaks, bad_refs) = handler.complete();
+
+    if nr_leaks > 0 {
+        report.non_fatal(&format!("{} {} blocks have leaked", nr_leaks, kind));
+    }
+
+    if bad_refs > 0 {
+        return Err(anyhow!(
+            "{} {} blocks have bad reference counts",
+            bad_refs,
+            kind,
+        ));
+    }
+
+    Ok(leaks)
+}
+
+//------------------------------------------
+
 pub fn check(opts: ThinCheckOptions) -> Result<()> {
     if (opts.auto_repair || opts.clear_needs_check)
         && (opts.engine_opts.use_metadata_snap
@@ -1467,87 +1550,18 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     //-----------------------------------------
     // Compare the data space maps
-    let mut data_leaks = Vec::new();
-    let mut current_index = None;
-    let mut err = None;
-    let mut nr_leaks = 0;
-    match data_sm_on_disk_future() {
-        Ok((data_sm_on_disk, data_entries_on_disk)) => {
-            data_sm.diff(
-                &data_sm_on_disk,
-                |block: u64, l_count: u32, r_count: u32| {
-                    let bitmap_index = block / ENTRIES_PER_BITMAP as u64;
-                    if l_count == 0 && r_count == 1 {
-                        if current_index != Some(bitmap_index) {
-                            data_leaks.push(BitmapLeak {
-                                loc: data_entries_on_disk[bitmap_index as usize].blocknr,
-                                blocknr: ENTRIES_PER_BITMAP as u64 * bitmap_index,
-                            });
-                            current_index = Some(bitmap_index);
-                        }
-                        nr_leaks += 1;
-                    } else {
-                        err = Some(anyhow!("bad reference counts"));
-                    }
-                    report.debug(&format!(
-                        "data count difference for block {}: {}, {}",
-                        block, l_count, r_count
-                    ));
-                },
-            );
-        }
-        Err(e) => {
-            err = Some(e);
-        }
-    }
-    if nr_leaks > 0 {
-        report.non_fatal(&format!("{} data blocks have leaked", nr_leaks));
-    }
-    if let Some(e) = err {
-        return Err(metadata_err("data space map", e).into());
-    }
+    let data_leaks = compare_space_maps(data_sm_on_disk_future(), &data_sm, report, "data")
+        .map_err(|e| metadata_err("data space map", e))?;
 
     //-----------------------------------------
     // Compare the metadata space maps
-    let mut metadata_leaks = Vec::new();
-    let mut current_index = None;
-    let mut err = None;
-    let mut nr_leaks = 0;
-    match metadata_sm_on_disk_future() {
-        Ok((metadata_sm_on_disk, metadata_entries_on_disk)) => {
-            metadata_sm.diff(
-                &metadata_sm_on_disk,
-                |block: u64, l_count: u32, r_count: u32| {
-                    let bitmap_index = block / ENTRIES_PER_BITMAP as u64;
-                    if l_count == 0 && r_count == 1 {
-                        if current_index != Some(bitmap_index) {
-                            metadata_leaks.push(BitmapLeak {
-                                loc: metadata_entries_on_disk[bitmap_index as usize].blocknr,
-                                blocknr: ENTRIES_PER_BITMAP as u64 * bitmap_index,
-                            });
-                            current_index = Some(bitmap_index);
-                        }
-                        nr_leaks += 1;
-                    } else {
-                        err = Some(anyhow!("bad reference counts"));
-                    }
-                    report.debug(&format!(
-                        "metadata count difference for block {}: {}, {}",
-                        block, l_count, r_count
-                    ));
-                },
-            );
-        }
-        Err(e) => {
-            err = Some(e);
-        }
-    }
-    if nr_leaks > 0 {
-        report.non_fatal(&format!("{} metadata blocks have leaked", nr_leaks));
-    }
-    if let Some(e) = err {
-        return Err(metadata_err("metadata space map", e).into());
-    }
+    let metadata_leaks = compare_space_maps(
+        metadata_sm_on_disk_future(),
+        &metadata_sm,
+        report,
+        "metadata",
+    )
+    .map_err(|e| metadata_err("metadata space map", e))?;
 
     //-----------------------------------------
     // Fix minor issues found in the metadata
