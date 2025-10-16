@@ -1462,41 +1462,49 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
     //-----------------------------------------
     // Kick off reading the data space map
     let data_root = unpack::<SMRoot>(&sb.data_sm_root[0..])?;
-    let data_sm_on_disk_future = {
+    let data_sm_on_disk_future = if opts.engine_opts.use_metadata_snap {
+        None
+    } else {
         let engine = ctx.engine.clone();
         let metadata_sm = metadata_sm.clone();
         let report = ctx.report.clone();
 
-        spawn_future(move || -> Result<(Aggregator, Vec<IndexEntry>), Error> {
-            let start = std::time::Instant::now();
-            let (data_sm_on_disk, data_entries_on_disk) =
-                read_data_space_map(engine, data_root, opts.ignore_non_fatal, &metadata_sm)?;
-            let duration = start.elapsed();
-            report.debug(&format!("reading data sm: {:?}", duration));
-            Ok((data_sm_on_disk, data_entries_on_disk))
-        })
+        Some(spawn_future(
+            move || -> Result<(Aggregator, Vec<IndexEntry>), Error> {
+                let start = std::time::Instant::now();
+                let (data_sm_on_disk, data_entries_on_disk) =
+                    read_data_space_map(engine, data_root, opts.ignore_non_fatal, &metadata_sm)?;
+                let duration = start.elapsed();
+                report.debug(&format!("reading data sm: {:?}", duration));
+                Ok((data_sm_on_disk, data_entries_on_disk))
+            },
+        ))
     };
 
     //-----------------------------------------
     // Kick off reading the metadata space map
     let metadata_root = unpack::<SMRoot>(&sb.metadata_sm_root[0..])?;
-    let metadata_sm_on_disk_future = {
+    let metadata_sm_on_disk_future = if opts.engine_opts.use_metadata_snap {
+        None
+    } else {
         let engine = ctx.engine.clone();
         let metadata_sm = metadata_sm.clone();
         let report = ctx.report.clone();
 
-        spawn_future(move || -> Result<(Aggregator, Vec<IndexEntry>), Error> {
-            let start = std::time::Instant::now();
-            let (metadata_sm_on_disk, metadata_entries_on_disk) = read_metadata_space_map(
-                engine,
-                metadata_root,
-                opts.ignore_non_fatal,
-                &metadata_sm,
-            )?;
-            let duration = start.elapsed();
-            report.debug(&format!("reading metadata sm: {:?}", duration));
-            Ok((metadata_sm_on_disk, metadata_entries_on_disk))
-        })
+        Some(spawn_future(
+            move || -> Result<(Aggregator, Vec<IndexEntry>), Error> {
+                let start = std::time::Instant::now();
+                let (metadata_sm_on_disk, metadata_entries_on_disk) = read_metadata_space_map(
+                    engine,
+                    metadata_root,
+                    opts.ignore_non_fatal,
+                    &metadata_sm,
+                )?;
+                let duration = start.elapsed();
+                report.debug(&format!("reading metadata sm: {:?}", duration));
+                Ok((metadata_sm_on_disk, metadata_entries_on_disk))
+            },
+        ))
     };
 
     //----------------------------------------
@@ -1550,18 +1558,21 @@ pub fn check(opts: ThinCheckOptions) -> Result<()> {
 
     //-----------------------------------------
     // Compare the data space maps
-    let data_leaks = compare_space_maps(data_sm_on_disk_future(), &data_sm, report, "data")
+    let data_leaks = data_sm_on_disk_future
+        .map_or_else(
+            || Ok(Vec::new()),
+            |future| compare_space_maps(future(), &data_sm, report, "data"),
+        )
         .map_err(|e| metadata_err("data space map", e))?;
 
     //-----------------------------------------
     // Compare the metadata space maps
-    let metadata_leaks = compare_space_maps(
-        metadata_sm_on_disk_future(),
-        &metadata_sm,
-        report,
-        "metadata",
-    )
-    .map_err(|e| metadata_err("metadata space map", e))?;
+    let metadata_leaks = metadata_sm_on_disk_future
+        .map_or_else(
+            || Ok(Vec::new()),
+            |future| compare_space_maps(future(), &metadata_sm, report, "metadata"),
+        )
+        .map_err(|e| metadata_err("metadata space map", e))?;
 
     //-----------------------------------------
     // Fix minor issues found in the metadata
