@@ -1090,7 +1090,7 @@ fn print_info(sb: &Superblock, report: Arc<Report>) -> Result<()> {
     report.to_stdout(&format!("TRANSACTION_ID={}", sb.transaction_id));
     report.to_stdout(&format!(
         "METADATA_FREE_BLOCKS={}",
-        root.nr_blocks - root.nr_allocated
+        root.nr_blocks.saturating_sub(root.nr_allocated)
     ));
     Ok(())
 }
