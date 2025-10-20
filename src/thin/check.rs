@@ -655,7 +655,7 @@ fn collect_nodes_in_use(
 ) -> Result<NodeMap> {
     const NR_THREADS: usize = 4;
 
-    let nodes = NodeMap::new(ctx.engine.get_nr_blocks() as u32);
+    let nodes = NodeMap::new(aggregator.get_nr_blocks() as u32);
 
     if roots.is_empty() {
         return Ok(nodes);
