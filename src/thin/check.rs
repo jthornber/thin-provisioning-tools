@@ -371,9 +371,10 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                     self.push_internal(loc as u32, info);
 
                     let seen = self.aggregator.test_and_inc(&values);
+                    let nr_blocks = self.aggregator.get_nr_blocks() as u64;
 
                     for (i, v) in values.iter().enumerate() {
-                        if !seen.contains(i) {
+                        if !seen.contains(i) && *v < nr_blocks {
                             self.children.insert(*v as usize);
                         }
                     }
@@ -431,6 +432,11 @@ fn read_internal_nodes(
     ignore_non_fatal: bool,
     nodes: Arc<BatchedNodeMap>,
 ) -> Result<()> {
+    let nr_blocks = aggregator.get_nr_blocks();
+    if root as usize >= nr_blocks {
+        return Err(anyhow::anyhow!("block {} out of space map boundary", root));
+    }
+
     let seen = aggregator.test_and_inc(&[root as u64]);
     if seen.contains(0) {
         return Ok(());
@@ -447,7 +453,6 @@ fn read_internal_nodes(
         return Ok(());
     }
 
-    let nr_blocks = aggregator.get_nr_blocks();
     let mut current_layer = FixedBitSet::with_capacity(nr_blocks);
 
     current_layer.insert(root as usize);

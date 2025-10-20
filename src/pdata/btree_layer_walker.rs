@@ -45,9 +45,10 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                     Ok(Node::Internal { values, .. }) => {
                         // insert the node info in pre-order fashion to better detect loops in the path
                         let seen = self.aggregator.test_and_inc(values);
+                        let nr_blocks = self.aggregator.get_nr_blocks() as u64;
 
                         for (i, v) in values.iter().enumerate() {
-                            if !seen.contains(i) {
+                            if !seen.contains(i) && *v < nr_blocks {
                                 self.children.insert(*v as usize);
                             }
                         }
@@ -114,12 +115,16 @@ fn read_internal_nodes<V: Unpack>(
     root: u64,
     ignore_non_fatal: bool,
 ) -> anyhow::Result<(usize, FixedBitSet)> {
+    let nr_blocks = aggregator.get_nr_blocks();
+    if root >= nr_blocks as u64 {
+        return Err(anyhow::anyhow!("block {} out of space map boundary", root));
+    }
+
     let seen = aggregator.test_and_inc(&[root]);
     if seen.contains(0) {
         return Ok((0, FixedBitSet::new()));
     }
 
-    let nr_blocks = aggregator.get_nr_blocks();
     let mut current_layer = FixedBitSet::with_capacity(nr_blocks);
     current_layer.insert(root as usize);
 
