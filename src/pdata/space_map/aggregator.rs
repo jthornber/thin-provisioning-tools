@@ -477,21 +477,13 @@ impl Aggregator {
         for i in 1..blocks.len() {
             let current_region = blocks[i] / REGION_SIZE as u64;
             if current_region != start_region {
-                let mut region = self.regions[start_region as usize].lock().unwrap();
-                let allocated_before = region.nr_allocated;
-                region.increment(&blocks[start_idx..i]);
-                nr_allocated += (region.nr_allocated - allocated_before) as u64;
-
+                nr_allocated += self.process_region_increment(start_region, &blocks[start_idx..i]);
                 start_idx = i;
                 start_region = current_region;
             }
         }
 
-        let mut region = self.regions[start_region as usize].lock().unwrap();
-        let allocated_before = region.nr_allocated;
-        region.increment(&blocks[start_idx..]);
-        nr_allocated += (region.nr_allocated - allocated_before) as u64;
-
+        nr_allocated += self.process_region_increment(start_region, &blocks[start_idx..]);
         self.inc_allocated(nr_allocated);
     }
 
@@ -540,21 +532,23 @@ impl Aggregator {
         for i in 1..blocks.len() {
             let current_region = blocks[i] / REGION_SIZE as u64;
             if current_region != start_region {
-                let mut region = self.regions[start_region as usize].lock().unwrap();
-                let allocated_before = region.nr_allocated;
-                region.test_and_inc(&blocks[start_idx..i], &mut results, start_idx);
-                nr_allocated += (region.nr_allocated - allocated_before) as u64;
-
+                nr_allocated += self.process_region_test_and_inc(
+                    start_region,
+                    &blocks[start_idx..i],
+                    &mut results,
+                    start_idx,
+                );
                 start_idx = i;
                 start_region = current_region;
             }
         }
 
-        let mut region = self.regions[start_region as usize].lock().unwrap();
-        let allocated_before = region.nr_allocated;
-        region.test_and_inc(&blocks[start_idx..], &mut results, start_idx);
-        nr_allocated += (region.nr_allocated - allocated_before) as u64;
-
+        nr_allocated += self.process_region_test_and_inc(
+            start_region,
+            &blocks[start_idx..],
+            &mut results,
+            start_idx,
+        );
         self.inc_allocated(nr_allocated);
 
         results
@@ -575,30 +569,19 @@ impl Aggregator {
         for i in 1..pairs.len() {
             let current_region = pairs[i].0 / REGION_SIZE as u64;
             if current_region != start_region {
-                let mut region = self.regions[start_region as usize].lock().unwrap();
-                let allocated_before = region.nr_allocated;
-                region.set(&pairs[start_idx..i]);
-
-                if region.nr_allocated >= allocated_before {
-                    nr_allocated += (region.nr_allocated - allocated_before) as u64;
-                } else {
-                    nr_freed += (allocated_before - region.nr_allocated) as u64;
-                }
+                let (allocated, freed) =
+                    self.process_region_set(start_region, &pairs[start_idx..i]);
+                nr_allocated += allocated;
+                nr_freed += freed;
 
                 start_idx = i;
                 start_region = current_region;
             }
         }
 
-        let mut region = self.regions[start_region as usize].lock().unwrap();
-        let allocated_before = region.nr_allocated;
-        region.set(&pairs[start_idx..]);
-
-        if region.nr_allocated >= allocated_before {
-            nr_allocated += (region.nr_allocated - allocated_before) as u64;
-        } else {
-            nr_freed += (allocated_before - region.nr_allocated) as u64;
-        }
+        let (allocated, freed) = self.process_region_set(start_region, &pairs[start_idx..]);
+        nr_allocated += allocated;
+        nr_freed += freed;
 
         // Apply net allocation change with single lock
         // If nr_allocated == nr_freed, do nothing (optimal)
@@ -661,6 +644,50 @@ impl Aggregator {
 
     pub fn get_nr_regions(&self) -> usize {
         self.regions.len()
+    }
+
+    fn process_region_increment(&self, region_idx: u64, blocks: &[u64]) -> u64 {
+        if region_idx >= self.regions.len() as u64 {
+            return 0;
+        }
+
+        let mut region = self.regions[region_idx as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
+        region.increment(blocks);
+        (region.nr_allocated - allocated_before) as u64
+    }
+
+    fn process_region_test_and_inc(
+        &self,
+        region_idx: u64,
+        blocks: &[u64],
+        results: &mut FixedBitSet,
+        results_offset: usize,
+    ) -> u64 {
+        if region_idx >= self.regions.len() as u64 {
+            return 0;
+        }
+
+        let mut region = self.regions[region_idx as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
+        region.test_and_inc(blocks, results, results_offset);
+        (region.nr_allocated - allocated_before) as u64
+    }
+
+    fn process_region_set(&self, region_idx: u64, pairs: &[(u64, u32)]) -> (u64, u64) {
+        if region_idx >= self.regions.len() as u64 {
+            return (0, 0);
+        }
+
+        let mut region = self.regions[region_idx as usize].lock().unwrap();
+        let allocated_before = region.nr_allocated;
+        region.set(pairs);
+
+        if region.nr_allocated >= allocated_before {
+            ((region.nr_allocated - allocated_before) as u64, 0)
+        } else {
+            (0, (allocated_before - region.nr_allocated) as u64)
+        }
     }
 
     fn inc_allocated(&self, count: u64) {
