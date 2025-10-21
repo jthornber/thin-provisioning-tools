@@ -38,7 +38,7 @@ fn gather_data_index_entries(
     ignore_non_fatal: bool,
 ) -> Result<Vec<IndexEntry>> {
     let entries_map = btree_to_map_with_aggregator::<IndexEntry>(
-        engine,
+        engine.as_ref(),
         metadata_sm,
         bitmap_root,
         ignore_non_fatal,
@@ -225,11 +225,11 @@ pub fn read_space_map(
     }
 
     // Now, handle the overflow entries in the ref count tree
-    struct OverflowVisitor {
-        aggregator: Arc<Aggregator>,
+    struct OverflowVisitor<'a> {
+        aggregator: &'a Aggregator,
     }
 
-    impl NodeVisitor<u32> for OverflowVisitor {
+    impl<'a> NodeVisitor<u32> for OverflowVisitor<'a> {
         fn visit(
             &self,
             _path: &[u64],
@@ -256,16 +256,15 @@ pub fn read_space_map(
         }
     }
 
-    let visitor = Arc::new(OverflowVisitor {
-        aggregator: aggregator.clone(),
-    });
+    let visitor = OverflowVisitor {
+        aggregator: &aggregator,
+    };
     read_nodes(
-        engine,
-        visitor,
+        engine.as_ref(),
+        &visitor,
         metadata_sm,
         root.ref_count_root,
         ignore_non_fatal,
-        1,
     )?;
 
     Ok((Arc::into_inner(aggregator).unwrap(), entries))

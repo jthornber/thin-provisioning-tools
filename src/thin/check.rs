@@ -1138,7 +1138,7 @@ fn get_devices_(
 ) -> Result<(BTreeMap<u64, DeviceDetail>, BTreeMap<u64, u64>)> {
     // Mapping top level
     let roots = btree_to_map_with_aggregator::<u64>(
-        engine.clone(),
+        engine.as_ref(),
         metadata_sm,
         sb.mapping_root,
         ignore_non_fatal,
@@ -1147,7 +1147,7 @@ fn get_devices_(
 
     // Device details
     let devs = btree_to_map_with_aggregator::<DeviceDetail>(
-        engine.clone(),
+        engine.as_ref(),
         metadata_sm,
         sb.details_root,
         ignore_non_fatal,

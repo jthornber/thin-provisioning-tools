@@ -1,13 +1,11 @@
 use fixedbitset::FixedBitSet;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
 use crate::pdata::btree_walker::{NodeVisitor, ValueCollector};
 use crate::pdata::space_map::aggregator::*;
 use crate::pdata::unpack::Unpack;
-use crate::utils::ranged_bitset_iter::RangedBitsetIter;
 
 struct LayerHandler<'a> {
     aggregator: &'a Aggregator,
@@ -109,7 +107,7 @@ fn get_depth<V: Unpack>(
 }
 
 fn read_internal_nodes<V: Unpack>(
-    engine: Arc<dyn IoEngine>,
+    engine: &dyn IoEngine,
     io_buffers: &mut BufferPool,
     aggregator: &Aggregator,
     root: u64,
@@ -129,7 +127,7 @@ fn read_internal_nodes<V: Unpack>(
     current_layer.insert(root as usize);
 
     let mut path = Vec::new();
-    let depth = get_depth::<V>(engine.as_ref(), &mut path, root, true)?;
+    let depth = get_depth::<V>(engine, &mut path, root, true)?;
     if depth == 0 {
         return Ok((0, current_layer)); // TODO: avoid allocating the bitset in this situation
     }
@@ -156,16 +154,16 @@ fn read_internal_nodes<V: Unpack>(
     Ok((depth, current_layer))
 }
 
-struct LeafHandler<V: Unpack> {
-    visitor: Arc<dyn NodeVisitor<V>>,
+struct LeafHandler<'a, V: Unpack> {
+    visitor: &'a dyn NodeVisitor<V>,
     is_root: bool,
     ignore_non_fatal: bool,
     error: Option<anyhow::Error>,
     dummy: std::marker::PhantomData<V>,
 }
 
-impl<V: Unpack> LeafHandler<V> {
-    fn new(nv: Arc<dyn NodeVisitor<V>>, is_root: bool, ignore_non_fatal: bool) -> Self {
+impl<'a, V: Unpack> LeafHandler<'a, V> {
+    fn new(nv: &'a dyn NodeVisitor<V>, is_root: bool, ignore_non_fatal: bool) -> Self {
         Self {
             visitor: nv,
             is_root,
@@ -176,7 +174,7 @@ impl<V: Unpack> LeafHandler<V> {
     }
 }
 
-impl<V: Unpack> ReadHandler for LeafHandler<V> {
+impl<'a, V: Unpack> ReadHandler for LeafHandler<'a, V> {
     fn handle(&mut self, loc: u64, data: std::io::Result<&[u8]>) {
         use anyhow::anyhow;
 
@@ -212,8 +210,8 @@ impl<V: Unpack> ReadHandler for LeafHandler<V> {
 }
 
 fn unpacker<V: Unpack>(
-    engine: Arc<dyn IoEngine>,
-    nv: Arc<dyn NodeVisitor<V>>,
+    engine: &dyn IoEngine,
+    nv: &dyn NodeVisitor<V>,
     leaves: &mut dyn Iterator<Item = u64>,
     is_root: bool,
     ignore_non_fatal: bool,
@@ -234,90 +232,48 @@ fn unpacker<V: Unpack>(
 }
 
 fn read_leaf_nodes<V: Unpack>(
-    engine: Arc<dyn IoEngine>,
-    nv: Arc<dyn NodeVisitor<V> + Send + Sync>,
+    engine: &dyn IoEngine,
+    nv: &dyn NodeVisitor<V>,
     leaves: &FixedBitSet,
     depth: usize,
-    nr_unpackers: usize,
     ignore_non_fatal: bool,
 ) -> anyhow::Result<()> {
-    if nr_unpackers > 1 {
-        // Kick off the unpackers
-        std::thread::scope(|s| {
-            let chunk_size = leaves.len().div_ceil(nr_unpackers);
-            let mut handles = Vec::new();
-            for i in 0..nr_unpackers {
-                let engine = engine.clone();
-                let l_begin = i * chunk_size;
-                let l_end = ((i + 1) * chunk_size).min(leaves.len());
-                let mut leaves = RangedBitsetIter::new(leaves, l_begin..l_end);
-                let v = nv.clone();
-
-                let handle = s.spawn(move || {
-                    unpacker::<V>(engine, v, &mut leaves, depth == 0, ignore_non_fatal)
-                });
-                handles.push(handle);
-            }
-
-            let mut result = Ok(());
-            for h in handles {
-                if let Err(e) = h.join().unwrap() {
-                    result = result.or(Err(e));
-                }
-            }
-            result
-        })
-    } else {
-        unpacker::<V>(
-            engine,
-            nv,
-            &mut leaves.ones().map(|b| b as u64),
-            depth == 0,
-            ignore_non_fatal,
-        )
-    }
+    unpacker::<V>(
+        engine,
+        nv,
+        &mut leaves.ones().map(|b| b as u64),
+        depth == 0,
+        ignore_non_fatal,
+    )
 }
 
 pub fn read_nodes<V: Unpack>(
-    engine: Arc<dyn IoEngine>,
-    nv: Arc<dyn NodeVisitor<V> + Send + Sync>,
+    engine: &dyn IoEngine,
+    nv: &dyn NodeVisitor<V>,
     aggregator: &Aggregator,
     root: u64,
     ignore_non_fatal: bool,
-    nr_unpackers: usize,
 ) -> anyhow::Result<()> {
     let buffer_size = 16 * 1024 * 1024;
     let nr_io_blocks = buffer_size / BLOCK_SIZE;
     let mut pool = BufferPool::new(nr_io_blocks, BLOCK_SIZE);
 
-    let (depth, leaves) = read_internal_nodes::<V>(
-        engine.clone(),
-        &mut pool,
-        aggregator,
-        root,
-        ignore_non_fatal,
-    )?;
-    read_leaf_nodes(engine, nv, &leaves, depth, nr_unpackers, ignore_non_fatal)
+    let (depth, leaves) =
+        read_internal_nodes::<V>(engine, &mut pool, aggregator, root, ignore_non_fatal)?;
+    read_leaf_nodes(engine, nv, &leaves, depth, ignore_non_fatal)
 }
 
 //------------------------------------------
 
 pub fn btree_to_map_with_aggregator<V: Unpack + Copy + Send + Sync + 'static>(
-    engine: Arc<dyn IoEngine>,
+    engine: &dyn IoEngine,
     aggregator: &Aggregator,
     root: u64,
     ignore_non_fatal: bool,
 ) -> anyhow::Result<BTreeMap<u64, V>> {
     // FIXME: the mutex lock inside ValueCollector might slow down the ReadHandler
-    let visitor = Arc::new(ValueCollector::new());
-    read_nodes(
-        engine,
-        visitor.clone(),
-        aggregator,
-        root,
-        ignore_non_fatal,
-        1,
-    )?;
+    let visitor = ValueCollector::new();
+    read_nodes(engine, &visitor, aggregator, root, ignore_non_fatal)?;
 
     let mut results = BTreeMap::new();
     {
