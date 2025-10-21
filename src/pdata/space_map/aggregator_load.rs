@@ -64,6 +64,11 @@ fn gather_metadata_index_entries(
     Ok(entries)
 }
 
+/// Loads space map index entries from disk.
+///
+/// Takes the full SMRoot rather than the root block number for extensibility,
+/// while the metadata_sm for tracking reference counts currently matches
+/// SMRoot.nr_blocks in size. This property may change in the future.
 fn gather_index_entries(
     engine: Arc<dyn IoEngine + Send + Sync>,
     root: &SMRoot,
