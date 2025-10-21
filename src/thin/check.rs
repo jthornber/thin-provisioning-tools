@@ -680,17 +680,16 @@ fn collect_nodes_in_use(
                 let mut pool = BufferPool::new(nr_io_blocks, io_block_size);
 
                 for &root in chunk {
-                    if let Err(e) = read_internal_nodes(
+                    // Allow errors in this phase. Node errors will be captured
+                    // later when counting the number of mapped blocks.
+                    let _ = read_internal_nodes(
                         ctx,
                         &mut pool,
                         aggregator,
                         root as u32,
                         ignore_non_fatal,
                         batch_nodes.clone(),
-                    ) {
-                        // FIXME: handle error properly
-                        eprintln!("Error reading internal nodes: {:?}", e);
-                    }
+                    );
                 }
             });
         }
