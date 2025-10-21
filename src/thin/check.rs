@@ -732,6 +732,7 @@ fn examine_leaf_(
     loc: u64,
     data: &[u8],
     ignore_non_fatal: bool,
+    data_sm_size: u64,
     data_blocks: &mut Vec<u64>,
 ) -> std::result::Result<NodeSummary, NodeError> {
     verify_checksum(data)?;
@@ -789,18 +790,23 @@ fn examine_leaf_(
     let (i, _padding) = convert_result(take(nr_free * 8)(i))?;
 
     let mut input = i;
+    let mut error_mappings = 0;
     for _ in 0..header.nr_entries {
         let (i, bt) = convert_result(BlockTime::unpack(input))?;
         input = i;
+        if bt.block >= data_sm_size {
+            error_mappings += 1;
+            continue;
+        }
         data_blocks.push(bt.block);
     }
 
     let sum = NodeSummary {
         key_low,
         key_high,
-        nr_mappings: header.nr_entries as u64,
-        nr_entries: header.nr_entries as u8,
-        nr_errors: 0,
+        nr_mappings: header.nr_entries as u64 - error_mappings as u64,
+        nr_entries: header.nr_entries as u8 - error_mappings,
+        nr_errors: if error_mappings > 0 { 1 } else { 0 },
     };
 
     Ok(sum)
@@ -902,7 +908,13 @@ impl ReadHandler for LeafHandler {
             Ok(data) => {
                 // Allow under full nodes in this phase.  The under full
                 // property will be check later based on the path context.
-                let sum = examine_leaf_(loc, data, self.ignore_non_fatal, &mut self.inc_batch);
+                let sum = examine_leaf_(
+                    loc,
+                    data,
+                    self.ignore_non_fatal,
+                    self.data_sm.get_nr_blocks() as u64,
+                    &mut self.inc_batch,
+                );
                 self.maybe_flush_incs();
 
                 match sum {
