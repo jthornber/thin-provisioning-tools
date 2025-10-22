@@ -1,3 +1,12 @@
+v1.3.0
+======
+
+- Improve thin_check performance with an optimized I/O strategy and more
+  memory-efficient data structures.
+- Rewrite AsyncIoEngine using tokio IoUring, removing the rio dependency
+- Enhance thin_check with edge-case fixes, including space map boundary checks
+- Update thin_explore to use ratatui, replacing the archived tui crate
+
 v1.2.2
 =======
 
