@@ -125,30 +125,36 @@ impl<'a> ReadHandler for IndexHandler<'a> {
                     match checksum::metadata_block_type(data) {
                         checksum::BT::BITMAP => {}
                         checksum::BT::UNKNOWN => {
-                            self.error.get_or_insert(anyhow!(
-                                "checksum error at block {}, index entry {}",
-                                loc,
-                                block_index
-                            ));
+                            self.error.get_or_insert_with(|| {
+                                anyhow!(
+                                    "checksum error at block {}, index entry {}",
+                                    loc,
+                                    block_index
+                                )
+                            });
                             return;
                         }
                         _ => {
-                            self.error.get_or_insert(anyhow!(
-                                "block {} of index entry {} is not a bitmap",
-                                loc,
-                                block_index
-                            ));
+                            self.error.get_or_insert_with(|| {
+                                anyhow!(
+                                    "block {} of index entry {} is not a bitmap",
+                                    loc,
+                                    block_index
+                                )
+                            });
                             return;
                         }
                     }
 
                     let bitmap = unpack::<Bitmap>(data);
                     if bitmap.is_err() {
-                        self.error.get_or_insert(anyhow!(
-                            "incomplete data at block {}, index entry {}",
-                            loc,
-                            block_index
-                        ));
+                        self.error.get_or_insert_with(|| {
+                            anyhow!(
+                                "incomplete data at block {}, index entry {}",
+                                loc,
+                                block_index
+                            )
+                        });
                         return;
                     }
                     let bitmap = bitmap.unwrap();
@@ -171,17 +177,14 @@ impl<'a> ReadHandler for IndexHandler<'a> {
                     self.flush_batch();
                 }
                 Err(e) => {
-                    self.error.get_or_insert(anyhow!(
-                        "{} at block {}, index entry {}",
-                        e,
-                        loc,
-                        block_index
-                    ));
+                    self.error.get_or_insert_with(|| {
+                        anyhow!("{} at block {}, index entry {}", e, loc, block_index)
+                    });
                 }
             }
         } else {
             self.error
-                .get_or_insert(anyhow!("unexpected bitmap {} without index entry", loc));
+                .get_or_insert_with(|| anyhow!("unexpected bitmap {} without index entry", loc));
         }
     }
 

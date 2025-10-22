@@ -54,15 +54,17 @@ impl<'a> ReadHandler for LayerHandler<'a> {
                     }
                     Ok(_) => {
                         self.error
-                            .get_or_insert(anyhow!("node {} is not an internal", loc));
+                            .get_or_insert_with(|| anyhow!("node {} is not an internal", loc));
                     }
                     Err(e) => {
-                        self.error.get_or_insert(anyhow!("{} at block {}", e, loc));
+                        self.error
+                            .get_or_insert_with(|| anyhow!("{} at block {}", e, loc));
                     }
                 }
             }
             Err(e) => {
-                self.error.get_or_insert(anyhow!("{} at block {}", e, loc));
+                self.error
+                    .get_or_insert_with(|| anyhow!("{} at block {}", e, loc));
             }
         }
     }
@@ -156,15 +158,17 @@ impl<'a, V: Unpack> ReadHandler for LeafHandler<'a, V> {
                     }
                     Ok(_) => {
                         self.error
-                            .get_or_insert(anyhow!("node {} is not a leaf", loc));
+                            .get_or_insert_with(|| anyhow!("node {} is not a leaf", loc));
                     }
                     Err(e) => {
-                        self.error.get_or_insert(anyhow!("{} at block {}", e, loc));
+                        self.error
+                            .get_or_insert_with(|| anyhow!("{} at block {}", e, loc));
                     }
                 }
             }
             Err(e) => {
-                self.error.get_or_insert(anyhow!("{} at block {}", e, loc));
+                self.error
+                    .get_or_insert_with(|| anyhow!("{} at block {}", e, loc));
             }
         }
     }
