@@ -12,6 +12,7 @@ use crate::grid_layout::GridLayout;
 use crate::io_engine::SECTOR_SHIFT;
 use crate::io_engine::*;
 use crate::pdata::btree::{self, *};
+use crate::pdata::btree_utils::*;
 use crate::pdata::btree_walker::*;
 use crate::pdata::space_map::common::SMRoot;
 use crate::pdata::space_map::*;
@@ -498,39 +499,6 @@ fn read_node(
     read_node_(ctx, metadata_sm, b, depth, ignore_non_fatal, nodes);
 }
 
-/// Gets the depth of a bottom level mapping tree.  0 means the root is a leaf node.
-// FIXME: what if there's an error on the path to the leftmost leaf?
-fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Result<usize> {
-    use Node::*;
-
-    let b = ctx.engine.read(root).map_err(|_| io_err(path))?;
-    let node =
-        check_and_unpack_node::<BlockTime>(&b, true, is_root).map_err(|e| node_err(path, e))?;
-
-    match node {
-        Internal { values, .. } => {
-            // recurse down to the first good leaf
-            let mut last_err = None;
-            for child in values {
-                if path.contains(&child) {
-                    continue; // skip loops
-                }
-
-                path.push(child);
-                match get_depth(ctx, path, child, false) {
-                    Ok(n) => return Ok(n + 1),
-                    Err(e) => {
-                        last_err = Some(e);
-                    }
-                }
-                path.pop();
-            }
-            Err(last_err.unwrap_or_else(|| node_err(path, NodeError::NumEntriesTooSmall).into()))
-        }
-        Leaf { .. } => Ok(0),
-    }
-}
-
 fn read_internal_nodes(
     ctx: &Context,
     metadata_sm: &Arc<Mutex<dyn SpaceMap + Send + Sync>>,
@@ -543,9 +511,7 @@ fn read_internal_nodes(
         _ => {}
     }
 
-    // FIXME: make get-depth more resilient
-    let mut path = Vec::new();
-    let depth = if let Ok(d) = get_depth(ctx, &mut path, root as u64, true) {
+    let depth = if let Ok(d) = get_depth::<BlockTime>(ctx.engine.as_ref(), root as u64) {
         d
     } else {
         return;

@@ -13,6 +13,7 @@ use crate::commands::engine::*;
 use crate::io_engine::*;
 use crate::pdata::btree::*;
 use crate::pdata::btree_layer_walker::*;
+use crate::pdata::btree_utils::*;
 use crate::pdata::space_map::aggregator::*;
 use crate::pdata::space_map::aggregator_load::*;
 use crate::pdata::space_map::aggregator_repair::*;
@@ -391,39 +392,6 @@ impl<'a> ReadHandler for LayerHandler<'a> {
     }
 }
 
-/// Gets the depth of a bottom level mapping tree.  0 means the root is a leaf node.
-// FIXME: what if there's an error on the path to the leftmost leaf?
-fn get_depth(ctx: &Context, path: &mut Vec<u64>, root: u64, is_root: bool) -> Result<usize> {
-    use Node::*;
-
-    let b = ctx.engine.read(root).map_err(|_| io_err(path))?;
-    let node =
-        check_and_unpack_node::<BlockTime>(&b, true, is_root).map_err(|e| node_err(path, e))?;
-
-    match node {
-        Internal { values, .. } => {
-            // recurse down to the first good leaf
-            let mut last_err = None;
-            for child in values {
-                if path.contains(&child) {
-                    continue; // skip loops
-                }
-
-                path.push(child);
-                match get_depth(ctx, path, child, false) {
-                    Ok(n) => return Ok(n + 1),
-                    Err(e) => {
-                        last_err = Some(e);
-                    }
-                }
-                path.pop();
-            }
-            Err(last_err.unwrap_or_else(|| node_err(path, NodeError::NumEntriesTooSmall).into()))
-        }
-        Leaf { .. } => Ok(0),
-    }
-}
-
 fn read_internal_nodes(
     ctx: &Context,
     io_buffers: &mut BufferPool,
@@ -442,9 +410,7 @@ fn read_internal_nodes(
         return Ok(());
     }
 
-    let mut path = Vec::new();
-
-    let depth = get_depth(ctx, &mut path, root as u64, true)?;
+    let depth = get_depth::<BlockTime>(ctx.engine.as_ref(), root as u64)?;
     if depth == 0 {
         nodes.batch_update(vec![NodeUpdate {
             loc: root,
