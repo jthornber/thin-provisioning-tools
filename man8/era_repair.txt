@@ -1,0 +1,26 @@
+NAME
+  era_repair - repair binary era metadata, and write it to a different device or file
+
+SYNOPSIS
+  era_repair TODO
+
+DESCRIPTION
+  TODO
+
+OPTIONS
+  -q, --quiet        Supress output messages, reutrn only exit code
+  -i, --input        Specify the input device
+  -i, --output       Specify the output device
+
+EXAMPLES
+
+  $ era_repair TODO
+
+DIAGNOSTICS
+  era_repair returns an exit code of 0 for success or 1 for error.
+
+SEE ALSO
+  era_dump(8), era_restore(8), era_invalidate(8)
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>

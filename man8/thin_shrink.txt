@@ -1,0 +1,35 @@
+NAME
+  thin_shrink - rewrite xml metadata and move data in an inactive pool
+
+SYNOPSIS
+  thin_shrink TODO
+
+DESCRIPTION
+  TODO
+
+OPTIONS
+  -i, --input        Specify thinp metadata xml file
+  -o, --output       Specify output xml file
+  --data             Specify pool data device where data will be moved
+  --no-copy          Skip the copying of data, useful for benchmarking
+  --nr-blocks        Specify new size for the pool (in data blocks)
+  --binary           Perform binary metadata rebuild rather than XML rewrite
+
+EXAMPLES
+
+  $ thin_shrink TODO
+
+DIAGNOSTICS
+  thin_shrink returns an exit code of 0 for success or 1 for error.
+
+SEE ALSO
+  thin_check(8), thin_dump(8), thin_repair(8), thin_restore(8), 
+  thin_metadata_size(8), thin_rmap(8)
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>, Ming-Hung Tsai <mingnus@gmail.com>
+
+NOTES
+  The implementation of thin_shrink in this suite is based on the work of 
+  Nikhil Kshirsagar <nikhil.kshirsagar@canonical.com>
+
