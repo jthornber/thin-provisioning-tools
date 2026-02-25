@@ -1,35 +1,309 @@
 NAME
-  thin_shrink - rewrite xml metadata and move data in an inactive pool
+  thin_shrink - reduce the size of a thin pool by rewriting metadata and moving data
 
 SYNOPSIS
-  thin_shrink TODO
+  thin_shrink [options] -i {input} -o {output} --data {device} --nr-blocks {num}
 
 DESCRIPTION
-  TODO
+  thin_shrink reduces the size of a thin provisioning pool by rewriting its
+  metadata and moving data blocks that are located beyond the new pool size
+  into the remaining free space within the new pool size.
+
+  This tool is useful when you need to shrink a thin pool, for example:
+  - Reclaiming space from an over-allocated pool
+  - Preparing to reduce the underlying storage device size
+  - Consolidating data after deleting thin volumes
+
+  The tool reads thin provisioning metadata (either XML format or binary),
+  calculates which data blocks need to be relocated, copies those blocks to
+  new locations within the reduced pool size, and outputs updated metadata
+  reflecting the new layout.
+
+  The tool performs a two-pass operation:
+  1. First pass: Analyzes the metadata to determine which data blocks are
+     above the new pool size and need to be remapped, then copies those
+     blocks to free space below the new size.
+  2. Second pass: Rewrites the metadata with remapped block references and
+     updated pool size.
+
+  This tool cannot be run on live metadata. The thin pool must be offline
+  during the entire shrink operation.
+
+IMPORTANT CONSIDERATIONS
+  Shrinking a thin pool is a complex operation that involves:
+  - Moving data blocks on the pool data device
+  - Rewriting the pool metadata
+
+  Before performing a shrink operation:
+
+  1. Ensure all provisioned data can fit within the new pool size. The
+     shrink will fail if there is insufficient free space in the new pool
+     size to accommodate all existing data.
+
+  2. Check your current pool usage with lvs:
+       $ lvs vg/mythinpool
+     The DATA% column shows the percentage of pool space used. Your
+     new pool size must be at least large enough to hold this data.
+
+  3. Always back up critical data before shrinking. While thin_shrink
+     performs safety checks, unexpected interruptions (power loss, system
+     crash) during data movement could corrupt the pool.
 
 OPTIONS
-  -i, --input        Specify thinp metadata xml file
-  -o, --output       Specify output xml file
-  --data             Specify pool data device where data will be moved
-  --no-copy          Skip the copying of data, useful for benchmarking
-  --nr-blocks        Specify new size for the pool (in data blocks)
-  --binary           Perform binary metadata rebuild rather than XML rewrite
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -i, --input {file}	Specify input thinp metadata file (XML or binary).
+  -o, --output {file}	Specify output file for the rewritten metadata.
+  --data {device|file}	Specify the pool data device where data blocks will
+			be read from and written to during the shrink operation.
+			This is the pool's data device (e.g., /dev/vg/pool_tdata).
+  --nr-blocks {num}	Specify the new size for the pool in data blocks.
+			This must be smaller than the current pool size.
+  --no-copy		Skip the copying of data blocks to their new locations.
+			This is useful for testing the metadata rewrite phase
+			only. The output metadata will be consistent but data
+			will not be moved. Use with caution.
+  --binary		Perform a binary metadata rebuild rather than XML
+			rewrite. The input and output are treated as binary
+			metadata devices or files instead of XML files.
 
 EXAMPLES
+  Determining Current Pool Parameters
+  -----------------------------------
+  Before shrinking, you need to know the pool's data block size and current
+  size in blocks. The block size is configurable but typically 64KB or 128KB.
 
-  $ thin_shrink TODO
+  Method 1: Using thin_dump on the metadata device:
+
+    $ thin_dump /dev/vg/mythinpool_tmeta | head -3
+    <superblock uuid="..." time="0" transaction="5"
+     data_block_size="128" nr_data_blocks="81920">
+
+  This shows:
+  - data_block_size is in 512-byte sectors (128 sectors = 65536 bytes = 64KiB)
+  - nr_data_blocks is the current pool size (81920 blocks)
+
+  Method 2: Using LVM commands:
+
+    $ lvs -o+chunksize vg/mythinpool
+    LV         VG Attr       LSize  Chunk
+    mythinpool vg twi-aotz-- 5.00g   64.00k
+
+  The Chunk column shows the data block size. The relationship between
+  chunk size and data_block_size is:
+    chunk_size / 512 = data_block_size
+  For example, 64.00KiB chunk = 128 sectors data_block_size.
+
+  Understanding Block Size Conversions
+  ------------------------------------
+  The --nr-blocks parameter is always specified in data blocks, not bytes
+  or sectors. To convert between storage sizes and block counts:
+
+    blocks = pool_size_in_bytes / (data_block_size * 512)
+
+  A data block consists of data_block_size sectors, each 512 bytes.
+  The total size of a block is therefore:
+    block_bytes = data_block_size * 512
+
+  The following table shows the relationship for common configurations:
+
+  Chunk Size  data_block_size  Block Bytes
+  ----------  ---------------  -----------
+  64KiB       128 sectors      65536 bytes
+  128KiB      256 sectors      131072 bytes
+  256KiB      512 sectors      262144 bytes
+
+  To calculate blocks from a desired pool size, use:
+
+    blocks = desired_size_bytes / (data_block_size * 512)
+
+  For example, to shrink to 960MiB with 128-sector data blocks:
+    960MiB = 1006632960 bytes
+    Block size = 128 * 512 = 65536 bytes
+    blocks = 1006632960 / 65536 = 15360 blocks
+
+  Precise Calculation Example
+  ---------------------------
+  Given a pool with data_block_size of 128 sectors (64KiB blocks),
+  shrinking from 5GiB (81920 blocks) to 960MiB (15360 blocks):
+
+  Original size:
+    5GiB = 5368709120 bytes
+    data_block_size = 128 sectors * 512 bytes/sector = 65536 bytes/block
+    nr_data_blocks = 5368709120 / 65536 = 81920 blocks
+
+  New size:
+    960MiB = 1006632960 bytes
+    nr_data_blocks = 1006632960 / 65536 = 15360 blocks
+
+  The exact calculation is:
+    1006632960 / (128 * 512) = 1006632960 / 65536 = 15360
+    5368709120 / (128 * 512) = 5368709120 / 65536 = 81920
+
+  Calculate with Python or bc:
+    $ python3 -c "print(960 * 1024 * 1024 // (128 * 512))"
+    15360
+    $ python3 -c "print(5 * 1024 * 1024 * 1024 // (128 * 512))"
+    81920
+
+  Complete LVM Workflow: Shrinking a Thin Pool
+  ----------------------------------------------
+  This example shrinks a 5GiB thin pool to 960MiB.
+  Current: 81920 blocks (5GiB with 128-sector blocks)
+  Target:  15360 blocks (960MiB with 128-sector blocks)
+
+  Step 1: Review current pool usage
+
+    $ lvs vg/mythinpool
+    LV         VG Attr       LSize  Pool Origin Data%
+    mythinpool vg twi-aotz-- 5.00g           1.23
+
+  Ensure Data% is well below 100% and that the new size (960MiB)
+  can accommodate all provisioned data.
+
+  Step 2: Unmount all filesystems on thin volumes in the pool
+
+    $ umount /mnt/thinvolume1
+    $ umount /mnt/thinvolume2
+
+  Step 3: Deactivate the thin pool
+
+    $ lvchange -an vg/mythinpool
+
+  Step 4: Dump the current metadata to an XML file
+
+    $ thin_dump /dev/vg/mythinpool_tmeta -o pool_before.xml
+
+  Step 5: Verify the metadata dump and check current parameters
+
+    $ head -5 pool_before.xml
+    $ thin_check pool_before.xml
+
+  Verify data_block_size and nr_data_blocks in the superblock.
+
+  Step 6: Perform the shrink operation
+
+  Test the metadata rewrite first (optional, for verification):
+
+    $ thin_shrink -i pool_before.xml -o pool_test.xml --no-copy \\
+        --data /dev/vg/mythinpool_tdata --nr-blocks 15360
+
+  Perform the actual shrink with data movement:
+
+    $ thin_shrink -i pool_before.xml -o pool_after.xml \\
+        --data /dev/vg/mythinpool_tdata --nr-blocks 15360
+
+  Step 7: Verify the shrunk metadata
+
+    $ thin_check pool_after.xml
+    $ thin_dump pool_after.xml | head -5
+
+  Verify that nr_data_blocks is now 15360 and data_block_size
+  remains unchanged at 128.
+
+  Step 8: Restore the shrunk metadata to the original metadata device
+
+    $ thin_restore -i pool_after.xml -o /dev/vg/mythinpool_tmeta
+
+  Step 9: Resize the pool data LV to match the new pool size
+
+  Calculate the new data device size:
+    15360 blocks * 128 sectors/block = 1966080 sectors
+    1966080 sectors * 512 bytes/sector = 1006632960 bytes
+
+  Reduce the data device to exactly 960MiB:
+
+    $ lvreduce -L 960M /dev/vg/mythinpool_tdata
+
+  The pool metadata LV typically does not need resizing.
+
+  Step 10: Reactivate the thin pool
+
+    $ lvchange -ay vg/mythinpool
+
+  Step 11: Mount and verify the thin volumes
+
+    $ mount /dev/vg/thinvolume1 /mnt/thinvolume1
+    $ df -h /mnt/thinvolume1
+
+  Step 12: Verify the pool shows the new size
+
+    $ lvs vg/mythinpool
+
+  Using Binary Mode for Large Pools
+  ---------------------------------
+  For large pools where XML conversion is slow or memory-intensive,
+  use binary mode to operate directly on binary metadata:
+
+  Step 1: Deactivate the pool
+
+    $ lvchange -an vg/mythinpool
+
+  Step 2: Shrink using binary mode
+
+    $ thin_shrink --binary \\
+        -i /dev/vg/mythinpool_tmeta \\
+        -o /dev/vg/mythinpool_tmeta_new \\
+        --data /dev/vg/mythinpool_tdata \\
+        --nr-blocks 15360
+
+  Step 3: Verify the new metadata
+
+    $ thin_check /dev/vg/mythinpool_tmeta_new
+
+  Step 4: Swap metadata devices
+
+  Option A: Rename the new metadata to the original name:
+
+    $ lvrename vg mythinpool_tmeta mythinpool_tmeta_old
+    $ lvrename vg mythinpool_tmeta_new mythinpool_tmeta
+
+  Option B: Use lvconvert to switch the thin pool to the new metadata
+  (refer to LVM documentation for specifics):
+
+    $ lvconvert --thinpool vg/mythinpool \\
+        --poolmetadata /dev/vg/mythinpool_tmeta_new
+
+  Step 5: Reduce the data device and reactivate
+
+    $ lvreduce -L 960M /dev/vg/mythinpool_tdata
+    $ lvchange -ay vg/mythinpool
+
+  Error Handling and Recovery
+  -----------------------------
+  Insufficient free space: If the shrink fails with "insufficient free
+  space", the new pool size is too small. Calculate a larger target size:
+
+    $ python3 -c "print(desired_MiB * 1024 * 1024 // (data_block_size * 512))"
+
+  Data corruption after shrink: If thin volumes are unreadable after
+  restoring shrunk metadata, restore from the pool_before.xml backup:
+
+    $ lvchange -an vg/mythinpool
+    $ thin_restore -i pool_before.xml -o /dev/vg/mythinpool_tmeta
+    $ lvchange -ay vg/mythinpool
+
+  Pool fails to activate: Check for metadata corruption:
+
+    $ thin_check pool_after.xml
 
 DIAGNOSTICS
   thin_shrink returns an exit code of 0 for success or 1 for error.
 
+  Common error conditions include:
+  - Insufficient free space within the new pool size
+  - I/O errors during data block copying
+  - Invalid XML or corrupted binary metadata
+  - Missing required options (--data or --nr-blocks)
+  - The specified pool data device is not accessible
+
 SEE ALSO
-  thin_check(8), thin_dump(8), thin_repair(8), thin_restore(8), 
-  thin_metadata_size(8), thin_rmap(8)
+  thin_check(8), thin_dump(8), thin_metadata_size(8), thin_repair(8),
+  thin_restore(8), thin_rmap(8), lvchange(8), lvreduce(8), lvs(8)
 
 AUTHOR
   Joe Thornber <ejt@redhat.com>, Ming-Hung Tsai <mingnus@gmail.com>
 
 NOTES
-  The implementation of thin_shrink in this suite is based on the work of 
+  The implementation of thin_shrink in this suite is based on the work of
   Nikhil Kshirsagar <nikhil.kshirsagar@canonical.com>
-
