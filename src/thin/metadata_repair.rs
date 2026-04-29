@@ -877,8 +877,7 @@ fn rebuild_superblock(
     let transaction_id = opts
         .transaction_id
         .or_else(|| ref_sb.as_ref().map(|sb| sb.transaction_id))
-        .filter(|tid| *tid > roots.transaction_id)
-        .unwrap_or(roots.transaction_id);
+        .map_or(roots.transaction_id, |tid| tid.max(roots.transaction_id));
 
     let nr_data_blocks = opts
         .nr_data_blocks
@@ -889,8 +888,7 @@ fn rebuild_superblock(
                     .map(|root| root.nr_blocks)
             })
         })
-        .filter(|n| *n > roots.nr_data_blocks)
-        .unwrap_or(roots.nr_data_blocks);
+        .map_or(roots.nr_data_blocks, |n| n.max(roots.nr_data_blocks));
 
     // The minimal timestamp for the rebuilt superblock is the age derived
     // from the data mapping tree or the details tree, which ensures the newly
@@ -900,7 +898,7 @@ fn rebuild_superblock(
     // whenever possible.
     let time = ref_sb
         .as_ref()
-        .map_or(roots.time, |sb| std::cmp::max(sb.time, roots.time));
+        .map_or(roots.time, |sb| sb.time.max(roots.time));
 
     let sm_root = SMRoot {
         nr_blocks: nr_data_blocks,
