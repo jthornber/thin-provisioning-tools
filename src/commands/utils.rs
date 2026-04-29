@@ -134,13 +134,9 @@ pub fn is_metadata(path: &Path) -> Result<bool> {
 }
 
 pub fn yes_no_prompt(report: &Report, prompt: &str) -> Result<bool> {
-    report
-        .get_prompt_input(&format!("{} [y/n]: ", prompt))
-        .map(|input| {
-            let input = input.trim_end().to_lowercase();
-            input.eq("yes") || input.eq("y")
-        })
-        .map_err(|e| e.into())
+    let input = report.get_prompt_input(&format!("{} [y/n]: ", prompt))?;
+    let input = input.trim_end().to_lowercase();
+    Ok(input == "yes" || input == "y")
 }
 
 /// Reads the start of the file to see if it's a metadata.
