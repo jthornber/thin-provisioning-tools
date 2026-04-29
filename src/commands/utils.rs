@@ -25,14 +25,14 @@ impl FromStr for RangeU64 {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split("..");
-        let start = iter.next().map_or_else(
-            || Err(anyhow!("badly formed region")),
-            |s| s.parse::<u64>().map_err(|e| e.into()),
-        )?;
-        let end = iter.next().map_or_else(
-            || Err(anyhow!("badly formed region")),
-            |s| s.parse::<u64>().map_err(|e| e.into()),
-        )?;
+        let start = iter
+            .next()
+            .ok_or_else(|| anyhow!("badly formed region"))?
+            .parse::<u64>()?;
+        let end = iter
+            .next()
+            .ok_or_else(|| anyhow!("badly formed region"))?
+            .parse::<u64>()?;
         if iter.next().is_some() {
             return Err(anyhow!("badly formed region"));
         }
