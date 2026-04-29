@@ -6,10 +6,8 @@ use std::fmt::Display;
 
 //------------------------------------------
 
-// FIXME: nasty unwraps
 pub fn string_val(kv: &Attribute) -> anyhow::Result<String> {
-    kv.unescape_value()
-        .map_or_else(|e| Err(e.into()), |s| Ok(s.as_ref().to_string()))
+    Ok(kv.unescape_value()?.as_ref().to_string())
 }
 
 fn parse_val<T>(kv: &Attribute) -> anyhow::Result<T>
@@ -17,8 +15,7 @@ where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::error::Error + Send + Sync + 'static,
 {
-    std::str::from_utf8(kv.value.as_ref())
-        .map_or_else(|e| Err(e.into()), |s| s.parse::<T>().map_err(|e| e.into()))
+    Ok(std::str::from_utf8(kv.value.as_ref())?.parse::<T>()?)
 }
 
 pub fn u64_val(kv: &Attribute) -> anyhow::Result<u64> {
