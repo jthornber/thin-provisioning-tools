@@ -976,15 +976,13 @@ pub fn read_or_rebuild_superblock(
     read_superblock(engine.as_ref(), loc)
         .and_then(|sb| is_superblock_consistent_(sb, &found_roots))
         .and_then(|sb| sb.overrides(opts))
-        .map_or_else(
-            |e| {
-                let ref_sb = e
-                    .downcast_ref::<SuperblockError>()
-                    .and_then(|err| err.failed_sb.clone());
-                rebuild_superblock(&found_roots[0], ref_sb, opts)
-            },
-            |sb| Ok(ThinSuperblock::OnDisk(sb)),
-        )
+        .map(ThinSuperblock::OnDisk)
+        .or_else(|e| {
+            let ref_sb = e
+                .downcast_ref::<SuperblockError>()
+                .and_then(|err| err.failed_sb.clone());
+            rebuild_superblock(&found_roots[0], ref_sb, opts)
+        })
 }
 
 //------------------------------------------
