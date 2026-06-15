@@ -140,11 +140,12 @@ fn mark_blocks_since(
     }
 
     if let Some(archived_begin) = wsets.keys().next() {
-        if *archived_begin as u32 > threshold {
-            marked_bits =
-                collate_era_array(engine.clone(), sb.era_array_root, marked_bits, threshold)?;
+        if *archived_begin as u32 <= threshold {
+            return Ok(marked_bits);
         }
     }
+
+    marked_bits = collate_era_array(engine.clone(), sb.era_array_root, marked_bits, threshold)?;
 
     Ok(marked_bits)
 }
