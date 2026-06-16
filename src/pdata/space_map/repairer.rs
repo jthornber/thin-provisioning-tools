@@ -31,9 +31,8 @@ pub fn repair_space_map(
     for (i, rb) in rblocks.into_iter().enumerate() {
         if let Ok(b) = rb {
             let be = &entries[i];
-            let mut blocknr = be.blocknr;
             let mut bitmap = unpack::<Bitmap>(b.get_data())?;
-            for e in bitmap.entries.iter_mut() {
+            for (blocknr, e) in (be.blocknr..).zip(bitmap.entries.iter_mut()) {
                 if blocknr >= sm.get_nr_blocks()? {
                     break;
                 }
@@ -44,8 +43,6 @@ pub fn repair_space_map(
                         *e = BitmapEntry::Small(0);
                     }
                 }
-
-                blocknr += 1;
             }
 
             let mut out = std::io::Cursor::new(b.get_data());

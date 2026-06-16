@@ -159,8 +159,9 @@ impl<'a> ReadHandler for IndexHandler<'a> {
                     }
                     let bitmap = bitmap.unwrap();
 
-                    let mut blocknr = block_index * ENTRIES_PER_BITMAP as u64;
-                    for e in bitmap.entries.iter() {
+                    for (blocknr, e) in
+                        (block_index * ENTRIES_PER_BITMAP as u64..).zip(bitmap.entries.iter())
+                    {
                         match e {
                             BitmapEntry::Small(count) => {
                                 if *count > 0 {
@@ -172,7 +173,6 @@ impl<'a> ReadHandler for IndexHandler<'a> {
                                 // We'll handle this in the next step
                             }
                         }
-                        blocknr += 1;
                     }
                     self.flush_batch();
                 }
