@@ -205,8 +205,10 @@ fn dump_v2_mappings(
     let dirty_bits = if let Some(root) = dirty_root {
         let (bits, errs) =
             read_bitset_checked(engine.as_ref(), root, cache_blocks as usize, repair);
-        if errs.is_some() && !repair {
-            return Err(anyhow!("errors in bitset {}", errs.unwrap()));
+        if let Some(e) = errs {
+            if !repair {
+                return Err(anyhow!("errors in bitset {}", e));
+            }
         }
         bits
     } else {
@@ -368,8 +370,8 @@ pub fn dump(opts: CacheDumpOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let writer: Box<dyn Write> = if opts.output.is_some() {
-        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+    let writer: Box<dyn Write> = if let Some(output) = opts.output {
+        let f = File::create(output).context(OutputError)?;
         Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))

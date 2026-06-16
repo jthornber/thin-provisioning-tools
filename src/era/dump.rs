@@ -458,8 +458,8 @@ pub fn dump(opts: EraDumpOptions) -> anyhow::Result<()> {
     let ctx = mk_context(&opts)?;
     let sb = read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?;
 
-    let writer: Box<dyn Write> = if opts.output.is_some() {
-        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+    let writer: Box<dyn Write> = if let Some(output) = opts.output {
+        let f = File::create(output).context(OutputError)?;
         Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))

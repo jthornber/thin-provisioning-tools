@@ -321,8 +321,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                     metadata_sm.clone(),
                     opts.ignore_non_fatal,
                 )?;
-                if err.is_some() {
-                    ctx.report.fatal(&format!("{}", err.unwrap()));
+                if let Some(e) = err {
+                    ctx.report.fatal(&format!("{}", e));
                 }
                 let c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
                 if let Err(e) = w.walk(&c, sb.mapping_root) {
@@ -357,8 +357,8 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
             metadata_sm.clone(),
             opts.ignore_non_fatal,
         )?;
-        if err.is_some() {
-            ctx.report.fatal(&format!("{}", err.unwrap()));
+        if let Some(e) = err {
+            ctx.report.fatal(&format!("{}", e));
         }
     }
 

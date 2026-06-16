@@ -196,8 +196,8 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     w.write_u32::<LittleEndian>(sb.policy_version[1])?;
     w.write_u32::<LittleEndian>(sb.policy_version[2])?;
 
-    if sb.dirty_root.is_some() {
-        w.write_u64::<LittleEndian>(sb.dirty_root.unwrap())?;
+    if let Some(root) = sb.dirty_root {
+        w.write_u64::<LittleEndian>(root)?;
     }
 
     Ok(())

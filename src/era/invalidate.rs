@@ -255,8 +255,8 @@ pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
         read_superblock(ctx.engine.as_ref(), SUPERBLOCK_LOCATION)?
     };
 
-    let w: Box<dyn Write> = if opts.output.is_some() {
-        Box::new(BufWriter::new(File::create(opts.output.unwrap())?))
+    let w: Box<dyn Write> = if let Some(output) = opts.output {
+        Box::new(BufWriter::new(File::create(output)?))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))
     };

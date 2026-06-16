@@ -409,8 +409,8 @@ pub fn dump_with_formatter(opts: ThinDumpOptions, out: &mut dyn MetadataVisitor)
 }
 
 pub fn dump(opts: ThinDumpOptions) -> Result<()> {
-    let writer: Box<dyn Write> = if opts.output.is_some() {
-        let f = File::create(opts.output.unwrap()).context(OutputError)?;
+    let writer: Box<dyn Write> = if let Some(output) = opts.output {
+        let f = File::create(output).context(OutputError)?;
         Box::new(BufWriter::new(f))
     } else {
         Box::new(BufWriter::new(std::io::stdout()))

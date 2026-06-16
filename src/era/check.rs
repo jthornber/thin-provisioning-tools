@@ -123,8 +123,8 @@ pub fn check(opts: &EraCheckOptions) -> Result<()> {
             metadata_sm.clone(),
             opts.ignore_non_fatal,
         )?;
-        if err.is_some() {
-            ctx.report.fatal(&format!("{}", err.unwrap()));
+        if let Some(e) = err {
+            ctx.report.fatal(&format!("{}", e));
             fatal = true;
         }
     }
