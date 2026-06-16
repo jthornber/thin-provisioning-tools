@@ -46,7 +46,7 @@ impl CopyOpBatcher {
 
         // We sort by the destination since this is likely to be a spindle
         // and keeping the io in sequential order will help performance.
-        ops.sort_by(|lhs, rhs| lhs.dst.cmp(&rhs.dst));
+        ops.sort_by_key(|lhs| lhs.dst);
         self.tx
             .send(ops)
             .map_err(|_| anyhow!("unable to send copy op array"))

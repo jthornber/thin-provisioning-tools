@@ -137,7 +137,7 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
         }
 
         // sort by block_begin so the IO will be ordered.
-        reads.sort_by(|lhs, rhs| lhs.block_begin.cmp(&rhs.block_begin));
+        reads.sort_by_key(|lhs| lhs.block_begin);
 
         // Aggregate adjacent io
         let reads = aggregate_ops(&reads);
@@ -202,7 +202,7 @@ impl<T: ReadBlocks + WriteBlocks + Send> SyncCopier<T> {
         }
 
         // sort by block_begin so the IO will be ordered.
-        writes.sort_by(|lhs, rhs| lhs.block_begin.cmp(&rhs.block_begin));
+        writes.sort_by_key(|lhs| lhs.block_begin);
 
         // Aggregate adjacent io
         let writes = aggregate_ops(&writes);

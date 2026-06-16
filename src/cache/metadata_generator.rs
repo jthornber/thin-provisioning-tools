@@ -105,7 +105,7 @@ impl MetadataGenerator for CacheGenerator {
         for (oblock, cblock) in oblocks.iter().zip(cblocks.iter()) {
             maps.push((oblock, *cblock));
         }
-        maps.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
+        maps.sort_by_key(|lhs| lhs.1);
 
         v.mappings_b()?;
         for (oblock, cblock) in maps {

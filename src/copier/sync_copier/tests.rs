@@ -363,10 +363,8 @@ fn skip_copy_if_all_read_failed() -> Result<()> {
     assert_eq!(stats.read_errors.len(), ops.len());
     assert!(stats.write_errors.is_empty());
 
-    ops.sort_unstable_by(|lhs, rhs| lhs.src.cmp(&rhs.src));
-    stats
-        .read_errors
-        .sort_unstable_by(|lhs, rhs| lhs.src.cmp(&rhs.src));
+    ops.sort_unstable_by_key(|lhs| lhs.src);
+    stats.read_errors.sort_unstable_by_key(|lhs| lhs.src);
     assert_eq!(ops, stats.read_errors);
 
     t.verify(&ops)
@@ -388,10 +386,8 @@ fn skip_copy_if_all_write_failed() -> Result<()> {
     assert!(stats.read_errors.is_empty());
     assert_eq!(stats.write_errors.len(), ops.len());
 
-    ops.sort_unstable_by(|lhs, rhs| lhs.src.cmp(&rhs.src));
-    stats
-        .write_errors
-        .sort_unstable_by(|lhs, rhs| lhs.src.cmp(&rhs.src));
+    ops.sort_unstable_by_key(|lhs| lhs.src);
+    stats.write_errors.sort_unstable_by_key(|lhs| lhs.src);
     assert_eq!(ops, stats.write_errors);
 
     t.verify(&ops)
