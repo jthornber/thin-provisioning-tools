@@ -126,13 +126,7 @@ fn ls_next(ls: &mut ListState, max: usize) {
     }
 
     let i = match ls.selected() {
-        Some(i) => {
-            if i >= max - 1 {
-                max - 1
-            } else {
-                i + 1
-            }
-        }
+        Some(i) => (i + 1).min(max - 1),
         None => 0,
     };
     ls.select(Some(i));
@@ -442,23 +436,13 @@ impl<V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'
         };
         hdr.render(chunks[0], buf);
 
-        let items: Vec<ListItem>;
-        let i: usize;
         let selected = state.selected().unwrap_or(0);
         let mut state = ListState::default();
 
-        match self.node {
-            btree::Node::Internal { keys, values, .. } => {
-                let (items_, i_) = mk_items(keys, values, selected);
-                items = items_;
-                i = i_;
-            }
-            btree::Node::Leaf { keys, values, .. } => {
-                let (items_, i_) = mk_items(keys, values, selected);
-                items = items_;
-                i = i_;
-            }
-        }
+        let (items, i) = match self.node {
+            btree::Node::Internal { keys, values, .. } => mk_items(keys, values, selected),
+            btree::Node::Leaf { keys, values, .. } => mk_items(keys, values, selected),
+        };
 
         if !items.is_empty() {
             state.select(Some(i));
