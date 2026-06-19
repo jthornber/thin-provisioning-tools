@@ -121,6 +121,10 @@ impl Default for Events {
 //------------------------------------
 
 fn ls_next(ls: &mut ListState, max: usize) {
+    if max == 0 {
+        return;
+    }
+
     let i = match ls.selected() {
         Some(i) => {
             if i >= max - 1 {
@@ -135,17 +139,11 @@ fn ls_next(ls: &mut ListState, max: usize) {
 }
 
 fn ls_previous(ls: &mut ListState) {
-    let i = match ls.selected() {
-        Some(i) => {
-            if i == 0 {
-                0
-            } else {
-                i - 1
-            }
+    if let Some(i) = ls.selected() {
+        if i > 0 {
+            ls.select(Some(i - 1));
         }
-        None => 0,
-    };
-    ls.select(Some(i));
+    }
 }
 
 //------------------------------------
@@ -446,7 +444,7 @@ impl<V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'
 
         let items: Vec<ListItem>;
         let i: usize;
-        let selected = state.selected().unwrap();
+        let selected = state.selected().unwrap_or(0);
         let mut state = ListState::default();
 
         match self.node {
@@ -461,7 +459,10 @@ impl<V: Unpack + fmt::Display + Adjacent + Copy> StatefulWidget for NodeWidget<'
                 i = i_;
             }
         }
-        state.select(Some(i));
+
+        if !items.is_empty() {
+            state.select(Some(i));
+        }
 
         let items = List::new(items)
             .block(Block::default().borders(Borders::ALL).title("Entries"))
@@ -559,7 +560,10 @@ impl DeviceDetailPanel {
     fn new(node: btree::Node<DeviceDetail>) -> DeviceDetailPanel {
         let nr_entries = node.get_header().nr_entries as usize;
         let mut state = ListState::default();
-        state.select(Some(0));
+
+        if nr_entries > 0 {
+            state.select(Some(0));
+        }
 
         DeviceDetailPanel {
             node,
@@ -629,7 +633,10 @@ impl TopLevelPanel {
     fn new(node: btree::Node<u64>) -> TopLevelPanel {
         let nr_entries = node.get_header().nr_entries as usize;
         let mut state = ListState::default();
-        state.select(Some(0));
+
+        if nr_entries > 0 {
+            state.select(Some(0));
+        }
 
         TopLevelPanel {
             node,
@@ -711,7 +718,10 @@ impl BottomLevelPanel {
     fn new(thin_id: u32, node: btree::Node<BlockTime>) -> BottomLevelPanel {
         let nr_entries = node.get_header().nr_entries as usize;
         let mut state = ListState::default();
-        state.select(Some(0));
+
+        if nr_entries > 0 {
+            state.select(Some(0));
+        }
 
         BottomLevelPanel {
             thin_id,
