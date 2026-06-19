@@ -670,11 +670,10 @@ impl Panel for TopLevelPanel {
                 btree::Node::Internal { values, .. } => {
                     Some(PushTopLevel(values[self.state.selected().unwrap()]))
                 }
-                btree::Node::Leaf { values, keys, .. } => {
-                    let index = self.state.selected().unwrap();
-
-                    Some(PushBottomLevel(keys[index] as u32, values[index]))
-                }
+                btree::Node::Leaf { values, keys, .. } => self
+                    .state
+                    .selected()
+                    .map(|index| PushBottomLevel(keys[index] as u32, values[index])),
             },
             Key::Char('h') | Key::Left => Some(PopPanel),
             _ => None,
