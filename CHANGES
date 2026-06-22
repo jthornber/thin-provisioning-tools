@@ -1,3 +1,11 @@
+v1.3.3
+======
+
+- Fix missing era array traversal in era_invalidate when no writesets exist
+- Fix panics in thin_explore when navigating empty btrees
+- Ensure data consistency by flushing the output file when closing
+  thin_metadata_pack and thin_metadata_unpack.
+
 v1.3.2
 ======
 
