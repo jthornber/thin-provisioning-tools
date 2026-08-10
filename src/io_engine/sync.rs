@@ -244,7 +244,10 @@ impl SyncIoEngine {
             assert!(first.is_some());
 
             // Issue io
-            let run_results = vio.read_blocks(&mut buffers[..], first.unwrap() * BLOCK_SIZE as u64);
+            let run_results = match offset_of(first.unwrap()) {
+                Ok(pos) => vio.read_blocks(&mut buffers[..], pos),
+                Err(e) => Err(e.into()),
+            };
 
             if let Ok(run_results) = run_results {
                 // select results
@@ -317,7 +320,12 @@ impl SyncIoEngine {
                 .iter()
                 .map(|b| b.as_ref())
                 .collect();
-            let run_results = vio.write_blocks(&buffers, batch_start * BLOCK_SIZE as u64);
+
+            let run_results = match offset_of(batch_start) {
+                Ok(pos) => vio.write_blocks(&buffers, pos),
+                Err(e) => Err(e.into()),
+            };
+
             issued += batch_size;
 
             if let Ok(run_results) = run_results {
