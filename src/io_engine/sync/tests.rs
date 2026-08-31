@@ -163,6 +163,44 @@ fn test_unrepresentable_block_address_in_batch() {
 }
 
 #[test]
+fn test_read_last_representable_block() {
+    let mut v = MockVio::new();
+
+    v.expect_read_vectored_at()
+        .times(1)
+        .withf(|bufs, pos| {
+            assert_eq!(*pos, MAX_REPRESENTABLE_BLOCK * BLOCK_SIZE as u64);
+            assert_eq!(bufs.len(), 1);
+            true
+        })
+        .returning(|bufs, _| Ok(bufs.iter().map(|buf| buf.iov_len).sum()));
+
+    let results = SyncIoEngine::read_many_(v.into(), &[MAX_REPRESENTABLE_BLOCK]).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].as_ref().unwrap().loc, MAX_REPRESENTABLE_BLOCK);
+}
+
+#[test]
+fn test_read_trims_unrepresentable_tail() {
+    let mut v = MockVio::new();
+    let blocks = [MAX_REPRESENTABLE_BLOCK, MAX_REPRESENTABLE_BLOCK + 1];
+
+    v.expect_read_vectored_at()
+        .times(1)
+        .withf(|bufs, pos| {
+            assert_eq!(*pos, MAX_REPRESENTABLE_BLOCK * BLOCK_SIZE as u64);
+            assert_eq!(bufs.len(), 1, "only the representable block may be issued");
+            true
+        })
+        .returning(|bufs, _| Ok(bufs.iter().map(|buf| buf.iov_len).sum()));
+
+    let results = SyncIoEngine::read_many_(v.into(), &blocks).unwrap();
+    assert_eq!(results.len(), blocks.len());
+    assert_eq!(results[0].as_ref().unwrap().loc, MAX_REPRESENTABLE_BLOCK);
+    assert!(results[1].is_err());
+}
+
+#[test]
 fn test_write_unrepresentable_block_address() {
     let mut v = MockVio::new();
     v.expect_write_vectored_at().times(0);

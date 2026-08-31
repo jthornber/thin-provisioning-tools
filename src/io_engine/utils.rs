@@ -71,41 +71,44 @@ impl<T: VectoredIo> From<T> for VectoredBlockIo<T> {
 impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
     // If io fails, the first block will be marked as errored,
     // and the io will be retried from the subsequent block.
-    fn read_blocks(&self, buffers: &mut [&mut [u8]], mut pos: u64) -> Result<Vec<Result<()>>> {
+    fn read_blocks(&self, buffers: &mut [&mut [u8]], pos: u64) -> Result<Vec<Result<()>>> {
         let block_size = buffers[0].len();
-        let mut remaining = 0;
-        let mut bufs: Vec<&mut IoVec> = Vec::with_capacity(buffers.len());
-        for b in buffers.iter_mut() {
+        let nr_buffers = buffers.len();
+
+        // A run may extend past the end of the address space, so skip the
+        // blocks that have no representable offset. Round up to count the
+        // representable blocks within [pos, u64::MAX].
+        let nr_reachable = (u64::MAX - pos)
+            .div_ceil(block_size as u64)
+            .min(nr_buffers as u64) as usize;
+
+        let mut bufs: Vec<&mut IoVec> = Vec::with_capacity(nr_reachable);
+        for b in buffers[..nr_reachable].iter_mut() {
             assert_eq!(b.len(), block_size);
-            remaining += b.len();
             bufs.push((*b).into());
         }
-        let mut os_bufs = unix::as_os_slice_mut(&mut bufs[..]);
-        let mut results = Vec::with_capacity(os_bufs.len());
+        let os_bufs = unix::as_os_slice_mut(&mut bufs[..]);
+        let mut results = Vec::with_capacity(nr_buffers);
 
         // Track partial buffers that need zero-filling:
         // (buffer_index, start_offset)
         let mut partial_bufs = Vec::new();
-        let mut buffer_idx = 0;
 
-        while remaining > 0 {
-            match self.dev.read_vectored_at(os_bufs, pos) {
+        let mut nr_done = 0;
+
+        while nr_done < nr_reachable {
+            let off = pos + nr_done as u64 * block_size as u64;
+
+            match self.dev.read_vectored_at(&mut os_bufs[nr_done..], off) {
                 Ok(0) => {
-                    for _ in 0..os_bufs.len() {
+                    for _ in nr_done..nr_reachable {
                         results.push(Err(anyhow!("EOF")));
                     }
-                    remaining = 0;
+                    nr_done = nr_reachable;
                 }
                 Ok(n) => {
                     let blocks_completed = n / block_size;
                     let partial_bytes = n % block_size;
-                    let blocks_to_skip = n.div_ceil(block_size);
-
-                    // Skip to the next iovec: for partial reads this skips to next iovec boundary,
-                    // for complete reads this continues normally
-                    remaining -= blocks_to_skip * block_size;
-                    pos += blocks_to_skip as u64 * block_size as u64;
-                    os_bufs = &mut os_bufs[blocks_to_skip..];
 
                     // Save the return status (complete + partial if any)
                     for _ in 0..blocks_completed {
@@ -119,18 +122,16 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
                         }
 
                         // Mark the partial block for zero-filling later
-                        partial_bufs.push((buffer_idx + blocks_completed, partial_bytes));
+                        partial_bufs.push((nr_done + blocks_completed, partial_bytes));
                     }
 
-                    buffer_idx += blocks_to_skip;
+                    // skip to the next unread block
+                    nr_done += n.div_ceil(block_size);
                 }
                 Err(_) => {
                     // Skip to the next iovec
-                    remaining -= block_size;
-                    pos += block_size as u64;
-                    os_bufs = &mut os_bufs[1..];
                     results.push(Err(anyhow!("read failed")));
-                    buffer_idx += 1;
+                    nr_done += 1;
                 }
             }
         }
@@ -140,39 +141,55 @@ impl<T: VectoredIo> ReadBlocks for VectoredBlockIo<T> {
             buffers[buf_idx][offset..].fill(0);
         }
 
+        // Blocks whose offset would fall outside the address space
+        for _ in nr_reachable..nr_buffers {
+            results.push(Err(anyhow!("block address out of range")));
+        }
+
         Ok(results)
     }
 }
 
 impl<T: VectoredIo> WriteBlocks for VectoredBlockIo<T> {
-    fn write_blocks(&self, buffers: &[&[u8]], mut pos: u64) -> Result<Vec<Result<()>>> {
+    fn write_blocks(&self, buffers: &[&[u8]], pos: u64) -> Result<Vec<Result<()>>> {
         let block_size = buffers[0].len();
-        let mut remaining = 0;
-        let mut bufs: Vec<&IoVec> = Vec::with_capacity(buffers.len());
-        for b in buffers.iter() {
+        let nr_buffers = buffers.len();
+
+        // A run may extend past the end of the address space, so skip the
+        // blocks that have no offset to write to. Round up to count the
+        // representable blocks within [pos, u64::MAX].
+        let nr_reachable = (u64::MAX - pos)
+            .div_ceil(block_size as u64)
+            .min(nr_buffers as u64) as usize;
+
+        let mut bufs: Vec<&IoVec> = Vec::with_capacity(nr_reachable);
+        for b in buffers[..nr_reachable].iter() {
             assert_eq!(b.len(), block_size);
-            remaining += b.len();
             bufs.push((*b).into());
         }
-        let mut os_bufs = unix::as_os_slice(&bufs[..]);
-        let mut results = Vec::with_capacity(os_bufs.len());
+        let os_bufs = unix::as_os_slice(&bufs[..]);
+        let mut results = Vec::with_capacity(nr_buffers);
 
-        while remaining > 0 {
-            if let Ok(n) = self.dev.write_vectored_at(os_bufs, pos) {
-                remaining -= n;
-                pos += n as u64;
+        let mut nr_done = 0;
+        while nr_done < nr_reachable {
+            let off = pos + nr_done as u64 * block_size as u64;
+
+            if let Ok(n) = self.dev.write_vectored_at(&os_bufs[nr_done..], off) {
                 assert_eq!(n % block_size, 0);
-                os_bufs = &os_bufs[(n / block_size)..];
                 for _ in 0..(n / block_size) {
                     results.push(Ok(()));
                 }
+                nr_done += n / block_size;
             } else {
                 // Skip to the next iovec
-                remaining -= block_size;
-                pos += block_size as u64;
-                os_bufs = &os_bufs[1..];
                 results.push(Err(anyhow!("write failed")));
+                nr_done += 1;
             }
+        }
+
+        // Blocks whose offset would fall outside the address space
+        for _ in nr_reachable..nr_buffers {
+            results.push(Err(anyhow!("block address out of range")));
         }
 
         Ok(results)
