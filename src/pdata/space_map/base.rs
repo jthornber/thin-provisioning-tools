@@ -47,6 +47,19 @@ pub type ASpaceMap = Arc<Mutex<dyn SpaceMap + Sync + Send>>;
 
 //------------------------------------------
 
+// Checks that [begin, begin + len) is within [0, nr_blocks).
+// Avoids computing begin + len to prevent overflow, and checks
+// begin > nr_blocks first to prevent nr_blocks - begin from underflowing.
+#[inline]
+fn check_range(begin: u64, len: u64, nr_blocks: u64) -> Result<()> {
+    if begin > nr_blocks || len > nr_blocks - begin {
+        return Err(anyhow!("block out of bounds"));
+    }
+    Ok(())
+}
+
+//------------------------------------------
+
 pub struct CoreSpaceMap<T> {
     nr_allocated: u64,
     alloc_begin: u64,
@@ -63,14 +76,6 @@ where
             alloc_begin: 0,
             counts: vec![V::default(); nr_entries as usize],
         }
-    }
-
-    #[inline]
-    fn check_index_out_of_bounds(&self, b: u64) -> Result<()> {
-        if b >= self.counts.len() as u64 {
-            return Err(anyhow!("block out of bounds"));
-        }
-        Ok(())
     }
 }
 
@@ -92,12 +97,12 @@ where
     }
 
     fn get(&self, b: u64) -> Result<u32> {
-        self.check_index_out_of_bounds(b)?;
+        check_range(b, 1, self.get_nr_blocks()?)?;
         Ok(self.counts[b as usize].into())
     }
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
-        self.check_index_out_of_bounds(b)?;
+        check_range(b, 1, self.get_nr_blocks()?)?;
 
         let old = self.get(b)?;
         self.counts[b as usize] = v.try_into().map_err(|e| anyhow!("{}", e))?;
@@ -112,9 +117,7 @@ where
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
-        if begin + len > self.counts.len() as u64 {
-            return Err(anyhow!("block out of bounds"));
-        }
+        check_range(begin, len, self.get_nr_blocks()?)?;
 
         for b in begin..(begin + len) {
             let c = &mut self.counts[b as usize];
@@ -165,6 +168,10 @@ where
     }
 
     fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>> {
+        if end > self.counts.len() as u64 {
+            return Err(anyhow!("block out of bounds"));
+        }
+
         for b in begin..end {
             if self.counts[b as usize] == V::from(0u8) {
                 return Ok(Some(b));
@@ -217,14 +224,6 @@ impl RestrictedSpaceMap {
             alloc_begin: 0,
         }
     }
-
-    #[inline]
-    fn check_index_out_of_bounds(&self, b: u64) -> Result<()> {
-        if b >= self.counts.len() as u64 {
-            return Err(anyhow!("block out of bounds"));
-        }
-        Ok(())
-    }
 }
 
 impl RefCount for RestrictedSpaceMap {
@@ -233,7 +232,7 @@ impl RefCount for RestrictedSpaceMap {
     }
 
     fn get(&self, b: u64) -> Result<u32> {
-        self.check_index_out_of_bounds(b)?;
+        check_range(b, 1, self.get_nr_blocks()?)?;
 
         if self.counts.contains(b as usize) {
             Ok(1)
@@ -243,7 +242,7 @@ impl RefCount for RestrictedSpaceMap {
     }
 
     fn set(&mut self, b: u64, v: u32) -> Result<u32> {
-        self.check_index_out_of_bounds(b)?;
+        check_range(b, 1, self.get_nr_blocks()?)?;
 
         let old = self.counts.contains(b as usize);
 
@@ -263,7 +262,7 @@ impl RefCount for RestrictedSpaceMap {
     }
 
     fn inc(&mut self, begin: u64, len: u64) -> Result<()> {
-        self.check_index_out_of_bounds(begin + len - 1)?;
+        check_range(begin, len, self.get_nr_blocks()?)?;
 
         for b in begin..(begin + len) {
             if !self.counts.contains(b as usize) {
@@ -297,7 +296,9 @@ impl SpaceMap for RestrictedSpaceMap {
     }
 
     fn find_free(&mut self, begin: u64, end: u64) -> Result<Option<u64>> {
-        self.check_index_out_of_bounds(end - 1)?;
+        if end > self.counts.len() as u64 {
+            return Err(anyhow!("block out of bounds"));
+        }
 
         for b in begin..end {
             if !self.counts.contains(b as usize) {
