@@ -105,11 +105,11 @@ impl<T: ReadBlocks + WriteBlocks, V: Validator> ReadWriteTest<T, V> {
 
 //-------------------------------------
 
-const BLOCK_SIZE: u32 = 8192; // bytes
-const RAMDISK_SIZE: u32 = 65536; // bytes
-
 mod vectored_io {
     use super::*;
+
+    const BLOCK_SIZE: u32 = 8192; // bytes
+    const RAMDISK_SIZE: u32 = 65536; // bytes
 
     struct VectoredIoValidator {
         faulty_blocks: RoaringBitmap,
@@ -240,6 +240,9 @@ mod vectored_io {
 
 mod simple_io {
     use super::*;
+
+    const BLOCK_SIZE: u32 = 8192; // bytes
+    const RAMDISK_SIZE: u32 = 65536; // bytes
 
     struct SimpleIoValidator {
         faulty_blocks: RoaringBitmap,
