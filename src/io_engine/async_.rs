@@ -383,7 +383,14 @@ impl IoEngine for AsyncIoEngine {
                     let idx = completed + inflight;
                     if let Some(block) = &block_data[idx] {
                         let block_idx = blocks[idx];
-                        let offset = block_idx * BLOCK_SIZE as u64;
+                        let offset = match offset_of(block_idx) {
+                            Ok(offset) => offset,
+                            Err(e) => {
+                                results[idx] = Err(e);
+                                completed += 1;
+                                continue;
+                            }
+                        };
 
                         // Prepare read operation
                         let read_op = opcode::Read::new(
@@ -406,6 +413,11 @@ impl IoEngine for AsyncIoEngine {
                         // This shouldn't happen, but just in case
                         completed += 1;
                     }
+                }
+
+                // Skip waiting for completion if all remaining blocks failed offset checks
+                if inflight == 0 {
+                    continue;
                 }
 
                 // Submit operations and wait for at least one completion
@@ -497,7 +509,14 @@ impl IoEngine for AsyncIoEngine {
                 while completed + inflight < blocks.len() && inflight < QUEUE_DEPTH as usize {
                     let idx = completed + inflight;
                     let block = &blocks[idx];
-                    let offset = block.loc * BLOCK_SIZE as u64;
+                    let offset = match offset_of(block.loc) {
+                        Ok(offset) => offset,
+                        Err(e) => {
+                            results[idx] = Err(e);
+                            completed += 1;
+                            continue;
+                        }
+                    };
 
                     // Prepare write operation
                     let write_op = opcode::Write::new(
@@ -516,6 +535,11 @@ impl IoEngine for AsyncIoEngine {
                     }
 
                     inflight += 1;
+                }
+
+                // Skip waiting for completion if all remaining blocks failed offset checks
+                if inflight == 0 {
+                    continue;
                 }
 
                 // Submit operations and wait for at least one completion
