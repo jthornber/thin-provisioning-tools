@@ -336,7 +336,7 @@ impl IoEngine for AsyncIoEngine {
 
     fn read(&self, b: u64) -> Result<Block> {
         let block = Block::new(b);
-        let loc = b * BLOCK_SIZE as u64;
+        let loc = offset_of(b)?;
 
         // Prepare read operation
         let read_op = opcode::Read::new(
@@ -457,7 +457,7 @@ impl IoEngine for AsyncIoEngine {
     }
 
     fn write(&self, block: &Block) -> Result<()> {
-        let loc = block.loc * BLOCK_SIZE as u64;
+        let loc = offset_of(block.loc)?;
 
         // Prepare write operation
         let write_op = opcode::Write::new(

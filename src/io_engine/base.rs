@@ -114,6 +114,17 @@ pub fn get_nr_blocks<P: AsRef<Path>>(path: P) -> io::Result<u64> {
     Ok(file_utils::file_size(path)? / (BLOCK_SIZE as u64))
 }
 
+// Byte offset of a block, or InvalidInput if it does not fit in a u64.
+pub(crate) fn block_offset(loc: u64, block_size: usize) -> io::Result<u64> {
+    loc.checked_mul(block_size as u64)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))
+}
+
+// Byte offset of a metadata block.
+pub(crate) fn offset_of(loc: u64) -> io::Result<u64> {
+    block_offset(loc, BLOCK_SIZE)
+}
+
 //------------------------------------------
 
 pub trait VectoredIo {

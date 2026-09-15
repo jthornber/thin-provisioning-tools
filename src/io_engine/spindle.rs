@@ -151,16 +151,15 @@ impl SpindleIoEngine_ {
             unpack_block(z, loc).map_err(|_| io::Error::other("unpack failed"))
         } else {
             let b = Block::new(loc);
-            self.input
-                .read_exact_at(b.get_data(), loc * BLOCK_SIZE as u64)?;
+            self.input.read_exact_at(b.get_data(), offset_of(loc)?)?;
             Ok(b)
         }
     }
 
     fn write_(&mut self, b: &Block) -> io::Result<()> {
+        let pos = offset_of(b.loc)?;
         self.compressed.remove(&(b.loc as u32));
-        self.input
-            .write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)
+        self.input.write_all_at(b.get_data(), pos)
     }
 }
 

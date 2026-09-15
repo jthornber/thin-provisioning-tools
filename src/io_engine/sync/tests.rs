@@ -118,3 +118,28 @@ fn test_split_long_run() -> Result<()> {
 }
 
 //------------------------------------------
+
+const MAX_REPRESENTABLE_BLOCK: u64 = u64::MAX / BLOCK_SIZE as u64;
+
+fn engine_of(nr_blocks: u64) -> SyncIoEngine {
+    let file = tempfile::tempfile().unwrap();
+    file.set_len(nr_blocks * BLOCK_SIZE as u64).unwrap();
+    SyncIoEngine { nr_blocks, file }
+}
+
+#[test]
+fn test_read_one_unrepresentable_block_address() {
+    let engine = engine_of(1);
+    let err = engine.read(MAX_REPRESENTABLE_BLOCK + 1).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+}
+
+#[test]
+fn test_write_one_unrepresentable_block_address() {
+    let engine = engine_of(1);
+    let b = Block::zeroed(MAX_REPRESENTABLE_BLOCK + 1);
+    let err = engine.write(&b).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+}
+
+//------------------------------------------

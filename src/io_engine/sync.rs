@@ -352,8 +352,7 @@ impl IoEngine for SyncIoEngine {
 
     fn read(&self, loc: u64) -> Result<Block> {
         let b = Block::new(loc);
-        self.file
-            .read_exact_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
+        self.file.read_exact_at(b.get_data(), offset_of(b.loc)?)?;
         Ok(b)
     }
 
@@ -362,8 +361,7 @@ impl IoEngine for SyncIoEngine {
     }
 
     fn write(&self, b: &Block) -> Result<()> {
-        self.file
-            .write_all_at(b.get_data(), b.loc * BLOCK_SIZE as u64)?;
+        self.file.write_all_at(b.get_data(), offset_of(b.loc)?)?;
         Ok(())
     }
 
