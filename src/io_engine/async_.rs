@@ -195,7 +195,14 @@ impl<'a> AsyncReader<'a> {
                 && !self.io_blocks.is_empty()
             {
                 let start_block = block_indices[blocks_read as usize];
-                let offset = start_block * self.io_blocks.get_block_size() as u64;
+                let offset = match block_offset(start_block, self.io_blocks.get_block_size()) {
+                    Ok(offset) => offset,
+                    Err(e) => {
+                        callback(start_block, Err(e));
+                        blocks_read += 1;
+                        continue;
+                    }
+                };
 
                 // Prepare the next IO request
                 let (io_data, blocks_this_read) =
@@ -209,6 +216,11 @@ impl<'a> AsyncReader<'a> {
                 } else {
                     break;
                 }
+            }
+
+            // Skip waiting for completion if all remaining blocks failed offset checks
+            if inflight == 0 {
+                continue;
             }
 
             // Submit and wait for completions
