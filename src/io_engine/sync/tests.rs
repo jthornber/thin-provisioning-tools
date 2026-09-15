@@ -231,4 +231,40 @@ fn test_write_one_unrepresentable_block_address() {
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
 }
 
+#[derive(Default)]
+struct ResultCollector {
+    results: Vec<(u64, bool)>,
+}
+
+impl ReadHandler for ResultCollector {
+    fn handle(&mut self, loc: u64, data: io::Result<&[u8]>) {
+        self.results.push((loc, data.is_ok()));
+    }
+
+    fn complete(&mut self) {}
+}
+
+// Streaming reads in io blocks larger than BLOCK_SIZE must still report an
+// unrepresentable address as a per-block error.
+#[test]
+fn test_stream_unrepresentable_block_address() {
+    let file = tempfile::tempfile().unwrap();
+    file.set_len(BLOCK_SIZE as u64).unwrap();
+
+    let mut pool = BufferPool::new(16, 64 * 1024);
+    let mut reader = SyncReader::new(&file, &mut pool).unwrap();
+    let mut handler = ResultCollector::default();
+    let blocks = [0, MAX_REPRESENTABLE_BLOCK + 1];
+
+    reader
+        .stream_blocks(&mut blocks.into_iter(), &mut handler)
+        .unwrap();
+
+    handler.results.sort_unstable();
+    assert_eq!(
+        handler.results,
+        vec![(0, true), (MAX_REPRESENTABLE_BLOCK + 1, false)]
+    );
+}
+
 //------------------------------------------

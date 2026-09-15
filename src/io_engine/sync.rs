@@ -52,6 +52,18 @@ impl<'a> SyncReader<'a> {
         F: FnMut(u64, io::Result<&[u8]>) -> io::Result<()>,
     {
         let block_size = self.io_blocks.get_block_size();
+
+        // The indices are adjacent, so none is representable if the first isn't
+        let pos = match block_offset(block_indices[0], block_size) {
+            Ok(pos) => pos,
+            Err(e) => {
+                for &index in block_indices {
+                    callback(index, Err(io::Error::from(e.kind())))?;
+                }
+                return Ok(());
+            }
+        };
+
         let mut bufs = Vec::with_capacity(block_indices.len());
         let mut io_blocks = Vec::with_capacity(block_indices.len());
 
@@ -77,7 +89,7 @@ impl<'a> SyncReader<'a> {
         // Read the blocks
         let results = self
             .reader
-            .read_blocks(&mut buf_refs, block_indices[0] * block_size as u64)
+            .read_blocks(&mut buf_refs, pos)
             .map_err(io::Error::other)?;
 
         // Process results and invoke callback
