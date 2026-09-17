@@ -1,3 +1,13 @@
+v1.3.4
+======
+
+- Fix panics in thin_dump when btree nodes point beyond the metadata device
+- Fix overflows in IoEngine block range tracking and offset calculation, which
+  caused panics or reads at wrong offsets on damaged metadata in thin_check,
+  cache_check and other tools.
+- Fix integer overflow in space map boundary checks
+- Remove redundant leaf insertions in LeafWalker
+
 v1.3.3
 ======
 
