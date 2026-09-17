@@ -175,7 +175,7 @@ impl<'a> Restorer<'a> {
             sm: self.data_sm.as_ref().unwrap().clone(),
         };
 
-        for (_, leaves) in self.sub_trees.iter() {
+        for leaves in self.sub_trees.values() {
             release_leaves(self.w, leaves, &mut value_rc)?;
         }
 
