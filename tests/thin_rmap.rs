@@ -3,7 +3,6 @@ use anyhow::Result;
 mod common;
 
 use common::common_args::*;
-use common::process::*;
 use common::program::*;
 use common::target::*;
 use common::test_dir::*;
