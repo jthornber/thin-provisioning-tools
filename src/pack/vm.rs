@@ -478,7 +478,7 @@ mod tests {
             .map(|(h, l)| (h << 24) | (l & ((1 << 24) - 1)))
             .collect();
 
-        println!("packing {:?}", &ns);
+        println!("packing {:?}", ns);
         let mut bs = Vec::with_capacity(4096);
 
         let mut w = Cursor::new(&mut bs);

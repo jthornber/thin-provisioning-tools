@@ -144,11 +144,11 @@ fn accepts_quiet() -> Result<()> {
 
     let output = run_ok_raw(thin_check_cmd(args!["--quiet", &md]))?;
     if !output.stdout.is_empty() {
-        eprintln!("stdout: {:?}", &std::str::from_utf8(&output.stdout));
+        eprintln!("stdout: {:?}", std::str::from_utf8(&output.stdout));
     }
 
     if !output.stderr.is_empty() {
-        eprintln!("stderr: {:?}", &std::str::from_utf8(&output.stderr));
+        eprintln!("stderr: {:?}", std::str::from_utf8(&output.stderr));
     }
     assert_eq!(output.stdout.len(), 0);
     assert_eq!(output.stderr.len(), 0);
