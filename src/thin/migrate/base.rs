@@ -7,7 +7,6 @@ use std::sync::mpsc;
 use std::sync::Arc;
 
 use crate::copier::batcher::*;
-use crate::copier::sync_copier::*;
 use crate::copier::wrapper::ThreadedCopier;
 use crate::copier::*;
 use crate::file_utils;
