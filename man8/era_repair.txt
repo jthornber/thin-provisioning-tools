@@ -1,0 +1,50 @@
+NAME
+  era_repair - repair binary era metadata, and write it to a different device or file
+
+SYNOPSIS
+  era_repair [options] -i {device|file} -o {device|file}
+
+DESCRIPTION
+  era_repair reads binary era metadata created by the device-mapper era
+  target from one device or file, repairs it, and writes the repaired
+  metadata to a different device or file. If written to a metadata device,
+  the metadata can be processed by the device-mapper era target.
+
+  era_repair attempts to repair the metadata by reading the superblock
+  and rebuilding the metadata structures. This includes reconstructing the
+  era array and any other internal data structures from the metadata.
+
+  This tool cannot be run on live metadata. The era target must be offline
+  when repairing its metadata.
+
+OPTIONS
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -q, --quiet		Suppress output messages, return only exit code.
+  -i, --input {device|file}		Input device or file containing binary
+				metadata.
+  -o, --output {device|file}		Output device or file for repaired binary
+				metadata.
+
+  If a file is used for output, then it must be preallocated, and large
+  enough to hold the metadata.
+
+EXAMPLES
+  Repairs the binary era metadata from device /dev/vg/metadata and writes
+  the repaired metadata to device /dev/vg/metadata_repaired:
+
+  $ era_repair -i /dev/vg/metadata -o /dev/vg/metadata_repaired
+
+  Repair era metadata quietly and check the exit code:
+
+  $ era_repair -q -i /dev/vg/metadata -o /dev/vg/metadata_repaired
+  $ echo $?
+
+DIAGNOSTICS
+  era_repair returns an exit code of 0 for success or 1 for error.
+
+SEE ALSO
+  era_dump(8), era_restore(8), era_invalidate(8), era_check(8)
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>

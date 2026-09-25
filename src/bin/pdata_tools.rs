@@ -9,6 +9,7 @@ fn get_basename(path: &OsStr) -> &Path {
     Path::new(p.file_name().unwrap())
 }
 
+// must be kept in-sync with ../../Makefile
 fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
     vec![
         Box::new(cache_check::CacheCheckCommand),
