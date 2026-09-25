@@ -55,7 +55,7 @@ impl Units {
             Kibibyte => "KiB",
             Mebibyte => "MiB",
             Gibibyte => "GiB",
-            Tebibyte => "Tib",
+            Tebibyte => "TiB",
             Pebibyte => "PiB",
             Exbibyte => "EiB",
             // with SI decimal prefixes
@@ -131,7 +131,7 @@ impl std::fmt::Display for Units {
             Kibibyte => "kibibyte",
             Mebibyte => "mebibyte",
             Gibibyte => "gibibyte",
-            Tebibyte => "terabyte",
+            Tebibyte => "tebibyte",
             Pebibyte => "pebibyte",
             Exbibyte => "exbibyte",
             // base 10
@@ -332,6 +332,21 @@ mod storage_size_tests {
         let orig = StorageSize::from_str("18446744073709551615b").unwrap();
         let converted = StorageSize::from_str(&orig.to_string()).unwrap();
         assert_eq!(orig, converted);
+    }
+
+    #[test]
+    fn test_unit_names_round_trip() {
+        use Units::*;
+        let units = [
+            Byte, Sector, Kibibyte, Mebibyte, Gibibyte, Tebibyte, Pebibyte, Exbibyte, Kilobyte,
+            Megabyte, Gigabyte, Terabyte, Petabyte, Exabyte,
+        ];
+
+        for unit in units {
+            assert_eq!(Units::from_str(&unit.to_string_short()).unwrap(), unit);
+            assert_eq!(Units::from_str(&unit.to_letter()).unwrap(), unit);
+            assert_eq!(Units::from_str(&unit.to_string()).unwrap(), unit);
+        }
     }
 
     #[test]
