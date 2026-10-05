@@ -9,6 +9,8 @@ fn get_basename(path: &OsStr) -> &Path {
     Path::new(p.file_name().unwrap())
 }
 
+// To install a new command, also add it to
+// TOOLS in ../../Makefile.
 fn register_commands<'a>() -> Vec<Box<dyn Command<'a>>> {
     vec![
         Box::new(cache_check::CacheCheckCommand),

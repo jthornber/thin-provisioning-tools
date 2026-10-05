@@ -1,0 +1,387 @@
+NAME
+  thin_shrink - rewrite xml metadata and move data in an inactive pool
+
+SYNOPSIS
+  thin_shrink [options] -i {xml file} -o {xml file} --data {device} --nr-blocks {num}
+
+DESCRIPTION
+  thin_shrink performs the data movement needed to shrink a thin pool. It
+  reads the pool's metadata, finds every mapping to a data block at or
+  beyond the new end of the pool, copies those blocks into unmapped blocks
+  below the new end on the pool's data device, and writes new metadata
+  that points at the new locations.
+
+  thin_shrink does not resize anything. The LVM metadata and the pool's
+  binary metadata must be changed separately, as described under
+  SHRINKING AN LVM THIN POOL below.
+
+  This tool cannot be run on live metadata. The pool's data and metadata
+  devices may be mapped, but the thin-pool target must not be loaded.
+
+OPTIONS
+  -h, --help		Print help and exit.
+  -V, --version		Print version information and exit.
+  -i, --input {file}	Input metadata: an XML file written by thin_dump(8),
+			or binary metadata with --binary.
+  -o, --output {file}	Output metadata: an XML file, or with --binary an
+			existing binary file or device large enough to hold
+			the metadata.
+  --data {device}	The pool's data device (_tdata). Blocks are copied
+			in place on this device.
+  --nr-blocks {num}	The new size of the pool, in data blocks.
+  --no-copy		Rewrite the metadata without copying any data. The
+			output then refers to blocks that do not hold the
+			data, so this is only useful for benchmarking.
+  --binary		Read and write binary metadata instead of XML. The
+			procedure below does not use this mode.
+
+SHRINKING AN LVM THIN POOL
+  LVM cannot shrink a thin pool. The procedure below does it by hand, using
+  thin_shrink to move the data. It was used to shrink a pool from 834.30GiB
+  to 534.30GiB, and the examples show the values from that run.
+
+  This is as dangerous as writing to the disk with dd(1). A wrong block
+  count or offset can destroy the pool. Back up the data on the thin
+  volumes first. The new size must be larger than the data in use; check
+  the Data% column of lvs(8).
+
+  In outline:
+
+  1. Dump the pool metadata to XML.
+  2. Let thin_shrink move any mapped data blocks past the new end down
+     into free space, and rewrite the XML to match.
+  3. Make sure the XML superblock has the new block count.
+  4. Restore binary metadata from that XML to a file and verify it.
+  5. Shrink _tdata and the pool LV in a copy of the VG metadata, then
+     apply it with vgcfgrestore(8).
+  6. Write the new binary metadata onto _tmeta.
+  7. Reactivate the pool.
+
+  The examples use volume group vg, thin pool LV pool, and physical volume
+  /dev/sdb1. The pool's device-mapper devices are then vg-pool,
+  vg-pool-tpool, vg-pool_tdata and vg-pool_tmeta. Check the names on your
+  system with dmsetup ls.
+
+  Work in a directory on persistent storage outside the pool. It needs room
+  for the XML dump and for a file the same size as _tmeta. Do not use a
+  tmpfs: if the host reboots partway through, the files are lost.
+
+  Step 1: Stop all users of the pool
+
+  Stop everything that uses the thin volumes, and deactivate every thin
+  volume in the pool. Stop the LVM daemons so that they do not race the
+  dmsetup(8) work. Leave the pool LV itself active.
+
+    $ systemctl stop lvm2-lvmpolld lvm2-monitor
+    $ lvchange -an vg/thin1 vg/thin2
+
+  Check that nothing has the pool open. The Open column must be 0:
+
+    $ dmsetup info -c vg-pool
+
+  Step 2: Back up the VG metadata
+
+  This backup is the rollback point, and the base for the edit in step 8.
+
+    $ vgcfgbackup vg -f vg_backup
+    $ cp vg_backup vg_shrunk
+
+  Step 3: Remove the pool layer
+
+  Activate the pool, then remove its two top devices. Remove vg-pool first:
+  it holds a reference on vg-pool-tpool, which shows Open 1 for as long as
+  vg-pool exists.
+
+    $ lvchange -ay vg/pool
+    $ dmsetup remove vg-pool
+    $ dmsetup remove vg-pool-tpool
+    $ dmsetup ls | grep vg-
+
+  Only vg-pool_tdata, vg-pool_tmeta and unrelated LVs should remain. Leave
+  those two mapped: steps 4 and 6 need them, and step 9 removes them. If
+  removing vg-pool-tpool fails with "Device or resource busy", start this
+  step again from lvchange -ay vg/pool.
+
+  _tdata and _tmeta are hidden LVs and cannot be activated on their own;
+  lvchange -ay vg/pool_tmeta fails with "Operation not permitted on hidden
+  LV". If their mappings are lost, go back to lvchange -ay vg/pool.
+
+  Step 4: Dump the metadata and record the geometry
+
+    $ thin_dump --format xml -o metadata.xml /dev/mapper/vg-pool_tmeta
+    $ head metadata.xml | grep superblock
+    <superblock uuid="" time="21" transaction="183" version="2" data_block_size="1024" nr_data_blocks="1708640">
+
+  Always read data_block_size from this line rather than assuming it.
+  Then read the layout from the VG backup:
+
+    $ grep extent_size vg_backup
+    $ grep pe_start vg_backup
+    $ grep -A 30 'pool_tdata {' vg_backup
+    $ grep -A 20 'pool_tmeta {' vg_backup
+
+  Record these values. All are in 512-byte sectors unless noted.
+
+  BS          data_block_size, from the superblock.
+  N           nr_data_blocks, from the superblock.
+  ES          extent_size.
+  PE_START    pe_start.
+  E           The pool LV's extent_count, in extents. This equals the
+              total extent_count of all the _tdata segments.
+  TE, TO      _tmeta's extent_count and its PV offset, both in extents.
+
+  For step 8, also record each _tdata segment's start_extent,
+  extent_count and PV offset. The PV offset is the number after "pv0" in
+  the segment's stripes list.
+
+  The example had extent_size = 8192 (4MiB), pe_start = 2048, a _tmeta of
+  27 extents at PV offset 27, and two _tdata segments, so E was
+  211586 + 1994 = 213580:
+
+    segment_count = 2
+    segment1 {
+            start_extent = 0
+            extent_count = 211586   # 826.508 Gigabytes
+            ...
+            stripes = [
+                    "pv0", 26624
+            ]
+    }
+    segment2 {
+            start_extent = 211586
+            extent_count = 1994     # 7.78906 Gigabytes
+            ...
+            stripes = [
+                    "pv0", 54
+            ]
+    }
+
+  Step 5: Work out the new sizes
+
+  To free X GiB, where one GiB is 2097152 sectors:
+
+    N_NEW = N - X * 2097152 / BS
+    E_NEW = E - X * 2097152 / ES
+
+  The block count and the extent count must describe exactly the same size,
+  or the pool will fail to activate with "preresume failed, error = -22".
+  This must hold exactly:
+
+    N_NEW = E_NEW * ES / BS
+
+  X must be a whole number of extents; with 4MiB extents, any whole number
+  of GiB is. If any of these divisions leaves a remainder, choose a
+  different X.
+
+  The length of _tmeta and the sector where it starts on the PV are needed
+  in steps 7 and 10:
+
+    TMETA_LEN   = TE * ES
+    TMETA_START = PE_START + TO * ES
+
+  Let the shell check the arithmetic. For the example, freeing 300GiB:
+
+    $ echo $(( 1708640 - 300 * 2097152 / 1024 ))
+    1094240
+    $ echo $(( 213580 - 300 * 2097152 / 8192 ))
+    136780
+    $ echo $(( 136780 * 8192 / 1024 ))
+    1094240
+    $ echo $(( 27 * 8192 ))
+    221184
+    $ echo $(( 2048 + 27 * 8192 ))
+    223232
+
+  So N_NEW is 1094240, E_NEW is 136780, TMETA_LEN is 221184 and
+  TMETA_START is 223232.
+
+  Step 6: Move the data
+
+    $ thin_shrink -i metadata.xml -o metadata_shrunk.xml --data /dev/mapper/vg-pool_tdata --nr-blocks 1094240
+
+  If thin_shrink is not installed as a command of its own, run it as
+  pdata_tools thin_shrink.
+
+  - Both input and output are XML. Do not give it binary metadata or the
+    _tmeta device.
+  - It copies data on _tdata, so expect it to take a while. It prints
+    nothing on success.
+  - It writes only to blocks that the input metadata records as unmapped,
+    and does not touch _tmeta, so the pool's existing metadata stays valid
+    until step 10 replaces it.
+  - If the mapped data does not fit below the new size, it fails with
+    "Insufficient free space" before copying anything.
+
+  Step 7: Fix the superblock, restore to a file and verify
+
+  thin_shrink 1.2.1 and later write the new block count into the output
+  superblock. Earlier releases leave nr_data_blocks at the old value, and
+  the pool will then fail to activate. Set it explicitly; with later
+  releases this changes nothing:
+
+    $ sed -i 's/nr_data_blocks="1708640"/nr_data_blocks="1094240"/' metadata_shrunk.xml
+    $ head metadata_shrunk.xml | grep superblock
+
+  The output must show nr_data_blocks="1094240". The --nr-data-blocks
+  option of thin_restore(8) cannot be used for this, because it can only
+  raise the block count.
+
+  Restore into a file of exactly TMETA_LEN sectors, and check it before
+  touching any device:
+
+    $ dd if=/dev/zero of=tmeta.bin bs=512 count=221184
+    $ thin_restore -i metadata_shrunk.xml -o tmeta.bin
+    $ thin_check tmeta.bin
+    $ thin_dump tmeta.bin | head | grep superblock
+
+  The last command must show nr_data_blocks="1094240".
+
+  thin_restore needs an existing output file at least as large as _tmeta.
+  A missing file gives "Couldn't find output file", and one that is too
+  small gives "Output file too small.". thin_check and thin_dump read
+  binary metadata only. Run against the XML files, they print misleading
+  errors such as "This looks like XML", "bad checksum in superblock" or
+  "Metadata device/file too small. Is this binary metadata?".
+
+  Step 8: Edit the VG metadata
+
+  Edit vg_shrunk with a text editor. Shrink pool_tdata from its logical
+  end, meaning from the segment with the highest start_extent. That may
+  not be the segment with the highest PV offset: in the example, segment2
+  was at PV offset 54.
+
+  - If a whole segment goes, delete it and decrement segment_count.
+  - Cut the remainder from the next segment down.
+  - Set the pool LV's extent_count to E_NEW.
+
+  The example had to lose 213580 - 136780 = 76800 extents. segment2 held
+  1994 of them and was deleted, and segment1 was cut by the remaining
+  74806, from 211586 to 136780 extents. The changes were:
+
+    pool          extent_count = 213580 -> 136780
+    pool_tdata    segment_count = 2 -> 1
+                  segment1: extent_count = 211586 -> 136780
+                  segment2: deleted
+
+  If you make the edit with sed(1) instead, first check with grep -c that
+  each old value occurs only where you intend. Either way, read the diff:
+
+    $ diff vg_backup vg_shrunk
+
+  The "# ... Gigabytes" comments go stale. LVM ignores them.
+
+  Step 9: Apply the VG metadata
+
+  vgcfgrestore will not restore the VG while _tmeta and _tdata are mapped:
+  it asks for confirmation, and aborts if it gets none. Nothing needs them
+  after step 7, so remove them first:
+
+    $ dmsetup remove vg-pool_tmeta
+    $ dmsetup remove vg-pool_tdata
+    $ vgcfgrestore --force -f vg_shrunk vg
+    $ lvs vg
+
+  lvs should now list the pool at its new size, still inactive: <534.30g
+  in the example. Do not try to activate it yet. _tmeta still records the
+  old block count, and activation fails with:
+
+    device-mapper: thin: 252:13: pool target (1094240 blocks) too small: expected 1708640
+    device-mapper: table: 252:13: thin-pool: preresume failed, error = -22
+
+  Step 10: Write the new metadata onto _tmeta
+
+  Make sure nothing of the pool is still mapped, for example after an
+  attempt to activate it. These normally fail with "No such device or
+  address", which is fine:
+
+    $ dmsetup remove vg-pool_tmeta
+    $ dmsetup remove vg-pool_tdata
+    $ dmsetup remove vg-pool-tpool
+    $ dmsetup ls | grep vg-
+
+  Map _tmeta directly onto the PV with a table in sectors, not extents:
+  0 TMETA_LEN linear PV TMETA_START. PV is the physical volume that pv0
+  refers to in the VG metadata. This assumes _tmeta is a single segment,
+  as it was in the example.
+
+    $ dmsetup create vg-pool_tmeta --table "0 221184 linear /dev/sdb1 223232"
+    $ thin_dump /dev/mapper/vg-pool_tmeta | head | grep superblock
+
+  This must still show the old superblock, with nr_data_blocks="1708640".
+  That proves the mapping points at the right place. If dmsetup create
+  fails with "Device or resource busy", mappings from a failed activation
+  are still present; remove all three devices above and try again.
+
+  Write the verified metadata and confirm that it took:
+
+    $ dd if=tmeta.bin of=/dev/mapper/vg-pool_tmeta bs=4096
+    $ sync
+    $ thin_dump /dev/mapper/vg-pool_tmeta | head | grep superblock
+
+  This must show nr_data_blocks="1094240" before you continue.
+
+  Step 11: Reactivate the pool
+
+  LVM refuses to activate the pool while _tmeta is mapped, so remove the
+  manual mapping first:
+
+    $ dmsetup remove vg-pool_tmeta
+    $ lvchange -ay vg/pool
+    $ lvs vg/pool
+    $ dmesg | tail
+
+  The example pool came back as:
+
+    LV   VG Attr       LSize    Pool Origin Data%  Meta%
+    pool vg twi-aotz-- <534.30g             78.55  22.72
+
+  dmesg should show no dm-thin errors. Restart the LVM daemons, then
+  activate the thin volumes and start their users again:
+
+    $ systemctl start lvm2-lvmpolld lvm2-monitor
+
+  Keep metadata.xml and vg_backup until the thin volumes have been checked.
+
+TROUBLESHOOTING
+  - "pool target (N blocks) too small: expected M" or "preresume failed,
+    error = -22" on activation: the VG metadata and the metadata
+    superblock disagree on the pool size. Make the superblock say N_NEW,
+    and recheck the arithmetic in step 5. vgscan, pvscan --cache and
+    blockdev --flushbufs do not fix this.
+  - vg-pool-tpool shows Open 1 with no user: vg-pool holds a reference on
+    it. Remove vg-pool first.
+  - "Device or resource busy" when removing vg-pool-tpool: start again
+    from lvchange -ay vg/pool, then remove vg-pool, then vg-pool-tpool.
+  - "Operation not permitted on hidden LV": _tdata and _tmeta cannot be
+    activated directly. Use lvchange -ay vg/pool.
+  - "This looks like XML", "bad checksum in superblock" or "Metadata
+    device/file too small. Is this binary metadata?": thin_check or
+    thin_dump was run on an XML file. Run them only on binary metadata.
+  - "Couldn't find output file" or "Output file too small." from
+    thin_restore: create the output file at the size of _tmeta with
+    dd(1) first. When restoring onto a manual mapping, it means the
+    dmsetup table was written in extents instead of sectors.
+  - "Do you really want to proceed with restore of volume group" or
+    "Restore aborted." from vgcfgrestore: _tmeta and _tdata are still
+    mapped. Remove them with dmsetup remove and run vgcfgrestore again.
+  - "Activation of logical volume vg/pool is prohibited while logical
+    volume vg/pool_tmeta is active": _tmeta or _tdata is still mapped.
+    Remove it with dmsetup remove, then activate the pool again.
+  - "Device or resource busy" from dmsetup create: mappings from a failed
+    activation remain. Remove _tmeta, _tdata and vg-pool-tpool, then
+    create the mapping again.
+
+DIAGNOSTICS
+  thin_shrink returns an exit code of 0 for success, or non-zero on error.
+
+SEE ALSO
+  thin_check(8), thin_dump(8), thin_repair(8), thin_restore(8),
+  thin_metadata_size(8), thin_rmap(8), dmsetup(8), lvchange(8), lvs(8),
+  vgcfgbackup(8), vgcfgrestore(8)
+
+AUTHOR
+  Joe Thornber <ejt@redhat.com>, Ming-Hung Tsai <mingnus@gmail.com>
+
+NOTES
+  The implementation of thin_shrink in this suite is based on the work of
+  Nikhil Kshirsagar <nikhil.kshirsagar@canonical.com>
