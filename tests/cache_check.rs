@@ -256,6 +256,37 @@ fn dirty_bitset_not_found_should_fail() -> Result<()> {
 }
 
 //------------------------------------------
+// test stale dirty bits on unmapped blocks
+
+// The kernel only writes the dirty bitset on a clean suspend and ignores it
+// after an unclean shutdown, so a set bit on an unmapped block is expected
+// then.
+#[test]
+fn stale_dirty_bits_without_clean_shutdown_should_pass() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    assert!(unmap_dirty_blocks(&md, 16)? > 0);
+    unset_clean_shutdown(&md)?;
+    run_ok(cache_check_cmd(args![&md]))?;
+    run_ok(cache_check_cmd(args![
+        "-q",
+        "--clear-needs-check-flag",
+        &md
+    ]))?;
+    Ok(())
+}
+
+#[test]
+fn dirty_bits_on_unmapped_blocks_with_clean_shutdown_should_fail() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    assert!(get_clean_shutdown(&md)?);
+    assert!(unmap_dirty_blocks(&md, 16)? > 0);
+    run_fail(cache_check_cmd(args![&md]))?;
+    Ok(())
+}
+
+//------------------------------------------
 // test clear-needs-check
 
 #[test]

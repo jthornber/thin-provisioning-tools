@@ -92,3 +92,76 @@ pub fn set_needs_check(md: &Path) -> Result<()> {
 }
 
 //-----------------------------------------------
+
+// Invalidates up to `nr` mappings whose dirty bit is set, leaving the dirty
+// bitset untouched. This mimics the kernel demoting blocks after the dirty
+// bitset was last written: a set dirty bit on an unmapped cache block.
+// Returns the number of mappings invalidated. Format 2 metadata only.
+pub fn unmap_dirty_blocks(md: &Path, nr: usize) -> Result<usize> {
+    use std::io::Cursor;
+    use std::sync::Mutex;
+    use thinp::cache::mapping::Mapping;
+    use thinp::cache::superblock::*;
+    use thinp::checksum::{write_checksum, BT};
+    use thinp::io_engine::{Block, IoEngine};
+    use thinp::pdata::array::{self, pack_array_block, ArrayBlock};
+    use thinp::pdata::array_walker::{ArrayVisitor, ArrayWalker};
+    use thinp::pdata::bitset::read_bitset_checked;
+
+    struct Collector {
+        blocks: Mutex<Vec<(u64, ArrayBlock<Mapping>)>>,
+    }
+
+    impl ArrayVisitor<Mapping> for Collector {
+        fn visit(&self, index: u64, b: ArrayBlock<Mapping>) -> array::Result<()> {
+            self.blocks.lock().unwrap().push((index, b));
+            Ok(())
+        }
+    }
+
+    let engine = SyncIoEngine::new(md, true)?;
+    let sb = read_superblock(&engine, SUPERBLOCK_LOCATION)?;
+    let dirty_root = sb
+        .dirty_root
+        .ok_or_else(|| anyhow::anyhow!("no dirty bitset"))?;
+    let (dirty_bits, err) =
+        read_bitset_checked(&engine, dirty_root, sb.cache_blocks as usize, false);
+    if let Some(e) = err {
+        return Err(anyhow::anyhow!("failed to read dirty bitset: {}", e));
+    }
+
+    let collector = Collector {
+        blocks: Mutex::new(Vec::new()),
+    };
+    ArrayWalker::new(&engine, false).walk(&collector, sb.mapping_root)?;
+
+    let mut count = 0;
+    for (index, mut ablock) in collector.blocks.into_inner().unwrap() {
+        let cbegin = index * ablock.header.max_entries as u64;
+        let mut modified = false;
+        for (i, m) in ablock.values.iter_mut().enumerate() {
+            if count == nr {
+                break;
+            }
+            let cblock = (cbegin + i as u64) as usize;
+            if m.is_valid() && dirty_bits.contains(cblock) == Some(true) {
+                *m = Mapping {
+                    oblock: 0,
+                    flags: 0,
+                };
+                count += 1;
+                modified = true;
+            }
+        }
+        if modified {
+            let b = Block::zeroed(ablock.header.blocknr);
+            pack_array_block(&ablock, &mut Cursor::new(b.get_data()))?;
+            write_checksum(b.get_data(), BT::ARRAY)?;
+            engine.write(&b)?;
+        }
+    }
+
+    Ok(count)
+}
+
+//-----------------------------------------------

@@ -123,6 +123,10 @@ mod format2 {
 
     pub struct MappingChecker {
         nr_origin_blocks: u64,
+        // The dirty bitset is only written on a clean shutdown; after an
+        // unclean one the kernel ignores it and treats every mapped block as
+        // dirty, so stale bits are expected and must not be cross-checked.
+        check_dirty_bits: bool,
         inner: Mutex<Inner>,
     }
 
@@ -132,10 +136,15 @@ mod format2 {
     }
 
     impl MappingChecker {
-        pub fn new(nr_origin_blocks: Option<u64>, dirty_bits: CheckedBitSet) -> MappingChecker {
+        pub fn new(
+            nr_origin_blocks: Option<u64>,
+            dirty_bits: CheckedBitSet,
+            check_dirty_bits: bool,
+        ) -> MappingChecker {
             if let Some(n) = nr_origin_blocks {
                 MappingChecker {
                     nr_origin_blocks: n,
+                    check_dirty_bits,
                     inner: Mutex::new(Inner {
                         seen_oblocks: FixedBitSet::with_capacity(n as usize),
                         dirty_bits,
@@ -144,6 +153,7 @@ mod format2 {
             } else {
                 MappingChecker {
                     nr_origin_blocks: MAX_ORIGIN_BLOCKS,
+                    check_dirty_bits,
                     inner: Mutex::new(Inner {
                         seen_oblocks: FixedBitSet::with_capacity(DEFAULT_OBLOCKS),
                         dirty_bits,
@@ -200,7 +210,12 @@ mod format2 {
             let cbegin = index as u32 * b.header.max_entries;
             let cend = cbegin + b.header.nr_entries;
             for (m, cblock) in b.values.iter().zip(cbegin..cend) {
-                if let Err(e) = self.check_flags(m, inner.dirty_bits.contains(cblock as usize)) {
+                let dirty_bit = if self.check_dirty_bits {
+                    inner.dirty_bits.contains(cblock as usize)
+                } else {
+                    None
+                };
+                if let Err(e) = self.check_flags(m, dirty_bit) {
                     errs.push(e);
                 }
                 if let Err(e) = self.check_oblock(m, &mut inner.seen_oblocks) {
@@ -324,7 +339,11 @@ pub fn check(opts: CacheCheckOptions) -> anyhow::Result<()> {
                 if let Some(e) = err {
                     ctx.report.fatal(&format!("{}", e));
                 }
-                let c = format2::MappingChecker::new(nr_origin_blocks, dirty_bits);
+                let c = format2::MappingChecker::new(
+                    nr_origin_blocks,
+                    dirty_bits,
+                    sb.flags.clean_shutdown,
+                );
                 if let Err(e) = w.walk(&c, sb.mapping_root) {
                     ctx.report.fatal(&format!("{}", e));
                 }

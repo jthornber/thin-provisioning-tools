@@ -29,12 +29,18 @@ mod format1 {
     }
 
     pub struct MappingEmitter<'a> {
+        all_dirty: bool,
         inner: Mutex<Inner<'a>>,
     }
 
     impl<'a> MappingEmitter<'a> {
-        pub fn new(nr_entries: usize, visitor: &'a mut dyn MetadataVisitor) -> MappingEmitter<'a> {
+        pub fn new(
+            nr_entries: usize,
+            all_dirty: bool,
+            visitor: &'a mut dyn MetadataVisitor,
+        ) -> MappingEmitter<'a> {
             MappingEmitter {
+                all_dirty,
                 inner: Mutex::new(Inner {
                     visitor,
                     valid_mappings: FixedBitSet::with_capacity(nr_entries),
@@ -60,7 +66,7 @@ mod format1 {
                 let m = ir::Map {
                     cblock,
                     oblock: map.oblock,
-                    dirty: map.is_dirty(),
+                    dirty: self.all_dirty || map.is_dirty(),
                 };
 
                 let mut inner = self.inner.lock().unwrap();
@@ -88,6 +94,7 @@ mod format2 {
     }
 
     pub struct MappingEmitter<'a> {
+        all_dirty: bool,
         inner: Mutex<Inner<'a>>,
     }
 
@@ -95,9 +102,11 @@ mod format2 {
         pub fn new(
             nr_entries: usize,
             dirty_bits: CheckedBitSet,
+            all_dirty: bool,
             visitor: &'a mut dyn MetadataVisitor,
         ) -> MappingEmitter<'a> {
             MappingEmitter {
+                all_dirty,
                 inner: Mutex::new(Inner {
                     visitor,
                     dirty_bits,
@@ -124,7 +133,8 @@ mod format2 {
                 let mut inner = self.inner.lock().unwrap();
 
                 // default to dirty if the bitset is damaged
-                let dirty = inner.dirty_bits.contains(cblock as usize).unwrap_or(true);
+                let dirty =
+                    self.all_dirty || inner.dirty_bits.contains(cblock as usize).unwrap_or(true);
 
                 let m = ir::Map {
                     cblock,
@@ -184,10 +194,11 @@ fn dump_v1_mappings(
     out: &mut dyn MetadataVisitor,
     mapping_root: u64,
     cache_blocks: u32,
+    all_dirty: bool,
     repair: bool,
 ) -> anyhow::Result<FixedBitSet> {
     let ablocks = collect_array_blocks_with_path(engine.as_ref(), repair, mapping_root)?;
-    let emitter = format1::MappingEmitter::new(cache_blocks as usize, out);
+    let emitter = format1::MappingEmitter::new(cache_blocks as usize, all_dirty, out);
     walk_array_blocks(engine, ablocks, &emitter)?;
 
     Ok(emitter.get_valid())
@@ -199,6 +210,7 @@ fn dump_v2_mappings(
     mapping_root: u64,
     cache_blocks: u32,
     dirty_root: Option<u64>,
+    all_dirty: bool,
     repair: bool,
 ) -> anyhow::Result<FixedBitSet> {
     // We need to walk the dirty bitset first.
@@ -218,7 +230,7 @@ fn dump_v2_mappings(
     };
 
     let ablocks = collect_array_blocks_with_path(engine.as_ref(), repair, mapping_root)?;
-    let emitter = format2::MappingEmitter::new(cache_blocks as usize, dirty_bits, out);
+    let emitter = format2::MappingEmitter::new(cache_blocks as usize, dirty_bits, all_dirty, out);
     walk_array_blocks(engine, ablocks, &emitter)?;
 
     Ok(emitter.get_valid())
@@ -340,6 +352,7 @@ pub fn dump_metadata(
             out,
             sb.mapping_root,
             sb.cache_blocks,
+            !sb.flags.clean_shutdown,
             repair,
         )?,
         2 => dump_v2_mappings(
@@ -348,6 +361,7 @@ pub fn dump_metadata(
             sb.mapping_root,
             sb.cache_blocks,
             sb.dirty_root,
+            !sb.flags.clean_shutdown,
             repair,
         )?,
         v => {

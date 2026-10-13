@@ -108,6 +108,40 @@ fn dump_restore_cycle() -> Result<()> {
 }
 
 //------------------------------------------
+// test dirty flags with and without clean shutdown
+
+fn count_mappings(xml: &str, dirty: bool) -> usize {
+    xml.matches(&format!("dirty=\"{}\"", dirty)).count()
+}
+
+#[test]
+fn dump_keeps_dirty_flags_with_clean_shutdown() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    assert!(get_clean_shutdown(&md)?);
+    let xml = run_ok(cache_dump_cmd(args![&md]))?;
+    assert!(count_mappings(&xml, true) > 0);
+    assert!(count_mappings(&xml, false) > 0);
+    Ok(())
+}
+
+// The kernel treats every mapped block as dirty after an unclean shutdown,
+// since the dirty bitset is only written on a clean suspend.
+#[test]
+fn dump_marks_all_mappings_dirty_without_clean_shutdown() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_valid_md(&mut td)?;
+    let before = run_ok(cache_dump_cmd(args![&md]))?;
+    let nr_mappings = count_mappings(&before, true) + count_mappings(&before, false);
+
+    unset_clean_shutdown(&md)?;
+    let after = run_ok(cache_dump_cmd(args![&md]))?;
+    assert_eq!(count_mappings(&after, false), 0);
+    assert_eq!(count_mappings(&after, true), nr_mappings);
+    Ok(())
+}
+
+//------------------------------------------
 // test no stderr on broken pipe errors
 
 #[test]
