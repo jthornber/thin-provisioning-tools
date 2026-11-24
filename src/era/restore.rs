@@ -111,9 +111,14 @@ impl<'a> Restorer<'a> {
         let sb = Superblock {
             flags: SuperblockFlags {
                 clean_shutdown: true,
+                lazy_dirty: src_sb.dirty,
             },
             block: SUPERBLOCK_LOCATION,
-            version: 1,
+            version: if src_sb.dirty {
+                LAZY_DIRTY_VERSION
+            } else {
+                MIN_VERSION
+            },
             metadata_sm_root,
             data_block_size: src_sb.block_size,
             nr_blocks: src_sb.nr_blocks,

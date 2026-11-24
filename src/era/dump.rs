@@ -322,6 +322,7 @@ pub fn dump_metadata(
         block_size: sb.data_block_size,
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
+        dirty: sb.flags.lazy_dirty,
     };
     out.superblock_b(&xml_sb)?;
 
@@ -439,6 +440,7 @@ pub fn dump_metadata_logical(
         block_size: sb.data_block_size,
         nr_blocks: sb.nr_blocks,
         current_era: sb.current_era,
+        dirty: sb.flags.lazy_dirty,
     };
     out.superblock_b(&xml_sb)?;
 

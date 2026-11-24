@@ -262,6 +262,14 @@ pub fn invalidate(opts: &EraInvalidateOptions) -> Result<()> {
     };
     let mut writer = Writer::new_with_indent(w, 0x20, 2);
 
+    // Opened exclusively, so a dirty superblock means an unclean shutdown
+    // and the writesets may be incomplete.  Metadata snapshots are complete.
+    if !opts.engine_opts.use_metadata_snap && sb.flags.lazy_dirty {
+        eprintln!("era_invalidate: metadata was not shut down cleanly, reporting all blocks");
+        let marked_bits = vec![u64::MAX; div_up(sb.nr_blocks as usize, 64)];
+        return emit_blocks(&marked_bits, sb.nr_blocks, &mut writer);
+    }
+
     let marked_bits = mark_blocks_since(ctx.engine, &sb, opts.threshold)?;
     emit_blocks(&marked_bits, sb.nr_blocks, &mut writer)
 }
