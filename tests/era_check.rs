@@ -136,3 +136,19 @@ fn failing_quiet() -> Result<()> {
 }
 
 //------------------------------------------
+
+//------------------------------------------
+// Lazy mode
+
+#[test]
+fn accepts_dirty_lazy_metadata_with_warning() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_lazy_md(&mut td, true)?;
+
+    let output = run_ok_raw(era_check_cmd(args![&md]))?;
+    let stderr = String::from_utf8(output.stderr)?;
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!((stdout + &stderr).contains("marked dirty"));
+
+    Ok(())
+}

@@ -8,6 +8,8 @@ pub struct Superblock {
     pub block_size: u32,
     pub nr_blocks: u32,
     pub current_era: u32,
+    // writesets may be incomplete (lazy mode)
+    pub dirty: bool,
 }
 
 #[derive(Clone)]

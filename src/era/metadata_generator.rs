@@ -74,6 +74,7 @@ fn create_superblock(block_size: u32, nr_blocks: u32, current_era: u32) -> ir::S
         block_size,
         nr_blocks,
         current_era,
+        dirty: false,
     }
 }
 

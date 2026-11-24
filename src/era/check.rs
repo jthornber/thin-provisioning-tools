@@ -82,9 +82,15 @@ fn mk_context(opts: &EraCheckOptions) -> anyhow::Result<Context> {
     })
 }
 
-fn check_superblock(sb: &Superblock) -> anyhow::Result<()> {
-    if sb.version > 1 {
+fn check_superblock(sb: &Superblock, report: &Report) -> anyhow::Result<()> {
+    if sb.version < MIN_VERSION || sb.version > MAX_VERSION {
         return Err(anyhow!("unknown superblock version"));
+    }
+    if sb.flags.lazy_dirty {
+        report.warning(
+            "metadata is marked dirty (lazy mode): the writesets may be incomplete, \
+             the kernel will mark all blocks as written on the next activation",
+        );
     }
     Ok(())
 }
@@ -101,7 +107,7 @@ pub fn check(opts: &EraCheckOptions) -> Result<()> {
     inc_superblock(&metadata_sm)?;
 
     let sb = read_superblock(engine.as_ref(), SUPERBLOCK_LOCATION)?;
-    check_superblock(&sb)?;
+    check_superblock(&sb, report)?;
 
     if opts.sb_only {
         return Ok(());

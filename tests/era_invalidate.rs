@@ -374,3 +374,39 @@ fn list_changes_in_metadata_snapshot() -> Result<()> {
 }
 
 //------------------------------------------
+
+//------------------------------------------
+// Lazy mode
+
+#[test]
+fn clean_lazy_metadata_reports_marked_blocks() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_lazy_md(&mut td, false)?;
+
+    let stdout = run_ok(era_invalidate_cmd(args![&md, "--written-since", "5"]))?;
+    let expected = "\
+<blocks>
+  <range begin=\"10\" end=\"13\"/>
+</blocks>";
+    assert_eq!(stdout, expected);
+
+    Ok(())
+}
+
+#[test]
+fn dirty_lazy_metadata_reports_all_blocks() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_lazy_md(&mut td, true)?;
+
+    let output = run_ok_raw(era_invalidate_cmd(args![&md, "--written-since", "5"]))?;
+    let stdout = String::from_utf8(output.stdout)?;
+    let stderr = String::from_utf8(output.stderr)?;
+    let expected = "\
+<blocks>
+  <range begin=\"0\" end=\"200\"/>
+</blocks>";
+    assert_eq!(stdout, expected);
+    assert!(stderr.contains("not shut down cleanly"));
+
+    Ok(())
+}

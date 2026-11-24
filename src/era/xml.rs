@@ -34,6 +34,9 @@ impl<W: Write> MetadataVisitor for XmlWriter<W> {
         elem.push_attribute(mk_attr(b"block_size", sb.block_size));
         elem.push_attribute(mk_attr(b"nr_blocks", sb.nr_blocks));
         elem.push_attribute(mk_attr(b"current_era", sb.current_era));
+        if sb.dirty {
+            elem.push_attribute(mk_attr(b"dirty", "true"));
+        }
         self.w.write_event(Event::Start(elem))?;
 
         self.nr_blocks = sb.nr_blocks;
@@ -133,11 +136,13 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
     let mut block_size: Option<u32> = None;
     let mut nr_blocks: Option<u32> = None;
     let mut current_era: Option<u32> = None;
+    let mut dirty = false;
 
     for a in e.attributes() {
         let kv = a.unwrap();
         match kv.key.0 {
             b"uuid" => uuid = Some(string_val(&kv)?),
+            b"dirty" => dirty = bool_val(&kv)?,
             b"block_size" => block_size = Some(u32_val(&kv)?),
             b"nr_blocks" => nr_blocks = Some(u32_val(&kv)?),
             b"current_era" => current_era = Some(u32_val(&kv)?),
@@ -150,6 +155,7 @@ fn parse_superblock(e: &BytesStart) -> Result<Superblock> {
         block_size: check_attr(tag, "block_size", block_size)?,
         nr_blocks: check_attr(tag, "nr_cache_blocks", nr_blocks)?,
         current_era: check_attr(tag, "current_era", current_era)?,
+        dirty,
     })
 }
 

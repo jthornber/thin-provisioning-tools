@@ -15,11 +15,22 @@ pub const SUPERBLOCK_LOCATION: u64 = 0;
 const MAGIC: u64 = 0o17660203573; // 0x7EC1077B in hex
 const UUID_SIZE: usize = 16;
 
+pub const MIN_VERSION: u32 = 1;
+
+// The kernel's lazy mode writes dirty metadata, whose writesets may be
+// incomplete, as version 2.
+pub const LAZY_DIRTY_VERSION: u32 = 2;
+pub const MAX_VERSION: u32 = LAZY_DIRTY_VERSION;
+
+const FLAG_CLEAN_SHUTDOWN: u32 = 1 << 0;
+const FLAG_LAZY_DIRTY: u32 = 1 << 1;
+
 //------------------------------------------
 
 #[derive(Debug, Clone)]
 pub struct SuperblockFlags {
     pub clean_shutdown: bool,
+    pub lazy_dirty: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +78,8 @@ fn unpack(data: &[u8]) -> IResult<&[u8], Superblock> {
         i,
         Superblock {
             flags: SuperblockFlags {
-                clean_shutdown: (flags & 0x1) != 0,
+                clean_shutdown: (flags & FLAG_CLEAN_SHUTDOWN) != 0,
+                lazy_dirty: (flags & FLAG_LAZY_DIRTY) != 0 || version >= LAZY_DIRTY_VERSION,
             },
             block,
             version,
@@ -114,14 +126,22 @@ fn pack_superblock<W: WriteBytesExt>(sb: &Superblock, w: &mut W) -> Result<()> {
     // flags
     let mut flags: u32 = 0;
     if sb.flags.clean_shutdown {
-        flags |= 0x1;
+        flags |= FLAG_CLEAN_SHUTDOWN;
+    }
+    if sb.flags.lazy_dirty {
+        flags |= FLAG_LAZY_DIRTY;
     }
     w.write_u32::<LittleEndian>(flags)?;
     w.write_u64::<LittleEndian>(sb.block)?;
 
     w.write_all(&[0; UUID_SIZE])?;
     w.write_u64::<LittleEndian>(MAGIC)?;
-    w.write_u32::<LittleEndian>(sb.version)?;
+    let version = if sb.flags.lazy_dirty {
+        std::cmp::max(sb.version, LAZY_DIRTY_VERSION)
+    } else {
+        sb.version
+    };
+    w.write_u32::<LittleEndian>(version)?;
 
     w.write_all(&sb.metadata_sm_root)?;
     w.write_u32::<LittleEndian>(sb.data_block_size)?;

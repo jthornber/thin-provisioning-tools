@@ -136,3 +136,47 @@ fn successfully_restores() -> Result<()> {
 }
 
 //-----------------------------------------
+
+//-----------------------------------------
+// Lazy mode
+
+#[test]
+fn restores_dirty_flag() -> Result<()> {
+    let mut td = TestDir::new()?;
+
+    let md = mk_lazy_md(&mut td, true)?;
+    assert_eq!(read_sb_flags_version(&md)?, (0x3, 2));
+
+    let md = mk_lazy_md(&mut td, false)?;
+    assert_eq!(read_sb_flags_version(&md)?, (0x1, 1));
+
+    Ok(())
+}
+
+#[test]
+fn dirty_flag_survives_dump_restore() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_lazy_md(&mut td, true)?;
+
+    let xml = td.mk_path("dumped.xml");
+    run_ok(era_dump_cmd(args![&md, "-o", &xml]))?;
+    assert!(std::fs::read_to_string(&xml)?.contains("dirty=\"true\""));
+
+    let md2 = mk_zeroed_md(&mut td)?;
+    run_ok(era_restore_cmd(args!["-i", &xml, "-o", &md2]))?;
+    assert_eq!(read_sb_flags_version(&md2)?, (0x3, 2));
+
+    Ok(())
+}
+
+#[test]
+fn repair_keeps_dirty_flag() -> Result<()> {
+    let mut td = TestDir::new()?;
+    let md = mk_lazy_md(&mut td, true)?;
+    let md2 = mk_zeroed_md(&mut td)?;
+
+    run_ok(era_repair_cmd(args!["-i", &md, "-o", &md2]))?;
+    assert_eq!(read_sb_flags_version(&md2)?, (0x3, 2));
+
+    Ok(())
+}
